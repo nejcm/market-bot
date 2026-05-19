@@ -20,6 +20,7 @@ function report(summary = "Evidence is sourced and caveated."): ResearchReport {
     scenarios: [{ name: "Base", description: "Conditions remain mixed.", sourceIds: ["source-1"] }],
     confidence: "low",
     dataGaps: ["No macro source"],
+    predictions: [],
     sources: [
       {
         id: "source-1",

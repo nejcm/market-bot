@@ -397,6 +397,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     scenarios: readScenarios(payload.scenarios),
     confidence,
     dataGaps,
+    predictions: [],
     sources: buildSourceList(input.collectedSources),
     notFinancialAdvice: true,
     extras: {

@@ -20,6 +20,7 @@ const report: ResearchReport = {
   ],
   confidence: "medium",
   dataGaps: ["No derivatives data"],
+  predictions: [],
   sources: [
     {
       id: "source-1",

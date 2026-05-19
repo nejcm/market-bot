@@ -46,6 +46,19 @@ export interface Mover {
 
 export type EvidenceQuality = "high" | "medium" | "low";
 
+export type PredictionKind = "direction" | "relative" | "volatility" | "range";
+
+export interface Prediction {
+  readonly id: string;
+  readonly claim: string;
+  readonly kind: PredictionKind;
+  readonly subject: string;
+  readonly measurableAs: string;
+  readonly horizonTradingDays: number;
+  readonly probability: number;
+  readonly sourceIds: readonly string[];
+}
+
 export type MarketRegimeLabel = "risk-on" | "risk-off" | "mixed" | "insufficient-data";
 
 export interface MarketRegimeSummary {
@@ -82,6 +95,7 @@ export interface ResearchReport {
   readonly scenarios: readonly Scenario[];
   readonly confidence: EvidenceQuality;
   readonly dataGaps: readonly string[];
+  readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
   readonly notFinancialAdvice: true;
   readonly extras?: Record<string, unknown>;
@@ -102,4 +116,5 @@ export interface RunTrace {
   readonly stages: readonly string[];
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
+  readonly predictionErrors?: readonly string[];
 }

@@ -42,5 +42,7 @@ describe("golden report contracts", () => {
 
   test("safety scanner blocks trade-action wording", () => {
     expect(() => assertSafeReportLanguage(report("This says sell the instrument."))).toThrow("trade-action language");
+    expect(() => assertSafeReportLanguage(report("This says go long and set a stop loss."))).toThrow("trade-action language");
+    expect(() => assertSafeReportLanguage(report("This says reduce exposure after the catalyst."))).toThrow("trade-action language");
   });
 });

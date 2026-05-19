@@ -42,10 +42,36 @@ function readDepth(args: readonly string[]): Depth {
   return args.includes("--deep") ? "deep" : "brief";
 }
 
+function rejectUnknownArgs(args: readonly string[], allowedPositionals: number): void {
+  const allowedFlags = new Set(["--asset", "--deep"]);
+
+  for (let index = allowedPositionals; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === undefined) {
+      continue;
+    }
+
+    if (!arg.startsWith("--")) {
+      throw new Error(`Unexpected argument: ${arg}`);
+    }
+
+    if (!allowedFlags.has(arg)) {
+      throw new Error(`Unknown flag: ${arg}`);
+    }
+
+    if (arg === "--asset") {
+      index += 1;
+    }
+  }
+}
+
 export function parseArgs(args: readonly string[]): CliCommand {
   const [command, maybeSymbol] = args;
 
   if (command === "daily") {
+    rejectUnknownArgs(args, 1);
+
     return {
       jobType: "daily",
       assetClass: parseAsset(readFlagValue(args, "--asset")),
@@ -54,6 +80,8 @@ export function parseArgs(args: readonly string[]): CliCommand {
   }
 
   if (command === "ticker") {
+    rejectUnknownArgs(args, 2);
+
     if (maybeSymbol === undefined || maybeSymbol.startsWith("--")) {
       throw new Error("Expected symbol for ticker command");
     }

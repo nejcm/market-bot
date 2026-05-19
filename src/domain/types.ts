@@ -21,6 +21,11 @@ export interface Source {
   readonly rawRef?: string;
 }
 
+export interface SourceGap {
+  readonly source: string;
+  readonly message: string;
+}
+
 export interface MarketSnapshot {
   readonly sourceId: string;
   readonly assetClass: AssetClass;
@@ -84,6 +89,7 @@ export interface RunTrace {
   readonly startedAt: string;
   readonly completedAt: string;
   readonly sourceGaps: readonly string[];
+  readonly stages: readonly string[];
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
 }

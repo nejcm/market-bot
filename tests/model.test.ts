@@ -23,6 +23,7 @@ describe("createOpenAIProvider", () => {
           equityMoverLimit: 5,
           cryptoMoverLimit: 5,
           newsLimit: 8,
+          sourceTimeoutMs: 1000,
         },
       },
       fetchImpl,

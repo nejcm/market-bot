@@ -2,7 +2,7 @@ import type { AppConfig } from "../config";
 import type { CliCommand } from "../cli/args";
 import { join } from "node:path";
 import { createRunId, prepareRunArtifacts, writeJson, writeRunOutputs, type RunArtifacts } from "../artifacts";
-import type { EvidenceQuality, KeyFinding, MarketSnapshot, ResearchReport, RunTrace, Scenario, Source } from "../domain/types";
+import type { EvidenceQuality, KeyFinding, MarketSnapshot, ResearchReport, RunTrace, Scenario, Source, SourceGap } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
@@ -14,6 +14,7 @@ export interface CollectedSources {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
+  readonly sourceGaps?: readonly SourceGap[];
 }
 
 export interface RunResearchJobInput {
@@ -28,6 +29,7 @@ export interface RunResearchJobResult {
   readonly report: ResearchReport;
   readonly markdown: string;
   readonly trace: RunTrace;
+  readonly stageOutputs: readonly StageOutput[];
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
@@ -45,6 +47,13 @@ interface ModelReportPayload {
   readonly confidence?: unknown;
   readonly dataGaps?: unknown;
   readonly extras?: unknown;
+}
+
+interface StageOutput {
+  readonly stage: "specialist-analysis" | "critique" | "final-synthesis";
+  readonly content: string;
+  readonly tokenEstimate: number;
+  readonly costEstimateUsd: number;
 }
 
 function parseModelPayload(content: string): ModelReportPayload {
@@ -104,6 +113,45 @@ function readEvidenceQuality(value: unknown): EvidenceQuality {
   return "low";
 }
 
+function qualityRank(value: EvidenceQuality): number {
+  if (value === "high") {
+    return 3;
+  }
+
+  return value === "medium" ? 2 : 1;
+}
+
+function lowerQuality(left: EvidenceQuality, right: EvidenceQuality): EvidenceQuality {
+  return qualityRank(left) <= qualityRank(right) ? left : right;
+}
+
+function deterministicSourceGaps(command: CliCommand, collectedSources: CollectedSources): readonly string[] {
+  const gaps = collectedSources.sourceGaps?.map((gap) => `${gap.source}: ${gap.message}`) ?? [];
+  const marketGaps =
+    collectedSources.marketSnapshots.length === 0
+      ? ["No usable market data snapshots were collected"]
+      : [];
+  const newsGaps = collectedSources.newsSources.length === 0 ? ["No usable news sources were collected"] : [];
+  const tickerGaps =
+    command.jobType === "ticker" && collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
+      ? [`No market snapshot matched ticker ${command.symbol}`]
+      : [];
+
+  return [...gaps, ...marketGaps, ...newsGaps, ...tickerGaps];
+}
+
+function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQuality {
+  if (collectedSources.marketSnapshots.length === 0) {
+    return "low";
+  }
+
+  if ((collectedSources.sourceGaps?.length ?? 0) > 0 || collectedSources.newsSources.length === 0) {
+    return "medium";
+  }
+
+  return "high";
+}
+
 function buildSourceList(collectedSources: CollectedSources): readonly Source[] {
   const marketSources = collectedSources.marketSnapshots.map((snapshot): Source => ({
     id: snapshot.sourceId,
@@ -117,58 +165,104 @@ function buildSourceList(collectedSources: CollectedSources): readonly Source[] 
   return [...marketSources, ...collectedSources.newsSources];
 }
 
-function buildPrompt(command: CliCommand, collectedSources: CollectedSources, config: AppConfig): string {
+function buildEvidencePayload(command: CliCommand, collectedSources: CollectedSources, config: AppConfig): Record<string, unknown> {
   const limit = command.assetClass === "equity" ? config.sourceOptions.equityMoverLimit : config.sourceOptions.cryptoMoverLimit;
   const movers = rankMovers(
     collectedSources.marketSnapshots.filter((snapshot) => snapshot.assetClass === command.assetClass),
     limit,
   );
 
+  return {
+    command,
+    movers,
+    marketSnapshots: collectedSources.marketSnapshots,
+    newsSources: collectedSources.newsSources,
+    sourceGaps: deterministicSourceGaps(command, collectedSources),
+  };
+}
+
+function finalReportShape(): Record<string, unknown> {
+  return {
+    summary: "string",
+    keyFindings: [{ text: "string", sourceIds: ["source-id"] }],
+    bullCase: [{ text: "string", sourceIds: ["source-id"] }],
+    bearCase: [{ text: "string", sourceIds: ["source-id"] }],
+    risks: [{ text: "string", sourceIds: ["source-id"] }],
+    catalysts: [{ text: "string", sourceIds: ["source-id"] }],
+    scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
+    confidence: "high|medium|low",
+    dataGaps: ["string"],
+  };
+}
+
+function buildStagePrompt(
+  stage: StageOutput["stage"],
+  command: CliCommand,
+  collectedSources: CollectedSources,
+  config: AppConfig,
+  priorStages: readonly StageOutput[] = [],
+): string {
   return JSON.stringify(
     {
       instruction:
-        "Create a sourced research-only JSON report from provided evidence only. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.",
-      command,
-      movers,
-      marketSnapshots: collectedSources.marketSnapshots,
-      newsSources: collectedSources.newsSources,
-      requiredShape: {
-        summary: "string",
-        keyFindings: [{ text: "string", sourceIds: ["source-id"] }],
-        bullCase: [{ text: "string", sourceIds: ["source-id"] }],
-        bearCase: [{ text: "string", sourceIds: ["source-id"] }],
-        risks: [{ text: "string", sourceIds: ["source-id"] }],
-        catalysts: [{ text: "string", sourceIds: ["source-id"] }],
-        scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
-        confidence: "high|medium|low",
-        dataGaps: ["string"],
-      },
+        "Use only supplied source IDs. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.",
+      stage,
+      stageGoal:
+        stage === "specialist-analysis"
+          ? "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources."
+          : stage === "critique"
+            ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
+            : "Synthesize the final sourced research-only JSON report.",
+      evidence: buildEvidencePayload(command, collectedSources, config),
+      priorStages,
+      requiredShape: stage === "final-synthesis" ? finalReportShape() : { findings: [{ text: "string", sourceIds: ["source-id"] }], dataGaps: ["string"] },
     },
     null,
     2,
   );
 }
 
-export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
-  const now = input.now ?? new Date();
-  const generatedAt = now.toISOString();
-  const runId = createRunId(now);
-  const modelResponse = await input.provider.generate({
-    model: input.config.synthesisModel,
+async function runStage(
+  stage: StageOutput["stage"],
+  model: string,
+  input: RunResearchJobInput,
+  priorStages: readonly StageOutput[] = [],
+): Promise<StageOutput> {
+  const response = await input.provider.generate({
+    model,
     responseFormat: "json",
     messages: [
       {
         role: "system",
-        content: "You are a research editor. Use only supplied source IDs. Return JSON only.",
+        content: "You are a market research workflow stage. Return JSON only.",
       },
       {
         role: "user",
-        content: buildPrompt(input.command, input.collectedSources, input.config),
+        content: buildStagePrompt(stage, input.command, input.collectedSources, input.config, priorStages),
       },
     ],
   });
 
-  const payload = parseModelPayload(modelResponse.content);
+  return {
+    stage,
+    content: response.content,
+    tokenEstimate: response.tokenEstimate,
+    costEstimateUsd: response.costEstimateUsd,
+  };
+}
+
+export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
+  const now = input.now ?? new Date();
+  const generatedAt = now.toISOString();
+  const runId = createRunId(now);
+  const specialistOutput = await runStage("specialist-analysis", input.config.quickModel, input);
+  const critiqueOutput = await runStage("critique", input.config.quickModel, input, [specialistOutput]);
+  const finalOutput = await runStage("final-synthesis", input.config.synthesisModel, input, [specialistOutput, critiqueOutput]);
+  const stageOutputs = [specialistOutput, critiqueOutput, finalOutput];
+
+  const payload = parseModelPayload(finalOutput.content);
+  const dataGaps = [...new Set([...readStringArray(payload.dataGaps), ...deterministicSourceGaps(input.command, input.collectedSources)])];
+  const confidence = lowerQuality(readEvidenceQuality(payload.confidence), deterministicQualityCap(input.collectedSources));
   const report = validateResearchReport({
     runId,
     jobType: input.command.jobType,
@@ -182,8 +276,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     risks: readFindings(payload.risks),
     catalysts: readFindings(payload.catalysts),
     scenarios: readScenarios(payload.scenarios),
-    confidence: readEvidenceQuality(payload.confidence),
-    dataGaps: readStringArray(payload.dataGaps),
+    confidence,
+    dataGaps,
     sources: buildSourceList(input.collectedSources),
     notFinancialAdvice: true,
     ...(typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras) ? { extras: payload.extras as Record<string, unknown> } : {}),
@@ -201,14 +295,16 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     startedAt: generatedAt,
     completedAt: new Date(now.getTime() + 1).toISOString(),
     sourceGaps: report.dataGaps,
-    tokenEstimate: modelResponse.tokenEstimate,
-    costEstimateUsd: modelResponse.costEstimateUsd,
+    stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
+    tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
+    costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
   };
 
   return {
     report,
     markdown: renderMarkdownReport(report),
     trace,
+    stageOutputs,
   };
 }
 
@@ -219,6 +315,8 @@ export async function persistResearchJob(input: RunResearchJobInput): Promise<Pe
   await writeJson(join(artifacts.rawDir, "snapshots.json"), input.collectedSources.rawSnapshots);
   await writeJson(join(artifacts.normalizedDir, "market-snapshots.json"), input.collectedSources.marketSnapshots);
   await writeJson(join(artifacts.normalizedDir, "news-sources.json"), input.collectedSources.newsSources);
+  await writeJson(join(artifacts.normalizedDir, "source-gaps.json"), input.collectedSources.sourceGaps ?? []);
+  await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);
 
   return {

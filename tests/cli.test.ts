@@ -23,6 +23,10 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["daily"])).toThrow("Expected --asset equity|crypto");
   });
 
+  test("rejects unknown flags", () => {
+    expect(() => parseArgs(["daily", "--asset", "equity", "--deeep"])).toThrow("Unknown flag");
+  });
+
   test("labels commands for CLI output", () => {
     expect(commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" })).toBe("ticker AAPL equity deep");
   });

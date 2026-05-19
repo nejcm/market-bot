@@ -1,6 +1,6 @@
 import type { CliCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { AssetClass, MarketSnapshot, Source } from "../domain/types";
+import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { normalizeNewsPayload } from "./news";
 import type { RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
@@ -11,6 +11,7 @@ export interface SourceCollection {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
 }
 
 interface FetchJsonResult {
@@ -18,18 +19,32 @@ interface FetchJsonResult {
   readonly payload: unknown;
 }
 
+interface MarketCollectionResult {
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly sourceGaps: readonly SourceGap[];
+}
+
+interface NewsCollectionResult {
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly newsSources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
+}
+
 const EQUITY_DAILY_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 const YAHOO_SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search";
 const COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets";
+const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
 
 function encodeQuery(params: Record<string, string>): string {
   return new URLSearchParams(params).toString();
 }
 
-async function fetchJson(url: string, adapter: string, fetchedAt: string, fetchImpl: FetchLike): Promise<FetchJsonResult> {
+async function fetchJson(url: string, adapter: string, fetchedAt: string, timeoutMs: number, fetchImpl: FetchLike): Promise<FetchJsonResult> {
   const response = await fetchImpl(url, {
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       accept: "application/json",
       "user-agent": "market-bot/0.1 research-cli",
@@ -51,6 +66,29 @@ async function fetchJson(url: string, adapter: string, fetchedAt: string, fetchI
     },
     payload,
   };
+}
+
+async function fetchJsonOrGap(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+): Promise<FetchJsonResult | SourceGap> {
+  try {
+    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "source request failed";
+
+    return {
+      source: adapter,
+      message,
+    };
+  }
+}
+
+function isFetchJsonResult(value: FetchJsonResult | SourceGap): value is FetchJsonResult {
+  return "rawSnapshot" in value;
 }
 
 function readYahooScreenerQuotes(payload: unknown): unknown {
@@ -79,8 +117,8 @@ function coinGeckoUrl(perPage: number): string {
   })}`;
 }
 
-function yahooQuoteUrl(symbol: string): string {
-  return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols: symbol })}`;
+function yahooQuoteUrl(symbols: string): string {
+  return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
 }
 
 function yahooNewsQuery(command: CliCommand): string {
@@ -140,26 +178,44 @@ async function collectMarketData(
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
-): Promise<{ readonly rawSnapshots: readonly RawSourceSnapshot[]; readonly marketSnapshots: readonly MarketSnapshot[] }> {
+): Promise<MarketCollectionResult> {
   const registry = createSourceRegistry();
   const adapter = registry.marketDataFor(command.assetClass);
 
   if (command.assetClass === "equity") {
-    const url = command.jobType === "daily" ? EQUITY_DAILY_URL : yahooQuoteUrl(command.symbol);
-    const fetched = await fetchJson(url, adapter.name, fetchedAt, fetchImpl);
-    const payload = command.jobType === "daily" ? readYahooScreenerQuotes(fetched.payload) : fetched.payload;
+    const urls = command.jobType === "daily" ? [EQUITY_DAILY_URL, yahooQuoteUrl(EQUITY_REGIME_SYMBOLS)] : [yahooQuoteUrl(command.symbol)];
+    const results = await Promise.all(
+      urls.map((url, index) => fetchJsonOrGap(url, `${adapter.name}-${index === 0 ? "movers" : "regime"}`, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl)),
+    );
+    const fetchedResults = results.filter(isFetchJsonResult);
+    const sourceGaps = results.filter((result): result is SourceGap => !isFetchJsonResult(result));
+    const snapshots = fetchedResults.flatMap((fetched, index) => {
+      const payload = command.jobType === "daily" && index === 0 ? readYahooScreenerQuotes(fetched.payload) : fetched.payload;
+
+      return adapter.normalizeMarkets(payload, fetchedAt);
+    });
 
     return {
-      rawSnapshots: [fetched.rawSnapshot],
-      marketSnapshots: adapter.normalizeMarkets(payload, fetchedAt),
+      rawSnapshots: fetchedResults.map((fetched) => fetched.rawSnapshot),
+      marketSnapshots: snapshots,
+      sourceGaps,
     };
   }
 
-  const fetched = await fetchJson(coinGeckoUrl(cryptoFetchLimit(command, sourceOptions)), adapter.name, fetchedAt, fetchImpl);
+  const fetched = await fetchJsonOrGap(coinGeckoUrl(cryptoFetchLimit(command, sourceOptions)), adapter.name, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl);
+
+  if (!isFetchJsonResult(fetched)) {
+    return {
+      rawSnapshots: [],
+      marketSnapshots: [],
+      sourceGaps: [fetched],
+    };
+  }
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
     marketSnapshots: filterTickerSnapshots(command, adapter.normalizeMarkets(fetched.payload, fetchedAt)),
+    sourceGaps: [],
   };
 }
 
@@ -168,13 +224,22 @@ async function collectNewsData(
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
-): Promise<{ readonly rawSnapshot: RawSourceSnapshot; readonly newsSources: readonly Source[] }> {
+): Promise<NewsCollectionResult> {
   const adapter = createSourceRegistry().newsFor(command.assetClass);
-  const fetched = await fetchJson(yahooNewsUrl(command, sourceOptions.newsLimit), adapter.name, fetchedAt, fetchImpl);
+  const fetched = await fetchJsonOrGap(yahooNewsUrl(command, sourceOptions.newsLimit), adapter.name, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl);
+
+  if (!isFetchJsonResult(fetched)) {
+    return {
+      rawSnapshots: [],
+      newsSources: [],
+      sourceGaps: [fetched],
+    };
+  }
 
   return {
-    rawSnapshot: fetched.rawSnapshot,
+    rawSnapshots: [fetched.rawSnapshot],
     newsSources: normalizeNewsPayload(normalizeYahooNewsPayload(fetched.payload), command.assetClass, fetchedAt),
+    sourceGaps: [],
   };
 }
 
@@ -191,8 +256,9 @@ export async function collectSources(
   ]);
 
   return {
-    rawSnapshots: [...marketData.rawSnapshots, newsData.rawSnapshot],
+    rawSnapshots: [...marketData.rawSnapshots, ...newsData.rawSnapshots],
     marketSnapshots: marketData.marketSnapshots,
     newsSources: newsData.newsSources,
+    sourceGaps: [...marketData.sourceGaps, ...newsData.sourceGaps],
   };
 }

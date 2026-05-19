@@ -4,6 +4,7 @@ export interface SourceOptions {
   readonly equityMoverLimit: number;
   readonly cryptoMoverLimit: number;
   readonly newsLimit: number;
+  readonly sourceTimeoutMs: number;
 }
 
 export interface AppConfig {
@@ -65,6 +66,7 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       equityMoverLimit: readPositiveInteger(env.MARKET_BOT_EQUITY_MOVER_LIMIT, 5),
       cryptoMoverLimit: readPositiveInteger(env.MARKET_BOT_CRYPTO_MOVER_LIMIT, 5),
       newsLimit: readPositiveInteger(env.MARKET_BOT_NEWS_LIMIT, 8),
+      sourceTimeoutMs: readPositiveInteger(env.MARKET_BOT_SOURCE_TIMEOUT_MS, 15_000),
     },
   };
 }

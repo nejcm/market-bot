@@ -16,6 +16,7 @@ const config: AppConfig = {
     equityMoverLimit: 2,
     cryptoMoverLimit: 2,
     newsLimit: 2,
+    sourceTimeoutMs: 1000,
   },
 };
 
@@ -74,6 +75,7 @@ describe("runResearchJob", () => {
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
+        sourceGaps: [],
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
@@ -86,6 +88,9 @@ describe("runResearchJob", () => {
     });
     expect(result.markdown).toContain("Research-only note");
     expect(result.trace.sourceGaps).toEqual(["Macro breadth source unavailable"]);
+    expect(result.trace.stages).toEqual(["source-collection", "specialist-analysis", "critique", "final-synthesis"]);
+    expect(result.stageOutputs).toHaveLength(3);
+    expect(result.trace.tokenEstimate).toBe(300);
   });
 
   test("rejects reports with trade-action language", async () => {
@@ -110,6 +115,7 @@ describe("runResearchJob", () => {
           rawSnapshots: [],
           marketSnapshots,
           newsSources,
+          sourceGaps: [],
         },
         now: new Date("2026-05-19T00:00:00.000Z"),
       }),
@@ -141,6 +147,7 @@ describe("runResearchJob", () => {
         rawSnapshots: [{ id: "raw-1", adapter: "mock", fetchedAt: "2026-05-19T00:00:00.000Z", payload: { ok: true } }],
         marketSnapshots,
         newsSources,
+        sourceGaps: [],
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
@@ -150,5 +157,38 @@ describe("runResearchJob", () => {
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain("Equity market breadth");
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain("Research-only note");
     await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain("quick-test");
+    await expect(readFile(join(result.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain("specialist-analysis");
+  });
+
+  test("caps Evidence Quality and adds deterministic gaps for sparse sources", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Evidence is sparse.",
+          keyFindings: [],
+          bullCase: [],
+          bearCase: [],
+          risks: [],
+          catalysts: [],
+          scenarios: [],
+          confidence: "high",
+          dataGaps: [],
+        }),
+      ),
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots: [],
+        newsSources: [],
+        sourceGaps: [{ source: "yahoo", message: "source request failed with status 500" }],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.confidence).toBe("low");
+    expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
+    expect(result.report.dataGaps).toContain("No usable news sources were collected");
+    expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
   });
 });

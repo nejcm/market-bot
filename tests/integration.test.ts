@@ -13,6 +13,7 @@ const config: AppConfig = {
     equityMoverLimit: 3,
     cryptoMoverLimit: 3,
     newsLimit: 3,
+    sourceTimeoutMs: 1000,
   },
 };
 
@@ -67,6 +68,7 @@ describe("mocked research workflows", () => {
       rawSnapshots: [],
       marketSnapshots: [snapshot("crypto", "BTC")],
       newsSources: [news("crypto")],
+      sourceGaps: [],
     };
     const daily = await runResearchJob({
       command: { jobType: "daily", assetClass: "crypto", depth: "brief" },

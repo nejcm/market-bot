@@ -9,7 +9,7 @@ export interface RunArtifacts {
 }
 
 export function createRunId(now: Date = new Date()): string {
-  return now.toISOString().replaceAll(":", "-").replaceAll(".", "-");
+  return `${now.toISOString().replaceAll(":", "-").replaceAll(".", "-")}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 export async function prepareRunArtifacts(dataDir: string, runId: string): Promise<RunArtifacts> {

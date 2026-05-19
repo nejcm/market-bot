@@ -18,4 +18,8 @@ describe("resolveConfig", () => {
   test("reads source limits", () => {
     expect(resolveConfig({ MARKET_BOT_CRYPTO_MOVER_LIMIT: "12" }).sourceOptions.cryptoMoverLimit).toBe(12);
   });
+
+  test("reads source timeout", () => {
+    expect(resolveConfig({ MARKET_BOT_SOURCE_TIMEOUT_MS: "5000" }).sourceOptions.sourceTimeoutMs).toBe(5000);
+  });
 });

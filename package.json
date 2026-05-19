@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "bun test",
+    "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

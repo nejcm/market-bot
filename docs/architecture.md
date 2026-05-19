@@ -35,6 +35,8 @@ Notable inputs:
 - Crypto movers: CoinGecko 24h change
 - Historical closes (for scoring): Yahoo (equities), CoinGecko (crypto)
 
+A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-url>.json`) wraps all `fetchJsonOrGap` calls. Same-day re-runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness.
+
 Weekly updates use the same mover inputs as daily — this is a cadence and horizon change, not a separate data product. Reports must disclose it as a source gap.
 
 ### Research (`src/research/`)

@@ -5,6 +5,9 @@ export interface SourceOptions {
   readonly cryptoMoverLimit: number;
   readonly newsLimit: number;
   readonly sourceTimeoutMs: number;
+  readonly cacheDir?: string;
+  readonly cacheDisabled?: boolean;
+  readonly cacheFallbackDays?: number;
 }
 
 export interface AppConfig {
@@ -20,6 +23,10 @@ export interface AppConfig {
 const DEFAULT_QUICK_MODEL = "gpt-4.1-mini";
 const DEFAULT_SYNTHESIS_MODEL = "gpt-4.1";
 const DEFAULT_DATA_DIR = "data/runs";
+
+function readBoolean(value: string | undefined): boolean {
+  return value === "1" || value === "true";
+}
 
 function readPositiveInteger(value: string | undefined, fallback: number): number {
   if (value === undefined || value.trim() === "") {
@@ -67,6 +74,9 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       cryptoMoverLimit: readPositiveInteger(env.MARKET_BOT_CRYPTO_MOVER_LIMIT, 5),
       newsLimit: readPositiveInteger(env.MARKET_BOT_NEWS_LIMIT, 8),
       sourceTimeoutMs: readPositiveInteger(env.MARKET_BOT_SOURCE_TIMEOUT_MS, 15_000),
+      cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
+      cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),
+      cacheFallbackDays: readPositiveInteger(env.MARKET_BOT_CACHE_FALLBACK_DAYS, 7),
     },
   };
 }

@@ -14,6 +14,9 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |
 | `MARKET_BOT_NEWS_LIMIT` | `8` | News items per run. |
 | `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
+| `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for the raw-source cache. One JSON file per URL+date. |
+| `MARKET_BOT_CACHE_DISABLE` | `false` | Set to `1` or `true` to bypass cache reads and writes entirely. |
+| `MARKET_BOT_CACHE_FALLBACK_DAYS` | `7` | How many days back to look for a stale cached payload when a live fetch fails. A stale hit emits a `SourceGap` disclosing the staleness. |
 
 ## Secrets
 

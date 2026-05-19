@@ -6,7 +6,8 @@ import {
   type Source,
   type SourceGap,
 } from "../domain/types";
-import type { RawSourceSnapshot } from "./types";
+import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
+import type { FetchJsonResult, RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -16,11 +17,6 @@ export interface SourceCollection {
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
-}
-
-interface FetchJsonResult {
-  readonly rawSnapshot: RawSourceSnapshot;
-  readonly payload: unknown;
 }
 
 interface MarketCollectionResult {
@@ -217,6 +213,7 @@ async function collectMarketData(
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
+  fetchOrGap: FetchOrGapFn,
   retryDelaysMs: readonly number[],
 ): Promise<MarketCollectionResult> {
   const registry = createSourceRegistry();
@@ -233,7 +230,7 @@ async function collectMarketData(
     const results: readonly EquityFetchResult[] = await Promise.all(
       requests.map(async (request) => ({
         role: request.role,
-        result: await fetchJsonOrGap(
+        result: await fetchOrGap(
           request.url,
           `${adapter.name}-${request.role}`,
           fetchedAt,
@@ -266,7 +263,7 @@ async function collectMarketData(
     };
   }
 
-  const fetched = await fetchJsonOrGap(
+  const fetched = await fetchOrGap(
     coinGeckoUrl(cryptoFetchLimit(command, sourceOptions)),
     adapter.name,
     fetchedAt,
@@ -298,10 +295,11 @@ async function collectNewsData(
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
+  fetchOrGap: FetchOrGapFn,
   retryDelaysMs: readonly number[],
 ): Promise<NewsCollectionResult> {
   const adapter = createSourceRegistry().newsFor(command.assetClass);
-  const fetched = await fetchJsonOrGap(
+  const fetched = await fetchOrGap(
     adapter.buildUrl(command, sourceOptions.newsLimit),
     adapter.name,
     fetchedAt,
@@ -333,15 +331,31 @@ export async function collectSources(
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
 ): Promise<SourceCollection> {
   const fetchedAt = now.toISOString();
+
+  const staleFallbackGaps: SourceGap[] = [];
+  const { cacheDir } = sourceOptions;
+  const fetchOrGap: FetchOrGapFn =
+    cacheDir !== undefined
+      ? withCache(fetchJsonOrGap, {
+          dir: cacheDir,
+          disabled: sourceOptions.cacheDisabled ?? false,
+          fallbackDays: sourceOptions.cacheFallbackDays ?? 7,
+          now: () => now,
+          onStaleFallback: (gap) => {
+            staleFallbackGaps.push(gap);
+          },
+        } satisfies CacheOptions)
+      : fetchJsonOrGap;
+
   const [marketData, newsData] = await Promise.all([
-    collectMarketData(command, fetchedAt, sourceOptions, fetchImpl, retryDelaysMs),
-    collectNewsData(command, fetchedAt, sourceOptions, fetchImpl, retryDelaysMs),
+    collectMarketData(command, fetchedAt, sourceOptions, fetchImpl, fetchOrGap, retryDelaysMs),
+    collectNewsData(command, fetchedAt, sourceOptions, fetchImpl, fetchOrGap, retryDelaysMs),
   ]);
 
   return {
     rawSnapshots: [...marketData.rawSnapshots, ...newsData.rawSnapshots],
     marketSnapshots: marketData.marketSnapshots,
     newsSources: newsData.newsSources,
-    sourceGaps: [...marketData.sourceGaps, ...newsData.sourceGaps],
+    sourceGaps: [...marketData.sourceGaps, ...newsData.sourceGaps, ...staleFallbackGaps],
   };
 }

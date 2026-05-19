@@ -24,6 +24,11 @@ export interface NewsAdapter {
   ) => readonly Source[];
 }
 
+export interface FetchJsonResult {
+  readonly rawSnapshot: RawSourceSnapshot;
+  readonly payload: unknown;
+}
+
 export interface SourceRegistry {
   readonly marketDataFor: (assetClass: AssetClass) => MarketDataAdapter;
   readonly newsFor: (assetClass: AssetClass) => NewsAdapter;

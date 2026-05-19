@@ -31,6 +31,13 @@ interface NewsCollectionResult {
   readonly sourceGaps: readonly SourceGap[];
 }
 
+type EquityDailyRole = "movers" | "regime";
+
+interface EquityFetchResult {
+  readonly role: EquityDailyRole;
+  readonly result: FetchJsonResult | SourceGap;
+}
+
 const EQUITY_DAILY_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
@@ -183,20 +190,29 @@ async function collectMarketData(
   const adapter = registry.marketDataFor(command.assetClass);
 
   if (command.assetClass === "equity") {
-    const urls = command.jobType === "daily" ? [EQUITY_DAILY_URL, yahooQuoteUrl(EQUITY_REGIME_SYMBOLS)] : [yahooQuoteUrl(command.symbol)];
-    const results = await Promise.all(
-      urls.map((url, index) => fetchJsonOrGap(url, `${adapter.name}-${index === 0 ? "movers" : "regime"}`, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl)),
+    const requests: readonly { readonly role: EquityDailyRole; readonly url: string }[] =
+      command.jobType === "daily"
+        ? [
+            { role: "movers", url: EQUITY_DAILY_URL },
+            { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
+          ]
+        : [{ role: "regime", url: yahooQuoteUrl(command.symbol) }];
+    const results: readonly EquityFetchResult[] = await Promise.all(
+      requests.map(async (request) => ({
+        role: request.role,
+        result: await fetchJsonOrGap(request.url, `${adapter.name}-${request.role}`, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl),
+      })),
     );
-    const fetchedResults = results.filter(isFetchJsonResult);
-    const sourceGaps = results.filter((result): result is SourceGap => !isFetchJsonResult(result));
-    const snapshots = fetchedResults.flatMap((fetched, index) => {
-      const payload = command.jobType === "daily" && index === 0 ? readYahooScreenerQuotes(fetched.payload) : fetched.payload;
+    const fetchedResults = results.filter((entry): entry is EquityFetchResult & { readonly result: FetchJsonResult } => isFetchJsonResult(entry.result));
+    const sourceGaps = results.map((entry) => entry.result).filter((result): result is SourceGap => !isFetchJsonResult(result));
+    const snapshots = fetchedResults.flatMap((entry) => {
+      const payload = command.jobType === "daily" && entry.role === "movers" ? readYahooScreenerQuotes(entry.result.payload) : entry.result.payload;
 
       return adapter.normalizeMarkets(payload, fetchedAt);
     });
 
     return {
-      rawSnapshots: fetchedResults.map((fetched) => fetched.rawSnapshot),
+      rawSnapshots: fetchedResults.map((entry) => entry.result.rawSnapshot),
       marketSnapshots: snapshots,
       sourceGaps,
     };

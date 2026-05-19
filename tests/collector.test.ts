@@ -130,4 +130,40 @@ describe("collectSources", () => {
     expect(result.newsSources).toEqual([]);
     expect(result.sourceGaps[0]?.source).toBe("public-news");
   });
+
+  test("keeps daily equity regime quotes when movers source fails", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return new Response("bad gateway", { status: 502 });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70000000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["SPY"]);
+    expect(result.sourceGaps[0]?.source).toBe("yahoo-movers");
+  });
 });

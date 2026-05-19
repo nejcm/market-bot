@@ -7,6 +7,7 @@ import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
+import { summarizeMarketRegime } from "./regime";
 import { isRecord } from "../sources/guards";
 import type { RawSourceSnapshot } from "../sources/types";
 
@@ -183,6 +184,7 @@ function buildEvidencePayload(command: CliCommand, collectedSources: CollectedSo
   return {
     command,
     movers,
+    marketRegime: summarizeMarketRegime(command.assetClass, collectedSources.marketSnapshots),
     marketSnapshots: collectedSources.marketSnapshots,
     newsSources: collectedSources.newsSources,
     sourceGaps: deterministicSourceGaps(command, collectedSources),
@@ -318,6 +320,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ...modelExtras,
       depth: input.command.depth,
       depthProfile: buildDepthProfile(input.command),
+      marketRegime: summarizeMarketRegime(input.command.assetClass, input.collectedSources.marketSnapshots),
     },
   });
 

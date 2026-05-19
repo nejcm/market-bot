@@ -98,6 +98,12 @@ describe("runResearchJob", () => {
         readonly minimumKeyFindings?: number;
         readonly minimumScenarios?: number;
       };
+      readonly evidence?: {
+        readonly marketRegime?: {
+          readonly label?: string;
+          readonly sourceIds?: readonly string[];
+        };
+      };
     };
 
     expect(result.trace.stages).toEqual(["source-collection", "specialist-analysis", "critique", "final-synthesis"]);
@@ -107,6 +113,10 @@ describe("runResearchJob", () => {
       analystStyle: "fuller analyst-style",
       minimumKeyFindings: 5,
       minimumScenarios: 3,
+    });
+    expect(finalPrompt.evidence?.marketRegime).toMatchObject({
+      label: "insufficient-data",
+      sourceIds: [],
     });
   });
 

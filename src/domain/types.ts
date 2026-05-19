@@ -46,6 +46,16 @@ export interface Mover {
 
 export type EvidenceQuality = "high" | "medium" | "low";
 
+export type MarketRegimeLabel = "risk-on" | "risk-off" | "mixed" | "insufficient-data";
+
+export interface MarketRegimeSummary {
+  readonly assetClass: AssetClass;
+  readonly label: MarketRegimeLabel;
+  readonly proxyCount: number;
+  readonly drivers: readonly string[];
+  readonly sourceIds: readonly string[];
+}
+
 export interface KeyFinding {
   readonly text: string;
   readonly sourceIds: readonly string[];

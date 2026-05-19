@@ -8,9 +8,9 @@ A sourced research artifact that summarizes evidence, uncertainty, scenarios, ri
 
 The canonical research target, identified by `symbol + assetClass`.
 
-## Daily Market Update
+## Market Update
 
-A research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.
+A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.
 
 ## Market Regime
 

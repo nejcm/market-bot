@@ -394,9 +394,9 @@ function buildStagePrompt(
       stageGoal:
         stage === "specialist-analysis"
           ? "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources."
-          : (stage === "critique"
+          : stage === "critique"
             ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
-            : "Synthesize the final sourced research-only JSON report including predictions."),
+            : "Synthesize the final sourced research-only JSON report including predictions.",
       depthProfile: context.depthProfile,
       evidence: buildEvidencePayload(command, collectedSources, config, context),
       priorStages,

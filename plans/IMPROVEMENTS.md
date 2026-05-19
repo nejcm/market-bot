@@ -10,9 +10,10 @@ The ordering inside each section is rough priority, not strict.
 
 ## Source layer fixes
 
-- **News is currently fetched via Yahoo's unofficial `search` endpoint** reshaped to NewsAPI-ish payloads (src/sources/collector.ts:139-176), despite being named `publicNewsAdapter`. Rename or replace with a real news provider (NewsAPI, GDELT, MarketAux). The current path can break silently with no contract.
-- **Local raw-source cache under `data/cache/`** keyed by URL+date, 24h TTL. Lets you re-run the same day without re-fetching, gives the scorer a fallback when live endpoints blip, reduces rate-limit risk.
+- **Replace the Yahoo news adapter with a real provider** (NewsAPI, GDELT, MarketAux). The adapter is now honestly named ([src/sources/yahoo-news.ts](../src/sources/yahoo-news.ts)) and the `NewsAdapter.buildUrl` seam lets a real provider plug in without touching `collectNewsData`, but the underlying Yahoo `search` endpoint remains unofficial and can change shape without warning. Needs an ADR (paid source, env var, calibration impact).
 - **Rate-limiting + circuit breaker per host.** Overkill for personal cadence today; relevant if scheduled runs go multi-asset and multi-cadence.
+- **Cache the scorer's historical-close fetches** under the same `data/cache/` layer used by `collectSources`. Today only the live research collector benefits from caching; the scoring pass still re-fetches Yahoo/CoinGecko closes on every run.
+- **Cache pruning tooling** for `data/cache/`. Per-day directories make a simple sweep trivial (`find data/cache -mtime +30 -delete`-style), but nothing runs it today.
 
 ## Alpha discovery
 

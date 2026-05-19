@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
-import { commandLabel, parseArgs } from "./cli/args";
+import { runCli } from "./app";
 
 async function main(): Promise<void> {
-  const command = parseArgs(Bun.argv.slice(2));
-  process.stdout.write(`market-bot ${commandLabel(command)}\n`);
+  const runDir = await runCli(Bun.argv.slice(2));
+  process.stdout.write(`${runDir}\n`);
 }
 
 main().catch((error: unknown) => {

@@ -1,4 +1,4 @@
-import type { CliCommand } from "../cli/args";
+import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { normalizeNewsPayload } from "./news";
@@ -190,7 +190,7 @@ function yahooQuoteUrl(symbols: string): string {
   return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
 }
 
-function yahooNewsQuery(command: CliCommand): string {
+function yahooNewsQuery(command: ResearchCommand): string {
   if (command.jobType === "ticker") {
     return command.symbol;
   }
@@ -198,7 +198,7 @@ function yahooNewsQuery(command: CliCommand): string {
   return command.assetClass === "equity" ? "stock market" : "crypto market";
 }
 
-function yahooNewsUrl(command: CliCommand, limit: number): string {
+function yahooNewsUrl(command: ResearchCommand, limit: number): string {
   return `${YAHOO_SEARCH_URL}?${encodeQuery({ q: yahooNewsQuery(command), newsCount: String(limit) })}`;
 }
 
@@ -230,7 +230,7 @@ function normalizeYahooNewsPayload(payload: unknown): unknown {
 }
 
 function filterTickerSnapshots(
-  command: CliCommand,
+  command: ResearchCommand,
   snapshots: readonly MarketSnapshot[],
 ): readonly MarketSnapshot[] {
   if (command.jobType === "daily") {
@@ -240,7 +240,7 @@ function filterTickerSnapshots(
   return snapshots.filter((snapshot) => snapshot.symbol === command.symbol);
 }
 
-function cryptoFetchLimit(command: CliCommand, sourceOptions: SourceOptions): number {
+function cryptoFetchLimit(command: ResearchCommand, sourceOptions: SourceOptions): number {
   if (command.jobType === "daily") {
     return Math.max(sourceOptions.cryptoMoverLimit * 10, 50);
   }
@@ -249,7 +249,7 @@ function cryptoFetchLimit(command: CliCommand, sourceOptions: SourceOptions): nu
 }
 
 async function collectMarketData(
-  command: CliCommand,
+  command: ResearchCommand,
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
@@ -330,7 +330,7 @@ async function collectMarketData(
 }
 
 async function collectNewsData(
-  command: CliCommand,
+  command: ResearchCommand,
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
@@ -366,7 +366,7 @@ async function collectNewsData(
 }
 
 export async function collectSources(
-  command: CliCommand,
+  command: ResearchCommand,
   sourceOptions: SourceOptions,
   now: Date = new Date(),
   fetchImpl: FetchLike = fetch,

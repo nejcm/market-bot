@@ -7,7 +7,7 @@ import type { AssetClass, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob } from "../src/research/orchestrator";
 import type { CollectedSources } from "../src/research/orchestrator";
-import type { CliCommand } from "../src/cli/args";
+import type { ResearchCommand } from "../src/cli/args";
 
 const config: AppConfig = {
   provider: "openai",
@@ -73,7 +73,7 @@ const provider: ModelProvider = {
   generate: async (request) => {
     const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as {
       readonly evidence?: {
-        readonly command?: CliCommand;
+        readonly command?: ResearchCommand;
         readonly marketSnapshots?: readonly MarketSnapshot[];
       };
     };
@@ -106,7 +106,7 @@ const provider: ModelProvider = {
   },
 };
 
-async function runWorkflow(command: CliCommand, symbol: string) {
+async function runWorkflow(command: ResearchCommand, symbol: string) {
   const dataDir = join(
     tmpdir(),
     `market-bot-integration-${Date.now()}-${Math.random().toString(16).slice(2)}`,

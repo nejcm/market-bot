@@ -32,4 +32,17 @@ describe("parseArgs", () => {
       commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" }),
     ).toBe("ticker AAPL equity deep");
   });
+
+  test("parses score command", () => {
+    expect(parseArgs(["score"])).toEqual({ jobType: "score" });
+  });
+
+  test("parses calibration command", () => {
+    expect(parseArgs(["calibration"])).toEqual({ jobType: "calibration" });
+  });
+
+  test("labels score and calibration commands", () => {
+    expect(commandLabel({ jobType: "score" })).toBe("score");
+    expect(commandLabel({ jobType: "calibration" })).toBe("calibration");
+  });
 });

@@ -1,4 +1,4 @@
-import type { KeyFinding, ResearchReport, Scenario } from "../domain/types";
+import type { KeyFinding, Prediction, ResearchReport, Scenario } from "../domain/types";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 
 function sourceRefs(sourceIds: readonly string[]): string {
@@ -19,6 +19,22 @@ function renderScenarios(scenarios: readonly Scenario[]): string {
   }
 
   return `## Scenarios\n\n${scenarios.map((scenario) => `- **${scenario.name}:** ${scenario.description} ${sourceRefs(scenario.sourceIds)}`).join("\n")}\n`;
+}
+
+function renderPredictions(predictions: readonly Prediction[]): string {
+  if (predictions.length === 0) {
+    return "";
+  }
+
+  const rows = predictions
+    .map((pred) => {
+      const pct = `${String(Math.round(pred.probability * 100))}%`;
+      const refs = pred.sourceIds.length > 0 ? ` ${sourceRefs(pred.sourceIds)}` : "";
+      return `- [${pct}] (${pred.horizonTradingDays}d) ${pred.claim}${refs}`;
+    })
+    .join("\n");
+
+  return `## Predictions\n\n${rows}\n`;
 }
 
 export function renderMarkdownReport(report: ResearchReport): string {
@@ -50,6 +66,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Risks", report.risks),
     renderFindings("Catalysts", report.catalysts),
     renderScenarios(report.scenarios),
+    renderPredictions(report.predictions),
     "## Data Gaps",
     "",
     gaps,

@@ -14,7 +14,16 @@ export interface TickerCommand {
   readonly depth: Depth;
 }
 
-export type CliCommand = DailyCommand | TickerCommand;
+export interface ScoreCommand {
+  readonly jobType: "score";
+}
+
+export interface CalibrationCommand {
+  readonly jobType: "calibration";
+}
+
+export type ResearchCommand = DailyCommand | TickerCommand;
+export type CliCommand = ResearchCommand | ScoreCommand | CalibrationCommand;
 
 function parseAsset(value: string | undefined): AssetClass {
   if (value === "equity" || value === "crypto") {
@@ -97,12 +106,23 @@ export function parseArgs(args: readonly string[]): CliCommand {
     };
   }
 
+  if (command === "score") {
+    return { jobType: "score" };
+  }
+
+  if (command === "calibration") {
+    return { jobType: "calibration" };
+  }
+
   throw new Error(
-    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep]",
+    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration",
   );
 }
 
 export function commandLabel(command: CliCommand): string {
+  if (command.jobType === "score" || command.jobType === "calibration") {
+    return command.jobType;
+  }
   const depthSuffix = command.depth === "deep" ? " deep" : "";
   const symbolPart = command.jobType === "ticker" ? ` ${command.symbol}` : "";
 

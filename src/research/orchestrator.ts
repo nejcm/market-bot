@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config";
-import type { CliCommand } from "../cli/args";
+import type { ResearchCommand } from "../cli/args";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { createRunId, prepareRunArtifacts, writeJson, writeRunOutputs } from "../artifacts";
@@ -31,7 +31,7 @@ export interface CollectedSources {
 }
 
 export interface RunResearchJobInput {
-  readonly command: CliCommand;
+  readonly command: ResearchCommand;
   readonly config: AppConfig;
   readonly provider: ModelProvider;
   readonly collectedSources: CollectedSources;
@@ -175,7 +175,7 @@ function lowerQuality(left: EvidenceQuality, right: EvidenceQuality): EvidenceQu
 }
 
 function deterministicSourceGaps(
-  command: CliCommand,
+  command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly string[] {
   const gaps = collectedSources.sourceGaps?.map((gap) => `${gap.source}: ${gap.message}`) ?? [];
@@ -259,7 +259,7 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
 }
 
 function buildEvidencePayload(
-  command: CliCommand,
+  command: ResearchCommand,
   collectedSources: CollectedSources,
   config: AppConfig,
   context: ResearchContext,
@@ -313,7 +313,7 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
 
 const DAILY_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
 
-function buildDepthProfile(command: CliCommand): DepthProfile {
+function buildDepthProfile(command: ResearchCommand): DepthProfile {
   const predictionSubjects =
     command.jobType === "daily"
       ? (DAILY_PREDICTION_SUBJECTS as readonly string[])
@@ -350,7 +350,7 @@ function buildDepthProfile(command: CliCommand): DepthProfile {
 
 function buildStagePrompt(
   stage: StageOutput["stage"],
-  command: CliCommand,
+  command: ResearchCommand,
   collectedSources: CollectedSources,
   config: AppConfig,
   context: ResearchContext,

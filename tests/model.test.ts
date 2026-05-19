@@ -46,4 +46,39 @@ describe("createOpenAIProvider", () => {
       response_format: { type: "json_object" },
     });
   });
+
+  test("uses configured OpenAI-compatible base URL", async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      urls.push(String(input));
+      return Response.json({
+        choices: [{ message: { content: "{\"summary\":\"ok\"}" } }],
+      });
+    };
+    const provider = createOpenAIProvider(
+      {
+        provider: "openai-compatible",
+        baseUrl: "http://localhost:11434/v1",
+        apiKey: "local-key",
+        quickModel: "quick",
+        synthesisModel: "synthesis",
+        dataDir: "data/runs",
+        sourceOptions: {
+          equityMoverLimit: 5,
+          cryptoMoverLimit: 5,
+          newsLimit: 8,
+          sourceTimeoutMs: 1000,
+        },
+      },
+      fetchImpl,
+    );
+
+    await provider.generate({
+      model: "quick",
+      responseFormat: "json",
+      messages: [{ role: "user", content: "Return JSON" }],
+    });
+
+    expect(urls).toEqual(["http://localhost:11434/v1/chat/completions"]);
+  });
 });

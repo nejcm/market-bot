@@ -113,6 +113,24 @@ describe("validatePredictions", () => {
     expect(result.valid).toHaveLength(1);
   });
 
+  test("rejects relative prediction with non-A:B subject", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-rel-bad",
+          kind: "relative",
+          subject: "QQQ",
+          measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
+          claim: "QQQ outperforms SPY over 5 trading days.",
+        },
+      ],
+      knownIds,
+    );
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain('relative subject must be "A:B"');
+  });
+
   test("accepts a valid volatility prediction", () => {
     const result = validatePredictions(
       [

@@ -23,9 +23,18 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   const provider = createOpenAIProvider(config);
   const collectedSources = await collectSources(command, config.sourceOptions);
 
-  const scoreResult = await runScorePass(config.dataDir).catch(() => {});
+  const scoreResult = await runScorePass(config.dataDir).catch((error: unknown) => {
+    process.stderr.write(
+      `Score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return;
+  });
   if (scoreResult !== undefined) {
-    await buildAndWriteCalibration(config.dataDir).catch(() => {});
+    await buildAndWriteCalibration(config.dataDir).catch((error: unknown) => {
+      process.stderr.write(
+        `Calibration build failed: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    });
   }
 
   const result = await persistResearchJob({

@@ -75,6 +75,7 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
   }
 }
 
+// oxlint-disable-next-line max-lines-per-function
 export function validatePredictions(
   candidates: readonly unknown[],
   knownSourceIds: ReadonlySet<string>,
@@ -115,6 +116,10 @@ export function validatePredictions(
     }
     if (subject === undefined) {
       errors.push(`Prediction ${id}: missing subject`);
+      continue;
+    }
+    if (kind === "relative" && !/^[^:\s]+:[^:\s]+$/u.test(subject)) {
+      errors.push(`Prediction ${id}: relative subject must be "A:B" form, got "${subject}"`);
       continue;
     }
     if (measurableAs === undefined) {

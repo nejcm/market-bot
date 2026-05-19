@@ -18,6 +18,7 @@
     "no-magic-numbers": "off",
     "sort-keys": "off",
     "sort-imports": "off",
+    "no-continue": "off",
     "no-ternary": "off",
     "no-negated-condition": "off",
     "unicorn/no-negated-condition": "off",

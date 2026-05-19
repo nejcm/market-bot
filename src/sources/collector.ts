@@ -1,5 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
+import { isMarketUpdateJobType } from "../domain/types";
 import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { normalizeNewsPayload } from "./news";
 import type { RawSourceSnapshot } from "./types";
@@ -233,15 +234,15 @@ function filterTickerSnapshots(
   command: ResearchCommand,
   snapshots: readonly MarketSnapshot[],
 ): readonly MarketSnapshot[] {
-  if (command.jobType === "daily") {
-    return snapshots;
+  if (command.jobType === "ticker") {
+    return snapshots.filter((snapshot) => snapshot.symbol === command.symbol);
   }
 
-  return snapshots.filter((snapshot) => snapshot.symbol === command.symbol);
+  return snapshots;
 }
 
 function cryptoFetchLimit(command: ResearchCommand, sourceOptions: SourceOptions): number {
-  if (command.jobType === "daily") {
+  if (isMarketUpdateJobType(command.jobType)) {
     return Math.max(sourceOptions.cryptoMoverLimit * 10, 50);
   }
 
@@ -260,12 +261,12 @@ async function collectMarketData(
 
   if (command.assetClass === "equity") {
     const requests: readonly { readonly role: EquityDailyRole; readonly url: string }[] =
-      command.jobType === "daily"
-        ? [
+      command.jobType === "ticker"
+        ? [{ role: "regime", url: yahooQuoteUrl(command.symbol) }]
+        : [
             { role: "movers", url: EQUITY_DAILY_URL },
             { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
-          ]
-        : [{ role: "regime", url: yahooQuoteUrl(command.symbol) }];
+          ];
     const results: readonly EquityFetchResult[] = await Promise.all(
       requests.map(async (request) => ({
         role: request.role,
@@ -288,7 +289,7 @@ async function collectMarketData(
       .filter((result): result is SourceGap => !isFetchJsonResult(result));
     const snapshots = fetchedResults.flatMap((entry) => {
       const payload =
-        command.jobType === "daily" && entry.role === "movers"
+        isMarketUpdateJobType(command.jobType) && entry.role === "movers"
           ? readYahooScreenerQuotes(entry.result.payload)
           : entry.result.payload;
 

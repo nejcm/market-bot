@@ -55,4 +55,15 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("No derivatives data");
     expect(markdown.match(/Research-only note/g)?.length).toBe(1);
   });
+
+  test("renders cadence-specific market update titles", () => {
+    const { symbol: _symbol, ...marketReport } = report;
+
+    expect(renderMarkdownReport({ ...marketReport, jobType: "daily" })).toContain(
+      "# crypto Daily Market Update",
+    );
+    expect(renderMarkdownReport({ ...marketReport, jobType: "weekly" })).toContain(
+      "# crypto Weekly Market Update",
+    );
+  });
 });

@@ -126,10 +126,11 @@ async function runWorkflow(command: ResearchCommand, symbol: string) {
 }
 
 describe("mocked research workflows", () => {
-  test("persists daily equity, daily crypto, ticker equity, and ticker crypto with matching artifact layout", async () => {
+  test("persists daily, weekly, and ticker workflows with matching artifact layout", async () => {
     const workflows = [
       await runWorkflow({ jobType: "daily", assetClass: "equity", depth: "brief" }, "AAPL"),
       await runWorkflow({ jobType: "daily", assetClass: "crypto", depth: "brief" }, "BTC"),
+      await runWorkflow({ jobType: "weekly", assetClass: "equity", depth: "brief" }, "AAPL"),
       await runWorkflow(
         { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
         "AAPL",
@@ -168,6 +169,7 @@ describe("mocked research workflows", () => {
     expect(workflows.map((workflow) => workflow.report.jobType)).toEqual([
       "daily",
       "daily",
+      "weekly",
       "ticker",
       "ticker",
     ]);
@@ -175,11 +177,13 @@ describe("mocked research workflows", () => {
       "equity",
       "crypto",
       "equity",
+      "equity",
       "crypto",
     ]);
     expect(workflows[0]?.report.symbol).toBeUndefined();
-    expect(workflows[2]?.report.symbol).toBe("AAPL");
-    expect(workflows[3]?.trace.depth).toBe("deep");
-    expect(workflows[3]?.report.extras?.depth).toBe("deep");
+    expect(workflows[2]?.trace.marketUpdateCadence).toBe("weekly");
+    expect(workflows[3]?.report.symbol).toBe("AAPL");
+    expect(workflows[4]?.trace.depth).toBe("deep");
+    expect(workflows[4]?.report.extras?.depth).toBe("deep");
   });
 });

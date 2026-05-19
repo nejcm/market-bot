@@ -69,6 +69,57 @@ describe("collectSources", () => {
     expect(result.sourceGaps).toHaveLength(0);
   });
 
+  test("collects weekly equity through market-update mover and regime sources", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "MSFT",
+                    regularMarketPrice: 420,
+                    regularMarketChangePercent: 3,
+                    regularMarketVolume: 50_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.rawSnapshots).toHaveLength(3);
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
+  });
+
   test("filters crypto ticker collection by symbol", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);

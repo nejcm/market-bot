@@ -15,6 +15,7 @@ import type {
   Source,
   SourceGap,
 } from "../domain/types";
+import { isMarketUpdateJobType, marketUpdateCadence } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
@@ -76,6 +77,7 @@ interface DepthProfile {
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
   readonly minimumPredictions: number;
+  readonly defaultPredictionHorizon: number;
   readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];
 }
@@ -190,8 +192,16 @@ function deterministicSourceGaps(
     collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
       ? [`No market snapshot matched ticker ${command.symbol}`]
       : [];
+  const weeklyMoverGaps =
+    command.jobType === "weekly"
+      ? [
+          command.assetClass === "equity"
+            ? "Weekly equity mover universe is seeded from Yahoo day_gainers, not a true trailing 5-session mover screener"
+            : "Weekly crypto mover data uses CoinGecko 24h change fields; trailing 7-day mover changes are not available in the current source payload",
+        ]
+      : [];
 
-  return [...gaps, ...marketGaps, ...newsGaps, ...tickerGaps];
+  return [...gaps, ...marketGaps, ...newsGaps, ...tickerGaps, ...weeklyMoverGaps];
 }
 
 function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQuality {
@@ -303,8 +313,8 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
       claim: "string describing market quantity",
       kind: "direction|relative|volatility|range",
       subject: depthProfile.predictionSubjects[0] ?? "SPY",
-      measurableAs: "close(SPY, +5) > close(SPY, 0)",
-      horizonTradingDays: 5,
+      measurableAs: `close(SPY, +${String(depthProfile.defaultPredictionHorizon)}) > close(SPY, 0)`,
+      horizonTradingDays: depthProfile.defaultPredictionHorizon,
       probability: 0.6,
       sourceIds: ["source-id"],
     })),
@@ -314,37 +324,50 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
 const DAILY_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
 
 function buildDepthProfile(command: ResearchCommand): DepthProfile {
+  const isMarketUpdate = isMarketUpdateJobType(command.jobType);
   const predictionSubjects =
-    command.jobType === "daily"
-      ? (DAILY_PREDICTION_SUBJECTS as readonly string[])
-      : [command.symbol];
+    command.jobType === "ticker"
+      ? [command.symbol]
+      : (DAILY_PREDICTION_SUBJECTS as readonly string[]);
+  const defaultPredictionHorizon = command.jobType === "weekly" ? 15 : 5;
 
   if (command.depth === "deep") {
     return {
       depth: "deep",
       analystStyle: "fuller analyst-style",
-      minimumKeyFindings: command.jobType === "daily" ? 5 : 6,
+      minimumKeyFindings: isMarketUpdate ? 5 : 6,
       minimumScenarios: 3,
-      minimumPredictions: command.jobType === "daily" ? 3 : 5,
+      minimumPredictions: isMarketUpdate ? 3 : 5,
+      defaultPredictionHorizon,
       predictionSubjects,
-      focus:
-        command.jobType === "daily"
-          ? ["market regime", "movers", "cross-asset themes", "risks", "source gaps"]
-          : ["thesis", "evidence", "catalysts", "bull case", "bear case", "scenarios", "data gaps"],
+      focus: isMarketUpdate
+        ? [
+            command.jobType === "weekly" ? "weekly market regime" : "market regime",
+            command.jobType === "weekly" ? "5-session movers" : "movers",
+            "cross-asset themes",
+            "risks",
+            "source gaps",
+          ]
+        : ["thesis", "evidence", "catalysts", "bull case", "bear case", "scenarios", "data gaps"],
     };
   }
 
   return {
     depth: "brief",
     analystStyle: "concise brief",
-    minimumKeyFindings: command.jobType === "daily" ? 3 : 4,
+    minimumKeyFindings: isMarketUpdate ? 3 : 4,
     minimumScenarios: 1,
-    minimumPredictions: command.jobType === "daily" ? 2 : 3,
+    minimumPredictions: isMarketUpdate ? 2 : 3,
+    defaultPredictionHorizon,
     predictionSubjects,
-    focus:
-      command.jobType === "daily"
-        ? ["market regime", "movers", "risks", "source gaps"]
-        : ["thesis", "evidence", "risks", "data gaps"],
+    focus: isMarketUpdate
+      ? [
+          command.jobType === "weekly" ? "weekly market regime" : "market regime",
+          command.jobType === "weekly" ? "5-session movers" : "movers",
+          "risks",
+          "source gaps",
+        ]
+      : ["thesis", "evidence", "risks", "data gaps"],
   };
 }
 
@@ -361,7 +384,7 @@ function buildStagePrompt(
     "Use only supplied source IDs. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.";
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range.`
+      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range.`
       : "";
 
   return JSON.stringify(
@@ -532,6 +555,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ...modelExtras,
       depth: input.command.depth,
       depthProfile: context.depthProfile,
+      ...(isMarketUpdateJobType(input.command.jobType)
+        ? { marketUpdateCadence: marketUpdateCadence(input.command.jobType) }
+        : {}),
       marketRegime: context.marketRegime,
     },
   });
@@ -539,6 +565,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const trace: RunTrace = {
     runId,
     jobType: input.command.jobType,
+    ...(isMarketUpdateJobType(input.command.jobType)
+      ? { marketUpdateCadence: marketUpdateCadence(input.command.jobType) }
+      : {}),
     assetClass: input.command.assetClass,
     ...(input.command.jobType === "ticker" ? { symbol: input.command.symbol } : {}),
     depth: input.command.depth,

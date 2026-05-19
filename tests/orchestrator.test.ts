@@ -217,6 +217,88 @@ describe("runResearchJob", () => {
     expect(result.trace.tokenEstimate).toBe(300);
   });
 
+  test("creates a weekly market update with weekly horizon metadata and source gap", async () => {
+    const prompts: string[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        prompts.push(request.messages[1]?.content ?? "");
+
+        return {
+          content: JSON.stringify({
+            summary: "Weekly equity overview is sourced but mover data is approximate.",
+            keyFindings: [{ text: "AAPL is a liquid positive mover.", sourceIds: ["market-aapl"] }],
+            bullCase: [{ text: "Demand news supports the move.", sourceIds: ["news-equity-1"] }],
+            bearCase: [
+              {
+                text: "Single-name evidence may not represent the whole market.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            risks: [{ text: "Macro data is missing.", sourceIds: ["market-aapl"] }],
+            catalysts: [
+              {
+                text: "Supplier demand update is the main catalyst.",
+                sourceIds: ["news-equity-1"],
+              },
+            ],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Momentum continues if liquidity persists.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: mockPredictions(2).map((prediction) => ({
+              ...(prediction as Record<string, unknown>),
+              claim: "SPY closes higher over 15 trading days.",
+              measurableAs: "close(SPY, +15) > close(SPY, 0)",
+              horizonTradingDays: 15,
+            })),
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+      readonly depthProfile?: {
+        readonly defaultPredictionHorizon?: number;
+        readonly minimumPredictions?: number;
+      };
+      readonly requiredShape?: {
+        readonly predictions?: readonly { readonly horizonTradingDays?: number }[];
+      };
+    };
+
+    expect(result.report.jobType).toBe("weekly");
+    expect(result.report.extras?.marketUpdateCadence).toBe("weekly");
+    expect(result.trace.marketUpdateCadence).toBe("weekly");
+    expect(result.markdown).toContain("# equity Weekly Market Update");
+    expect(result.report.predictions[0]?.horizonTradingDays).toBe(15);
+    expect(result.report.dataGaps).toContain(
+      "Weekly equity mover universe is seeded from Yahoo day_gainers, not a true trailing 5-session mover screener",
+    );
+    expect(finalPrompt.depthProfile?.defaultPredictionHorizon).toBe(15);
+    expect(finalPrompt.depthProfile?.minimumPredictions).toBe(2);
+    expect(finalPrompt.requiredShape?.predictions?.[0]?.horizonTradingDays).toBe(15);
+  });
+
   test("rejects reports with trade-action language", async () => {
     await expect(
       runResearchJob({

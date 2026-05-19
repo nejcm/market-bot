@@ -41,7 +41,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
   const title =
     report.jobType === "ticker"
       ? `${report.symbol} ${report.assetClass} Research View`
-      : `${report.assetClass} Daily Market Update`;
+      : `${report.assetClass} ${report.jobType === "weekly" ? "Weekly" : "Daily"} Market Update`;
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."

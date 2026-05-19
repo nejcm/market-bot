@@ -114,6 +114,7 @@ export interface ResearchReport {
 export interface RunTrace {
   readonly runId: string;
   readonly jobType: JobType;
+  readonly marketUpdateCadence?: MarketUpdateJobType;
   readonly assetClass: AssetClass;
   readonly symbol?: string;
   readonly depth: Depth;

@@ -56,6 +56,14 @@ interface StageOutput {
   readonly costEstimateUsd: number;
 }
 
+interface DepthProfile {
+  readonly depth: "brief" | "deep";
+  readonly analystStyle: "concise brief" | "fuller analyst-style";
+  readonly minimumKeyFindings: number;
+  readonly minimumScenarios: number;
+  readonly focus: readonly string[];
+}
+
 function parseModelPayload(content: string): ModelReportPayload {
   const parsed = JSON.parse(content) as unknown;
 
@@ -195,6 +203,29 @@ function finalReportShape(): Record<string, unknown> {
   };
 }
 
+function buildDepthProfile(command: CliCommand): DepthProfile {
+  if (command.depth === "deep") {
+    return {
+      depth: "deep",
+      analystStyle: "fuller analyst-style",
+      minimumKeyFindings: command.jobType === "daily" ? 5 : 6,
+      minimumScenarios: 3,
+      focus:
+        command.jobType === "daily"
+          ? ["market regime", "movers", "cross-asset themes", "risks", "source gaps"]
+          : ["thesis", "evidence", "catalysts", "bull case", "bear case", "scenarios", "data gaps"],
+    };
+  }
+
+  return {
+    depth: "brief",
+    analystStyle: "concise brief",
+    minimumKeyFindings: command.jobType === "daily" ? 3 : 4,
+    minimumScenarios: 1,
+    focus: command.jobType === "daily" ? ["market regime", "movers", "risks", "source gaps"] : ["thesis", "evidence", "risks", "data gaps"],
+  };
+}
+
 function buildStagePrompt(
   stage: StageOutput["stage"],
   command: CliCommand,
@@ -213,6 +244,7 @@ function buildStagePrompt(
           : stage === "critique"
             ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
             : "Synthesize the final sourced research-only JSON report.",
+      depthProfile: buildDepthProfile(command),
       evidence: buildEvidencePayload(command, collectedSources, config),
       priorStages,
       requiredShape: stage === "final-synthesis" ? finalReportShape() : { findings: [{ text: "string", sourceIds: ["source-id"] }], dataGaps: ["string"] },
@@ -263,6 +295,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const payload = parseModelPayload(finalOutput.content);
   const dataGaps = [...new Set([...readStringArray(payload.dataGaps), ...deterministicSourceGaps(input.command, input.collectedSources)])];
   const confidence = lowerQuality(readEvidenceQuality(payload.confidence), deterministicQualityCap(input.collectedSources));
+  const modelExtras =
+    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras) ? (payload.extras as Record<string, unknown>) : {};
   const report = validateResearchReport({
     runId,
     jobType: input.command.jobType,
@@ -280,7 +314,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     dataGaps,
     sources: buildSourceList(input.collectedSources),
     notFinancialAdvice: true,
-    ...(typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras) ? { extras: payload.extras as Record<string, unknown> } : {}),
+    extras: {
+      ...modelExtras,
+      depth: input.command.depth,
+      depthProfile: buildDepthProfile(input.command),
+    },
   });
 
   const trace: RunTrace = {

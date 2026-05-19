@@ -54,6 +54,62 @@ function providerReturning(content: string): ModelProvider {
 }
 
 describe("runResearchJob", () => {
+  test("applies deep output requirements without changing workflow stages", async () => {
+    const prompts: string[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        prompts.push(request.messages[1]?.content ?? "");
+
+        return {
+          content: JSON.stringify({
+            summary: "Deep equity review from supplied sources.",
+            keyFindings: [{ text: "AAPL has sourced momentum.", sourceIds: ["market-aapl"] }],
+            bullCase: [{ text: "News supports the sourced momentum.", sourceIds: ["news-equity-1"] }],
+            bearCase: [{ text: "Single-source breadth limits confidence.", sourceIds: ["market-aapl"] }],
+            risks: [{ text: "Macro context is incomplete.", sourceIds: ["market-aapl"] }],
+            catalysts: [{ text: "Supplier news is the visible catalyst.", sourceIds: ["news-equity-1"] }],
+            scenarios: [{ name: "Base", description: "Momentum persists if liquidity remains.", sourceIds: ["market-aapl"] }],
+            confidence: "medium",
+            dataGaps: [],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+      readonly depthProfile?: {
+        readonly depth?: string;
+        readonly analystStyle?: string;
+        readonly minimumKeyFindings?: number;
+        readonly minimumScenarios?: number;
+      };
+    };
+
+    expect(result.trace.stages).toEqual(["source-collection", "specialist-analysis", "critique", "final-synthesis"]);
+    expect(result.report.extras?.depth).toBe("deep");
+    expect(finalPrompt.depthProfile).toMatchObject({
+      depth: "deep",
+      analystStyle: "fuller analyst-style",
+      minimumKeyFindings: 5,
+      minimumScenarios: 3,
+    });
+  });
+
   test("creates a daily Research View from mocked sources and model output", async () => {
     const result = await runResearchJob({
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },

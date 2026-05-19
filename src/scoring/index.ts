@@ -8,6 +8,7 @@ import {
 } from "../domain/types";
 import { fetchYahooClose } from "../sources/yahoo";
 import { fetchCoinGeckoClose } from "../sources/coingecko";
+import { observableForecastFromPrediction } from "../forecast/observable";
 import { resolvePrediction } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
@@ -67,13 +68,11 @@ async function fetchClose(
 }
 
 function symbolsForPrediction(prediction: Prediction): readonly string[] {
-  const { kind } = prediction;
-  if (kind === "direction" || kind === "volatility" || kind === "range") {
-    const parsed = { subject: prediction.subject };
-    return [parsed.subject];
+  const forecast = observableForecastFromPrediction(prediction);
+  if ("prediction" in forecast) {
+    return forecast.instruments;
   }
-  const parts = prediction.subject.split(":");
-  return parts.length === 2 ? [parts[0] as string, parts[1] as string] : [prediction.subject];
+  return [prediction.subject];
 }
 
 async function scoreOnePrediction(

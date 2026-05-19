@@ -131,6 +131,40 @@ describe("validatePredictions", () => {
     expect(result.errors[0]).toContain('relative subject must be "A:B"');
   });
 
+  test("rejects prediction when kind does not match measurableAs", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          kind: "direction",
+          subject: "QQQ:SPY",
+          measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("kind does not match measurableAs");
+  });
+
+  test("rejects prediction when subject does not match measurableAs", () => {
+    const result = validatePredictions(
+      [{ ...validPrediction, subject: "QQQ", measurableAs: "close(SPY, +5) > close(SPY, 0)" }],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("subject does not match measurableAs");
+  });
+
+  test("rejects prediction when horizon does not match measurableAs", () => {
+    const result = validatePredictions([{ ...validPrediction, horizonTradingDays: 10 }], knownIds);
+
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("horizonTradingDays does not match measurableAs");
+  });
+
   test("accepts a valid volatility prediction", () => {
     const result = validatePredictions(
       [
@@ -157,6 +191,7 @@ describe("validatePredictions", () => {
           kind: "range",
           subject: "BTC",
           measurableAs: "close(BTC, +7) outside [90000, 110000]",
+          horizonTradingDays: 7,
           claim: "BTC trades outside the 90000–110000 band within 7 days.",
         },
       ],

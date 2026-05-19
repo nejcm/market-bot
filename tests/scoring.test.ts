@@ -107,6 +107,7 @@ describe("resolvePrediction", () => {
       kind: "range",
       subject: "BTC",
       measurableAs: "close(BTC, +7) outside [90000, 110000]",
+      horizonTradingDays: 7,
       claim: "BTC breaks the 90k-110k band.",
     };
 

@@ -28,6 +28,8 @@ describe("parseArgs", () => {
   });
 
   test("labels commands for CLI output", () => {
-    expect(commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" })).toBe("ticker AAPL equity deep");
+    expect(
+      commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" }),
+    ).toBe("ticker AAPL equity deep");
   });
 });

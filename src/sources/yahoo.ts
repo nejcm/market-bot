@@ -10,7 +10,11 @@ function readYahooResults(payload: unknown): readonly unknown[] {
   return Array.isArray(payload.quoteResponse.result) ? payload.quoteResponse.result : [];
 }
 
-function normalizeYahooQuote(value: unknown, assetClass: AssetClass, fetchedAt: string): MarketSnapshot | undefined {
+function normalizeYahooQuote(
+  value: unknown,
+  assetClass: AssetClass,
+  fetchedAt: string,
+): MarketSnapshot | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -20,7 +24,12 @@ function normalizeYahooQuote(value: unknown, assetClass: AssetClass, fetchedAt: 
   const changePercent24h = readNumber(value, "regularMarketChangePercent");
   const volume = readNumber(value, "regularMarketVolume");
 
-  if (symbol === undefined || price === undefined || changePercent24h === undefined || volume === undefined) {
+  if (
+    symbol === undefined ||
+    price === undefined ||
+    changePercent24h === undefined ||
+    volume === undefined
+  ) {
     return undefined;
   }
 
@@ -40,7 +49,11 @@ function normalizeYahooQuote(value: unknown, assetClass: AssetClass, fetchedAt: 
   };
 }
 
-export function normalizeYahooQuotePayload(payload: unknown, assetClass: AssetClass, fetchedAt: string): readonly MarketSnapshot[] {
+export function normalizeYahooQuotePayload(
+  payload: unknown,
+  assetClass: AssetClass,
+  fetchedAt: string,
+): readonly MarketSnapshot[] {
   return readYahooResults(payload)
     .map((value) => normalizeYahooQuote(value, assetClass, fetchedAt))
     .filter((snapshot): snapshot is MarketSnapshot => snapshot !== undefined);
@@ -49,5 +62,6 @@ export function normalizeYahooQuotePayload(payload: unknown, assetClass: AssetCl
 export const yahooMarketDataAdapter: MarketDataAdapter = {
   name: "yahoo",
   assetClass: "equity",
-  normalizeMarkets: (payload, fetchedAt) => normalizeYahooQuotePayload(payload, "equity", fetchedAt),
+  normalizeMarkets: (payload, fetchedAt) =>
+    normalizeYahooQuotePayload(payload, "equity", fetchedAt),
 };

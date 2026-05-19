@@ -15,7 +15,9 @@ const report: ResearchReport = {
   bearCase: [],
   risks: [{ text: "Volatility remains elevated.", sourceIds: ["source-1"] }],
   catalysts: [],
-  scenarios: [{ name: "Base", description: "Range-bound conditions persist.", sourceIds: ["source-1"] }],
+  scenarios: [
+    { name: "Base", description: "Range-bound conditions persist.", sourceIds: ["source-1"] },
+  ],
   confidence: "medium",
   dataGaps: ["No derivatives data"],
   sources: [

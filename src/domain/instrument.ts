@@ -6,7 +6,9 @@ export function createInstrument(symbol: string, assetClass: AssetClass): Instru
   const normalizedSymbol = symbol.trim().toUpperCase();
 
   if (!SYMBOL_PATTERN.test(normalizedSymbol)) {
-    throw new Error("Symbol must be 1-25 characters using letters, numbers, dot, underscore, or hyphen");
+    throw new Error(
+      "Symbol must be 1-25 characters using letters, numbers, dot, underscore, or hyphen",
+    );
   }
 
   return {

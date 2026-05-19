@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "import", "jsdoc", "node"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "style": "warn",
+    "pedantic": "warn"
+  },
+  "rules": {
+    "no-console": "error",
+    "import/no-named-export": "off",
+    "import/prefer-default-export": "off",
+    "import/group-exports": "off",
+    "import/no-nodejs-modules": "off",
+    "func-style": "off",
+    "no-magic-numbers": "off",
+    "sort-keys": "off",
+    "sort-imports": "off",
+    "no-ternary": "off",
+    "no-negated-condition": "off",
+    "unicorn/no-negated-condition": "off",
+    "max-statements": "off"
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts"],
+      "rules": {
+        "no-await-in-loop": "off",
+        "max-lines-per-function": "off",
+        "max-lines": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["node_modules/**", "coverage/**", "research/**", "plans/**"]
+}

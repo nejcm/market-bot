@@ -15,7 +15,11 @@ export interface MarketDataAdapter {
 
 export interface NewsAdapter {
   readonly name: string;
-  readonly normalizeNews: (payload: unknown, assetClass: AssetClass, fetchedAt: string) => readonly Source[];
+  readonly normalizeNews: (
+    payload: unknown,
+    assetClass: AssetClass,
+    fetchedAt: string,
+  ) => readonly Source[];
 }
 
 export interface SourceRegistry {

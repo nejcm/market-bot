@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { afterEach, describe, expect, test } from "bun:test";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AppConfig } from "../src/config";
@@ -27,7 +27,7 @@ const marketSnapshots: readonly MarketSnapshot[] = [
     symbol: "AAPL",
     price: 190,
     changePercent24h: 2,
-    volume: 80000000,
+    volume: 80_000_000,
     observedAt: "2026-05-19T00:00:00.000Z",
   },
 ];
@@ -41,6 +41,14 @@ const newsSources: readonly Source[] = [
     assetClass: "equity",
   },
 ];
+
+const dataDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    dataDirs.splice(0).map((dataDir) => rm(dataDir, { recursive: true, force: true })),
+  );
+});
 
 function providerReturning(content: string): ModelProvider {
   return {
@@ -65,11 +73,23 @@ describe("runResearchJob", () => {
           content: JSON.stringify({
             summary: "Deep equity review from supplied sources.",
             keyFindings: [{ text: "AAPL has sourced momentum.", sourceIds: ["market-aapl"] }],
-            bullCase: [{ text: "News supports the sourced momentum.", sourceIds: ["news-equity-1"] }],
-            bearCase: [{ text: "Single-source breadth limits confidence.", sourceIds: ["market-aapl"] }],
+            bullCase: [
+              { text: "News supports the sourced momentum.", sourceIds: ["news-equity-1"] },
+            ],
+            bearCase: [
+              { text: "Single-source breadth limits confidence.", sourceIds: ["market-aapl"] },
+            ],
             risks: [{ text: "Macro context is incomplete.", sourceIds: ["market-aapl"] }],
-            catalysts: [{ text: "Supplier news is the visible catalyst.", sourceIds: ["news-equity-1"] }],
-            scenarios: [{ name: "Base", description: "Momentum persists if liquidity remains.", sourceIds: ["market-aapl"] }],
+            catalysts: [
+              { text: "Supplier news is the visible catalyst.", sourceIds: ["news-equity-1"] },
+            ],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Momentum persists if liquidity remains.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
             confidence: "medium",
             dataGaps: [],
           }),
@@ -106,7 +126,12 @@ describe("runResearchJob", () => {
       };
     };
 
-    expect(result.trace.stages).toEqual(["source-collection", "specialist-analysis", "critique", "final-synthesis"]);
+    expect(result.trace.stages).toEqual([
+      "source-collection",
+      "specialist-analysis",
+      "critique",
+      "final-synthesis",
+    ]);
     expect(result.report.extras?.depth).toBe("deep");
     expect(finalPrompt.depthProfile).toMatchObject({
       depth: "deep",
@@ -129,10 +154,23 @@ describe("runResearchJob", () => {
           summary: "Equity market breadth is constructive but source coverage is limited.",
           keyFindings: [{ text: "AAPL is a liquid positive mover.", sourceIds: ["market-aapl"] }],
           bullCase: [{ text: "Demand news supports the move.", sourceIds: ["news-equity-1"] }],
-          bearCase: [{ text: "Single-name evidence may not represent the whole market.", sourceIds: ["market-aapl"] }],
+          bearCase: [
+            {
+              text: "Single-name evidence may not represent the whole market.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
           risks: [{ text: "Macro data is missing.", sourceIds: ["market-aapl"] }],
-          catalysts: [{ text: "Supplier demand update is the main catalyst.", sourceIds: ["news-equity-1"] }],
-          scenarios: [{ name: "Base", description: "Momentum continues if liquidity persists.", sourceIds: ["market-aapl"] }],
+          catalysts: [
+            { text: "Supplier demand update is the main catalyst.", sourceIds: ["news-equity-1"] },
+          ],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
           confidence: "medium",
           dataGaps: ["Macro breadth source unavailable"],
         }),
@@ -154,7 +192,12 @@ describe("runResearchJob", () => {
     });
     expect(result.markdown).toContain("Research-only note");
     expect(result.trace.sourceGaps).toEqual(["Macro breadth source unavailable"]);
-    expect(result.trace.stages).toEqual(["source-collection", "specialist-analysis", "critique", "final-synthesis"]);
+    expect(result.trace.stages).toEqual([
+      "source-collection",
+      "specialist-analysis",
+      "critique",
+      "final-synthesis",
+    ]);
     expect(result.stageOutputs).toHaveLength(3);
     expect(result.trace.tokenEstimate).toBe(300);
   });
@@ -190,6 +233,7 @@ describe("runResearchJob", () => {
 
   test("persists raw, normalized, report, markdown, and trace artifacts", async () => {
     const dataDir = join(tmpdir(), `market-bot-test-${Date.now()}`);
+    dataDirs.push(dataDir);
     const result = await persistResearchJob({
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config: {
@@ -210,7 +254,14 @@ describe("runResearchJob", () => {
         }),
       ),
       collectedSources: {
-        rawSnapshots: [{ id: "raw-1", adapter: "mock", fetchedAt: "2026-05-19T00:00:00.000Z", payload: { ok: true } }],
+        rawSnapshots: [
+          {
+            id: "raw-1",
+            adapter: "mock",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            payload: { ok: true },
+          },
+        ],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
@@ -218,12 +269,24 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    await expect(readFile(join(result.artifacts.rawDir, "snapshots.json"), "utf8")).resolves.toContain("raw-1");
-    await expect(readFile(join(result.artifacts.normalizedDir, "market-snapshots.json"), "utf8")).resolves.toContain("market-aapl");
-    await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain("Equity market breadth");
-    await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain("Research-only note");
-    await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain("quick-test");
-    await expect(readFile(join(result.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain("specialist-analysis");
+    await expect(
+      readFile(join(result.artifacts.rawDir, "snapshots.json"), "utf8"),
+    ).resolves.toContain("raw-1");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "market-snapshots.json"), "utf8"),
+    ).resolves.toContain("market-aapl");
+    await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
+      "Equity market breadth",
+    );
+    await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
+      "Research-only note",
+    );
+    await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain(
+      "quick-test",
+    );
+    await expect(readFile(join(result.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain(
+      "specialist-analysis",
+    );
   });
 
   test("caps Evidence Quality and adds deterministic gaps for sparse sources", async () => {

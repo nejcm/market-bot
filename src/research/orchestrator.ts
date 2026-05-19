@@ -1,8 +1,18 @@
 import type { AppConfig } from "../config";
 import type { CliCommand } from "../cli/args";
 import { join } from "node:path";
-import { createRunId, prepareRunArtifacts, writeJson, writeRunOutputs, type RunArtifacts } from "../artifacts";
-import type { EvidenceQuality, KeyFinding, MarketSnapshot, ResearchReport, RunTrace, Scenario, Source, SourceGap } from "../domain/types";
+import { createRunId, prepareRunArtifacts, writeJson, writeRunOutputs } from "../artifacts";
+import type { RunArtifacts } from "../artifacts";
+import type {
+  EvidenceQuality,
+  KeyFinding,
+  MarketSnapshot,
+  ResearchReport,
+  RunTrace,
+  Scenario,
+  Source,
+  SourceGap,
+} from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
@@ -65,6 +75,11 @@ interface DepthProfile {
   readonly focus: readonly string[];
 }
 
+interface ResearchContext {
+  readonly depthProfile: DepthProfile;
+  readonly marketRegime: ReturnType<typeof summarizeMarketRegime>;
+}
+
 function parseModelPayload(content: string): ModelReportPayload {
   const parsed = JSON.parse(content) as unknown;
 
@@ -80,7 +95,9 @@ function readArray(value: unknown): readonly unknown[] {
 }
 
 function readStringArray(value: unknown): readonly string[] {
-  return readArray(value).filter((item): item is string => typeof item === "string" && item.trim() !== "");
+  return readArray(value).filter(
+    (item): item is string => typeof item === "string" && item.trim() !== "",
+  );
 }
 
 function readFindings(value: unknown): readonly KeyFinding[] {
@@ -101,7 +118,11 @@ function readFindings(value: unknown): readonly KeyFinding[] {
 function readScenarios(value: unknown): readonly Scenario[] {
   return readArray(value)
     .map((item): Scenario | undefined => {
-      if (!isRecord(item) || typeof item.name !== "string" || typeof item.description !== "string") {
+      if (
+        !isRecord(item) ||
+        typeof item.name !== "string" ||
+        typeof item.description !== "string"
+      ) {
         return undefined;
       }
 
@@ -134,15 +155,20 @@ function lowerQuality(left: EvidenceQuality, right: EvidenceQuality): EvidenceQu
   return qualityRank(left) <= qualityRank(right) ? left : right;
 }
 
-function deterministicSourceGaps(command: CliCommand, collectedSources: CollectedSources): readonly string[] {
+function deterministicSourceGaps(
+  command: CliCommand,
+  collectedSources: CollectedSources,
+): readonly string[] {
   const gaps = collectedSources.sourceGaps?.map((gap) => `${gap.source}: ${gap.message}`) ?? [];
   const marketGaps =
     collectedSources.marketSnapshots.length === 0
       ? ["No usable market data snapshots were collected"]
       : [];
-  const newsGaps = collectedSources.newsSources.length === 0 ? ["No usable news sources were collected"] : [];
+  const newsGaps =
+    collectedSources.newsSources.length === 0 ? ["No usable news sources were collected"] : [];
   const tickerGaps =
-    command.jobType === "ticker" && collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
+    command.jobType === "ticker" &&
+    collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
       ? [`No market snapshot matched ticker ${command.symbol}`]
       : [];
 
@@ -162,29 +188,41 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
 }
 
 function buildSourceList(collectedSources: CollectedSources): readonly Source[] {
-  const marketSources = collectedSources.marketSnapshots.map((snapshot): Source => ({
-    id: snapshot.sourceId,
-    title: `${snapshot.symbol} market snapshot`,
-    fetchedAt: snapshot.observedAt,
-    kind: "market-data",
-    assetClass: snapshot.assetClass,
-    symbol: snapshot.symbol,
-  }));
+  const marketSources = collectedSources.marketSnapshots.map(
+    (snapshot): Source => ({
+      id: snapshot.sourceId,
+      title: `${snapshot.symbol} market snapshot`,
+      fetchedAt: snapshot.observedAt,
+      kind: "market-data",
+      assetClass: snapshot.assetClass,
+      symbol: snapshot.symbol,
+    }),
+  );
 
   return [...marketSources, ...collectedSources.newsSources];
 }
 
-function buildEvidencePayload(command: CliCommand, collectedSources: CollectedSources, config: AppConfig): Record<string, unknown> {
-  const limit = command.assetClass === "equity" ? config.sourceOptions.equityMoverLimit : config.sourceOptions.cryptoMoverLimit;
+function buildEvidencePayload(
+  command: CliCommand,
+  collectedSources: CollectedSources,
+  config: AppConfig,
+  context: ResearchContext,
+): Record<string, unknown> {
+  const limit =
+    command.assetClass === "equity"
+      ? config.sourceOptions.equityMoverLimit
+      : config.sourceOptions.cryptoMoverLimit;
   const movers = rankMovers(
-    collectedSources.marketSnapshots.filter((snapshot) => snapshot.assetClass === command.assetClass),
+    collectedSources.marketSnapshots.filter(
+      (snapshot) => snapshot.assetClass === command.assetClass,
+    ),
     limit,
   );
 
   return {
     command,
     movers,
-    marketRegime: summarizeMarketRegime(command.assetClass, collectedSources.marketSnapshots),
+    marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
     newsSources: collectedSources.newsSources,
     sourceGaps: deterministicSourceGaps(command, collectedSources),
@@ -224,7 +262,10 @@ function buildDepthProfile(command: CliCommand): DepthProfile {
     analystStyle: "concise brief",
     minimumKeyFindings: command.jobType === "daily" ? 3 : 4,
     minimumScenarios: 1,
-    focus: command.jobType === "daily" ? ["market regime", "movers", "risks", "source gaps"] : ["thesis", "evidence", "risks", "data gaps"],
+    focus:
+      command.jobType === "daily"
+        ? ["market regime", "movers", "risks", "source gaps"]
+        : ["thesis", "evidence", "risks", "data gaps"],
   };
 }
 
@@ -233,6 +274,7 @@ function buildStagePrompt(
   command: CliCommand,
   collectedSources: CollectedSources,
   config: AppConfig,
+  context: ResearchContext,
   priorStages: readonly StageOutput[] = [],
 ): string {
   return JSON.stringify(
@@ -243,13 +285,16 @@ function buildStagePrompt(
       stageGoal:
         stage === "specialist-analysis"
           ? "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources."
-          : stage === "critique"
+          : (stage === "critique"
             ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
-            : "Synthesize the final sourced research-only JSON report.",
-      depthProfile: buildDepthProfile(command),
-      evidence: buildEvidencePayload(command, collectedSources, config),
+            : "Synthesize the final sourced research-only JSON report."),
+      depthProfile: context.depthProfile,
+      evidence: buildEvidencePayload(command, collectedSources, config, context),
       priorStages,
-      requiredShape: stage === "final-synthesis" ? finalReportShape() : { findings: [{ text: "string", sourceIds: ["source-id"] }], dataGaps: ["string"] },
+      requiredShape:
+        stage === "final-synthesis"
+          ? finalReportShape()
+          : { findings: [{ text: "string", sourceIds: ["source-id"] }], dataGaps: ["string"] },
     },
     null,
     2,
@@ -260,6 +305,7 @@ async function runStage(
   stage: StageOutput["stage"],
   model: string,
   input: RunResearchJobInput,
+  context: ResearchContext,
   priorStages: readonly StageOutput[] = [],
 ): Promise<StageOutput> {
   const response = await input.provider.generate({
@@ -272,7 +318,14 @@ async function runStage(
       },
       {
         role: "user",
-        content: buildStagePrompt(stage, input.command, input.collectedSources, input.config, priorStages),
+        content: buildStagePrompt(
+          stage,
+          input.command,
+          input.collectedSources,
+          input.config,
+          context,
+          priorStages,
+        ),
       },
     ],
   });
@@ -289,16 +342,46 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
   const runId = createRunId(now);
-  const specialistOutput = await runStage("specialist-analysis", input.config.quickModel, input);
-  const critiqueOutput = await runStage("critique", input.config.quickModel, input, [specialistOutput]);
-  const finalOutput = await runStage("final-synthesis", input.config.synthesisModel, input, [specialistOutput, critiqueOutput]);
+  const context: ResearchContext = {
+    depthProfile: buildDepthProfile(input.command),
+    marketRegime: summarizeMarketRegime(
+      input.command.assetClass,
+      input.collectedSources.marketSnapshots,
+    ),
+  };
+  const specialistOutput = await runStage(
+    "specialist-analysis",
+    input.config.quickModel,
+    input,
+    context,
+  );
+  const critiqueOutput = await runStage("critique", input.config.quickModel, input, context, [
+    specialistOutput,
+  ]);
+  const finalOutput = await runStage(
+    "final-synthesis",
+    input.config.synthesisModel,
+    input,
+    context,
+    [specialistOutput, critiqueOutput],
+  );
   const stageOutputs = [specialistOutput, critiqueOutput, finalOutput];
 
   const payload = parseModelPayload(finalOutput.content);
-  const dataGaps = [...new Set([...readStringArray(payload.dataGaps), ...deterministicSourceGaps(input.command, input.collectedSources)])];
-  const confidence = lowerQuality(readEvidenceQuality(payload.confidence), deterministicQualityCap(input.collectedSources));
+  const dataGaps = [
+    ...new Set([
+      ...readStringArray(payload.dataGaps),
+      ...deterministicSourceGaps(input.command, input.collectedSources),
+    ]),
+  ];
+  const confidence = lowerQuality(
+    readEvidenceQuality(payload.confidence),
+    deterministicQualityCap(input.collectedSources),
+  );
   const modelExtras =
-    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras) ? (payload.extras as Record<string, unknown>) : {};
+    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
+      ? (payload.extras as Record<string, unknown>)
+      : {};
   const report = validateResearchReport({
     runId,
     jobType: input.command.jobType,
@@ -319,8 +402,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     extras: {
       ...modelExtras,
       depth: input.command.depth,
-      depthProfile: buildDepthProfile(input.command),
-      marketRegime: summarizeMarketRegime(input.command.assetClass, input.collectedSources.marketSnapshots),
+      depthProfile: context.depthProfile,
+      marketRegime: context.marketRegime,
     },
   });
 
@@ -349,14 +432,25 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   };
 }
 
-export async function persistResearchJob(input: RunResearchJobInput): Promise<PersistedResearchJobResult> {
+export async function persistResearchJob(
+  input: RunResearchJobInput,
+): Promise<PersistedResearchJobResult> {
   const result = await runResearchJob(input);
   const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
 
   await writeJson(join(artifacts.rawDir, "snapshots.json"), input.collectedSources.rawSnapshots);
-  await writeJson(join(artifacts.normalizedDir, "market-snapshots.json"), input.collectedSources.marketSnapshots);
-  await writeJson(join(artifacts.normalizedDir, "news-sources.json"), input.collectedSources.newsSources);
-  await writeJson(join(artifacts.normalizedDir, "source-gaps.json"), input.collectedSources.sourceGaps ?? []);
+  await writeJson(
+    join(artifacts.normalizedDir, "market-snapshots.json"),
+    input.collectedSources.marketSnapshots,
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "news-sources.json"),
+    input.collectedSources.newsSources,
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "source-gaps.json"),
+    input.collectedSources.sourceGaps ?? [],
+  );
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);
 

@@ -12,7 +12,12 @@ function normalizeCoinGeckoMarket(value: unknown, fetchedAt: string): MarketSnap
   const changePercent24h = readNumber(value, "price_change_percentage_24h");
   const volume = readNumber(value, "total_volume");
 
-  if (symbol === undefined || price === undefined || changePercent24h === undefined || volume === undefined) {
+  if (
+    symbol === undefined ||
+    price === undefined ||
+    changePercent24h === undefined ||
+    volume === undefined
+  ) {
     return undefined;
   }
 
@@ -32,7 +37,10 @@ function normalizeCoinGeckoMarket(value: unknown, fetchedAt: string): MarketSnap
   };
 }
 
-export function normalizeCoinGeckoMarketsPayload(payload: unknown, fetchedAt: string): readonly MarketSnapshot[] {
+export function normalizeCoinGeckoMarketsPayload(
+  payload: unknown,
+  fetchedAt: string,
+): readonly MarketSnapshot[] {
   if (!Array.isArray(payload)) {
     return [];
   }

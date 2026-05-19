@@ -1,11 +1,12 @@
-import { describe, expect, test } from "bun:test";
-import { readdir, readFile } from "node:fs/promises";
+import { afterEach, describe, expect, test } from "bun:test";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppConfig } from "../src/config";
 import type { AssetClass, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
-import { persistResearchJob, type CollectedSources } from "../src/research/orchestrator";
+import { persistResearchJob } from "../src/research/orchestrator";
+import type { CollectedSources } from "../src/research/orchestrator";
 import type { CliCommand } from "../src/cli/args";
 
 const config: AppConfig = {
@@ -21,6 +22,14 @@ const config: AppConfig = {
   },
 };
 
+const dataDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    dataDirs.splice(0).map((dataDir) => rm(dataDir, { recursive: true, force: true })),
+  );
+});
+
 function snapshot(assetClass: AssetClass, symbol: string): MarketSnapshot {
   return {
     sourceId: `market-${symbol.toLowerCase()}`,
@@ -28,7 +37,7 @@ function snapshot(assetClass: AssetClass, symbol: string): MarketSnapshot {
     symbol,
     price: 100,
     changePercent24h: 3,
-    volume: 1000000,
+    volume: 1_000_000,
     observedAt: "2026-05-19T00:00:00.000Z",
   };
 }
@@ -45,7 +54,14 @@ function news(assetClass: AssetClass): Source {
 
 function collectedSources(assetClass: AssetClass, symbol: string): CollectedSources {
   return {
-    rawSnapshots: [{ id: `raw-${assetClass}-${symbol}`, adapter: "mock", fetchedAt: "2026-05-19T00:00:00.000Z", payload: { symbol } }],
+    rawSnapshots: [
+      {
+        id: `raw-${assetClass}-${symbol}`,
+        adapter: "mock",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        payload: { symbol },
+      },
+    ],
     marketSnapshots: [snapshot(assetClass, symbol)],
     newsSources: [news(assetClass)],
     sourceGaps: [],
@@ -56,7 +72,10 @@ const provider: ModelProvider = {
   name: "mock",
   generate: async (request) => {
     const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as {
-      readonly evidence?: { readonly command?: CliCommand; readonly marketSnapshots?: readonly MarketSnapshot[] };
+      readonly evidence?: {
+        readonly command?: CliCommand;
+        readonly marketSnapshots?: readonly MarketSnapshot[];
+      };
     };
     const command = prompt.evidence?.command;
     const marketSourceId = prompt.evidence?.marketSnapshots?.[0]?.sourceId ?? "market-unknown";
@@ -68,8 +87,16 @@ const provider: ModelProvider = {
         bullCase: [{ text: "Source trend is constructive.", sourceIds: [marketSourceId] }],
         bearCase: [{ text: "Evidence remains limited.", sourceIds: [marketSourceId] }],
         risks: [{ text: "Mocked data limits interpretation.", sourceIds: [marketSourceId] }],
-        catalysts: [{ text: "Observed move is the visible catalyst.", sourceIds: [marketSourceId] }],
-        scenarios: [{ name: "Base", description: "Conditions remain source-dependent.", sourceIds: [marketSourceId] }],
+        catalysts: [
+          { text: "Observed move is the visible catalyst.", sourceIds: [marketSourceId] },
+        ],
+        scenarios: [
+          {
+            name: "Base",
+            description: "Conditions remain source-dependent.",
+            sourceIds: [marketSourceId],
+          },
+        ],
         confidence: "medium",
         dataGaps: ["Only mocked sources were supplied"],
       }),
@@ -80,11 +107,17 @@ const provider: ModelProvider = {
 };
 
 async function runWorkflow(command: CliCommand, symbol: string) {
+  const dataDir = join(
+    tmpdir(),
+    `market-bot-integration-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  );
+  dataDirs.push(dataDir);
+
   return persistResearchJob({
     command,
     config: {
       ...config,
-      dataDir: join(tmpdir(), `market-bot-integration-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+      dataDir,
     },
     provider,
     collectedSources: collectedSources(command.assetClass, symbol),
@@ -97,20 +130,53 @@ describe("mocked research workflows", () => {
     const workflows = [
       await runWorkflow({ jobType: "daily", assetClass: "equity", depth: "brief" }, "AAPL"),
       await runWorkflow({ jobType: "daily", assetClass: "crypto", depth: "brief" }, "BTC"),
-      await runWorkflow({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" }, "AAPL"),
-      await runWorkflow({ jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" }, "BTC"),
+      await runWorkflow(
+        { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        "AAPL",
+      ),
+      await runWorkflow(
+        { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+        "BTC",
+      ),
     ];
 
     for (const workflow of workflows) {
-      await expect(readdir(workflow.artifacts.runDir)).resolves.toEqual(expect.arrayContaining(["normalized", "raw", "report.json", "report.md", "stages.json", "trace.json"]));
+      await expect(readdir(workflow.artifacts.runDir)).resolves.toEqual(
+        expect.arrayContaining([
+          "normalized",
+          "raw",
+          "report.json",
+          "report.md",
+          "stages.json",
+          "trace.json",
+        ]),
+      );
       await expect(readdir(workflow.artifacts.rawDir)).resolves.toEqual(["snapshots.json"]);
-      await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual(["market-snapshots.json", "news-sources.json", "source-gaps.json"]);
-      await expect(readFile(join(workflow.artifacts.runDir, "report.md"), "utf8")).resolves.toContain("Research-only note");
-      await expect(readFile(join(workflow.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain("final-synthesis");
+      await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual([
+        "market-snapshots.json",
+        "news-sources.json",
+        "source-gaps.json",
+      ]);
+      await expect(
+        readFile(join(workflow.artifacts.runDir, "report.md"), "utf8"),
+      ).resolves.toContain("Research-only note");
+      await expect(
+        readFile(join(workflow.artifacts.runDir, "stages.json"), "utf8"),
+      ).resolves.toContain("final-synthesis");
     }
 
-    expect(workflows.map((workflow) => workflow.report.jobType)).toEqual(["daily", "daily", "ticker", "ticker"]);
-    expect(workflows.map((workflow) => workflow.report.assetClass)).toEqual(["equity", "crypto", "equity", "crypto"]);
+    expect(workflows.map((workflow) => workflow.report.jobType)).toEqual([
+      "daily",
+      "daily",
+      "ticker",
+      "ticker",
+    ]);
+    expect(workflows.map((workflow) => workflow.report.assetClass)).toEqual([
+      "equity",
+      "crypto",
+      "equity",
+      "crypto",
+    ]);
     expect(workflows[0]?.report.symbol).toBeUndefined();
     expect(workflows[2]?.report.symbol).toBe("AAPL");
     expect(workflows[3]?.trace.depth).toBe("deep");

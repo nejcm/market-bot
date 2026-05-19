@@ -1,18 +1,31 @@
 {
   "name": "market-bot",
   "version": "0.1.0",
-  "type": "module",
   "private": true,
   "bin": {
     "market-bot": "./src/cli.ts"
   },
+  "type": "module",
   "scripts": {
     "test": "bun test",
     "test:coverage": "bun run scripts/check-coverage.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt src tests scripts",
+    "fmt:check": "oxfmt --check src tests scripts",
+    "knip": "knip",
+    "audit": "bun audit --audit-level=high",
+    "check": "bun run lint && bun run fmt:check && bun run typecheck && bun test"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
     "@types/bun": "latest",
+    "knip": "^6.14.1",
+    "lefthook": "^2.1.8",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
     "typescript": "^5.9.3"
   }
 }

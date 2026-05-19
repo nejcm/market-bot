@@ -16,7 +16,10 @@ function snapshot(symbol: string, changePercent24h: number, volume: number): Mar
 
 describe("rankMovers", () => {
   test("ranks by movement magnitude plus liquidity", () => {
-    const ranked = rankMovers([snapshot("SLOW", 2, 5_000_000), snapshot("FAST", -8, 1_000_000), snapshot("THIN", 20, 1_000)], 2);
+    const ranked = rankMovers(
+      [snapshot("SLOW", 2, 5_000_000), snapshot("FAST", -8, 1_000_000), snapshot("THIN", 20, 1000)],
+      2,
+    );
 
     expect(ranked.map((mover) => mover.snapshot.symbol)).toEqual(["FAST", "SLOW"]);
     expect(ranked.map((mover) => mover.rank)).toEqual([1, 2]);

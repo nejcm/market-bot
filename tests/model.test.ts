@@ -4,10 +4,13 @@ import { createOpenAIProvider } from "../src/model/openai";
 describe("createOpenAIProvider", () => {
   test("posts chat completion requests and reads content", async () => {
     const requests: Request[] = [];
-    const fetchImpl = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
       requests.push(new Request(input, init));
       return Response.json({
-        choices: [{ message: { content: "{\"summary\":\"ok\"}" } }],
+        choices: [{ message: { content: '{"summary":"ok"}' } }],
         usage: { total_tokens: 12 },
       });
     };
@@ -36,7 +39,7 @@ describe("createOpenAIProvider", () => {
     });
 
     expect(response).toEqual({
-      content: "{\"summary\":\"ok\"}",
+      content: '{"summary":"ok"}',
       tokenEstimate: 12,
       costEstimateUsd: 0,
     });
@@ -52,7 +55,7 @@ describe("createOpenAIProvider", () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       urls.push(String(input));
       return Response.json({
-        choices: [{ message: { content: "{\"summary\":\"ok\"}" } }],
+        choices: [{ message: { content: '{"summary":"ok"}' } }],
       });
     };
     const provider = createOpenAIProvider(

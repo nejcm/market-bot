@@ -10,7 +10,12 @@ function readArticles(payload: unknown): readonly unknown[] {
   return Array.isArray(payload.articles) ? payload.articles : [];
 }
 
-function normalizeArticle(value: unknown, assetClass: AssetClass, fetchedAt: string, index: number): Source | undefined {
+function normalizeArticle(
+  value: unknown,
+  assetClass: AssetClass,
+  fetchedAt: string,
+  index: number,
+): Source | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -35,7 +40,11 @@ function normalizeArticle(value: unknown, assetClass: AssetClass, fetchedAt: str
   };
 }
 
-export function normalizeNewsPayload(payload: unknown, assetClass: AssetClass, fetchedAt: string): readonly Source[] {
+export function normalizeNewsPayload(
+  payload: unknown,
+  assetClass: AssetClass,
+  fetchedAt: string,
+): readonly Source[] {
   return readArticles(payload)
     .map((value, index) => normalizeArticle(value, assetClass, fetchedAt, index))
     .filter((source): source is Source => source !== undefined);

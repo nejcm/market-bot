@@ -1,4 +1,4 @@
-import type { AssetClass, Depth, JobType } from "../domain/types";
+import type { AssetClass, Depth } from "../domain/types";
 import { createInstrument } from "../domain/instrument";
 
 export interface DailyCommand {
@@ -97,7 +97,9 @@ export function parseArgs(args: readonly string[]): CliCommand {
     };
   }
 
-  throw new Error("Usage: market-bot daily --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep]");
+  throw new Error(
+    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep]",
+  );
 }
 
 export function commandLabel(command: CliCommand): string {

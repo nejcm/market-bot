@@ -12,13 +12,18 @@ function scoreSnapshot(snapshot: MarketSnapshot): number {
 
 export function rankMovers(snapshots: readonly MarketSnapshot[], limit: number): readonly Mover[] {
   return snapshots
-    .filter((snapshot) => Number.isFinite(snapshot.price) && Number.isFinite(snapshot.changePercent24h) && snapshot.volume >= MINIMUM_VOLUME)
+    .filter(
+      (snapshot) =>
+        Number.isFinite(snapshot.price) &&
+        Number.isFinite(snapshot.changePercent24h) &&
+        snapshot.volume >= MINIMUM_VOLUME,
+    )
     .map((snapshot) => ({
       snapshot,
       rank: 0,
       score: scoreSnapshot(snapshot),
     }))
-    .sort((left, right) => {
+    .toSorted((left, right) => {
       if (right.score !== left.score) {
         return right.score - left.score;
       }

@@ -24,7 +24,10 @@ function readOpenAIResponse(value: unknown): OpenAIResponse {
   return typeof value === "object" && value !== null ? (value as OpenAIResponse) : {};
 }
 
-export function createOpenAIProvider(config: AppConfig, fetchImpl: FetchLike = fetch): ModelProvider {
+export function createOpenAIProvider(
+  config: AppConfig,
+  fetchImpl: FetchLike = fetch,
+): ModelProvider {
   if (config.apiKey === undefined) {
     throw new Error("OPENAI_API_KEY or MARKET_BOT_OPENAI_API_KEY is required");
   }
@@ -58,7 +61,9 @@ export function createOpenAIProvider(config: AppConfig, fetchImpl: FetchLike = f
         throw new Error("OpenAI response did not include content");
       }
 
-      const tokenEstimate = payload.usage?.total_tokens ?? request.messages.reduce((total, message) => total + message.content.length / 4, 0);
+      const tokenEstimate =
+        payload.usage?.total_tokens ??
+        request.messages.reduce((total, message) => total + message.content.length / 4, 0);
 
       return {
         content,

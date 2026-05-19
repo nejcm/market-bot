@@ -22,8 +22,14 @@ function renderScenarios(scenarios: readonly Scenario[]): string {
 }
 
 export function renderMarkdownReport(report: ResearchReport): string {
-  const title = report.jobType === "ticker" ? `${report.symbol} ${report.assetClass} Research View` : `${report.assetClass} Daily Market Update`;
-  const gaps = report.dataGaps.length === 0 ? "- No material gaps identified." : report.dataGaps.map((gap) => `- ${gap}`).join("\n");
+  const title =
+    report.jobType === "ticker"
+      ? `${report.symbol} ${report.assetClass} Research View`
+      : `${report.assetClass} Daily Market Update`;
+  const gaps =
+    report.dataGaps.length === 0
+      ? "- No material gaps identified."
+      : report.dataGaps.map((gap) => `- ${gap}`).join("\n");
   const sources = report.sources.map((source) => `- [${source.id}] ${source.title}`).join("\n");
 
   return [

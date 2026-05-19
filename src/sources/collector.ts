@@ -49,7 +49,13 @@ function encodeQuery(params: Record<string, string>): string {
   return new URLSearchParams(params).toString();
 }
 
-async function fetchJson(url: string, adapter: string, fetchedAt: string, timeoutMs: number, fetchImpl: FetchLike): Promise<FetchJsonResult> {
+async function fetchJson(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+): Promise<FetchJsonResult> {
   const response = await fetchImpl(url, {
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
@@ -103,7 +109,9 @@ function readYahooScreenerQuotes(payload: unknown): unknown {
     return { quoteResponse: { result: [] } };
   }
 
-  const finance = (payload as { finance?: { result?: readonly { quotes?: readonly unknown[] }[] } }).finance;
+  const { finance } = payload as {
+    finance?: { result?: readonly { quotes?: readonly unknown[] }[] };
+  };
   const quotes = finance?.result?.[0]?.quotes ?? [];
 
   return {
@@ -147,7 +155,10 @@ function normalizeYahooNewsPayload(payload: unknown): unknown {
 
   const news = (payload as { news?: readonly Record<string, unknown>[] }).news ?? [];
   const articles = news.map((item) => {
-    const providerPublishTime = typeof item.providerPublishTime === "number" ? new Date(item.providerPublishTime * 1000).toISOString() : undefined;
+    const providerPublishTime =
+      typeof item.providerPublishTime === "number"
+        ? new Date(item.providerPublishTime * 1000).toISOString()
+        : undefined;
 
     return {
       title: item.title,
@@ -164,7 +175,10 @@ function normalizeYahooNewsPayload(payload: unknown): unknown {
   };
 }
 
-function filterTickerSnapshots(command: CliCommand, snapshots: readonly MarketSnapshot[]): readonly MarketSnapshot[] {
+function filterTickerSnapshots(
+  command: CliCommand,
+  snapshots: readonly MarketSnapshot[],
+): readonly MarketSnapshot[] {
   if (command.jobType === "daily") {
     return snapshots;
   }
@@ -200,13 +214,27 @@ async function collectMarketData(
     const results: readonly EquityFetchResult[] = await Promise.all(
       requests.map(async (request) => ({
         role: request.role,
-        result: await fetchJsonOrGap(request.url, `${adapter.name}-${request.role}`, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl),
+        result: await fetchJsonOrGap(
+          request.url,
+          `${adapter.name}-${request.role}`,
+          fetchedAt,
+          sourceOptions.sourceTimeoutMs,
+          fetchImpl,
+        ),
       })),
     );
-    const fetchedResults = results.filter((entry): entry is EquityFetchResult & { readonly result: FetchJsonResult } => isFetchJsonResult(entry.result));
-    const sourceGaps = results.map((entry) => entry.result).filter((result): result is SourceGap => !isFetchJsonResult(result));
+    const fetchedResults = results.filter(
+      (entry): entry is EquityFetchResult & { readonly result: FetchJsonResult } =>
+        isFetchJsonResult(entry.result),
+    );
+    const sourceGaps = results
+      .map((entry) => entry.result)
+      .filter((result): result is SourceGap => !isFetchJsonResult(result));
     const snapshots = fetchedResults.flatMap((entry) => {
-      const payload = command.jobType === "daily" && entry.role === "movers" ? readYahooScreenerQuotes(entry.result.payload) : entry.result.payload;
+      const payload =
+        command.jobType === "daily" && entry.role === "movers"
+          ? readYahooScreenerQuotes(entry.result.payload)
+          : entry.result.payload;
 
       return adapter.normalizeMarkets(payload, fetchedAt);
     });
@@ -218,7 +246,13 @@ async function collectMarketData(
     };
   }
 
-  const fetched = await fetchJsonOrGap(coinGeckoUrl(cryptoFetchLimit(command, sourceOptions)), adapter.name, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl);
+  const fetched = await fetchJsonOrGap(
+    coinGeckoUrl(cryptoFetchLimit(command, sourceOptions)),
+    adapter.name,
+    fetchedAt,
+    sourceOptions.sourceTimeoutMs,
+    fetchImpl,
+  );
 
   if (!isFetchJsonResult(fetched)) {
     return {
@@ -230,7 +264,10 @@ async function collectMarketData(
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    marketSnapshots: filterTickerSnapshots(command, adapter.normalizeMarkets(fetched.payload, fetchedAt)),
+    marketSnapshots: filterTickerSnapshots(
+      command,
+      adapter.normalizeMarkets(fetched.payload, fetchedAt),
+    ),
     sourceGaps: [],
   };
 }
@@ -242,7 +279,13 @@ async function collectNewsData(
   fetchImpl: FetchLike,
 ): Promise<NewsCollectionResult> {
   const adapter = createSourceRegistry().newsFor(command.assetClass);
-  const fetched = await fetchJsonOrGap(yahooNewsUrl(command, sourceOptions.newsLimit), adapter.name, fetchedAt, sourceOptions.sourceTimeoutMs, fetchImpl);
+  const fetched = await fetchJsonOrGap(
+    yahooNewsUrl(command, sourceOptions.newsLimit),
+    adapter.name,
+    fetchedAt,
+    sourceOptions.sourceTimeoutMs,
+    fetchImpl,
+  );
 
   if (!isFetchJsonResult(fetched)) {
     return {
@@ -254,7 +297,11 @@ async function collectNewsData(
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    newsSources: normalizeNewsPayload(normalizeYahooNewsPayload(fetched.payload), command.assetClass, fetchedAt),
+    newsSources: normalizeNewsPayload(
+      normalizeYahooNewsPayload(fetched.payload),
+      command.assetClass,
+      fetchedAt,
+    ),
     sourceGaps: [],
   };
 }

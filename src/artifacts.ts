@@ -31,7 +31,12 @@ export async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-export async function writeRunOutputs(artifacts: RunArtifacts, report: ResearchReport, markdown: string, trace: RunTrace): Promise<void> {
+export async function writeRunOutputs(
+  artifacts: RunArtifacts,
+  report: ResearchReport,
+  markdown: string,
+  trace: RunTrace,
+): Promise<void> {
   await writeJson(join(artifacts.runDir, "report.json"), report);
   await writeFile(join(artifacts.runDir, "report.md"), markdown, "utf8");
   await writeJson(join(artifacts.runDir, "trace.json"), trace);

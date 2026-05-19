@@ -42,6 +42,8 @@ const coveragePercent = totals.linesFound === 0 ? 0 : (totals.linesHit / totals.
 process.stdout.write(`Line coverage: ${coveragePercent.toFixed(2)}%\n`);
 
 if (coveragePercent < MINIMUM_COVERAGE_PERCENT) {
-  process.stderr.write(`Coverage ${coveragePercent.toFixed(2)}% is below ${MINIMUM_COVERAGE_PERCENT}%\n`);
+  process.stderr.write(
+    `Coverage ${coveragePercent.toFixed(2)}% is below ${MINIMUM_COVERAGE_PERCENT}%\n`,
+  );
   process.exit(1);
 }

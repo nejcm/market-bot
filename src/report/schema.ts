@@ -12,7 +12,10 @@ function assertEvidenceQuality(value: string): asserts value is EvidenceQuality 
   }
 }
 
-function validateSourceIds(sourceIds: readonly string[], knownSourceIds: ReadonlySet<string>): void {
+function validateSourceIds(
+  sourceIds: readonly string[],
+  knownSourceIds: ReadonlySet<string>,
+): void {
   if (sourceIds.length === 0) {
     throw new Error("Major findings must reference source IDs");
   }
@@ -24,13 +27,19 @@ function validateSourceIds(sourceIds: readonly string[], knownSourceIds: Readonl
   }
 }
 
-function validateFindings(findings: readonly KeyFinding[], knownSourceIds: ReadonlySet<string>): void {
+function validateFindings(
+  findings: readonly KeyFinding[],
+  knownSourceIds: ReadonlySet<string>,
+): void {
   for (const finding of findings) {
     validateSourceIds(finding.sourceIds, knownSourceIds);
   }
 }
 
-function validateScenarios(scenarios: readonly Scenario[], knownSourceIds: ReadonlySet<string>): void {
+function validateScenarios(
+  scenarios: readonly Scenario[],
+  knownSourceIds: ReadonlySet<string>,
+): void {
   for (const scenario of scenarios) {
     validateSourceIds(scenario.sourceIds, knownSourceIds);
   }

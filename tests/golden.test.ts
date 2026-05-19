@@ -10,7 +10,9 @@ function report(summary = "Evidence is sourced and caveated."): ResearchReport {
     assetClass: "equity",
     generatedAt: "2026-05-19T00:00:00.000Z",
     summary,
-    keyFindings: [{ text: "Liquidity is sufficient for research coverage.", sourceIds: ["source-1"] }],
+    keyFindings: [
+      { text: "Liquidity is sufficient for research coverage.", sourceIds: ["source-1"] },
+    ],
     bullCase: [],
     bearCase: [],
     risks: [{ text: "Coverage is narrow.", sourceIds: ["source-1"] }],
@@ -41,8 +43,14 @@ describe("golden report contracts", () => {
   });
 
   test("safety scanner blocks trade-action wording", () => {
-    expect(() => assertSafeReportLanguage(report("This says sell the instrument."))).toThrow("trade-action language");
-    expect(() => assertSafeReportLanguage(report("This says go long and set a stop loss."))).toThrow("trade-action language");
-    expect(() => assertSafeReportLanguage(report("This says reduce exposure after the catalyst."))).toThrow("trade-action language");
+    expect(() => assertSafeReportLanguage(report("This says sell the instrument."))).toThrow(
+      "trade-action language",
+    );
+    expect(() =>
+      assertSafeReportLanguage(report("This says go long and set a stop loss.")),
+    ).toThrow("trade-action language");
+    expect(() =>
+      assertSafeReportLanguage(report("This says reduce exposure after the catalyst.")),
+    ).toThrow("trade-action language");
   });
 });

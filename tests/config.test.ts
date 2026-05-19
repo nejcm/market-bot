@@ -12,7 +12,9 @@ describe("resolveConfig", () => {
   });
 
   test("requires base URL for compatible providers", () => {
-    expect(() => resolveConfig({ MARKET_BOT_PROVIDER: "openai-compatible" })).toThrow("MARKET_BOT_BASE_URL");
+    expect(() => resolveConfig({ MARKET_BOT_PROVIDER: "openai-compatible" })).toThrow(
+      "MARKET_BOT_BASE_URL",
+    );
   });
 
   test("resolves OpenAI-compatible provider settings", () => {
@@ -34,10 +36,14 @@ describe("resolveConfig", () => {
   });
 
   test("reads source limits", () => {
-    expect(resolveConfig({ MARKET_BOT_CRYPTO_MOVER_LIMIT: "12" }).sourceOptions.cryptoMoverLimit).toBe(12);
+    expect(
+      resolveConfig({ MARKET_BOT_CRYPTO_MOVER_LIMIT: "12" }).sourceOptions.cryptoMoverLimit,
+    ).toBe(12);
   });
 
   test("reads source timeout", () => {
-    expect(resolveConfig({ MARKET_BOT_SOURCE_TIMEOUT_MS: "5000" }).sourceOptions.sourceTimeoutMs).toBe(5000);
+    expect(
+      resolveConfig({ MARKET_BOT_SOURCE_TIMEOUT_MS: "5000" }).sourceOptions.sourceTimeoutMs,
+    ).toBe(5000);
   });
 });

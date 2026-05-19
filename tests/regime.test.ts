@@ -9,7 +9,7 @@ function snapshot(symbol: string, changePercent24h: number, price = 100): Market
     symbol,
     price,
     changePercent24h,
-    volume: 1000000,
+    volume: 1_000_000,
     observedAt: "2026-05-19T00:00:00.000Z",
   };
 }
@@ -34,7 +34,11 @@ describe("summarizeMarketRegime", () => {
   });
 
   test("classifies crypto regime from major asset breadth", () => {
-    const summary = summarizeMarketRegime("crypto", [snapshot("BTC", 2), snapshot("ETH", 3), snapshot("SOL", -1)]);
+    const summary = summarizeMarketRegime("crypto", [
+      snapshot("BTC", 2),
+      snapshot("ETH", 3),
+      snapshot("SOL", -1),
+    ]);
 
     expect(summary).toMatchObject({
       assetClass: "crypto",
@@ -42,5 +46,43 @@ describe("summarizeMarketRegime", () => {
       proxyCount: 2,
     });
     expect(summary.drivers).toContain("major crypto proxies positive: 2/2");
+  });
+
+  test("uses elevated VIX as an explicit equity risk-off driver without breadth", () => {
+    const summary = summarizeMarketRegime("equity", [
+      {
+        ...snapshot("^VIX", 0, 28),
+        assetClass: "crypto",
+      },
+    ]);
+
+    expect(summary).toMatchObject({
+      assetClass: "equity",
+      label: "risk-off",
+      proxyCount: 1,
+    });
+    expect(summary.drivers).toEqual(["equity breadth proxies unavailable", "VIX elevated at 28"]);
+  });
+
+  test("reports zero-change breadth as mixed without dropping proxy coverage", () => {
+    const summary = summarizeMarketRegime("equity", [snapshot("SPY", 0), snapshot("QQQ", 0)]);
+
+    expect(summary).toMatchObject({
+      label: "mixed",
+      proxyCount: 2,
+    });
+    expect(summary.drivers).toEqual(["equity breadth proxies mixed: 0/2"]);
+  });
+
+  test("ignores VIX when summarizing crypto regime", () => {
+    const summary = summarizeMarketRegime("crypto", [snapshot("BTC", 2), snapshot("^VIX", 0, 40)]);
+
+    expect(summary).toMatchObject({
+      assetClass: "crypto",
+      label: "risk-on",
+      proxyCount: 1,
+    });
+    expect(summary.sourceIds).toEqual(["market-btc"]);
+    expect(summary.drivers).toEqual(["major crypto proxies positive: 1/1"]);
   });
 });

@@ -49,7 +49,12 @@ function buildBreadthDriver(
     return `${prefix} unavailable`;
   }
 
-  const direction = negative > positive ? "negative" : (positive > negative ? "positive" : "mixed");
+  let direction = "mixed";
+  if (negative > positive) {
+    direction = "negative";
+  } else if (positive > negative) {
+    direction = "positive";
+  }
   const directionalCount = negative > positive ? negative : positive;
 
   return `${prefix} ${direction}: ${directionalCount}/${total}`;
@@ -61,8 +66,8 @@ export function summarizeMarketRegime(
 ): MarketRegimeSummary {
   const selected =
     assetClass === "equity"
-      ? snapshots.filter(isEquityRegimeSnapshot)
-      : snapshots.filter(isCryptoRegimeSnapshot);
+      ? snapshots.filter((snapshot) => isEquityRegimeSnapshot(snapshot))
+      : snapshots.filter((snapshot) => isCryptoRegimeSnapshot(snapshot));
   const breadth = selected.filter((snapshot) => snapshot.symbol !== VIX_SYMBOL);
   const positive = breadth.filter((snapshot) => snapshot.changePercent24h > 0).length;
   const negative = breadth.filter((snapshot) => snapshot.changePercent24h < 0).length;

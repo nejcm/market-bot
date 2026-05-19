@@ -1,12 +1,15 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { isMarketUpdateJobType } from "../domain/types";
-import type { AssetClass, Prediction, ResearchReport } from "../domain/types";
+import {
+  isMarketUpdateJobType,
+  type AssetClass,
+  type Prediction,
+  type ResearchReport,
+} from "../domain/types";
 import { fetchYahooClose } from "../sources/yahoo";
 import { fetchCoinGeckoClose } from "../sources/coingecko";
 import { resolvePrediction } from "./resolver";
-import { buildCalibrationSummary } from "./calibration";
-import type { ResolvedPair } from "./calibration";
+import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import type { PredictionScore } from "./types";
 
@@ -289,7 +292,7 @@ export async function buildAndWriteCalibration(
   now: Date = new Date(),
 ): Promise<void> {
   const runDirs = await listRunDirs(dataDir);
-  const pairsPerRun = await Promise.all(runDirs.map(loadRunPairs));
+  const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
   const pairs = pairsPerRun.flat();
 
   if (pairs.length === 0) {

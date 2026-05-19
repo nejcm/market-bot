@@ -17,8 +17,8 @@ describe("source normalization", () => {
               shortName: "Apple Inc.",
               regularMarketPrice: 189.5,
               regularMarketChangePercent: 2.1,
-              regularMarketVolume: 80000000,
-              marketCap: 2900000000000,
+              regularMarketVolume: 80_000_000,
+              marketCap: 2_900_000_000_000,
             },
           ],
         },
@@ -35,8 +35,8 @@ describe("source normalization", () => {
         name: "Apple Inc.",
         price: 189.5,
         changePercent24h: 2.1,
-        volume: 80000000,
-        marketCap: 2900000000000,
+        volume: 80_000_000,
+        marketCap: 2_900_000_000_000,
         observedAt: fetchedAt,
       },
     ]);
@@ -48,10 +48,10 @@ describe("source normalization", () => {
         {
           symbol: "btc",
           name: "Bitcoin",
-          current_price: 103000,
+          current_price: 103_000,
           price_change_percentage_24h: -1.2,
-          total_volume: 42000000000,
-          market_cap: 2000000000000,
+          total_volume: 42_000_000_000,
+          market_cap: 2_000_000_000_000,
         },
       ],
       fetchedAt,
@@ -62,9 +62,9 @@ describe("source normalization", () => {
       assetClass: "crypto",
       symbol: "BTC",
       name: "Bitcoin",
-      price: 103000,
+      price: 103_000,
       changePercent24h: -1.2,
-      volume: 42000000000,
+      volume: 42_000_000_000,
     });
   });
 

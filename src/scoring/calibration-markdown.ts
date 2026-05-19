@@ -31,13 +31,19 @@ function renderMetricTable(lines: string[], table: MetricTable): void {
 }
 
 export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
-  const lines: string[] = [];
-  lines.push("# Calibration Summary", "");
-  lines.push(`Generated at: ${summary.generatedAt}`, "");
-  lines.push(`Resolved predictions: ${String(summary.resolvedCount)}`, "");
-  lines.push(`Overall Brier score: ${formatBrier(summary.brierScore)}`, "");
+  const lines: string[] = [
+    "# Calibration Summary",
+    "",
+    `Generated at: ${summary.generatedAt}`,
+    "",
+    `Resolved predictions: ${String(summary.resolvedCount)}`,
+    "",
+    `Overall Brier score: ${formatBrier(summary.brierScore)}`,
+    "",
+    "## Reliability bins",
+    "",
+  ];
 
-  lines.push("## Reliability bins", "");
   if (summary.bins.length === 0) {
     lines.push("_No populated bins yet._", "");
   } else {

@@ -1,7 +1,11 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import { isMarketUpdateJobType } from "../domain/types";
-import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
+import {
+  isMarketUpdateJobType,
+  type MarketSnapshot,
+  type Source,
+  type SourceGap,
+} from "../domain/types";
 import { normalizeNewsPayload } from "./news";
 import type { RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
@@ -87,7 +91,7 @@ function isTransientError(error: unknown): boolean {
     if (error.name === "AbortError" || error.name === "TimeoutError") {
       return true;
     }
-    const status = /status (\d+)/.exec(error.message)?.[1];
+    const status = /status (\d+)/u.exec(error.message)?.[1];
     if (status !== undefined) {
       const code = Number(status);
       return code >= 500 && code < 600;
@@ -123,7 +127,7 @@ async function fetchJsonWithRetry(
   try {
     return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl);
   } catch (error: unknown) {
-    const nextDelay = remainingDelays[0];
+    const [nextDelay] = remainingDelays;
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
     }

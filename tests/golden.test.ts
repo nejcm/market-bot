@@ -40,7 +40,7 @@ describe("golden report contracts", () => {
 
     expect(markdown).toContain("[source-1]");
     expect(markdown).toContain("No macro source");
-    expect(markdown.match(/Research-only note/g)?.length).toBe(1);
+    expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
   });
 
   test("safety scanner blocks trade-action wording", () => {

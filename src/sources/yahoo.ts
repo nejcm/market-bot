@@ -88,7 +88,7 @@ function extractCloseFromChartPayload(payload: unknown): number | undefined {
   if (!Array.isArray(result) || result.length === 0) {
     return undefined;
   }
-  const first = result[0];
+  const [first] = result;
   if (!isRecord(first) || !isRecord(first.indicators)) {
     return undefined;
   }
@@ -96,7 +96,11 @@ function extractCloseFromChartPayload(payload: unknown): number | undefined {
   if (!Array.isArray(quote) || quote.length === 0) {
     return undefined;
   }
-  const closes = (quote[0] as Record<string, unknown>).close;
+  const [firstQuote] = quote;
+  if (!isRecord(firstQuote)) {
+    return undefined;
+  }
+  const closes = firstQuote.close;
   if (!Array.isArray(closes) || closes.length === 0) {
     return undefined;
   }

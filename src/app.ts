@@ -27,7 +27,6 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     process.stderr.write(
       `Score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );
-    return;
   });
   if (scoreResult !== undefined) {
     await buildAndWriteCalibration(config.dataDir).catch((error: unknown) => {

@@ -1,6 +1,6 @@
 import type { AssetClass, Instrument } from "./types";
 
-const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,24}$/;
+const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,24}$/u;
 
 export function createInstrument(symbol: string, assetClass: AssetClass): Instrument {
   const normalizedSymbol = symbol.trim().toUpperCase();

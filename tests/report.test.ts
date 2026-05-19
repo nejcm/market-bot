@@ -53,7 +53,7 @@ describe("report schema and rendering", () => {
 
     expect(markdown).toContain("[source-1]");
     expect(markdown).toContain("No derivatives data");
-    expect(markdown.match(/Research-only note/g)?.length).toBe(1);
+    expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
   });
 
   test("renders cadence-specific market update titles", () => {

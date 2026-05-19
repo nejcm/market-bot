@@ -2,20 +2,25 @@ import type { AppConfig } from "../config";
 import type { ResearchCommand } from "../cli/args";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-import { createRunId, prepareRunArtifacts, writeJson, writeRunOutputs } from "../artifacts";
-import type { RunArtifacts } from "../artifacts";
-import type {
-  EvidenceQuality,
-  KeyFinding,
-  MarketSnapshot,
-  Prediction,
-  ResearchReport,
-  RunTrace,
-  Scenario,
-  Source,
-  SourceGap,
+import {
+  createRunId,
+  prepareRunArtifacts,
+  type RunArtifacts,
+  writeJson,
+  writeRunOutputs,
+} from "../artifacts";
+import {
+  isMarketUpdateJobType,
+  type EvidenceQuality,
+  type KeyFinding,
+  type MarketSnapshot,
+  type Prediction,
+  type ResearchReport,
+  type RunTrace,
+  type Scenario,
+  type Source,
+  type SourceGap,
 } from "../domain/types";
-import { isMarketUpdateJobType } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
@@ -388,16 +393,20 @@ function buildStagePrompt(
       ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range.`
       : "";
 
+  let stageGoal = "Synthesize the final sourced research-only JSON report including predictions.";
+  if (stage === "specialist-analysis") {
+    stageGoal =
+      "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources.";
+  } else if (stage === "critique") {
+    stageGoal =
+      "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts.";
+  }
+
   return JSON.stringify(
     {
       instruction: baseInstruction + predictionInstruction,
       stage,
-      stageGoal:
-        stage === "specialist-analysis"
-          ? "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources."
-          : (stage === "critique"
-            ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
-            : "Synthesize the final sourced research-only JSON report including predictions."),
+      stageGoal,
       depthProfile: context.depthProfile,
       evidence: buildEvidencePayload(command, collectedSources, config, context),
       priorStages,

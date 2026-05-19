@@ -5,8 +5,7 @@ import { join } from "node:path";
 import type { AppConfig } from "../src/config";
 import type { AssetClass, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
-import { persistResearchJob } from "../src/research/orchestrator";
-import type { CollectedSources } from "../src/research/orchestrator";
+import { persistResearchJob, type CollectedSources } from "../src/research/orchestrator";
 import type { ResearchCommand } from "../src/cli/args";
 
 const config: AppConfig = {

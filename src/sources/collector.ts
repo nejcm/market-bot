@@ -81,22 +81,76 @@ async function fetchJson(
   };
 }
 
+function isTransientError(error: unknown): boolean {
+  if (error instanceof Error) {
+    if (error.name === "AbortError" || error.name === "TimeoutError") {
+      return true;
+    }
+    const status = /status (\d+)/.exec(error.message)?.[1];
+    if (status !== undefined) {
+      const code = Number(status);
+      return code >= 500 && code < 600;
+    }
+    if (
+      error.message.includes("fetch failed") ||
+      error.message.includes("network") ||
+      error.message.includes("ECONNRESET") ||
+      error.message.includes("ETIMEDOUT")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchJsonWithRetry(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+  remainingDelays: readonly number[],
+): Promise<FetchJsonResult> {
+  try {
+    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl);
+  } catch (error: unknown) {
+    const nextDelay = remainingDelays[0];
+    if (nextDelay === undefined || !isTransientError(error)) {
+      throw error;
+    }
+    await sleep(nextDelay);
+    return fetchJsonWithRetry(
+      url,
+      adapter,
+      fetchedAt,
+      timeoutMs,
+      fetchImpl,
+      remainingDelays.slice(1),
+    );
+  }
+}
+
 async function fetchJsonOrGap(
   url: string,
   adapter: string,
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
 ): Promise<FetchJsonResult | SourceGap> {
   try {
-    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl);
+    return await fetchJsonWithRetry(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "source request failed";
-
-    return {
-      source: adapter,
-      message,
-    };
+    return { source: adapter, message };
   }
 }
 
@@ -199,6 +253,7 @@ async function collectMarketData(
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
+  retryDelaysMs: readonly number[],
 ): Promise<MarketCollectionResult> {
   const registry = createSourceRegistry();
   const adapter = registry.marketDataFor(command.assetClass);
@@ -220,6 +275,7 @@ async function collectMarketData(
           fetchedAt,
           sourceOptions.sourceTimeoutMs,
           fetchImpl,
+          retryDelaysMs,
         ),
       })),
     );
@@ -252,6 +308,7 @@ async function collectMarketData(
     fetchedAt,
     sourceOptions.sourceTimeoutMs,
     fetchImpl,
+    retryDelaysMs,
   );
 
   if (!isFetchJsonResult(fetched)) {
@@ -277,6 +334,7 @@ async function collectNewsData(
   fetchedAt: string,
   sourceOptions: SourceOptions,
   fetchImpl: FetchLike,
+  retryDelaysMs: readonly number[],
 ): Promise<NewsCollectionResult> {
   const adapter = createSourceRegistry().newsFor(command.assetClass);
   const fetched = await fetchJsonOrGap(
@@ -285,6 +343,7 @@ async function collectNewsData(
     fetchedAt,
     sourceOptions.sourceTimeoutMs,
     fetchImpl,
+    retryDelaysMs,
   );
 
   if (!isFetchJsonResult(fetched)) {
@@ -311,11 +370,12 @@ export async function collectSources(
   sourceOptions: SourceOptions,
   now: Date = new Date(),
   fetchImpl: FetchLike = fetch,
+  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
 ): Promise<SourceCollection> {
   const fetchedAt = now.toISOString();
   const [marketData, newsData] = await Promise.all([
-    collectMarketData(command, fetchedAt, sourceOptions, fetchImpl),
-    collectNewsData(command, fetchedAt, sourceOptions, fetchImpl),
+    collectMarketData(command, fetchedAt, sourceOptions, fetchImpl, retryDelaysMs),
+    collectNewsData(command, fetchedAt, sourceOptions, fetchImpl, retryDelaysMs),
   ]);
 
   return {

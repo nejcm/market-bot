@@ -65,3 +65,61 @@ export const yahooMarketDataAdapter: MarketDataAdapter = {
   normalizeMarkets: (payload, fetchedAt) =>
     normalizeYahooQuotePayload(payload, "equity", fetchedAt),
 };
+
+const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+
+function yahooChartCloseUrl(symbol: string, date: Date): string {
+  const start = Math.floor(date.getTime() / 1000);
+  const end = start + 86_400;
+  const params = new URLSearchParams({
+    period1: String(start),
+    period2: String(end),
+    interval: "1d",
+    events: "history",
+  });
+  return `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?${params.toString()}`;
+}
+
+function extractCloseFromChartPayload(payload: unknown): number | undefined {
+  if (!isRecord(payload) || !isRecord(payload.chart)) {
+    return undefined;
+  }
+  const { result } = payload.chart as Record<string, unknown>;
+  if (!Array.isArray(result) || result.length === 0) {
+    return undefined;
+  }
+  const first = result[0];
+  if (!isRecord(first) || !isRecord(first.indicators)) {
+    return undefined;
+  }
+  const { quote } = first.indicators as Record<string, unknown>;
+  if (!Array.isArray(quote) || quote.length === 0) {
+    return undefined;
+  }
+  const closes = (quote[0] as Record<string, unknown>).close;
+  if (!Array.isArray(closes) || closes.length === 0) {
+    return undefined;
+  }
+  const last = closes.at(-1);
+  return typeof last === "number" ? last : undefined;
+}
+
+export async function fetchYahooClose(
+  symbol: string,
+  date: Date,
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = fetch,
+): Promise<number | undefined> {
+  try {
+    const response = await fetchImpl(yahooChartCloseUrl(symbol, date), {
+      signal: AbortSignal.timeout(10_000),
+      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const payload = (await response.json()) as unknown;
+    return extractCloseFromChartPayload(payload);
+  } catch {
+    return undefined;
+  }
+}

@@ -19,7 +19,7 @@ describe("collectSources", () => {
                     symbol: "AAPL",
                     regularMarketPrice: 190,
                     regularMarketChangePercent: 2,
-                    regularMarketVolume: 80000000,
+                    regularMarketVolume: 80_000_000,
                   },
                 ],
               },
@@ -36,7 +36,7 @@ describe("collectSources", () => {
                 symbol: "SPY",
                 regularMarketPrice: 510,
                 regularMarketChangePercent: 0.4,
-                regularMarketVolume: 70000000,
+                regularMarketVolume: 70_000_000,
               },
             ],
           },
@@ -49,7 +49,7 @@ describe("collectSources", () => {
             title: "Markets rise",
             link: "https://example.test/markets",
             publisher: "Example",
-            providerPublishTime: 1779120000,
+            providerPublishTime: 1_779_120_000,
           },
         ],
       });
@@ -78,13 +78,13 @@ describe("collectSources", () => {
             symbol: "eth",
             current_price: 3500,
             price_change_percentage_24h: 1,
-            total_volume: 10000000000,
+            total_volume: 10_000_000_000,
           },
           {
             symbol: "btc",
-            current_price: 103000,
+            current_price: 103_000,
             price_change_percentage_24h: 2,
-            total_volume: 40000000000,
+            total_volume: 40_000_000_000,
           },
         ]);
       }
@@ -109,9 +109,9 @@ describe("collectSources", () => {
         return jsonResponse([
           {
             symbol: "btc",
-            current_price: 103000,
+            current_price: 103_000,
             price_change_percentage_24h: 2,
-            total_volume: 40000000000,
+            total_volume: 40_000_000_000,
           },
         ]);
       }
@@ -124,6 +124,7 @@ describe("collectSources", () => {
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
+      [],
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
@@ -146,7 +147,7 @@ describe("collectSources", () => {
                 symbol: "SPY",
                 regularMarketPrice: 510,
                 regularMarketChangePercent: 0.4,
-                regularMarketVolume: 70000000,
+                regularMarketVolume: 70_000_000,
               },
             ],
           },
@@ -161,9 +162,46 @@ describe("collectSources", () => {
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
+      [],
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["SPY"]);
     expect(result.sourceGaps[0]?.source).toBe("yahoo-movers");
+  });
+
+  test("retries on transient 503 and succeeds on third attempt", async () => {
+    let coinGeckoCalls = 0;
+    const fetchImpl = (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        coinGeckoCalls += 1;
+        if (coinGeckoCalls < 3) {
+          return Promise.resolve(new Response("service unavailable", { status: 503 }));
+        }
+        return Promise.resolve(
+          Response.json([
+            {
+              symbol: "btc",
+              current_price: 103_000,
+              price_change_percentage_24h: 2,
+              total_volume: 40_000_000_000,
+            },
+          ]),
+        );
+      }
+      return Promise.resolve(Response.json({ news: [] }));
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      [0, 0],
+    );
+
+    expect(coinGeckoCalls).toBe(3);
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
+    expect(result.sourceGaps).toHaveLength(0);
   });
 });

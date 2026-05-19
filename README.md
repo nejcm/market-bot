@@ -1,0 +1,90 @@
+# market-bot
+
+A research bot that produces sourced market updates and ticker briefs for equities and crypto. Each run fetches evidence, summarizes the regime, surfaces movers, emits measurable predictions, and writes a versioned artifact to disk. A built-in scoring and calibration loop grades past predictions against actual closes.
+
+Reports are **research views**, not trading advice — no buy/sell calls, no position sizing.
+
+## What it does
+
+- **Daily and weekly market updates** — equity or crypto regime, top movers, themes, risks, and source gaps. Weekly is a cadence and horizon change, not a separate data product; mover inputs still come from Yahoo `day_gainers` and CoinGecko 24h change, and reports disclose this as a source gap.
+- **Ticker briefs** — deeper, single-instrument research views.
+- **Measurable predictions** — each report emits typed predictions (price targets, directional moves) parsed by a small DSL and validated against the report schema.
+- **Scoring pass** — resolves due predictions against historical closes (Yahoo for equities, CoinGecko for crypto) and writes `score.json` per run.
+- **Calibration aggregator** — rolls up scored predictions, sliced by cadence (daily / weekly / ticker), into `data/calibration/summary.json` and a markdown summary.
+
+## Quick start
+
+```sh
+bun install
+bunx lefthook install   # one-time, wires git hooks
+
+export OPENAI_API_KEY=sk-...
+bun run src/cli.ts daily --asset equity
+```
+
+Run artifacts land under `data/runs/<run-id>/` (override with `MARKET_BOT_DATA_DIR`).
+
+## CLI
+
+```
+market-bot daily   --asset equity|crypto [--deep]
+market-bot weekly  --asset equity|crypto [--deep]
+market-bot ticker  <symbol> --asset equity|crypto [--deep]
+market-bot score
+market-bot calibration
+```
+
+- `--deep` switches to the synthesis model for a more thorough pass.
+- `score` resolves any due predictions across previous runs and refreshes the calibration summary.
+- `calibration` rebuilds the calibration summary without scoring.
+- Daily / weekly / ticker runs also run a score pass and calibration refresh as a side effect; failures there are logged but do not block the research job.
+
+## Configuration
+
+All configuration is via environment variables.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `OPENAI_API_KEY` / `MARKET_BOT_OPENAI_API_KEY` | — | Required for live runs. |
+| `MARKET_BOT_PROVIDER` | `openai` | `openai` or `openai-compatible`. |
+| `MARKET_BOT_BASE_URL` | — | Required when provider is `openai-compatible`. |
+| `MARKET_BOT_QUICK_MODEL` | `gpt-4.1-mini` | Used for brief depth. |
+| `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-4.1` | Used for `--deep`. |
+| `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. |
+| `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
+| `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |
+| `MARKET_BOT_NEWS_LIMIT` | `8` | News items per run. |
+| `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
+
+## Layout
+
+```
+src/
+  app.ts             CLI entrypoint glue
+  cli/args.ts        Argument parsing
+  config.ts          Environment-driven configuration
+  domain/            Instrument, asset class, depth, prediction types
+  model/             OpenAI / OpenAI-compatible provider
+  movers/            Mover ranking
+  report/            Report schema + markdown renderer
+  research/          Orchestrator, regime summarization
+  scoring/           Prediction DSL, resolver, scoring, calibration
+  sources/           Yahoo, CoinGecko, news, collector, retry/backoff
+tests/               Bun test suites
+data/                Run artifacts and calibration output (gitignored)
+docs/adr/            Architecture decision records
+```
+
+## Development
+
+| Script | Purpose |
+| --- | --- |
+| `bun test` | Run all tests |
+| `bun run typecheck` | TypeScript --noEmit |
+| `bun run lint` | oxlint |
+| `bun run fmt` / `fmt:check` | oxfmt |
+| `bun run knip` | Find unused exports / deps |
+| `bun run audit` | High-severity vuln scan |
+| `bun run check` | lint + fmt:check + typecheck + test |
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for git hooks and commit conventions, [CONTEXT.md](./CONTEXT.md) for the domain glossary, and [docs/adr/](./docs/adr/) for design decisions.

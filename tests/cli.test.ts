@@ -1,0 +1,29 @@
+import { describe, expect, test } from "bun:test";
+import { commandLabel, parseArgs } from "../src/cli/args";
+
+describe("parseArgs", () => {
+  test("parses daily equity brief", () => {
+    expect(parseArgs(["daily", "--asset", "equity"])).toEqual({
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "brief",
+    });
+  });
+
+  test("parses ticker crypto deep and normalizes symbol", () => {
+    expect(parseArgs(["ticker", "btc", "--asset", "crypto", "--deep"])).toEqual({
+      jobType: "ticker",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+    });
+  });
+
+  test("rejects missing asset class", () => {
+    expect(() => parseArgs(["daily"])).toThrow("Expected --asset equity|crypto");
+  });
+
+  test("labels commands for CLI output", () => {
+    expect(commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" })).toBe("ticker AAPL equity deep");
+  });
+});

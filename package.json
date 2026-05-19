@@ -1,0 +1,17 @@
+{
+  "name": "market-bot",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "market-bot": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

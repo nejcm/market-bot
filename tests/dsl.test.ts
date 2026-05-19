@@ -95,5 +95,29 @@ describe("parseMeasurableAs", () => {
     test("throws on partial match", () => {
       expect(() => parseMeasurableAs("close(SPY, +5)")).toThrow("Cannot parse measurableAs");
     });
+
+    test("throws on malformed numeric threshold (multiple dots)", () => {
+      expect(() => parseMeasurableAs("max(close(^VIX), 0..+5) > 1.2.3")).toThrow(
+        "Cannot parse measurableAs",
+      );
+    });
+
+    test("throws on bare-dot numeric token", () => {
+      expect(() => parseMeasurableAs("max(close(^VIX), 0..+5) > .")).toThrow(
+        "Cannot parse measurableAs",
+      );
+    });
+
+    test("throws on inverted range (lo >= hi)", () => {
+      expect(() => parseMeasurableAs("close(BTC, +7) outside [110000, 90000]")).toThrow(
+        "Cannot parse measurableAs",
+      );
+    });
+
+    test("throws on degenerate range (lo === hi)", () => {
+      expect(() => parseMeasurableAs("close(BTC, +7) outside [100000, 100000]")).toThrow(
+        "Cannot parse measurableAs",
+      );
+    });
   });
 });

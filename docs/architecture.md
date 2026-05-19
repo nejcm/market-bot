@@ -10,11 +10,12 @@ src/
   cli/args.ts         Argument parsing
   config.ts           Env-driven AppConfig
   domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
+  forecast/           Observable forecast contract: parser, expression shape, resolver
   model/              OpenAI / OpenAI-compatible provider
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
   research/           Orchestrator + regime summary
-  scoring/            Prediction DSL, resolver, scoring, calibration aggregator
+  scoring/            Score pass, calibration aggregator (thin wrapper around forecast/)
   sources/            Yahoo, CoinGecko, news, collector with retry/backoff
 tests/                Bun test suites
 docs/adr/             Architecture decision records
@@ -43,12 +44,13 @@ Weekly updates use the same mover inputs as daily — this is a cadence and hori
 
 The orchestrator coordinates: collect sources → summarize regime → produce report → emit predictions. It is also the home for the deterministic market-regime summary.
 
-### Predictions and scoring (`src/scoring/`)
+### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 
-- `dsl.ts` — parses prediction expressions
-- `resolver.ts` — resolves a due prediction against historical closes
-- `index.ts` — `runScorePass` writes `score.json` per run
-- `calibration.ts` + `calibration-markdown.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`
+- `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against historical closes. Adding a new prediction shape starts here.
+- `src/scoring/dsl.ts` — thin wrapper around the forecast parser
+- `src/scoring/resolver.ts` — resolves a due prediction against historical closes
+- `src/scoring/index.ts` — `runScorePass` writes `score.json` per run
+- `src/scoring/calibration.ts` + `calibration-markdown.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`
 
 Every research run triggers a score pass and calibration refresh as a **non-blocking** side effect. Failures there log to stderr; they must not abort the research job.
 

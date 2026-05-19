@@ -96,7 +96,7 @@ export type ObservableForecastResolution =
 
 const SYMBOL = String.raw`([\w\^]+(?::[.\w]+)*)`;
 const N = String.raw`(\d+)`;
-const NUM = String.raw`(-?[\d.]+)`;
+const NUM = String.raw`(-?\d+(?:\.\d+)?)`;
 
 const DIRECTION_RE = new RegExp(
   String.raw`^close\(${SYMBOL},\s*\+${N}\)\s*>\s*close\(\1,\s*0\)$`,
@@ -169,12 +169,19 @@ export function parseObservableExpression(expr: string): ObservableExpression {
 
   const range = RANGE_RE.exec(s);
   if (range !== null) {
+    const lo = Number(range[3]);
+    const hi = Number(range[4]);
+    if (lo >= hi) {
+      throw new Error(
+        `Cannot parse measurableAs: "${expr}" — range lo (${lo}) must be < hi (${hi})`,
+      );
+    }
     return {
       kind: "range",
       subject: range[1] as string,
       horizonTradingDays: Number(range[2]),
-      lo: Number(range[3]),
-      hi: Number(range[4]),
+      lo,
+      hi,
     };
   }
 

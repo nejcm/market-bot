@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { isMarketUpdateJobType, marketUpdateCadence } from "../domain/types";
+import { isMarketUpdateJobType } from "../domain/types";
 import type { AssetClass, Prediction, ResearchReport } from "../domain/types";
 import { fetchYahooClose } from "../sources/yahoo";
 import { fetchCoinGeckoClose } from "../sources/coingecko";
@@ -277,9 +277,7 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
         score,
         assetClass: report.assetClass,
         jobType: report.jobType,
-        ...(isMarketUpdateJobType(report.jobType)
-          ? { marketUpdateCadence: marketUpdateCadence(report.jobType) }
-          : {}),
+        ...(isMarketUpdateJobType(report.jobType) ? { marketUpdateCadence: report.jobType } : {}),
         runId: report.runId,
       },
     ];

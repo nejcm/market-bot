@@ -8,13 +8,20 @@ function formatRate(value: number): string {
   return (value * 100).toFixed(1);
 }
 
-function renderMetricTable(
-  lines: string[],
-  title: string,
-  label: string,
-  metricsByKey: Record<string, CalibrationMetric>,
-): void {
+interface MetricTable {
+  readonly title: string;
+  readonly label: string;
+  readonly metricsByKey: Record<string, CalibrationMetric>;
+  readonly emptyText?: string;
+}
+
+function renderMetricTable(lines: string[], table: MetricTable): void {
+  const { title, label, metricsByKey, emptyText } = table;
   lines.push(`## ${title}`, "");
+  if (Object.keys(metricsByKey).length === 0 && emptyText !== undefined) {
+    lines.push(emptyText, "");
+    return;
+  }
   lines.push(`| ${label} | Brier | Count |`);
   lines.push("|---|---|---|");
   for (const [key, metrics] of Object.entries(metricsByKey)) {
@@ -44,11 +51,28 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     lines.push("");
   }
 
-  renderMetricTable(lines, "By kind", "Kind", summary.byKind);
-  renderMetricTable(lines, "By asset class", "Asset class", summary.byAssetClass);
-  renderMetricTable(lines, "By job type", "Job type", summary.byJobType);
-  renderMetricTable(lines, "By market update cadence", "Cadence", summary.byMarketUpdateCadence);
-  renderMetricTable(lines, "By horizon bucket", "Horizon", summary.byHorizonBucket);
+  renderMetricTable(lines, { title: "By kind", label: "Kind", metricsByKey: summary.byKind });
+  renderMetricTable(lines, {
+    title: "By asset class",
+    label: "Asset class",
+    metricsByKey: summary.byAssetClass,
+  });
+  renderMetricTable(lines, {
+    title: "By job type",
+    label: "Job type",
+    metricsByKey: summary.byJobType,
+  });
+  renderMetricTable(lines, {
+    title: "By market update cadence",
+    label: "Cadence",
+    metricsByKey: summary.byMarketUpdateCadence,
+    emptyText: "_No resolved market-update predictions yet._",
+  });
+  renderMetricTable(lines, {
+    title: "By horizon bucket",
+    label: "Horizon",
+    metricsByKey: summary.byHorizonBucket,
+  });
 
   return lines.join("\n");
 }

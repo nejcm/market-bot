@@ -12,6 +12,8 @@ The canonical research target, identified by `symbol + assetClass`.
 
 A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.
 
+Weekly market updates are a cadence and horizon change in V1, not a separate trailing-window data product. Equity mover inputs still come from Yahoo `day_gainers`, and crypto mover inputs still use CoinGecko 24h change fields; reports must disclose this as a source gap.
+
 ## Market Regime
 
 The current market backdrop inferred from fetched evidence, such as broad direction, volatility, liquidity, and dominant themes.

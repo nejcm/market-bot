@@ -42,6 +42,9 @@ describe("parseArgs", () => {
     expect(commandLabel({ jobType: "weekly", assetClass: "crypto", depth: "brief" })).toBe(
       "weekly crypto",
     );
+    expect(commandLabel({ jobType: "weekly", assetClass: "equity", depth: "deep" })).toBe(
+      "weekly equity deep",
+    );
   });
 
   test("parses score command", () => {

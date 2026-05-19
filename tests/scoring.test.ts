@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { resolvePrediction } from "../src/scoring/resolver";
 import { buildCalibrationSummary } from "../src/scoring/calibration";
+import { renderCalibrationMarkdown } from "../src/scoring/calibration-markdown";
 import type { Prediction } from "../src/domain/types";
 import type { PredictionScore } from "../src/scoring/types";
 
@@ -258,6 +259,25 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byHorizonBucket["1-5d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["11-15d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["16-20d"]?.count).toBe(1);
+  });
+
+  test("renders empty market cadence section when only ticker predictions resolved", () => {
+    const summary = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, horizonTradingDays: 5 },
+          score: makeScore("hit"),
+          assetClass: "equity" as const,
+          jobType: "ticker" as const,
+          runId: "r1",
+        },
+      ],
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
+
+    expect(renderCalibrationMarkdown(summary)).toContain(
+      "_No resolved market-update predictions yet._",
+    );
   });
 
   test("includes probability=1 in the top bin", () => {

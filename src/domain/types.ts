@@ -10,10 +10,6 @@ export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdate
   return jobType === "daily" || jobType === "weekly";
 }
 
-export function marketUpdateCadence(jobType: MarketUpdateJobType): MarketUpdateJobType {
-  return jobType;
-}
-
 export interface Instrument {
   readonly symbol: string;
   readonly assetClass: AssetClass;

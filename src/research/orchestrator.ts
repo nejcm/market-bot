@@ -15,7 +15,7 @@ import type {
   Source,
   SourceGap,
 } from "../domain/types";
-import { isMarketUpdateJobType, marketUpdateCadence } from "../domain/types";
+import { isMarketUpdateJobType } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
@@ -312,6 +312,7 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
       id: `pred-${String(idx + 1)}`,
       claim: "string describing market quantity",
       kind: "direction|relative|volatility|range",
+      // Depth profiles always carry at least one subject; fallback keeps the example total.
       subject: depthProfile.predictionSubjects[0] ?? "SPY",
       measurableAs: `close(SPY, +${String(depthProfile.defaultPredictionHorizon)}) > close(SPY, 0)`,
       horizonTradingDays: depthProfile.defaultPredictionHorizon,
@@ -321,14 +322,14 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
   };
 }
 
-const DAILY_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
+const MARKET_UPDATE_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
 
 function buildDepthProfile(command: ResearchCommand): DepthProfile {
   const isMarketUpdate = isMarketUpdateJobType(command.jobType);
   const predictionSubjects =
     command.jobType === "ticker"
       ? [command.symbol]
-      : (DAILY_PREDICTION_SUBJECTS as readonly string[]);
+      : (MARKET_UPDATE_PREDICTION_SUBJECTS as readonly string[]);
   const defaultPredictionHorizon = command.jobType === "weekly" ? 15 : 5;
 
   if (command.depth === "deep") {
@@ -394,9 +395,9 @@ function buildStagePrompt(
       stageGoal:
         stage === "specialist-analysis"
           ? "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources."
-          : stage === "critique"
+          : (stage === "critique"
             ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
-            : "Synthesize the final sourced research-only JSON report including predictions.",
+            : "Synthesize the final sourced research-only JSON report including predictions."),
       depthProfile: context.depthProfile,
       evidence: buildEvidencePayload(command, collectedSources, config, context),
       priorStages,
@@ -556,7 +557,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       depth: input.command.depth,
       depthProfile: context.depthProfile,
       ...(isMarketUpdateJobType(input.command.jobType)
-        ? { marketUpdateCadence: marketUpdateCadence(input.command.jobType) }
+        ? { marketUpdateCadence: input.command.jobType }
         : {}),
       marketRegime: context.marketRegime,
     },
@@ -566,7 +567,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     runId,
     jobType: input.command.jobType,
     ...(isMarketUpdateJobType(input.command.jobType)
-      ? { marketUpdateCadence: marketUpdateCadence(input.command.jobType) }
+      ? { marketUpdateCadence: input.command.jobType }
       : {}),
     assetClass: input.command.assetClass,
     ...(input.command.jobType === "ticker" ? { symbol: input.command.symbol } : {}),

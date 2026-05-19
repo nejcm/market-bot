@@ -206,6 +206,7 @@ describe("runResearchJob", () => {
       notFinancialAdvice: true,
     });
     expect(result.markdown).toContain("Research-only note");
+    expect(result.markdown).not.toContain("Weekly Market Update");
     expect(result.trace.sourceGaps).toEqual(["Macro breadth source unavailable"]);
     expect(result.trace.stages).toEqual([
       "source-collection",

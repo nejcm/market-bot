@@ -16,6 +16,12 @@ export interface ResolvedPair {
 }
 
 const BIN_EDGES = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
+const HORIZON_BUCKETS = [
+  { max: 5, label: "1-5d" },
+  { max: 10, label: "6-10d" },
+  { max: 15, label: "11-15d" },
+] as const;
+const LONG_HORIZON_BUCKET = "16-20d";
 
 function makeBinLabel(lo: number, hi: number): string {
   return `${String(lo.toFixed(1))}-${String(hi.toFixed(1))}`;
@@ -83,16 +89,12 @@ function groupMetrics(
 
 function horizonBucket({ prediction }: ResolvedPair): string {
   const horizon = prediction.horizonTradingDays;
-  if (horizon <= 5) {
-    return "1-5d";
+  for (const bucket of HORIZON_BUCKETS) {
+    if (horizon <= bucket.max) {
+      return bucket.label;
+    }
   }
-  if (horizon <= 10) {
-    return "6-10d";
-  }
-  if (horizon <= 15) {
-    return "11-15d";
-  }
-  return "16-20d";
+  return LONG_HORIZON_BUCKET;
 }
 
 export function buildCalibrationSummary(

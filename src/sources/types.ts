@@ -1,3 +1,4 @@
+import type { ResearchCommand } from "../cli/args";
 import type { AssetClass, MarketSnapshot, Source } from "../domain/types";
 
 export interface RawSourceSnapshot {
@@ -15,6 +16,7 @@ export interface MarketDataAdapter {
 
 export interface NewsAdapter {
   readonly name: string;
+  readonly buildUrl: (command: ResearchCommand, limit: number) => string;
   readonly normalizeNews: (
     payload: unknown,
     assetClass: AssetClass,

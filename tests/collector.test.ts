@@ -180,7 +180,7 @@ describe("collectSources", () => {
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
     expect(result.newsSources).toEqual([]);
-    expect(result.sourceGaps[0]?.source).toBe("public-news");
+    expect(result.sourceGaps[0]?.source).toBe("yahoo-news");
   });
 
   test("keeps daily equity regime quotes when movers source fails", async () => {

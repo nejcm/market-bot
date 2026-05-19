@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
-import { normalizeNewsPayload } from "../src/sources/news";
 import { createSourceRegistry } from "../src/sources/registry";
 import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
+import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
 
@@ -68,15 +68,16 @@ describe("source normalization", () => {
     });
   });
 
-  test("normalizes news payloads into traceable sources", () => {
-    const sources = normalizeNewsPayload(
+  test("normalizes Yahoo news payload into traceable sources", () => {
+    const publishTime = Math.floor(new Date(fetchedAt).getTime() / 1000);
+    const sources = yahooNewsAdapter.normalizeNews(
       {
-        articles: [
+        news: [
           {
             title: "Fed minutes move markets",
-            url: "https://example.test/fed",
-            source: { name: "Example Wire" },
-            publishedAt: fetchedAt,
+            link: "https://example.test/fed",
+            publisher: "Example Wire",
+            providerPublishTime: publishTime,
           },
         ],
       },
@@ -104,6 +105,6 @@ describe("source registry", () => {
 
     expect(registry.marketDataFor("equity").name).toBe("yahoo");
     expect(registry.marketDataFor("crypto").name).toBe("coingecko");
-    expect(registry.newsFor("crypto").name).toBe("public-news");
+    expect(registry.newsFor("crypto").name).toBe("yahoo-news");
   });
 });

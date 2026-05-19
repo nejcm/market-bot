@@ -1,6 +1,6 @@
 import type { AssetClass } from "../domain/types";
 import { coinGeckoMarketDataAdapter } from "./coingecko";
-import { publicNewsAdapter } from "./news";
+import { yahooNewsAdapter } from "./yahoo-news";
 import type { MarketDataAdapter, NewsAdapter, SourceRegistry } from "./types";
 import { yahooMarketDataAdapter } from "./yahoo";
 
@@ -11,8 +11,8 @@ export function createSourceRegistry(): SourceRegistry {
   };
 
   const newsAdapters: Record<AssetClass, NewsAdapter> = {
-    equity: publicNewsAdapter,
-    crypto: publicNewsAdapter,
+    equity: yahooNewsAdapter,
+    crypto: yahooNewsAdapter,
   };
 
   return {

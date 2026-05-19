@@ -6,7 +6,6 @@ import {
   type Source,
   type SourceGap,
 } from "../domain/types";
-import { normalizeNewsPayload } from "./news";
 import type { RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
 
@@ -46,7 +45,6 @@ interface EquityFetchResult {
 const EQUITY_DAILY_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
-const YAHOO_SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search";
 const COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets";
 const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
 
@@ -195,45 +193,6 @@ function yahooQuoteUrl(symbols: string): string {
   return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
 }
 
-function yahooNewsQuery(command: ResearchCommand): string {
-  if (command.jobType === "ticker") {
-    return command.symbol;
-  }
-
-  return command.assetClass === "equity" ? "stock market" : "crypto market";
-}
-
-function yahooNewsUrl(command: ResearchCommand, limit: number): string {
-  return `${YAHOO_SEARCH_URL}?${encodeQuery({ q: yahooNewsQuery(command), newsCount: String(limit) })}`;
-}
-
-function normalizeYahooNewsPayload(payload: unknown): unknown {
-  if (typeof payload !== "object" || payload === null || !("news" in payload)) {
-    return { articles: [] };
-  }
-
-  const news = (payload as { news?: readonly Record<string, unknown>[] }).news ?? [];
-  const articles = news.map((item) => {
-    const providerPublishTime =
-      typeof item.providerPublishTime === "number"
-        ? new Date(item.providerPublishTime * 1000).toISOString()
-        : undefined;
-
-    return {
-      title: item.title,
-      url: item.link,
-      source: {
-        name: item.publisher,
-      },
-      publishedAt: providerPublishTime,
-    };
-  });
-
-  return {
-    articles,
-  };
-}
-
 function filterTickerSnapshots(
   command: ResearchCommand,
   snapshots: readonly MarketSnapshot[],
@@ -343,7 +302,7 @@ async function collectNewsData(
 ): Promise<NewsCollectionResult> {
   const adapter = createSourceRegistry().newsFor(command.assetClass);
   const fetched = await fetchJsonOrGap(
-    yahooNewsUrl(command, sourceOptions.newsLimit),
+    adapter.buildUrl(command, sourceOptions.newsLimit),
     adapter.name,
     fetchedAt,
     sourceOptions.sourceTimeoutMs,
@@ -361,11 +320,7 @@ async function collectNewsData(
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    newsSources: normalizeNewsPayload(
-      normalizeYahooNewsPayload(fetched.payload),
-      command.assetClass,
-      fetchedAt,
-    ),
+    newsSources: adapter.normalizeNews(fetched.payload, command.assetClass, fetchedAt),
     sourceGaps: [],
   };
 }

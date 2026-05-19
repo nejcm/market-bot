@@ -1,10 +1,17 @@
-import type { AssetClass, Prediction } from "../domain/types";
-import type { CalibrationBin, CalibrationSummary, PredictionScore } from "./types";
+import type { AssetClass, JobType, MarketUpdateJobType, Prediction } from "../domain/types";
+import type {
+  CalibrationBin,
+  CalibrationMetric,
+  CalibrationSummary,
+  PredictionScore,
+} from "./types";
 
 export interface ResolvedPair {
   readonly prediction: Prediction;
   readonly score: PredictionScore;
   readonly assetClass: AssetClass;
+  readonly jobType: JobType;
+  readonly marketUpdateCadence?: MarketUpdateJobType;
   readonly runId: string;
 }
 
@@ -32,9 +39,11 @@ function buildBins(pairs: readonly ResolvedPair[]): readonly CalibrationBin[] {
   for (let idx = 0; idx < BIN_EDGES.length - 1; idx += 1) {
     const pLow = BIN_EDGES[idx] as number;
     const pHigh = BIN_EDGES[idx + 1] as number;
-    const inBin = pairs.filter(
-      ({ prediction }) => prediction.probability >= pLow && prediction.probability < pHigh,
-    );
+    const isLastBin = idx === BIN_EDGES.length - 2;
+    const inBin = pairs.filter(({ prediction }) => {
+      const p = prediction.probability;
+      return p >= pLow && (isLastBin ? p <= pHigh : p < pHigh);
+    });
     if (inBin.length === 0) {
       continue;
     }
@@ -55,23 +64,35 @@ function buildBins(pairs: readonly ResolvedPair[]): readonly CalibrationBin[] {
 function groupMetrics(
   pairs: readonly ResolvedPair[],
   keyFn: (pair: ResolvedPair) => string,
-): Record<string, { brierScore: number; count: number }> {
+): Record<string, CalibrationMetric> {
   const groups = new Map<string, ResolvedPair[]>();
 
   for (const pair of pairs) {
     const key = keyFn(pair);
-    const existing = groups.get(key) ?? [];
-    existing.push(pair);
-    groups.set(key, existing);
+    groups.set(key, [...(groups.get(key) ?? []), pair]);
   }
 
-  const result: Record<string, { brierScore: number; count: number }> = {};
+  const result: Record<string, CalibrationMetric> = {};
 
   for (const [key, groupPairs] of groups) {
     result[key] = { brierScore: brierScore(groupPairs), count: groupPairs.length };
   }
 
   return result;
+}
+
+function horizonBucket({ prediction }: ResolvedPair): string {
+  const horizon = prediction.horizonTradingDays;
+  if (horizon <= 5) {
+    return "1-5d";
+  }
+  if (horizon <= 10) {
+    return "6-10d";
+  }
+  if (horizon <= 15) {
+    return "11-15d";
+  }
+  return "16-20d";
 }
 
 export function buildCalibrationSummary(
@@ -85,5 +106,11 @@ export function buildCalibrationSummary(
     bins: buildBins(pairs),
     byKind: groupMetrics(pairs, ({ prediction }) => prediction.kind),
     byAssetClass: groupMetrics(pairs, ({ assetClass }) => assetClass),
+    byJobType: groupMetrics(pairs, ({ jobType }) => jobType),
+    byMarketUpdateCadence: groupMetrics(
+      pairs.filter(({ marketUpdateCadence }) => marketUpdateCadence !== undefined),
+      ({ marketUpdateCadence }) => marketUpdateCadence ?? "unknown",
+    ),
+    byHorizonBucket: groupMetrics(pairs, horizonBucket),
   };
 }

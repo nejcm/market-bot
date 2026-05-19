@@ -19,11 +19,19 @@ export interface CalibrationBin {
   readonly hitRate: number;
 }
 
+export interface CalibrationMetric {
+  readonly brierScore: number;
+  readonly count: number;
+}
+
 export interface CalibrationSummary {
   readonly generatedAt: string;
   readonly resolvedCount: number;
   readonly brierScore: number;
   readonly bins: readonly CalibrationBin[];
-  readonly byKind: Record<string, { brierScore: number; count: number }>;
-  readonly byAssetClass: Record<string, { brierScore: number; count: number }>;
+  readonly byKind: Record<string, CalibrationMetric>;
+  readonly byAssetClass: Record<string, CalibrationMetric>;
+  readonly byJobType: Record<string, CalibrationMetric>;
+  readonly byMarketUpdateCadence: Record<string, CalibrationMetric>;
+  readonly byHorizonBucket: Record<string, CalibrationMetric>;
 }

@@ -1,11 +1,13 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetClass, Prediction, ResearchReport } from "../domain/types";
+import { isMarketUpdateJobType, marketUpdateCadence } from '../domain/types';
+import type { AssetClass, Prediction, ResearchReport } from '../domain/types';
 import { fetchYahooClose } from "../sources/yahoo";
 import { fetchCoinGeckoClose } from "../sources/coingecko";
 import { resolvePrediction } from "./resolver";
-import { buildCalibrationSummary } from "./calibration";
-import type { ResolvedPair } from "./calibration";
+import { buildCalibrationSummary } from './calibration';
+import type { ResolvedPair } from './calibration';
+import { renderCalibrationMarkdown } from "./calibration-markdown";
 import type { PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
@@ -269,7 +271,18 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
     if (score === undefined || !score.resolved || score.outcome === undefined) {
       return [];
     }
-    return [{ prediction, score, assetClass: report.assetClass, runId: report.runId }];
+    return [
+      {
+        prediction,
+        score,
+        assetClass: report.assetClass,
+        jobType: report.jobType,
+        ...(isMarketUpdateJobType(report.jobType)
+          ? { marketUpdateCadence: marketUpdateCadence(report.jobType) }
+          : {}),
+        runId: report.runId,
+      },
+    ];
   });
 }
 
@@ -293,6 +306,7 @@ export async function buildAndWriteCalibration(
     `${JSON.stringify(summary, undefined, 2)}\n`,
     "utf8",
   );
+  await writeFile(join(calibrationDir, "summary.md"), renderCalibrationMarkdown(summary), "utf8");
 }
 
 export { tradingDaysElapsed };

@@ -154,12 +154,14 @@ describe("buildCalibrationSummary", () => {
         prediction: { ...basePrediction, probability: 1 },
         score: makeScore("hit"),
         assetClass: "equity" as const,
+        jobType: "daily" as const,
         runId: "r1",
       },
       {
         prediction: { ...basePrediction, probability: 0 },
         score: makeScore("miss"),
         assetClass: "equity" as const,
+        jobType: "daily" as const,
         runId: "r2",
       },
     ];
@@ -173,12 +175,14 @@ describe("buildCalibrationSummary", () => {
         prediction: { ...basePrediction, probability: 1 },
         score: makeScore("miss"),
         assetClass: "equity" as const,
+        jobType: "daily" as const,
         runId: "r1",
       },
       {
         prediction: { ...basePrediction, probability: 0 },
         score: makeScore("hit"),
         assetClass: "equity" as const,
+        jobType: "daily" as const,
         runId: "r2",
       },
     ];
@@ -199,12 +203,14 @@ describe("buildCalibrationSummary", () => {
         prediction: { ...basePrediction, kind: "direction" as const, probability: 0.7 },
         score: makeScore("hit"),
         assetClass: "equity" as const,
+        jobType: "daily" as const,
         runId: "r1",
       },
       {
         prediction: { ...basePrediction, kind: "volatility" as const, probability: 0.4 },
         score: makeScore("miss"),
         assetClass: "crypto" as const,
+        jobType: "ticker" as const,
         runId: "r2",
       },
     ];
@@ -215,11 +221,74 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byAssetClass["crypto"]).toBeDefined();
   });
 
+  test("groups calibration by job type, market cadence, and horizon bucket", () => {
+    const pairs = [
+      {
+        prediction: { ...basePrediction, horizonTradingDays: 5 },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        marketUpdateCadence: "daily" as const,
+        runId: "r1",
+      },
+      {
+        prediction: { ...basePrediction, horizonTradingDays: 15 },
+        score: makeScore("miss"),
+        assetClass: "equity" as const,
+        jobType: "weekly" as const,
+        marketUpdateCadence: "weekly" as const,
+        runId: "r2",
+      },
+      {
+        prediction: { ...basePrediction, horizonTradingDays: 20 },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "ticker" as const,
+        runId: "r3",
+      },
+    ];
+
+    const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
+
+    expect(summary.byJobType["daily"]?.count).toBe(1);
+    expect(summary.byJobType["weekly"]?.count).toBe(1);
+    expect(summary.byJobType["ticker"]?.count).toBe(1);
+    expect(summary.byMarketUpdateCadence["daily"]?.count).toBe(1);
+    expect(summary.byMarketUpdateCadence["weekly"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["1-5d"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["11-15d"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["16-20d"]?.count).toBe(1);
+  });
+
+  test("includes probability=1 in the top bin", () => {
+    const pairs = [
+      {
+        prediction: { ...basePrediction, probability: 1 },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r1",
+      },
+      {
+        prediction: { ...basePrediction, probability: 1 },
+        score: makeScore("miss"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r2",
+      },
+    ];
+    const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
+    const topBin = summary.bins.find((bn) => bn.pHigh === 1);
+    expect(topBin?.totalCount).toBe(2);
+    expect(topBin?.hitCount).toBe(1);
+  });
+
   test("builds reliability bins", () => {
     const pairs = Array.from({ length: 10 }, (_, idx) => ({
       prediction: { ...basePrediction, probability: 0.65 },
       score: makeScore(idx < 7 ? "hit" : "miss"),
       assetClass: "equity" as const,
+      jobType: "daily" as const,
       runId: `r${String(idx)}`,
     }));
     const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));

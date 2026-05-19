@@ -6,3 +6,5 @@ coverage/
 .env.*
 !.env.example
 .lefthook-local.yml
+
+TODO.md

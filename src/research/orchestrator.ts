@@ -1,12 +1,14 @@
 import type { AppConfig } from "../config";
 import type { CliCommand } from "../cli/args";
 import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import { createRunId, prepareRunArtifacts, writeJson, writeRunOutputs } from "../artifacts";
 import type { RunArtifacts } from "../artifacts";
 import type {
   EvidenceQuality,
   KeyFinding,
   MarketSnapshot,
+  Prediction,
   ResearchReport,
   RunTrace,
   Scenario,
@@ -16,7 +18,7 @@ import type {
 import { rankMovers } from "../movers/ranking";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
-import { validateResearchReport } from "../report/schema";
+import { validatePredictions, validateResearchReport } from "../report/schema";
 import { summarizeMarketRegime } from "./regime";
 import { isRecord } from "../sources/guards";
 import type { RawSourceSnapshot } from "../sources/types";
@@ -57,6 +59,7 @@ interface ModelReportPayload {
   readonly scenarios?: unknown;
   readonly confidence?: unknown;
   readonly dataGaps?: unknown;
+  readonly predictions?: unknown;
   readonly extras?: unknown;
 }
 
@@ -72,12 +75,28 @@ interface DepthProfile {
   readonly analystStyle: "concise brief" | "fuller analyst-style";
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
+  readonly minimumPredictions: number;
+  readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];
 }
 
 interface ResearchContext {
   readonly depthProfile: DepthProfile;
   readonly marketRegime: ReturnType<typeof summarizeMarketRegime>;
+  readonly calibrationContext: CalibrationContext | undefined;
+}
+
+interface CalibrationBinSummary {
+  readonly kind: string;
+  readonly pBin: string;
+  readonly hitRate: number;
+  readonly sampleCount: number;
+}
+
+interface CalibrationContext {
+  readonly brierScore?: number;
+  readonly resolvedCount?: number;
+  readonly bins?: readonly CalibrationBinSummary[];
 }
 
 function parseModelPayload(content: string): ModelReportPayload {
@@ -202,6 +221,43 @@ function buildSourceList(collectedSources: CollectedSources): readonly Source[] 
   return [...marketSources, ...collectedSources.newsSources];
 }
 
+async function loadCalibrationContext(dataDir: string): Promise<CalibrationContext | undefined> {
+  try {
+    const raw = await readFile(join(dataDir, "../calibration/summary.json"), "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed)) {
+      return undefined;
+    }
+    return parsed as CalibrationContext;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildCalibrationBlock(calibration: CalibrationContext | undefined): string | undefined {
+  if (calibration === undefined) {
+    return undefined;
+  }
+  const lines: string[] = [];
+  if (typeof calibration.brierScore === "number") {
+    lines.push(`Overall Brier score: ${calibration.brierScore.toFixed(3)} (lower is better)`);
+  }
+  if (typeof calibration.resolvedCount === "number") {
+    lines.push(`Resolved predictions: ${calibration.resolvedCount}`);
+  }
+  if (Array.isArray(calibration.bins) && calibration.bins.length > 0) {
+    lines.push("Bin summary (past hit rates vs stated probability):");
+    for (const bin of calibration.bins) {
+      if (isRecord(bin)) {
+        lines.push(
+          `  ${String(bin.kind)} p${String(bin.pBin)}: stated=${String(bin.pBin)} actual=${Number(bin.hitRate).toFixed(2)} (n=${String(bin.sampleCount)})`,
+        );
+      }
+    }
+  }
+  return lines.length > 0 ? lines.join("\n") : undefined;
+}
+
 function buildEvidencePayload(
   command: CliCommand,
   collectedSources: CollectedSources,
@@ -218,6 +274,7 @@ function buildEvidencePayload(
     ),
     limit,
   );
+  const calibrationBlock = buildCalibrationBlock(context.calibrationContext);
 
   return {
     command,
@@ -226,10 +283,11 @@ function buildEvidencePayload(
     marketSnapshots: collectedSources.marketSnapshots,
     newsSources: collectedSources.newsSources,
     sourceGaps: deterministicSourceGaps(command, collectedSources),
+    ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
   };
 }
 
-function finalReportShape(): Record<string, unknown> {
+function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
   return {
     summary: "string",
     keyFindings: [{ text: "string", sourceIds: ["source-id"] }],
@@ -240,16 +298,35 @@ function finalReportShape(): Record<string, unknown> {
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
     confidence: "high|medium|low",
     dataGaps: ["string"],
+    predictions: Array.from({ length: depthProfile.minimumPredictions }, (_, idx) => ({
+      id: `pred-${String(idx + 1)}`,
+      claim: "string describing market quantity",
+      kind: "direction|relative|volatility|range",
+      subject: depthProfile.predictionSubjects[0] ?? "SPY",
+      measurableAs: "close(SPY, +5) > close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.6,
+      sourceIds: ["source-id"],
+    })),
   };
 }
 
+const DAILY_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
+
 function buildDepthProfile(command: CliCommand): DepthProfile {
+  const predictionSubjects =
+    command.jobType === "daily"
+      ? (DAILY_PREDICTION_SUBJECTS as readonly string[])
+      : [command.symbol];
+
   if (command.depth === "deep") {
     return {
       depth: "deep",
       analystStyle: "fuller analyst-style",
       minimumKeyFindings: command.jobType === "daily" ? 5 : 6,
       minimumScenarios: 3,
+      minimumPredictions: command.jobType === "daily" ? 3 : 5,
+      predictionSubjects,
       focus:
         command.jobType === "daily"
           ? ["market regime", "movers", "cross-asset themes", "risks", "source gaps"]
@@ -262,6 +339,8 @@ function buildDepthProfile(command: CliCommand): DepthProfile {
     analystStyle: "concise brief",
     minimumKeyFindings: command.jobType === "daily" ? 3 : 4,
     minimumScenarios: 1,
+    minimumPredictions: command.jobType === "daily" ? 2 : 3,
+    predictionSubjects,
     focus:
       command.jobType === "daily"
         ? ["market regime", "movers", "risks", "source gaps"]
@@ -276,27 +355,37 @@ function buildStagePrompt(
   config: AppConfig,
   context: ResearchContext,
   priorStages: readonly StageOutput[] = [],
+  predictionRepromptErrors: readonly string[] = [],
 ): string {
+  const baseInstruction =
+    "Use only supplied source IDs. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.";
+  const predictionInstruction =
+    stage === "final-synthesis"
+      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range.`
+      : "";
+
   return JSON.stringify(
     {
-      instruction:
-        "Use only supplied source IDs. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.",
+      instruction: baseInstruction + predictionInstruction,
       stage,
       stageGoal:
         stage === "specialist-analysis"
           ? "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources."
           : (stage === "critique"
             ? "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts."
-            : "Synthesize the final sourced research-only JSON report."),
+            : "Synthesize the final sourced research-only JSON report including predictions."),
       depthProfile: context.depthProfile,
       evidence: buildEvidencePayload(command, collectedSources, config, context),
       priorStages,
+      ...(predictionRepromptErrors.length > 0
+        ? { predictionRepromptErrors, unmetMinimum: context.depthProfile.minimumPredictions }
+        : {}),
       requiredShape:
         stage === "final-synthesis"
-          ? finalReportShape()
+          ? finalReportShape(context.depthProfile)
           : { findings: [{ text: "string", sourceIds: ["source-id"] }], dataGaps: ["string"] },
     },
-    null,
+    undefined,
     2,
   );
 }
@@ -307,6 +396,7 @@ async function runStage(
   input: RunResearchJobInput,
   context: ResearchContext,
   priorStages: readonly StageOutput[] = [],
+  predictionRepromptErrors: readonly string[] = [],
 ): Promise<StageOutput> {
   const response = await input.provider.generate({
     model,
@@ -325,6 +415,7 @@ async function runStage(
           input.config,
           context,
           priorStages,
+          predictionRepromptErrors,
         ),
       },
     ],
@@ -338,16 +429,26 @@ async function runStage(
   };
 }
 
+function readPredictions(
+  value: unknown,
+  knownSourceIds: ReadonlySet<string>,
+): { predictions: readonly Prediction[]; errors: readonly string[] } {
+  const result = validatePredictions(readArray(value), knownSourceIds);
+  return { predictions: result.valid, errors: result.errors };
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
   const runId = createRunId(now);
+  const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const context: ResearchContext = {
     depthProfile: buildDepthProfile(input.command),
     marketRegime: summarizeMarketRegime(
       input.command.assetClass,
       input.collectedSources.marketSnapshots,
     ),
+    calibrationContext,
   };
   const specialistOutput = await runStage(
     "specialist-analysis",
@@ -358,22 +459,49 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const critiqueOutput = await runStage("critique", input.config.quickModel, input, context, [
     specialistOutput,
   ]);
-  const finalOutput = await runStage(
-    "final-synthesis",
-    input.config.synthesisModel,
-    input,
-    context,
-    [specialistOutput, critiqueOutput],
-  );
-  const stageOutputs = [specialistOutput, critiqueOutput, finalOutput];
+  let finalOutput = await runStage("final-synthesis", input.config.synthesisModel, input, context, [
+    specialistOutput,
+    critiqueOutput,
+  ]);
 
-  const payload = parseModelPayload(finalOutput.content);
-  const dataGaps = [
+  const sources = buildSourceList(input.collectedSources);
+  const knownSourceIds = new Set(sources.map((source) => source.id));
+
+  let payload = parseModelPayload(finalOutput.content);
+  let predResult = readPredictions(payload.predictions, knownSourceIds);
+  const stageOutputsArr: StageOutput[] = [specialistOutput, critiqueOutput, finalOutput];
+
+  if (predResult.predictions.length < context.depthProfile.minimumPredictions) {
+    finalOutput = await runStage(
+      "final-synthesis",
+      input.config.synthesisModel,
+      input,
+      context,
+      [specialistOutput, critiqueOutput],
+      predResult.errors,
+    );
+    stageOutputsArr.push(finalOutput);
+    payload = parseModelPayload(finalOutput.content);
+    predResult = readPredictions(payload.predictions, knownSourceIds);
+  }
+
+  const predictionErrors = predResult.errors;
+  const stageOutputs = stageOutputsArr as readonly StageOutput[];
+
+  const dataGapsRaw = [
     ...new Set([
       ...readStringArray(payload.dataGaps),
       ...deterministicSourceGaps(input.command, input.collectedSources),
     ]),
   ];
+  const shortfall = predResult.predictions.length < context.depthProfile.minimumPredictions;
+  const dataGaps = shortfall
+    ? [
+        ...dataGapsRaw,
+        `predictionShortfall: emitted ${String(predResult.predictions.length)} of ${String(context.depthProfile.minimumPredictions)} required`,
+      ]
+    : dataGapsRaw;
+
   const confidence = lowerQuality(
     readEvidenceQuality(payload.confidence),
     deterministicQualityCap(input.collectedSources),
@@ -397,8 +525,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     scenarios: readScenarios(payload.scenarios),
     confidence,
     dataGaps,
-    predictions: [],
-    sources: buildSourceList(input.collectedSources),
+    predictions: predResult.predictions,
+    sources,
     notFinancialAdvice: true,
     extras: {
       ...modelExtras,
@@ -423,6 +551,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
+    ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
   };
 
   return {

@@ -61,6 +61,19 @@ function providerReturning(content: string): ModelProvider {
   };
 }
 
+function mockPredictions(count: number, subject = "SPY"): unknown[] {
+  return Array.from({ length: count }, (_, idx) => ({
+    id: `pred-${String(idx + 1)}`,
+    claim: `${subject} closes higher over ${String(idx + 5)} trading days.`,
+    kind: "direction",
+    subject,
+    measurableAs: `close(${subject}, +${String(idx + 5)}) > close(${subject}, 0)`,
+    horizonTradingDays: idx + 5,
+    probability: 0.6,
+    sourceIds: ["market-aapl"],
+  }));
+}
+
 describe("runResearchJob", () => {
   test("applies deep output requirements without changing workflow stages", async () => {
     const prompts: string[] = [];
@@ -92,6 +105,7 @@ describe("runResearchJob", () => {
             ],
             confidence: "medium",
             dataGaps: [],
+            predictions: mockPredictions(3),
           }),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
@@ -173,6 +187,7 @@ describe("runResearchJob", () => {
           ],
           confidence: "medium",
           dataGaps: ["Macro breadth source unavailable"],
+          predictions: mockPredictions(2),
         }),
       ),
       collectedSources: {
@@ -319,5 +334,102 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
     expect(result.report.dataGaps).toContain("No usable news sources were collected");
     expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
+  });
+
+  test("re-prompts synthesis once when predictions fall below minimum, then ships with shortfall gap", async () => {
+    let callCount = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async () => {
+        callCount += 1;
+        return {
+          content: JSON.stringify({
+            summary: "Evidence is sourced.",
+            keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+            bullCase: [],
+            bearCase: [],
+            risks: [],
+            catalysts: [],
+            scenarios: [],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: [],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(callCount).toBe(4);
+    expect(result.report.predictions).toHaveLength(0);
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+  });
+
+  test("logs prediction validation errors to trace when malformed predictions are dropped", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Evidence is sourced.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [],
+          bearCase: [],
+          risks: [],
+          catalysts: [],
+          scenarios: [],
+          confidence: "medium",
+          dataGaps: [],
+          predictions: [
+            {
+              id: "bad-1",
+              kind: "invalid-kind",
+              claim: "x",
+              subject: "SPY",
+              measurableAs: "close(SPY, +5) > close(SPY, 0)",
+              horizonTradingDays: 5,
+              probability: 0.6,
+              sourceIds: [],
+            },
+            {
+              id: "bad-2",
+              kind: "direction",
+              claim: "x",
+              subject: "SPY",
+              measurableAs: "close(SPY, +5) > close(SPY, 0)",
+              horizonTradingDays: 30,
+              probability: 0.6,
+              sourceIds: [],
+            },
+            ...mockPredictions(2),
+          ],
+        }),
+      ),
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.predictions).toHaveLength(2);
+    expect(result.trace.predictionErrors).toBeDefined();
+    expect(result.trace.predictionErrors?.length).toBe(2);
   });
 });

@@ -10,6 +10,14 @@ describe("parseArgs", () => {
     });
   });
 
+  test("parses weekly crypto deep", () => {
+    expect(parseArgs(["weekly", "--asset", "crypto", "--deep"])).toEqual({
+      jobType: "weekly",
+      assetClass: "crypto",
+      depth: "deep",
+    });
+  });
+
   test("parses ticker crypto deep and normalizes symbol", () => {
     expect(parseArgs(["ticker", "btc", "--asset", "crypto", "--deep"])).toEqual({
       jobType: "ticker",
@@ -31,6 +39,9 @@ describe("parseArgs", () => {
     expect(
       commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" }),
     ).toBe("ticker AAPL equity deep");
+    expect(commandLabel({ jobType: "weekly", assetClass: "crypto", depth: "brief" })).toBe(
+      "weekly crypto",
+    );
   });
 
   test("parses score command", () => {

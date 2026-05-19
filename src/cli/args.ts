@@ -7,6 +7,12 @@ export interface DailyCommand {
   readonly depth: Depth;
 }
 
+export interface WeeklyCommand {
+  readonly jobType: "weekly";
+  readonly assetClass: AssetClass;
+  readonly depth: Depth;
+}
+
 export interface TickerCommand {
   readonly jobType: "ticker";
   readonly assetClass: AssetClass;
@@ -22,7 +28,7 @@ export interface CalibrationCommand {
   readonly jobType: "calibration";
 }
 
-export type ResearchCommand = DailyCommand | TickerCommand;
+export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
 export type CliCommand = ResearchCommand | ScoreCommand | CalibrationCommand;
 
 function parseAsset(value: string | undefined): AssetClass {
@@ -78,11 +84,11 @@ function rejectUnknownArgs(args: readonly string[], allowedPositionals: number):
 export function parseArgs(args: readonly string[]): CliCommand {
   const [command, maybeSymbol] = args;
 
-  if (command === "daily") {
+  if (command === "daily" || command === "weekly") {
     rejectUnknownArgs(args, 1);
 
     return {
-      jobType: "daily",
+      jobType: command,
       assetClass: parseAsset(readFlagValue(args, "--asset")),
       depth: readDepth(args),
     };
@@ -115,7 +121,7 @@ export function parseArgs(args: readonly string[]): CliCommand {
   }
 
   throw new Error(
-    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration",
+    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration",
   );
 }
 

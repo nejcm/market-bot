@@ -1,8 +1,18 @@
 export type AssetClass = "equity" | "crypto";
 
-export type JobType = "daily" | "ticker";
+export type MarketUpdateJobType = "daily" | "weekly";
+
+export type JobType = MarketUpdateJobType | "ticker";
 
 export type Depth = "brief" | "deep";
+
+export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdateJobType {
+  return jobType === "daily" || jobType === "weekly";
+}
+
+export function marketUpdateCadence(jobType: MarketUpdateJobType): MarketUpdateJobType {
+  return jobType;
+}
 
 export interface Instrument {
   readonly symbol: string;

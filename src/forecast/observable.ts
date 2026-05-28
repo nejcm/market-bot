@@ -1,4 +1,5 @@
 import type { Prediction, PredictionKind } from "../domain/types";
+import { violatesResearchOnly } from "../domain/research-language";
 
 export interface ObservableDirection {
   readonly kind: "direction";
@@ -115,8 +116,6 @@ const RANGE_RE = new RegExp(
   "u",
 );
 
-const TRADE_ACTION_PATTERN =
-  /\b(buy|sell|hold|go long|go short|short this|accumulate|reduce exposure|increase exposure|rebalance|take profit|stop loss|position size|position sizing|execute|execution instruction|portfolio change|allocation change)\b/iu;
 const READER_ACTION_PATTERN = /\b(consider|watch for|should|could be a|expect to)\b/iu;
 
 function isPredictionKind(value: unknown): value is PredictionKind {
@@ -317,7 +316,7 @@ function resolveCandidate(
   ) {
     return issue("invalid-probability", `Prediction ${id}: probability must be 0–1`, id);
   }
-  if (TRADE_ACTION_PATTERN.test(claim)) {
+  if (violatesResearchOnly(claim) !== null) {
     return issue("unsafe-claim", `Prediction ${id}: claim contains trade-action language`, id);
   }
   if (READER_ACTION_PATTERN.test(claim)) {

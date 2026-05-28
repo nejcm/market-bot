@@ -5,13 +5,11 @@ import type {
   ResearchReport,
   Scenario,
 } from "../domain/types";
+import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts } from "../forecast/observable";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
-
-const TRADE_ACTION_PATTERN =
-  /\b(buy|sell|hold|go long|go short|short this|accumulate|reduce exposure|increase exposure|rebalance|take profit|stop loss|position size|position sizing|execute|execution instruction|portfolio change|allocation change)\b/iu;
 
 export interface PredictionValidationResult {
   readonly valid: readonly Prediction[];
@@ -68,7 +66,7 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     scenarios: report.scenarios,
   });
 
-  if (TRADE_ACTION_PATTERN.test(text)) {
+  if (violatesResearchOnly(text) !== null) {
     throw new Error("Report contains trade-action language");
   }
 }

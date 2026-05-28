@@ -56,11 +56,11 @@ All configuration is via environment variables.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `OPENAI_API_KEY` / `MARKET_BOT_OPENAI_API_KEY` | — | Required for live runs. |
-| `MARKET_BOT_PROVIDER` | `openai` | `openai` or `openai-compatible`. |
-| `MARKET_BOT_BASE_URL` | — | Required when provider is `openai-compatible`. |
-| `MARKET_BOT_QUICK_MODEL` | `gpt-4.1-mini` | Used for brief depth. |
-| `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-4.1` | Used for `--deep`. |
+| `OPENAI_API_KEY` / `MARKET_BOT_OPENAI_API_KEY` | — | Required for `openai`. `openai-compatible` only reads `MARKET_BOT_OPENAI_API_KEY`. |
+| `MARKET_BOT_PROVIDER` | `openai` | `openai`, `openai-compatible`, or `codex`. |
+| `MARKET_BOT_BASE_URL` | — | Required only when provider is `openai-compatible`; must be `https` unless localhost. |
+| `MARKET_BOT_QUICK_MODEL` | `gpt-5.4-mini` | Used for brief depth. |
+| `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-5.5` | Used for `--deep`. |
 | `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. |
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |

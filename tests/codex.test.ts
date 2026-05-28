@@ -202,7 +202,8 @@ describe("createCodexProvider — generate", () => {
   test("passes prompt via stdin (args do not contain prompt text)", async () => {
     const capturedArgs: string[][] = [];
     const capturedStdin: string[] = [];
-    const spawn: SpawnImpl = async (args, stdin) => {
+    const capturedOptions: Parameters<SpawnImpl>[2][] = [];
+    const spawn: SpawnImpl = async (args, stdin, options) => {
       if (args[1] === "--version") {
         return { stdout: "0.125.0", stderr: "", exitCode: 0 };
       }
@@ -211,6 +212,7 @@ describe("createCodexProvider — generate", () => {
       }
       capturedArgs.push(args);
       capturedStdin.push(stdin);
+      capturedOptions.push(options);
       return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
     };
 
@@ -223,5 +225,35 @@ describe("createCodexProvider — generate", () => {
     expect(capturedArgs[0]).not.toContain("secret prompt text");
     expect(capturedStdin[0]).toContain("secret prompt text");
     expect(capturedArgs[0]).toContain("-");
+    expect(capturedArgs[0]).toContain("--ignore-user-config");
+    expect(capturedArgs[0]).toContain("--sandbox");
+    expect(capturedArgs[0]).toContain("read-only");
+    expect(capturedArgs[0]).toContain("--cd");
+    expect(capturedOptions[0]?.cwd).toBe(
+      capturedArgs[0]?.[(capturedArgs[0]?.indexOf("--cd") ?? -1) + 1],
+    );
+    expect(capturedOptions[0]?.timeoutMs).toBe(baseConfig.modelTimeoutMs);
+    expect(capturedOptions[0]?.env?.MARKET_BOT_OPENAI_API_KEY).toBeUndefined();
+    expect(capturedOptions[0]?.env?.OPENAI_API_KEY).toBeUndefined();
+  });
+
+  test("times out stalled exec calls", async () => {
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 50);
+      });
+      return { stdout: agentMessageStream("late"), stderr: "", exitCode: 0 };
+    };
+
+    const provider = createCodexProvider({ ...baseConfig, modelTimeoutMs: 1 }, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("timed out");
   });
 });

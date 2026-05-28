@@ -3,17 +3,17 @@ pre-commit:
   commands:
     lint:
       glob: "*.{js,ts,jsx,tsx}"
-      run: bunx oxlint --fix {staged_files}
+      run: bun run lint:staged -- {staged_files}
       stage_fixed: true
     format:
       glob: "*.{js,ts,jsx,tsx,json}"
-      run: bunx oxfmt {staged_files}
+      run: bun run fmt:staged -- {staged_files}
       stage_fixed: true
 
 commit-msg:
   commands:
     commitlint:
-      run: bunx commitlint --edit {1}
+      run: bun run commitlint -- --edit {1}
 
 pre-push:
   parallel: true

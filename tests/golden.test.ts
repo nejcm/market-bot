@@ -53,5 +53,8 @@ describe("golden report contracts", () => {
     expect(() =>
       assertSafeReportLanguage(report("This says reduce exposure after the catalyst.")),
     ).toThrow("trade-action language");
+    expect(() =>
+      assertSafeReportLanguage(report("Investors should open a position in SPY.")),
+    ).toThrow("trade-action language");
   });
 });

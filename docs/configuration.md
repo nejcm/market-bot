@@ -4,9 +4,9 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `OPENAI_API_KEY` / `MARKET_BOT_OPENAI_API_KEY` | — | Required when provider is `openai` or `openai-compatible`. Not needed for `codex`. |
+| `OPENAI_API_KEY` / `MARKET_BOT_OPENAI_API_KEY` | — | Required when provider is `openai`. `openai-compatible` only reads `MARKET_BOT_OPENAI_API_KEY` so a global OpenAI key is not sent to custom endpoints. Not needed for `codex`. |
 | `MARKET_BOT_PROVIDER` | `openai` | `openai`, `openai-compatible`, or `codex`. |
-| `MARKET_BOT_BASE_URL` | — | Required when provider is `openai-compatible`. |
+| `MARKET_BOT_BASE_URL` | — | Required when provider is `openai-compatible`; rejected otherwise. Must be `https`, except `http` is allowed for localhost. Credentials in the URL are rejected. |
 | `MARKET_BOT_QUICK_MODEL` | `gpt-5.4-mini` | Used for brief depth (all providers). Do not set below `gpt-5.4`. |
 | `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-5.5` | Used for `--deep` (all providers). Do not set below `gpt-5.4`. |
 | `MARKET_BOT_CODEX_QUICK_MODEL` | — | Overrides `MARKET_BOT_QUICK_MODEL` for the `codex` provider only. |

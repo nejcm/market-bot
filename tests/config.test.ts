@@ -18,6 +18,12 @@ describe("resolveConfig", () => {
     );
   });
 
+  test("rejects base URL without compatible provider mode", () => {
+    expect(() => resolveConfig({ MARKET_BOT_BASE_URL: "https://example.com/v1" })).toThrow(
+      "MARKET_BOT_PROVIDER=openai-compatible",
+    );
+  });
+
   test("resolves OpenAI-compatible provider settings", () => {
     expect(
       resolveConfig({
@@ -34,6 +40,36 @@ describe("resolveConfig", () => {
       quickModel: "local-quick",
       synthesisModel: "local-synthesis",
     });
+  });
+
+  test("rejects insecure remote OpenAI-compatible base URL", () => {
+    expect(() =>
+      resolveConfig({
+        MARKET_BOT_PROVIDER: "openai-compatible",
+        MARKET_BOT_BASE_URL: "http://example.com/v1",
+        MARKET_BOT_OPENAI_API_KEY: "local-key",
+      }),
+    ).toThrow("https unless it targets localhost");
+  });
+
+  test("rejects credentials in OpenAI-compatible base URL", () => {
+    expect(() =>
+      resolveConfig({
+        MARKET_BOT_PROVIDER: "openai-compatible",
+        MARKET_BOT_BASE_URL: "https://user:pass@example.com/v1",
+        MARKET_BOT_OPENAI_API_KEY: "local-key",
+      }),
+    ).toThrow("must not include credentials");
+  });
+
+  test("does not forward OPENAI_API_KEY to OpenAI-compatible providers", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_PROVIDER: "openai-compatible",
+        MARKET_BOT_BASE_URL: "http://localhost:11434/v1",
+        OPENAI_API_KEY: "global-key",
+      }).apiKey,
+    ).toBeUndefined();
   });
 
   test("reads source limits", () => {

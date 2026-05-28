@@ -68,18 +68,56 @@ function readOptionalString(value: string | undefined): string | undefined {
   return value !== undefined && value.trim() !== "" ? value : undefined;
 }
 
-export function resolveConfig(env: Record<string, string | undefined> = process.env): AppConfig {
-  const provider = readProvider(env.MARKET_BOT_PROVIDER);
-  const apiKey = env.MARKET_BOT_OPENAI_API_KEY ?? env.OPENAI_API_KEY;
-  const baseUrl = env.MARKET_BOT_BASE_URL;
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[/u, "").replace(/\]$/u, "");
+  return host === "localhost" || host === "::1" || host.startsWith("127.");
+}
 
-  if (provider === "openai-compatible" && (baseUrl === undefined || baseUrl.trim() === "")) {
+function readBaseUrl(provider: ProviderName, value: string | undefined): string | undefined {
+  const baseUrl = readOptionalString(value);
+  if (provider !== "openai-compatible" && baseUrl !== undefined) {
+    throw new Error("MARKET_BOT_BASE_URL requires MARKET_BOT_PROVIDER=openai-compatible");
+  }
+
+  if (provider !== "openai-compatible") {
+    return undefined;
+  }
+
+  if (baseUrl === undefined) {
     throw new Error("MARKET_BOT_BASE_URL is required for openai-compatible provider");
   }
 
+  const parsed = (() => {
+    try {
+      return new URL(baseUrl);
+    } catch {
+      throw new Error("MARKET_BOT_BASE_URL must be a valid URL");
+    }
+  })();
+
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new Error("MARKET_BOT_BASE_URL must not include credentials");
+  }
+
+  if (
+    parsed.protocol !== "https:" &&
+    !(parsed.protocol === "http:" && isLoopbackHost(parsed.hostname))
+  ) {
+    throw new Error("MARKET_BOT_BASE_URL must use https unless it targets localhost");
+  }
+
+  return parsed.toString().replace(/\/$/u, "");
+}
+
+export function resolveConfig(env: Record<string, string | undefined> = process.env): AppConfig {
+  const provider = readProvider(env.MARKET_BOT_PROVIDER);
+  const apiKey =
+    env.MARKET_BOT_OPENAI_API_KEY ?? (provider === "openai" ? env.OPENAI_API_KEY : undefined);
+  const baseUrl = readBaseUrl(provider, env.MARKET_BOT_BASE_URL);
+
   return {
     provider,
-    ...(baseUrl !== undefined && baseUrl.trim() !== "" ? { baseUrl } : {}),
+    ...(baseUrl !== undefined ? { baseUrl } : {}),
     ...(apiKey !== undefined && apiKey.trim() !== "" ? { apiKey } : {}),
     quickModel: env.MARKET_BOT_QUICK_MODEL ?? DEFAULT_QUICK_MODEL,
     synthesisModel: env.MARKET_BOT_SYNTHESIS_MODEL ?? DEFAULT_SYNTHESIS_MODEL,

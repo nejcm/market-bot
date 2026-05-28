@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AppConfig } from "../config";
 import type { ModelProvider, ModelRequest, ModelResponse } from "./types";
 
@@ -9,7 +12,17 @@ export interface SpawnResult {
   readonly exitCode: number;
 }
 
-export type SpawnImpl = (args: string[], stdin: string) => Promise<SpawnResult>;
+export interface SpawnOptions {
+  readonly cwd?: string;
+  readonly env?: Record<string, string | undefined>;
+  readonly timeoutMs?: number;
+}
+
+export type SpawnImpl = (
+  args: string[],
+  stdin: string,
+  options?: SpawnOptions,
+) => Promise<SpawnResult>;
 
 interface CodexEvent {
   readonly type?: string;
@@ -84,8 +97,60 @@ function parseEventStream(jsonl: string): { content: string; tokenEstimate: numb
   return { content, tokenEstimate };
 }
 
-async function defaultSpawn(args: string[], stdin: string): Promise<SpawnResult> {
+function readEnv(name: string): string | undefined {
+  const value = process.env[name];
+  return value !== undefined && value.trim() !== "" ? value : undefined;
+}
+
+function codexChildEnv(): Record<string, string | undefined> {
+  return {
+    PATH: readEnv("PATH"),
+    Path: readEnv("Path"),
+    PATHEXT: readEnv("PATHEXT"),
+    SYSTEMROOT: readEnv("SYSTEMROOT"),
+    SystemRoot: readEnv("SystemRoot"),
+    WINDIR: readEnv("WINDIR"),
+    COMSPEC: readEnv("COMSPEC"),
+    HOME: readEnv("HOME"),
+    USERPROFILE: readEnv("USERPROFILE"),
+    APPDATA: readEnv("APPDATA"),
+    LOCALAPPDATA: readEnv("LOCALAPPDATA"),
+    CODEX_HOME: readEnv("CODEX_HOME"),
+  };
+}
+
+function timeoutError(timeoutMs: number): Error {
+  return new Error(`Codex request timed out after ${String(timeoutMs)}ms`);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: Timer | undefined = undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(timeoutError(timeoutMs));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+async function defaultSpawn(
+  args: string[],
+  stdin: string,
+  options: SpawnOptions = {},
+): Promise<SpawnResult> {
   const proc = Bun.spawn(args, {
+    ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+    ...(options.env !== undefined ? { env: options.env } : {}),
+    ...(options.timeoutMs !== undefined
+      ? { timeout: options.timeoutMs, killSignal: "SIGKILL" }
+      : {}),
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
@@ -173,6 +238,11 @@ export function createCodexProvider(
         "exec",
         "--json",
         "--ephemeral",
+        "--ignore-user-config",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        await mkdtemp(join(tmpdir(), "market-bot-codex-")),
         "--skip-git-repo-check",
         "-m",
         resolvedModel,
@@ -180,20 +250,22 @@ export function createCodexProvider(
       ];
 
       const timeoutMs = config.modelTimeoutMs;
-      let timedOut = false;
-      const timeoutHandle = setTimeout(() => {
-        timedOut = true;
-      }, timeoutMs);
+      const cwdIndex = args.indexOf("--cd") + 1;
+      const cwd = args[cwdIndex];
+      if (cwd === undefined) {
+        throw new Error("Codex exec cwd was not configured");
+      }
 
       let result: SpawnResult = { stdout: "", stderr: "", exitCode: -1 };
       try {
-        result = await spawnImpl(args, prompt);
+        result = await withTimeout(
+          spawnImpl(args, prompt, { cwd, env: codexChildEnv(), timeoutMs }),
+          timeoutMs,
+        );
       } finally {
-        clearTimeout(timeoutHandle);
-      }
-
-      if (timedOut) {
-        throw new Error(`Codex request timed out after ${String(timeoutMs)}ms`);
+        if (cwd !== undefined) {
+          await rm(cwd, { recursive: true, force: true }).catch(() => {});
+        }
       }
 
       if (result.exitCode !== 0) {

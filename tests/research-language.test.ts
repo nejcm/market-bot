@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { TRADE_ACTION_PATTERN, violatesResearchOnly } from "../src/domain/research-language";
+import {
+  READER_DIRECTED_ADVICE_PATTERN,
+  TRADE_ACTION_PATTERN,
+  violatesResearchOnly,
+} from "../src/domain/research-language";
 
 describe("TRADE_ACTION_PATTERN", () => {
   const banned = [
@@ -17,6 +21,13 @@ describe("TRADE_ACTION_PATTERN", () => {
     "stop loss",
     "position size",
     "position sizing",
+    "open a position",
+    "take a position",
+    "trim exposure",
+    "add shares",
+    "scale in",
+    "set an entry",
+    "exit at",
     "execute",
     "execution instruction",
     "portfolio change",
@@ -40,12 +51,28 @@ describe("TRADE_ACTION_PATTERN", () => {
   });
 });
 
+describe("READER_DIRECTED_ADVICE_PATTERN", () => {
+  const banned = [
+    "Investors should open a position in SPY.",
+    "Traders may want to trim exposure.",
+    "You need to rebalance this portfolio.",
+    "Should buy SPY on weakness.",
+  ];
+
+  for (const phrase of banned) {
+    test(`matches "${phrase}"`, () => {
+      expect(READER_DIRECTED_ADVICE_PATTERN.test(phrase)).toBe(true);
+    });
+  }
+});
+
 describe("violatesResearchOnly", () => {
   const research = [
     "SPY has been trading above its 200-day moving average.",
     "BTC dominance increased amid broad risk-off sentiment.",
     "Volatility regime shifted to elevated after the Fed announcement.",
     "The probability of a breakout above resistance is moderate.",
+    "Inflation should decline if shelter data cools.",
     "close(SPY, +5) > close(SPY, 0)",
   ];
 
@@ -68,5 +95,12 @@ describe("violatesResearchOnly", () => {
   test("captures the matched word in the result", () => {
     const result = violatesResearchOnly("A rebalance of the portfolio is warranted.");
     expect(result?.match.toLowerCase()).toBe("rebalance");
+  });
+
+  test("blocks reader-directed advice without explicit buy/sell wording", () => {
+    const result = violatesResearchOnly(
+      "Investors should open a position in SPY and trim exposure below 500.",
+    );
+    expect(result).not.toBeNull();
   });
 });

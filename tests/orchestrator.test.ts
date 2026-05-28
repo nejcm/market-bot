@@ -219,6 +219,84 @@ describe("runResearchJob", () => {
     expect(result.trace.tokenEstimate).toBe(300);
   });
 
+  test("surfaces ticker Extended Evidence in prompt, report, and markdown", async () => {
+    const prompts: string[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        prompts.push(request.messages[1]?.content ?? "");
+        return {
+          content: JSON.stringify({
+            summary: "AAPL ticker evidence includes macro context.",
+            keyFindings: [
+              { text: "Macro evidence is available.", sourceIds: ["extended-fred-macro"] },
+            ],
+            bullCase: [{ text: "Market data is constructive.", sourceIds: ["market-aapl"] }],
+            bearCase: [{ text: "News coverage is narrow.", sourceIds: ["news-equity-1"] }],
+            risks: [{ text: "Macro data can change.", sourceIds: ["extended-fred-macro"] }],
+            catalysts: [{ text: "Company news is visible.", sourceIds: ["news-equity-1"] }],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Ticker remains tied to market data.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            confidence: "high",
+            dataGaps: [],
+            predictions: mockPredictions(3, "AAPL"),
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        extendedSources: [
+          {
+            id: "extended-fred-macro",
+            title: "FRED macro pack",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "extended-evidence",
+            assetClass: "equity",
+            symbol: "AAPL",
+          },
+        ],
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items: [
+            {
+              category: "fred-macro",
+              title: "FRED macro pack",
+              summary: "Latest FRED macro observations captured.",
+              sourceIds: ["extended-fred-macro"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+      readonly evidence?: { readonly extendedEvidence?: unknown };
+    };
+
+    expect(finalPrompt.evidence?.extendedEvidence).toBeDefined();
+    expect(result.report.extras?.extendedEvidence).toBeDefined();
+    expect(result.markdown).toContain("## Extended Evidence");
+    expect(result.markdown).toContain("[extended-fred-macro]");
+  });
+
   test("creates a weekly market update with weekly horizon metadata and source gap", async () => {
     const prompts: string[] = [];
     const provider: ModelProvider = {

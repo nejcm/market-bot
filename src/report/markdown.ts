@@ -37,6 +37,44 @@ function renderPredictions(predictions: readonly Prediction[]): string {
   return `## Predictions\n\n${rows}\n`;
 }
 
+function renderExtendedEvidence(report: ResearchReport): string {
+  if (report.jobType !== "ticker") {
+    return "";
+  }
+  const value = report.extras?.extendedEvidence;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "";
+  }
+  const items = Array.isArray((value as { items?: unknown }).items)
+    ? ((value as { items?: unknown[] }).items ?? [])
+    : [];
+  if (items.length === 0) {
+    return "## Extended Evidence\n\n- No extended evidence items.\n";
+  }
+  const rows = items
+    .map((item) => {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        return;
+      }
+      const record = item as {
+        title?: unknown;
+        summary?: unknown;
+        sourceIds?: unknown;
+      };
+      if (typeof record.title !== "string" || typeof record.summary !== "string") {
+        return;
+      }
+      const refs = Array.isArray(record.sourceIds)
+        ? sourceRefs(
+            record.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string"),
+          )
+        : "";
+      return `- **${record.title}:** ${record.summary}${refs === "" ? "" : ` ${refs}`}`;
+    })
+    .filter((row): row is string => row !== undefined);
+  return `## Extended Evidence\n\n${rows.join("\n")}\n`;
+}
+
 export function renderMarkdownReport(report: ResearchReport): string {
   const title =
     report.jobType === "ticker"
@@ -66,6 +104,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Risks", report.risks),
     renderFindings("Catalysts", report.catalysts),
     renderScenarios(report.scenarios),
+    renderExtendedEvidence(report),
     renderPredictions(report.predictions),
     "## Data Gaps",
     "",

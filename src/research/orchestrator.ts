@@ -12,6 +12,7 @@ import {
 import {
   isMarketUpdateJobType,
   type EvidenceQuality,
+  type ExtendedEvidence,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
@@ -33,6 +34,8 @@ export interface CollectedSources {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
+  readonly extendedSources?: readonly Source[];
+  readonly extendedEvidence?: ExtendedEvidence;
   readonly sourceGaps?: readonly SourceGap[];
 }
 
@@ -214,7 +217,24 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
     return "low";
   }
 
-  if ((collectedSources.sourceGaps?.length ?? 0) > 0 || collectedSources.newsSources.length === 0) {
+  const extendedGapKeys = new Set(
+    collectedSources.extendedEvidence?.gaps.map((gap) => `${gap.source}: ${gap.message}`) ?? [],
+  );
+  const coreGaps =
+    collectedSources.sourceGaps?.filter(
+      (gap) => !extendedGapKeys.has(`${gap.source}: ${gap.message}`),
+    ) ?? [];
+  const extendedCategoryCount =
+    collectedSources.extendedEvidence === undefined
+      ? 0
+      : new Set(collectedSources.extendedEvidence.items.map((item) => item.category)).size;
+  const extendedGapCount = collectedSources.extendedEvidence?.gaps.length ?? 0;
+
+  if (
+    coreGaps.length > 0 ||
+    collectedSources.newsSources.length === 0 ||
+    extendedGapCount > extendedCategoryCount
+  ) {
     return "medium";
   }
 
@@ -233,7 +253,11 @@ function buildSourceList(collectedSources: CollectedSources): readonly Source[] 
     }),
   );
 
-  return [...marketSources, ...collectedSources.newsSources];
+  return [
+    ...marketSources,
+    ...collectedSources.newsSources,
+    ...(collectedSources.extendedSources ?? []),
+  ];
 }
 
 async function loadCalibrationContext(dataDir: string): Promise<CalibrationContext | undefined> {
@@ -297,6 +321,9 @@ function buildEvidencePayload(
     marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
     newsSources: collectedSources.newsSources,
+    ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
+      ? { extendedEvidence: collectedSources.extendedEvidence }
+      : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
   };
@@ -569,6 +596,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ? { marketUpdateCadence: input.command.jobType }
         : {}),
       marketRegime: context.marketRegime,
+      ...(input.command.jobType === "ticker" &&
+      input.collectedSources.extendedEvidence !== undefined
+        ? { extendedEvidence: input.collectedSources.extendedEvidence }
+        : {}),
     },
   });
 
@@ -615,6 +646,14 @@ export async function persistResearchJob(
   await writeJson(
     join(artifacts.normalizedDir, "news-sources.json"),
     input.collectedSources.newsSources,
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "extended-sources.json"),
+    input.collectedSources.extendedSources ?? [],
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "extended-evidence.json"),
+    input.collectedSources.extendedEvidence ?? null,
   );
   await writeJson(
     join(artifacts.normalizedDir, "source-gaps.json"),

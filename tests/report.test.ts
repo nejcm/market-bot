@@ -56,6 +56,35 @@ describe("report schema and rendering", () => {
     expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
   });
 
+  test("renders ticker Extended Evidence from extras", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      sources: [
+        ...report.sources,
+        {
+          id: "extended-fred-macro",
+          title: "FRED macro pack",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "extended-evidence",
+        },
+      ],
+      extras: {
+        extendedEvidence: {
+          items: [
+            {
+              title: "FRED macro pack",
+              summary: "Latest FRED macro observations captured.",
+              sourceIds: ["extended-fred-macro"],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(markdown).toContain("## Extended Evidence");
+    expect(markdown).toContain("[extended-fred-macro]");
+  });
+
   test("renders cadence-specific market update titles", () => {
     const { symbol: _symbol, ...marketReport } = report;
 

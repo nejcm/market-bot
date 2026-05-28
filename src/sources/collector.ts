@@ -1,6 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
+import type { ExtendedEvidence, MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
 import type { FetchJsonResult, FetchLike, RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
@@ -9,6 +9,8 @@ export interface SourceCollection {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
+  readonly extendedSources: readonly Source[];
+  readonly extendedEvidence?: ExtendedEvidence;
   readonly sourceGaps: readonly SourceGap[];
 }
 
@@ -244,6 +246,7 @@ export async function collectSources(
   const registry = createSourceRegistry();
   const marketAdapter = registry.marketDataFor(command.assetClass);
   const newsAdapter = registry.newsFor(command.assetClass);
+  const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
 
   const ctx = {
     command,
@@ -257,20 +260,44 @@ export async function collectSources(
     ...(sourceOptions.finnhubApiToken !== undefined
       ? { finnhubApiToken: sourceOptions.finnhubApiToken }
       : {}),
+    ...(sourceOptions.fredApiKey !== undefined ? { fredApiKey: sourceOptions.fredApiKey } : {}),
+    ...(sourceOptions.tradierApiToken !== undefined
+      ? { tradierApiToken: sourceOptions.tradierApiToken }
+      : {}),
+    ...(sourceOptions.glassnodeApiKey !== undefined
+      ? { glassnodeApiKey: sourceOptions.glassnodeApiKey }
+      : {}),
+    ...(sourceOptions.secUserAgent !== undefined
+      ? { secUserAgent: sourceOptions.secUserAgent }
+      : {}),
     fetchImpl,
     fetchOrGap,
     retryDelaysMs,
   };
 
-  const [marketResult, newsResult] = await Promise.all([
+  const [marketResult, newsResult, extendedResult] = await Promise.all([
     marketAdapter.collect(ctx),
     newsAdapter.collect(ctx),
+    extendedEvidenceAdapter.collect(ctx),
   ]);
 
   return {
-    rawSnapshots: [...marketResult.rawSnapshots, ...newsResult.rawSnapshots],
+    rawSnapshots: [
+      ...marketResult.rawSnapshots,
+      ...newsResult.rawSnapshots,
+      ...extendedResult.rawSnapshots,
+    ],
     marketSnapshots: marketResult.marketSnapshots,
     newsSources: newsResult.newsSources,
-    sourceGaps: [...marketResult.sourceGaps, ...newsResult.sourceGaps, ...staleFallbackGaps],
+    extendedSources: extendedResult.sources,
+    ...(extendedResult.extendedEvidence !== undefined
+      ? { extendedEvidence: extendedResult.extendedEvidence }
+      : {}),
+    sourceGaps: [
+      ...marketResult.sourceGaps,
+      ...newsResult.sourceGaps,
+      ...extendedResult.sourceGaps,
+      ...staleFallbackGaps,
+    ],
   };
 }

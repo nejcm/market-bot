@@ -3,6 +3,7 @@ import { coinGeckoMarketDataAdapter } from "./coingecko";
 import { multiNewsAdapter } from "./multi-news";
 import type { MarketDataAdapter, NewsAdapter, SourceRegistry } from "./types";
 import { yahooMarketDataAdapter } from "./yahoo";
+import { emptyExtendedEvidenceAdapter } from "./extended-evidence";
 
 export function createSourceRegistry(): SourceRegistry {
   const marketAdapters: Record<AssetClass, MarketDataAdapter> = {
@@ -18,5 +19,6 @@ export function createSourceRegistry(): SourceRegistry {
   return {
     marketDataFor: (assetClass) => marketAdapters[assetClass],
     newsFor: (assetClass) => newsAdapters[assetClass],
+    extendedEvidenceFor: () => emptyExtendedEvidenceAdapter,
   };
 }

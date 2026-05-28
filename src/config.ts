@@ -7,6 +7,10 @@ export interface SourceOptions {
   readonly sourceTimeoutMs: number;
   readonly marketauxApiToken?: string;
   readonly finnhubApiToken?: string;
+  readonly fredApiKey?: string;
+  readonly tradierApiToken?: string;
+  readonly glassnodeApiKey?: string;
+  readonly secUserAgent?: string;
   readonly cacheDir?: string;
   readonly cacheDisabled?: boolean;
   readonly cacheFallbackDays?: number;
@@ -29,6 +33,7 @@ const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
 const DEFAULT_SYNTHESIS_MODEL = "gpt-5.5";
 const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 const DEFAULT_DATA_DIR = "data/runs";
+const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
@@ -97,6 +102,16 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       ...(readOptionalString(env.MARKET_BOT_FINNHUB_API_TOKEN) !== undefined
         ? { finnhubApiToken: readOptionalString(env.MARKET_BOT_FINNHUB_API_TOKEN) as string }
         : {}),
+      ...(readOptionalString(env.MARKET_BOT_FRED_API_KEY) !== undefined
+        ? { fredApiKey: readOptionalString(env.MARKET_BOT_FRED_API_KEY) as string }
+        : {}),
+      ...(readOptionalString(env.MARKET_BOT_TRADIER_API_TOKEN) !== undefined
+        ? { tradierApiToken: readOptionalString(env.MARKET_BOT_TRADIER_API_TOKEN) as string }
+        : {}),
+      ...(readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) !== undefined
+        ? { glassnodeApiKey: readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) as string }
+        : {}),
+      secUserAgent: readOptionalString(env.MARKET_BOT_SEC_USER_AGENT) ?? DEFAULT_SEC_USER_AGENT,
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
       cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),
       cacheFallbackDays: readPositiveInteger(env.MARKET_BOT_CACHE_FALLBACK_DAYS, 7),

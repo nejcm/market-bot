@@ -1,5 +1,11 @@
 import type { ResearchCommand } from "../cli/args";
-import type { AssetClass, MarketSnapshot, Source, SourceGap } from "../domain/types";
+import type {
+  AssetClass,
+  ExtendedEvidence,
+  MarketSnapshot,
+  Source,
+  SourceGap,
+} from "../domain/types";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -20,6 +26,10 @@ export interface CollectContext {
   readonly cryptoMoverLimit: number;
   readonly marketauxApiToken?: string;
   readonly finnhubApiToken?: string;
+  readonly fredApiKey?: string;
+  readonly tradierApiToken?: string;
+  readonly glassnodeApiKey?: string;
+  readonly secUserAgent?: string;
   readonly fetchImpl: FetchLike;
   readonly fetchOrGap: FetchOrGapFn;
   readonly retryDelaysMs: readonly number[];
@@ -34,6 +44,13 @@ export interface MarketCollectionResult {
 export interface NewsCollectionResult {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly newsSources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
+}
+
+export interface ExtendedEvidenceCollectionResult {
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly extendedEvidence?: ExtendedEvidence;
+  readonly sources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
 }
 
@@ -62,6 +79,11 @@ export interface NewsAdapter {
   readonly collect: (ctx: CollectContext) => Promise<NewsCollectionResult>;
 }
 
+export interface ExtendedEvidenceAdapter {
+  readonly name: string;
+  readonly collect: (ctx: CollectContext) => Promise<ExtendedEvidenceCollectionResult>;
+}
+
 export interface FetchJsonResult {
   readonly rawSnapshot: RawSourceSnapshot;
   readonly payload: unknown;
@@ -74,4 +96,5 @@ export function isFetchJsonResult(value: FetchJsonResult | SourceGap): value is 
 export interface SourceRegistry {
   readonly marketDataFor: (assetClass: AssetClass) => MarketDataAdapter;
   readonly newsFor: (assetClass: AssetClass) => NewsAdapter;
+  readonly extendedEvidenceFor: (assetClass: AssetClass) => ExtendedEvidenceAdapter;
 }

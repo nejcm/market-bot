@@ -60,6 +60,22 @@ describe("resolveConfig", () => {
     });
   });
 
+  test("reads extended evidence provider settings", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_FRED_API_KEY: "fred-key",
+        MARKET_BOT_TRADIER_API_TOKEN: "tradier-token",
+        MARKET_BOT_GLASSNODE_API_KEY: "glassnode-key",
+        MARKET_BOT_SEC_USER_AGENT: "market-bot test@example.test",
+      }).sourceOptions,
+    ).toMatchObject({
+      fredApiKey: "fred-key",
+      tradierApiToken: "tradier-token",
+      glassnodeApiKey: "glassnode-key",
+      secUserAgent: "market-bot test@example.test",
+    });
+  });
+
   test("accepts codex provider without apiKey", () => {
     const config = resolveConfig({ MARKET_BOT_PROVIDER: "codex" });
     expect(config.provider).toBe("codex");

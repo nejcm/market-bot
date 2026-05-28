@@ -1,6 +1,8 @@
 import { parseArgs } from "./cli/args";
 import { resolveConfig } from "./config";
+import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
+import type { ModelProvider } from "./model/types";
 import { persistResearchJob } from "./research/orchestrator";
 import { collectSources } from "./sources/collector";
 import { buildAndWriteCalibration, runScorePass } from "./scoring/index";
@@ -20,7 +22,8 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     return "Calibration summary written to data/calibration/summary.json";
   }
 
-  const provider = createOpenAIProvider(config);
+  const provider: ModelProvider =
+    config.provider === "codex" ? createCodexProvider(config) : createOpenAIProvider(config);
   const collectedSources = await collectSources(command, config.sourceOptions);
 
   const scoreResult = await runScorePass(config.dataDir).catch((error: unknown) => {

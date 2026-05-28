@@ -14,6 +14,8 @@ Reports are **research views**, not trading advice — no buy/sell calls, no pos
 
 ## Quick start
 
+**API key (default)**
+
 ```sh
 bun install
 bunx lefthook install   # one-time, wires git hooks
@@ -21,6 +23,15 @@ bunx lefthook install   # one-time, wires git hooks
 export OPENAI_API_KEY=sk-...
 bun run src/cli.ts daily --asset equity
 ```
+
+**ChatGPT / Codex subscription (no API key required)**
+
+```sh
+codex login                        # one-time, authenticates your ChatGPT session
+MARKET_BOT_PROVIDER=codex bun run src/cli.ts daily --asset equity
+```
+
+Requires `codex` CLI ≥ 0.125 (`npm i -g @openai/codex`, Node ≥ 22). Rate limits follow your ChatGPT plan tier.
 
 Run artifacts land under `data/runs/<run-id>/` (override with `MARKET_BOT_DATA_DIR`).
 

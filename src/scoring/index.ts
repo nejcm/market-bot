@@ -1,19 +1,16 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  isMarketUpdateJobType,
-  type AssetClass,
-  type Prediction,
-  type ResearchReport,
-} from "../domain/types";
-import { fetchYahooClose } from "../sources/yahoo";
-import { fetchCoinGeckoClose } from "../sources/coingecko";
-import { fetchFredObservation, fetchTradierIvObservation } from "../sources/extended-evidence";
+import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
 import { observableForecastFromPrediction } from "../forecast/observable";
 import { resolvePrediction } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
-import { fetchCloseWithCache, type FetchCloseFn } from "./close-cache";
+import {
+  createCloseRepository,
+  repositoryFromFetchFn,
+  type CloseRepository,
+  type FetchCloseFn,
+} from "./close-repository";
 import type { PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
@@ -46,35 +43,9 @@ function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
   return cursor;
 }
 
-async function fetchClose(
-  symbol: string,
-  assetClass: AssetClass,
-  date: Date,
-  options: Pick<ScorePassOptions, "fredApiKey" | "tradierApiToken"> = {},
-  now: Date = new Date(),
-): Promise<number | undefined> {
-  if (symbol.startsWith("FRED:")) {
-    return fetchFredObservation(symbol.slice("FRED:".length), date, options.fredApiKey);
-  }
-  if (symbol.startsWith("IV:")) {
-    return assetClass === "equity"
-      ? fetchTradierIvObservation(
-          symbol.slice("IV:".length),
-          date,
-          options.tradierApiToken,
-          fetch,
-          now,
-        )
-      : undefined;
-  }
-  if (assetClass === "equity") {
-    return fetchYahooClose(symbol, date);
-  }
-  return fetchCoinGeckoClose(symbol.toLowerCase(), date);
-}
-
 export interface ScorePassOptions {
   readonly closeCacheDir?: string;
+  readonly closeRepository?: CloseRepository;
   readonly fetchClose?: FetchCloseFn;
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
@@ -111,19 +82,21 @@ async function scoreOnePrediction(
   }
 
   const symbols = symbolsForPrediction(prediction);
-  const fetchCloseFn =
-    options.fetchClose ??
-    ((symbol, assetClass, date) => fetchClose(symbol, assetClass, date, options, now));
+  const repo =
+    options.closeRepository ??
+    (options.fetchClose !== undefined
+      ? repositoryFromFetchFn(options.fetchClose, options.closeCacheDir)
+      : createCloseRepository({
+          ...(options.closeCacheDir !== undefined ? { cacheDir: options.closeCacheDir } : {}),
+          ...(options.fredApiKey !== undefined ? { fredApiKey: options.fredApiKey } : {}),
+          ...(options.tradierApiToken !== undefined
+            ? { tradierApiToken: options.tradierApiToken }
+            : {}),
+          now,
+        }));
   const closesAtOrigin = await Promise.all(
     symbols.map(async (symbol) => {
-      const close = await fetchCloseWithCache(
-        symbol,
-        report.assetClass,
-        new Date(report.generatedAt),
-        options.closeCacheDir,
-        fetchCloseFn,
-        now,
-      );
+      const close = await repo.closeAt(symbol, report.assetClass, new Date(report.generatedAt));
       return close !== undefined
         ? { symbol, date: report.generatedAt.slice(0, 10), close }
         : undefined;
@@ -131,14 +104,7 @@ async function scoreOnePrediction(
   );
   const closesAtHorizon = await Promise.all(
     symbols.map(async (symbol) => {
-      const close = await fetchCloseWithCache(
-        symbol,
-        report.assetClass,
-        resDate,
-        options.closeCacheDir,
-        fetchCloseFn,
-        now,
-      );
+      const close = await repo.closeAt(symbol, report.assetClass, resDate);
       return close !== undefined
         ? { symbol, date: resDate.toISOString().slice(0, 10), close }
         : undefined;

@@ -66,7 +66,7 @@ describe("collectSources", () => {
     expect(result.marketSnapshots[0]?.symbol).toBe("AAPL");
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toContain("SPY");
     expect(result.newsSources[0]?.id).toBe("news-equity-1");
-    expect(result.sourceGaps).toHaveLength(0);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["marketaux-news", "finnhub-news"]);
   });
 
   test("collects weekly equity through market-update mover and regime sources", async () => {
@@ -180,7 +180,7 @@ describe("collectSources", () => {
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
     expect(result.newsSources).toEqual([]);
-    expect(result.sourceGaps[0]?.source).toBe("yahoo-news");
+    expect(result.sourceGaps.map((gap) => gap.source)).toContain("yahoo-news");
   });
 
   test("keeps daily equity regime quotes when movers source fails", async () => {
@@ -253,6 +253,98 @@ describe("collectSources", () => {
 
     expect(coinGeckoCalls).toBe(3);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["marketaux-news", "finnhub-news"]);
+  });
+
+  test("collects and dedupes news across MarketAux, Finnhub, and Yahoo", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            symbol: "btc",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 40_000_000_000,
+          },
+        ]);
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              uuid: "marketaux-1",
+              title: "Same BTC story",
+              url: "https://www.example.test/btc?utm_source=marketaux",
+              source: "Example",
+              published_at: "2026-05-18T12:00:00.000Z",
+              description: "MarketAux summary",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([
+          {
+            id: 55,
+            headline: "Same BTC story",
+            url: "https://example.test/btc",
+            source: "Example",
+            datetime: 1_779_120_000,
+            summary: "Finnhub summary",
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Different crypto story",
+            link: "https://example.test/crypto",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 3,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources).toHaveLength(2);
+    expect(result.newsSources[0]).toMatchObject({
+      id: "news-crypto-1",
+      provider: "marketaux",
+      providerAliases: [
+        {
+          provider: "marketaux",
+          providerArticleId: "marketaux-1",
+          publisher: "Example",
+        },
+        {
+          provider: "finnhub",
+          providerArticleId: "55",
+          publisher: "Example",
+        },
+      ],
+    });
+    expect(result.newsSources[1]).toMatchObject({
+      id: "news-crypto-2",
+      provider: "yahoo-news",
+    });
     expect(result.sourceGaps).toHaveLength(0);
   });
 });

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
+import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
+import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { createSourceRegistry } from "../src/sources/registry";
 import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
@@ -94,8 +96,64 @@ describe("source normalization", () => {
         fetchedAt,
         kind: "news",
         assetClass: "equity",
+        provider: "yahoo-news",
+        canonicalUrl: "https://example.test/fed",
       },
     ]);
+  });
+
+  test("normalizes MarketAux news payload with provider metadata", () => {
+    const sources = marketAuxNewsAdapter.normalizeNews(
+      {
+        data: [
+          {
+            uuid: "article-1",
+            title: "Chip stocks rally",
+            url: "https://www.example.test/chips?utm_source=feed",
+            source: "example.test",
+            published_at: fetchedAt,
+            description: "Semiconductors led the session.",
+            snippet: "Chip stocks moved higher...",
+          },
+        ],
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(sources[0]).toMatchObject({
+      id: "news-equity-marketaux-1",
+      provider: "marketaux",
+      providerArticleId: "article-1",
+      canonicalUrl: "https://example.test/chips",
+      summary: "Semiconductors led the session.",
+      snippet: "Chip stocks moved higher...",
+    });
+  });
+
+  test("normalizes Finnhub news payload with provider metadata", () => {
+    const sources = finnhubNewsAdapter.normalizeNews(
+      [
+        {
+          id: 123,
+          headline: "Bitcoin volatility rises",
+          url: "https://example.test/btc",
+          source: "Example",
+          datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
+          summary: "Volatility increased.",
+        },
+      ],
+      "crypto",
+      fetchedAt,
+    );
+
+    expect(sources[0]).toMatchObject({
+      id: "news-crypto-finnhub-1",
+      provider: "finnhub",
+      providerArticleId: "123",
+      canonicalUrl: "https://example.test/btc",
+      summary: "Volatility increased.",
+    });
   });
 });
 
@@ -105,6 +163,6 @@ describe("source registry", () => {
 
     expect(registry.marketDataFor("equity").name).toBe("yahoo");
     expect(registry.marketDataFor("crypto").name).toBe("coingecko");
-    expect(registry.newsFor("crypto").name).toBe("yahoo-news");
+    expect(registry.newsFor("crypto").name).toBe("multi-news");
   });
 });

@@ -1,6 +1,7 @@
 import type { ResearchCommand } from "../cli/args";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
+import { canonicalizeUrl, encodeQuery, newsQuery } from "./news-utils";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -9,18 +10,6 @@ import {
 } from "./types";
 
 const YAHOO_SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search";
-
-function encodeQuery(params: Record<string, string>): string {
-  return new URLSearchParams(params).toString();
-}
-
-function newsQuery(command: ResearchCommand): string {
-  if (command.jobType === "ticker") {
-    return command.symbol;
-  }
-
-  return command.assetClass === "equity" ? "stock market" : "crypto market";
-}
 
 function normalizeArticle(
   value: unknown,
@@ -39,6 +28,7 @@ function normalizeArticle(
 
   const url = optionalString(value, "link");
   const publisher = optionalString(value, "publisher");
+  const canonicalUrl = canonicalizeUrl(url);
 
   const { providerPublishTime } = value;
   const publishedAt =
@@ -54,6 +44,8 @@ function normalizeArticle(
     fetchedAt: publishedAt,
     kind: "news",
     assetClass,
+    provider: "yahoo-news",
+    ...(canonicalUrl !== undefined ? { canonicalUrl } : {}),
   };
 }
 

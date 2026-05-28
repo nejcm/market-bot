@@ -25,6 +25,20 @@ export interface Source {
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;
+  readonly provider?: string;
+  readonly providerArticleId?: string;
+  readonly canonicalUrl?: string;
+  readonly summary?: string;
+  readonly snippet?: string;
+  readonly providerAliases?: readonly SourceProviderAlias[];
+}
+
+export interface SourceProviderAlias {
+  readonly provider: string;
+  readonly providerArticleId?: string;
+  readonly publisher?: string;
+  readonly fetchedAt?: string;
+  readonly rawRef?: string;
 }
 
 export interface SourceGap {

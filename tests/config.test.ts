@@ -48,6 +48,18 @@ describe("resolveConfig", () => {
     ).toBe(5000);
   });
 
+  test("reads news provider tokens", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_MARKETAUX_API_TOKEN: "marketaux-token",
+        MARKET_BOT_FINNHUB_API_TOKEN: "finnhub-token",
+      }).sourceOptions,
+    ).toMatchObject({
+      marketauxApiToken: "marketaux-token",
+      finnhubApiToken: "finnhub-token",
+    });
+  });
+
   test("accepts codex provider without apiKey", () => {
     const config = resolveConfig({ MARKET_BOT_PROVIDER: "codex" });
     expect(config.provider).toBe("codex");

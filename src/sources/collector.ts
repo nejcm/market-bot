@@ -151,6 +151,12 @@ export async function collectSources(
     sourceTimeoutMs: sourceOptions.sourceTimeoutMs,
     newsLimit: sourceOptions.newsLimit,
     cryptoMoverLimit: sourceOptions.cryptoMoverLimit,
+    ...(sourceOptions.marketauxApiToken !== undefined
+      ? { marketauxApiToken: sourceOptions.marketauxApiToken }
+      : {}),
+    ...(sourceOptions.finnhubApiToken !== undefined
+      ? { finnhubApiToken: sourceOptions.finnhubApiToken }
+      : {}),
     fetchImpl,
     fetchOrGap,
     retryDelaysMs,

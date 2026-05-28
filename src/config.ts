@@ -5,6 +5,8 @@ export interface SourceOptions {
   readonly cryptoMoverLimit: number;
   readonly newsLimit: number;
   readonly sourceTimeoutMs: number;
+  readonly marketauxApiToken?: string;
+  readonly finnhubApiToken?: string;
   readonly cacheDir?: string;
   readonly cacheDisabled?: boolean;
   readonly cacheFallbackDays?: number;
@@ -89,6 +91,12 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       cryptoMoverLimit: readPositiveInteger(env.MARKET_BOT_CRYPTO_MOVER_LIMIT, 5),
       newsLimit: readPositiveInteger(env.MARKET_BOT_NEWS_LIMIT, 8),
       sourceTimeoutMs: readPositiveInteger(env.MARKET_BOT_SOURCE_TIMEOUT_MS, 15_000),
+      ...(readOptionalString(env.MARKET_BOT_MARKETAUX_API_TOKEN) !== undefined
+        ? { marketauxApiToken: readOptionalString(env.MARKET_BOT_MARKETAUX_API_TOKEN) as string }
+        : {}),
+      ...(readOptionalString(env.MARKET_BOT_FINNHUB_API_TOKEN) !== undefined
+        ? { finnhubApiToken: readOptionalString(env.MARKET_BOT_FINNHUB_API_TOKEN) as string }
+        : {}),
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
       cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),
       cacheFallbackDays: readPositiveInteger(env.MARKET_BOT_CACHE_FALLBACK_DAYS, 7),

@@ -18,6 +18,8 @@ export interface CollectContext {
   readonly sourceTimeoutMs: number;
   readonly newsLimit: number;
   readonly cryptoMoverLimit: number;
+  readonly marketauxApiToken?: string;
+  readonly finnhubApiToken?: string;
   readonly fetchImpl: FetchLike;
   readonly fetchOrGap: FetchOrGapFn;
   readonly retryDelaysMs: readonly number[];

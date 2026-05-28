@@ -8,6 +8,7 @@ import {
 } from "../domain/types";
 import { fetchYahooClose } from "../sources/yahoo";
 import { fetchCoinGeckoClose } from "../sources/coingecko";
+import { fetchFredObservation, fetchTradierIvObservation } from "../sources/extended-evidence";
 import { observableForecastFromPrediction } from "../forecast/observable";
 import { resolvePrediction } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
@@ -61,7 +62,16 @@ async function fetchClose(
   symbol: string,
   assetClass: AssetClass,
   date: Date,
+  options: Pick<ScorePassOptions, "fredApiKey" | "tradierApiToken"> = {},
 ): Promise<number | undefined> {
+  if (symbol.startsWith("FRED:")) {
+    return fetchFredObservation(symbol.slice("FRED:".length), date, options.fredApiKey);
+  }
+  if (symbol.startsWith("IV:")) {
+    return assetClass === "equity"
+      ? fetchTradierIvObservation(symbol.slice("IV:".length), date, options.tradierApiToken)
+      : undefined;
+  }
   if (assetClass === "equity") {
     return fetchYahooClose(symbol, date);
   }
@@ -71,6 +81,8 @@ async function fetchClose(
 export interface ScorePassOptions {
   readonly closeCacheDir?: string;
   readonly fetchClose?: FetchCloseFn;
+  readonly fredApiKey?: string;
+  readonly tradierApiToken?: string;
 }
 
 function symbolsForPrediction(prediction: Prediction): readonly string[] {
@@ -104,7 +116,9 @@ async function scoreOnePrediction(
   }
 
   const symbols = symbolsForPrediction(prediction);
-  const fetchCloseFn = options.fetchClose ?? fetchClose;
+  const fetchCloseFn =
+    options.fetchClose ??
+    ((symbol, assetClass, date) => fetchClose(symbol, assetClass, date, options));
   const closesAtOrigin = await Promise.all(
     symbols.map(async (symbol) => {
       const close = await fetchCloseWithCache(

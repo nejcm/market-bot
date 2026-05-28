@@ -343,7 +343,7 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
     predictions: Array.from({ length: depthProfile.minimumPredictions }, (_, idx) => ({
       id: `pred-${String(idx + 1)}`,
       claim: "string describing market quantity",
-      kind: "direction|relative|volatility|range",
+      kind: "direction|relative|volatility|range|macro|iv",
       // Depth profiles always carry at least one subject; fallback keeps the example total.
       subject: depthProfile.predictionSubjects[0] ?? "SPY",
       measurableAs: `close(SPY, +${String(depthProfile.defaultPredictionHorizon)}) > close(SPY, 0)`,
@@ -417,7 +417,7 @@ function buildStagePrompt(
     "Use only supplied source IDs. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.";
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range.`
+      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.`
       : "";
 
   let stageGoal = "Synthesize the final sourced research-only JSON report including predictions.";

@@ -9,11 +9,18 @@ import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
 
 export function scorePassOptions(sourceOptions: SourceOptions): ScorePassOptions {
+  const providerOptions = {
+    ...(sourceOptions.fredApiKey !== undefined ? { fredApiKey: sourceOptions.fredApiKey } : {}),
+    ...(sourceOptions.tradierApiToken !== undefined
+      ? { tradierApiToken: sourceOptions.tradierApiToken }
+      : {}),
+  };
+
   if (sourceOptions.cacheDisabled === true || sourceOptions.cacheDir === undefined) {
-    return {};
+    return providerOptions;
   }
 
-  return { closeCacheDir: sourceOptions.cacheDir };
+  return { closeCacheDir: sourceOptions.cacheDir, ...providerOptions };
 }
 
 export async function runCli(argv: readonly string[]): Promise<string> {

@@ -29,11 +29,26 @@ export interface ObservableRange {
   readonly hi: number;
 }
 
+export interface ObservableMacro {
+  readonly kind: "macro";
+  readonly seriesId: string;
+  readonly horizonTradingDays: number;
+}
+
+export interface ObservableIv {
+  readonly kind: "iv";
+  readonly subject: string;
+  readonly horizonTradingDays: number;
+  readonly threshold: number;
+}
+
 export type ObservableExpression =
   | ObservableDirection
   | ObservableRelative
   | ObservableVolatility
-  | ObservableRange;
+  | ObservableRange
+  | ObservableMacro
+  | ObservableIv;
 
 export interface ObservableForecast {
   readonly prediction: Prediction;
@@ -115,12 +130,19 @@ const RANGE_RE = new RegExp(
   String.raw`^close\(${SYMBOL},\s*\+${N}\)\s+outside\s+\[${NUM},\s*${NUM}\]$`,
   "u",
 );
+const FRED_RE = new RegExp(String.raw`^fred\(([A-Z0-9_]+),\s*\+${N}\)\s*>\s*fred\(\1,\s*0\)$`, "u");
+const IV_RE = new RegExp(String.raw`^iv\(${SYMBOL},\s*\+${N}\)\s*>\s*${NUM}$`, "u");
 
 const READER_ACTION_PATTERN = /\b(consider|watch for|should|could be a|expect to)\b/iu;
 
 function isPredictionKind(value: unknown): value is PredictionKind {
   return (
-    value === "direction" || value === "relative" || value === "volatility" || value === "range"
+    value === "direction" ||
+    value === "relative" ||
+    value === "volatility" ||
+    value === "range" ||
+    value === "macro" ||
+    value === "iv"
   );
 }
 
@@ -184,6 +206,21 @@ export function parseObservableExpression(expr: string): ObservableExpression {
     };
   }
 
+  const fred = FRED_RE.exec(s);
+  if (fred !== null) {
+    return { kind: "macro", seriesId: fred[1] as string, horizonTradingDays: Number(fred[2]) };
+  }
+
+  const iv = IV_RE.exec(s);
+  if (iv !== null) {
+    return {
+      kind: "iv",
+      subject: iv[1] as string,
+      horizonTradingDays: Number(iv[2]),
+      threshold: Number(iv[3]),
+    };
+  }
+
   throw new Error(`Cannot parse measurableAs: "${expr}"`);
 }
 
@@ -197,19 +234,35 @@ export function measurableAsForExpression(expression: ObservableExpression): str
   if (expression.kind === "volatility") {
     return `max(close(${expression.subject}), 0..+${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
   }
-  return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) outside [${String(expression.lo)}, ${String(expression.hi)}]`;
+  if (expression.kind === "range") {
+    return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) outside [${String(expression.lo)}, ${String(expression.hi)}]`;
+  }
+  if (expression.kind === "macro") {
+    return `fred(${expression.seriesId}, +${String(expression.horizonTradingDays)}) > fred(${expression.seriesId}, 0)`;
+  }
+  return `iv(${expression.subject}, +${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
 }
 
 export function subjectForExpression(expression: ObservableExpression): string {
+  if (expression.kind === "macro") {
+    return expression.seriesId;
+  }
   return expression.kind === "relative"
     ? `${expression.subjectA}:${expression.subjectB}`
     : expression.subject;
 }
 
 export function instrumentsForExpression(expression: ObservableExpression): readonly string[] {
-  return expression.kind === "relative"
-    ? [expression.subjectA, expression.subjectB]
-    : [expression.subject];
+  if (expression.kind === "relative") {
+    return [expression.subjectA, expression.subjectB];
+  }
+  if (expression.kind === "macro") {
+    return [`FRED:${expression.seriesId}`];
+  }
+  if (expression.kind === "iv") {
+    return [`IV:${expression.subject}`];
+  }
+  return [expression.subject];
 }
 
 function validateProjection(
@@ -464,14 +517,49 @@ export function resolveObservableForecast(
     });
   }
 
-  const closes = sortedCloses(closePrices, expression.subject);
-  const closeN = closes.at(-1)?.close;
-  if (closeN === undefined) {
-    return unresolved("missing-horizon", [expression.subject]);
+  if (expression.kind === "range") {
+    const closes = sortedCloses(closePrices, expression.subject);
+    const closeN = closes.at(-1)?.close;
+    if (closeN === undefined) {
+      return unresolved("missing-horizon", [expression.subject]);
+    }
+    return resolvedForecast(closeN < expression.lo || closeN > expression.hi ? "hit" : "miss", {
+      closeN,
+      lo: expression.lo,
+      hi: expression.hi,
+    });
   }
-  return resolvedForecast(closeN < expression.lo || closeN > expression.hi ? "hit" : "miss", {
-    closeN,
-    lo: expression.lo,
-    hi: expression.hi,
+
+  if (expression.kind === "macro") {
+    const subject = `FRED:${expression.seriesId}`;
+    const closes = sortedCloses(closePrices, subject);
+    const origin = closes[0];
+    const horizon = closes.at(-1);
+    if (origin === undefined) {
+      return unresolved("missing-origin", [subject]);
+    }
+    if (horizon === undefined || horizon.date === origin.date) {
+      return unresolved("missing-horizon", [subject]);
+    }
+    return resolvedForecast(horizon.close > origin.close ? "hit" : "miss", {
+      seriesId: expression.seriesId,
+      fred0: origin.close,
+      fredN: horizon.close,
+      date0: origin.date,
+      dateN: horizon.date,
+    });
+  }
+
+  const subject = `IV:${expression.subject}`;
+  const closes = sortedCloses(closePrices, subject);
+  const horizon = closes.at(-1);
+  if (horizon === undefined) {
+    return unresolved("missing-horizon", [subject]);
+  }
+  return resolvedForecast(horizon.close > expression.threshold ? "hit" : "miss", {
+    subject: expression.subject,
+    ivN: horizon.close,
+    threshold: expression.threshold,
+    dateN: horizon.date,
   });
 }

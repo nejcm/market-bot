@@ -345,7 +345,7 @@ async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
       gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
     };
   }
-  const {fredApiKey} = ctx;
+  const { fredApiKey } = ctx;
   const urls = FRED_SERIES.map(
     (seriesId) =>
       `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
@@ -419,6 +419,63 @@ function summarizeTradierIv(
   };
 }
 
+export async function fetchFredObservation(
+  seriesId: string,
+  date: Date,
+  apiKey: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<number | undefined> {
+  if (apiKey === undefined) {
+    return undefined;
+  }
+  const day = date.toISOString().slice(0, 10);
+  const response = await fetchImpl(
+    `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
+      series_id: seriesId,
+      api_key: apiKey,
+      file_type: "json",
+      observation_start: day,
+      observation_end: day,
+      limit: "1",
+    })}`,
+  );
+  if (!response.ok) {
+    return undefined;
+  }
+  const payload = (await response.json()) as unknown;
+  return latestNumber(readArray(payload, "observations"), ["value"]);
+}
+
+export async function fetchTradierIvObservation(
+  symbol: string,
+  date: Date,
+  token: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<number | undefined> {
+  if (token === undefined) {
+    return undefined;
+  }
+  const expiration = daysFrom(date.toISOString(), 30);
+  const response = await fetchImpl(
+    `https://api.tradier.com/v1/markets/options/chains?${encodeQuery({
+      symbol,
+      expiration,
+      greeks: "true",
+    })}`,
+    {
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  if (!response.ok) {
+    return undefined;
+  }
+  const payload = (await response.json()) as unknown;
+  return summarizeTradierIv(payload)?.metrics.medianIv;
+}
+
 async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
   const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
   if (command.jobType !== "ticker" || command.assetClass !== "equity") {
@@ -483,7 +540,7 @@ async function collectGlassnode(ctx: CollectContext): Promise<ProviderResult> {
       gaps: [{ source: "glassnode-on-chain", message: "MARKET_BOT_GLASSNODE_API_KEY is not set" }],
     };
   }
-  const {glassnodeApiKey} = ctx;
+  const { glassnodeApiKey } = ctx;
   const urls = GLASSNODE_METRICS.map(
     (metric) =>
       `https://api.glassnode.com/v1/metrics/${metric}?${encodeQuery({

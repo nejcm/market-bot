@@ -85,6 +85,27 @@ describe("parseObservableExpression", () => {
     });
   });
 
+  describe("macro", () => {
+    test("parses FRED direction form", () => {
+      expect(parseObservableExpression("fred(DGS10, +5) > fred(DGS10, 0)")).toEqual({
+        kind: "macro",
+        seriesId: "DGS10",
+        horizonTradingDays: 5,
+      });
+    });
+  });
+
+  describe("iv", () => {
+    test("parses IV threshold form", () => {
+      expect(parseObservableExpression("iv(AAPL, +5) > 0.35")).toEqual({
+        kind: "iv",
+        subject: "AAPL",
+        horizonTradingDays: 5,
+        threshold: 0.35,
+      });
+    });
+  });
+
   describe("invalid input", () => {
     test("throws on unknown form", () => {
       expect(() => parseObservableExpression("SPY goes up")).toThrow("Cannot parse measurableAs");

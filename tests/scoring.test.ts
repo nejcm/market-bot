@@ -135,6 +135,42 @@ describe("resolvePrediction", () => {
       expect(result?.outcome).toBe("miss");
     });
   });
+
+  describe("macro and IV", () => {
+    test("returns hit when FRED series rises", () => {
+      const result = resolvePrediction(
+        {
+          ...basePrediction,
+          id: "pred-macro",
+          kind: "macro",
+          subject: "DGS10",
+          measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)",
+          claim: "DGS10 rises over 5 trading days.",
+        },
+        [
+          { symbol: "FRED:DGS10", date: "2026-05-01", close: 4.1 },
+          { symbol: "FRED:DGS10", date: "2026-05-08", close: 4.3 },
+        ],
+      );
+      expect(result?.outcome).toBe("hit");
+      expect(result?.evidence).toMatchObject({ fred0: 4.1, fredN: 4.3 });
+    });
+
+    test("returns hit when IV exceeds threshold", () => {
+      const result = resolvePrediction(
+        {
+          ...basePrediction,
+          id: "pred-iv",
+          kind: "iv",
+          subject: "AAPL",
+          measurableAs: "iv(AAPL, +5) > 0.35",
+          claim: "AAPL implied volatility exceeds 0.35 over 5 trading days.",
+        },
+        [{ symbol: "IV:AAPL", date: "2026-05-08", close: 0.4 }],
+      );
+      expect(result?.outcome).toBe("hit");
+    });
+  });
 });
 
 function makeScore(outcome: "hit" | "miss"): PredictionScore {

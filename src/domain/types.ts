@@ -88,7 +88,7 @@ export interface ExtendedEvidence {
   readonly gaps: readonly SourceGap[];
 }
 
-export type PredictionKind = "direction" | "relative" | "volatility" | "range";
+export type PredictionKind = "direction" | "relative" | "volatility" | "range" | "macro" | "iv";
 
 export interface Prediction {
   readonly id: string;

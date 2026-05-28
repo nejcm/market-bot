@@ -199,4 +199,29 @@ describe("validatePredictions", () => {
     );
     expect(result.valid).toHaveLength(1);
   });
+
+  test("accepts valid macro and IV predictions", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-macro",
+          kind: "macro",
+          subject: "DGS10",
+          measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)",
+          claim: "DGS10 rises over 5 trading days.",
+        },
+        {
+          ...validPrediction,
+          id: "pred-iv",
+          kind: "iv",
+          subject: "AAPL",
+          measurableAs: "iv(AAPL, +5) > 0.35",
+          claim: "AAPL implied volatility exceeds 0.35 over 5 trading days.",
+        },
+      ],
+      knownIds,
+    );
+    expect(result.valid).toHaveLength(2);
+  });
 });

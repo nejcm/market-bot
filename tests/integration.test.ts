@@ -12,6 +12,7 @@ const config: AppConfig = {
   provider: "openai",
   quickModel: "quick",
   synthesisModel: "synthesis",
+  modelTimeoutMs: 120_000,
   dataDir: "data/runs",
   sourceOptions: {
     equityMoverLimit: 3,

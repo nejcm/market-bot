@@ -1,4 +1,4 @@
-export type ProviderName = "openai" | "openai-compatible";
+export type ProviderName = "openai" | "openai-compatible" | "codex";
 
 export interface SourceOptions {
   readonly equityMoverLimit: number;
@@ -16,12 +16,16 @@ export interface AppConfig {
   readonly apiKey?: string;
   readonly quickModel: string;
   readonly synthesisModel: string;
+  readonly codexQuickModel?: string;
+  readonly codexSynthesisModel?: string;
+  readonly modelTimeoutMs: number;
   readonly dataDir: string;
   readonly sourceOptions: SourceOptions;
 }
 
-const DEFAULT_QUICK_MODEL = "gpt-4.1-mini";
-const DEFAULT_SYNTHESIS_MODEL = "gpt-4.1";
+const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
+const DEFAULT_SYNTHESIS_MODEL = "gpt-5.5";
+const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 const DEFAULT_DATA_DIR = "data/runs";
 
 function readBoolean(value: string | undefined): boolean {
@@ -46,11 +50,15 @@ function readProvider(value: string | undefined): ProviderName {
     return "openai";
   }
 
-  if (value === "openai-compatible") {
+  if (value === "openai-compatible" || value === "codex") {
     return value;
   }
 
   throw new Error(`Unsupported provider: ${value}`);
+}
+
+function readOptionalString(value: string | undefined): string | undefined {
+  return value !== undefined && value.trim() !== "" ? value : undefined;
 }
 
 export function resolveConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -68,6 +76,13 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
     ...(apiKey !== undefined && apiKey.trim() !== "" ? { apiKey } : {}),
     quickModel: env.MARKET_BOT_QUICK_MODEL ?? DEFAULT_QUICK_MODEL,
     synthesisModel: env.MARKET_BOT_SYNTHESIS_MODEL ?? DEFAULT_SYNTHESIS_MODEL,
+    ...(readOptionalString(env.MARKET_BOT_CODEX_QUICK_MODEL) !== undefined
+      ? { codexQuickModel: readOptionalString(env.MARKET_BOT_CODEX_QUICK_MODEL) as string }
+      : {}),
+    ...(readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) !== undefined
+      ? { codexSynthesisModel: readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) as string }
+      : {}),
+    modelTimeoutMs: readPositiveInteger(env.MARKET_BOT_MODEL_TIMEOUT_MS, DEFAULT_MODEL_TIMEOUT_MS),
     dataDir: env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR,
     sourceOptions: {
       equityMoverLimit: readPositiveInteger(env.MARKET_BOT_EQUITY_MOVER_LIMIT, 5),

@@ -21,6 +21,7 @@ describe("createOpenAIProvider", () => {
         apiKey: "test-key",
         quickModel: "quick",
         synthesisModel: "synthesis",
+        modelTimeoutMs: 120_000,
         dataDir: "data/runs",
         sourceOptions: {
           equityMoverLimit: 5,
@@ -65,6 +66,7 @@ describe("createOpenAIProvider", () => {
         apiKey: "local-key",
         quickModel: "quick",
         synthesisModel: "synthesis",
+        modelTimeoutMs: 120_000,
         dataDir: "data/runs",
         sourceOptions: {
           equityMoverLimit: 5,

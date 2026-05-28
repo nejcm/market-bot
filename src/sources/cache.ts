@@ -1,17 +1,8 @@
 import { readdirSync } from "node:fs";
 import type { SourceGap } from "../domain/types";
-import type { FetchJsonResult, RawSourceSnapshot } from "./types";
+import type { FetchJsonResult, FetchOrGapFn, RawSourceSnapshot } from "./types";
 
-type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
-
-export type FetchOrGapFn = (
-  url: string,
-  adapter: string,
-  fetchedAt: string,
-  timeoutMs: number,
-  fetchImpl: FetchLike,
-  retryDelaysMs?: readonly number[],
-) => Promise<FetchJsonResult | SourceGap>;
+export type { FetchOrGapFn };
 
 export interface CacheOptions {
   readonly dir: string;

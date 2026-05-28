@@ -1,5 +1,11 @@
-import type { AssetClass, MarketSnapshot } from "../domain/types";
-import type { MarketDataAdapter } from "./types";
+import type { AssetClass, MarketSnapshot, SourceGap } from "../domain/types";
+import {
+  isFetchJsonResult,
+  type CollectContext,
+  type FetchJsonResult,
+  type MarketCollectionResult,
+  type MarketDataAdapter,
+} from "./types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
 
 function readYahooResults(payload: unknown): readonly unknown[] {
@@ -59,11 +65,88 @@ export function normalizeYahooQuotePayload(
     .filter((snapshot): snapshot is MarketSnapshot => snapshot !== undefined);
 }
 
+const EQUITY_DAILY_URL =
+  "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
+const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
+const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
+
+function encodeQuery(params: Record<string, string>): string {
+  return new URLSearchParams(params).toString();
+}
+
+function yahooQuoteUrl(symbols: string): string {
+  return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
+}
+
+function readYahooScreenerQuotes(payload: unknown): unknown {
+  if (typeof payload !== "object" || payload === null || !("finance" in payload)) {
+    return { quoteResponse: { result: [] } };
+  }
+
+  const { finance } = payload as {
+    finance?: { result?: readonly { quotes?: readonly unknown[] }[] };
+  };
+  const quotes = finance?.result?.[0]?.quotes ?? [];
+
+  return { quoteResponse: { result: quotes } };
+}
+
+type EquityRole = "movers" | "regime";
+
+async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResult> {
+  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+
+  const requests: readonly { readonly role: EquityRole; readonly url: string }[] =
+    command.jobType === "ticker"
+      ? [{ role: "regime", url: yahooQuoteUrl(command.symbol ?? "") }]
+      : [
+          { role: "movers", url: EQUITY_DAILY_URL },
+          { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
+        ];
+
+  const results = await Promise.all(
+    requests.map(async (req) => ({
+      role: req.role,
+      result: await fetchOrGap(
+        req.url,
+        `yahoo-${req.role}`,
+        fetchedAt,
+        sourceTimeoutMs,
+        fetchImpl,
+        retryDelaysMs,
+      ),
+    })),
+  );
+
+  const fetched = results.filter((e): e is { role: EquityRole; result: FetchJsonResult } =>
+    isFetchJsonResult(e.result),
+  );
+  const sourceGaps = results
+    .map((e) => e.result)
+    .filter((r): r is SourceGap => !isFetchJsonResult(r));
+
+  const isMarketUpdate = command.jobType === "daily" || command.jobType === "weekly";
+  const snapshots = fetched.flatMap((e) => {
+    const payload =
+      isMarketUpdate && e.role === "movers"
+        ? readYahooScreenerQuotes(e.result.payload)
+        : e.result.payload;
+    return normalizeYahooQuotePayload(payload, "equity", fetchedAt);
+  });
+
+  return {
+    rawSnapshots: fetched.map((e) => e.result.rawSnapshot),
+    marketSnapshots: snapshots,
+    sourceGaps,
+  };
+}
+
 export const yahooMarketDataAdapter: MarketDataAdapter = {
   name: "yahoo",
   assetClass: "equity",
   normalizeMarkets: (payload, fetchedAt) =>
     normalizeYahooQuotePayload(payload, "equity", fetchedAt),
+  collect: collectEquity,
 };
 
 const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";

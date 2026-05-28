@@ -1,7 +1,12 @@
 import type { ResearchCommand } from "../cli/args";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
-import type { NewsAdapter } from "./types";
+import {
+  isFetchJsonResult,
+  type CollectContext,
+  type NewsCollectionResult,
+  type NewsAdapter,
+} from "./types";
 
 const YAHOO_SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search";
 
@@ -66,9 +71,34 @@ function normalizeNews(
     .filter((source): source is Source => source !== undefined);
 }
 
+async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
+  const { command, fetchedAt, sourceTimeoutMs, newsLimit, fetchImpl, fetchOrGap, retryDelaysMs } =
+    ctx;
+  const url = `${YAHOO_SEARCH_URL}?${encodeQuery({ q: newsQuery(command), newsCount: String(newsLimit) })}`;
+  const fetched = await fetchOrGap(
+    url,
+    "yahoo-news",
+    fetchedAt,
+    sourceTimeoutMs,
+    fetchImpl,
+    retryDelaysMs,
+  );
+
+  if (!isFetchJsonResult(fetched)) {
+    return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
+  }
+
+  return {
+    rawSnapshots: [fetched.rawSnapshot],
+    newsSources: normalizeNews(fetched.payload, command.assetClass, fetchedAt),
+    sourceGaps: [],
+  };
+}
+
 export const yahooNewsAdapter: NewsAdapter = {
   name: "yahoo-news",
   buildUrl: (command: ResearchCommand, limit: number) =>
     `${YAHOO_SEARCH_URL}?${encodeQuery({ q: newsQuery(command), newsCount: String(limit) })}`,
   normalizeNews,
+  collect: collectNews,
 };

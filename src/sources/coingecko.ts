@@ -1,5 +1,10 @@
 import type { MarketSnapshot } from "../domain/types";
-import type { MarketDataAdapter } from "./types";
+import {
+  isFetchJsonResult,
+  type CollectContext,
+  type MarketCollectionResult,
+  type MarketDataAdapter,
+} from "./types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
 
 function normalizeCoinGeckoMarket(value: unknown, fetchedAt: string): MarketSnapshot | undefined {
@@ -50,10 +55,62 @@ export function normalizeCoinGeckoMarketsPayload(
     .filter((snapshot): snapshot is MarketSnapshot => snapshot !== undefined);
 }
 
+const COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets";
+
+function encodeQuery(params: Record<string, string>): string {
+  return new URLSearchParams(params).toString();
+}
+
+function coinGeckoMarketsUrl(perPage: number): string {
+  return `${COINGECKO_MARKETS_URL}?${encodeQuery({
+    vs_currency: "usd",
+    order: "market_cap_desc",
+    per_page: String(perPage),
+    page: "1",
+    sparkline: "false",
+    price_change_percentage: "24h",
+  })}`;
+}
+
+function fetchLimit(ctx: CollectContext): number {
+  const { command, cryptoMoverLimit } = ctx;
+  if (command.jobType === "daily" || command.jobType === "weekly") {
+    return Math.max(cryptoMoverLimit * 10, 50);
+  }
+  return 250;
+}
+
+async function collectCrypto(ctx: CollectContext): Promise<MarketCollectionResult> {
+  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const fetched = await fetchOrGap(
+    coinGeckoMarketsUrl(fetchLimit(ctx)),
+    "coingecko",
+    fetchedAt,
+    sourceTimeoutMs,
+    fetchImpl,
+    retryDelaysMs,
+  );
+
+  if (!isFetchJsonResult(fetched)) {
+    return { rawSnapshots: [], marketSnapshots: [], sourceGaps: [fetched] };
+  }
+
+  const all = normalizeCoinGeckoMarketsPayload(fetched.payload, fetchedAt);
+  const marketSnapshots =
+    command.jobType === "ticker" ? all.filter((s) => s.symbol === command.symbol) : all;
+
+  return {
+    rawSnapshots: [fetched.rawSnapshot],
+    marketSnapshots,
+    sourceGaps: [],
+  };
+}
+
 export const coinGeckoMarketDataAdapter: MarketDataAdapter = {
   name: "coingecko",
   assetClass: "crypto",
   normalizeMarkets: normalizeCoinGeckoMarketsPayload,
+  collect: collectCrypto,
 };
 
 const COINGECKO_CHART_URL = "https://api.coingecko.com/api/v3/coins";

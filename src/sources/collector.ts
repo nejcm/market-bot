@@ -1,11 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import {
-  isMarketUpdateJobType,
-  type MarketSnapshot,
-  type Source,
-  type SourceGap,
-} from "../domain/types";
+import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
 import type { FetchJsonResult, RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
@@ -17,35 +12,6 @@ export interface SourceCollection {
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
-}
-
-interface MarketCollectionResult {
-  readonly rawSnapshots: readonly RawSourceSnapshot[];
-  readonly marketSnapshots: readonly MarketSnapshot[];
-  readonly sourceGaps: readonly SourceGap[];
-}
-
-interface NewsCollectionResult {
-  readonly rawSnapshots: readonly RawSourceSnapshot[];
-  readonly newsSources: readonly Source[];
-  readonly sourceGaps: readonly SourceGap[];
-}
-
-type EquityDailyRole = "movers" | "regime";
-
-interface EquityFetchResult {
-  readonly role: EquityDailyRole;
-  readonly result: FetchJsonResult | SourceGap;
-}
-
-const EQUITY_DAILY_URL =
-  "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
-const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
-const COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets";
-const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
-
-function encodeQuery(params: Record<string, string>): string {
-  return new URLSearchParams(params).toString();
 }
 
 async function fetchJson(
@@ -153,176 +119,6 @@ async function fetchJsonOrGap(
   }
 }
 
-function isFetchJsonResult(value: FetchJsonResult | SourceGap): value is FetchJsonResult {
-  return "rawSnapshot" in value;
-}
-
-function readYahooScreenerQuotes(payload: unknown): unknown {
-  if (typeof payload !== "object" || payload === null || !("finance" in payload)) {
-    return { quoteResponse: { result: [] } };
-  }
-
-  const { finance } = payload as {
-    finance?: { result?: readonly { quotes?: readonly unknown[] }[] };
-  };
-  const quotes = finance?.result?.[0]?.quotes ?? [];
-
-  return {
-    quoteResponse: {
-      result: quotes,
-    },
-  };
-}
-
-function coinGeckoUrl(perPage: number): string {
-  return `${COINGECKO_MARKETS_URL}?${encodeQuery({
-    vs_currency: "usd",
-    order: "market_cap_desc",
-    per_page: String(perPage),
-    page: "1",
-    sparkline: "false",
-    price_change_percentage: "24h",
-  })}`;
-}
-
-function yahooQuoteUrl(symbols: string): string {
-  return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
-}
-
-function filterTickerSnapshots(
-  command: ResearchCommand,
-  snapshots: readonly MarketSnapshot[],
-): readonly MarketSnapshot[] {
-  if (command.jobType === "ticker") {
-    return snapshots.filter((snapshot) => snapshot.symbol === command.symbol);
-  }
-
-  return snapshots;
-}
-
-function cryptoFetchLimit(command: ResearchCommand, sourceOptions: SourceOptions): number {
-  if (isMarketUpdateJobType(command.jobType)) {
-    return Math.max(sourceOptions.cryptoMoverLimit * 10, 50);
-  }
-
-  return 250;
-}
-
-async function collectMarketData(
-  command: ResearchCommand,
-  fetchedAt: string,
-  sourceOptions: SourceOptions,
-  fetchImpl: FetchLike,
-  fetchOrGap: FetchOrGapFn,
-  retryDelaysMs: readonly number[],
-): Promise<MarketCollectionResult> {
-  const registry = createSourceRegistry();
-  const adapter = registry.marketDataFor(command.assetClass);
-
-  if (command.assetClass === "equity") {
-    const requests: readonly { readonly role: EquityDailyRole; readonly url: string }[] =
-      command.jobType === "ticker"
-        ? [{ role: "regime", url: yahooQuoteUrl(command.symbol) }]
-        : [
-            { role: "movers", url: EQUITY_DAILY_URL },
-            { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
-          ];
-    const results: readonly EquityFetchResult[] = await Promise.all(
-      requests.map(async (request) => ({
-        role: request.role,
-        result: await fetchOrGap(
-          request.url,
-          `${adapter.name}-${request.role}`,
-          fetchedAt,
-          sourceOptions.sourceTimeoutMs,
-          fetchImpl,
-          retryDelaysMs,
-        ),
-      })),
-    );
-    const fetchedResults = results.filter(
-      (entry): entry is EquityFetchResult & { readonly result: FetchJsonResult } =>
-        isFetchJsonResult(entry.result),
-    );
-    const sourceGaps = results
-      .map((entry) => entry.result)
-      .filter((result): result is SourceGap => !isFetchJsonResult(result));
-    const snapshots = fetchedResults.flatMap((entry) => {
-      const payload =
-        isMarketUpdateJobType(command.jobType) && entry.role === "movers"
-          ? readYahooScreenerQuotes(entry.result.payload)
-          : entry.result.payload;
-
-      return adapter.normalizeMarkets(payload, fetchedAt);
-    });
-
-    return {
-      rawSnapshots: fetchedResults.map((entry) => entry.result.rawSnapshot),
-      marketSnapshots: snapshots,
-      sourceGaps,
-    };
-  }
-
-  const fetched = await fetchOrGap(
-    coinGeckoUrl(cryptoFetchLimit(command, sourceOptions)),
-    adapter.name,
-    fetchedAt,
-    sourceOptions.sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-  );
-
-  if (!isFetchJsonResult(fetched)) {
-    return {
-      rawSnapshots: [],
-      marketSnapshots: [],
-      sourceGaps: [fetched],
-    };
-  }
-
-  return {
-    rawSnapshots: [fetched.rawSnapshot],
-    marketSnapshots: filterTickerSnapshots(
-      command,
-      adapter.normalizeMarkets(fetched.payload, fetchedAt),
-    ),
-    sourceGaps: [],
-  };
-}
-
-async function collectNewsData(
-  command: ResearchCommand,
-  fetchedAt: string,
-  sourceOptions: SourceOptions,
-  fetchImpl: FetchLike,
-  fetchOrGap: FetchOrGapFn,
-  retryDelaysMs: readonly number[],
-): Promise<NewsCollectionResult> {
-  const adapter = createSourceRegistry().newsFor(command.assetClass);
-  const fetched = await fetchOrGap(
-    adapter.buildUrl(command, sourceOptions.newsLimit),
-    adapter.name,
-    fetchedAt,
-    sourceOptions.sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-  );
-
-  if (!isFetchJsonResult(fetched)) {
-    return {
-      rawSnapshots: [],
-      newsSources: [],
-      sourceGaps: [fetched],
-    };
-  }
-
-  return {
-    rawSnapshots: [fetched.rawSnapshot],
-    newsSources: adapter.normalizeNews(fetched.payload, command.assetClass, fetchedAt),
-    sourceGaps: [],
-  };
-}
-
 export async function collectSources(
   command: ResearchCommand,
   sourceOptions: SourceOptions,
@@ -347,15 +143,30 @@ export async function collectSources(
         } satisfies CacheOptions)
       : fetchJsonOrGap;
 
-  const [marketData, newsData] = await Promise.all([
-    collectMarketData(command, fetchedAt, sourceOptions, fetchImpl, fetchOrGap, retryDelaysMs),
-    collectNewsData(command, fetchedAt, sourceOptions, fetchImpl, fetchOrGap, retryDelaysMs),
+  const registry = createSourceRegistry();
+  const marketAdapter = registry.marketDataFor(command.assetClass);
+  const newsAdapter = registry.newsFor(command.assetClass);
+
+  const ctx = {
+    command,
+    fetchedAt,
+    sourceTimeoutMs: sourceOptions.sourceTimeoutMs,
+    newsLimit: sourceOptions.newsLimit,
+    cryptoMoverLimit: sourceOptions.cryptoMoverLimit,
+    fetchImpl,
+    fetchOrGap,
+    retryDelaysMs,
+  };
+
+  const [marketResult, newsResult] = await Promise.all([
+    marketAdapter.collect(ctx),
+    newsAdapter.collect(ctx),
   ]);
 
   return {
-    rawSnapshots: [...marketData.rawSnapshots, ...newsData.rawSnapshots],
-    marketSnapshots: marketData.marketSnapshots,
-    newsSources: newsData.newsSources,
-    sourceGaps: [...marketData.sourceGaps, ...newsData.sourceGaps, ...staleFallbackGaps],
+    rawSnapshots: [...marketResult.rawSnapshots, ...newsResult.rawSnapshots],
+    marketSnapshots: marketResult.marketSnapshots,
+    newsSources: newsResult.newsSources,
+    sourceGaps: [...marketResult.sourceGaps, ...newsResult.sourceGaps, ...staleFallbackGaps],
   };
 }

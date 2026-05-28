@@ -2,10 +2,8 @@ import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
-import type { FetchJsonResult, RawSourceSnapshot } from "./types";
+import type { FetchJsonResult, FetchLike, RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
-
-type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 export interface SourceCollection {
   readonly rawSnapshots: readonly RawSourceSnapshot[];

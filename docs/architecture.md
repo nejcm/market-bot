@@ -47,14 +47,13 @@ The orchestrator coordinates: collect sources → summarize regime → produce r
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 
 - `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against historical closes. Adding a new prediction shape starts here.
-- `src/scoring/dsl.ts` — thin wrapper around the forecast parser
 - `src/scoring/resolver.ts` — resolves a due prediction against historical closes
 - `src/scoring/index.ts` — `runScorePass` writes `score.json` per run
 - `src/scoring/calibration.ts` + `calibration-markdown.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`
 
 Every research run triggers a score pass and calibration refresh as a **non-blocking** side effect. Failures there log to stderr; they must not abort the research job.
 
-Adding a new prediction shape means updating: DSL, resolver, report schema, markdown renderer, and tests. All five.
+Adding a new prediction shape means updating: the parser in `forecast/observable.ts`, resolver, report schema, markdown renderer, and tests. All four.
 
 ### Report (`src/report/`)
 

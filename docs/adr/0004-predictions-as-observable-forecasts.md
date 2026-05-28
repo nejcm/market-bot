@@ -21,7 +21,7 @@ Allowed `kind` values and their `measurableAs` shapes:
 | `volatility` | `max(close(^VIX), 0..+N) > T` | `max(close(^VIX), 0..+5) > 20` |
 | `range` | `close(SUBJECT, +N) outside [Lo, Hi]` | `close(BTC, +7) outside [90000, 110000]` |
 
-`measurableAs` is parsed by the scorer (`src/scoring/dsl.ts`), never by the LLM. `horizonTradingDays` is 1–20.
+`measurableAs` is parsed by the scorer (`src/forecast/observable.ts`), never by the LLM. `horizonTradingDays` is 1–20.
 
 ### What this is NOT
 

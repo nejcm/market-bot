@@ -1,0 +1,227 @@
+import { describe, expect, test } from "bun:test";
+import { createCodexProvider, type SpawnImpl } from "../src/model/codex";
+import type { AppConfig } from "../src/config";
+
+const baseConfig: AppConfig = {
+  provider: "codex",
+  quickModel: "gpt-5.4-mini",
+  synthesisModel: "gpt-5.5",
+  modelTimeoutMs: 5000,
+  dataDir: "data/runs",
+  sourceOptions: {
+    equityMoverLimit: 5,
+    cryptoMoverLimit: 5,
+    newsLimit: 8,
+    sourceTimeoutMs: 1000,
+  },
+};
+
+function makeSpawn(overrides: {
+  version?: { exitCode: number; stdout: string };
+  auth?: { exitCode: number };
+  exec?: { exitCode: number; stdout: string; stderr?: string };
+}): SpawnImpl {
+  return async (args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
+    if (args[1] === "--version") {
+      const v = overrides.version ?? { exitCode: 0, stdout: "0.125.0" };
+      return { stdout: v.stdout, stderr: "", exitCode: v.exitCode };
+    }
+    if (args[1] === "auth") {
+      const a = overrides.auth ?? { exitCode: 0 };
+      return { stdout: "", stderr: "", exitCode: a.exitCode };
+    }
+    const e = overrides.exec ?? { exitCode: 0, stdout: "" };
+    return { stdout: e.stdout, stderr: e.stderr ?? "", exitCode: e.exitCode };
+  };
+}
+
+function agentMessageStream(text: string, tokens = 0): string {
+  const events = [
+    JSON.stringify({ type: "thread.started" }),
+    JSON.stringify({ type: "turn.started" }),
+    JSON.stringify({ type: "item.completed", item: { type: "agent_message", text } }),
+    JSON.stringify({
+      type: "turn.completed",
+      usage: { input_tokens: tokens, output_tokens: tokens, reasoning_output_tokens: 0 },
+    }),
+  ];
+  return `${events.join("\n")}\n`;
+}
+
+describe("createCodexProvider — preflight", () => {
+  test("throws when codex binary is not found", async () => {
+    const spawn = makeSpawn({ version: { exitCode: 1, stdout: "" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("codex CLI not found on PATH");
+  });
+
+  test("throws when codex version is too old", async () => {
+    const spawn = makeSpawn({ version: { exitCode: 0, stdout: "0.100.0" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("0.125.0+ required");
+  });
+
+  test("throws when not logged in", async () => {
+    const spawn = makeSpawn({ auth: { exitCode: 1 } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("Not signed into Codex");
+  });
+
+  test("runs preflight only once across multiple generate calls", async () => {
+    let versionCalls = 0;
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        versionCalls++;
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+
+    const provider = createCodexProvider(baseConfig, spawn);
+    await provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "a" }] });
+    await provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "b" }] });
+    expect(versionCalls).toBe(1);
+  });
+});
+
+describe("createCodexProvider — generate", () => {
+  test("parses agent_message content from event stream", async () => {
+    const spawn = makeSpawn({
+      exec: { exitCode: 0, stdout: agentMessageStream("hello world", 20) },
+    });
+    const provider = createCodexProvider(baseConfig, spawn);
+    const result = await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "say hello" }],
+    });
+
+    expect(result.content).toBe("hello world");
+    expect(result.tokenEstimate).toBe(40);
+    expect(result.costEstimateUsd).toBe(0);
+  });
+
+  test("strips JSON fences when responseFormat is json", async () => {
+    const raw = '```json\n{"summary":"ok"}\n```';
+    const spawn = makeSpawn({ exec: { exitCode: 0, stdout: agentMessageStream(raw) } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    const result = await provider.generate({
+      model: "gpt-5.4-mini",
+      responseFormat: "json",
+      messages: [{ role: "user", content: "return json" }],
+    });
+
+    expect(result.content).toBe('{"summary":"ok"}');
+  });
+
+  test("does not strip fences when responseFormat is not json", async () => {
+    const raw = '```json\n{"summary":"ok"}\n```';
+    const spawn = makeSpawn({ exec: { exitCode: 0, stdout: agentMessageStream(raw) } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    const result = await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "return something" }],
+    });
+
+    expect(result.content).toBe(raw);
+  });
+
+  test("throws when response has no agent_message", async () => {
+    const emptyStream = `${JSON.stringify({ type: "turn.completed", usage: {} })}\n`;
+    const spawn = makeSpawn({ exec: { exitCode: 0, stdout: emptyStream } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("did not include an agent_message");
+  });
+
+  test("throws with auth hint when exec fails with auth error", async () => {
+    const spawn = makeSpawn({ exec: { exitCode: 1, stdout: "", stderr: "auth token expired" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("codex login");
+  });
+
+  test("throws with exit code when exec fails without auth message", async () => {
+    const spawn = makeSpawn({ exec: { exitCode: 2, stdout: "", stderr: "rate limited" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("exit 2");
+  });
+
+  test("applies codex model override for quickModel", async () => {
+    const called: string[] = [];
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      const mFlag = args.indexOf("-m");
+      if (mFlag !== -1) {
+        called.push(args[mFlag + 1] ?? "");
+      }
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+
+    const config: AppConfig = { ...baseConfig, codexQuickModel: "gpt-5.4" };
+    const provider = createCodexProvider(config, spawn);
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(called).toEqual(["gpt-5.4"]);
+  });
+
+  test("falls back to heuristic token estimate when usage is missing", async () => {
+    const stream =
+      `${JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hi" } })}\n` +
+      `${JSON.stringify({ type: "turn.completed" })}\n`;
+    const spawn = makeSpawn({ exec: { exitCode: 0, stdout: stream } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    const result = await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hello" }],
+    });
+
+    expect(result.tokenEstimate).toBeGreaterThan(0);
+  });
+
+  test("passes prompt via stdin (args do not contain prompt text)", async () => {
+    const capturedArgs: string[][] = [];
+    const capturedStdin: string[] = [];
+    const spawn: SpawnImpl = async (args, stdin) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      capturedArgs.push(args);
+      capturedStdin.push(stdin);
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+
+    const provider = createCodexProvider(baseConfig, spawn);
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "secret prompt text" }],
+    });
+
+    expect(capturedArgs[0]).not.toContain("secret prompt text");
+    expect(capturedStdin[0]).toContain("secret prompt text");
+    expect(capturedArgs[0]).toContain("-");
+  });
+});

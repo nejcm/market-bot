@@ -1,5 +1,5 @@
 import { parseArgs } from "./cli/args";
-import { resolveConfig } from "./config";
+import { resolveConfig, type SourceOptions } from "./config";
 import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
 import type { ModelProvider } from "./model/types";
@@ -8,8 +8,12 @@ import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
 
-function scorePassOptions(cacheDir: string | undefined): ScorePassOptions {
-  return cacheDir !== undefined ? { closeCacheDir: cacheDir } : {};
+export function scorePassOptions(sourceOptions: SourceOptions): ScorePassOptions {
+  if (sourceOptions.cacheDisabled === true || sourceOptions.cacheDir === undefined) {
+    return {};
+  }
+
+  return { closeCacheDir: sourceOptions.cacheDir };
 }
 
 export async function runCli(argv: readonly string[]): Promise<string> {
@@ -20,7 +24,7 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     const result = await runScorePass(
       config.dataDir,
       new Date(),
-      scorePassOptions(config.sourceOptions.cacheDir),
+      scorePassOptions(config.sourceOptions),
     );
     await buildAndWriteCalibration(config.dataDir);
     return `Score pass complete: ${String(result.scored)} run(s) scored, ${String(result.skipped)} skipped`;
@@ -48,7 +52,7 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   const scoreResult = await runScorePass(
     config.dataDir,
     new Date(),
-    scorePassOptions(config.sourceOptions.cacheDir),
+    scorePassOptions(config.sourceOptions),
   ).catch((error: unknown) => {
     process.stderr.write(
       `Score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,

@@ -352,6 +352,86 @@ describe("collectSources", () => {
     expect(result.sourceGaps).toHaveLength(0);
   });
 
+  test("caps Finnhub after normalization and keeps provider round-robin order", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            symbol: "btc",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 40_000_000_000,
+          },
+        ]);
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              uuid: "marketaux-1",
+              title: "MarketAux story",
+              url: "https://example.test/marketaux",
+              source: "Example",
+              published_at: "2026-05-18T12:00:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([
+          {
+            id: 1,
+            headline: "Finnhub first story",
+            url: "https://example.test/finnhub-1",
+            source: "Example",
+            datetime: 1_779_120_000,
+          },
+          {
+            id: 2,
+            headline: "Finnhub second story",
+            url: "https://example.test/finnhub-2",
+            source: "Example",
+            datetime: 1_779_120_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Yahoo story",
+            link: "https://example.test/yahoo",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 1,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.provider)).toEqual(["marketaux"]);
+    const finnhubPayload = result.rawSnapshots.find(
+      (snapshot) => snapshot.adapter === "finnhub-news",
+    )?.payload;
+    expect(Array.isArray(finnhubPayload) ? finnhubPayload.length : 0).toBe(2);
+  });
+
   test("opens provider circuit on rate limit responses", async () => {
     let marketAuxCalls = 0;
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {

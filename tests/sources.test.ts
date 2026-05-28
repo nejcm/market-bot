@@ -166,3 +166,45 @@ describe("source registry", () => {
     expect(registry.newsFor("crypto").name).toBe("multi-news");
   });
 });
+
+describe("news provider collection", () => {
+  test("caps Finnhub normalized sources after provider fetch", async () => {
+    const result = await finnhubNewsAdapter.collect({
+      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      finnhubApiToken: "finnhub-token",
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async () => ({
+        rawSnapshot: {
+          id: "raw-finnhub-news-test",
+          adapter: "finnhub-news",
+          fetchedAt,
+          payload: [],
+        },
+        payload: [
+          {
+            id: 1,
+            headline: "First story",
+            url: "https://example.test/first",
+            source: "Example",
+            datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
+          },
+          {
+            id: 2,
+            headline: "Second story",
+            url: "https://example.test/second",
+            source: "Example",
+            datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
+          },
+        ],
+      }),
+    });
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.newsSources[0]?.providerArticleId).toBe("1");
+  });
+});

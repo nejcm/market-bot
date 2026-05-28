@@ -10,6 +10,7 @@ const NEWS_ADAPTERS: readonly NewsAdapter[] = [
   finnhubNewsAdapter,
   yahooNewsAdapter,
 ];
+const NEWS_PROVIDER_ORDER: readonly string[] = ["marketaux", "finnhub", "yahoo-news"];
 
 function aliasFor(source: Source): SourceProviderAlias | undefined {
   if (source.provider === undefined) {
@@ -100,7 +101,6 @@ function fetchedAtMs(source: Source): number {
 }
 
 function selectRoundRobin(sources: readonly Source[], limit: number): readonly Source[] {
-  const providerOrder = NEWS_ADAPTERS.map((adapter) => adapter.name.replace(/-news$/u, ""));
   const groups = new Map<string, Source[]>();
 
   for (const source of sources) {
@@ -118,8 +118,8 @@ function selectRoundRobin(sources: readonly Source[], limit: number): readonly S
   const selected: Source[] = [];
   const cursors = new Map<string, number>();
   const order = [
-    ...providerOrder,
-    ...[...groups.keys()].filter((key) => !providerOrder.includes(key)),
+    ...NEWS_PROVIDER_ORDER,
+    ...[...groups.keys()].filter((key) => !NEWS_PROVIDER_ORDER.includes(key)),
   ];
 
   while (selected.length < limit) {

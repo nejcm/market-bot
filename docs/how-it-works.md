@@ -122,6 +122,7 @@ Fetch behavior:
 - `withCache` stores raw JSON by UTC date and URL hash.
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
 - Missing MarketAux or Finnhub tokens are reported as `SourceGap`s. Yahoo news still runs.
+- Finnhub news is capped after normalization because the used Finnhub news endpoints do not expose a count-limit parameter.
 
 ## Normalization and adapters
 

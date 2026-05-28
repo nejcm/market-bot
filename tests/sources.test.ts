@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
+import {
+  cryptoExtendedEvidenceAdapter,
+  equityExtendedEvidenceAdapter,
+} from "../src/sources/extended-evidence";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { createSourceRegistry } from "../src/sources/registry";
@@ -206,5 +210,78 @@ describe("news provider collection", () => {
 
     expect(result.newsSources).toHaveLength(1);
     expect(result.newsSources[0]?.providerArticleId).toBe("1");
+  });
+});
+
+describe("extended evidence provider collection", () => {
+  test("collects compact equity extended evidence", async () => {
+    const result = await equityExtendedEvidenceAdapter.collect({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      finnhubApiToken: "finnhub-token",
+      fredApiKey: "fred-key",
+      tradierApiToken: "tradier-token",
+      secUserAgent: "market-bot test@example.test",
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async (_url, adapter) => {
+        const payload =
+          adapter === "sec-tickers"
+            ? { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } }
+            : adapter === "sec-submissions"
+              ? { filings: { recent: { form: ["10-Q"], filingDate: ["2026-05-01"] } } }
+              : adapter === "sec-companyfacts"
+                ? {
+                    facts: {
+                      "us-gaap": {
+                        Revenues: { units: { USD: [{ val: 100 }] } },
+                        NetIncomeLoss: { units: { USD: [{ val: 20 }] } },
+                      },
+                    },
+                  }
+                : adapter.startsWith("fred-")
+                  ? { observations: [{ value: "4.25" }] }
+                  : adapter === "tradier-options"
+                    ? { options: { option: [{ greeks: { mid_iv: 0.32 } }] } }
+                    : adapter.startsWith("finnhub-events")
+                      ? [{ symbol: "AAPL" }]
+                      : {};
+        return {
+          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
+          payload,
+        };
+      },
+    });
+
+    expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("sec-edgar");
+    expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("equity-events");
+    expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("fred-macro");
+    expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("options-iv");
+    expect(result.sources.every((source) => source.kind === "extended-evidence")).toBe(true);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  test("emits gaps for missing crypto extended evidence tokens", async () => {
+    const result = await cryptoExtendedEvidenceAdapter.collect({
+      command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async () => {
+        throw new Error("unexpected fetch");
+      },
+    });
+
+    expect(result.extendedEvidence?.items).toEqual([]);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
+      "fred-macro",
+      "glassnode-on-chain",
+    ]);
   });
 });

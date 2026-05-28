@@ -1,9 +1,14 @@
 import type { AssetClass } from "../domain/types";
 import { coinGeckoMarketDataAdapter } from "./coingecko";
+import { cryptoExtendedEvidenceAdapter, equityExtendedEvidenceAdapter } from "./extended-evidence";
 import { multiNewsAdapter } from "./multi-news";
-import type { MarketDataAdapter, NewsAdapter, SourceRegistry } from "./types";
+import type {
+  ExtendedEvidenceAdapter,
+  MarketDataAdapter,
+  NewsAdapter,
+  SourceRegistry,
+} from "./types";
 import { yahooMarketDataAdapter } from "./yahoo";
-import { emptyExtendedEvidenceAdapter } from "./extended-evidence";
 
 export function createSourceRegistry(): SourceRegistry {
   const marketAdapters: Record<AssetClass, MarketDataAdapter> = {
@@ -15,10 +20,14 @@ export function createSourceRegistry(): SourceRegistry {
     equity: multiNewsAdapter,
     crypto: multiNewsAdapter,
   };
+  const extendedEvidenceAdapters: Record<AssetClass, ExtendedEvidenceAdapter> = {
+    equity: equityExtendedEvidenceAdapter,
+    crypto: cryptoExtendedEvidenceAdapter,
+  };
 
   return {
     marketDataFor: (assetClass) => marketAdapters[assetClass],
     newsFor: (assetClass) => newsAdapters[assetClass],
-    extendedEvidenceFor: () => emptyExtendedEvidenceAdapter,
+    extendedEvidenceFor: (assetClass) => extendedEvidenceAdapters[assetClass],
   };
 }

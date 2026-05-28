@@ -2,7 +2,7 @@
 
 ## Context
 
-`market-bot` today produces sourced, research-only daily/ticker reports via a 3-stage LLM pipeline (specialist → critique → synthesis). ADR 0001 forbids trade actions.
+`market-bot` today produces sourced, research-only daily/weekly/ticker reports via a 3-stage LLM pipeline (specialist → critique → synthesis). ADR 0001 forbids trade actions.
 
 Confirmed user framing: **research substrate for the user's own trade decisions** — the bot informs, the user acts.
 
@@ -54,7 +54,7 @@ Index-only daily predictions keep the daily calibration baseline stable over tim
 - Each prediction validated independently. Bad ones (unparseable `measurableAs`, out-of-range `horizonTradingDays`, unknown `kind`, missing fields) silently dropped and logged in the run trace.
 - If surviving count is below the depth profile minimum, the synthesis stage is re-prompted **once** with `{ previousErrors, unmetMinimum }` injected.
 - If still below minimum, ship the report with whatever survived and add `"predictionShortfall: emitted N of M required"` to `dataGaps`. **Never crash a research run over predictions.**
-- `measurableAs` parsed by a small hand-rolled DSL parser (`src/scoring/dsl.ts`) — grammar tiny, predictability beats dependency.
+- `measurableAs` parsed by a small hand-rolled observable-forecast parser (`src/forecast/observable.ts`) — grammar tiny, predictability beats dependency.
 - Hedging behaviour (probabilities clustered at 0.5) is NOT a validator error; calibration surfaces it later.
 
 ### 1b. Source robustness (minimal)
@@ -68,7 +68,7 @@ New module `src/scoring/` + new CLI verb `market-bot score`:
 
 - Walks `data/runs/*/report.json`, finds predictions whose `horizonTradingDays` window has closed and that have no `score.json` yet.
 - Re-fetches close prices via the new chart-endpoint helpers at the resolution date.
-- Resolves each prediction deterministically against `measurableAs` (via `src/scoring/dsl.ts`).
+- Resolves each prediction deterministically against `measurableAs` (via `src/forecast/observable.ts`).
 - Writes `data/runs/{id}/score.json` with `{ predictionId, resolved, outcome, observedAt, evidence }`.
 - Trading-day horizons are inferred from Yahoo data gaps (no calendar library).
 - Failed resolutions retried up to 5 times across subsequent scoring passes before being marked abandoned.
@@ -115,7 +115,7 @@ Add `docs/adr/0004-predictions-as-observable-forecasts.md` recording:
 - src/sources/yahoo.ts — `v8/finance/chart` historical helper
 - src/sources/coingecko.ts — `/coins/{id}/market_chart/range` historical helper
 - src/cli/args.ts + src/cli.ts — add `score` and `calibration` verbs
-- src/scoring/dsl.ts — hand-rolled `measurableAs` parser
+- src/forecast/observable.ts — hand-rolled `measurableAs` parser and observable forecast contract
 - src/scoring/resolver.ts — resolve predictions against fetched closes
 - src/scoring/index.ts — orchestrate the score pass
 - src/scoring/calibration.ts — aggregate, Brier, reliability bins

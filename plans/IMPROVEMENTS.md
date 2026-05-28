@@ -1,6 +1,6 @@
 # Improvements Backlog
 
-Future improvements and v2 features for `market-bot`, captured during V1 planning, research into TradingAgents/Vibe-Trading, and the [calibration loop](plans/calibration-loop-plan.md).
+Future improvements and v2 features for `market-bot`, captured during V1 planning, research into TradingAgents/Vibe-Trading, and the [calibration loop](calibration-loop-plan.md).
 
 Items here are **deliberately deferred** from V1. The first post-V1 priority is alpha discovery; most other entries should be pulled forward only after calibration data shows which gap actually matters.
 

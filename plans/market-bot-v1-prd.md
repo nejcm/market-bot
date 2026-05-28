@@ -50,7 +50,7 @@ The output is research-only. Reports may include thesis, evidence, catalysts, ri
 ## Implementation Decisions
 
 - Build a new native TypeScript/Bun CLI rather than forking TradingAgents or Vibe-Trading.
-- Implement two V1 commands: daily market update and ticker/instrument research.
+- Implement V1 commands for daily market updates, weekly market updates, and ticker/instrument research.
 - Use **Instrument** as the canonical research target, identified in V1 by `symbol + assetClass`.
 - Use separate equity and crypto workflows rather than a blended market workflow.
 - Start equity daily mover discovery with US equities only.

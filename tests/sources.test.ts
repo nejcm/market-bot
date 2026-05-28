@@ -3,6 +3,7 @@ import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
 import {
   cryptoExtendedEvidenceAdapter,
   equityExtendedEvidenceAdapter,
+  fetchFredObservation,
   fetchTradierIvObservation,
 } from "../src/sources/extended-evidence";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
@@ -12,6 +13,12 @@ import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
+const throwingFetch: typeof fetch = Object.assign(
+  async () => {
+    throw new Error("timeout");
+  },
+  { preconnect: fetch.preconnect },
+);
 
 describe("source normalization", () => {
   test("normalizes Yahoo quote payloads for equities", () => {
@@ -346,5 +353,25 @@ describe("extended evidence provider collection", () => {
         new Date("2026-05-20T00:00:00.000Z"),
       ),
     ).toBeUndefined();
+  });
+
+  test("returns undefined when scoring observation fetches fail", async () => {
+    await expect(
+      fetchFredObservation(
+        "DGS10",
+        new Date("2026-05-19T00:00:00.000Z"),
+        "fred-key",
+        throwingFetch,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      fetchTradierIvObservation(
+        "AAPL",
+        new Date("2026-05-19T00:00:00.000Z"),
+        "tradier-token",
+        throwingFetch,
+        new Date("2026-05-19T12:00:00.000Z"),
+      ),
+    ).resolves.toBeUndefined();
   });
 });

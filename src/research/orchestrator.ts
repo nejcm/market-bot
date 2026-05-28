@@ -241,7 +241,10 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
   return "high";
 }
 
-function buildSourceList(collectedSources: CollectedSources): readonly Source[] {
+function buildSourceList(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): readonly Source[] {
   const marketSources = collectedSources.marketSnapshots.map(
     (snapshot): Source => ({
       id: snapshot.sourceId,
@@ -256,7 +259,7 @@ function buildSourceList(collectedSources: CollectedSources): readonly Source[] 
   return [
     ...marketSources,
     ...collectedSources.newsSources,
-    ...(collectedSources.extendedSources ?? []),
+    ...(command.jobType === "ticker" ? (collectedSources.extendedSources ?? []) : []),
   ];
 }
 
@@ -524,7 +527,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     critiqueOutput,
   ]);
 
-  const sources = buildSourceList(input.collectedSources);
+  const sources = buildSourceList(input.command, input.collectedSources);
   const knownSourceIds = new Set(sources.map((source) => source.id));
 
   let payload = parseModelPayload(finalOutput.content);

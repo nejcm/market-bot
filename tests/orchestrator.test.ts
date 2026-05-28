@@ -297,6 +297,51 @@ describe("runResearchJob", () => {
     expect(result.markdown).toContain("[extended-fred-macro]");
   });
 
+  test("ignores extended sources for market update source lists", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Daily market breadth is sourced.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports breadth.", sourceIds: ["news-equity-1"] }],
+          bearCase: [{ text: "Single-name breadth is limited.", sourceIds: ["market-aapl"] }],
+          risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "medium",
+          dataGaps: [],
+          predictions: mockPredictions(2),
+        }),
+      ),
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        extendedSources: [
+          {
+            id: "extended-fred-macro",
+            title: "FRED macro pack",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "extended-evidence",
+            assetClass: "equity",
+          },
+        ],
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.sources.map((source) => source.id)).not.toContain("extended-fred-macro");
+  });
+
   test("creates a weekly market update with weekly horizon metadata and source gap", async () => {
     const prompts: string[] = [];
     const provider: ModelProvider = {
@@ -496,6 +541,59 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
     expect(result.report.dataGaps).toContain("No usable news sources were collected");
     expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
+  });
+
+  test("caps Evidence Quality at medium when extended evidence is all gaps", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Ticker evidence has core sources.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports the ticker.", sourceIds: ["news-equity-1"] }],
+          bearCase: [{ text: "Extended evidence is unavailable.", sourceIds: ["market-aapl"] }],
+          risks: [
+            { text: "Missing macro evidence limits confidence.", sourceIds: ["market-aapl"] },
+          ],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "high",
+          dataGaps: [],
+          predictions: mockPredictions(3, "AAPL"),
+        }),
+      ),
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        extendedSources: [],
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items: [],
+          gaps: [
+            { source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" },
+            {
+              source: "tradier-options",
+              message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+            },
+          ],
+        },
+        sourceGaps: [
+          { source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" },
+          { source: "tradier-options", message: "MARKET_BOT_TRADIER_API_TOKEN is not set" },
+        ],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.confidence).toBe("medium");
   });
 
   test("re-prompts synthesis once when predictions fall below minimum, then ships with shortfall gap", async () => {

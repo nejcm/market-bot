@@ -473,21 +473,25 @@ export async function fetchFredObservation(
     return undefined;
   }
   const day = date.toISOString().slice(0, 10);
-  const response = await fetchImpl(
-    `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
-      series_id: seriesId,
-      api_key: apiKey,
-      file_type: "json",
-      observation_start: day,
-      observation_end: day,
-      limit: "1",
-    })}`,
-  );
-  if (!response.ok) {
+  try {
+    const response = await fetchImpl(
+      `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
+        series_id: seriesId,
+        api_key: apiKey,
+        file_type: "json",
+        observation_start: day,
+        observation_end: day,
+        limit: "1",
+      })}`,
+    );
+    if (!response.ok) {
+      return undefined;
+    }
+    const payload = (await response.json()) as unknown;
+    return latestNumber(readArray(payload, "observations"), ["value"]);
+  } catch {
     return undefined;
   }
-  const payload = (await response.json()) as unknown;
-  return latestNumber(readArray(payload, "observations"), ["value"]);
 }
 
 export async function fetchTradierIvObservation(
@@ -500,40 +504,48 @@ export async function fetchTradierIvObservation(
   if (token === undefined) {
     return undefined;
   }
+  // Tradier option chains expose current chains; historical IV scoring is unavailable here.
   if (dateString(date) !== dateString(now)) {
     return undefined;
   }
 
-  const init = tradierRequestInit(token);
-  const expirationsResponse = await fetchImpl(
-    `https://api.tradier.com/v1/markets/options/expirations?${encodeQuery({
-      symbol,
-      includeAllRoots: "true",
-    })}`,
-    init,
-  );
-  if (!expirationsResponse.ok) {
-    return undefined;
-  }
-  const expirationsPayload = (await expirationsResponse.json()) as unknown;
-  const expiration = selectTradierExpiration(expirationsPayload, daysFrom(date.toISOString(), 30));
-  if (expiration === undefined) {
-    return undefined;
-  }
+  try {
+    const init = tradierRequestInit(token);
+    const expirationsResponse = await fetchImpl(
+      `https://api.tradier.com/v1/markets/options/expirations?${encodeQuery({
+        symbol,
+        includeAllRoots: "true",
+      })}`,
+      init,
+    );
+    if (!expirationsResponse.ok) {
+      return undefined;
+    }
+    const expirationsPayload = (await expirationsResponse.json()) as unknown;
+    const expiration = selectTradierExpiration(
+      expirationsPayload,
+      daysFrom(date.toISOString(), 30),
+    );
+    if (expiration === undefined) {
+      return undefined;
+    }
 
-  const response = await fetchImpl(
-    `https://api.tradier.com/v1/markets/options/chains?${encodeQuery({
-      symbol,
-      expiration,
-      greeks: "true",
-    })}`,
-    init,
-  );
-  if (!response.ok) {
+    const response = await fetchImpl(
+      `https://api.tradier.com/v1/markets/options/chains?${encodeQuery({
+        symbol,
+        expiration,
+        greeks: "true",
+      })}`,
+      init,
+    );
+    if (!response.ok) {
+      return undefined;
+    }
+    const payload = (await response.json()) as unknown;
+    return summarizeTradierIv(payload)?.metrics.medianIv;
+  } catch {
     return undefined;
   }
-  const payload = (await response.json()) as unknown;
-  return summarizeTradierIv(payload)?.metrics.medianIv;
 }
 
 async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {

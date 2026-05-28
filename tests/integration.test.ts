@@ -154,6 +154,8 @@ describe("mocked research workflows", () => {
       );
       await expect(readdir(workflow.artifacts.rawDir)).resolves.toEqual(["snapshots.json"]);
       await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual([
+        "extended-evidence.json",
+        "extended-sources.json",
         "market-snapshots.json",
         "news-sources.json",
         "source-gaps.json",

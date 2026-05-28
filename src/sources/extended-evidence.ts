@@ -7,7 +7,13 @@ import type {
   Source,
   SourceGap,
 } from "../domain/types";
-import { isFetchJsonResult, type CollectContext, type ExtendedEvidenceAdapter } from "./types";
+import {
+  isFetchJsonResult,
+  type CollectContext,
+  type ExtendedEvidenceAdapter,
+  type ExtendedEvidenceCollectionResult,
+  type RawSourceSnapshot,
+} from "./types";
 import { isRecord, readNumber, readString } from "./guards";
 
 const FRED_SERIES = ["DGS10", "DGS2", "T10Y2Y", "FEDFUNDS", "CPIAUCSL", "UNRATE", "DTWEXBGS"];
@@ -25,7 +31,7 @@ interface CollectedItem {
 }
 
 interface ProviderResult {
-  readonly rawSnapshots: readonly import("./types").RawSourceSnapshot[];
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly items: readonly CollectedItem[];
   readonly gaps: readonly SourceGap[];
 }
@@ -114,7 +120,7 @@ function findSecTicker(
   if (!isRecord(payload)) {
     return undefined;
   }
-  const entries = Object.values(payload).filter(isRecord);
+  const entries = Object.values(payload).filter((value) => isRecord(value));
   const match = entries.find((entry) => readString(entry, "ticker")?.toUpperCase() === symbol);
   if (match === undefined) {
     return undefined;
@@ -310,7 +316,7 @@ async function collectFinnhubEvents(ctx: CollectContext): Promise<ProviderResult
       ),
     ),
   );
-  const fetched = results.filter(isFetchJsonResult);
+  const fetched = results.filter((result) => isFetchJsonResult(result));
   const gaps = results.filter((value): value is SourceGap => !isFetchJsonResult(value));
   const summary = summarizeFinnhubEvents(fetched.map((result) => result.payload));
   const items =
@@ -368,7 +374,7 @@ async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
       ),
     ),
   );
-  const fetched = results.filter(isFetchJsonResult);
+  const fetched = results.filter((result) => isFetchJsonResult(result));
   const gaps = results.filter((value): value is SourceGap => !isFetchJsonResult(value));
   const metrics: Record<string, number> = {};
   for (const [index, result] of results.entries()) {
@@ -400,7 +406,7 @@ function summarizeTradierIv(
   const options =
     isRecord(payload) && isRecord(payload.options) ? readArray(payload.options, "option") : [];
   const ivs = options
-    .filter(isRecord)
+    .filter((option) => isRecord(option))
     .map((option) => {
       const greeks = isRecord(option.greeks) ? option.greeks : undefined;
       return greeks !== undefined
@@ -560,7 +566,7 @@ async function collectGlassnode(ctx: CollectContext): Promise<ProviderResult> {
       ),
     ),
   );
-  const fetched = results.filter(isFetchJsonResult);
+  const fetched = results.filter((result) => isFetchJsonResult(result));
   const gaps = results.filter((value): value is SourceGap => !isFetchJsonResult(value));
   const metrics: Record<string, number> = {};
   for (const [index, result] of results.entries()) {
@@ -595,7 +601,7 @@ async function collectGlassnode(ctx: CollectContext): Promise<ProviderResult> {
 async function collectExtendedEvidence(
   ctx: CollectContext,
   assetClass: AssetClass,
-): Promise<import("./types").ExtendedEvidenceCollectionResult> {
+): Promise<ExtendedEvidenceCollectionResult> {
   if (ctx.command.jobType !== "ticker") {
     return { rawSnapshots: [], sources: [], sourceGaps: [] };
   }

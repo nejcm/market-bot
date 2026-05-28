@@ -54,7 +54,7 @@ function renderExtendedEvidence(report: ResearchReport): string {
   const rows = items
     .map((item) => {
       if (typeof item !== "object" || item === null || Array.isArray(item)) {
-        return;
+        return null;
       }
       const record = item as {
         title?: unknown;
@@ -62,7 +62,7 @@ function renderExtendedEvidence(report: ResearchReport): string {
         sourceIds?: unknown;
       };
       if (typeof record.title !== "string" || typeof record.summary !== "string") {
-        return;
+        return null;
       }
       const refs = Array.isArray(record.sourceIds)
         ? sourceRefs(
@@ -71,7 +71,7 @@ function renderExtendedEvidence(report: ResearchReport): string {
         : "";
       return `- **${record.title}:** ${record.summary}${refs === "" ? "" : ` ${refs}`}`;
     })
-    .filter((row): row is string => row !== undefined);
+    .filter((row): row is string => row !== null);
   return `## Extended Evidence\n\n${rows.join("\n")}\n`;
 }
 

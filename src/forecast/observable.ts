@@ -533,7 +533,7 @@ export function resolveObservableForecast(
   if (expression.kind === "macro") {
     const subject = `FRED:${expression.seriesId}`;
     const closes = sortedCloses(closePrices, subject);
-    const origin = closes[0];
+    const [origin] = closes;
     const horizon = closes.at(-1);
     if (origin === undefined) {
       return unresolved("missing-origin", [subject]);

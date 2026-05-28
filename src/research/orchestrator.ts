@@ -218,7 +218,7 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
   }
 
   const extendedGapKeys = new Set(
-    collectedSources.extendedEvidence?.gaps.map((gap) => `${gap.source}: ${gap.message}`) ?? [],
+    collectedSources.extendedEvidence?.gaps.map((gap) => `${gap.source}: ${gap.message}`),
   );
   const coreGaps =
     collectedSources.sourceGaps?.filter(

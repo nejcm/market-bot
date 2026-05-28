@@ -228,27 +228,27 @@ describe("extended evidence provider collection", () => {
       fetchImpl: fetch,
       retryDelaysMs: [],
       fetchOrGap: async (_url, adapter) => {
-        const payload =
-          adapter === "sec-tickers"
-            ? { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } }
-            : adapter === "sec-submissions"
-              ? { filings: { recent: { form: ["10-Q"], filingDate: ["2026-05-01"] } } }
-              : adapter === "sec-companyfacts"
-                ? {
-                    facts: {
-                      "us-gaap": {
-                        Revenues: { units: { USD: [{ val: 100 }] } },
-                        NetIncomeLoss: { units: { USD: [{ val: 20 }] } },
-                      },
-                    },
-                  }
-                : adapter.startsWith("fred-")
-                  ? { observations: [{ value: "4.25" }] }
-                  : adapter === "tradier-options"
-                    ? { options: { option: [{ greeks: { mid_iv: 0.32 } }] } }
-                    : adapter.startsWith("finnhub-events")
-                      ? [{ symbol: "AAPL" }]
-                      : {};
+        let payload: unknown = {};
+        if (adapter === "sec-tickers") {
+          payload = { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } };
+        } else if (adapter === "sec-submissions") {
+          payload = { filings: { recent: { form: ["10-Q"], filingDate: ["2026-05-01"] } } };
+        } else if (adapter === "sec-companyfacts") {
+          payload = {
+            facts: {
+              "us-gaap": {
+                Revenues: { units: { USD: [{ val: 100 }] } },
+                NetIncomeLoss: { units: { USD: [{ val: 20 }] } },
+              },
+            },
+          };
+        } else if (adapter.startsWith("fred-")) {
+          payload = { observations: [{ value: "4.25" }] };
+        } else if (adapter === "tradier-options") {
+          payload = { options: { option: [{ greeks: { mid_iv: 0.32 } }] } };
+        } else if (adapter.startsWith("finnhub-events")) {
+          payload = [{ symbol: "AAPL" }];
+        }
         return {
           rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
           payload,

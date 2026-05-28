@@ -2,11 +2,18 @@
 
 Future improvements and v2 features for `market-bot`, captured during V1 planning, research into TradingAgents/Vibe-Trading, and the [calibration loop](calibration-loop-plan.md).
 
-Items here are **deliberately deferred** from V1. The first post-V1 priority is alpha discovery; most other entries should be pulled forward only after calibration data shows which gap actually matters.
+Items here are **deliberately deferred** from V1. The first post-V1 priority is improving the existing research substrate before adding alpha discovery or other new workflows.
 
 The ordering inside each section is rough priority, not strict.
 
 ---
+
+## Near-term focus
+
+1. **Better source layer** — replace the unofficial Yahoo news adapter with a real provider, add per-host rate limits and circuit breakers, cache scorer historical-close fetches, and add cache pruning for `data/cache/`.
+2. **Deeper data** — add higher-signal inputs before new report workflows: earnings, SEC/EDGAR, FRED, options/IV, on-chain crypto data, region-specific equities, and corporate actions.
+
+Alpha discovery stays deferred until the source layer is more reliable and the data surface is deeper.
 
 ## Source layer fixes
 
@@ -17,7 +24,7 @@ The ordering inside each section is rough priority, not strict.
 
 ## Alpha discovery
 
-- **Alpha discovery workflow** — immediate post-V1 milestone. Reuse the V1 source adapters, mover discovery, Evidence Quality, citations, and run artifacts to produce early investment/research candidates without trade actions.
+- **Alpha discovery workflow** — deferred until the source layer and data depth improvements above are in place. Reuse the V1 source adapters, mover discovery, Evidence Quality, citations, and run artifacts to produce early investment/research candidates without trade actions.
 - **Alpha candidate ranking** based on explainable features, not an LLM-only list. Keep attractiveness separate from Evidence Quality.
 - **Alpha report type** with thesis, why-now catalyst, evidence, bear case, risks, invalidation criteria, and source IDs.
 - **Alpha watchlist output** that persists candidates across runs and tracks thesis changes over time.

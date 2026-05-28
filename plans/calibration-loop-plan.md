@@ -4,11 +4,13 @@
 
 `market-bot` today produces sourced, research-only daily/weekly/ticker reports via a 3-stage LLM pipeline (specialist → critique → synthesis). ADR 0001 forbids trade actions.
 
+Status: implemented. The current post-calibration focus is source-layer hardening and deeper data before alpha discovery.
+
 Confirmed user framing: **research substrate for the user's own trade decisions** — the bot informs, the user acts.
 
-Under that framing the load-bearing gap is that the report's `confidence` field is currently a vibe, not a measurement: nothing in the output is falsifiable, so the system cannot be evaluated, tuned, or trusted to anchor decisions. Every other improvement (deeper sources, watchlists, scheduling) is guessing in the dark until calibration is real.
+Under that framing the load-bearing gap was that the report's `confidence` field was a vibe, not a measurement: nothing in the output was falsifiable, so the system could not be evaluated, tuned, or trusted to anchor decisions. That gap is now closed by observable predictions, scoring, and calibration summaries.
 
-This plan closes that loop. Everything else — earnings, SEC filings, FRED, scheduler, delivery, web frontend — is deferred to [IMPROVEMENTS.md](../IMPROVEMENTS.md) and pulled forward only after the first calibration data tells us which gap matters most.
+This plan closed that loop. The current follow-up priorities are tracked in [IMPROVEMENTS.md](../IMPROVEMENTS.md), starting with source-layer hardening and deeper data.
 
 ---
 
@@ -136,4 +138,4 @@ Add `docs/adr/0004-predictions-as-observable-forecasts.md` recording:
 
 ## Non-goals for this plan
 
-Anything in [IMPROVEMENTS.md](../IMPROVEMENTS.md). Specifically: no new data providers, no scheduler, no delivery channel, no cross-run watchlists, no real cost tracking, no caching layer, no probability remapping, no agentic tool use. Those are pulled forward only once calibration data shows which one matters most.
+Anything in [IMPROVEMENTS.md](../IMPROVEMENTS.md). Specifically: no new data providers, no scheduler, no delivery channel, no cross-run watchlists, no real cost tracking, no caching layer, no probability remapping, no agentic tool use. The current post-calibration ordering is maintained there.

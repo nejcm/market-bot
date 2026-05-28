@@ -6,6 +6,15 @@ V1 is implemented as a Bun/TypeScript CLI for research-only market reports. It s
 
 The current product boundary remains research-only: no buy/sell/hold calls, position sizing, execution instructions, or portfolio changes.
 
+## Current Focus
+
+The next phase improves the existing implementation before adding alpha discovery:
+
+- Better source layer: real news provider, rate limits, circuit breakers, scorer cache, and cache pruning.
+- Deeper data: earnings, SEC/EDGAR, FRED, options/IV, on-chain crypto data, region-specific equities, and corporate actions.
+
+Alpha discovery is deferred until these foundations are stronger.
+
 ## Glossary
 
 ## Research View
@@ -37,3 +46,11 @@ A label for how complete, recent, corroborated, and traceable the fetched eviden
 ## Source
 
 A fetched data or news item saved with an ID so report claims can link back to evidence.
+
+## Source Provider
+
+An external service that supplies market data, news, or reference data before it is normalized into Sources.
+
+## Source Gap
+
+A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.

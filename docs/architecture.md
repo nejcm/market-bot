@@ -15,8 +15,8 @@ src/
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
   research/           Orchestrator + regime summary
-  scoring/            Score pass, calibration aggregator (thin wrapper around forecast/)
-  sources/            Yahoo, CoinGecko, news, collector with retry/backoff
+  scoring/            Score pass, close cache, calibration aggregator
+  sources/            Yahoo, CoinGecko, multi-provider news, collector with retry/backoff/cache
 tests/                Bun test suites
 docs/adr/             Architecture decision records
 plans/                Curated planning docs (humans only)
@@ -29,14 +29,17 @@ Keep files cohesive — soft target 200–400 lines, hard limit 800.
 
 ### Sources (`src/sources/`)
 
-External fetching only. Retry and backoff live at the adapter, not in callers. Respect `MARKET_BOT_SOURCE_TIMEOUT_MS`. Mock at this seam in tests, not at `fetch`.
+External fetching only. Retry, backoff, per-host rate limiting, and circuit breaking live at the collector/cache seam. Respect `MARKET_BOT_SOURCE_TIMEOUT_MS`. Mock at this seam in tests, not at `fetch`.
 
 Notable inputs:
 - Equity movers: Yahoo `day_gainers`
 - Crypto movers: CoinGecko 24h change
+- News: MarketAux, Finnhub, and Yahoo Finance search
 - Historical closes (for scoring): Yahoo (equities), CoinGecko (crypto)
 
-A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-url>.json`) wraps all `fetchJsonOrGap` calls. Same-day re-runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness.
+A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-url>.json`) wraps all `fetchJsonOrGap` calls. Same-day re-runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness. Cache entries store the hash key, not the full request URL.
+
+News collection fans out to enabled providers, skips missing MarketAux/Finnhub tokens with `SourceGap`s, always includes Yahoo, canonicalizes URLs, collapses exact canonical-URL duplicates into one `Source`, and preserves provider aliases on the normalized source.
 
 Weekly updates use the same mover inputs as daily — this is a cadence and horizon change, not a separate data product. Reports must disclose it as a source gap.
 
@@ -49,6 +52,7 @@ The orchestrator coordinates: collect sources → summarize regime → produce r
 - `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against historical closes. Adding a new prediction shape starts here.
 - `src/scoring/resolver.ts` — resolves a due prediction against historical closes
 - `src/scoring/index.ts` — `runScorePass` writes `score.json` per run
+- `src/scoring/close-cache.ts` — caches successful historical-close fetches under `data/cache/closes/`
 - `src/scoring/calibration.ts` + `calibration-markdown.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`
 
 Every research run triggers a score pass and calibration refresh as a **non-blocking** side effect. Failures there log to stderr; they must not abort the research job.
@@ -74,4 +78,4 @@ CLI args → AppConfig → collect sources → orchestrator
                               score pass + calibration (side effect)
 ```
 
-`score` and `calibration` CLI verbs invoke the last stage directly without a new research run.
+`score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `cache prune` removes raw cache entries older than 30 days and scorer close-cache entries older than 365 days.

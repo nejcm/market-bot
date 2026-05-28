@@ -19,7 +19,8 @@ CLI args
 2. `src/app.ts` parses the command, resolves configuration, and dispatches the workflow.
 3. Research commands collect sources, build an OpenAI or OpenAI-compatible provider, run the research job, and persist artifacts.
 4. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
-5. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
+5. `cache prune` removes old cache entries without generating research.
+6. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
 
 ## Commands
 
@@ -34,6 +35,7 @@ bun run src/cli.ts ticker AAPL --asset equity
 bun run src/cli.ts ticker BTC --asset crypto
 bun run src/cli.ts score
 bun run src/cli.ts calibration
+bun run src/cli.ts cache prune
 ```
 
 If installed as a binary, the same verbs are available through `market-bot`:
@@ -44,6 +46,7 @@ market-bot weekly --asset crypto --deep
 market-bot ticker AAPL --asset equity --deep
 market-bot score
 market-bot calibration
+market-bot cache prune
 ```
 
 Command behavior:
@@ -56,6 +59,7 @@ Command behavior:
 | `--deep` | Uses the deep profile: more findings, scenarios, and predictions, with the synthesis model for the final pass. |
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
+| `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
 
 ## Setup and development commands
 
@@ -82,7 +86,7 @@ Useful knobs:
 
 | Variable | Purpose |
 | --- | --- |
-| `MARKET_BOT_PROVIDER` | `openai` or `openai-compatible`. |
+| `MARKET_BOT_PROVIDER` | `openai`, `openai-compatible`, or `codex`. |
 | `MARKET_BOT_BASE_URL` | Required for `openai-compatible`. |
 | `MARKET_BOT_QUICK_MODEL` | Model for specialist and critique stages. |
 | `MARKET_BOT_SYNTHESIS_MODEL` | Model for final synthesis and `--deep` output. |
@@ -90,6 +94,8 @@ Useful knobs:
 | `MARKET_BOT_CACHE_DIR` | Raw source cache directory, default `data/cache`. |
 | `MARKET_BOT_CACHE_DISABLE` | Set `1` or `true` to bypass cache. |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | Stale cache fallback window after live fetch failure. |
+| `MARKET_BOT_MARKETAUX_API_TOKEN` | Enables MarketAux news. |
+| `MARKET_BOT_FINNHUB_API_TOKEN` | Enables Finnhub news. |
 
 See [configuration.md](./configuration.md) for the full table.
 
@@ -101,8 +107,8 @@ The collector fetches market data and news in parallel:
 
 | Asset class | Market data | News |
 | --- | --- | --- |
-| `equity` | Yahoo Finance predefined `day_gainers` screener for market updates; Yahoo quote endpoint for regime proxies and ticker runs. | Yahoo Finance search. |
-| `crypto` | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol. | Yahoo Finance search. |
+| `equity` | Yahoo Finance predefined `day_gainers` screener for market updates; Yahoo quote endpoint for regime proxies and ticker runs. | MarketAux, Finnhub company news for ticker runs, and Yahoo Finance search. |
+| `crypto` | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol. | MarketAux, Finnhub crypto market news, and Yahoo Finance search. |
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
@@ -110,9 +116,12 @@ Fetch behavior:
 
 - All requests use `MARKET_BOT_SOURCE_TIMEOUT_MS`.
 - Transient failures retry with backoff.
+- Live fetches use a per-process, per-host limiter with one in-flight request and a 1000 ms minimum delay between starts.
+- Repeated transient failures, provider usage-limit responses, and rate-limit responses open a circuit temporarily; open circuits emit `SourceGap`s.
 - Failed sources become `SourceGap` entries instead of crashing the whole research run.
 - `withCache` stores raw JSON by UTC date and URL hash.
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
+- Missing MarketAux or Finnhub tokens are reported as `SourceGap`s. Yahoo news still runs.
 
 ## Normalization and adapters
 
@@ -121,6 +130,7 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/yahoo.ts` normalizes Yahoo quote payloads and fetches equity closes for scoring.
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
+- `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, and preserve provider aliases.
 
 Adapters convert external API payloads into internal `MarketSnapshot`, `Source`, and close-price records. Callers work with normalized shapes and source gaps, not raw provider-specific payloads.
 

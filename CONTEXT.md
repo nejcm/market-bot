@@ -1,20 +1,5 @@
 # Market Bot Context
 
-## Current Status
-
-V1 is implemented as a Bun/TypeScript CLI for research-only market reports. It supports daily and weekly market updates, ticker research, separate equity/crypto workflows, sourced report artifacts, observable predictions, scoring, and calibration summaries.
-
-The current product boundary remains research-only: no buy/sell/hold calls, position sizing, execution instructions, or portfolio changes.
-
-## Current Focus
-
-The next phase improves the existing implementation before adding alpha discovery:
-
-- Better source layer: real news provider, rate limits, circuit breakers, scorer cache, and cache pruning.
-- Deeper data: earnings, SEC/EDGAR, FRED, options/IV, on-chain crypto data, region-specific equities, and corporate actions.
-
-Alpha discovery is deferred until these foundations are stronger.
-
 ## Glossary
 
 ## Research View

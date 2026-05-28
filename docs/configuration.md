@@ -15,11 +15,15 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. |
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |
-| `MARKET_BOT_NEWS_LIMIT` | `8` | News items per run. |
+| `MARKET_BOT_NEWS_LIMIT` | `8` | Final combined news-source cap per run. Each enabled provider can fetch up to this limit before dedupe and round-robin selection. |
 | `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
-| `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for the raw-source cache. One JSON file per URL+date. |
+| `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
+| `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
+| `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for raw-source cache entries and scorer close cache entries. Raw-source cache keys are hashes; request URLs are not persisted. |
 | `MARKET_BOT_CACHE_DISABLE` | `false` | Set to `1` or `true` to bypass cache reads and writes entirely. |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | `7` | How many days back to look for a stale cached payload when a live fetch fails. A stale hit emits a `SourceGap` disclosing the staleness. |
+
+Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close cache files older than 365 days.
 
 ## Secrets
 

@@ -2,7 +2,7 @@
 
 Future improvements and v2 features for `market-bot`, captured during V1 planning, research into TradingAgents/Vibe-Trading, and the [calibration loop](calibration-loop-plan.md).
 
-Items here are **deliberately deferred** from V1. The first post-V1 priority is improving the existing research substrate before adding alpha discovery or other new workflows.
+Items here are **deliberately deferred** from V1. The first completed post-V1 hardening pass improved news sources, fetch resilience, scorer close caching, and cache pruning. The next priority remains deeper data before alpha discovery or other new workflows.
 
 The ordering inside each section is rough priority, not strict.
 
@@ -10,17 +10,15 @@ The ordering inside each section is rough priority, not strict.
 
 ## Near-term focus
 
-1. **Better source layer** — replace the unofficial Yahoo news adapter with a real provider, add per-host rate limits and circuit breakers, cache scorer historical-close fetches, and add cache pruning for `data/cache/`.
-2. **Deeper data** — add higher-signal inputs before new report workflows: earnings, SEC/EDGAR, FRED, options/IV, on-chain crypto data, region-specific equities, and corporate actions.
+1. **Deeper data** — add higher-signal inputs before new report workflows: earnings, SEC/EDGAR, FRED, options/IV, on-chain crypto data, region-specific equities, and corporate actions.
+2. **Alpha discovery** — still deferred until the data surface is deeper and source reliability has been exercised over real runs.
 
-Alpha discovery stays deferred until the source layer is more reliable and the data surface is deeper.
+## Completed source hardening
 
-## Source layer fixes
-
-- **Replace the Yahoo news adapter with a real provider** (NewsAPI, GDELT, MarketAux). Yahoo's `search` endpoint is unofficial and can change shape without warning. The `NewsAdapter.buildUrl` seam is in place; the swap needs an ADR (paid source, env var, calibration impact).
-- **Rate-limiting + circuit breaker per host.** Overkill for personal cadence today; relevant if scheduled runs go multi-asset and multi-cadence.
-- **Cache the scorer's historical-close fetches.** The scoring pass still re-fetches Yahoo/CoinGecko closes on every run. Extend the existing `data/cache/` layer to wrap those fetches too.
-- **Cache pruning tooling** for `data/cache/`. Per-day directories make a sweep trivial, but nothing runs it today.
+- Multi-provider news now fans out to MarketAux, Finnhub, and Yahoo, dedupes exact canonical-URL duplicates, and preserves provider aliases.
+- Source fetching now has per-process per-host rate limiting, temporary circuit breakers, retry/backoff, same-day cache hits, and stale cache fallback.
+- Scoring now caches successful historical closes under `data/cache/closes/`.
+- `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days.
 
 ## Alpha discovery
 

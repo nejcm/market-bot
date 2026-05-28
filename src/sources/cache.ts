@@ -1,4 +1,6 @@
 import { readdirSync } from "node:fs";
+import { rm, unlink } from "node:fs/promises";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import type { SourceGap } from "../domain/types";
 import type { FetchJsonResult, FetchOrGapFn, RawSourceSnapshot } from "./types";
 
@@ -13,11 +15,23 @@ export interface CacheOptions {
 }
 
 interface CacheEntry {
-  readonly url: string;
+  readonly cacheKey: string;
   readonly adapter: string;
   readonly fetchedAt: string;
   readonly cachedDate: string;
   readonly payload: unknown;
+}
+
+export interface PruneCacheOptions {
+  readonly dir: string;
+  readonly now: Date;
+  readonly rawRetentionDays: number;
+  readonly closeRetentionDays: number;
+}
+
+export interface PruneCacheResult {
+  readonly rawDaysPruned: number;
+  readonly closeFilesPruned: number;
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -116,7 +130,7 @@ export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGa
 
     if ("rawSnapshot" in result) {
       await writeEntry(todayPath, {
-        url,
+        cacheKey: sha,
         adapter,
         fetchedAt: result.rawSnapshot.fetchedAt,
         cachedDate: today,
@@ -138,5 +152,93 @@ export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGa
     }
 
     return result;
+  };
+}
+
+function isWithinDir(root: string, target: string): boolean {
+  const resolvedRoot = resolve(root);
+  const resolvedTarget = resolve(target);
+  return resolvedTarget === resolvedRoot || resolvedTarget.startsWith(`${resolvedRoot}${sep}`);
+}
+
+async function pruneRawCache(options: PruneCacheOptions): Promise<number> {
+  const today = utcDateString(options.now);
+  const dateDirs = listDateDirs(options.dir).filter(
+    (date) => dateDiffDays(today, date) > options.rawRetentionDays,
+  );
+
+  const results = await Promise.all(
+    dateDirs.map(async (dateDir) => {
+      const target = join(options.dir, dateDir);
+      if (!isWithinDir(options.dir, target)) {
+        return 0;
+      }
+      await rm(target, { recursive: true, force: true });
+      return 1;
+    }),
+  );
+
+  return results.reduce<number>((total, count) => total + count, 0);
+}
+
+function listCloseCacheFiles(dir: string): readonly string[] {
+  const root = join(dir, "closes");
+  const files: string[] = [];
+  const pending = [root];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) {
+      continue;
+    }
+
+    const entries = (() => {
+      try {
+        return readdirSync(current, { withFileTypes: true });
+      } catch {
+        return [];
+      }
+    })();
+
+    for (const entry of entries) {
+      const next = join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(next);
+      } else if (entry.isFile() && /^\d{4}-\d{2}-\d{2}\.json$/u.test(entry.name)) {
+        files.push(next);
+      }
+    }
+  }
+
+  return files;
+}
+
+async function pruneCloseCache(options: PruneCacheOptions): Promise<number> {
+  const today = utcDateString(options.now);
+
+  const results = await Promise.all(
+    listCloseCacheFiles(options.dir).map(async (file) => {
+      if (!isWithinDir(options.dir, file)) {
+        return 0;
+      }
+
+      const cachedDate = basename(file, ".json");
+      if (dateDiffDays(today, cachedDate) <= options.closeRetentionDays) {
+        return 0;
+      }
+
+      await unlink(file).catch(() => {});
+      await rm(dirname(file), { recursive: false, force: true }).catch(() => {});
+      return 1;
+    }),
+  );
+
+  return results.reduce<number>((total, count) => total + count, 0);
+}
+
+export async function pruneCache(options: PruneCacheOptions): Promise<PruneCacheResult> {
+  return {
+    rawDaysPruned: await pruneRawCache(options),
+    closeFilesPruned: await pruneCloseCache(options),
   };
 }

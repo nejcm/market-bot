@@ -5,14 +5,23 @@ import { createOpenAIProvider } from "./model/openai";
 import type { ModelProvider } from "./model/types";
 import { persistResearchJob } from "./research/orchestrator";
 import { collectSources } from "./sources/collector";
-import { buildAndWriteCalibration, runScorePass } from "./scoring/index";
+import { pruneCache } from "./sources/cache";
+import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
+
+function scorePassOptions(cacheDir: string | undefined): ScorePassOptions {
+  return cacheDir !== undefined ? { closeCacheDir: cacheDir } : {};
+}
 
 export async function runCli(argv: readonly string[]): Promise<string> {
   const command = parseArgs(argv);
   const config = resolveConfig();
 
   if (command.jobType === "score") {
-    const result = await runScorePass(config.dataDir);
+    const result = await runScorePass(
+      config.dataDir,
+      new Date(),
+      scorePassOptions(config.sourceOptions.cacheDir),
+    );
     await buildAndWriteCalibration(config.dataDir);
     return `Score pass complete: ${String(result.scored)} run(s) scored, ${String(result.skipped)} skipped`;
   }
@@ -22,11 +31,25 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     return "Calibration summary written to data/calibration/summary.json";
   }
 
+  if (command.jobType === "cache-prune") {
+    const result = await pruneCache({
+      dir: config.sourceOptions.cacheDir ?? "data/cache",
+      now: new Date(),
+      rawRetentionDays: 30,
+      closeRetentionDays: 365,
+    });
+    return `Cache prune complete: ${String(result.rawDaysPruned)} raw day(s), ${String(result.closeFilesPruned)} close file(s) pruned`;
+  }
+
   const provider: ModelProvider =
     config.provider === "codex" ? createCodexProvider(config) : createOpenAIProvider(config);
   const collectedSources = await collectSources(command, config.sourceOptions);
 
-  const scoreResult = await runScorePass(config.dataDir).catch((error: unknown) => {
+  const scoreResult = await runScorePass(
+    config.dataDir,
+    new Date(),
+    scorePassOptions(config.sourceOptions.cacheDir),
+  ).catch((error: unknown) => {
     process.stderr.write(
       `Score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );

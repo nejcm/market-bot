@@ -12,6 +12,7 @@ import { observableForecastFromPrediction } from "../forecast/observable";
 import { resolvePrediction } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
+import { fetchCloseWithCache, type FetchCloseFn } from "./close-cache";
 import type { PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
@@ -67,6 +68,11 @@ async function fetchClose(
   return fetchCoinGeckoClose(symbol.toLowerCase(), date);
 }
 
+export interface ScorePassOptions {
+  readonly closeCacheDir?: string;
+  readonly fetchClose?: FetchCloseFn;
+}
+
 function symbolsForPrediction(prediction: Prediction): readonly string[] {
   const forecast = observableForecastFromPrediction(prediction);
   if ("prediction" in forecast) {
@@ -80,6 +86,7 @@ async function scoreOnePrediction(
   report: ResearchReport,
   existingScore: PredictionScore | undefined,
   now: Date,
+  options: ScorePassOptions,
 ): Promise<PredictionScore> {
   const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
   const resDate = resolutionDate(report.generatedAt, prediction.horizonTradingDays);
@@ -97,9 +104,17 @@ async function scoreOnePrediction(
   }
 
   const symbols = symbolsForPrediction(prediction);
+  const fetchCloseFn = options.fetchClose ?? fetchClose;
   const closesAtOrigin = await Promise.all(
     symbols.map(async (symbol) => {
-      const close = await fetchClose(symbol, report.assetClass, new Date(report.generatedAt));
+      const close = await fetchCloseWithCache(
+        symbol,
+        report.assetClass,
+        new Date(report.generatedAt),
+        options.closeCacheDir,
+        fetchCloseFn,
+        now,
+      );
       return close !== undefined
         ? { symbol, date: report.generatedAt.slice(0, 10), close }
         : undefined;
@@ -107,7 +122,14 @@ async function scoreOnePrediction(
   );
   const closesAtHorizon = await Promise.all(
     symbols.map(async (symbol) => {
-      const close = await fetchClose(symbol, report.assetClass, resDate);
+      const close = await fetchCloseWithCache(
+        symbol,
+        report.assetClass,
+        resDate,
+        options.closeCacheDir,
+        fetchCloseFn,
+        now,
+      );
       return close !== undefined
         ? { symbol, date: resDate.toISOString().slice(0, 10), close }
         : undefined;
@@ -172,7 +194,7 @@ async function loadReport(runDir: string): Promise<ResearchReport | undefined> {
   }
 }
 
-async function scoreRunDir(runDir: string, now: Date): Promise<void> {
+async function scoreRunDir(runDir: string, now: Date, options: ScorePassOptions): Promise<void> {
   const report = await loadReport(runDir);
   if (report === undefined || report.predictions.length === 0) {
     return;
@@ -198,7 +220,7 @@ async function scoreRunDir(runDir: string, now: Date): Promise<void> {
 
   const newScores = await Promise.all(
     pendingPredictions.map((prediction) =>
-      scoreOnePrediction(prediction, report, existingScores.get(prediction.id), now),
+      scoreOnePrediction(prediction, report, existingScores.get(prediction.id), now, options),
     ),
   );
 
@@ -239,6 +261,7 @@ export interface ScorePassResult {
 export async function runScorePass(
   dataDir: string,
   now: Date = new Date(),
+  options: ScorePassOptions = {},
 ): Promise<ScorePassResult> {
   const runDirs = await listRunDirs(dataDir);
 
@@ -248,7 +271,7 @@ export async function runScorePass(
       if (report === undefined || report.predictions.length === 0) {
         return "skipped" as const;
       }
-      await scoreRunDir(runDir, now);
+      await scoreRunDir(runDir, now, options);
       return "scored" as const;
     }),
   );

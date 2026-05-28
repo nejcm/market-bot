@@ -1,9 +1,13 @@
-import { describe, expect, test } from "bun:test";
-import { collectSources } from "../src/sources/collector";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { collectSources, resetSourceResilienceForTests } from "../src/sources/collector";
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
 }
+
+beforeEach(() => {
+  resetSourceResilienceForTests();
+});
 
 describe("collectSources", () => {
   test("collects daily equity market data and news with injectable fetch", async () => {
@@ -346,5 +350,55 @@ describe("collectSources", () => {
       provider: "yahoo-news",
     });
     expect(result.sourceGaps).toHaveLength(0);
+  });
+
+  test("opens provider circuit on rate limit responses", async () => {
+    let marketAuxCalls = 0;
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            symbol: "btc",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 40_000_000_000,
+          },
+        ]);
+      }
+
+      if (url.includes("marketaux")) {
+        marketAuxCalls += 1;
+        return new Response("rate limit", { status: 429 });
+      }
+
+      return jsonResponse([]);
+    };
+    const sourceOptions = {
+      equityMoverLimit: 2,
+      cryptoMoverLimit: 2,
+      newsLimit: 2,
+      sourceTimeoutMs: 1000,
+      marketauxApiToken: "marketaux-token",
+      finnhubApiToken: "finnhub-token",
+    };
+
+    await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      sourceOptions,
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      [],
+    );
+    const second = await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      sourceOptions,
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      [],
+    );
+
+    expect(marketAuxCalls).toBe(1);
+    expect(second.sourceGaps.some((gap) => gap.message.includes("circuit open"))).toBe(true);
   });
 });

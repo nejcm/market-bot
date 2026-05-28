@@ -28,8 +28,12 @@ export interface CalibrationCommand {
   readonly jobType: "calibration";
 }
 
+export interface CachePruneCommand {
+  readonly jobType: "cache-prune";
+}
+
 export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
-export type CliCommand = ResearchCommand | ScoreCommand | CalibrationCommand;
+export type CliCommand = ResearchCommand | ScoreCommand | CalibrationCommand | CachePruneCommand;
 
 function parseAsset(value: string | undefined): AssetClass {
   if (value === "equity" || value === "crypto") {
@@ -120,13 +124,21 @@ export function parseArgs(args: readonly string[]): CliCommand {
     return { jobType: "calibration" };
   }
 
+  if (command === "cache" && maybeSymbol === "prune" && args.length === 2) {
+    return { jobType: "cache-prune" };
+  }
+
   throw new Error(
-    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration",
+    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration | market-bot cache prune",
   );
 }
 
 export function commandLabel(command: CliCommand): string {
-  if (command.jobType === "score" || command.jobType === "calibration") {
+  if (
+    command.jobType === "score" ||
+    command.jobType === "calibration" ||
+    command.jobType === "cache-prune"
+  ) {
     return command.jobType;
   }
   const depthSuffix = command.depth === "deep" ? " deep" : "";

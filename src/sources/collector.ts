@@ -12,6 +12,101 @@ export interface SourceCollection {
   readonly sourceGaps: readonly SourceGap[];
 }
 
+interface HostState {
+  queue: Promise<void>;
+  lastStartedAt: number;
+  consecutiveFailures: number;
+  openedUntil: number;
+}
+
+const HOST_MIN_DELAY_MS = 1000;
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+const CIRCUIT_OPEN_MS = 60_000;
+const hostStates = new Map<string, HostState>();
+
+function noop(): void {}
+
+function hostForUrl(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "unknown";
+  }
+}
+
+function statusCode(error: unknown): number | undefined {
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+
+  const status = /status (\d+)/u.exec(error.message)?.[1];
+  return status !== undefined ? Number(status) : undefined;
+}
+
+function isLimitError(error: unknown): boolean {
+  const code = statusCode(error);
+  return code === 402 || code === 429;
+}
+
+function shouldRecordCircuitFailure(error: unknown): boolean {
+  return isLimitError(error) || isTransientError(error);
+}
+
+async function runWithHostResilience<T>(
+  url: string,
+  adapter: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const host = hostForUrl(url);
+  const state = hostStates.get(host) ?? {
+    queue: Promise.resolve(),
+    lastStartedAt: 0,
+    consecutiveFailures: 0,
+    openedUntil: 0,
+  };
+  hostStates.set(host, state);
+
+  const previous = state.queue;
+  let release = noop;
+  state.queue = previous
+    .catch(() => {})
+    .then(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+
+  await previous.catch(() => {});
+
+  try {
+    const now = Date.now();
+    if (state.openedUntil > now) {
+      throw new Error(`${adapter} circuit open for ${host}`);
+    }
+
+    const waitMs = Math.max(0, HOST_MIN_DELAY_MS - (now - state.lastStartedAt));
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    state.lastStartedAt = Date.now();
+
+    const result = await task();
+    state.consecutiveFailures = 0;
+    return result;
+  } catch (error: unknown) {
+    if (shouldRecordCircuitFailure(error)) {
+      state.consecutiveFailures += 1;
+      if (isLimitError(error) || state.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+        state.openedUntil = Date.now() + CIRCUIT_OPEN_MS;
+      }
+    }
+    throw error;
+  } finally {
+    release();
+  }
+}
+
 async function fetchJson(
   url: string,
   adapter: string,
@@ -19,29 +114,31 @@ async function fetchJson(
   timeoutMs: number,
   fetchImpl: FetchLike,
 ): Promise<FetchJsonResult> {
-  const response = await fetchImpl(url, {
-    signal: AbortSignal.timeout(timeoutMs),
-    headers: {
-      accept: "application/json",
-      "user-agent": "market-bot/0.1 research-cli",
-    },
-  });
+  return runWithHostResilience(url, adapter, async () => {
+    const response = await fetchImpl(url, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        accept: "application/json",
+        "user-agent": "market-bot/0.1 research-cli",
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(`${adapter} source request failed with status ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`${adapter} source request failed with status ${response.status}`);
+    }
 
-  const payload = (await response.json()) as unknown;
+    const payload = (await response.json()) as unknown;
 
-  return {
-    rawSnapshot: {
-      id: `raw-${adapter}-${fetchedAt}`,
-      adapter,
-      fetchedAt,
+    return {
+      rawSnapshot: {
+        id: `raw-${adapter}-${fetchedAt}`,
+        adapter,
+        fetchedAt,
+        payload,
+      },
       payload,
-    },
-    payload,
-  };
+    };
+  });
 }
 
 function isTransientError(error: unknown): boolean {
@@ -49,9 +146,8 @@ function isTransientError(error: unknown): boolean {
     if (error.name === "AbortError" || error.name === "TimeoutError") {
       return true;
     }
-    const status = /status (\d+)/u.exec(error.message)?.[1];
-    if (status !== undefined) {
-      const code = Number(status);
+    const code = statusCode(error);
+    if (code !== undefined) {
       return code >= 500 && code < 600;
     }
     if (
@@ -64,6 +160,10 @@ function isTransientError(error: unknown): boolean {
     }
   }
   return false;
+}
+
+export function resetSourceResilienceForTests(): void {
+  hostStates.clear();
 }
 
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];

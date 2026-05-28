@@ -55,8 +55,13 @@ describe("parseArgs", () => {
     expect(parseArgs(["calibration"])).toEqual({ jobType: "calibration" });
   });
 
-  test("labels score and calibration commands", () => {
+  test("parses cache prune command", () => {
+    expect(parseArgs(["cache", "prune"])).toEqual({ jobType: "cache-prune" });
+  });
+
+  test("labels utility commands", () => {
     expect(commandLabel({ jobType: "score" })).toBe("score");
     expect(commandLabel({ jobType: "calibration" })).toBe("calibration");
+    expect(commandLabel({ jobType: "cache-prune" })).toBe("cache-prune");
   });
 });

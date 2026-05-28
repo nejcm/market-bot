@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { withCache, type CacheOptions } from "../src/sources/cache";
+import { pruneCache, withCache, type CacheOptions } from "../src/sources/cache";
 import type { FetchJsonResult } from "../src/sources/types";
 
 const fetchedAt = "2026-05-20T10:00:00.000Z";
@@ -182,6 +182,36 @@ describe("withCache", () => {
     await cached(url, "test-adapter", fetchedAt, 1000, fetch);
 
     expect(calls).toBe(2);
+  });
+});
+
+describe("pruneCache", () => {
+  test("removes raw cache days after 30 days and close files after 365 days", async () => {
+    const oldRawDir = join(tmpDir, "2026-04-01");
+    const freshRawDir = join(tmpDir, "2026-05-10");
+    const oldCloseFile = join(tmpDir, "closes", "equity", "spy", "2025-01-01.json");
+    const freshCloseFile = join(tmpDir, "closes", "equity", "spy", "2026-05-01.json");
+
+    mkdirSync(oldRawDir, { recursive: true });
+    mkdirSync(freshRawDir, { recursive: true });
+    mkdirSync(join(tmpDir, "closes", "equity", "spy"), { recursive: true });
+    writeFileSync(join(oldRawDir, "old.json"), "{}");
+    writeFileSync(join(freshRawDir, "fresh.json"), "{}");
+    writeFileSync(oldCloseFile, "{}");
+    writeFileSync(freshCloseFile, "{}");
+
+    const result = await pruneCache({
+      dir: tmpDir,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      rawRetentionDays: 30,
+      closeRetentionDays: 365,
+    });
+
+    expect(result).toEqual({ rawDaysPruned: 1, closeFilesPruned: 1 });
+    expect(existsSync(oldRawDir)).toBe(false);
+    expect(existsSync(freshRawDir)).toBe(true);
+    expect(existsSync(oldCloseFile)).toBe(false);
+    expect(existsSync(freshCloseFile)).toBe(true);
   });
 });
 

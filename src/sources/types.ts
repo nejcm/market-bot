@@ -16,6 +16,7 @@ export type FetchOrGapFn = (
   timeoutMs: number,
   fetchImpl: FetchLike,
   retryDelaysMs?: readonly number[],
+  init?: RequestInit,
 ) => Promise<FetchJsonResult | SourceGap>;
 
 export interface CollectContext {

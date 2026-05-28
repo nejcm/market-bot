@@ -12,6 +12,7 @@ import {
   type CollectContext,
   type ExtendedEvidenceAdapter,
   type ExtendedEvidenceCollectionResult,
+  type FetchLike,
   type RawSourceSnapshot,
 } from "./types";
 import { isRecord, readNumber, readString } from "./guards";
@@ -44,6 +45,20 @@ function daysFrom(fetchedAt: string, days: number): string {
   const date = new Date(fetchedAt);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function dateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function secRequestInit(userAgent: string | undefined): RequestInit | undefined {
+  return userAgent === undefined
+    ? undefined
+    : { headers: { accept: "application/json", "user-agent": userAgent } };
+}
+
+function tradierRequestInit(token: string): RequestInit {
+  return { headers: { accept: "application/json", authorization: `Bearer ${token}` } };
 }
 
 function evidenceSource(
@@ -111,6 +126,18 @@ function latestNumber(values: readonly unknown[], keys: readonly string[]): numb
 
 function readArray(value: unknown, key: string): readonly unknown[] {
   return isRecord(value) && Array.isArray(value[key]) ? value[key] : [];
+}
+
+function readTradierExpirations(payload: unknown): readonly string[] {
+  const expirations = isRecord(payload) ? payload.expirations : undefined;
+  return readArray(expirations, "date")
+    .filter((date): date is string => typeof date === "string")
+    .toSorted();
+}
+
+function selectTradierExpiration(payload: unknown, target: string): string | undefined {
+  const expirations = readTradierExpirations(payload);
+  return expirations.find((date) => date >= target) ?? expirations.at(-1);
 }
 
 function findSecTicker(
@@ -189,6 +216,7 @@ async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
 
+  const secInit = secRequestInit(ctx.secUserAgent);
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
   const tickers = await fetchOrGap(
     tickersUrl,
@@ -197,6 +225,7 @@ async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     sourceTimeoutMs,
     fetchImpl,
     retryDelaysMs,
+    secInit,
   );
   if (!isFetchJsonResult(tickers)) {
     return { rawSnapshots: [], items: [], gaps: [tickers] };
@@ -220,8 +249,17 @@ async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
       sourceTimeoutMs,
       fetchImpl,
       retryDelaysMs,
+      secInit,
     ),
-    fetchOrGap(factsUrl, "sec-companyfacts", fetchedAt, sourceTimeoutMs, fetchImpl, retryDelaysMs),
+    fetchOrGap(
+      factsUrl,
+      "sec-companyfacts",
+      fetchedAt,
+      sourceTimeoutMs,
+      fetchImpl,
+      retryDelaysMs,
+      secInit,
+    ),
   ]);
 
   const rawSnapshots = [
@@ -456,24 +494,40 @@ export async function fetchTradierIvObservation(
   symbol: string,
   date: Date,
   token: string | undefined,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: FetchLike = fetch,
+  now: Date = new Date(),
 ): Promise<number | undefined> {
   if (token === undefined) {
     return undefined;
   }
-  const expiration = daysFrom(date.toISOString(), 30);
+  if (dateString(date) !== dateString(now)) {
+    return undefined;
+  }
+
+  const init = tradierRequestInit(token);
+  const expirationsResponse = await fetchImpl(
+    `https://api.tradier.com/v1/markets/options/expirations?${encodeQuery({
+      symbol,
+      includeAllRoots: "true",
+    })}`,
+    init,
+  );
+  if (!expirationsResponse.ok) {
+    return undefined;
+  }
+  const expirationsPayload = (await expirationsResponse.json()) as unknown;
+  const expiration = selectTradierExpiration(expirationsPayload, daysFrom(date.toISOString(), 30));
+  if (expiration === undefined) {
+    return undefined;
+  }
+
   const response = await fetchImpl(
     `https://api.tradier.com/v1/markets/options/chains?${encodeQuery({
       symbol,
       expiration,
       greeks: "true",
     })}`,
-    {
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${token}`,
-      },
-    },
+    init,
   );
   if (!response.ok) {
     return undefined;
@@ -494,7 +548,32 @@ async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
       gaps: [{ source: "tradier-options", message: "MARKET_BOT_TRADIER_API_TOKEN is not set" }],
     };
   }
-  const expiration = daysFrom(fetchedAt, 30);
+  const init = tradierRequestInit(ctx.tradierApiToken);
+  const expirationsUrl = `https://api.tradier.com/v1/markets/options/expirations?${encodeQuery({
+    symbol: command.symbol,
+    includeAllRoots: "true",
+  })}`;
+  const expirations = await fetchOrGap(
+    expirationsUrl,
+    "tradier-expirations",
+    fetchedAt,
+    sourceTimeoutMs,
+    fetchImpl,
+    retryDelaysMs,
+    init,
+  );
+  if (!isFetchJsonResult(expirations)) {
+    return { rawSnapshots: [], items: [], gaps: [expirations] };
+  }
+  const expiration = selectTradierExpiration(expirations.payload, daysFrom(fetchedAt, 30));
+  if (expiration === undefined) {
+    return {
+      rawSnapshots: [expirations.rawSnapshot],
+      items: [],
+      gaps: [{ source: "tradier-options", message: "No Tradier option expiration found" }],
+    };
+  }
+
   const url = `https://api.tradier.com/v1/markets/options/chains?${encodeQuery({
     symbol: command.symbol,
     expiration,
@@ -507,9 +586,10 @@ async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
     sourceTimeoutMs,
     fetchImpl,
     retryDelaysMs,
+    init,
   );
   if (!isFetchJsonResult(result)) {
-    return { rawSnapshots: [], items: [], gaps: [result] };
+    return { rawSnapshots: [expirations.rawSnapshot], items: [], gaps: [result] };
   }
   const summary = summarizeTradierIv(result.payload);
   const items =
@@ -531,7 +611,7 @@ async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
             summary.metrics,
           ),
         ];
-  return { rawSnapshots: [result.rawSnapshot], items, gaps: [] };
+  return { rawSnapshots: [expirations.rawSnapshot, result.rawSnapshot], items, gaps: [] };
 }
 
 async function collectGlassnode(ctx: CollectContext): Promise<ProviderResult> {

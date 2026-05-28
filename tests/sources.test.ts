@@ -3,6 +3,7 @@ import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
 import {
   cryptoExtendedEvidenceAdapter,
   equityExtendedEvidenceAdapter,
+  fetchTradierIvObservation,
 } from "../src/sources/extended-evidence";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
@@ -215,6 +216,7 @@ describe("news provider collection", () => {
 
 describe("extended evidence provider collection", () => {
   test("collects compact equity extended evidence", async () => {
+    const requests: { adapter: string; url: string; headers: Headers }[] = [];
     const result = await equityExtendedEvidenceAdapter.collect({
       command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       fetchedAt,
@@ -227,7 +229,16 @@ describe("extended evidence provider collection", () => {
       secUserAgent: "market-bot test@example.test",
       fetchImpl: fetch,
       retryDelaysMs: [],
-      fetchOrGap: async (_url, adapter) => {
+      fetchOrGap: async (
+        url,
+        adapter,
+        _fetchedAt,
+        _timeoutMs,
+        _fetchImpl,
+        _retryDelaysMs,
+        init,
+      ) => {
+        requests.push({ adapter, url, headers: new Headers(init?.headers) });
         let payload: unknown = {};
         if (adapter === "sec-tickers") {
           payload = { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } };
@@ -244,6 +255,8 @@ describe("extended evidence provider collection", () => {
           };
         } else if (adapter.startsWith("fred-")) {
           payload = { observations: [{ value: "4.25" }] };
+        } else if (adapter === "tradier-expirations") {
+          payload = { expirations: { date: ["2026-05-22", "2026-06-19"] } };
         } else if (adapter === "tradier-options") {
           payload = { options: { option: [{ greeks: { mid_iv: 0.32 } }] } };
         } else if (adapter.startsWith("finnhub-events")) {
@@ -262,6 +275,24 @@ describe("extended evidence provider collection", () => {
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("options-iv");
     expect(result.sources.every((source) => source.kind === "extended-evidence")).toBe(true);
     expect(result.sourceGaps).toEqual([]);
+    expect(
+      requests
+        .filter((request) => request.adapter.startsWith("sec-"))
+        .every((request) => request.headers.get("user-agent") === "market-bot test@example.test"),
+    ).toBe(true);
+    expect(
+      requests
+        .find((request) => request.adapter === "tradier-expirations")
+        ?.headers.get("authorization"),
+    ).toBe("Bearer tradier-token");
+    expect(
+      requests
+        .find((request) => request.adapter === "tradier-options")
+        ?.headers.get("authorization"),
+    ).toBe("Bearer tradier-token");
+    expect(requests.find((request) => request.adapter === "tradier-options")?.url).toContain(
+      "expiration=2026-06-19",
+    );
   });
 
   test("emits gaps for missing crypto extended evidence tokens", async () => {
@@ -283,5 +314,37 @@ describe("extended evidence provider collection", () => {
       "fred-macro",
       "glassnode-on-chain",
     ]);
+  });
+
+  test("fetches Tradier IV only point-in-time with listed expiration", async () => {
+    const requested: string[] = [];
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      requested.push(String(input));
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer tradier-token");
+      if (String(input).includes("/expirations?")) {
+        return Response.json({ expirations: { date: ["2026-06-19"] } });
+      }
+      return Response.json({ options: { option: [{ greeks: { mid_iv: 0.41 } }] } });
+    };
+
+    const iv = await fetchTradierIvObservation(
+      "AAPL",
+      new Date("2026-05-19T00:00:00.000Z"),
+      "tradier-token",
+      fetchImpl,
+      new Date("2026-05-19T12:00:00.000Z"),
+    );
+
+    expect(iv).toBe(0.41);
+    expect(requested[1]).toContain("expiration=2026-06-19");
+    expect(
+      await fetchTradierIvObservation(
+        "AAPL",
+        new Date("2026-05-19T00:00:00.000Z"),
+        "tradier-token",
+        fetchImpl,
+        new Date("2026-05-20T00:00:00.000Z"),
+      ),
+    ).toBeUndefined();
   });
 });

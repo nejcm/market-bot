@@ -34,18 +34,6 @@ function isWeekday(date: Date): boolean {
   return dow !== 0 && dow !== 6;
 }
 
-function tradingDaysElapsed(from: Date, to: Date): number {
-  let count = 0;
-  let cursor = addDays(from, 0);
-  while (cursor.getTime() < to.getTime()) {
-    cursor = addDays(cursor, 1);
-    if (isWeekday(cursor)) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
 function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
   let count = 0;
   let cursor = new Date(generatedAt);
@@ -63,13 +51,20 @@ async function fetchClose(
   assetClass: AssetClass,
   date: Date,
   options: Pick<ScorePassOptions, "fredApiKey" | "tradierApiToken"> = {},
+  now: Date = new Date(),
 ): Promise<number | undefined> {
   if (symbol.startsWith("FRED:")) {
     return fetchFredObservation(symbol.slice("FRED:".length), date, options.fredApiKey);
   }
   if (symbol.startsWith("IV:")) {
     return assetClass === "equity"
-      ? fetchTradierIvObservation(symbol.slice("IV:".length), date, options.tradierApiToken)
+      ? fetchTradierIvObservation(
+          symbol.slice("IV:".length),
+          date,
+          options.tradierApiToken,
+          fetch,
+          now,
+        )
       : undefined;
   }
   if (assetClass === "equity") {
@@ -118,7 +113,7 @@ async function scoreOnePrediction(
   const symbols = symbolsForPrediction(prediction);
   const fetchCloseFn =
     options.fetchClose ??
-    ((symbol, assetClass, date) => fetchClose(symbol, assetClass, date, options));
+    ((symbol, assetClass, date) => fetchClose(symbol, assetClass, date, options, now));
   const closesAtOrigin = await Promise.all(
     symbols.map(async (symbol) => {
       const close = await fetchCloseWithCache(
@@ -345,5 +340,3 @@ export async function buildAndWriteCalibration(
   );
   await writeFile(join(calibrationDir, "summary.md"), renderCalibrationMarkdown(summary), "utf8");
 }
-
-export { tradingDaysElapsed };

@@ -112,9 +112,9 @@ function toFetchJsonResult(entry: CacheEntry, adapter: string): FetchJsonResult 
 }
 
 export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGapFn {
-  return async (url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs) => {
+  return async (url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init) => {
     if (options.disabled) {
-      return inner(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs);
+      return inner(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init);
     }
 
     const today = utcDateString(options.now());
@@ -126,7 +126,7 @@ export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGa
       return toFetchJsonResult(cached, adapter);
     }
 
-    const result = await inner(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs);
+    const result = await inner(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init);
 
     if ("rawSnapshot" in result) {
       await writeEntry(todayPath, {

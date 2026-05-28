@@ -115,14 +115,21 @@ async function fetchJson(
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  init: RequestInit = {},
 ): Promise<FetchJsonResult> {
   return runWithHostResilience(url, adapter, async () => {
+    const headers = new Headers(init.headers);
+    if (!headers.has("accept")) {
+      headers.set("accept", "application/json");
+    }
+    if (!headers.has("user-agent")) {
+      headers.set("user-agent", "market-bot/0.1 research-cli");
+    }
+
     const response = await fetchImpl(url, {
+      ...init,
       signal: AbortSignal.timeout(timeoutMs),
-      headers: {
-        accept: "application/json",
-        "user-agent": "market-bot/0.1 research-cli",
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -183,9 +190,10 @@ async function fetchJsonWithRetry(
   timeoutMs: number,
   fetchImpl: FetchLike,
   remainingDelays: readonly number[],
+  init?: RequestInit,
 ): Promise<FetchJsonResult> {
   try {
-    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl);
+    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
   } catch (error: unknown) {
     const [nextDelay] = remainingDelays;
     if (nextDelay === undefined || !isTransientError(error)) {
@@ -199,6 +207,7 @@ async function fetchJsonWithRetry(
       timeoutMs,
       fetchImpl,
       remainingDelays.slice(1),
+      init,
     );
   }
 }
@@ -210,9 +219,18 @@ async function fetchJsonOrGap(
   timeoutMs: number,
   fetchImpl: FetchLike,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
+  init?: RequestInit,
 ): Promise<FetchJsonResult | SourceGap> {
   try {
-    return await fetchJsonWithRetry(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs);
+    return await fetchJsonWithRetry(
+      url,
+      adapter,
+      fetchedAt,
+      timeoutMs,
+      fetchImpl,
+      retryDelaysMs,
+      init,
+    );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "source request failed";
     return { source: adapter, message };

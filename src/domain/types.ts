@@ -21,7 +21,7 @@ export interface Source {
   readonly url?: string;
   readonly publisher?: string;
   readonly fetchedAt: string;
-  readonly kind: "market-data" | "news" | "model";
+  readonly kind: "market-data" | "news" | "model" | "extended-evidence";
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;
@@ -65,6 +65,28 @@ export interface Mover {
 }
 
 export type EvidenceQuality = "high" | "medium" | "low";
+
+export type ExtendedEvidenceCategory =
+  | "sec-edgar"
+  | "equity-events"
+  | "fred-macro"
+  | "options-iv"
+  | "on-chain";
+
+export interface ExtendedEvidenceItem {
+  readonly category: ExtendedEvidenceCategory;
+  readonly title: string;
+  readonly summary: string;
+  readonly sourceIds: readonly string[];
+  readonly observedAt: string;
+  readonly metrics?: Record<string, number | string>;
+}
+
+export interface ExtendedEvidence {
+  readonly instrument: Instrument;
+  readonly items: readonly ExtendedEvidenceItem[];
+  readonly gaps: readonly SourceGap[];
+}
 
 export type PredictionKind = "direction" | "relative" | "volatility" | "range";
 

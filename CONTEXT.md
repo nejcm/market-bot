@@ -39,3 +39,7 @@ An external service that supplies market data, news, or reference data before it
 ## Source Gap
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.
+
+## Extended Evidence
+
+Optional, higher-specificity Source Provider evidence that enriches ticker Research Views without changing the research-only boundary.

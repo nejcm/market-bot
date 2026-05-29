@@ -12,6 +12,7 @@ import { isMarketUpdateJobType, type ResearchReport, type RunTrace } from "../do
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
 import { summarizeMarketRegime } from "./regime";
+import { loadStagePrompt } from "./prompt-loader";
 import {
   buildDepthProfile,
   buildStagePrompt,
@@ -62,13 +63,14 @@ async function runStage(
   priorStages: readonly StageOutput[] = [],
   predictionRepromptErrors: readonly string[] = [],
 ): Promise<StageOutput> {
+  const loaded = await loadStagePrompt(stage, input.command);
   const response = await input.provider.generate({
     model,
     responseFormat: "json",
     messages: [
       {
         role: "system",
-        content: "You are a market research workflow stage. Return JSON only.",
+        content: loaded.system,
       },
       {
         role: "user",
@@ -78,6 +80,7 @@ async function runStage(
           input.collectedSources,
           input.config,
           context,
+          loaded,
           priorStages,
           predictionRepromptErrors,
         ),

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { AppConfig } from "../config";
 import { resolveRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
+import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import {
   type ExtendedEvidence,
   type MarketRegimeSummary,
@@ -218,38 +219,26 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
 // Stage prompt
 // ---------------------------------------------------------------------------
 
-type StageLabel = "specialist-analysis" | "critique" | "final-synthesis";
-
 export function buildStagePrompt(
   stage: StageLabel,
   command: ResearchCommand,
   collectedSources: CollectedSources,
   config: AppConfig,
   context: ResearchContext,
+  loaded: LoadedPrompt,
   priorStages: readonly unknown[] = [],
   predictionRepromptErrors: readonly string[] = [],
 ): string {
-  const baseInstruction =
-    "Use only supplied source IDs. Do not use memory. Do not include trade actions, advice, position sizing, execution instructions, or portfolio changes.";
   const predictionInstruction =
     stage === "final-synthesis"
       ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.`
       : "";
 
-  let stageGoal = "Synthesize the final sourced research-only JSON report including predictions.";
-  if (stage === "specialist-analysis") {
-    stageGoal =
-      "Extract sourced thesis points, catalysts, risks, and evidence gaps from the collected sources.";
-  } else if (stage === "critique") {
-    stageGoal =
-      "Challenge the specialist analysis for missing evidence, alternative explanations, and weak claims without adding new facts.";
-  }
-
   return JSON.stringify(
     {
-      instruction: baseInstruction + predictionInstruction,
+      instruction: loaded.instruction + predictionInstruction,
       stage,
-      stageGoal,
+      stageGoal: loaded.goal,
       depthProfile: context.depthProfile,
       evidence: buildEvidencePayload(command, collectedSources, config, context),
       priorStages,

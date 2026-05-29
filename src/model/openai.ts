@@ -47,6 +47,27 @@ export function createOpenAIProvider(
           model: request.model,
           messages: request.messages,
           response_format: request.responseFormat === "json" ? { type: "json_object" } : undefined,
+          ...(request.params?.temperature !== undefined
+            ? { temperature: request.params.temperature }
+            : {}),
+          ...(request.params?.top_p !== undefined ? { top_p: request.params.top_p } : {}),
+          ...(request.params?.max_completion_tokens !== undefined
+            ? { max_completion_tokens: request.params.max_completion_tokens }
+            : {}),
+          ...(request.params?.seed !== undefined ? { seed: request.params.seed } : {}),
+          ...(request.params?.frequency_penalty !== undefined
+            ? { frequency_penalty: request.params.frequency_penalty }
+            : {}),
+          ...(request.params?.presence_penalty !== undefined
+            ? { presence_penalty: request.params.presence_penalty }
+            : {}),
+          ...(request.params?.stop !== undefined ? { stop: request.params.stop } : {}),
+          ...(request.params?.reasoningEffort !== undefined
+            ? { reasoning_effort: request.params.reasoningEffort }
+            : {}),
+          ...(request.params?.verbosity !== undefined
+            ? { verbosity: request.params.verbosity }
+            : {}),
         }),
       });
 

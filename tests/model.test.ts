@@ -86,4 +86,96 @@ describe("createOpenAIProvider", () => {
 
     expect(urls).toEqual(["http://localhost:11434/v1/chat/completions"]);
   });
+
+  test("spreads ModelParams into request body when set", async () => {
+    const requests: Request[] = [];
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      requests.push(new Request(input, init));
+      return Response.json({ choices: [{ message: { content: "ok" } }] });
+    };
+    const provider = createOpenAIProvider(
+      {
+        provider: "openai",
+        apiKey: "test-key",
+        quickModel: "quick",
+        synthesisModel: "synthesis",
+        modelTimeoutMs: 120_000,
+        dataDir: "data/runs",
+        sourceOptions: {
+          equityMoverLimit: 5,
+          cryptoMoverLimit: 5,
+          newsLimit: 8,
+          sourceTimeoutMs: 1000,
+        },
+      },
+      fetchImpl,
+    );
+
+    await provider.generate({
+      model: "quick",
+      messages: [{ role: "user", content: "hi" }],
+      params: {
+        temperature: 0.7,
+        top_p: 0.9,
+        max_completion_tokens: 512,
+        seed: 42,
+        frequency_penalty: 0.1,
+        presence_penalty: 0.2,
+        stop: ["STOP"],
+        reasoningEffort: "high",
+        verbosity: "medium",
+      },
+    });
+
+    await expect(requests[0]?.json()).resolves.toMatchObject({
+      temperature: 0.7,
+      top_p: 0.9,
+      max_completion_tokens: 512,
+      seed: 42,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.2,
+      stop: ["STOP"],
+      reasoning_effort: "high",
+      verbosity: "medium",
+    });
+  });
+
+  test("omits ModelParams fields from body when params are not set", async () => {
+    const requests: Request[] = [];
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      requests.push(new Request(input, init));
+      return Response.json({ choices: [{ message: { content: "ok" } }] });
+    };
+    const provider = createOpenAIProvider(
+      {
+        provider: "openai",
+        apiKey: "test-key",
+        quickModel: "quick",
+        synthesisModel: "synthesis",
+        modelTimeoutMs: 120_000,
+        dataDir: "data/runs",
+        sourceOptions: {
+          equityMoverLimit: 5,
+          cryptoMoverLimit: 5,
+          newsLimit: 8,
+          sourceTimeoutMs: 1000,
+        },
+      },
+      fetchImpl,
+    );
+
+    await provider.generate({
+      model: "quick",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    const body = (await requests[0]?.json()) as Record<string, unknown>;
+    expect(Object.keys(body).toSorted()).toEqual(["messages", "model"]);
+  });
 });

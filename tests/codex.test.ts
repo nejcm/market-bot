@@ -237,6 +237,76 @@ describe("createCodexProvider — generate", () => {
     expect(capturedOptions[0]?.env?.OPENAI_API_KEY).toBeUndefined();
   });
 
+  test("passes reasoningEffort as -c model_reasoning_effort arg", async () => {
+    const capturedArgs: string[][] = [];
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      capturedArgs.push(args);
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+    const provider = createCodexProvider(baseConfig, spawn);
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+      params: { reasoningEffort: "high" },
+    });
+
+    const args = capturedArgs[0] ?? [];
+    const cIdx = args.indexOf("-c");
+    expect(cIdx).toBeGreaterThan(-1);
+    expect(args[cIdx + 1]).toBe("model_reasoning_effort=high");
+  });
+
+  test("omits -c arg when reasoningEffort is not set", async () => {
+    const capturedArgs: string[][] = [];
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      capturedArgs.push(args);
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+    const provider = createCodexProvider(baseConfig, spawn);
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(capturedArgs[0]).not.toContain("-c");
+  });
+
+  test("ignores non-reasoningEffort params (temperature etc.) silently", async () => {
+    const capturedArgs: string[][] = [];
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      capturedArgs.push(args);
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+    const provider = createCodexProvider(baseConfig, spawn);
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+      params: { temperature: 0.7, top_p: 0.9, seed: 42 },
+    });
+
+    expect(capturedArgs[0]).not.toContain("-c");
+    expect(capturedArgs[0]).not.toContain("temperature");
+    expect(capturedArgs[0]).not.toContain("0.7");
+  });
+
   test("times out stalled exec calls", async () => {
     const spawn: SpawnImpl = async (args) => {
       if (args[1] === "--version") {

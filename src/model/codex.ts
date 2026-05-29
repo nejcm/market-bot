@@ -246,6 +246,9 @@ export function createCodexProvider(
         "--skip-git-repo-check",
         "-m",
         resolvedModel,
+        ...(request.params?.reasoningEffort !== undefined
+          ? ["-c", `model_reasoning_effort=${request.params.reasoningEffort}`]
+          : []),
         "-",
       ];
 

@@ -20,7 +20,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
-| `MARKET_BOT_FRED_API_KEY` | — | Enables FRED macro Extended Evidence and FRED forecast scoring. Missing token emits ticker `SourceGap`s for FRED evidence. |
+| `MARKET_BOT_FRED_API_KEY` | — | Enables FRED Market Context for market updates, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research. |
 | `MARKET_BOT_TRADIER_API_TOKEN` | — | Enables Tradier options/IV Extended Evidence and IV forecast scoring. Missing token emits ticker `SourceGap`s for options evidence. |
 | `MARKET_BOT_GLASSNODE_API_KEY` | — | Enables Glassnode on-chain Extended Evidence for crypto tickers. Missing token emits ticker `SourceGap`s for on-chain evidence. |
 | `MARKET_BOT_SEC_USER_AGENT` | `market-bot research contact@example.invalid` | User-Agent sent to SEC EDGAR. Set to an app/contact string for live SEC access. |

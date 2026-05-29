@@ -20,6 +20,10 @@ Weekly market updates are a cadence and horizon change in V1, not a separate tra
 
 The current market backdrop inferred from fetched evidence, such as broad direction, volatility, liquidity, and dominant themes.
 
+## Market Context
+
+Market-level evidence that enriches Market Updates without targeting one Instrument.
+
 ## Mover
 
 A liquid instrument ranked deterministically by price movement magnitude plus liquidity.

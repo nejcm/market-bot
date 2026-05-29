@@ -10,7 +10,7 @@ The ordering inside each section is rough priority, not strict.
 
 ## Near-term focus
 
-1. **Expand deeper data** — extend ticker-only Extended Evidence into the workflows where it earns its keep, add regional equity mover sources, improve provider-normalized instrument identity, and harden corporate-action handling for scoring.
+1. **Expand deeper data** — add regional equity mover sources, improve provider-normalized instrument identity, harden corporate-action handling for scoring, and add more non-ticker Market Context where it earns its keep.
 2. **Alpha discovery** — still deferred until the deeper data surface and source reliability have been exercised over real runs.
 
 ## Alpha discovery
@@ -27,7 +27,6 @@ The ordering inside each section is rough priority, not strict.
 - **Additional paid/provider-backed source adapters** such as Polygon, Alpha Vantage, NewsAPI, GDELT, CoinMarketCap, or CryptoCompare.
 - **Earnings beat/miss prediction scoring** with normalized actual-vs-estimate fields and a scoring path.
 - **SEC/EDGAR enrichment** beyond compact ticker filing/fact summaries, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
-- **FRED integration in market updates/regime inference** to reduce reliance on proxy deltas.
 - **Options flow / IV surface** including richer term-structure, skew, and flow.
 - **Social sentiment** (X, Reddit, StockTwits) — high noise, defer until calibration tells us if it earns its keep.
 - **Crypto on-chain expansion** with broader metric coverage and Dune-style sources if useful.

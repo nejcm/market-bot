@@ -17,7 +17,7 @@ src/
   report/             Report schema (zod) + markdown renderer
   research/           Orchestrator, prompt loader, regime summary
   scoring/            Score pass, close cache, calibration aggregator
-  sources/            Yahoo, CoinGecko, multi-provider news, collector with retry/backoff/cache
+  sources/            Yahoo, CoinGecko, FRED Market Context, multi-provider news, collector with retry/backoff/cache
 prompts/              Stage prompt files (base.md + optional combo overrides)
 tests/                Bun test suites
 docs/adr/             Architecture decision records
@@ -36,6 +36,7 @@ External fetching only. Retry, backoff, per-host rate limiting, and circuit brea
 Notable inputs:
 - Equity movers: Yahoo `day_gainers`
 - Crypto movers: CoinGecko 24h change
+- Market Context: FRED macro series for daily and weekly market updates
 - News: MarketAux, Finnhub, and Yahoo Finance search
 - Historical closes (for scoring): Yahoo (equities), CoinGecko (crypto)
 
@@ -43,7 +44,7 @@ A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-url>.json`) wraps all `f
 
 News collection fans out to enabled providers, skips missing MarketAux/Finnhub tokens with `SourceGap`s, always includes Yahoo, canonicalizes URLs, collapses exact canonical-URL duplicates into one `Source`, and preserves provider aliases on the normalized source.
 
-Weekly updates use the same mover inputs as daily — this is a cadence and horizon change, not a separate data product. Reports must disclose it as a source gap.
+Market updates collect FRED Market Context when `MARKET_BOT_FRED_API_KEY` is set. Missing or failed FRED context is disclosed as a `SourceGap` but does not cap Evidence Quality. Weekly updates use the same mover inputs as daily — this is a cadence and horizon change, not a separate data product. Reports must disclose it as a source gap.
 
 ### Research (`src/research/`)
 

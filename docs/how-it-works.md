@@ -112,6 +112,8 @@ The collector fetches market data and news in parallel:
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
+Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s but do not cap Evidence Quality.
+
 Ticker runs also collect Extended Evidence:
 
 | Asset class | Extended Evidence |
@@ -141,6 +143,7 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
 - `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, and preserve provider aliases.
+- `src/sources/market-context.ts` collects FRED macro Market Context for daily and weekly market updates.
 - `src/sources/extended-evidence.ts` collects ticker-only SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode evidence.
 - `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.
 
@@ -163,7 +166,7 @@ Weekly reports currently reuse the same underlying mover inputs as daily reports
 
 The deterministic regime summary lives in `src/research/regime.ts`.
 
-For equities, the app checks breadth across `SPY`, `QQQ`, `IWM`, and `DIA`, then forces `risk-off` when `^VIX` is at or above the elevated threshold. For crypto, it checks breadth across major crypto proxies. The output includes:
+For equities, the app checks breadth across `SPY`, `QQQ`, `IWM`, and `DIA`, then forces `risk-off` when `^VIX` is at or above the elevated threshold. For crypto, it checks breadth across major crypto proxies. FRED Market Context can add macro drivers and source IDs, but it does not change the deterministic `risk-on` / `risk-off` / `mixed` label. The output includes:
 
 - `label`: `risk-on`, `risk-off`, `mixed`, or `insufficient-data`;
 - `proxyCount`;
@@ -204,6 +207,8 @@ close(SUBJECT, +N) > close(SUBJECT, 0)
 close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0)
 max(close(SUBJECT), 0..+N) > T
 close(SUBJECT, +N) outside [Lo, Hi]
+fred(SERIES, +N) > fred(SERIES, 0)
+iv(SUBJECT, +N) > T
 ```
 
 Prediction validation checks:
@@ -238,6 +243,7 @@ Each research run creates:
 data/runs/<run-id>/
   raw/snapshots.json
   normalized/market-snapshots.json
+  normalized/market-context.json
   normalized/news-sources.json
   normalized/source-gaps.json
   stages.json

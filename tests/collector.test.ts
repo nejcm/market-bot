@@ -70,7 +70,17 @@ describe("collectSources", () => {
     expect(result.marketSnapshots[0]?.symbol).toBe("AAPL");
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toContain("SPY");
     expect(result.newsSources[0]?.id).toBe("news-equity-1");
-    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["marketaux-news", "finnhub-news"]);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
+      "marketaux-news",
+      "finnhub-news",
+      "fred-macro",
+    ]);
+    expect(result.marketContext).toEqual({
+      assetClass: "equity",
+      items: [],
+      gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+    });
+    expect(result.marketContextSources).toEqual([]);
   });
 
   test("collects weekly equity through market-update mover and regime sources", async () => {
@@ -257,7 +267,11 @@ describe("collectSources", () => {
 
     expect(coinGeckoCalls).toBe(3);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
-    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["marketaux-news", "finnhub-news"]);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
+      "marketaux-news",
+      "finnhub-news",
+      "fred-macro",
+    ]);
   });
 
   test("collects and dedupes news across MarketAux, Finnhub, and Yahoo", async () => {
@@ -349,7 +363,7 @@ describe("collectSources", () => {
       id: "news-crypto-2",
       provider: "yahoo-news",
     });
-    expect(result.sourceGaps).toHaveLength(0);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["fred-macro"]);
   });
 
   test("caps Finnhub after normalization and keeps provider round-robin order", async () => {

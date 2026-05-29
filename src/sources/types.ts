@@ -2,6 +2,7 @@ import type { ResearchCommand } from "../cli/args";
 import type {
   AssetClass,
   ExtendedEvidence,
+  MarketContext,
   MarketSnapshot,
   Source,
   SourceGap,
@@ -55,6 +56,13 @@ export interface ExtendedEvidenceCollectionResult {
   readonly sourceGaps: readonly SourceGap[];
 }
 
+export interface MarketContextCollectionResult {
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly marketContext?: MarketContext;
+  readonly sources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
+}
+
 export interface RawSourceSnapshot {
   readonly id: string;
   readonly adapter: string;
@@ -85,6 +93,11 @@ export interface ExtendedEvidenceAdapter {
   readonly collect: (ctx: CollectContext) => Promise<ExtendedEvidenceCollectionResult>;
 }
 
+export interface MarketContextAdapter {
+  readonly name: string;
+  readonly collect: (ctx: CollectContext) => Promise<MarketContextCollectionResult>;
+}
+
 export interface FetchJsonResult {
   readonly rawSnapshot: RawSourceSnapshot;
   readonly payload: unknown;
@@ -98,4 +111,5 @@ export interface SourceRegistry {
   readonly marketDataFor: (assetClass: AssetClass) => MarketDataAdapter;
   readonly newsFor: (assetClass: AssetClass) => NewsAdapter;
   readonly extendedEvidenceFor: (assetClass: AssetClass) => ExtendedEvidenceAdapter;
+  readonly marketContextFor: (assetClass: AssetClass) => MarketContextAdapter;
 }

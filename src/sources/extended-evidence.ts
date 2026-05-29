@@ -14,7 +14,7 @@ import {
   type ExtendedEvidenceCollectionResult,
   type RawSourceSnapshot,
 } from "./types";
-import { FRED_SERIES, readFredObservationValue } from "./fred";
+import { buildFredMacroMetrics, FRED_SERIES, fredObservationsUrl } from "./fred";
 import { isRecord, readNumber, readString } from "./guards";
 import { selectTradierExpiration, summarizeTradierIv, tradierRequestInit } from "./tradier";
 
@@ -372,16 +372,7 @@ async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
     };
   }
   const { fredApiKey } = ctx;
-  const urls = FRED_SERIES.map(
-    (seriesId) =>
-      `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
-        series_id: seriesId,
-        api_key: fredApiKey,
-        file_type: "json",
-        sort_order: "desc",
-        limit: "1",
-      })}`,
-  );
+  const urls = FRED_SERIES.map((seriesId) => fredObservationsUrl(seriesId, fredApiKey, 2));
   const results = await Promise.all(
     urls.map((url, index) =>
       fetchOrGap(
@@ -396,15 +387,12 @@ async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
   );
   const fetched = results.filter((result) => isFetchJsonResult(result));
   const gaps = results.filter((value): value is SourceGap => !isFetchJsonResult(value));
-  const metrics: Record<string, number> = {};
-  for (const [index, result] of results.entries()) {
-    if (isFetchJsonResult(result)) {
-      const value = readFredObservationValue(result.payload);
-      if (value !== undefined) {
-        metrics[FRED_SERIES[index] ?? `series${String(index)}`] = value;
-      }
-    }
-  }
+  const metrics = buildFredMacroMetrics(
+    fetched.map((result) => ({
+      seriesId: result.rawSnapshot.adapter.replace("fred-", ""),
+      payload: result.payload,
+    })),
+  );
   const items =
     Object.keys(metrics).length === 0
       ? []

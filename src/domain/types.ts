@@ -21,7 +21,7 @@ export interface Source {
   readonly url?: string;
   readonly publisher?: string;
   readonly fetchedAt: string;
-  readonly kind: "market-data" | "news" | "model" | "extended-evidence";
+  readonly kind: "market-data" | "news" | "model" | "extended-evidence" | "market-context";
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;
@@ -85,6 +85,23 @@ export interface ExtendedEvidenceItem {
 export interface ExtendedEvidence {
   readonly instrument: Instrument;
   readonly items: readonly ExtendedEvidenceItem[];
+  readonly gaps: readonly SourceGap[];
+}
+
+export type MarketContextCategory = "fred-macro";
+
+export interface MarketContextItem {
+  readonly category: MarketContextCategory;
+  readonly title: string;
+  readonly summary: string;
+  readonly sourceIds: readonly string[];
+  readonly observedAt: string;
+  readonly metrics?: Record<string, number | string>;
+}
+
+export interface MarketContext {
+  readonly assetClass: AssetClass;
+  readonly items: readonly MarketContextItem[];
   readonly gaps: readonly SourceGap[];
 }
 

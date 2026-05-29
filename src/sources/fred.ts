@@ -10,6 +10,16 @@ export const FRED_SERIES = [
   "DTWEXBGS",
 ];
 
+export function fredObservationsUrl(seriesId: string, apiKey: string, limit: number): string {
+  return `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
+    series_id: seriesId,
+    api_key: apiKey,
+    file_type: "json",
+    sort_order: "desc",
+    limit: String(limit),
+  })}`;
+}
+
 function encodeQuery(params: Record<string, string>): string {
   return new URLSearchParams(params).toString();
 }
@@ -43,6 +53,69 @@ function latestNumber(values: readonly unknown[], keys: readonly string[]): numb
 
 export function readFredObservationValue(payload: unknown): number | undefined {
   return latestNumber(readArray(payload, "observations"), ["value"]);
+}
+
+interface FredMacroInput {
+  readonly seriesId: string;
+  readonly payload: unknown;
+}
+
+function readObservationValue(value: unknown): number | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const n = readNumber(value, "value");
+  if (n !== undefined) {
+    return n;
+  }
+  const s = readString(value, "value");
+  if (s === undefined) {
+    return undefined;
+  }
+  const parsed = Number(s);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readObservationDate(value: unknown): string | undefined {
+  return isRecord(value) ? readString(value, "date") : undefined;
+}
+
+function normalizeDelta(value: number): number {
+  return Number(value.toFixed(6));
+}
+
+export function buildFredMacroMetrics(
+  inputs: readonly FredMacroInput[],
+): Record<string, number | string> {
+  const entries = inputs.flatMap(({ seriesId, payload }) => {
+    const observations = readArray(payload, "observations");
+    const latest = observations.find(
+      (observation) => readObservationValue(observation) !== undefined,
+    );
+    if (latest === undefined) {
+      return [];
+    }
+    const latestValue = readObservationValue(latest);
+    if (latestValue === undefined) {
+      return [];
+    }
+    const prior = observations
+      .filter((observation) => observation !== latest)
+      .find((observation) => readObservationValue(observation) !== undefined);
+    const latestDate = readObservationDate(latest);
+    const priorValue = prior === undefined ? undefined : readObservationValue(prior);
+    const priorDate = prior === undefined ? undefined : readObservationDate(prior);
+    return [
+      [seriesId, latestValue],
+      ...(priorValue !== undefined
+        ? [[`${seriesId}Change`, normalizeDelta(latestValue - priorValue)]]
+        : []),
+      ...(latestDate !== undefined ? [[`${seriesId}Date`, latestDate]] : []),
+      ...(priorValue !== undefined ? [[`${seriesId}Prior`, priorValue]] : []),
+      ...(priorDate !== undefined ? [[`${seriesId}PriorDate`, priorDate]] : []),
+    ];
+  });
+  return Object.fromEntries(entries) as Record<string, number | string>;
 }
 
 export async function fetchFredObservation(

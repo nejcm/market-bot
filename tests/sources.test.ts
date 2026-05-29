@@ -4,7 +4,8 @@ import {
   cryptoExtendedEvidenceAdapter,
   equityExtendedEvidenceAdapter,
 } from "../src/sources/extended-evidence";
-import { fetchFredObservation } from "../src/sources/fred";
+import { buildFredMacroMetrics, fetchFredObservation } from "../src/sources/fred";
+import { marketContextAdapter } from "../src/sources/market-context";
 import { fetchTradierIvObservation } from "../src/sources/tradier";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
@@ -176,6 +177,112 @@ describe("source registry", () => {
     expect(registry.marketDataFor("equity").name).toBe("yahoo");
     expect(registry.marketDataFor("crypto").name).toBe("coingecko");
     expect(registry.newsFor("crypto").name).toBe("multi-news");
+    expect(registry.marketContextFor("equity").name).toBe("market-context");
+  });
+});
+
+describe("market context provider collection", () => {
+  test("normalizes latest FRED values and deltas", () => {
+    const metrics = buildFredMacroMetrics([
+      {
+        seriesId: "DGS10",
+        payload: {
+          observations: [
+            { date: "2026-05-19", value: "4.25" },
+            { date: "2026-05-16", value: "4.10" },
+          ],
+        },
+      },
+    ]);
+
+    expect(metrics).toEqual({
+      DGS10: 4.25,
+      DGS10Change: 0.15,
+      DGS10Date: "2026-05-19",
+      DGS10Prior: 4.1,
+      DGS10PriorDate: "2026-05-16",
+    });
+  });
+
+  test("collects FRED Market Context for market updates", async () => {
+    const result = await marketContextAdapter.collect({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      fredApiKey: "fred-key",
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async (_url, adapter) => {
+        const payload = {
+          observations: [
+            { date: "2026-05-19", value: "4.25" },
+            { date: "2026-05-16", value: "4.10" },
+          ],
+        };
+        return {
+          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
+          payload,
+        };
+      },
+    });
+
+    expect(result.marketContext?.assetClass).toBe("equity");
+    expect(result.marketContext?.items).toHaveLength(1);
+    expect(result.marketContext?.items[0]?.metrics?.DGS10).toBe(4.25);
+    expect(result.marketContext?.items[0]?.metrics?.DGS10Change).toBeCloseTo(0.15);
+    expect(result.sources).toEqual([
+      expect.objectContaining({
+        id: "market-context-fred-macro",
+        kind: "market-context",
+        assetClass: "equity",
+        provider: "fred",
+      }),
+    ]);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  test("emits missing-key Market Context gap for market updates", async () => {
+    const result = await marketContextAdapter.collect({
+      command: { jobType: "weekly", assetClass: "crypto", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async () => {
+        throw new Error("unexpected fetch");
+      },
+    });
+
+    expect(result.marketContext).toEqual({
+      assetClass: "crypto",
+      items: [],
+      gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+    });
+    expect(result.sourceGaps).toEqual([
+      { source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" },
+    ]);
+  });
+
+  test("skips Market Context for ticker runs", async () => {
+    const result = await marketContextAdapter.collect({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      fredApiKey: "fred-key",
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async () => {
+        throw new Error("unexpected fetch");
+      },
+    });
+
+    expect(result).toEqual({ rawSnapshots: [], sources: [], sourceGaps: [] });
   });
 });
 
@@ -261,7 +368,12 @@ describe("extended evidence provider collection", () => {
             },
           };
         } else if (adapter.startsWith("fred-")) {
-          payload = { observations: [{ value: "4.25" }] };
+          payload = {
+            observations: [
+              { date: "2026-05-19", value: "4.25" },
+              { date: "2026-05-16", value: "4.10" },
+            ],
+          };
         } else if (adapter === "tradier-expirations") {
           payload = { expirations: { date: ["2026-05-22", "2026-06-19"] } };
         } else if (adapter === "tradier-options") {
@@ -279,6 +391,10 @@ describe("extended evidence provider collection", () => {
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("sec-edgar");
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("equity-events");
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("fred-macro");
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "fred-macro")?.metrics
+        ?.DGS10Change,
+    ).toBeCloseTo(0.15);
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("options-iv");
     expect(result.sources.every((source) => source.kind === "extended-evidence")).toBe(true);
     expect(result.sourceGaps).toEqual([]);

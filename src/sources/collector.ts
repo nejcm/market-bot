@@ -1,6 +1,12 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { ExtendedEvidence, MarketSnapshot, Source, SourceGap } from "../domain/types";
+import type {
+  ExtendedEvidence,
+  MarketContext,
+  MarketSnapshot,
+  Source,
+  SourceGap,
+} from "../domain/types";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
 import type { FetchJsonResult, FetchLike, RawSourceSnapshot } from "./types";
 import { createSourceRegistry } from "./registry";
@@ -11,6 +17,8 @@ export interface SourceCollection {
   readonly newsSources: readonly Source[];
   readonly extendedSources: readonly Source[];
   readonly extendedEvidence?: ExtendedEvidence;
+  readonly marketContext?: MarketContext;
+  readonly marketContextSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
 }
 
@@ -265,6 +273,7 @@ export async function collectSources(
   const marketAdapter = registry.marketDataFor(command.assetClass);
   const newsAdapter = registry.newsFor(command.assetClass);
   const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
+  const marketContextAdapter = registry.marketContextFor(command.assetClass);
 
   const ctx = {
     command,
@@ -293,10 +302,11 @@ export async function collectSources(
     retryDelaysMs,
   };
 
-  const [marketResult, newsResult, extendedResult] = await Promise.all([
+  const [marketResult, newsResult, extendedResult, marketContextResult] = await Promise.all([
     marketAdapter.collect(ctx),
     newsAdapter.collect(ctx),
     extendedEvidenceAdapter.collect(ctx),
+    marketContextAdapter.collect(ctx),
   ]);
 
   return {
@@ -304,6 +314,7 @@ export async function collectSources(
       ...marketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
       ...extendedResult.rawSnapshots,
+      ...marketContextResult.rawSnapshots,
     ],
     marketSnapshots: marketResult.marketSnapshots,
     newsSources: newsResult.newsSources,
@@ -311,10 +322,15 @@ export async function collectSources(
     ...(extendedResult.extendedEvidence !== undefined
       ? { extendedEvidence: extendedResult.extendedEvidence }
       : {}),
+    ...(marketContextResult.marketContext !== undefined
+      ? { marketContext: marketContextResult.marketContext }
+      : {}),
+    marketContextSources: marketContextResult.sources,
     sourceGaps: [
       ...marketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
+      ...marketContextResult.sourceGaps,
       ...staleFallbackGaps,
     ],
   };

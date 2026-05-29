@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AppConfig } from "../src/config";
 import type { RunConfig } from "../src/config/runs";
-import type { MarketSnapshot, Source } from "../src/domain/types";
+import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
 
@@ -44,6 +44,35 @@ const newsSources: readonly Source[] = [
     assetClass: "equity",
   },
 ];
+
+const marketContextSources: readonly Source[] = [
+  {
+    id: "market-context-fred-macro",
+    title: "FRED macro Market Context",
+    fetchedAt: "2026-05-19T00:00:00.000Z",
+    kind: "market-context",
+    assetClass: "equity",
+    provider: "fred",
+  },
+];
+
+const marketContext: MarketContext = {
+  assetClass: "equity",
+  items: [
+    {
+      category: "fred-macro",
+      title: "FRED macro Market Context",
+      summary: "Latest FRED macro observations captured for DGS10.",
+      sourceIds: ["market-context-fred-macro"],
+      observedAt: "2026-05-19T00:00:00.000Z",
+      metrics: {
+        DGS10: 4.25,
+        DGS10Change: 0.15,
+      },
+    },
+  ],
+  gaps: [],
+};
 
 const dataDirs: string[] = [];
 
@@ -296,6 +325,92 @@ describe("runResearchJob", () => {
     ]);
     expect(result.stageOutputs).toHaveLength(3);
     expect(result.trace.tokenEstimate).toBe(300);
+  });
+
+  test("surfaces Market Context in market update prompts, extras, citations, and regime drivers", async () => {
+    const prompts: string[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        prompts.push(request.messages[1]?.content ?? "");
+        return {
+          content: JSON.stringify({
+            summary: "Daily market evidence includes macro context.",
+            keyFindings: [
+              {
+                text: "FRED macro context is available.",
+                sourceIds: ["market-context-fred-macro"],
+              },
+            ],
+            bullCase: [{ text: "Market data is constructive.", sourceIds: ["market-aapl"] }],
+            bearCase: [{ text: "News coverage is narrow.", sourceIds: ["news-equity-1"] }],
+            risks: [{ text: "Macro data can change.", sourceIds: ["market-context-fred-macro"] }],
+            catalysts: [{ text: "Company news is visible.", sourceIds: ["news-equity-1"] }],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Market remains tied to macro evidence.",
+                sourceIds: ["market-context-fred-macro"],
+              },
+            ],
+            confidence: "high",
+            dataGaps: [],
+            predictions: [
+              {
+                id: "pred-macro",
+                claim: "DGS10 rises over 5 trading days.",
+                kind: "macro",
+                subject: "DGS10",
+                measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)",
+                horizonTradingDays: 5,
+                probability: 0.6,
+                sourceIds: ["market-context-fred-macro"],
+              },
+              ...mockPredictions(1),
+            ],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        marketContext,
+        marketContextSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+      readonly evidence?: {
+        readonly marketContext?: unknown;
+        readonly marketRegime?: {
+          readonly label?: string;
+          readonly drivers?: readonly string[];
+          readonly sourceIds?: readonly string[];
+        };
+      };
+    };
+
+    expect(finalPrompt.evidence?.marketContext).toBeDefined();
+    expect(finalPrompt.evidence?.marketRegime?.label).toBe("insufficient-data");
+    expect(finalPrompt.evidence?.marketRegime?.drivers).toContain("FRED macro context: DGS10 4.25");
+    expect(finalPrompt.evidence?.marketRegime?.sourceIds).toContain("market-context-fred-macro");
+    expect(result.report.sources.map((source) => source.id)).toContain("market-context-fred-macro");
+    expect(result.report.extras?.marketContext).toEqual(marketContext);
+    expect(result.report.extras?.marketRegime).toMatchObject({
+      label: "insufficient-data",
+      sourceIds: ["market-context-fred-macro"],
+    });
+    expect(result.report.predictions[0]?.kind).toBe("macro");
   });
 
   test("surfaces ticker Extended Evidence in prompt, report, and markdown", async () => {
@@ -620,6 +735,49 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
     expect(result.report.dataGaps).toContain("No usable news sources were collected");
     expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
+  });
+
+  test("does not cap Evidence Quality for missing Market Context", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Core market evidence is available.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports breadth.", sourceIds: ["news-equity-1"] }],
+          bearCase: [{ text: "Single-name breadth is limited.", sourceIds: ["market-aapl"] }],
+          risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "high",
+          dataGaps: [],
+          predictions: mockPredictions(2),
+        }),
+      ),
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        marketContext: {
+          assetClass: "equity",
+          items: [],
+          gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+        },
+        marketContextSources: [],
+        sourceGaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.confidence).toBe("high");
+    expect(result.report.dataGaps).toContain("fred-macro: MARKET_BOT_FRED_API_KEY is not set");
   });
 
   test("caps Evidence Quality at medium when extended evidence is all gaps", async () => {

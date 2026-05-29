@@ -12,7 +12,7 @@ import {
 import { isMarketUpdateJobType, type ResearchReport, type RunTrace } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
-import { summarizeMarketRegime } from "./regime";
+import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt } from "./prompt-loader";
 import {
   buildDepthProfileFromParams,
@@ -110,9 +110,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const context: ResearchContext = {
     depthProfile: buildDepthProfileFromParams(input.command, runParams),
     runParams,
-    marketRegime: summarizeMarketRegime(
-      input.command.assetClass,
-      input.collectedSources.marketSnapshots,
+    marketRegime: addMarketContextToRegime(
+      summarizeMarketRegime(input.command.assetClass, input.collectedSources.marketSnapshots),
+      input.collectedSources.marketContext,
     ),
     calibrationContext,
   };
@@ -217,6 +217,10 @@ export async function persistResearchJob(
   await writeJson(
     join(artifacts.normalizedDir, "extended-evidence.json"),
     input.collectedSources.extendedEvidence ?? null,
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "market-context.json"),
+    input.collectedSources.marketContext ?? null,
   );
   await writeJson(
     join(artifacts.normalizedDir, "source-gaps.json"),

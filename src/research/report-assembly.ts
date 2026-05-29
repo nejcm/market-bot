@@ -136,6 +136,9 @@ export function buildSourceList(
   return [
     ...marketSources,
     ...collectedSources.newsSources,
+    ...(isMarketUpdateJobType(command.jobType)
+      ? (collectedSources.marketContextSources ?? [])
+      : []),
     ...(command.jobType === "ticker" ? (collectedSources.extendedSources ?? []) : []),
   ];
 }
@@ -152,9 +155,14 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
   const extendedGapKeys = new Set(
     collectedSources.extendedEvidence?.gaps.map((gap) => `${gap.source}: ${gap.message}`),
   );
+  const marketContextGapKeys = new Set(
+    collectedSources.marketContext?.gaps.map((gap) => `${gap.source}: ${gap.message}`),
+  );
   const coreGaps =
     collectedSources.sourceGaps?.filter(
-      (gap) => !extendedGapKeys.has(`${gap.source}: ${gap.message}`),
+      (gap) =>
+        !extendedGapKeys.has(`${gap.source}: ${gap.message}`) &&
+        !marketContextGapKeys.has(`${gap.source}: ${gap.message}`),
     ) ?? [];
   const extendedCategoryCount =
     collectedSources.extendedEvidence === undefined
@@ -267,6 +275,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       depthProfile,
       ...(isMarketUpdateJobType(command.jobType) ? { marketUpdateCadence: command.jobType } : {}),
       marketRegime: context.marketRegime,
+      ...(isMarketUpdateJobType(command.jobType) && collectedSources.marketContext !== undefined
+        ? { marketContext: collectedSources.marketContext }
+        : {}),
     },
   });
 }

@@ -6,6 +6,7 @@ import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import {
   type ExtendedEvidence,
+  type MarketContext,
   type MarketRegimeSummary,
   type MarketSnapshot,
   type Source,
@@ -25,6 +26,8 @@ export interface CollectedSources {
   readonly newsSources: readonly Source[];
   readonly extendedSources?: readonly Source[];
   readonly extendedEvidence?: ExtendedEvidence;
+  readonly marketContext?: MarketContext;
+  readonly marketContextSources?: readonly Source[];
   readonly sourceGaps?: readonly SourceGap[];
 }
 
@@ -190,6 +193,9 @@ function buildEvidencePayload(
     marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
     newsSources: collectedSources.newsSources,
+    ...(collectedSources.marketContext !== undefined
+      ? { marketContext: collectedSources.marketContext }
+      : {}),
     ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
       : {}),

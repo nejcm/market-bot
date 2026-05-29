@@ -44,7 +44,19 @@ export interface ResolvedRunParams {
 // Code defaults — last-resort fallback when nothing else is configured
 // ---------------------------------------------------------------------------
 
-const MARKET_UPDATE_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
+const MARKET_UPDATE_PREDICTION_SUBJECTS = [
+  "SPY",
+  "QQQ",
+  "^VIX",
+  "BTC",
+  "DGS10",
+  "DGS2",
+  "T10Y2Y",
+  "FEDFUNDS",
+  "CPIAUCSL",
+  "UNRATE",
+  "DTWEXBGS",
+] as const;
 
 const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "modelParams"> = {
   minimumKeyFindings: 3,

@@ -1,5 +1,6 @@
 import type {
   AssetClass,
+  MarketContext,
   MarketRegimeLabel,
   MarketRegimeSummary,
   MarketSnapshot,
@@ -84,5 +85,36 @@ export function summarizeMarketRegime(
     proxyCount: selected.length,
     drivers: isVixElevated ? [...drivers, `VIX elevated at ${vix.price}`] : drivers,
     sourceIds: selected.map((snapshot) => snapshot.sourceId),
+  };
+}
+
+function marketContextDriver(context: MarketContext): string | undefined {
+  const metrics = context.items.find((item) => item.category === "fred-macro")?.metrics;
+  if (metrics === undefined) {
+    return undefined;
+  }
+  const metric = Object.entries(metrics).find(
+    ([key, value]) =>
+      typeof value === "number" &&
+      !key.endsWith("Change") &&
+      !key.endsWith("Prior") &&
+      !key.endsWith("Date"),
+  );
+  return metric === undefined ? undefined : `FRED macro context: ${metric[0]} ${String(metric[1])}`;
+}
+
+export function addMarketContextToRegime(
+  regime: MarketRegimeSummary,
+  context: MarketContext | undefined,
+): MarketRegimeSummary {
+  if (context === undefined || context.items.length === 0) {
+    return regime;
+  }
+  const driver = marketContextDriver(context);
+  const sourceIds = context.items.flatMap((item) => item.sourceIds);
+  return {
+    ...regime,
+    drivers: driver === undefined ? regime.drivers : [...regime.drivers, driver],
+    sourceIds: [...new Set([...regime.sourceIds, ...sourceIds])],
   };
 }

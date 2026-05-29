@@ -82,7 +82,19 @@ describe("resolveRunParams — fallback chain", () => {
 
     // DefaultPredictionHorizon is not set in deep sub-block, falls back to combo value.
     expect(result.defaultPredictionHorizon).toBe(5);
-    expect(result.predictionSubjects).toEqual(["SPY", "QQQ", "^VIX", "BTC"]);
+    expect(result.predictionSubjects).toEqual([
+      "SPY",
+      "QQQ",
+      "^VIX",
+      "BTC",
+      "DGS10",
+      "DGS2",
+      "T10Y2Y",
+      "FEDFUNDS",
+      "CPIAUCSL",
+      "UNRATE",
+      "DTWEXBGS",
+    ]);
   });
 });
 
@@ -94,6 +106,7 @@ describe("resolveRunParams — run keys", () => {
     );
 
     expect(result.defaultPredictionHorizon).toBe(5);
+    expect(result.predictionSubjects).toContain("DGS10");
     expect(result.focus).toContain("market regime");
     expect(result.focus).not.toContain("weekly market regime");
   });

@@ -292,7 +292,7 @@ describe("runResearchJob", () => {
     };
 
     expect(finalPrompt.evidence?.extendedEvidence).toBeDefined();
-    expect(result.report.extras?.extendedEvidence).toBeDefined();
+    expect(result.report.extendedEvidence).toBeDefined();
     expect(result.markdown).toContain("## Extended Evidence");
     expect(result.markdown).toContain("[extended-fred-macro]");
   });

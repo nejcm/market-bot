@@ -56,7 +56,7 @@ describe("report schema and rendering", () => {
     expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
   });
 
-  test("renders ticker Extended Evidence from extras", () => {
+  test("renders ticker Extended Evidence from report contract", () => {
     const markdown = renderMarkdownReport({
       ...report,
       sources: [
@@ -68,16 +68,18 @@ describe("report schema and rendering", () => {
           kind: "extended-evidence",
         },
       ],
-      extras: {
-        extendedEvidence: {
-          items: [
-            {
-              title: "FRED macro pack",
-              summary: "Latest FRED macro observations captured.",
-              sourceIds: ["extended-fred-macro"],
-            },
-          ],
-        },
+      extendedEvidence: {
+        instrument: { assetClass: "crypto", symbol: "BTC" },
+        items: [
+          {
+            category: "fred-macro",
+            title: "FRED macro pack",
+            summary: "Latest FRED macro observations captured.",
+            sourceIds: ["extended-fred-macro"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+          },
+        ],
+        gaps: [],
       },
     });
 

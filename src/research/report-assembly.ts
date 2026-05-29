@@ -257,6 +257,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     dataGaps,
     predictions: predResult.predictions,
     sources,
+    ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
+      ? { extendedEvidence: collectedSources.extendedEvidence }
+      : {}),
     notFinancialAdvice: true,
     extras: {
       ...modelExtras,
@@ -264,9 +267,6 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       depthProfile,
       ...(isMarketUpdateJobType(command.jobType) ? { marketUpdateCadence: command.jobType } : {}),
       marketRegime: context.marketRegime,
-      ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
-        ? { extendedEvidence: collectedSources.extendedEvidence }
-        : {}),
     },
   });
 }

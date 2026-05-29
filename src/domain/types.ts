@@ -139,6 +139,7 @@ export interface ResearchReport {
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
+  readonly extendedEvidence?: ExtendedEvidence;
   readonly notFinancialAdvice: true;
   readonly extras?: Record<string, unknown>;
 }

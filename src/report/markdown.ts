@@ -41,38 +41,20 @@ function renderExtendedEvidence(report: ResearchReport): string {
   if (report.jobType !== "ticker") {
     return "";
   }
-  const value = report.extras?.extendedEvidence;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  if (report.extendedEvidence === undefined) {
     return "";
   }
-  const items = Array.isArray((value as { items?: unknown }).items)
-    ? ((value as { items?: unknown[] }).items ?? [])
-    : [];
+  const { items } = report.extendedEvidence;
   if (items.length === 0) {
     return "## Extended Evidence\n\n- No extended evidence items.\n";
   }
   const rows = items
     .map((item) => {
-      if (typeof item !== "object" || item === null || Array.isArray(item)) {
-        return null;
-      }
-      const record = item as {
-        title?: unknown;
-        summary?: unknown;
-        sourceIds?: unknown;
-      };
-      if (typeof record.title !== "string" || typeof record.summary !== "string") {
-        return null;
-      }
-      const refs = Array.isArray(record.sourceIds)
-        ? sourceRefs(
-            record.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string"),
-          )
-        : "";
-      return `- **${record.title}:** ${record.summary}${refs === "" ? "" : ` ${refs}`}`;
+      const refs = sourceRefs(item.sourceIds);
+      return `- **${item.title}:** ${item.summary}${refs === "" ? "" : ` ${refs}`}`;
     })
-    .filter((row): row is string => row !== null);
-  return `## Extended Evidence\n\n${rows.join("\n")}\n`;
+    .join("\n");
+  return `## Extended Evidence\n\n${rows}\n`;
 }
 
 export function renderMarkdownReport(report: ResearchReport): string {

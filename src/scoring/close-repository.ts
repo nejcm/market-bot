@@ -1,7 +1,8 @@
 import type { AssetClass } from "../domain/types";
 import { fetchYahooClose } from "../sources/yahoo";
 import { fetchCoinGeckoClose } from "../sources/coingecko";
-import { fetchFredObservation, fetchTradierIvObservation } from "../sources/extended-evidence";
+import { fetchFredObservation } from "../sources/fred";
+import { fetchTradierIvObservation } from "../sources/tradier";
 import { fetchCloseWithCache, type FetchCloseFn } from "./close-cache";
 
 export type { FetchCloseFn };

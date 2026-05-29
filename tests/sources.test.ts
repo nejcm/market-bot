@@ -3,9 +3,9 @@ import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
 import {
   cryptoExtendedEvidenceAdapter,
   equityExtendedEvidenceAdapter,
-  fetchFredObservation,
-  fetchTradierIvObservation,
 } from "../src/sources/extended-evidence";
+import { fetchFredObservation } from "../src/sources/fred";
+import { fetchTradierIvObservation } from "../src/sources/tradier";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { createSourceRegistry } from "../src/sources/registry";
@@ -300,6 +300,7 @@ describe("extended evidence provider collection", () => {
     expect(requests.find((request) => request.adapter === "tradier-options")?.url).toContain(
       "expiration=2026-06-19",
     );
+    expect(requests.some((request) => request.adapter.startsWith("glassnode-"))).toBe(false);
   });
 
   test("emits gaps for missing crypto extended evidence tokens", async () => {
@@ -321,6 +322,39 @@ describe("extended evidence provider collection", () => {
       "fred-macro",
       "glassnode-on-chain",
     ]);
+  });
+
+  test("routes crypto extended evidence only through crypto providers", async () => {
+    const adapters: string[] = [];
+    const result = await cryptoExtendedEvidenceAdapter.collect({
+      command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      fetchedAt,
+      sourceTimeoutMs: 1000,
+      newsLimit: 1,
+      cryptoMoverLimit: 2,
+      fredApiKey: "fred-key",
+      glassnodeApiKey: "glassnode-key",
+      fetchImpl: fetch,
+      retryDelaysMs: [],
+      fetchOrGap: async (_url, adapter) => {
+        adapters.push(adapter);
+        const payload = adapter.startsWith("fred-")
+          ? { observations: [{ value: "4.25" }] }
+          : [{ v: 12 }];
+        return {
+          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
+          payload,
+        };
+      },
+    });
+
+    expect(result.extendedEvidence?.items.map((item) => item.category)).toEqual([
+      "fred-macro",
+      "on-chain",
+    ]);
+    expect(
+      adapters.every((adapter) => adapter.startsWith("fred-") || adapter.startsWith("glassnode-")),
+    ).toBe(true);
   });
 
   test("fetches Tradier IV only point-in-time with listed expiration", async () => {

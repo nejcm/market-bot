@@ -8,6 +8,7 @@ const baseConfig: AppConfig = {
   synthesisModel: "env-synthesis",
   modelTimeoutMs: 120_000,
   dataDir: "data/runs",
+  promptDir: "prompts",
   sourceOptions: {
     equityMoverLimit: 5,
     cryptoMoverLimit: 5,
@@ -34,20 +35,19 @@ describe("resolveRunParams — fallback chain", () => {
       synthesisModel: "combo-synthesis",
     };
     const origCombo = runConfig["daily-equity"];
-    // Temporarily override runConfig entry via a patched resolver call
     const patchedConfig = {
       ...runConfig,
       "daily-equity": { ...modified },
     };
 
-    // Structural test — config object holds the override directly.
-    expect(patchedConfig["daily-equity"].quickModel).toBe("combo-quick");
-    // And that env is still the fallback when combo doesn't set it
     const result = resolveRunParams(
       { jobType: "daily", assetClass: "equity", depth: "brief" },
       baseConfig,
+      patchedConfig,
     );
-    expect(result.quickModel).toBe(origCombo.quickModel ?? baseConfig.quickModel);
+    expect(origCombo.quickModel).toBeUndefined();
+    expect(result.quickModel).toBe("combo-quick");
+    expect(result.synthesisModel).toBe("combo-synthesis");
   });
 
   test("brief depth uses combo-level values", () => {

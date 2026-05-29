@@ -3,6 +3,7 @@ import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AppConfig } from "../src/config";
+import type { RunConfig } from "../src/config/runs";
 import type { MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
@@ -13,6 +14,7 @@ const config: AppConfig = {
   synthesisModel: "synthesis-test",
   modelTimeoutMs: 120_000,
   dataDir: "data/runs",
+  promptDir: "prompts",
   sourceOptions: {
     equityMoverLimit: 2,
     cryptoMoverLimit: 2,
@@ -76,6 +78,83 @@ function mockPredictions(count: number, subject = "SPY"): unknown[] {
 }
 
 describe("runResearchJob", () => {
+  test("uses resolved run models and model params for provider calls and trace", async () => {
+    const requests: { readonly model: string; readonly params: unknown }[] = [];
+    const runConfig: RunConfig = {
+      "daily-equity": {
+        quickModel: "combo-quick",
+        synthesisModel: "combo-synthesis",
+        modelParams: { temperature: 0.2, reasoningEffort: "medium" },
+        minimumPredictions: 2,
+      },
+      "daily-crypto": {},
+      "weekly-equity": {},
+      "weekly-crypto": {},
+      ticker: {},
+    };
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        requests.push({ model: request.model, params: request.params });
+
+        return {
+          content: JSON.stringify({
+            summary: "Equity market breadth is constructive but source coverage is limited.",
+            keyFindings: [{ text: "AAPL is a liquid positive mover.", sourceIds: ["market-aapl"] }],
+            bullCase: [{ text: "Demand news supports the move.", sourceIds: ["news-equity-1"] }],
+            bearCase: [
+              {
+                text: "Single-name evidence may not represent the whole market.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            risks: [{ text: "Macro data is missing.", sourceIds: ["market-aapl"] }],
+            catalysts: [
+              {
+                text: "Supplier demand update is the main catalyst.",
+                sourceIds: ["news-equity-1"],
+              },
+            ],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Momentum continues if liquidity persists.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: mockPredictions(2),
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      runConfig,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(requests).toEqual([
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
+      { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "medium" } },
+    ]);
+    expect(result.trace.quickModel).toBe("combo-quick");
+    expect(result.trace.synthesisModel).toBe("combo-synthesis");
+  });
+
   test("applies deep output requirements without changing workflow stages", async () => {
     const prompts: string[] = [];
     const provider: ModelProvider = {

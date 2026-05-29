@@ -14,6 +14,7 @@ const config: AppConfig = {
   synthesisModel: "synthesis",
   modelTimeoutMs: 120_000,
   dataDir: "data/runs",
+  promptDir: "prompts",
   sourceOptions: {
     equityMoverLimit: 3,
     cryptoMoverLimit: 3,

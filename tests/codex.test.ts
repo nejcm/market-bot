@@ -8,6 +8,7 @@ const baseConfig: AppConfig = {
   synthesisModel: "gpt-5.5",
   modelTimeoutMs: 5000,
   dataDir: "data/runs",
+  promptDir: "prompts",
   sourceOptions: {
     equityMoverLimit: 5,
     cryptoMoverLimit: 5,

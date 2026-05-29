@@ -55,11 +55,30 @@ function overrideKey(command: ResearchCommand): string {
 // ---------------------------------------------------------------------------
 
 function defaultPromptDir(): string {
-  const envOverride = process.env.MARKET_BOT_PROMPT_DIR;
-  if (envOverride !== undefined && envOverride.trim() !== "") {
-    return envOverride.trim();
-  }
   return join(import.meta.dir, "../../prompts");
+}
+
+function requireBaseSection(
+  sections: Record<string, string>,
+  section: keyof LoadedPrompt,
+  basePath: string,
+): string {
+  const value = sections[section];
+  if (value === undefined || value === "") {
+    throw new Error(`Prompt base file ${basePath} missing required ## ${section} section`);
+  }
+  return value;
+}
+
+function rejectUnsupportedOverrideSections(
+  sections: Record<string, string>,
+  overridePath: string,
+): void {
+  for (const section of Object.keys(sections)) {
+    if (section !== "instruction" && section !== "goal") {
+      throw new Error(`Prompt override file ${overridePath} has unsupported ## ${section} section`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,15 +98,16 @@ export async function loadStagePrompt(
   });
 
   const base = parseSections(baseContent);
-  const system = base["system"] ?? "";
-  let instruction = base["instruction"] ?? "";
-  let goal = base["goal"] ?? "";
+  const system = requireBaseSection(base, "system", basePath);
+  let instruction = requireBaseSection(base, "instruction", basePath);
+  let goal = requireBaseSection(base, "goal", basePath);
 
   const overridePath = join(dir, stage, `${overrideKey(command)}.md`);
   const overrideContent = await readFile(overridePath, "utf8").catch(() => null);
 
   if (overrideContent !== null) {
     const override = parseSections(overrideContent);
+    rejectUnsupportedOverrideSections(override, overridePath);
     if (override["instruction"] !== undefined) {
       instruction = `${instruction}\n\n${override["instruction"]}`;
     }

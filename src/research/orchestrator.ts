@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config";
+import { resolveRunParams, type RunConfig } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import { join } from "node:path";
 import {
@@ -14,7 +15,7 @@ import { renderMarkdownReport } from "../report/markdown";
 import { summarizeMarketRegime } from "./regime";
 import { loadStagePrompt } from "./prompt-loader";
 import {
-  buildDepthProfile,
+  buildDepthProfileFromParams,
   buildStagePrompt,
   loadCalibrationContext,
   type CollectedSources,
@@ -32,6 +33,7 @@ export type { CollectedSources };
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
   readonly config: AppConfig;
+  readonly runConfig?: RunConfig;
   readonly provider: ModelProvider;
   readonly collectedSources: CollectedSources;
   readonly now?: Date;
@@ -63,9 +65,12 @@ async function runStage(
   priorStages: readonly StageOutput[] = [],
   predictionRepromptErrors: readonly string[] = [],
 ): Promise<StageOutput> {
-  const loaded = await loadStagePrompt(stage, input.command);
+  const loaded = await loadStagePrompt(stage, input.command, input.config.promptDir);
   const response = await input.provider.generate({
     model,
+    ...(context.runParams.modelParams !== undefined
+      ? { params: context.runParams.modelParams }
+      : {}),
     responseFormat: "json",
     messages: [
       {
@@ -101,8 +106,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const generatedAt = now.toISOString();
   const runId = createRunId(now);
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
+  const runParams = resolveRunParams(input.command, input.config, input.runConfig);
   const context: ResearchContext = {
-    depthProfile: buildDepthProfile(input.command, input.config),
+    depthProfile: buildDepthProfileFromParams(input.command, runParams),
+    runParams,
     marketRegime: summarizeMarketRegime(
       input.command.assetClass,
       input.collectedSources.marketSnapshots,
@@ -111,14 +118,14 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   };
   const specialistOutput = await runStage(
     "specialist-analysis",
-    input.config.quickModel,
+    runParams.quickModel,
     input,
     context,
   );
-  const critiqueOutput = await runStage("critique", input.config.quickModel, input, context, [
+  const critiqueOutput = await runStage("critique", runParams.quickModel, input, context, [
     specialistOutput,
   ]);
-  let finalOutput = await runStage("final-synthesis", input.config.synthesisModel, input, context, [
+  let finalOutput = await runStage("final-synthesis", runParams.synthesisModel, input, context, [
     specialistOutput,
     critiqueOutput,
   ]);
@@ -133,7 +140,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   if (predResult.predictions.length < context.depthProfile.minimumPredictions) {
     finalOutput = await runStage(
       "final-synthesis",
-      input.config.synthesisModel,
+      runParams.synthesisModel,
       input,
       context,
       [specialistOutput, critiqueOutput],
@@ -169,8 +176,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(input.command.jobType === "ticker" ? { symbol: input.command.symbol } : {}),
     depth: input.command.depth,
     provider: input.provider.name,
-    quickModel: input.config.quickModel,
-    synthesisModel: input.config.synthesisModel,
+    quickModel: runParams.quickModel,
+    synthesisModel: runParams.synthesisModel,
     startedAt: generatedAt,
     completedAt: new Date(now.getTime() + 1).toISOString(),
     sourceGaps: report.dataGaps,

@@ -12,6 +12,12 @@ describe("resolveConfig", () => {
     });
   });
 
+  test("reads prompt directory", () => {
+    expect(resolveConfig({ MARKET_BOT_PROMPT_DIR: "custom-prompts" }).promptDir).toBe(
+      "custom-prompts",
+    );
+  });
+
   test("requires base URL for compatible providers", () => {
     expect(() => resolveConfig({ MARKET_BOT_PROVIDER: "openai-compatible" })).toThrow(
       "MARKET_BOT_BASE_URL",

@@ -177,9 +177,10 @@ function toRunKey(command: ResearchCommand): RunKey {
 export function resolveRunParams(
   command: ResearchCommand,
   appConfig: AppConfig,
+  config: RunConfig = runConfig,
 ): ResolvedRunParams {
   const key = toRunKey(command);
-  const combo = runConfig[key];
+  const combo = config[key];
   const deepOverride = command.depth === "deep" ? (combo.deep ?? {}) : {};
   const merged: RunBaseParams = { ...combo, ...deepOverride };
 

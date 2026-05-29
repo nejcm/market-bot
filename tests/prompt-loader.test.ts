@@ -1,5 +1,5 @@
 import { describe, expect, test, afterEach } from "bun:test";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadStagePrompt } from "../src/research/prompt-loader";
@@ -7,7 +7,7 @@ import { loadStagePrompt } from "../src/research/prompt-loader";
 async function makePromptDir(
   files: Record<string, string>,
 ): Promise<{ dir: string; cleanup: () => Promise<void> }> {
-  const dir = join(tmpdir(), `prompt-test-${Date.now()}`);
+  const dir = await mkdtemp(join(tmpdir(), "prompt-test-"));
   for (const [relPath, content] of Object.entries(files)) {
     const fullPath = join(dir, relPath);
     await mkdir(join(fullPath, ".."), { recursive: true });
@@ -73,6 +73,24 @@ describe("loadStagePrompt — base only", () => {
 
     await expect(loadStagePrompt("specialist-analysis", dailyEquityCommand, dir)).rejects.toThrow(
       "Prompt base file missing",
+    );
+  });
+
+  test("throws when base.md is missing a required section", async () => {
+    const { dir, cleanup } = await makePromptDir({
+      "specialist-analysis/base.md": `## system
+
+Test system message.
+
+## instruction
+
+Base instruction text.
+`,
+    });
+    cleanups.push(cleanup);
+
+    await expect(loadStagePrompt("specialist-analysis", dailyEquityCommand, dir)).rejects.toThrow(
+      "missing required ## goal section",
     );
   });
 
@@ -143,6 +161,21 @@ Ticker-specific delta.
     const result = await loadStagePrompt("final-synthesis", tickerCommand, dir);
 
     expect(result.instruction).toBe("Base instruction text.\n\nTicker-specific delta.");
+  });
+
+  test("throws when override includes unsupported system section", async () => {
+    const { dir, cleanup } = await makePromptDir({
+      "specialist-analysis/base.md": BASE_CONTENT,
+      "specialist-analysis/daily-equity.md": `## system
+
+Unexpected system delta.
+`,
+    });
+    cleanups.push(cleanup);
+
+    await expect(loadStagePrompt("specialist-analysis", dailyEquityCommand, dir)).rejects.toThrow(
+      "unsupported ## system section",
+    );
   });
 
   test("does not apply daily-equity override when command is weekly-equity", async () => {

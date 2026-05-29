@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppConfig } from "../config";
-import { resolveRunParams } from "../config/runs";
+import { resolveRunParams, type ResolvedRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import {
@@ -58,6 +58,7 @@ export interface CalibrationContext {
 
 export interface ResearchContext {
   readonly depthProfile: DepthProfile;
+  readonly runParams: ResolvedRunParams;
   readonly marketRegime: MarketRegimeSummary;
   readonly calibrationContext: CalibrationContext | undefined;
 }
@@ -141,8 +142,10 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
 // Depth profile
 // ---------------------------------------------------------------------------
 
-export function buildDepthProfile(command: ResearchCommand, appConfig: AppConfig): DepthProfile {
-  const params = resolveRunParams(command, appConfig);
+export function buildDepthProfileFromParams(
+  command: ResearchCommand,
+  params: ResolvedRunParams,
+): DepthProfile {
   return {
     depth: command.depth,
     analystStyle: params.analystStyle,
@@ -153,6 +156,10 @@ export function buildDepthProfile(command: ResearchCommand, appConfig: AppConfig
     predictionSubjects: params.predictionSubjects,
     focus: params.focus,
   };
+}
+
+export function buildDepthProfile(command: ResearchCommand, appConfig: AppConfig): DepthProfile {
+  return buildDepthProfileFromParams(command, resolveRunParams(command, appConfig));
 }
 
 // ---------------------------------------------------------------------------

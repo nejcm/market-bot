@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 export type ProviderName = "openai" | "openai-compatible" | "codex";
 
 export interface SourceOptions {
@@ -26,6 +28,7 @@ export interface AppConfig {
   readonly codexSynthesisModel?: string;
   readonly modelTimeoutMs: number;
   readonly dataDir: string;
+  readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
 }
 
@@ -33,6 +36,7 @@ const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
 const DEFAULT_SYNTHESIS_MODEL = "gpt-5.5";
 const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 const DEFAULT_DATA_DIR = "data/runs";
+const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
 const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
 
 function readBoolean(value: string | undefined): boolean {
@@ -129,6 +133,7 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       : {}),
     modelTimeoutMs: readPositiveInteger(env.MARKET_BOT_MODEL_TIMEOUT_MS, DEFAULT_MODEL_TIMEOUT_MS),
     dataDir: env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR,
+    promptDir: readOptionalString(env.MARKET_BOT_PROMPT_DIR) ?? DEFAULT_PROMPT_DIR,
     sourceOptions: {
       equityMoverLimit: readPositiveInteger(env.MARKET_BOT_EQUITY_MOVER_LIMIT, 5),
       cryptoMoverLimit: readPositiveInteger(env.MARKET_BOT_CRYPTO_MOVER_LIMIT, 5),

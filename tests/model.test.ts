@@ -23,6 +23,7 @@ describe("createOpenAIProvider", () => {
         synthesisModel: "synthesis",
         modelTimeoutMs: 120_000,
         dataDir: "data/runs",
+        promptDir: "prompts",
         sourceOptions: {
           equityMoverLimit: 5,
           cryptoMoverLimit: 5,
@@ -68,6 +69,7 @@ describe("createOpenAIProvider", () => {
         synthesisModel: "synthesis",
         modelTimeoutMs: 120_000,
         dataDir: "data/runs",
+        promptDir: "prompts",
         sourceOptions: {
           equityMoverLimit: 5,
           cryptoMoverLimit: 5,
@@ -104,6 +106,7 @@ describe("createOpenAIProvider", () => {
         synthesisModel: "synthesis",
         modelTimeoutMs: 120_000,
         dataDir: "data/runs",
+        promptDir: "prompts",
         sourceOptions: {
           equityMoverLimit: 5,
           cryptoMoverLimit: 5,
@@ -160,6 +163,7 @@ describe("createOpenAIProvider", () => {
         synthesisModel: "synthesis",
         modelTimeoutMs: 120_000,
         dataDir: "data/runs",
+        promptDir: "prompts",
         sourceOptions: {
           equityMoverLimit: 5,
           cryptoMoverLimit: 5,

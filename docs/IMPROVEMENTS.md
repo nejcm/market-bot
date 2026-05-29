@@ -1,8 +1,8 @@
 # Improvements Backlog
 
-Future improvements and v2 features for `market-bot`, captured during V1 planning, research into TradingAgents/Vibe-Trading, and the [calibration loop](calibration-loop-plan.md).
+Future improvements and v2 features for `market-bot`, captured during V1 planning and research into TradingAgents/Vibe-Trading.
 
-Items here are **deliberately deferred** from V1. Completed post-V1 hardening improved news sources, fetch resilience, scorer close caching, cache pruning, ticker-only Extended Evidence, and externalized run configuration. The next priority is expanding that deeper data surface beyond single-ticker briefs before alpha discovery or other new workflows.
+Items here are **deliberately deferred** from V1 and still open. The next priority is expanding the deeper data surface beyond single-ticker briefs before alpha discovery or other new workflows.
 
 The ordering inside each section is rough priority, not strict.
 
@@ -12,22 +12,6 @@ The ordering inside each section is rough priority, not strict.
 
 1. **Expand deeper data** — extend ticker-only Extended Evidence into the workflows where it earns its keep, add regional equity mover sources, improve provider-normalized instrument identity, and harden corporate-action handling for scoring.
 2. **Alpha discovery** — still deferred until the deeper data surface and source reliability have been exercised over real runs.
-
-## Completed source hardening
-
-- Multi-provider news now fans out to MarketAux, Finnhub, and Yahoo, dedupes exact canonical-URL duplicates, and preserves provider aliases.
-- Source fetching now has per-process per-host rate limiting, temporary circuit breakers, retry/backoff, same-day cache hits, and stale cache fallback.
-- Scoring now caches successful historical closes under `data/cache/closes/`.
-- `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days.
-- Ticker runs now collect Extended Evidence: SEC/EDGAR filings and company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, and Glassnode on-chain metrics for crypto.
-
-## Completed orchestration hardening
-
-- Run prompts now live under `prompts/` as stage-first markdown files with required `base.md` files and optional run-type overrides.
-- `MARKET_BOT_PROMPT_DIR` can point at a custom prompt tree without editing TypeScript.
-- `src/config/runs.ts` defines typed per-run-type model, sampling, and depth-profile settings for daily, weekly, and ticker runs.
-- `ModelParams` now flow through the model layer: OpenAI receives supported sampling knobs, while Codex maps `reasoningEffort` and ignores unsupported knobs.
-- ADR 0007 records the externalized run-configuration design.
 
 ## Alpha discovery
 
@@ -40,13 +24,13 @@ The ordering inside each section is rough priority, not strict.
 
 ## Sources & data depth
 
-- **Additional paid/provider-backed source adapters** such as Polygon, Alpha Vantage, NewsAPI, GDELT, CoinMarketCap, or CryptoCompare. Current adapters include Yahoo, CoinGecko, MarketAux, Finnhub, SEC/EDGAR, FRED, Tradier, and Glassnode.
-- **Earnings beat/miss prediction scoring** — ticker runs already collect Finnhub earnings events, but beat/miss forecasts need normalized actual-vs-estimate fields and a scoring path.
+- **Additional paid/provider-backed source adapters** such as Polygon, Alpha Vantage, NewsAPI, GDELT, CoinMarketCap, or CryptoCompare.
+- **Earnings beat/miss prediction scoring** with normalized actual-vs-estimate fields and a scoring path.
 - **SEC/EDGAR enrichment** beyond compact ticker filing/fact summaries, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
-- **FRED integration in market updates/regime inference** — ticker runs collect FRED macro observations; daily/weekly regime still relies on proxy deltas.
-- **Options flow / IV surface** — ticker runs collect near-term Tradier median IV; richer term-structure, skew, and flow remain future work.
+- **FRED integration in market updates/regime inference** to reduce reliance on proxy deltas.
+- **Options flow / IV surface** including richer term-structure, skew, and flow.
 - **Social sentiment** (X, Reddit, StockTwits) — high noise, defer until calibration tells us if it earns its keep.
-- **Crypto on-chain expansion** beyond the current ticker-only Glassnode metric pack, including Dune-style sources if useful.
+- **Crypto on-chain expansion** with broader metric coverage and Dune-style sources if useful.
 - **Region-specific equity data** for Europe and Asia, with separate daily runs per region rather than one blended global report.
 - **Provider-normalized instrument identity** beyond V1's `symbol + assetClass`, including exchange, currency, provider IDs, and aliases.
 - **Corporate actions and splits/dividends normalization** so historical price and prediction scoring stay accurate.

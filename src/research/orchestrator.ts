@@ -99,7 +99,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const runId = createRunId(now);
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const context: ResearchContext = {
-    depthProfile: buildDepthProfile(input.command),
+    depthProfile: buildDepthProfile(input.command, input.config),
     marketRegime: summarizeMarketRegime(
       input.command.assetClass,
       input.collectedSources.marketSnapshots,

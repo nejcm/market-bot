@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppConfig } from "../config";
+import { resolveRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import {
-  isMarketUpdateJobType,
   type ExtendedEvidence,
   type MarketRegimeSummary,
   type MarketSnapshot,
@@ -140,53 +140,17 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
 // Depth profile
 // ---------------------------------------------------------------------------
 
-const MARKET_UPDATE_PREDICTION_SUBJECTS = ["SPY", "QQQ", "^VIX", "BTC"] as const;
-
-export function buildDepthProfile(command: ResearchCommand): DepthProfile {
-  const isMarketUpdate = isMarketUpdateJobType(command.jobType);
-  const predictionSubjects =
-    command.jobType === "ticker"
-      ? [command.symbol]
-      : (MARKET_UPDATE_PREDICTION_SUBJECTS as readonly string[]);
-  const defaultPredictionHorizon = command.jobType === "weekly" ? 15 : 5;
-
-  if (command.depth === "deep") {
-    return {
-      depth: "deep",
-      analystStyle: "fuller analyst-style",
-      minimumKeyFindings: isMarketUpdate ? 5 : 6,
-      minimumScenarios: 3,
-      minimumPredictions: isMarketUpdate ? 3 : 5,
-      defaultPredictionHorizon,
-      predictionSubjects,
-      focus: isMarketUpdate
-        ? [
-            command.jobType === "weekly" ? "weekly market regime" : "market regime",
-            command.jobType === "weekly" ? "5-session movers" : "movers",
-            "cross-asset themes",
-            "risks",
-            "source gaps",
-          ]
-        : ["thesis", "evidence", "catalysts", "bull case", "bear case", "scenarios", "data gaps"],
-    };
-  }
-
+export function buildDepthProfile(command: ResearchCommand, appConfig: AppConfig): DepthProfile {
+  const params = resolveRunParams(command, appConfig);
   return {
-    depth: "brief",
-    analystStyle: "concise brief",
-    minimumKeyFindings: isMarketUpdate ? 3 : 4,
-    minimumScenarios: 1,
-    minimumPredictions: isMarketUpdate ? 2 : 3,
-    defaultPredictionHorizon,
-    predictionSubjects,
-    focus: isMarketUpdate
-      ? [
-          command.jobType === "weekly" ? "weekly market regime" : "market regime",
-          command.jobType === "weekly" ? "5-session movers" : "movers",
-          "risks",
-          "source gaps",
-        ]
-      : ["thesis", "evidence", "risks", "data gaps"],
+    depth: command.depth,
+    analystStyle: params.analystStyle,
+    minimumKeyFindings: params.minimumKeyFindings,
+    minimumScenarios: params.minimumScenarios,
+    minimumPredictions: params.minimumPredictions,
+    defaultPredictionHorizon: params.defaultPredictionHorizon,
+    predictionSubjects: params.predictionSubjects,
+    focus: params.focus,
   };
 }
 

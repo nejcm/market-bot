@@ -112,6 +112,15 @@ The collector fetches market data and news in parallel:
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
+Ticker runs also collect Extended Evidence:
+
+| Asset class | Extended Evidence |
+| --- | --- |
+| `equity` | SEC/EDGAR filings and company facts, Finnhub earnings/dividends/splits, FRED macro observations, and Tradier options IV. |
+| `crypto` | FRED macro observations and Glassnode on-chain metrics. |
+
+Extended Evidence is not collected for daily or weekly market updates. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
+
 Fetch behavior:
 
 - All requests use `MARKET_BOT_SOURCE_TIMEOUT_MS`.
@@ -132,6 +141,8 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
 - `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, and preserve provider aliases.
+- `src/sources/extended-evidence.ts` collects ticker-only SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode evidence.
+- `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.
 
 Adapters convert external API payloads into internal `MarketSnapshot`, `Source`, and close-price records. Callers work with normalized shapes and source gaps, not raw provider-specific payloads.
 

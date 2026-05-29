@@ -4,7 +4,12 @@ import {
   type Source,
   type SourceGap,
 } from "../domain/types";
-import { buildFredMacroMetrics, FRED_SERIES, fredObservationsUrl } from "./fred";
+import {
+  buildFredMacroMetrics,
+  FRED_SERIES,
+  fredObservationsUrl,
+  isFredBaseMetricKey,
+} from "./fred";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -78,9 +83,7 @@ async function collectFredMarketContext(
             category: "fred-macro" as const,
             title: "FRED macro Market Context",
             summary: `Latest FRED macro observations captured for ${Object.keys(metrics)
-              .filter(
-                (key) => !key.endsWith("Change") && !key.endsWith("Date") && !key.endsWith("Prior"),
-              )
+              .filter((key) => isFredBaseMetricKey(key))
               .join(", ")}.`,
             sourceIds: [source.id],
             observedAt: ctx.fetchedAt,

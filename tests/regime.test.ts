@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { MarketSnapshot } from "../src/domain/types";
-import { summarizeMarketRegime } from "../src/research/regime";
+import type { MarketContext, MarketRegimeSummary, MarketSnapshot } from "../src/domain/types";
+import { addMarketContextToRegime, summarizeMarketRegime } from "../src/research/regime";
 
 function snapshot(symbol: string, changePercent24h: number, price = 100): MarketSnapshot {
   return {
@@ -84,5 +84,82 @@ describe("summarizeMarketRegime", () => {
     });
     expect(summary.sourceIds).toEqual(["market-btc"]);
     expect(summary.drivers).toEqual(["major crypto proxies positive: 1/1"]);
+  });
+});
+
+describe("addMarketContextToRegime", () => {
+  const regime: MarketRegimeSummary = {
+    assetClass: "equity",
+    label: "risk-on",
+    proxyCount: 2,
+    drivers: ["equity breadth proxies positive: 2/2"],
+    sourceIds: ["market-spy"],
+  };
+
+  test("leaves regime unchanged without market context", () => {
+    const missingContext: MarketContext | undefined = undefined;
+
+    expect(addMarketContextToRegime(regime, missingContext)).toBe(regime);
+    expect(addMarketContextToRegime(regime, { assetClass: "equity", items: [], gaps: [] })).toBe(
+      regime,
+    );
+  });
+
+  test("adds explicit DGS10 macro driver and deduplicates source ids", () => {
+    const context: MarketContext = {
+      assetClass: "equity",
+      gaps: [],
+      items: [
+        {
+          category: "fred-macro",
+          title: "FRED macro Market Context",
+          summary: "Macro context",
+          sourceIds: ["market-spy", "market-context-fred-macro"],
+          observedAt: "2026-05-19T00:00:00.000Z",
+          metrics: {
+            DGS2: 3.9,
+            DGS10: 4.25,
+            DGS10Change: 0.1,
+            DGS10Date: "2026-05-18",
+            DGS10Prior: 4.15,
+            DGS10PriorDate: "2026-05-17",
+          },
+        },
+      ],
+    };
+
+    const summary = addMarketContextToRegime(regime, context);
+
+    expect(summary.label).toBe("risk-on");
+    expect(summary.drivers).toEqual([
+      "equity breadth proxies positive: 2/2",
+      "FRED macro context: DGS10 4.25",
+    ]);
+    expect(summary.sourceIds).toEqual(["market-spy", "market-context-fred-macro"]);
+  });
+
+  test("skips macro driver when context has no base numeric metric", () => {
+    const context: MarketContext = {
+      assetClass: "equity",
+      gaps: [],
+      items: [
+        {
+          category: "fred-macro",
+          title: "FRED macro Market Context",
+          summary: "Macro context",
+          sourceIds: ["market-context-fred-macro"],
+          observedAt: "2026-05-19T00:00:00.000Z",
+          metrics: {
+            DGS10Change: 0.1,
+            DGS10Date: "2026-05-18",
+          },
+        },
+      ],
+    };
+
+    const summary = addMarketContextToRegime(regime, context);
+
+    expect(summary.drivers).toEqual(regime.drivers);
+    expect(summary.sourceIds).toEqual(["market-spy", "market-context-fred-macro"]);
   });
 });

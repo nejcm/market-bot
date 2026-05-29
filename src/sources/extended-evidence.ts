@@ -14,7 +14,12 @@ import {
   type ExtendedEvidenceCollectionResult,
   type RawSourceSnapshot,
 } from "./types";
-import { buildFredMacroMetrics, FRED_SERIES, fredObservationsUrl } from "./fred";
+import {
+  buildFredMacroMetrics,
+  FRED_SERIES,
+  fredObservationsUrl,
+  isFredBaseMetricKey,
+} from "./fred";
 import { isRecord, readNumber, readString } from "./guards";
 import { selectTradierExpiration, summarizeTradierIv, tradierRequestInit } from "./tradier";
 
@@ -400,7 +405,9 @@ async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
           collectedItem(
             "fred-macro",
             "FRED macro pack",
-            `Latest FRED macro observations captured for ${Object.keys(metrics).join(", ")}.`,
+            `Latest FRED macro observations captured for ${Object.keys(metrics)
+              .filter((key) => isFredBaseMetricKey(key))
+              .join(", ")}.`,
             evidenceSource("extended-fred-macro", "FRED macro pack", "fred", command, fetchedAt),
             metrics,
           ),

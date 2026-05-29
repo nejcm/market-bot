@@ -10,6 +10,10 @@ export const FRED_SERIES = [
   "DTWEXBGS",
 ];
 
+export function isFredBaseMetricKey(key: string): boolean {
+  return !key.endsWith("Change") && !key.endsWith("Date") && !key.endsWith("Prior");
+}
+
 export function fredObservationsUrl(seriesId: string, apiKey: string, limit: number): string {
   return `https://api.stlouisfed.org/fred/series/observations?${encodeQuery({
     series_id: seriesId,

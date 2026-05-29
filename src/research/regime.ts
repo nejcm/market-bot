@@ -5,6 +5,7 @@ import type {
   MarketRegimeSummary,
   MarketSnapshot,
 } from "../domain/types";
+import { isFredBaseMetricKey } from "../sources/fred";
 
 const EQUITY_BREADTH_PROXIES = new Set(["SPY", "QQQ", "IWM", "DIA"]);
 const CRYPTO_MAJOR_PROXIES = new Set(["BTC", "ETH"]);
@@ -93,12 +94,12 @@ function marketContextDriver(context: MarketContext): string | undefined {
   if (metrics === undefined) {
     return undefined;
   }
+  const dgs10 = metrics.DGS10;
+  if (typeof dgs10 === "number") {
+    return `FRED macro context: DGS10 ${String(dgs10)}`;
+  }
   const metric = Object.entries(metrics).find(
-    ([key, value]) =>
-      typeof value === "number" &&
-      !key.endsWith("Change") &&
-      !key.endsWith("Prior") &&
-      !key.endsWith("Date"),
+    ([key, value]) => typeof value === "number" && isFredBaseMetricKey(key),
   );
   return metric === undefined ? undefined : `FRED macro context: ${metric[0]} ${String(metric[1])}`;
 }

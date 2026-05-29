@@ -49,6 +49,7 @@ const MARKET_UPDATE_PREDICTION_SUBJECTS = [
   "QQQ",
   "^VIX",
   "BTC",
+  // FRED series are eligible observable macro forecast subjects for market updates.
   "DGS10",
   "DGS2",
   "T10Y2Y",

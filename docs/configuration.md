@@ -13,6 +13,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_CODEX_SYNTHESIS_MODEL` | — | Overrides `MARKET_BOT_SYNTHESIS_MODEL` for the `codex` provider only. |
 | `MARKET_BOT_MODEL_TIMEOUT_MS` | `120000` | Max ms to wait for a model response before aborting. |
 | `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. |
+| `MARKET_BOT_PROMPT_DIR` | `prompts/` (repo root) | Directory containing `<stage>/base.md` prompt files. Override to point at a custom prompt tree without editing source code. |
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |
 | `MARKET_BOT_NEWS_LIMIT` | `8` | Final combined news-source cap per run. Providers request or keep up to this limit before dedupe and round-robin selection; Finnhub is capped after fetch because its news endpoints do not expose a count limit. |

@@ -9,14 +9,16 @@ src/
   app.ts              CLI glue (dispatches by jobType)
   cli/args.ts         Argument parsing
   config.ts           Env-driven AppConfig
+  config/runs.ts      Typed per-run-type config (model, sampling knobs, depth profile)
   domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
   forecast/           Observable forecast contract: parser, expression shape, resolver
-  model/              OpenAI / OpenAI-compatible provider
+  model/              OpenAI / OpenAI-compatible / Codex providers
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
-  research/           Orchestrator + regime summary
+  research/           Orchestrator, prompt loader, regime summary
   scoring/            Score pass, close cache, calibration aggregator
   sources/            Yahoo, CoinGecko, multi-provider news, collector with retry/backoff/cache
+prompts/              Stage prompt files (base.md + optional combo overrides)
 tests/                Bun test suites
 docs/adr/             Architecture decision records
 plans/                Curated planning docs (humans only)

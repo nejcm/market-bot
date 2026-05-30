@@ -1,4 +1,5 @@
 import type { AssetClass, InstrumentIdentity, MarketSnapshot, SourceGap } from "../domain/types";
+import type { Observation } from "../forecast/observable";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -172,6 +173,22 @@ function yahooChartCloseUrl(symbol: string, date: Date): string {
   return `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?${params.toString()}`;
 }
 
+function yahooChartWindowUrl(symbol: string, from: Date, to: Date): string {
+  const start = Math.floor(from.getTime() / 1000);
+  const end = Math.floor(to.getTime() / 1000) + 86_400;
+  const params = new URLSearchParams({
+    period1: String(start),
+    period2: String(end),
+    interval: "1d",
+    events: "history",
+  });
+  return `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?${params.toString()}`;
+}
+
+function dateFromUnixSeconds(value: unknown): string | undefined {
+  return typeof value === "number" ? new Date(value * 1000).toISOString().slice(0, 10) : undefined;
+}
+
 function extractCloseFromChartPayload(payload: unknown): number | undefined {
   if (!isRecord(payload) || !isRecord(payload.chart)) {
     return undefined;
@@ -217,5 +234,41 @@ export async function fetchYahooClose(
     return extractCloseFromChartPayload(payload);
   } catch {
     return undefined;
+  }
+}
+
+export async function fetchYahooCloseWindow(
+  symbol: string,
+  from: Date,
+  to: Date,
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = fetch,
+): Promise<readonly Observation[]> {
+  try {
+    const response = await fetchImpl(yahooChartWindowUrl(symbol, from, to), {
+      signal: AbortSignal.timeout(10_000),
+      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const payload = (await response.json()) as unknown;
+    if (!isRecord(payload) || !isRecord(payload.chart)) {
+      return [];
+    }
+    const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
+    if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
+      return [];
+    }
+    const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
+    const closes = isRecord(quote) && Array.isArray(quote.close) ? quote.close : [];
+    return result.timestamp.flatMap((timestamp, index) => {
+      const date = dateFromUnixSeconds(timestamp);
+      const value = closes[index];
+      return date !== undefined && typeof value === "number"
+        ? [{ subject: symbol, date, value }]
+        : [];
+    });
+  } catch {
+    return [];
   }
 }

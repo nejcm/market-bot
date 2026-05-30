@@ -7,6 +7,7 @@ export interface PredictionScore {
   readonly outcome: ScoreOutcome | undefined;
   readonly observedAt: string | undefined;
   readonly attemptCount: number;
+  readonly scoringVersion?: number;
   readonly evidence: Record<string, unknown>;
 }
 

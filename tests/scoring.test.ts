@@ -20,8 +20,8 @@ describe("resolvePrediction", () => {
   describe("direction", () => {
     test("returns hit when close-N > close-0", () => {
       const result = resolvePrediction(basePrediction, [
-        { symbol: "SPY", date: "2026-05-01", close: 500 },
-        { symbol: "SPY", date: "2026-05-08", close: 510 },
+        { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-08", value: 510 },
       ]);
       expect(result?.outcome).toBe("hit");
       expect(result?.evidence).toMatchObject({ close0: 500, closeN: 510 });
@@ -29,8 +29,8 @@ describe("resolvePrediction", () => {
 
     test("returns miss when close-N <= close-0", () => {
       const result = resolvePrediction(basePrediction, [
-        { symbol: "SPY", date: "2026-05-01", close: 510 },
-        { symbol: "SPY", date: "2026-05-08", close: 500 },
+        { subject: "SPY", date: "2026-05-01", value: 510 },
+        { subject: "SPY", date: "2026-05-08", value: 500 },
       ]);
       expect(result?.outcome).toBe("miss");
     });
@@ -53,20 +53,20 @@ describe("resolvePrediction", () => {
 
     test("returns hit when QQQ outperforms SPY", () => {
       const result = resolvePrediction(relPrediction, [
-        { symbol: "QQQ", date: "2026-05-01", close: 400 },
-        { symbol: "QQQ", date: "2026-05-08", close: 420 },
-        { symbol: "SPY", date: "2026-05-01", close: 500 },
-        { symbol: "SPY", date: "2026-05-08", close: 505 },
+        { subject: "QQQ", date: "2026-05-01", value: 400 },
+        { subject: "QQQ", date: "2026-05-08", value: 420 },
+        { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-08", value: 505 },
       ]);
       expect(result?.outcome).toBe("hit");
     });
 
     test("returns miss when SPY outperforms QQQ", () => {
       const result = resolvePrediction(relPrediction, [
-        { symbol: "QQQ", date: "2026-05-01", close: 400 },
-        { symbol: "QQQ", date: "2026-05-08", close: 401 },
-        { symbol: "SPY", date: "2026-05-01", close: 500 },
-        { symbol: "SPY", date: "2026-05-08", close: 510 },
+        { subject: "QQQ", date: "2026-05-01", value: 400 },
+        { subject: "QQQ", date: "2026-05-08", value: 401 },
+        { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-08", value: 510 },
       ]);
       expect(result?.outcome).toBe("miss");
     });
@@ -84,17 +84,17 @@ describe("resolvePrediction", () => {
 
     test("returns hit when any close exceeds threshold", () => {
       const result = resolvePrediction(volPrediction, [
-        { symbol: "^VIX", date: "2026-05-01", close: 18 },
-        { symbol: "^VIX", date: "2026-05-03", close: 22 },
-        { symbol: "^VIX", date: "2026-05-05", close: 19 },
+        { subject: "^VIX", date: "2026-05-01", value: 18 },
+        { subject: "^VIX", date: "2026-05-03", value: 22 },
+        { subject: "^VIX", date: "2026-05-05", value: 19 },
       ]);
       expect(result?.outcome).toBe("hit");
     });
 
     test("returns miss when all closes stay below threshold", () => {
       const result = resolvePrediction(volPrediction, [
-        { symbol: "^VIX", date: "2026-05-01", close: 15 },
-        { symbol: "^VIX", date: "2026-05-05", close: 18 },
+        { subject: "^VIX", date: "2026-05-01", value: 15 },
+        { subject: "^VIX", date: "2026-05-05", value: 18 },
       ]);
       expect(result?.outcome).toBe("miss");
     });
@@ -113,24 +113,24 @@ describe("resolvePrediction", () => {
 
     test("returns hit when close-N is below lo", () => {
       const result = resolvePrediction(rangePrediction, [
-        { symbol: "BTC", date: "2026-05-01", close: 100_000 },
-        { symbol: "BTC", date: "2026-05-08", close: 85_000 },
+        { subject: "BTC", date: "2026-05-01", value: 100_000 },
+        { subject: "BTC", date: "2026-05-08", value: 85_000 },
       ]);
       expect(result?.outcome).toBe("hit");
     });
 
     test("returns hit when close-N is above hi", () => {
       const result = resolvePrediction(rangePrediction, [
-        { symbol: "BTC", date: "2026-05-01", close: 100_000 },
-        { symbol: "BTC", date: "2026-05-08", close: 115_000 },
+        { subject: "BTC", date: "2026-05-01", value: 100_000 },
+        { subject: "BTC", date: "2026-05-08", value: 115_000 },
       ]);
       expect(result?.outcome).toBe("hit");
     });
 
     test("returns miss when close-N is within range", () => {
       const result = resolvePrediction(rangePrediction, [
-        { symbol: "BTC", date: "2026-05-01", close: 100_000 },
-        { symbol: "BTC", date: "2026-05-08", close: 102_000 },
+        { subject: "BTC", date: "2026-05-01", value: 100_000 },
+        { subject: "BTC", date: "2026-05-08", value: 102_000 },
       ]);
       expect(result?.outcome).toBe("miss");
     });
@@ -148,8 +148,8 @@ describe("resolvePrediction", () => {
           claim: "DGS10 rises over 5 trading days.",
         },
         [
-          { symbol: "FRED:DGS10", date: "2026-05-01", close: 4.1 },
-          { symbol: "FRED:DGS10", date: "2026-05-08", close: 4.3 },
+          { subject: "FRED:DGS10", date: "2026-05-01", value: 4.1 },
+          { subject: "FRED:DGS10", date: "2026-05-08", value: 4.3 },
         ],
       );
       expect(result?.outcome).toBe("hit");
@@ -166,7 +166,7 @@ describe("resolvePrediction", () => {
           measurableAs: "iv(AAPL, +5) > 0.35",
           claim: "AAPL implied volatility exceeds 0.35 over 5 trading days.",
         },
-        [{ symbol: "IV:AAPL", date: "2026-05-08", close: 0.4 }],
+        [{ subject: "IV:AAPL", date: "2026-05-08", value: 0.4 }],
       );
       expect(result?.outcome).toBe("hit");
     });

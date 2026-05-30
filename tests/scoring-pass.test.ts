@@ -1,0 +1,191 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import type { ResearchReport } from "../src/domain/types";
+import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
+import type { Observation, ObservationRepository } from "../src/scoring/observations";
+import type { PredictionScore } from "../src/scoring/types";
+
+let tmpDir = "";
+
+beforeEach(() => {
+  tmpDir = mkdtempSync(join(tmpdir(), "score-pass-test-"));
+});
+
+afterEach(() => {
+  rmSync(tmpDir, { recursive: true, force: true });
+});
+
+function report(predictions: ResearchReport["predictions"]): ResearchReport {
+  return {
+    runId: "run-1",
+    jobType: "daily",
+    assetClass: "equity",
+    generatedAt: "2026-05-01T00:00:00.000Z",
+    summary: "",
+    keyFindings: [],
+    bullCase: [],
+    bearCase: [],
+    risks: [],
+    catalysts: [],
+    scenarios: [],
+    confidence: "medium",
+    dataGaps: [],
+    predictions,
+    sources: [],
+    notFinancialAdvice: true,
+  };
+}
+
+async function writeRun(runId: string, value: ResearchReport): Promise<string> {
+  const runDir = join(tmpDir, runId);
+  await mkdir(runDir, { recursive: true });
+  await writeFile(join(runDir, "report.json"), `${JSON.stringify(value, undefined, 2)}\n`, "utf8");
+  return runDir;
+}
+
+async function readScores(runDir: string): Promise<readonly PredictionScore[]> {
+  const raw = await readFile(join(runDir, "score.json"), "utf8");
+  return (JSON.parse(raw) as { scores: readonly PredictionScore[] }).scores;
+}
+
+async function noObservation(): Promise<Observation | undefined> {
+  throw new Error("unexpected point observation request");
+}
+
+describe("runScorePass Observation scoring", () => {
+  test("scores volatility from the full close window", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report([
+        {
+          id: "pred-vol",
+          claim: "VIX spikes above 20.",
+          kind: "volatility",
+          subject: "^VIX",
+          measurableAs: "max(close(^VIX), 0..+5) > 20",
+          horizonTradingDays: 5,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ]),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-05-01", value: 18 },
+        { subject, date: "2026-05-04", value: 19 },
+        { subject, date: "2026-05-05", value: 22 },
+        { subject, date: "2026-05-06", value: 18 },
+        { subject, date: "2026-05-07", value: 17 },
+        { subject, date: "2026-05-08", value: 16 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-11T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score?.outcome).toBe("hit");
+    expect(score?.evidence).toMatchObject({ maxClose: 22, threshold: 20 });
+    expect(score?.scoringVersion).toBe(SCORING_VERSION);
+  });
+
+  test("uses the Nth available close session after origin", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report([
+        {
+          id: "pred-dir",
+          claim: "SPY closes higher over 2 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +2) > close(SPY, 0)",
+          horizonTradingDays: 2,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ]),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-05-04", value: 100 },
+        { subject, date: "2026-05-05", value: 99 },
+        { subject, date: "2026-05-07", value: 102 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score?.outcome).toBe("hit");
+    expect(score?.evidence).toMatchObject({ close0: 100, closeN: 102 });
+  });
+
+  test("does not recompute existing resolved scores without a scoring version", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report([
+        {
+          id: "pred-dir",
+          claim: "SPY closes higher over 2 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +2) > close(SPY, 0)",
+          horizonTradingDays: 2,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ]),
+    );
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify(
+        {
+          runId: "run-1",
+          scoredAt: "2026-05-08T00:00:00.000Z",
+          scores: [
+            {
+              predictionId: "pred-dir",
+              runId: "run-1",
+              resolved: true,
+              outcome: "miss",
+              observedAt: "2026-05-08T00:00:00.000Z",
+              attemptCount: 1,
+              evidence: { legacy: true },
+            },
+          ],
+        },
+        undefined,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    let windowCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        windowCalls += 1;
+        return [];
+      },
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(windowCalls).toBe(0);
+    expect(score).toMatchObject({
+      outcome: "miss",
+      evidence: { legacy: true },
+    });
+    expect(score?.scoringVersion).toBeUndefined();
+  });
+});

@@ -88,10 +88,10 @@ export interface ObservableForecastReadResult {
   readonly promptErrors: readonly string[];
 }
 
-export interface CloseAtDate {
-  readonly symbol: string;
+export interface Observation {
+  readonly subject: string;
   readonly date: string;
-  readonly close: number;
+  readonly value: number;
 }
 
 export interface ObservableForecastResolved {
@@ -444,9 +444,12 @@ export function readObservableForecasts(
   };
 }
 
-function sortedCloses(closePrices: readonly CloseAtDate[], symbol: string): readonly CloseAtDate[] {
-  return closePrices
-    .filter((close) => close.symbol === symbol)
+function sortedObservations(
+  observations: readonly Observation[],
+  subject: string,
+): readonly Observation[] {
+  return observations
+    .filter((observation) => observation.subject === subject)
     .toSorted((left, right) => left.date.localeCompare(right.date));
 }
 
@@ -466,14 +469,14 @@ function unresolved(
 
 export function resolveObservableForecast(
   forecast: ObservableForecast,
-  closePrices: readonly CloseAtDate[],
+  observations: readonly Observation[],
 ): ObservableForecastResolution {
   const { expression } = forecast;
 
   if (expression.kind === "direction") {
-    const closes = sortedCloses(closePrices, expression.subject);
-    const close0 = closes[0]?.close;
-    const closeN = closes.at(-1)?.close;
+    const closes = sortedObservations(observations, expression.subject);
+    const close0 = closes[0]?.value;
+    const closeN = closes.at(-1)?.value;
     if (close0 === undefined || closeN === undefined) {
       return unresolved("missing-horizon", [expression.subject]);
     }
@@ -481,12 +484,12 @@ export function resolveObservableForecast(
   }
 
   if (expression.kind === "relative") {
-    const closesA = sortedCloses(closePrices, expression.subjectA);
-    const closesB = sortedCloses(closePrices, expression.subjectB);
-    const closeA0 = closesA[0]?.close;
-    const closeAN = closesA.at(-1)?.close;
-    const closeB0 = closesB[0]?.close;
-    const closeBN = closesB.at(-1)?.close;
+    const closesA = sortedObservations(observations, expression.subjectA);
+    const closesB = sortedObservations(observations, expression.subjectB);
+    const closeA0 = closesA[0]?.value;
+    const closeAN = closesA.at(-1)?.value;
+    const closeB0 = closesB[0]?.value;
+    const closeBN = closesB.at(-1)?.value;
     const missing = [
       ...(closeA0 === undefined || closeAN === undefined ? [expression.subjectA] : []),
       ...(closeB0 === undefined || closeBN === undefined ? [expression.subjectB] : []),
@@ -506,7 +509,9 @@ export function resolveObservableForecast(
   }
 
   if (expression.kind === "volatility") {
-    const closes = sortedCloses(closePrices, expression.subject).map((close) => close.close);
+    const closes = sortedObservations(observations, expression.subject).map(
+      (observation) => observation.value,
+    );
     if (closes.length === 0) {
       return unresolved("missing-window", [expression.subject]);
     }
@@ -518,8 +523,8 @@ export function resolveObservableForecast(
   }
 
   if (expression.kind === "range") {
-    const closes = sortedCloses(closePrices, expression.subject);
-    const closeN = closes.at(-1)?.close;
+    const closes = sortedObservations(observations, expression.subject);
+    const closeN = closes.at(-1)?.value;
     if (closeN === undefined) {
       return unresolved("missing-horizon", [expression.subject]);
     }
@@ -532,7 +537,7 @@ export function resolveObservableForecast(
 
   if (expression.kind === "macro") {
     const subject = `FRED:${expression.seriesId}`;
-    const closes = sortedCloses(closePrices, subject);
+    const closes = sortedObservations(observations, subject);
     const [origin] = closes;
     const horizon = closes.at(-1);
     if (origin === undefined) {
@@ -541,24 +546,24 @@ export function resolveObservableForecast(
     if (horizon === undefined || horizon.date === origin.date) {
       return unresolved("missing-horizon", [subject]);
     }
-    return resolvedForecast(horizon.close > origin.close ? "hit" : "miss", {
+    return resolvedForecast(horizon.value > origin.value ? "hit" : "miss", {
       seriesId: expression.seriesId,
-      fred0: origin.close,
-      fredN: horizon.close,
+      fred0: origin.value,
+      fredN: horizon.value,
       date0: origin.date,
       dateN: horizon.date,
     });
   }
 
   const subject = `IV:${expression.subject}`;
-  const closes = sortedCloses(closePrices, subject);
+  const closes = sortedObservations(observations, subject);
   const horizon = closes.at(-1);
   if (horizon === undefined) {
     return unresolved("missing-horizon", [subject]);
   }
-  return resolvedForecast(horizon.close > expression.threshold ? "hit" : "miss", {
+  return resolvedForecast(horizon.value > expression.threshold ? "hit" : "miss", {
     subject: expression.subject,
-    ivN: horizon.close,
+    ivN: horizon.value,
     threshold: expression.threshold,
     dateN: horizon.date,
   });

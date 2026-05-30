@@ -1,20 +1,21 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
-import { observableForecastFromPrediction } from "../forecast/observable";
+import { observableForecastFromPrediction, type ObservableForecast } from "../forecast/observable";
 import { resolvePrediction } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import {
-  createCloseRepository,
-  repositoryFromFetchFn,
-  type CloseRepository,
+  createObservationRepository,
+  type Observation,
+  type ObservationRepository,
   type FetchCloseFn,
-} from "./close-repository";
+} from "./observations";
 import type { PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
 const SCORE_FILE = "score.json";
+export const SCORING_VERSION = 2;
 
 interface ScoreFile {
   readonly runId: string;
@@ -45,18 +46,96 @@ function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
 
 export interface ScorePassOptions {
   readonly closeCacheDir?: string;
-  readonly closeRepository?: CloseRepository;
+  readonly observationRepository?: ObservationRepository;
   readonly fetchClose?: FetchCloseFn;
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
 }
 
-function symbolsForPrediction(prediction: Prediction): readonly string[] {
-  const forecast = observableForecastFromPrediction(prediction);
-  if ("prediction" in forecast) {
-    return forecast.instruments;
+function unresolvedScore(
+  prediction: Prediction,
+  report: ResearchReport,
+  attemptCount: number,
+  evidence: Record<string, unknown>,
+): PredictionScore {
+  return {
+    predictionId: prediction.id,
+    runId: report.runId,
+    resolved: false,
+    outcome: undefined,
+    observedAt: undefined,
+    attemptCount,
+    scoringVersion: SCORING_VERSION,
+    evidence,
+  };
+}
+
+function isCloseBasedForecast(forecast: ObservableForecast): boolean {
+  return (
+    forecast.expression.kind === "direction" ||
+    forecast.expression.kind === "relative" ||
+    forecast.expression.kind === "volatility" ||
+    forecast.expression.kind === "range"
+  );
+}
+
+function windowSubjects(forecast: ObservableForecast): readonly string[] {
+  if (forecast.expression.kind === "relative") {
+    return [forecast.expression.subjectA, forecast.expression.subjectB];
   }
-  return [prediction.subject];
+  if (
+    forecast.expression.kind === "direction" ||
+    forecast.expression.kind === "volatility" ||
+    forecast.expression.kind === "range"
+  ) {
+    return [forecast.expression.subject];
+  }
+  return [];
+}
+
+async function closeObservations(
+  forecast: ObservableForecast,
+  report: ResearchReport,
+  now: Date,
+  repo: ObservationRepository,
+): Promise<readonly Observation[]> {
+  const subjects = windowSubjects(forecast);
+  const windows = await Promise.all(
+    subjects.map((subject) =>
+      repo.window(subject, report.assetClass, new Date(report.generatedAt), now),
+    ),
+  );
+  const required = forecast.horizonTradingDays + 1;
+  const enough = windows.every((window) => window.length >= required);
+
+  if (!enough) {
+    return [];
+  }
+
+  return windows.flatMap((window) => window.slice(0, required));
+}
+
+async function pointObservations(
+  forecast: ObservableForecast,
+  report: ResearchReport,
+  resDate: Date,
+  repo: ObservationRepository,
+): Promise<readonly Observation[]> {
+  const originDate = new Date(report.generatedAt);
+  const symbols = forecast.instruments;
+  const atOrigin =
+    forecast.expression.kind === "iv"
+      ? []
+      : await Promise.all(
+          symbols.map((symbol) => repo.point(symbol, report.assetClass, originDate)),
+        );
+  const atHorizon = await Promise.all(
+    symbols.map((symbol) => repo.point(symbol, report.assetClass, resDate)),
+  );
+
+  return [...atOrigin, ...atHorizon].filter(
+    (observation): observation is Observation => observation !== undefined,
+  );
 }
 
 async function scoreOnePrediction(
@@ -67,55 +146,35 @@ async function scoreOnePrediction(
   options: ScorePassOptions,
 ): Promise<PredictionScore> {
   const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
+  const forecast = observableForecastFromPrediction(prediction);
+  if (!("prediction" in forecast)) {
+    throw new Error(forecast.message);
+  }
   const resDate = resolutionDate(report.generatedAt, prediction.horizonTradingDays);
 
   if (resDate > now) {
-    return {
-      predictionId: prediction.id,
-      runId: report.runId,
-      resolved: false,
-      outcome: undefined,
-      observedAt: undefined,
-      attemptCount: existingScore?.attemptCount ?? 0,
-      evidence: { reason: "horizon not yet elapsed" },
-    };
+    return unresolvedScore(prediction, report, existingScore?.attemptCount ?? 0, {
+      reason: "horizon not yet elapsed",
+    });
   }
 
-  const symbols = symbolsForPrediction(prediction);
   const repo =
-    options.closeRepository ??
-    (options.fetchClose !== undefined
-      ? repositoryFromFetchFn(options.fetchClose, options.closeCacheDir)
-      : createCloseRepository({
-          ...(options.closeCacheDir !== undefined ? { cacheDir: options.closeCacheDir } : {}),
-          ...(options.fredApiKey !== undefined ? { fredApiKey: options.fredApiKey } : {}),
-          ...(options.tradierApiToken !== undefined
-            ? { tradierApiToken: options.tradierApiToken }
-            : {}),
-          now,
-        }));
-  const closesAtOrigin = await Promise.all(
-    symbols.map(async (symbol) => {
-      const close = await repo.closeAt(symbol, report.assetClass, new Date(report.generatedAt));
-      return close !== undefined
-        ? { symbol, date: report.generatedAt.slice(0, 10), close }
-        : undefined;
-    }),
-  );
-  const closesAtHorizon = await Promise.all(
-    symbols.map(async (symbol) => {
-      const close = await repo.closeAt(symbol, report.assetClass, resDate);
-      return close !== undefined
-        ? { symbol, date: resDate.toISOString().slice(0, 10), close }
-        : undefined;
-    }),
-  );
+    options.observationRepository ??
+    createObservationRepository({
+      report,
+      ...(options.closeCacheDir !== undefined ? { cacheDir: options.closeCacheDir } : {}),
+      ...(options.fetchClose !== undefined ? { fetchClose: options.fetchClose } : {}),
+      ...(options.fredApiKey !== undefined ? { fredApiKey: options.fredApiKey } : {}),
+      ...(options.tradierApiToken !== undefined
+        ? { tradierApiToken: options.tradierApiToken }
+        : {}),
+      now,
+    });
+  const observations = isCloseBasedForecast(forecast)
+    ? await closeObservations(forecast, report, now, repo)
+    : await pointObservations(forecast, report, resDate, repo);
 
-  const allCloses = [...closesAtOrigin, ...closesAtHorizon].filter(
-    (c): c is { symbol: string; date: string; close: number } => c !== undefined,
-  );
-
-  const resolveResult = resolvePrediction(prediction, allCloses);
+  const resolveResult = resolvePrediction(prediction, observations);
 
   if (resolveResult === undefined) {
     if (attemptCount >= MAX_SCORE_ATTEMPTS) {
@@ -126,18 +185,13 @@ async function scoreOnePrediction(
         outcome: undefined,
         observedAt: now.toISOString(),
         attemptCount,
+        scoringVersion: SCORING_VERSION,
         evidence: { reason: "abandoned after max attempts" },
       };
     }
-    return {
-      predictionId: prediction.id,
-      runId: report.runId,
-      resolved: false,
-      outcome: undefined,
-      observedAt: undefined,
-      attemptCount,
-      evidence: { reason: "close price unavailable" },
-    };
+    return unresolvedScore(prediction, report, attemptCount, {
+      reason: "observation unavailable",
+    });
   }
 
   return {
@@ -147,6 +201,7 @@ async function scoreOnePrediction(
     outcome: resolveResult.outcome,
     observedAt: now.toISOString(),
     attemptCount,
+    scoringVersion: SCORING_VERSION,
     evidence: resolveResult.evidence,
   };
 }

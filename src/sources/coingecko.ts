@@ -1,4 +1,5 @@
 import type { InstrumentIdentity, MarketSnapshot } from "../domain/types";
+import type { Observation } from "../forecast/observable";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -136,6 +137,17 @@ function coinGeckoChartUrl(coinId: string, date: Date): string {
   return `${COINGECKO_CHART_URL}/${encodeURIComponent(coinId)}/market_chart/range?${params.toString()}`;
 }
 
+function coinGeckoChartWindowUrl(coinId: string, from: Date, to: Date): string {
+  const start = Math.floor(from.getTime() / 1000) - 3600;
+  const end = Math.floor(to.getTime() / 1000) + 86_400 + 3600;
+  const params = new URLSearchParams({
+    vs_currency: "usd",
+    from: String(start),
+    to: String(end),
+  });
+  return `${COINGECKO_CHART_URL}/${encodeURIComponent(coinId)}/market_chart/range?${params.toString()}`;
+}
+
 function extractCloseFromCoinGeckoPayload(payload: unknown): number | undefined {
   if (!isRecord(payload)) {
     return undefined;
@@ -168,5 +180,45 @@ export async function fetchCoinGeckoClose(
     return extractCloseFromCoinGeckoPayload(payload);
   } catch {
     return undefined;
+  }
+}
+
+export async function fetchCoinGeckoCloseWindow(
+  subject: string,
+  coinId: string,
+  from: Date,
+  to: Date,
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = fetch,
+): Promise<readonly Observation[]> {
+  try {
+    const response = await fetchImpl(coinGeckoChartWindowUrl(coinId, from, to), {
+      signal: AbortSignal.timeout(10_000),
+      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const payload = (await response.json()) as unknown;
+    if (!isRecord(payload) || !Array.isArray(payload.prices)) {
+      return [];
+    }
+
+    const byDate = new Map<string, number>();
+    for (const price of payload.prices) {
+      if (!Array.isArray(price) || price.length < 2) {
+        continue;
+      }
+      const [timestamp, value] = price;
+      if (typeof timestamp !== "number" || typeof value !== "number") {
+        continue;
+      }
+      byDate.set(new Date(timestamp).toISOString().slice(0, 10), value);
+    }
+
+    return [...byDate.entries()]
+      .toSorted(([left], [right]) => left.localeCompare(right))
+      .map(([date, value]) => ({ subject, date, value }));
+  } catch {
+    return [];
   }
 }

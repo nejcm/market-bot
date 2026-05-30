@@ -9,7 +9,7 @@ Reports are **research views**, not trading advice — no buy/sell calls, no pos
 - **Daily and weekly market updates** — equity or crypto regime, FRED Market Context, top movers, themes, risks, and source gaps. Weekly is a cadence and horizon change, not a separate data product; mover inputs still come from Yahoo `day_gainers` and CoinGecko 24h change, and reports disclose this as a source gap.
 - **Ticker briefs** — deeper, single-instrument research views with optional Extended Evidence from SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode.
 - **Measurable predictions** — each report emits typed predictions (price targets, directional moves) parsed by a small DSL and validated against the report schema.
-- **Scoring pass** — resolves due predictions against historical closes, FRED observations, and Tradier IV where applicable, then writes `score.json` per run.
+- **Scoring pass** — resolves due predictions against point or window Observations from historical closes, FRED, and Tradier IV where applicable, then writes `score.json` per run.
 - **Calibration aggregator** — rolls up scored predictions, sliced by cadence (daily / weekly / ticker), into `data/calibration/summary.json` and a markdown summary.
 
 ## Quick start

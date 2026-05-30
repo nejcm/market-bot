@@ -20,8 +20,12 @@ Allowed `kind` values and their `measurableAs` shapes:
 | `relative` | `close(A, +N) / close(A, 0) > close(B, +N) / close(B, 0)` | `close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)` |
 | `volatility` | `max(close(^VIX), 0..+N) > T` | `max(close(^VIX), 0..+5) > 20` |
 | `range` | `close(SUBJECT, +N) outside [Lo, Hi]` | `close(BTC, +7) outside [90000, 110000]` |
+| `macro` | `fred(SERIES, +N) > fred(SERIES, 0)` | `fred(DGS10, +5) > fred(DGS10, 0)` |
+| `iv` | `iv(SUBJECT, +N) > T` | `iv(AAPL, +5) > 0.35` |
 
 `measurableAs` is parsed by the scorer (`src/forecast/observable.ts`), never by the LLM. `horizonTradingDays` is 1–20.
+
+Scoring resolves predictions from Observations: public market quantity values fetched from Source Providers. Close-based predictions use provider-returned sessions, with origin as the first available close at or after the report date and horizon as the Nth available close after origin. Volatility predictions use the full close window. Macro and IV predictions are point-based Observations.
 
 ### What this is NOT
 

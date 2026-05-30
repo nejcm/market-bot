@@ -16,7 +16,7 @@ src/
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
   research/           Orchestrator, prompt loader, regime summary
-  scoring/            Score pass, close cache, calibration aggregator
+  scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Yahoo, CoinGecko, FRED Market Context, multi-provider news, collector with retry/backoff/cache
 prompts/              Stage prompt files (base.md + optional combo overrides)
 tests/                Bun test suites
@@ -38,7 +38,7 @@ Notable inputs:
 - Crypto movers: CoinGecko 24h change
 - Market Context: FRED macro series for daily and weekly market updates
 - News: MarketAux, Finnhub, and Yahoo Finance search
-- Historical closes (for scoring): Yahoo (equities), CoinGecko (crypto)
+- Observations for scoring: Yahoo closes (equities), CoinGecko closes (crypto), FRED macro values, and Tradier IV values
 
 A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-url>.json`) wraps all `fetchJsonOrGap` calls. Same-day re-runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness. Cache entries store the hash key, not the full request URL.
 
@@ -52,11 +52,14 @@ The orchestrator coordinates: collect sources → summarize regime → produce r
 
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 
-- `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against historical closes. Adding a new prediction shape starts here.
-- `src/scoring/resolver.ts` — resolves a due prediction against historical closes
+- `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against Observations. Adding a new prediction shape starts here.
+- `src/scoring/observations.ts` — report-scoped Observation repository for point and window reads. Crypto scoring resolves CoinGecko IDs from Instrument Identity when present, with BTC/ETH fallback.
+- `src/scoring/resolver.ts` — resolves a due prediction against Observations
 - `src/scoring/index.ts` — `runScorePass` writes `score.json` per run
 - `src/scoring/close-cache.ts` — caches successful historical-close fetches under `data/cache/closes/`
 - `src/scoring/calibration.ts` + `calibration-markdown.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`
+
+Close-based predictions use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin. Volatility predictions evaluate the full close window. Macro and IV predictions remain point-based.
 
 Every research run triggers a score pass and calibration refresh as a **non-blocking** side effect. Failures there log to stderr; they must not abort the research job.
 

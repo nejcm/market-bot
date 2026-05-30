@@ -14,6 +14,10 @@ A tradable listed or quoted research target. In the current CLI it is still iden
 
 Provider-normalized metadata that helps relate Source Provider records to an Instrument without changing the research-only boundary.
 
+## Observation
+
+A public market quantity value used to resolve a Prediction. An Observation can be point-in-time or part of a window. It is not advice, conviction, or a trade signal.
+
 ## Market Update
 
 A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.

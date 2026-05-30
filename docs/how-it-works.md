@@ -259,7 +259,7 @@ data/runs/<run-id>/
 
 ## Scoring
 
-Scoring lives in `src/scoring/index.ts` and `src/scoring/resolver.ts`.
+Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src/scoring/resolver.ts`.
 
 `score` scans every run directory:
 
@@ -267,9 +267,10 @@ Scoring lives in `src/scoring/index.ts` and `src/scoring/resolver.ts`.
 2. Skip runs without predictions.
 3. Skip predictions that are already resolved or have reached the max attempt count.
 4. Check whether the prediction horizon has elapsed in trading days.
-5. Fetch origin and horizon closes from Yahoo or CoinGecko.
-6. Resolve each observable forecast as `hit`, `miss`, or unresolved.
-7. Write or update `score.json`.
+5. Fetch point or window Observations from Yahoo, CoinGecko, FRED, or Tradier.
+6. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
+7. Resolve each observable forecast as `hit`, `miss`, or unresolved.
+8. Write or update `score.json`.
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
 

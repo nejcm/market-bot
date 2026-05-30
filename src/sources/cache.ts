@@ -22,6 +22,9 @@ interface CacheEntry {
   readonly payload: unknown;
 }
 
+const CACHE_KEY_VERSION = "v2";
+const CREDENTIAL_QUERY_PARAMS = new Set(["api_key", "api_token", "token"]);
+
 export interface PruneCacheOptions {
   readonly dir: string;
   readonly now: Date;
@@ -38,6 +41,35 @@ async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value);
   const buffer = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function canonicalRequest(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.protocol = parsed.protocol.toLowerCase();
+    parsed.hostname = parsed.hostname.toLowerCase();
+    parsed.username = "";
+    parsed.password = "";
+
+    const sorted = new URLSearchParams();
+    [...parsed.searchParams.entries()]
+      .filter(([key]) => !CREDENTIAL_QUERY_PARAMS.has(key.toLowerCase()))
+      .toSorted(([leftKey, leftValue], [rightKey, rightValue]) => {
+        const keyOrder = leftKey.localeCompare(rightKey);
+        return keyOrder === 0 ? leftValue.localeCompare(rightValue) : keyOrder;
+      })
+      .forEach(([key, value]) => sorted.append(key, value));
+    parsed.search = sorted.toString();
+
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url.trim();
+  }
+}
+
+async function cacheKey(url: string, adapter: string): Promise<string> {
+  return sha256Hex(`${CACHE_KEY_VERSION}\n${adapter}\n${canonicalRequest(url)}`);
 }
 
 function utcDateString(date: Date): string {
@@ -118,7 +150,7 @@ export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGa
     }
 
     const today = utcDateString(options.now());
-    const sha = await sha256Hex(url);
+    const sha = await cacheKey(url, adapter);
     const todayPath = entryPath(options.dir, today, sha);
 
     const cached = await readEntry(todayPath);

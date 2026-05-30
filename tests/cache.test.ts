@@ -65,7 +65,9 @@ describe("withCache", () => {
     expect(calls).toBe(1);
     expect("rawSnapshot" in result).toBe(true);
 
-    const file = Bun.file(`${tmpDir}/${today}/${await sha256Hex("https://example.test/api")}.json`);
+    const file = Bun.file(
+      `${tmpDir}/${today}/${await cacheKey("https://example.test/api", "test-adapter")}.json`,
+    );
     expect(await file.exists()).toBe(true);
   });
 
@@ -84,6 +86,75 @@ describe("withCache", () => {
     await cached(url, "test-adapter", fetchedAt, 1000, fetch);
 
     expect(calls).toBe(1);
+  });
+
+  test("reordered query params share a canonical cache key", async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return makeFetchResult({ value: 42 }, "test-adapter");
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+
+    await cached("https://example.test/api?b=2&a=1", "test-adapter", fetchedAt, 1000, fetch);
+    await cached("https://example.test/api?a=1&b=2", "test-adapter", fetchedAt, 1000, fetch);
+
+    expect(calls).toBe(1);
+  });
+
+  test("credential query params do not affect the cache key", async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return makeFetchResult({ value: 42 }, "test-adapter");
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+
+    await cached(
+      "https://example.test/api?series_id=DGS10&api_key=first",
+      "test-adapter",
+      fetchedAt,
+      1000,
+      fetch,
+    );
+    await cached(
+      "https://example.test/api?api_key=second&series_id=DGS10",
+      "test-adapter",
+      fetchedAt,
+      1000,
+      fetch,
+    );
+
+    expect(calls).toBe(1);
+  });
+
+  test("request-shaping params keep separate cache entries", async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return makeFetchResult({ value: calls }, "test-adapter");
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+
+    await cached(
+      "https://example.test/api?series_id=DGS10&limit=2&api_key=secret",
+      "test-adapter",
+      fetchedAt,
+      1000,
+      fetch,
+    );
+    await cached(
+      "https://example.test/api?series_id=DGS10&limit=3&api_key=secret",
+      "test-adapter",
+      fetchedAt,
+      1000,
+      fetch,
+    );
+
+    expect(calls).toBe(2);
   });
 
   test("cache hit returns the original fetchedAt from the stored entry", async () => {
@@ -114,12 +185,12 @@ describe("withCache", () => {
     }
   });
 
-  test("live fetch failure with stale entry within fallbackDays returns stale payload and calls onStaleFallback", async () => {
+  test("live fetch failure with stale canonical entry within fallbackDays returns stale payload and calls onStaleFallback", async () => {
     const stalePayload = { stale: true };
 
     const warmOpts = makeOptions(tmpDir, { now: makeNow(yesterday) });
     await withCache(async () => makeFetchResult(stalePayload, "test-adapter"), warmOpts)(
-      "https://example.test/data",
+      "https://example.test/data?api_key=old&series_id=DGS10",
       "test-adapter",
       fetchedAt,
       1000,
@@ -131,7 +202,7 @@ describe("withCache", () => {
 
     const opts = makeOptions(tmpDir);
     const result = await withCache(inner, opts)(
-      "https://example.test/data",
+      "https://example.test/data?series_id=DGS10&api_key=new",
       "test-adapter",
       fetchedAt,
       1000,
@@ -214,6 +285,34 @@ describe("pruneCache", () => {
     expect(existsSync(freshCloseFile)).toBe(true);
   });
 });
+
+async function cacheKey(url: string, adapter: string): Promise<string> {
+  return sha256Hex(`${CACHE_KEY_VERSION}\n${adapter}\n${canonicalRequest(url)}`);
+}
+
+const CACHE_KEY_VERSION = "v2";
+const CREDENTIAL_QUERY_PARAMS = new Set(["api_key", "api_token", "token"]);
+
+function canonicalRequest(url: string): string {
+  const parsed = new URL(url);
+  parsed.hash = "";
+  parsed.protocol = parsed.protocol.toLowerCase();
+  parsed.hostname = parsed.hostname.toLowerCase();
+  parsed.username = "";
+  parsed.password = "";
+
+  const sorted = new URLSearchParams();
+  [...parsed.searchParams.entries()]
+    .filter(([key]) => !CREDENTIAL_QUERY_PARAMS.has(key.toLowerCase()))
+    .toSorted(([leftKey, leftValue], [rightKey, rightValue]) => {
+      const keyOrder = leftKey.localeCompare(rightKey);
+      return keyOrder === 0 ? leftValue.localeCompare(rightValue) : keyOrder;
+    })
+    .forEach(([key, value]) => sorted.append(key, value));
+  parsed.search = sorted.toString();
+
+  return `${parsed.protocol}//${parsed.host}${parsed.pathname}${parsed.search}`;
+}
 
 async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value);

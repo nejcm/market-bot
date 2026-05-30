@@ -23,7 +23,7 @@ interface CacheEntry {
 }
 
 const CACHE_KEY_VERSION = "v2";
-const CREDENTIAL_QUERY_PARAMS = new Set(["api_key", "api_token", "token"]);
+const CREDENTIAL_QUERY_PARAMS = new Set(["api_key", "api_token", "token", "access_token"]);
 
 export interface PruneCacheOptions {
   readonly dir: string;
@@ -43,6 +43,16 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function compareText(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 function canonicalRequest(url: string): string {
   try {
     const parsed = new URL(url);
@@ -56,8 +66,8 @@ function canonicalRequest(url: string): string {
     [...parsed.searchParams.entries()]
       .filter(([key]) => !CREDENTIAL_QUERY_PARAMS.has(key.toLowerCase()))
       .toSorted(([leftKey, leftValue], [rightKey, rightValue]) => {
-        const keyOrder = leftKey.localeCompare(rightKey);
-        return keyOrder === 0 ? leftValue.localeCompare(rightValue) : keyOrder;
+        const keyOrder = compareText(leftKey, rightKey);
+        return keyOrder === 0 ? compareText(leftValue, rightValue) : keyOrder;
       })
       .forEach(([key, value]) => sorted.append(key, value));
     parsed.search = sorted.toString();
@@ -70,6 +80,10 @@ function canonicalRequest(url: string): string {
 
 async function cacheKey(url: string, adapter: string): Promise<string> {
   return sha256Hex(`${CACHE_KEY_VERSION}\n${adapter}\n${canonicalRequest(url)}`);
+}
+
+export async function makeCacheKeyForTest(url: string, adapter: string): Promise<string> {
+  return cacheKey(url, adapter);
 }
 
 function utcDateString(date: Date): string {
@@ -111,7 +125,7 @@ function listDateDirs(dir: string): readonly string[] {
     return readdirSync(dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && /^\d{4}-\d{2}-\d{2}$/u.test(d.name))
       .map((d) => d.name)
-      .toSorted((a, b) => b.localeCompare(a));
+      .toSorted((a, b) => compareText(b, a));
   } catch {
     return [];
   }

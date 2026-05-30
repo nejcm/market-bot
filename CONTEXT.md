@@ -8,7 +8,11 @@ A sourced research artifact that summarizes evidence, uncertainty, scenarios, ri
 
 ## Instrument
 
-The canonical research target, identified by `symbol + assetClass`.
+A tradable listed or quoted research target. In the current CLI it is still identified by `symbol + assetClass`, with optional exchange, quote currency, provider IDs, and aliases when known.
+
+## Instrument Identity
+
+Provider-normalized metadata that helps relate Source Provider records to an Instrument without changing the research-only boundary.
 
 ## Market Update
 

@@ -13,6 +13,21 @@ export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdate
 export interface Instrument {
   readonly symbol: string;
   readonly assetClass: AssetClass;
+  readonly identity?: InstrumentIdentity;
+}
+
+export interface ProviderInstrumentId {
+  readonly provider: string;
+  readonly idKind: string;
+  readonly value: string;
+}
+
+export interface InstrumentIdentity {
+  readonly exchange?: string;
+  readonly quoteCurrency?: string;
+  readonly displayName?: string;
+  readonly providerIds?: readonly ProviderInstrumentId[];
+  readonly aliases?: readonly ProviderInstrumentId[];
 }
 
 export interface Source {
@@ -31,6 +46,7 @@ export interface Source {
   readonly summary?: string;
   readonly snippet?: string;
   readonly providerAliases?: readonly SourceProviderAlias[];
+  readonly identity?: InstrumentIdentity;
 }
 
 export interface SourceProviderAlias {
@@ -51,6 +67,7 @@ export interface MarketSnapshot {
   readonly assetClass: AssetClass;
   readonly symbol: string;
   readonly name?: string;
+  readonly identity?: InstrumentIdentity;
   readonly price: number;
   readonly changePercent24h: number;
   readonly volume: number;
@@ -80,6 +97,7 @@ export interface ExtendedEvidenceItem {
   readonly sourceIds: readonly string[];
   readonly observedAt: string;
   readonly metrics?: Record<string, number | string>;
+  readonly identity?: InstrumentIdentity;
 }
 
 export interface ExtendedEvidence {

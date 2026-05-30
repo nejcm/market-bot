@@ -4,6 +4,7 @@ import type {
   ExtendedEvidence,
   ExtendedEvidenceCategory,
   ExtendedEvidenceItem,
+  InstrumentIdentity,
   Source,
   SourceGap,
 } from "../domain/types";
@@ -67,6 +68,7 @@ function evidenceSource(
   command: ResearchCommand,
   fetchedAt: string,
   url?: string,
+  identity?: InstrumentIdentity,
 ): Source {
   return {
     id,
@@ -77,6 +79,7 @@ function evidenceSource(
     assetClass: command.assetClass,
     ...(command.jobType === "ticker" ? { symbol: command.symbol } : {}),
     provider,
+    ...(identity !== undefined ? { identity } : {}),
   };
 }
 
@@ -96,6 +99,7 @@ function collectedItem(
       sourceIds: [source.id],
       observedAt: source.fetchedAt,
       ...(metrics !== undefined ? { metrics } : {}),
+      ...(source.identity !== undefined ? { identity: source.identity } : {}),
     },
   };
 }
@@ -130,22 +134,27 @@ function readArray(value: unknown, key: string): readonly unknown[] {
 function findSecTicker(
   payload: unknown,
   symbol: string,
-): { cik: string; name?: string } | undefined {
+): { cik: string; ticker: string; name?: string } | undefined {
   if (!isRecord(payload)) {
     return undefined;
   }
+  const normalizedSymbol = symbol.toUpperCase();
   const entries = Object.values(payload).filter((value) => isRecord(value));
-  const match = entries.find((entry) => readString(entry, "ticker")?.toUpperCase() === symbol);
+  const match = entries.find(
+    (entry) => readString(entry, "ticker")?.toUpperCase() === normalizedSymbol,
+  );
   if (match === undefined) {
     return undefined;
   }
+  const ticker = readString(match, "ticker")?.trim().toUpperCase();
   const cikNumber = readNumber(match, "cik_str");
-  if (cikNumber === undefined) {
+  if (ticker === undefined || cikNumber === undefined) {
     return undefined;
   }
   const name = readString(match, "title");
   return {
     cik: String(cikNumber).padStart(10, "0"),
+    ticker,
     ...(name !== undefined ? { name } : {}),
   };
 }
@@ -228,6 +237,11 @@ async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
 
   const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
   const factsUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${match.cik}.json`;
+  const identity: InstrumentIdentity = {
+    ...(match.name !== undefined ? { displayName: match.name } : {}),
+    providerIds: [{ provider: "sec-edgar", idKind: "cik", value: match.cik }],
+    aliases: [{ provider: "sec-edgar", idKind: "ticker", value: match.ticker }],
+  };
   const [submissions, facts] = await Promise.all([
     fetchOrGap(
       submissionsUrl,
@@ -269,6 +283,7 @@ async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
         command,
         fetchedAt,
         submissionsUrl,
+        identity,
       );
       items.push(collectedItem("sec-edgar", source.title, summary, source, { cik: match.cik }));
     }
@@ -284,6 +299,7 @@ async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
         command,
         fetchedAt,
         factsUrl,
+        identity,
       );
       items.push(
         collectedItem(

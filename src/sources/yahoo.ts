@@ -1,4 +1,4 @@
-import type { AssetClass, MarketSnapshot, SourceGap } from "../domain/types";
+import type { AssetClass, InstrumentIdentity, MarketSnapshot, SourceGap } from "../domain/types";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -41,12 +41,21 @@ function normalizeYahooQuote(
 
   const name = optionalString(value, "shortName") ?? optionalString(value, "longName");
   const marketCap = readNumber(value, "marketCap");
+  const exchange = optionalString(value, "fullExchangeName") ?? optionalString(value, "exchange");
+  const quoteCurrency = optionalString(value, "currency");
+  const identity: InstrumentIdentity = {
+    ...(exchange !== undefined ? { exchange } : {}),
+    ...(quoteCurrency !== undefined ? { quoteCurrency } : {}),
+    ...(name !== undefined ? { displayName: name } : {}),
+    aliases: [{ provider: "yahoo", idKind: "symbol", value: symbol }],
+  };
 
   return {
     sourceId: `market-yahoo-${assetClass}-${symbol.toLowerCase()}`,
     assetClass,
     symbol,
     ...(name !== undefined ? { name } : {}),
+    identity,
     price,
     changePercent24h,
     volume,

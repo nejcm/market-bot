@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { ResearchReport } from "../src/domain/types";
+import type { MarketSnapshot, ResearchReport } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { validateResearchReport } from "../src/report/schema";
+import { buildSourceList } from "../src/research/report-assembly";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -29,6 +30,10 @@ const report: ResearchReport = {
       kind: "market-data",
       assetClass: "crypto",
       symbol: "BTC",
+      identity: {
+        quoteCurrency: "USD",
+        providerIds: [{ provider: "coingecko", idKind: "coin-id", value: "bitcoin" }],
+      },
     },
   ],
   notFinancialAdvice: true,
@@ -37,6 +42,33 @@ const report: ResearchReport = {
 describe("report schema and rendering", () => {
   test("validates source-linked findings", () => {
     expect(validateResearchReport(report)).toEqual(report);
+  });
+
+  test("copies market snapshot identity into report sources", () => {
+    const snapshot: MarketSnapshot = {
+      sourceId: "market-coingecko-crypto-btc",
+      assetClass: "crypto",
+      symbol: "BTC",
+      identity: {
+        quoteCurrency: "USD",
+        providerIds: [{ provider: "coingecko", idKind: "coin-id", value: "bitcoin" }],
+      },
+      price: 103_000,
+      changePercent24h: 2,
+      volume: 40_000_000_000,
+      observedAt: "2026-05-19T00:00:00.000Z",
+    };
+
+    const sources = buildSourceList(
+      { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      {
+        rawSnapshots: [],
+        marketSnapshots: [snapshot],
+        newsSources: [],
+      },
+    );
+
+    expect(sources[0]?.identity).toEqual(snapshot.identity);
   });
 
   test("rejects missing source references", () => {

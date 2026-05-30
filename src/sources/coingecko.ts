@@ -1,4 +1,4 @@
-import type { MarketSnapshot } from "../domain/types";
+import type { InstrumentIdentity, MarketSnapshot } from "../domain/types";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -13,6 +13,7 @@ function normalizeCoinGeckoMarket(value: unknown, fetchedAt: string): MarketSnap
   }
 
   const symbol = readString(value, "symbol")?.trim().toUpperCase();
+  const coinId = readString(value, "id")?.trim();
   const price = readNumber(value, "current_price");
   const changePercent24h = readNumber(value, "price_change_percentage_24h");
   const volume = readNumber(value, "total_volume");
@@ -28,12 +29,21 @@ function normalizeCoinGeckoMarket(value: unknown, fetchedAt: string): MarketSnap
 
   const name = optionalString(value, "name");
   const marketCap = readNumber(value, "market_cap");
+  const identity: InstrumentIdentity = {
+    quoteCurrency: "USD",
+    ...(name !== undefined ? { displayName: name } : {}),
+    ...(coinId !== undefined
+      ? { providerIds: [{ provider: "coingecko", idKind: "coin-id", value: coinId }] }
+      : {}),
+    aliases: [{ provider: "coingecko", idKind: "symbol", value: symbol }],
+  };
 
   return {
     sourceId: `market-coingecko-crypto-${symbol.toLowerCase()}`,
     assetClass: "crypto",
     symbol,
     ...(name !== undefined ? { name } : {}),
+    identity,
     price,
     changePercent24h,
     volume,

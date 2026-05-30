@@ -422,12 +422,10 @@ describe("runResearchJob", () => {
         return {
           content: JSON.stringify({
             summary: "AAPL ticker evidence includes macro context.",
-            keyFindings: [
-              { text: "Macro evidence is available.", sourceIds: ["extended-fred-macro"] },
-            ],
+            keyFindings: [{ text: "SEC evidence is available.", sourceIds: ["extended-sec"] }],
             bullCase: [{ text: "Market data is constructive.", sourceIds: ["market-aapl"] }],
             bearCase: [{ text: "News coverage is narrow.", sourceIds: ["news-equity-1"] }],
-            risks: [{ text: "Macro data can change.", sourceIds: ["extended-fred-macro"] }],
+            risks: [{ text: "Company filing data can change.", sourceIds: ["extended-sec"] }],
             catalysts: [{ text: "Company news is visible.", sourceIds: ["news-equity-1"] }],
             scenarios: [
               {
@@ -456,23 +454,32 @@ describe("runResearchJob", () => {
         newsSources,
         extendedSources: [
           {
-            id: "extended-fred-macro",
-            title: "FRED macro pack",
+            id: "extended-sec",
+            title: "AAPL SEC filings",
             fetchedAt: "2026-05-19T00:00:00.000Z",
             kind: "extended-evidence",
             assetClass: "equity",
             symbol: "AAPL",
+            provider: "sec-edgar",
+            identity: {
+              providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0000320193" }],
+              aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
+            },
           },
         ],
         extendedEvidence: {
           instrument: { assetClass: "equity", symbol: "AAPL" },
           items: [
             {
-              category: "fred-macro",
-              title: "FRED macro pack",
-              summary: "Latest FRED macro observations captured.",
-              sourceIds: ["extended-fred-macro"],
+              category: "sec-edgar",
+              title: "AAPL SEC filings",
+              summary: "Recent SEC filings captured.",
+              sourceIds: ["extended-sec"],
               observedAt: "2026-05-19T00:00:00.000Z",
+              identity: {
+                providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0000320193" }],
+                aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
+              },
             },
           ],
           gaps: [],
@@ -482,13 +489,21 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
-      readonly evidence?: { readonly extendedEvidence?: unknown };
+      readonly evidence?: {
+        readonly extendedEvidence?: {
+          readonly items?: readonly { readonly identity?: unknown }[];
+        };
+      };
     };
 
     expect(finalPrompt.evidence?.extendedEvidence).toBeDefined();
+    expect(finalPrompt.evidence?.extendedEvidence?.items?.[0]?.identity).toEqual({
+      providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0000320193" }],
+      aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
+    });
     expect(result.report.extendedEvidence).toBeDefined();
     expect(result.markdown).toContain("## Extended Evidence");
-    expect(result.markdown).toContain("[extended-fred-macro]");
+    expect(result.markdown).toContain("[extended-sec]");
   });
 
   test("ignores extended sources for market update source lists", async () => {

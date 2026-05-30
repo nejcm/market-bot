@@ -30,6 +30,8 @@ describe("source normalization", () => {
             {
               symbol: "AAPL",
               shortName: "Apple Inc.",
+              fullExchangeName: "NasdaqGS",
+              currency: "USD",
               regularMarketPrice: 189.5,
               regularMarketChangePercent: 2.1,
               regularMarketVolume: 80_000_000,
@@ -48,6 +50,12 @@ describe("source normalization", () => {
         assetClass: "equity",
         symbol: "AAPL",
         name: "Apple Inc.",
+        identity: {
+          exchange: "NasdaqGS",
+          quoteCurrency: "USD",
+          displayName: "Apple Inc.",
+          aliases: [{ provider: "yahoo", idKind: "symbol", value: "AAPL" }],
+        },
         price: 189.5,
         changePercent24h: 2.1,
         volume: 80_000_000,
@@ -61,6 +69,7 @@ describe("source normalization", () => {
     const snapshots = normalizeCoinGeckoMarketsPayload(
       [
         {
+          id: "bitcoin",
           symbol: "btc",
           name: "Bitcoin",
           current_price: 103_000,
@@ -77,6 +86,12 @@ describe("source normalization", () => {
       assetClass: "crypto",
       symbol: "BTC",
       name: "Bitcoin",
+      identity: {
+        quoteCurrency: "USD",
+        displayName: "Bitcoin",
+        providerIds: [{ provider: "coingecko", idKind: "coin-id", value: "bitcoin" }],
+        aliases: [{ provider: "coingecko", idKind: "symbol", value: "BTC" }],
+      },
       price: 103_000,
       changePercent24h: -1.2,
       volume: 42_000_000_000,
@@ -332,7 +347,7 @@ describe("extended evidence provider collection", () => {
   test("collects compact equity extended evidence", async () => {
     const requests: { adapter: string; url: string; headers: Headers }[] = [];
     const result = await equityExtendedEvidenceAdapter.collect({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "ticker", assetClass: "equity", symbol: "aapl", depth: "brief" },
       fetchedAt,
       sourceTimeoutMs: 1000,
       newsLimit: 1,
@@ -397,6 +412,18 @@ describe("extended evidence provider collection", () => {
     ).toBeCloseTo(0.15);
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("options-iv");
     expect(result.sources.every((source) => source.kind === "extended-evidence")).toBe(true);
+    expect(result.sources.find((source) => source.provider === "sec-edgar")?.identity).toEqual({
+      displayName: "Apple Inc.",
+      providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0000320193" }],
+      aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
+    });
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "sec-edgar")?.identity,
+    ).toEqual({
+      displayName: "Apple Inc.",
+      providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0000320193" }],
+      aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
+    });
     expect(result.sourceGaps).toEqual([]);
     expect(
       requests

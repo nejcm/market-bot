@@ -130,6 +130,7 @@ export function buildSourceList(
       kind: "market-data",
       assetClass: snapshot.assetClass,
       symbol: snapshot.symbol,
+      ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
     }),
   );
 

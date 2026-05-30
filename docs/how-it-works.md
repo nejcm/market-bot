@@ -130,7 +130,8 @@ Fetch behavior:
 - Live fetches use a per-process, per-host limiter with one in-flight request and a 1000 ms minimum delay between starts.
 - Repeated transient failures, provider usage-limit responses, and rate-limit responses open a circuit temporarily; open circuits emit `SourceGap`s.
 - Failed sources become `SourceGap` entries instead of crashing the whole research run.
-- `withCache` stores raw JSON by UTC date and URL hash.
+- `withCache` stores raw JSON by UTC date and a v2 canonical request hash that includes the adapter, strips credential-only query params, and keeps request-shaping params.
+- Same-day equivalent provider requests can reuse cache across daily, weekly, and ticker runs; broader/narrower provider payloads are not derived from each other.
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
 - Missing MarketAux or Finnhub tokens are reported as `SourceGap`s. Yahoo news still runs.
 - Finnhub news is capped after normalization because the used Finnhub news endpoints do not expose a count-limit parameter.

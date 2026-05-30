@@ -40,7 +40,7 @@ Notable inputs:
 - News: MarketAux, Finnhub, and Yahoo Finance search
 - Observations for scoring: Yahoo closes (equities), CoinGecko closes (crypto), FRED macro values, and Tradier IV values
 
-A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-url>.json`) wraps all `fetchJsonOrGap` calls. Same-day re-runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness. Cache entries store the hash key, not the full request URL.
+A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-v2-canonical-request>.json`) wraps all `fetchJsonOrGap` calls. The cache key includes the adapter plus a canonicalized provider request: protocol/host/path are normalized, query params are sorted, and credential-only params such as API tokens are stripped while request-shaping params remain. Same-day equivalent requests across daily, weekly, and ticker runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness. Cache entries store the hash key, not the full request URL.
 
 News collection fans out to enabled providers, skips missing MarketAux/Finnhub tokens with `SourceGap`s, always includes Yahoo, canonicalizes URLs, collapses exact canonical-URL duplicates into one `Source`, and preserves provider aliases on the normalized source.
 

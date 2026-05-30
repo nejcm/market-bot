@@ -24,7 +24,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_TRADIER_API_TOKEN` | — | Enables Tradier options/IV Extended Evidence and IV forecast scoring. Missing token emits ticker `SourceGap`s for options evidence. |
 | `MARKET_BOT_GLASSNODE_API_KEY` | — | Enables Glassnode on-chain Extended Evidence for crypto tickers. Missing token emits ticker `SourceGap`s for on-chain evidence. |
 | `MARKET_BOT_SEC_USER_AGENT` | `market-bot research contact@example.invalid` | User-Agent sent to SEC EDGAR. Set to an app/contact string for live SEC access. |
-| `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for raw-source cache entries and scorer close cache entries. Raw-source cache keys are hashes; request URLs are not persisted. |
+| `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for raw-source cache entries and scorer close cache entries. Raw-source cache keys are v2 canonical request hashes; request URLs and credential query params are not persisted. |
 | `MARKET_BOT_CACHE_DISABLE` | `false` | Set to `1` or `true` to bypass cache reads and writes entirely. |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | `7` | How many days back to look for a stale cached payload when a live fetch fails. A stale hit emits a `SourceGap` disclosing the staleness. |
 

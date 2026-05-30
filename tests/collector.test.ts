@@ -1,12 +1,24 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { collectSources, resetSourceResilienceForTests } from "../src/sources/collector";
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
 }
 
+let tmpDirs: string[] = [];
+
 beforeEach(() => {
   resetSourceResilienceForTests();
+  tmpDirs = [];
+});
+
+afterEach(() => {
+  for (const dir of tmpDirs) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 describe("collectSources", () => {
@@ -132,6 +144,93 @@ describe("collectSources", () => {
 
     expect(result.rawSnapshots).toHaveLength(3);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
+  });
+
+  test("reuses same-day equivalent cache entries across daily and weekly equity runs", async () => {
+    const cacheDir = mkdtempSync(join(tmpdir(), "collector-cache-test-"));
+    tmpDirs.push(cacheDir);
+    const requestedUrls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      requestedUrls.push(url);
+
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "AAPL",
+                    regularMarketPrice: 190,
+                    regularMarketChangePercent: 2,
+                    regularMarketVolume: 80_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Markets rise",
+            link: "https://example.test/markets",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+    const sourceOptions = {
+      equityMoverLimit: 2,
+      cryptoMoverLimit: 2,
+      newsLimit: 2,
+      sourceTimeoutMs: 1000,
+      cacheDir,
+    };
+    const now = new Date("2026-05-19T00:00:00.000Z");
+
+    const daily = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      sourceOptions,
+      now,
+      fetchImpl,
+    );
+    const firstRunFetches = requestedUrls.length;
+    const weekly = await collectSources(
+      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      sourceOptions,
+      now,
+      fetchImpl,
+    );
+
+    expect(firstRunFetches).toBeGreaterThan(0);
+    expect(requestedUrls).toHaveLength(firstRunFetches);
+    expect(daily.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
+    expect(weekly.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
+    expect(weekly.sourceGaps.map((gap) => gap.source)).toEqual([
+      "marketaux-news",
+      "finnhub-news",
+      "fred-macro",
+    ]);
   });
 
   test("filters crypto ticker collection by symbol", async () => {

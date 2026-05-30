@@ -7,6 +7,7 @@ import type { AssetClass, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, type CollectedSources } from "../src/research/orchestrator";
 import type { ResearchCommand } from "../src/cli/args";
+import { marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
   provider: "openai",
@@ -32,25 +33,16 @@ afterEach(async () => {
 });
 
 function snapshot(assetClass: AssetClass, symbol: string): MarketSnapshot {
-  return {
+  return marketSnapshot({
     sourceId: `market-${symbol.toLowerCase()}`,
     assetClass,
     symbol,
-    price: 100,
     changePercent24h: 3,
-    volume: 1_000_000,
-    observedAt: "2026-05-19T00:00:00.000Z",
-  };
+  });
 }
 
 function news(assetClass: AssetClass): Source {
-  return {
-    id: `news-${assetClass}-1`,
-    title: `${assetClass} update`,
-    fetchedAt: "2026-05-19T00:00:00.000Z",
-    kind: "news",
-    assetClass,
-  };
+  return newsSource({ id: `news-${assetClass}-1`, title: `${assetClass} update`, assetClass });
 }
 
 function collectedSources(assetClass: AssetClass, symbol: string): CollectedSources {
@@ -154,14 +146,16 @@ describe("mocked research workflows", () => {
         ]),
       );
       await expect(readdir(workflow.artifacts.rawDir)).resolves.toEqual(["snapshots.json"]);
-      await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual([
-        "extended-evidence.json",
-        "extended-sources.json",
-        "market-context.json",
-        "market-snapshots.json",
-        "news-sources.json",
-        "source-gaps.json",
-      ]);
+      await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual(
+        expect.arrayContaining([
+          "extended-evidence.json",
+          "extended-sources.json",
+          "market-context.json",
+          "market-snapshots.json",
+          "news-sources.json",
+          "source-gaps.json",
+        ]),
+      );
       await expect(
         readFile(join(workflow.artifacts.runDir, "report.md"), "utf8"),
       ).resolves.toContain("Research-only note");

@@ -3,18 +3,9 @@ import { resolvePrediction } from "../src/scoring/resolver";
 import { buildCalibrationSummary } from "../src/scoring/calibration";
 import { renderCalibrationMarkdown } from "../src/scoring/calibration-markdown";
 import type { Prediction } from "../src/domain/types";
-import type { PredictionScore } from "../src/scoring/types";
+import { prediction, predictionScore } from "./support/fixtures";
 
-const basePrediction: Prediction = {
-  id: "pred-1",
-  claim: "SPY closes higher over 5 trading days.",
-  kind: "direction",
-  subject: "SPY",
-  measurableAs: "close(SPY, +5) > close(SPY, 0)",
-  horizonTradingDays: 5,
-  probability: 0.65,
-  sourceIds: [],
-};
+const basePrediction: Prediction = prediction();
 
 describe("resolvePrediction", () => {
   describe("direction", () => {
@@ -173,17 +164,7 @@ describe("resolvePrediction", () => {
   });
 });
 
-function makeScore(outcome: "hit" | "miss"): PredictionScore {
-  return {
-    predictionId: "p",
-    runId: "r",
-    resolved: true,
-    outcome,
-    observedAt: "2026-05-19T00:00:00.000Z",
-    attemptCount: 1,
-    evidence: {},
-  };
-}
+const makeScore = predictionScore;
 
 describe("buildCalibrationSummary", () => {
   test("computes Brier score for a perfectly calibrated set", () => {

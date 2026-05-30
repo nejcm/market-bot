@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createObservationRepository } from "../src/scoring/observations";
 import type { ResearchReport } from "../src/domain/types";
+import { researchReport } from "./support/fixtures";
+import { recordingFetch } from "./support/mocks";
 
 let tmpDir = "";
 const originalFetch = globalThis.fetch;
@@ -17,39 +19,16 @@ afterEach(() => {
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
-function jsonResponse(payload: unknown): Response {
-  return Response.json(payload);
-}
-
 function report(sources: ResearchReport["sources"] = []): ResearchReport {
-  return {
-    runId: "run-1",
-    jobType: "daily",
-    assetClass: "crypto",
-    generatedAt: "2026-05-19T00:00:00.000Z",
-    summary: "",
-    keyFindings: [],
-    bullCase: [],
-    bearCase: [],
-    risks: [],
-    catalysts: [],
-    scenarios: [],
-    confidence: "medium",
-    dataGaps: [],
-    predictions: [],
-    sources,
-    notFinancialAdvice: true,
-  };
+  return researchReport({ assetClass: "crypto", sources });
 }
 
 describe("ObservationRepository point routing", () => {
   test("routes FRED prefixed subjects to FRED observations", async () => {
-    const calls: string[] = [];
-    globalThis.fetch = ((input) => {
-      const url = String(input);
-      calls.push(url);
-      return Promise.resolve(jsonResponse({ observations: [{ value: "4.1" }, { value: "4.2" }] }));
-    }) as typeof fetch;
+    const { calls, fetch: stub } = recordingFetch(() => ({
+      observations: [{ value: "4.1" }, { value: "4.2" }],
+    }));
+    globalThis.fetch = stub;
     const repo = createObservationRepository({ report: report(), fredApiKey: "fred-key" });
 
     const result = await repo.point("FRED:DGS10", "equity", new Date("2026-05-19T00:00:00.000Z"));
@@ -60,26 +39,21 @@ describe("ObservationRepository point routing", () => {
   });
 
   test("routes IV prefixed equity subjects to Tradier", async () => {
-    const calls: string[] = [];
     const date = new Date("2026-05-19T00:00:00.000Z");
-    globalThis.fetch = ((input) => {
-      const url = String(input);
-      calls.push(url);
-      if (url.includes("/expirations?")) {
-        return Promise.resolve(jsonResponse({ expirations: { date: ["2026-06-20"] } }));
-      }
-      return Promise.resolve(
-        jsonResponse({
-          options: {
-            option: [
-              { greeks: { mid_iv: 0.3 } },
-              { greeks: { mid_iv: 0.38 } },
-              { greeks: { mid_iv: 0.5 } },
-            ],
+    const { calls, fetch: stub } = recordingFetch((url) =>
+      url.includes("/expirations?")
+        ? { expirations: { date: ["2026-06-20"] } }
+        : {
+            options: {
+              option: [
+                { greeks: { mid_iv: 0.3 } },
+                { greeks: { mid_iv: 0.38 } },
+                { greeks: { mid_iv: 0.5 } },
+              ],
+            },
           },
-        }),
-      );
-    }) as typeof fetch;
+    );
+    globalThis.fetch = stub;
     const repo = createObservationRepository({
       report: report(),
       tradierApiToken: "tradier-token",
@@ -93,11 +67,8 @@ describe("ObservationRepository point routing", () => {
   });
 
   test("does not fetch IV observations for crypto", async () => {
-    const calls: string[] = [];
-    globalThis.fetch = ((input) => {
-      calls.push(String(input));
-      return Promise.resolve(jsonResponse({}));
-    }) as typeof fetch;
+    const { calls, fetch: stub } = recordingFetch(() => ({}));
+    globalThis.fetch = stub;
     const repo = createObservationRepository({
       report: report(),
       tradierApiToken: "tradier-token",
@@ -110,11 +81,8 @@ describe("ObservationRepository point routing", () => {
   });
 
   test("uses report Instrument Identity for CoinGecko coin id", async () => {
-    const calls: string[] = [];
-    globalThis.fetch = ((input) => {
-      calls.push(String(input));
-      return Promise.resolve(jsonResponse({ prices: [[0, 68_000]] }));
-    }) as typeof fetch;
+    const { calls, fetch: stub } = recordingFetch(() => ({ prices: [[0, 68_000]] }));
+    globalThis.fetch = stub;
     const repo = createObservationRepository({
       report: report([
         {
@@ -138,11 +106,8 @@ describe("ObservationRepository point routing", () => {
   });
 
   test("uses BTC fallback and leaves unknown crypto unresolved", async () => {
-    const calls: string[] = [];
-    globalThis.fetch = ((input) => {
-      calls.push(String(input));
-      return Promise.resolve(jsonResponse({ prices: [[0, 68_000]] }));
-    }) as typeof fetch;
+    const { calls, fetch: stub } = recordingFetch(() => ({ prices: [[0, 68_000]] }));
+    globalThis.fetch = stub;
     const repo = createObservationRepository({ report: report() });
 
     const btc = await repo.point("BTC", "crypto", new Date("2026-05-19T00:00:00.000Z"));

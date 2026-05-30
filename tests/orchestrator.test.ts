@@ -7,6 +7,8 @@ import type { RunConfig } from "../src/config/runs";
 import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
+import { marketSnapshot, newsSource } from "./support/fixtures";
+import { providerReturning } from "./support/mocks";
 
 const config: AppConfig = {
   provider: "openai",
@@ -24,26 +26,10 @@ const config: AppConfig = {
 };
 
 const marketSnapshots: readonly MarketSnapshot[] = [
-  {
-    sourceId: "market-aapl",
-    assetClass: "equity",
-    symbol: "AAPL",
-    price: 190,
-    changePercent24h: 2,
-    volume: 80_000_000,
-    observedAt: "2026-05-19T00:00:00.000Z",
-  },
+  marketSnapshot({ price: 190, volume: 80_000_000 }),
 ];
 
-const newsSources: readonly Source[] = [
-  {
-    id: "news-equity-1",
-    title: "Apple supplier demand improves",
-    fetchedAt: "2026-05-19T00:00:00.000Z",
-    kind: "news",
-    assetClass: "equity",
-  },
-];
+const newsSources: readonly Source[] = [newsSource({ title: "Apple supplier demand improves" })];
 
 const marketContextSources: readonly Source[] = [
   {
@@ -81,17 +67,6 @@ afterEach(async () => {
     dataDirs.splice(0).map((dataDir) => rm(dataDir, { recursive: true, force: true })),
   );
 });
-
-function providerReturning(content: string): ModelProvider {
-  return {
-    name: "mock",
-    generate: async () => ({
-      content,
-      tokenEstimate: 100,
-      costEstimateUsd: 0.01,
-    }),
-  };
-}
 
 function mockPredictions(count: number, subject = "SPY"): unknown[] {
   return Array.from({ length: count }, (_, idx) => ({

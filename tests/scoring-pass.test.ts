@@ -7,6 +7,8 @@ import type { ResearchReport } from "../src/domain/types";
 import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { PredictionScore } from "../src/scoring/types";
+import { researchReport } from "./support/fixtures";
+import { recordingFetch } from "./support/mocks";
 
 let tmpDir = "";
 const originalFetch = globalThis.fetch;
@@ -24,25 +26,7 @@ function report(
   predictions: ResearchReport["predictions"],
   overrides: Partial<ResearchReport> = {},
 ): ResearchReport {
-  return {
-    runId: "run-1",
-    jobType: "daily",
-    assetClass: "equity",
-    generatedAt: "2026-05-01T00:00:00.000Z",
-    summary: "",
-    keyFindings: [],
-    bullCase: [],
-    bearCase: [],
-    risks: [],
-    catalysts: [],
-    scenarios: [],
-    confidence: "medium",
-    dataGaps: [],
-    predictions,
-    sources: [],
-    notFinancialAdvice: true,
-    ...overrides,
-  };
+  return researchReport({ generatedAt: "2026-05-01T00:00:00.000Z", predictions, ...overrides });
 }
 
 async function writeRun(runId: string, value: ResearchReport): Promise<string> {
@@ -240,20 +224,16 @@ describe("runScorePass Observation scoring", () => {
         },
       ),
     );
-    const calls: string[] = [];
-    globalThis.fetch = ((input) => {
-      const url = String(input);
-      calls.push(url);
+    const { calls, fetch: stub } = recordingFetch((url) => {
       const values = url.includes("/coins/bitcoin/") ? [100, 110, 130] : [100, 105, 110];
-      return Promise.resolve(
-        Response.json({
-          prices: values.map((value, index) => [
-            Date.parse(`2026-05-0${String(index + 1)}T00:00:00.000Z`),
-            value,
-          ]),
-        }),
-      );
-    }) as typeof fetch;
+      return {
+        prices: values.map((value, index) => [
+          Date.parse(`2026-05-0${String(index + 1)}T00:00:00.000Z`),
+          value,
+        ]),
+      };
+    });
+    globalThis.fetch = stub;
 
     await runScorePass(tmpDir, new Date("2026-05-05T00:00:00.000Z"));
 

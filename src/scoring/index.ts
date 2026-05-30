@@ -239,6 +239,7 @@ async function scoreRunDir(runDir: string, now: Date, options: ScorePassOptions)
       return true;
     }
     if (prev.resolved) {
+      // Resolved scores are historical records; version bumps apply only to new scoring writes.
       return false;
     }
     return prev.attemptCount < MAX_SCORE_ATTEMPTS;

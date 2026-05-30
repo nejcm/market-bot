@@ -9,16 +9,21 @@ import type { Observation, ObservationRepository } from "../src/scoring/observat
 import type { PredictionScore } from "../src/scoring/types";
 
 let tmpDir = "";
+const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), "score-pass-test-"));
 });
 
 afterEach(() => {
+  globalThis.fetch = originalFetch;
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
-function report(predictions: ResearchReport["predictions"]): ResearchReport {
+function report(
+  predictions: ResearchReport["predictions"],
+  overrides: Partial<ResearchReport> = {},
+): ResearchReport {
   return {
     runId: "run-1",
     jobType: "daily",
@@ -36,6 +41,7 @@ function report(predictions: ResearchReport["predictions"]): ResearchReport {
     predictions,
     sources: [],
     notFinancialAdvice: true,
+    ...overrides,
   };
 }
 
@@ -187,5 +193,75 @@ describe("runScorePass Observation scoring", () => {
       evidence: { legacy: true },
     });
     expect(score?.scoringVersion).toBeUndefined();
+  });
+
+  test("scores crypto relative windows with per-subject CoinGecko ids", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report(
+        [
+          {
+            id: "pred-rel-crypto",
+            claim: "BTC outperforms ETH over two trading days.",
+            kind: "relative",
+            subject: "BTC:ETH",
+            measurableAs: "close(BTC, +2) / close(BTC, 0) > close(ETH, +2) / close(ETH, 0)",
+            horizonTradingDays: 2,
+            probability: 0.6,
+            sourceIds: [],
+          },
+        ],
+        {
+          assetClass: "crypto",
+          sources: [
+            {
+              id: "market-btc",
+              title: "BTC market snapshot",
+              fetchedAt: "2026-05-01T00:00:00.000Z",
+              kind: "market-data",
+              assetClass: "crypto",
+              symbol: "BTC",
+              identity: {
+                providerIds: [{ provider: "coingecko", idKind: "coin-id", value: "bitcoin" }],
+              },
+            },
+            {
+              id: "market-eth",
+              title: "ETH market snapshot",
+              fetchedAt: "2026-05-01T00:00:00.000Z",
+              kind: "market-data",
+              assetClass: "crypto",
+              symbol: "ETH",
+              identity: {
+                providerIds: [{ provider: "coingecko", idKind: "coin-id", value: "ethereum" }],
+              },
+            },
+          ],
+        },
+      ),
+    );
+    const calls: string[] = [];
+    globalThis.fetch = ((input) => {
+      const url = String(input);
+      calls.push(url);
+      const values = url.includes("/coins/bitcoin/") ? [100, 110, 130] : [100, 105, 110];
+      return Promise.resolve(
+        Response.json({
+          prices: values.map((value, index) => [
+            Date.parse(`2026-05-0${String(index + 1)}T00:00:00.000Z`),
+            value,
+          ]),
+        }),
+      );
+    }) as typeof fetch;
+
+    await runScorePass(tmpDir, new Date("2026-05-05T00:00:00.000Z"));
+
+    const [score] = await readScores(runDir);
+    expect(score?.outcome).toBe("hit");
+    expect(score?.evidence).toMatchObject({ returnA: 1.3, returnB: 1.1 });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toContain("/coins/bitcoin/market_chart/range");
+    expect(calls[1]).toContain("/coins/ethereum/market_chart/range");
   });
 });

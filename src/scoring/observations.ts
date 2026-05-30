@@ -45,19 +45,9 @@ function identityForSubject(
   report: ResearchReport,
   subject: string,
 ): InstrumentIdentity | undefined {
-  const sourceIdentity = report.sources.find(
+  return report.sources.find(
     (source) => source.assetClass === "crypto" && source.symbol === subject,
   )?.identity;
-
-  if (sourceIdentity !== undefined) {
-    return sourceIdentity;
-  }
-
-  if (report.extendedEvidence?.instrument.symbol === subject) {
-    return report.extendedEvidence.instrument.identity;
-  }
-
-  return undefined;
 }
 
 function coinGeckoId(report: ResearchReport, subject: string): string | undefined {

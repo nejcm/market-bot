@@ -297,6 +297,12 @@ export async function collectSources(
     ...(sourceOptions.secUserAgent !== undefined
       ? { secUserAgent: sourceOptions.secUserAgent }
       : {}),
+    ...(sourceOptions.newsSeenPath !== undefined
+      ? { newsSeenPath: sourceOptions.newsSeenPath }
+      : {}),
+    ...(sourceOptions.newsSeenRetentionDays !== undefined
+      ? { newsSeenRetentionDays: sourceOptions.newsSeenRetentionDays }
+      : {}),
     fetchImpl,
     fetchOrGap,
     retryDelaysMs,

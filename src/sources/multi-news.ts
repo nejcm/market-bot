@@ -1,6 +1,7 @@
 import type { Source, SourceProviderAlias } from "../domain/types";
 import { finnhubNewsAdapter } from "./finnhub-news";
 import { marketAuxNewsAdapter } from "./marketaux-news";
+import { filterSeenNewsSources } from "./news-seen";
 import { canonicalizeUrl } from "./news-utils";
 import { type CollectContext, type NewsAdapter, type NewsCollectionResult } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
@@ -159,17 +160,22 @@ function assignSourceIds(sources: readonly Source[]): readonly Source[] {
 
 async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   const results = await Promise.all(NEWS_ADAPTERS.map((adapter) => adapter.collect(ctx)));
-  const newsSources = assignSourceIds(
-    selectRoundRobin(
-      dedupeByCanonicalUrl(results.flatMap((result) => result.newsSources)),
-      ctx.newsLimit,
-    ),
-  );
+  const dedupedSources = dedupeByCanonicalUrl(results.flatMap((result) => result.newsSources));
+  const filtered =
+    ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
+      ? await filterSeenNewsSources(dedupedSources, {
+          path: ctx.newsSeenPath,
+          retentionDays: ctx.newsSeenRetentionDays,
+          command: ctx.command,
+          now: new Date(ctx.fetchedAt),
+        })
+      : { newsSources: dedupedSources, sourceGaps: [] };
+  const newsSources = assignSourceIds(selectRoundRobin(filtered.newsSources, ctx.newsLimit));
 
   return {
     rawSnapshots: results.flatMap((result) => result.rawSnapshots),
     newsSources,
-    sourceGaps: results.flatMap((result) => result.sourceGaps),
+    sourceGaps: [...results.flatMap((result) => result.sourceGaps), ...filtered.sourceGaps],
   };
 }
 

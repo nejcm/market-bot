@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { collectSources, resetSourceResilienceForTests } from "../src/sources/collector";
+import { recordSeenNewsSources } from "../src/sources/news-seen";
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
@@ -20,6 +21,12 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+function tempSeenPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), "collector-news-seen-test-"));
+  tmpDirs.push(dir);
+  return join(dir, "news-seen.json");
+}
 
 describe("collectSources", () => {
   test("collects daily equity market data and news with injectable fetch", async () => {
@@ -543,6 +550,201 @@ describe("collectSources", () => {
       (snapshot) => snapshot.adapter === "finnhub-news",
     )?.payload;
     expect(Array.isArray(finnhubPayload) ? finnhubPayload.length : 0).toBe(2);
+  });
+
+  test("suppresses previously seen news within the same research lane", async () => {
+    const newsSeenPath = tempSeenPath();
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: [
+        {
+          id: "news-crypto-1",
+          title: "Repeated BTC story",
+          url: "https://example.test/repeat",
+          fetchedAt: "2026-05-18T00:00:00.000Z",
+          kind: "news",
+          assetClass: "crypto",
+          provider: "yahoo-news",
+        },
+      ],
+    });
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            symbol: "btc",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 40_000_000_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Repeated BTC story",
+            link: "https://example.test/repeat",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+          {
+            title: "Fresh BTC story",
+            link: "https://example.test/fresh",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 3,
+        sourceTimeoutMs: 1000,
+        newsSeenPath,
+        newsSeenRetentionDays: 30,
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.title)).toEqual(["Fresh BTC story"]);
+    expect(result.newsSources[0]?.id).toBe("news-crypto-1");
+    expect(result.sourceGaps.map((gap) => gap.source)).not.toContain("news-seen");
+  });
+
+  test("keeps previously seen news in a different research lane", async () => {
+    const newsSeenPath = tempSeenPath();
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: [
+        {
+          id: "news-crypto-1",
+          title: "Repeated BTC story",
+          url: "https://example.test/repeat",
+          fetchedAt: "2026-05-18T00:00:00.000Z",
+          kind: "news",
+          assetClass: "crypto",
+          provider: "yahoo-news",
+        },
+      ],
+    });
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            symbol: "btc",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 40_000_000_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Repeated BTC story",
+            link: "https://example.test/repeat",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "weekly", assetClass: "crypto", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 3,
+        sourceTimeoutMs: 1000,
+        newsSeenPath,
+        newsSeenRetentionDays: 30,
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.title)).toEqual(["Repeated BTC story"]);
+  });
+
+  test("keeps one repeat fallback when persistent dedupe removes every news source", async () => {
+    const newsSeenPath = tempSeenPath();
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: [
+        {
+          id: "news-crypto-1",
+          title: "Repeated BTC story",
+          url: "https://example.test/repeat",
+          fetchedAt: "2026-05-18T00:00:00.000Z",
+          kind: "news",
+          assetClass: "crypto",
+          provider: "yahoo-news",
+        },
+      ],
+    });
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            symbol: "btc",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 40_000_000_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Repeated BTC story",
+            link: "https://example.test/repeat",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 3,
+        sourceTimeoutMs: 1000,
+        newsSeenPath,
+        newsSeenRetentionDays: 30,
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.title)).toEqual(["Repeated BTC story"]);
+    expect(result.sourceGaps.some((gap) => gap.source === "news-seen")).toBe(true);
   });
 
   test("opens provider circuit on rate limit responses", async () => {

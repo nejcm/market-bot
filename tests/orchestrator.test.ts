@@ -7,6 +7,7 @@ import type { RunConfig } from "../src/config/runs";
 import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
+import { readNewsSeenEntries } from "../src/sources/news-seen";
 import { marketSnapshot, newsSource } from "./support/fixtures";
 import { providerReturning } from "./support/mocks";
 
@@ -918,5 +919,74 @@ describe("runResearchJob", () => {
     expect(result.report.predictions).toHaveLength(2);
     expect(result.trace.predictionErrors).toBeDefined();
     expect(result.trace.predictionErrors?.length).toBe(2);
+  });
+
+  test("records attached report news in the seen index after persistence", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-news-seen-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const newsSeenPath = join(dataDir, "news-seen.json");
+    dataDirs.push(dataDir);
+
+    const result = await persistResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config: {
+        ...config,
+        dataDir,
+        sourceOptions: {
+          ...config.sourceOptions,
+          newsSeenPath,
+          newsSeenRetentionDays: 30,
+        },
+      },
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Core market evidence is available.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports breadth.", sourceIds: ["news-equity-1"] }],
+          bearCase: [{ text: "Single-name breadth is limited.", sourceIds: ["market-aapl"] }],
+          risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "high",
+          dataGaps: [],
+          predictions: mockPredictions(2),
+        }),
+      ),
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources: [
+          newsSource({
+            title: "Apple supplier demand improves",
+            url: "https://example.test/apple-suppliers?utm_source=feed",
+            provider: "yahoo-news",
+          }),
+        ],
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const entries = await readNewsSeenEntries(newsSeenPath);
+
+    expect(await Bun.file(join(result.artifacts.runDir, "report.json")).exists()).toBe(true);
+    expect(entries).toMatchObject([
+      {
+        lane: "daily:equity",
+        canonicalUrl: "https://example.test/apple-suppliers",
+        title: "Apple supplier demand improves",
+        provider: "yahoo-news",
+        firstRunId: result.report.runId,
+        lastRunId: result.report.runId,
+      },
+    ]);
   });
 });

@@ -1,11 +1,11 @@
 # Improvements Backlog
 
----
 
 ## Near-term focus
 
 - **Research candidate discovery** - still deferred until the ticker Extended Evidence layer,
   market-update data gaps, and source reliability have been exercised over real runs.
+- **Alpha discovery** — discover alpha signals from social media and other sources. Stock/equities that are still early but with higher risk.
 - **Social sentiment** (X, Reddit, StockTwits) - high noise; defer until calibration shows
   that it adds signal beyond current news and market-data sources.
 

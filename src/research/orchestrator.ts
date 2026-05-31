@@ -12,6 +12,7 @@ import {
 import { isMarketUpdateJobType, type ResearchReport, type RunTrace } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
+import { recordSeenNewsSources } from "../sources/news-seen";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt } from "./prompt-loader";
 import {
@@ -228,6 +229,19 @@ export async function persistResearchJob(
   );
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);
+  if (
+    input.config.sourceOptions.newsSeenPath !== undefined &&
+    input.config.sourceOptions.newsSeenRetentionDays !== undefined
+  ) {
+    await recordSeenNewsSources({
+      path: input.config.sourceOptions.newsSeenPath,
+      retentionDays: input.config.sourceOptions.newsSeenRetentionDays,
+      command: input.command,
+      runId: result.report.runId,
+      seenAt: result.report.generatedAt,
+      sources: result.report.sources,
+    });
+  }
 
   return {
     ...result,

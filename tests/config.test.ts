@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { resolveConfig } from "../src/config";
 
 describe("resolveConfig", () => {
@@ -88,6 +89,29 @@ describe("resolveConfig", () => {
     expect(
       resolveConfig({ MARKET_BOT_SOURCE_TIMEOUT_MS: "5000" }).sourceOptions.sourceTimeoutMs,
     ).toBe(5000);
+  });
+
+  test("derives persistent news seen index from data directory", () => {
+    const { sourceOptions } = resolveConfig({ MARKET_BOT_DATA_DIR: "custom/runs" });
+
+    expect(sourceOptions.newsSeenPath).toBe(join("custom", "news-seen.json"));
+    expect(sourceOptions.newsSeenRetentionDays).toBe(30);
+  });
+
+  test("keeps persistent news seen index inside non-run data directories", () => {
+    expect(resolveConfig({ MARKET_BOT_DATA_DIR: "custom-data" }).sourceOptions.newsSeenPath).toBe(
+      join("custom-data", "news-seen.json"),
+    );
+  });
+
+  test("reads persistent news seen settings", () => {
+    const { sourceOptions } = resolveConfig({
+      MARKET_BOT_NEWS_SEEN_PATH: "custom/news-seen.json",
+      MARKET_BOT_NEWS_SEEN_RETENTION_DAYS: "14",
+    });
+
+    expect(sourceOptions.newsSeenPath).toBe("custom/news-seen.json");
+    expect(sourceOptions.newsSeenRetentionDays).toBe(14);
   });
 
   test("reads news provider tokens", () => {

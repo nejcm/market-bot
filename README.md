@@ -65,6 +65,8 @@ All configuration is via environment variables.
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |
 | `MARKET_BOT_NEWS_LIMIT` | `8` | News items per run. |
+| `MARKET_BOT_NEWS_SEEN_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Persistent seen-news index. |
+| `MARKET_BOT_NEWS_SEEN_RETENTION_DAYS` | `30` | Days to suppress exact canonical-URL news repeats within the same research lane. |
 | `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news and ticker equity events. |

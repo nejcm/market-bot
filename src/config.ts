@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 export type ProviderName = "openai" | "openai-compatible" | "codex";
 
@@ -16,6 +16,8 @@ export interface SourceOptions {
   readonly cacheDir?: string;
   readonly cacheDisabled?: boolean;
   readonly cacheFallbackDays?: number;
+  readonly newsSeenPath?: string;
+  readonly newsSeenRetentionDays?: number;
 }
 
 export interface AppConfig {
@@ -38,6 +40,7 @@ const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 const DEFAULT_DATA_DIR = "data/runs";
 const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
 const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
+const DEFAULT_NEWS_SEEN_RETENTION_DAYS = 30;
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
@@ -70,6 +73,11 @@ function readProvider(value: string | undefined): ProviderName {
 
 function readOptionalString(value: string | undefined): string | undefined {
   return value !== undefined && value.trim() !== "" ? value : undefined;
+}
+
+function deriveNewsSeenPath(dataDir: string): string {
+  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
+  return join(dataRoot, "news-seen.json");
 }
 
 function isLoopbackHost(hostname: string): boolean {
@@ -119,6 +127,8 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
     env.MARKET_BOT_OPENAI_API_KEY ?? (provider === "openai" ? env.OPENAI_API_KEY : undefined);
   const baseUrl = readBaseUrl(provider, env.MARKET_BOT_BASE_URL);
 
+  const dataDir = env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR;
+
   return {
     provider,
     ...(baseUrl !== undefined ? { baseUrl } : {}),
@@ -132,7 +142,7 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       ? { codexSynthesisModel: readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) as string }
       : {}),
     modelTimeoutMs: readPositiveInteger(env.MARKET_BOT_MODEL_TIMEOUT_MS, DEFAULT_MODEL_TIMEOUT_MS),
-    dataDir: env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR,
+    dataDir,
     promptDir: readOptionalString(env.MARKET_BOT_PROMPT_DIR) ?? DEFAULT_PROMPT_DIR,
     sourceOptions: {
       equityMoverLimit: readPositiveInteger(env.MARKET_BOT_EQUITY_MOVER_LIMIT, 5),
@@ -158,6 +168,12 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
       cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),
       cacheFallbackDays: readPositiveInteger(env.MARKET_BOT_CACHE_FALLBACK_DAYS, 7),
+      newsSeenPath:
+        readOptionalString(env.MARKET_BOT_NEWS_SEEN_PATH) ?? deriveNewsSeenPath(dataDir),
+      newsSeenRetentionDays: readPositiveInteger(
+        env.MARKET_BOT_NEWS_SEEN_RETENTION_DAYS,
+        DEFAULT_NEWS_SEEN_RETENTION_DAYS,
+      ),
     },
   };
 }

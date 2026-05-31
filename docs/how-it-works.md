@@ -135,6 +135,7 @@ Fetch behavior:
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
 - Missing MarketAux or Finnhub tokens are reported as `SourceGap`s. Yahoo news still runs.
 - Finnhub news is capped after normalization because the used Finnhub news endpoints do not expose a count-limit parameter.
+- News is also checked against a persistent seen-news index at `data/news-seen.json` by default, or `MARKET_BOT_NEWS_SEEN_PATH` when set. Exact canonical-URL repeats are suppressed only within the same research lane for 30 days by default. The index is updated after report artifacts are written, so failed runs do not hide future news. If every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
 
 ## Normalization and adapters
 
@@ -143,7 +144,7 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/yahoo.ts` normalizes Yahoo quote payloads and fetches equity closes for scoring.
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
-- `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, and preserve provider aliases.
+- `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, suppress recently seen repeats, and preserve provider aliases.
 - `src/sources/market-context.ts` collects FRED macro Market Context for daily and weekly market updates.
 - `src/sources/extended-evidence.ts` collects ticker-only SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode evidence.
 - `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.

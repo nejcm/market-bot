@@ -4,9 +4,14 @@ import { fetchCoinGeckoClose, fetchCoinGeckoCloseWindow } from "../sources/coing
 import { fetchFredObservation } from "../sources/fred";
 import { fetchTradierIvObservation } from "../sources/tradier";
 import { fetchYahooClose, fetchYahooCloseWindow } from "../sources/yahoo";
-import { fetchCloseWithCache, type FetchCloseFn } from "./close-cache";
+import {
+  fetchCloseWithCache,
+  fetchWindowWithCache,
+  type FetchCloseFn,
+  type FetchWindowFn,
+} from "./close-cache";
 
-export type { FetchCloseFn, Observation };
+export type { FetchCloseFn, FetchWindowFn, Observation };
 
 export interface ObservationRepository {
   point(subject: string, assetClass: AssetClass, date: Date): Promise<Observation | undefined>;
@@ -22,6 +27,7 @@ export interface ObservationRepositoryOptions {
   readonly report: ResearchReport;
   readonly cacheDir?: string;
   readonly fetchClose?: FetchCloseFn;
+  readonly fetchWindow?: FetchWindowFn;
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
   readonly now?: Date;
@@ -85,10 +91,22 @@ function routePointFetch(
   };
 }
 
+function routeWindowFetch(report: ResearchReport): FetchWindowFn {
+  return async (subject, assetClass, from, to) => {
+    if (assetClass === "equity") {
+      return fetchYahooCloseWindow(subject, from, to);
+    }
+
+    const id = coinGeckoId(report, subject);
+    return id === undefined ? [] : fetchCoinGeckoCloseWindow(subject, id, from, to);
+  };
+}
+
 export function createObservationRepository(
   options: ObservationRepositoryOptions,
 ): ObservationRepository {
   const fetchPoint = options.fetchClose ?? routePointFetch(options);
+  const fetchWindow = options.fetchWindow ?? routeWindowFetch(options.report);
   const now = options.now ?? new Date();
 
   return {
@@ -105,12 +123,15 @@ export function createObservationRepository(
     },
 
     async window(subject, assetClass, from, to) {
-      if (assetClass === "equity") {
-        return fetchYahooCloseWindow(subject, from, to);
-      }
-
-      const id = coinGeckoId(options.report, subject);
-      return id === undefined ? [] : fetchCoinGeckoCloseWindow(subject, id, from, to);
+      return fetchWindowWithCache(
+        subject,
+        assetClass,
+        from,
+        to,
+        options.cacheDir,
+        fetchWindow,
+        now,
+      );
     },
   };
 }

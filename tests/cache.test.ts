@@ -274,14 +274,31 @@ describe("pruneCache", () => {
     const freshRawDir = join(tmpDir, "2026-05-10");
     const oldCloseFile = join(tmpDir, "closes", "equity", "spy", "2025-01-01.json");
     const freshCloseFile = join(tmpDir, "closes", "equity", "spy", "2026-05-01.json");
+    const oldWindowFile = join(
+      tmpDir,
+      "close-windows",
+      "equity",
+      "spy",
+      "2024-12-20_2025-01-01.json",
+    );
+    const freshWindowFile = join(
+      tmpDir,
+      "close-windows",
+      "equity",
+      "spy",
+      "2026-04-20_2026-05-01.json",
+    );
 
     mkdirSync(oldRawDir, { recursive: true });
     mkdirSync(freshRawDir, { recursive: true });
     mkdirSync(join(tmpDir, "closes", "equity", "spy"), { recursive: true });
+    mkdirSync(join(tmpDir, "close-windows", "equity", "spy"), { recursive: true });
     writeFileSync(join(oldRawDir, "old.json"), "{}");
     writeFileSync(join(freshRawDir, "fresh.json"), "{}");
     writeFileSync(oldCloseFile, "{}");
     writeFileSync(freshCloseFile, "{}");
+    writeFileSync(oldWindowFile, "{}");
+    writeFileSync(freshWindowFile, "{}");
 
     const result = await pruneCache({
       dir: tmpDir,
@@ -290,11 +307,13 @@ describe("pruneCache", () => {
       closeRetentionDays: 365,
     });
 
-    expect(result).toEqual({ rawDaysPruned: 1, closeFilesPruned: 1 });
+    expect(result).toEqual({ rawDaysPruned: 1, closeFilesPruned: 2 });
     expect(existsSync(oldRawDir)).toBe(false);
     expect(existsSync(freshRawDir)).toBe(true);
     expect(existsSync(oldCloseFile)).toBe(false);
     expect(existsSync(freshCloseFile)).toBe(true);
+    expect(existsSync(oldWindowFile)).toBe(false);
+    expect(existsSync(freshWindowFile)).toBe(true);
   });
 });
 

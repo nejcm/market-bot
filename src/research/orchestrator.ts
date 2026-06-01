@@ -17,6 +17,7 @@ import { recordSeenNewsSources } from "../sources/news-seen";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt, type StageLabel } from "./prompt-loader";
+import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
 import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
@@ -57,6 +58,7 @@ export interface RunResearchJobResult {
   readonly report: ResearchReport;
   readonly markdown: string;
   readonly trace: RunTrace;
+  readonly analytics: RunAnalytics;
   readonly stageOutputs: readonly StageOutput[];
   readonly collectedSources: CollectedSources;
 }
@@ -329,11 +331,19 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     domainPlaybooks: playbookSelection.audit,
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
   };
+  const analytics = buildRunAnalytics({
+    report,
+    trace,
+    collectedSources,
+    stageOutputs,
+    minimumPredictions: context.depthProfile.minimumPredictions,
+  });
 
   return {
     report,
     markdown: renderMarkdownReport(report),
     trace,
+    analytics,
     stageOutputs,
     collectedSources,
   };
@@ -375,6 +385,7 @@ export async function persistResearchJob(
     result.collectedSources.sourceGaps ?? [],
   );
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
+  await writeJson(join(artifacts.runDir, "analytics.json"), result.analytics);
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);
   if (
     input.config.sourceOptions.newsSeenPath !== undefined &&

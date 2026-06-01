@@ -67,6 +67,18 @@ export interface NewsCollectionResult {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly newsSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
+  readonly newsAnalytics?: NewsCollectionAnalytics;
+}
+
+export interface NewsCollectionAnalytics {
+  readonly fetchedNewsSourcesByProvider: Readonly<Record<string, number>>;
+  readonly fetchedNewsSourceCount: number;
+  readonly canonicalDedupedNewsSourceCount: number;
+  readonly canonicalDuplicateNewsSourceCount: number;
+  readonly persistentSuppressedNewsSourceCount: number;
+  readonly repeatFallbackKeptCount: number;
+  readonly selectedNewsSourceCount: number;
+  readonly repeatFallbackUsed: boolean;
 }
 
 export interface ExtendedEvidenceCollectionResult {

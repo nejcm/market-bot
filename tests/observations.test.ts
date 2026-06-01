@@ -140,4 +140,27 @@ describe("ObservationRepository caching", () => {
     expect(second?.value).toBe(500);
     expect(calls).toBe(1);
   });
+
+  test("a second window call for the same subject and range hits the cache", async () => {
+    let calls = 0;
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-21T00:00:00.000Z");
+    const repo = createObservationRepository({
+      report: report(),
+      cacheDir: tmpDir,
+      fetchWindow: async () => {
+        calls += 1;
+        return [
+          { subject: "SPY", date: "2026-05-19", value: 500 },
+          { subject: "SPY", date: "2026-05-20", value: 505 },
+        ];
+      },
+    });
+
+    const first = await repo.window("SPY", "equity", from, to);
+    const second = await repo.window("SPY", "equity", from, to);
+
+    expect(first).toEqual(second);
+    expect(calls).toBe(1);
+  });
 });

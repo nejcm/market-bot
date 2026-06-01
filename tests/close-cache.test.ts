@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { fetchCloseWithCache } from "../src/scoring/close-cache";
+import { fetchCloseWithCache, fetchWindowWithCache } from "../src/scoring/close-cache";
 
 let tmpDir = "";
 
@@ -42,6 +42,40 @@ describe("fetchCloseWithCache", () => {
 
     await fetchCloseWithCache("BTC", "crypto", date, tmpDir, fetchClose);
     await fetchCloseWithCache("BTC", "crypto", date, tmpDir, fetchClose);
+
+    expect(calls).toBe(2);
+  });
+
+  test("caches successful close windows by symbol, asset class, and date range", async () => {
+    let calls = 0;
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-21T00:00:00.000Z");
+    const fetchWindow = async () => {
+      calls += 1;
+      return [
+        { subject: "SPY", date: "2026-05-19", value: 500 },
+        { subject: "SPY", date: "2026-05-20", value: 505 },
+      ];
+    };
+
+    const first = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow);
+    const second = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow);
+
+    expect(first).toEqual(second);
+    expect(calls).toBe(1);
+  });
+
+  test("does not cache empty close windows", async () => {
+    let calls = 0;
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-21T00:00:00.000Z");
+    const fetchWindow = async () => {
+      calls += 1;
+      return [];
+    };
+
+    await fetchWindowWithCache("BTC", "crypto", from, to, tmpDir, fetchWindow);
+    await fetchWindowWithCache("BTC", "crypto", from, to, tmpDir, fetchWindow);
 
     expect(calls).toBe(2);
   });

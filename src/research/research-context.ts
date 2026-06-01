@@ -15,7 +15,7 @@ import {
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import { isRecord } from "../sources/guards";
-import type { RawSourceSnapshot } from "../sources/types";
+import type { NewsCollectionAnalytics, RawSourceSnapshot } from "../sources/types";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +32,7 @@ export interface CollectedSources {
   readonly marketContext?: MarketContext;
   readonly marketContextSources?: readonly Source[];
   readonly sourceGaps?: readonly SourceGap[];
+  readonly newsAnalytics?: NewsCollectionAnalytics;
 }
 
 // ---------------------------------------------------------------------------

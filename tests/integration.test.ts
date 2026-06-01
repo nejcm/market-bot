@@ -144,6 +144,7 @@ describe("mocked research workflows", () => {
         expect.arrayContaining([
           "normalized",
           "raw",
+          "analytics.json",
           "report.json",
           "report.md",
           "stages.json",

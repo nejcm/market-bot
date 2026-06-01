@@ -228,9 +228,9 @@ async function pruneRawCache(options: PruneCacheOptions): Promise<number> {
 }
 
 function listCloseCacheFiles(dir: string): readonly string[] {
-  const root = join(dir, "closes");
+  const roots = [join(dir, "closes"), join(dir, "close-windows")];
   const files: string[] = [];
-  const pending = [root];
+  const pending = [...roots];
 
   while (pending.length > 0) {
     const current = pending.pop();
@@ -250,13 +250,20 @@ function listCloseCacheFiles(dir: string): readonly string[] {
       const next = join(current, entry.name);
       if (entry.isDirectory()) {
         pending.push(next);
-      } else if (entry.isFile() && /^\d{4}-\d{2}-\d{2}\.json$/u.test(entry.name)) {
+      } else if (
+        entry.isFile() &&
+        /^\d{4}-\d{2}-\d{2}(?:_\d{4}-\d{2}-\d{2})?\.json$/u.test(entry.name)
+      ) {
         files.push(next);
       }
     }
   }
 
   return files;
+}
+
+function cachedCloseDate(file: string): string {
+  return basename(file, ".json").split("_").at(-1) ?? "";
 }
 
 async function pruneCloseCache(options: PruneCacheOptions): Promise<number> {
@@ -268,7 +275,7 @@ async function pruneCloseCache(options: PruneCacheOptions): Promise<number> {
         return 0;
       }
 
-      const cachedDate = basename(file, ".json");
+      const cachedDate = cachedCloseDate(file);
       if (dateDiffDays(today, cachedDate) <= options.closeRetentionDays) {
         return 0;
       }

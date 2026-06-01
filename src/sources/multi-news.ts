@@ -160,12 +160,30 @@ function assignSourceIds(sources: readonly Source[]): readonly Source[] {
   }));
 }
 
+function countNewsByProvider(
+  results: readonly NewsCollectionResult[],
+  adapters: readonly NewsAdapter[],
+): Readonly<Record<string, number>> {
+  const counts: Record<string, number> = {};
+
+  results.forEach((result, index) => {
+    const provider = adapters[index]?.provider ?? "unknown";
+    counts[provider] = (counts[provider] ?? 0) + result.newsSources.length;
+  });
+
+  return counts;
+}
+
 export function createMultiNewsAdapter(
   adapters: readonly NewsAdapter[],
   providerOrder: readonly string[] = adapters.map((adapter) => adapter.provider),
 ): NewsAdapter {
   async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     const results = await Promise.all(adapters.map((adapter) => adapter.collect(ctx)));
+    const fetchedNewsSourceCount = results.reduce(
+      (total, result) => total + result.newsSources.length,
+      0,
+    );
     const dedupedSources = dedupeByCanonicalUrl(results.flatMap((result) => result.newsSources));
     const filtered =
       ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
@@ -179,11 +197,25 @@ export function createMultiNewsAdapter(
     const newsSources = assignSourceIds(
       selectRoundRobin(filtered.newsSources, ctx.newsLimit, providerOrder),
     );
+    const repeatFallbackUsed = filtered.sourceGaps.some((gap) =>
+      gap.message.includes("kept one repeat fallback"),
+    );
+    const persistentSuppressedNewsSourceCount = dedupedSources.length - filtered.newsSources.length;
 
     return {
       rawSnapshots: results.flatMap((result) => result.rawSnapshots),
       newsSources,
       sourceGaps: [...results.flatMap((result) => result.sourceGaps), ...filtered.sourceGaps],
+      newsAnalytics: {
+        fetchedNewsSourcesByProvider: countNewsByProvider(results, adapters),
+        fetchedNewsSourceCount,
+        canonicalDedupedNewsSourceCount: dedupedSources.length,
+        canonicalDuplicateNewsSourceCount: fetchedNewsSourceCount - dedupedSources.length,
+        persistentSuppressedNewsSourceCount,
+        repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
+        selectedNewsSourceCount: newsSources.length,
+        repeatFallbackUsed,
+      },
     };
   }
 

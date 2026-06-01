@@ -14,6 +14,7 @@ import type {
   FetchLike,
   FetchTextOrGapFn,
   FetchTextResult,
+  NewsCollectionAnalytics,
   RawSourceSnapshot,
 } from "./types";
 import { createSourceRegistry } from "./registry";
@@ -28,6 +29,7 @@ export interface SourceCollection {
   readonly marketContext?: MarketContext;
   readonly marketContextSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
+  readonly newsAnalytics?: NewsCollectionAnalytics;
 }
 
 interface HostState {
@@ -417,6 +419,7 @@ export async function collectSources(
       ? { marketContext: marketContextResult.marketContext }
       : {}),
     marketContextSources: marketContextResult.sources,
+    ...(newsResult.newsAnalytics !== undefined ? { newsAnalytics: newsResult.newsAnalytics } : {}),
     sourceGaps: [
       ...marketResult.sourceGaps,
       ...newsResult.sourceGaps,

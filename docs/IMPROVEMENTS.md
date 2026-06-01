@@ -1,19 +1,14 @@
 # Improvements Backlog
 
-
-## Near-term focus
+## Validation
 
 - **Real-run validation** - exercise ticker Extended Evidence, market-update data gaps,
   persistent news dedupe, scoring, and calibration over real runs before adding candidate
   discovery.
-- **Alpha search** - next major research feature after real-run validation; includes
-  evidence-backed candidate discovery as one output of the alpha-search workflow.
-- **Social sentiment** (X, Reddit, StockTwits) - high noise; defer until calibration shows
-  that it adds signal beyond current news and market-data sources.
 
-## Research backlog
+## Alpha search
 
-### Alpha search (v2)
+Next major research feature after real-run validation; includes evidence-backed candidate discovery as one output of the alpha-search workflow.
 
 - **Prerequisite validation** - review recent daily, weekly, and ticker artifacts for source
   gaps, Evidence Quality caps, repeat-news suppression, and prediction calibration before
@@ -38,37 +33,27 @@
   benchmarks over declared horizons. Validation must resolve from public market data and stay
   within the observable-forecast boundary.
 
-### Sources and data depth (v3)
+## Social sentiment
 
-- **SEC/EDGAR segment and guidance enrichment** - add segment/geography revenue extraction,
-  guidance-change extraction from filings, and deeper thesis support beyond current
-  Fundamental Evidence.
+(X, Reddit, StockTwits) - high noise; defer until calibration shows that it adds signal beyond current news and market-data sources.
 
-### Research quality of regime / movers (v4)
 
-- **Regime inference depth** - currently proxy deltas (`src/research/regime.ts`); could
-  incorporate breadth (advancers/decliners), sector dispersion, term structure, or credit
-  spreads.
+## Research quality of regime / movers
+
 - **Mover ranking** - currently blends momentum, liquidity, and available unusual-volume
   or gap-size Mover Features. Sector-relative movement and short-interest remain deferred
   until provider depth supports them.
 - **Benchmark-relative mover analysis** so a stock is compared against its sector/index
   instead of only absolute movement.
 
-## Platform backlog
-
-### Pipeline and orchestration (v2)
+## Pipeline and orchestration
 
 - **Evidence Request Loop expansion** - V1 is implemented for deep equity ticker runs with
   bounded SEC latest-filing and Tradier IV term-structure tools. Future work: consider crypto,
   daily/weekly, or additional public-data tools only after real-run validation shows the loop
   improves evidence quality without adding noisy fetches.
-- **TradingAgents-style research committee** with bull/bear researchers, risk personas, and a
-  research-only evidence/risk summarizer. This must not introduce portfolio-manager behavior,
-  trade actions, position sizing, execution instructions, or portfolio-change language.
-- **Swarm/team presets** for macro desk, crypto desk, earnings desk, risk committee, or global allocation research.
 
-### Cross-run intelligence (v2)
+## Cross-run intelligence
 
 - **Watchlist + thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
 - **Semantic dedup of news sources** - broaden exact canonical-URL repeat suppression if real
@@ -76,16 +61,16 @@
 - **Incremental memory** — open questions and unresolved hypotheses carried forward.
 - **Session/run search** over prior reports, sources, predictions, and theses.
 
-### Operational (v3)
+## Operational
 
 - **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
   Decide whether this replaces or complements the current non-blocking score/calibration
   side effect on research runs. Include idempotency, locking, market-calendar handling,
   GitHub Actions artifact persistence, and calibration refresh timing.
-- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step; keep raw artifacts on disk if useful.
-  If optimal use db only for metadata and references to files (artifacts of runs) on disk.
+- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step; 
+  keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 
-## Product polish (v3)
+## Product polish
 
 Relevant only if the framing drifts from "research substrate for me" toward "shareable product":
 

@@ -197,10 +197,14 @@ Unexpected system delta.
 });
 
 describe("loadStagePrompt — real prompt files", () => {
-  test("loads all three real base.md files without error", async () => {
+  test("loads all real base.md files without error", async () => {
     const stages = [
       "evidence-request",
       "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+      "instrument-evidence-analysis",
+      "market-behavior-analysis",
       "critique",
       "final-synthesis",
     ] as const;

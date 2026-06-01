@@ -63,7 +63,6 @@
   bounded SEC latest-filing and Tradier IV term-structure tools. Future work: consider crypto,
   daily/weekly, or additional public-data tools only after real-run validation shows the loop
   improves evidence quality without adding noisy fetches.
-- **Multi-agent debate** beyond specialist -> critique -> synthesis.
 - **TradingAgents-style research committee** with bull/bear researchers, risk personas, and a
   research-only evidence/risk summarizer. This must not introduce portfolio-manager behavior,
   trade actions, position sizing, execution instructions, or portfolio-change language.

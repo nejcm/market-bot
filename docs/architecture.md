@@ -60,6 +60,8 @@ The orchestrator coordinates: collect sources → summarize regime → optional 
 
 The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. Malformed JSON emits a `SourceGap`, stops the loop, and continues to `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
 
+Deep runs use a fixed Coverage Panel after `specialist-analysis` and before `critique` ([ADR 0011](./adr/0011-fixed-coverage-panel-for-deep-research.md)). Market updates run `regime-context-analysis` and `mover-theme-analysis`; ticker runs run `instrument-evidence-analysis` and `market-behavior-analysis`. The two role stages use the quick model, see the specialist output as their only prior stage, run concurrently, and are persisted in deterministic stage order. `critique` sees the specialist plus both role outputs, and `final-synthesis` sees all analyses plus critique. The panel does not add report schema fields.
+
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 
 - `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against Observations. Adding a new prediction shape starts here.

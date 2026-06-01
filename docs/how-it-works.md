@@ -56,7 +56,7 @@ Command behavior:
 | `daily --asset equity\|crypto` | Creates a daily market update for one asset class. |
 | `weekly --asset equity\|crypto` | Creates a weekly market update. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps. |
 | `ticker <symbol> --asset equity\|crypto` | Creates a single-instrument research view. Symbols are normalized to uppercase and must match the instrument validator. |
-| `--deep` | Uses the deep profile: more findings, scenarios, and predictions, with the synthesis model for the final pass. |
+| `--deep` | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass. |
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
 | `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
@@ -88,7 +88,7 @@ Useful knobs:
 | --- | --- |
 | `MARKET_BOT_PROVIDER` | `openai`, `openai-compatible`, or `codex`. |
 | `MARKET_BOT_BASE_URL` | Required for `openai-compatible`. |
-| `MARKET_BOT_QUICK_MODEL` | Model for specialist and critique stages. |
+| `MARKET_BOT_QUICK_MODEL` | Model for specialist, coverage-panel, and critique stages. |
 | `MARKET_BOT_SYNTHESIS_MODEL` | Model for final synthesis and `--deep` output. |
 | `MARKET_BOT_DATA_DIR` | Run artifact directory, default `data/runs`. |
 | `MARKET_BOT_CACHE_DIR` | Raw source cache directory, default `data/cache`. |
@@ -200,11 +200,18 @@ Each research run builds a depth profile:
 | `brief` | Concise report with fewer minimum findings, scenarios, and predictions. |
 | `deep` | Fuller report with higher minimum counts and broader focus areas. |
 
-The orchestrator runs model stages:
+Brief runs use three model stages:
 
 1. `specialist-analysis`: extracts sourced thesis points, catalysts, risks, and gaps.
 2. `critique`: challenges the specialist output using only supplied evidence.
 3. `final-synthesis`: emits the final JSON report and predictions.
+
+Deep runs keep `specialist-analysis` as the anchor, then run two fixed coverage-panel stages before critique:
+
+- Market updates: `regime-context-analysis` and `mover-theme-analysis`.
+- Tickers: `instrument-evidence-analysis` and `market-behavior-analysis`.
+
+Each coverage-panel stage receives the specialist output as prior context. `critique` receives the specialist plus both role outputs, and `final-synthesis` receives all analyses plus critique. The panel broadens coverage without adding report schema fields.
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 

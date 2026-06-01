@@ -42,6 +42,12 @@ function normalizeYahooQuote(
 
   const name = optionalString(value, "shortName") ?? optionalString(value, "longName");
   const marketCap = readNumber(value, "marketCap");
+  const open = readNumber(value, "regularMarketOpen");
+  const previousClose = readNumber(value, "regularMarketPreviousClose");
+  const averageVolume =
+    readNumber(value, "averageDailyVolume10Day") ??
+    readNumber(value, "averageDailyVolume3Month") ??
+    readNumber(value, "averageVolume");
   const exchange = optionalString(value, "fullExchangeName") ?? optionalString(value, "exchange");
   const quoteCurrency = optionalString(value, "currency");
   const identity: InstrumentIdentity = {
@@ -61,6 +67,9 @@ function normalizeYahooQuote(
     changePercent24h,
     volume,
     ...(marketCap !== undefined ? { marketCap } : {}),
+    ...(open !== undefined ? { open } : {}),
+    ...(previousClose !== undefined ? { previousClose } : {}),
+    ...(averageVolume !== undefined ? { averageVolume } : {}),
     observedAt: fetchedAt,
   };
 }

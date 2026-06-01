@@ -72,6 +72,9 @@ export interface MarketSnapshot {
   readonly changePercent24h: number;
   readonly volume: number;
   readonly marketCap?: number;
+  readonly open?: number;
+  readonly previousClose?: number;
+  readonly averageVolume?: number;
   readonly observedAt: string;
 }
 

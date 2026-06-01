@@ -36,6 +36,9 @@ describe("source normalization", () => {
               regularMarketChangePercent: 2.1,
               regularMarketVolume: 80_000_000,
               marketCap: 2_900_000_000_000,
+              regularMarketOpen: 188,
+              regularMarketPreviousClose: 184,
+              averageDailyVolume10Day: 50_000_000,
             },
           ],
         },
@@ -60,9 +63,68 @@ describe("source normalization", () => {
         changePercent24h: 2.1,
         volume: 80_000_000,
         marketCap: 2_900_000_000_000,
+        open: 188,
+        previousClose: 184,
+        averageVolume: 50_000_000,
         observedAt: fetchedAt,
       },
     ]);
+  });
+
+  test("uses fallback Yahoo average volume fields for mover features", () => {
+    const snapshots = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "MSFT",
+              regularMarketPrice: 420,
+              regularMarketChangePercent: 1.4,
+              regularMarketVolume: 30_000_000,
+              averageDailyVolume3Month: 25_000_000,
+              averageVolume: 20_000_000,
+            },
+            {
+              symbol: "NVDA",
+              regularMarketPrice: 900,
+              regularMarketChangePercent: 4.8,
+              regularMarketVolume: 70_000_000,
+              averageVolume: 40_000_000,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshots.map((snapshot) => [snapshot.symbol, snapshot.averageVolume])).toEqual([
+      ["MSFT", 25_000_000],
+      ["NVDA", 40_000_000],
+    ]);
+  });
+
+  test("omits Yahoo mover feature fields when unavailable", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "META",
+              regularMarketPrice: 500,
+              regularMarketChangePercent: -1.2,
+              regularMarketVolume: 20_000_000,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot).not.toHaveProperty("open");
+    expect(snapshot).not.toHaveProperty("previousClose");
+    expect(snapshot).not.toHaveProperty("averageVolume");
   });
 
   test("normalizes CoinGecko market payloads for crypto", () => {

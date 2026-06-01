@@ -40,7 +40,9 @@
 
 ### Sources and data depth (v3)
 
-- **SEC/EDGAR segment and guidance enrichment** beyond current Fundamental Evidence, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
+- **SEC/EDGAR segment and guidance enrichment** - add segment/geography revenue extraction,
+  guidance-change extraction from filings, and deeper thesis support beyond current
+  Fundamental Evidence.
 
 ### Research quality of regime / movers (v4)
 

@@ -6,7 +6,7 @@ Reports are **research views**, not trading advice — no buy/sell calls, no pos
 
 ## What it does
 
-- **Daily and weekly market updates** — equity or crypto regime, FRED Market Context, top movers, themes, risks, and source gaps. Weekly is a cadence and horizon change, not a separate data product; mover inputs still come from Yahoo `day_gainers` and CoinGecko 24h change, and reports disclose this as a source gap.
+- **Daily and weekly market updates** — equity or crypto regime, FRED Market Context, top movers, themes, risks, and source gaps. Weekly is a cadence and horizon change, not a separate data product; mover inputs still come from Yahoo `day_gainers` and CoinGecko 24h change, and reports disclose this as a source gap. Optional Massive equity snapshots and news add supplemental cited evidence without changing mover ranking or scoring.
 - **Ticker briefs** — deeper, single-instrument research views with optional Extended Evidence from SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode.
 - **Measurable predictions** — each report emits typed predictions (price targets, directional moves) parsed by a small DSL and validated against the report schema.
 - **Scoring pass** — resolves due predictions against point or window Observations from historical closes, FRED, and Tradier IV where applicable, then writes `score.json` per run.
@@ -70,7 +70,7 @@ src/
   report/            Report schema + markdown renderer
   research/          Orchestrator, regime summarization
   scoring/           Prediction DSL, resolver, scoring, calibration
-  sources/           Yahoo, CoinGecko, news, collector, retry/backoff
+  sources/           Provider modules, normalized adapters, collector, retry/backoff/cache
 tests/               Bun test suites
 data/                Run artifacts and calibration output (gitignored)
 docs/adr/            Architecture decision records
@@ -88,4 +88,4 @@ docs/adr/            Architecture decision records
 | `bun run audit` | High-severity vuln scan |
 | `bun run check` | lint + fmt:check + typecheck + test |
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for git hooks and commit conventions, [CONTEXT.md](./CONTEXT.md) for the domain glossary, and [docs/adr/](./docs/adr/) for design decisions.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for git hooks and commit conventions, [CONTEXT.md](./CONTEXT.md) for the domain glossary, [docs/architecture.md](./docs/architecture.md) for subsystem details, [docs/source-provider-contract.md](./docs/source-provider-contract.md) for adding source providers, and [docs/adr/](./docs/adr/) for design decisions.

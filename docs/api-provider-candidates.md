@@ -15,7 +15,8 @@ This note evaluates APIs that could add useful evidence to `market-bot` while pr
 
 - **Use for:** US equity, ETF, options, indices, forex, and crypto market data.
 - **Useful evidence:** historical closes, intraday bars, snapshots, options data, indices, validation for Yahoo-sourced prices.
-- **Fit:** strong candidate if budget allows; best for improving price/scoring reliability.
+- **Current status:** supplemental equity snapshots and news are implemented through `MARKET_BOT_MASSIVE_API_KEY`.
+- **Fit:** strong promotion candidate if budget and validation allow; best for improving price/scoring reliability.
 - **Caveat:** paid tiers may be needed for the useful coverage.
 - **Docs:** <https://massive.com/docs/>
 - **Legacy name:** formerly Polygon.io.
@@ -95,13 +96,14 @@ This note evaluates APIs that could add useful evidence to `market-bot` while pr
 ## Suggested Implementation Order
 
 1. Add DeFiLlama for crypto context.
-2. Expand Massive beyond supplemental evidence for equity price/scoring reliability if budget allows.
+2. Validate whether Massive should be promoted beyond supplemental evidence for equity price/scoring reliability.
 3. Add Alpha Vantage for earnings calendar and news sentiment.
 4. Add eToro or Santiment only if social/positioning evidence becomes a priority.
 
 ## Integration Rules
 
 - Implement providers under `src/sources/` with the existing timeout, retry/backoff, cache, and `SourceGap` patterns.
+- Follow the [Source Provider Contract](./source-provider-contract.md) before adding or promoting provider capabilities.
 - Keep credentials in environment variables only.
 - Treat all new provider data as cited evidence first; make it scoring-critical only after validating coverage and historical consistency.
 - Do not add broker trading, account, portfolio, order, or watchlist-management behavior.

@@ -730,6 +730,16 @@ describe("runResearchJob", () => {
 
       expect(calls).toBe(command.depth === "deep" ? 5 : 3);
       expect(result.trace.stages).not.toContain("evidence-request");
+      if (command.jobType === "ticker" && command.assetClass === "crypto") {
+        expect(result.trace.stages).toEqual([
+          "source-collection",
+          "specialist-analysis",
+          "instrument-evidence-analysis",
+          "market-behavior-analysis",
+          "critique",
+          "final-synthesis",
+        ]);
+      }
       expect(result.trace.evidenceRequestLoop).toBeUndefined();
     }
   });
@@ -1353,6 +1363,68 @@ describe("runResearchJob", () => {
     });
 
     expect(callCount).toBe(4);
+    expect(result.report.predictions).toHaveLength(0);
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+  });
+
+  test("re-prompts deep synthesis with coverage panel prior stages when predictions fall short", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        return {
+          content: JSON.stringify({
+            summary: "Evidence is sourced.",
+            keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+            bullCase: [],
+            bearCase: [],
+            risks: [],
+            catalysts: [],
+            scenarios: [],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: [],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+
+    expect(prompts).toHaveLength(6);
+    expect(finalPrompts).toHaveLength(2);
+    expect(priorStageNames(finalPrompts[1] ?? {})).toEqual([
+      "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+      "critique",
+    ]);
+    expect(result.trace.stages).toEqual([
+      "source-collection",
+      "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+      "critique",
+      "final-synthesis",
+      "final-synthesis",
+    ]);
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });

@@ -47,8 +47,9 @@ New source adapters should define:
 - **Regime inference depth** - currently proxy deltas (`src/research/regime.ts`); could
   incorporate breadth (advancers/decliners), sector dispersion, term structure, or credit
   spreads.
-- **Mover ranking** - currently momentum x liquidity; could blend in unusual volume, gap,
-  sector-relative, or short-interest signals.
+- **Mover ranking** - currently blends momentum, liquidity, and available unusual-volume
+  or gap-size Mover Features. Sector-relative movement and short-interest remain deferred
+  until provider depth supports them.
 - **Benchmark-relative mover analysis** so a stock is compared against its sector/index
   instead of only absolute movement.
 

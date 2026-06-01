@@ -158,9 +158,12 @@ Mover ranking lives in `src/movers/ranking.ts`.
 The ranker:
 
 - drops snapshots with invalid price, invalid percent change, or volume below `10_000`;
-- scores each remaining snapshot as `abs(changePercent24h) * log10(volume)`;
+- computes a baseline score as `abs(changePercent24h) * log10(volume)`;
+- adds neutral-if-missing Mover Feature boosts for unusual volume and opening gap size when the source payload includes usable fields;
+- caps unusual-volume boost at `0.25` and gap boost at `0.20`, then scores as `baseScore * (1 + unusualVolumeBoost + gapBoost)`;
 - sorts by score descending, then symbol ascending;
-- assigns 1-based ranks after slicing to the configured limit.
+- assigns 1-based ranks after slicing to the configured limit;
+- includes the score components and short deterministic reasons in the model evidence payload.
 
 Weekly reports currently reuse the same underlying mover inputs as daily reports. The report records that limitation in `dataGaps`.
 

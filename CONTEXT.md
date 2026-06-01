@@ -34,7 +34,11 @@ Market-level evidence that enriches Market Updates without targeting one Instrum
 
 ## Mover
 
-A liquid instrument ranked deterministically by price movement magnitude plus liquidity.
+A liquid instrument ranked deterministically by price movement magnitude, liquidity, and available Mover Features.
+
+## Mover Feature
+
+A deterministic, explainable input to Mover ranking. It can change rank when present, but missing coverage is neutral and is not investment conviction, expected return, or a trade signal.
 
 ## Evidence Quality
 

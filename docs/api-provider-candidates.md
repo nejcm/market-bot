@@ -11,13 +11,14 @@ This note evaluates APIs that could add useful evidence to `market-bot` while pr
 
 ## Ranked Candidates
 
-### 1. Polygon.io
+### 1. Massive
 
 - **Use for:** US equity, ETF, options, indices, forex, and crypto market data.
 - **Useful evidence:** historical closes, intraday bars, snapshots, options data, indices, validation for Yahoo-sourced prices.
 - **Fit:** strong candidate if budget allows; best for improving price/scoring reliability.
 - **Caveat:** paid tiers may be needed for the useful coverage.
-- **Docs:** <https://polygon.io/docs/>
+- **Docs:** <https://massive.com/docs/>
+- **Legacy name:** formerly Polygon.io.
 
 ### 2. Alpha Vantage
 
@@ -94,7 +95,7 @@ This note evaluates APIs that could add useful evidence to `market-bot` while pr
 ## Suggested Implementation Order
 
 1. Add DeFiLlama for crypto context.
-2. Add Polygon.io for equity price/scoring reliability if budget allows.
+2. Expand Massive beyond supplemental evidence for equity price/scoring reliability if budget allows.
 3. Add Alpha Vantage for earnings calendar and news sentiment.
 4. Add eToro or Santiment only if social/positioning evidence becomes a priority.
 

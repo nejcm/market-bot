@@ -52,6 +52,10 @@ A fetched data or news item saved with an ID so report claims can link back to e
 
 An external service that supplies market data, news, or reference data before it is normalized into Sources.
 
+## Supplemental Source Provider
+
+An optional Source Provider that contributes citeable evidence without driving deterministic mover selection, market regime labels, or scoring Observations unless explicitly promoted.
+
 ## Source Gap
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.

@@ -96,6 +96,7 @@ Useful knobs:
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | Stale cache fallback window after live fetch failure. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | Enables MarketAux news. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | Enables Finnhub news. |
+| `MARKET_BOT_MASSIVE_API_KEY` | Enables supplemental Massive equity snapshots and news. |
 
 See [configuration.md](./configuration.md) for the full table.
 
@@ -107,12 +108,14 @@ The collector fetches market data and news in parallel:
 
 | Asset class | Market data | News |
 | --- | --- | --- |
-| `equity` | Yahoo Finance predefined `day_gainers` screener for market updates; Yahoo quote endpoint for regime proxies and ticker runs. | MarketAux, Finnhub company news for ticker runs, and Yahoo Finance search. |
+| `equity` | Yahoo Finance predefined `day_gainers` screener for market updates; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
 | `crypto` | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol. | MarketAux, Finnhub crypto market news, and Yahoo Finance search. |
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
 Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s but do not cap Evidence Quality.
+
+Massive, formerly Polygon.io, is a Supplemental Source Provider. `MARKET_BOT_MASSIVE_API_KEY` enables requests to `api.massive.com` for equity news and stock snapshots. Missing keys silently disable Massive. When the key is set and a Massive request fails, the failure is recorded as a `SourceGap`. Massive is equity-only in this version: it does not run for crypto, does not replace Yahoo, does not affect mover ranking or market regime, and does not create scoring Observations. Supplemental snapshots are saved as `normalized/supplemental-market-snapshots.json`, included in prompt evidence, and attached as citeable report Sources.
 
 Ticker runs also collect Extended Evidence:
 
@@ -134,6 +137,7 @@ Fetch behavior:
 - Same-day equivalent provider requests can reuse cache across daily, weekly, and ticker runs; broader/narrower provider payloads are not derived from each other.
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
 - Missing MarketAux or Finnhub tokens are reported as `SourceGap`s. Yahoo news still runs.
+- Missing Massive keys are silent because Massive is supplemental-only; configured Massive failures are reported as `SourceGap`s.
 - Finnhub news is capped after normalization because the used Finnhub news endpoints do not expose a count-limit parameter.
 - News is also checked against a persistent seen-news index at `data/news-seen.json` by default, or `MARKET_BOT_NEWS_SEEN_PATH` when set. Exact canonical-URL repeats are suppressed only within the same research lane for 30 days by default. The index is updated after report artifacts are written, so failed runs do not hide future news. If every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
 
@@ -145,8 +149,10 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
 - `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, suppress recently seen repeats, and preserve provider aliases.
+- `src/sources/massive.ts` normalizes Massive stock snapshots and equity news from `api.massive.com`. Massive was formerly Polygon.io.
 - `src/sources/market-context.ts` collects FRED macro Market Context for daily and weekly market updates.
-- `src/sources/extended-evidence.ts` collects ticker-only SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode evidence.
+- `src/sources/extended-evidence.ts` composes ticker-only Extended Evidence from separate provider files under `src/sources/extended-evidence/` for SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode.
+- `src/sources/providers.ts` lists Source Provider modules and their optional capabilities.
 - `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.
 
 Adapters convert external API payloads into internal `MarketSnapshot`, `Source`, and close-price records. Callers work with normalized shapes and source gaps, not raw provider-specific payloads.

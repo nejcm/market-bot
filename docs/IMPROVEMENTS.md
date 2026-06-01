@@ -40,7 +40,7 @@
 
 ### Sources and data depth (v3)
 
-- **Additional paid/provider-backed source adapters** such as Polygon
+- **Additional paid/provider-backed source adapters** such as expanding Massive beyond supplemental evidence
 - **SEC/EDGAR enrichment** beyond compact ticker filing/fact summaries, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
 
 New source adapters should define:

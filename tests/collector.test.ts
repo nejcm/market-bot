@@ -154,6 +154,70 @@ describe("collectSources", () => {
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
   });
 
+  test("retries Yahoo quote route with cookie and crumb after 401", async () => {
+    const requestedUrls: string[] = [];
+    const seenCookies: string[] = [];
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const url = String(input);
+      requestedUrls.push(url);
+      seenCookies.push(new Headers(init?.headers).get("cookie") ?? "");
+
+      if (url.includes("screener")) {
+        return jsonResponse({ finance: { result: [{ quotes: [] }] } });
+      }
+
+      if (url === "https://fc.yahoo.com") {
+        return new Response("", {
+          status: 404,
+          headers: { "set-cookie": "A3=session-cookie; Path=/;" },
+        });
+      }
+
+      if (url.includes("/v1/test/getcrumb")) {
+        return new Response("crumb-token");
+      }
+
+      if (url.includes("quote") && !url.includes("crumb=crumb-token")) {
+        return new Response("unauthorized", { status: 401 });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      [],
+    );
+
+    expect(requestedUrls.some((url) => url === "https://fc.yahoo.com")).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("/v1/test/getcrumb"))).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("crumb=crumb-token"))).toBe(true);
+    expect(seenCookies).toContain("A3=session-cookie");
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["SPY"]);
+    expect(result.sourceGaps.map((gap) => gap.source)).not.toContain("yahoo-regime");
+  });
+
   test("reuses same-day equivalent cache entries across daily and weekly equity runs", async () => {
     const cacheDir = mkdtempSync(join(tmpdir(), "collector-cache-test-"));
     tmpDirs.push(cacheDir);

@@ -5,6 +5,10 @@
 - **Real-run validation** - exercise ticker Extended Evidence, market-update data gaps,
   persistent news dedupe, scoring, and calibration over real runs before adding candidate
   discovery.
+- **Real-run source-route validation** - latest equity validation found Yahoo's unofficial
+  quote route now needs cookie/crumb authorization rather than an API key. The collector now
+  retries that route with Yahoo cookie/crumb credentials; keep checking provider-specific
+  route behavior during real runs because Yahoo endpoints can change without notice.
 
 ## Alpha search
 
@@ -37,7 +41,6 @@ Next major research feature after real-run validation; includes evidence-backed 
 
 (X, Reddit, StockTwits) - high noise; defer until calibration shows that it adds signal beyond current news and market-data sources.
 
-
 ## Research quality of regime / movers
 
 - **Mover ranking** - currently blends momentum, liquidity, and available unusual-volume
@@ -63,11 +66,14 @@ Next major research feature after real-run validation; includes evidence-backed 
 
 ## Operational
 
+- **Source provider health dashboard** - summarize provider gaps by route, status code, and
+  credential state across recent runs. Include Yahoo cookie/crumb failures separately from
+  missing API keys so route breakage is visible before it degrades report confidence.
 - **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
   Decide whether this replaces or complements the current non-blocking score/calibration
   side effect on research runs. Include idempotency, locking, market-calendar handling,
   GitHub Actions artifact persistence, and calibration refresh timing.
-- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step; 
+- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
   keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 
 ## Product polish
@@ -96,5 +102,4 @@ separate boundary decision.
   decision and whether that was useful later. Keep it separate from report generation and
   model prompts unless a privacy/safety design is accepted.
 - **Decision layer or portfolio tooling**. Any system that recommends trade actions, sizing,
-  execution, allocation, or portfolio changes must live outside V1 research generation per ADR
-  0001.
+  execution, allocation, or portfolio changes must live outside V1 research generation per ADR 0001.

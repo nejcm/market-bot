@@ -4,6 +4,7 @@ import {
   isFetchJsonResult,
   type CollectContext,
   type FetchJsonResult,
+  type FetchLike,
   type MarketCollectionResult,
   type MarketDataAdapter,
 } from "./types";
@@ -112,6 +113,104 @@ function readYahooScreenerQuotes(payload: unknown): unknown {
 
 type EquityRole = "movers" | "regime";
 
+interface YahooCredentials {
+  readonly cookie: string;
+  readonly crumb: string;
+}
+
+let yahooCredentialsPromise: Promise<YahooCredentials> | null = null;
+
+function cookiePairs(headers: Headers): readonly string[] {
+  const headersWithSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const values = headersWithSetCookie.getSetCookie?.() ?? [];
+  const fallback = headers.get("set-cookie");
+  const setCookies = values.length > 0 ? values : [];
+  const rawCookies = setCookies.length > 0 || fallback === null ? setCookies : [fallback];
+  return rawCookies
+    .map((value) => value.split(";")[0])
+    .filter((value): value is string => value !== undefined && value.includes("="));
+}
+
+function headersWith(init: RequestInit | undefined, extra: Record<string, string>): Headers {
+  const headers = new Headers(init?.headers);
+  for (const [key, value] of Object.entries(extra)) {
+    headers.set(key, value);
+  }
+  return headers;
+}
+
+async function yahooCredentials(
+  fetchImpl: FetchLike,
+  init: RequestInit | undefined,
+): Promise<YahooCredentials> {
+  if (yahooCredentialsPromise !== null) {
+    return yahooCredentialsPromise;
+  }
+
+  yahooCredentialsPromise = (async () => {
+    const credentialInit = {
+      ...(init?.signal !== undefined ? { signal: init.signal } : {}),
+      headers: headersWith(undefined, { "user-agent": "Mozilla/5.0 market-bot" }),
+    };
+    const cookieResponse = await fetchImpl("https://fc.yahoo.com", {
+      ...credentialInit,
+    });
+    const cookie = cookiePairs(cookieResponse.headers).join("; ");
+    const crumbInit = {
+      ...(init?.signal !== undefined ? { signal: init.signal } : {}),
+      headers: headersWith(
+        undefined,
+        cookie !== ""
+          ? { cookie, "user-agent": "Mozilla/5.0 market-bot" }
+          : { "user-agent": "Mozilla/5.0 market-bot" },
+      ),
+    };
+    const crumbResponse = await fetchImpl("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+      ...crumbInit,
+    });
+    if (!crumbResponse.ok) {
+      throw new Error(`Yahoo crumb request failed with status ${crumbResponse.status}`);
+    }
+    const crumb = await crumbResponse.text();
+    return { cookie, crumb: crumb.trim() };
+  })();
+
+  return yahooCredentialsPromise;
+}
+
+function quoteUrlWithCrumb(url: string, crumb: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("crumb", crumb);
+  return parsed.toString();
+}
+
+async function yahooCredentialFetch(
+  input: string | URL | Request,
+  init?: RequestInit,
+  fetchImpl: FetchLike = fetch,
+): Promise<Response> {
+  const url = String(input);
+  const response = await fetchImpl(input, init);
+  if (!url.startsWith(YAHOO_QUOTE_URL) || response.status !== 401) {
+    return response;
+  }
+
+  try {
+    const credentials = await yahooCredentials(fetchImpl, init);
+    const retry = await fetchImpl(quoteUrlWithCrumb(url, credentials.crumb), {
+      ...init,
+      headers: headersWith(init, credentials.cookie !== "" ? { cookie: credentials.cookie } : {}),
+    });
+    if (retry.status === 401) {
+      yahooCredentialsPromise = null;
+    }
+    return retry;
+  } catch {
+    yahooCredentialsPromise = null;
+    return response;
+  }
+}
+
 async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResult> {
   const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
 
@@ -131,7 +230,7 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
         `yahoo-${req.role}`,
         fetchedAt,
         sourceTimeoutMs,
-        fetchImpl,
+        (request, init) => yahooCredentialFetch(request, init, fetchImpl),
         retryDelaysMs,
       ),
     })),

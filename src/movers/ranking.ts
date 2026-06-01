@@ -2,8 +2,10 @@ import type { MarketSnapshot, Mover } from "../domain/types";
 
 const MINIMUM_VOLUME = 10_000;
 const UNUSUAL_VOLUME_THRESHOLD = 1.5;
+const UNUSUAL_VOLUME_BOOST_DIVISOR = 8;
 const MAX_UNUSUAL_VOLUME_BOOST = 0.25;
 const GAP_THRESHOLD_PERCENT = 1;
+const GAP_BOOST_DIVISOR = 50;
 const MAX_GAP_BOOST = 0.2;
 
 function finitePositive(value: number | undefined): value is number {
@@ -18,15 +20,17 @@ function moverReasons(
   movementMagnitude: number,
   liquidityLog: number,
   unusualVolumeRatio: number | undefined,
+  volumeIsUnusual: boolean,
   gapPercent: number | undefined,
+  gapIsNotable: boolean,
 ): readonly string[] {
   return [
     `${roundFeature(movementMagnitude)}% absolute 24h move`,
     `log10 volume ${roundFeature(liquidityLog)}`,
-    ...(unusualVolumeRatio !== undefined && unusualVolumeRatio >= UNUSUAL_VOLUME_THRESHOLD
+    ...(volumeIsUnusual && unusualVolumeRatio !== undefined
       ? [`volume ${roundFeature(unusualVolumeRatio)}x average`]
       : []),
-    ...(gapPercent !== undefined && Math.abs(gapPercent) >= GAP_THRESHOLD_PERCENT
+    ...(gapIsNotable && gapPercent !== undefined
       ? [`${roundFeature(Math.abs(gapPercent))}% absolute opening gap`]
       : []),
   ];
@@ -39,17 +43,23 @@ function buildMover(snapshot: MarketSnapshot): Omit<Mover, "rank"> {
   const unusualVolumeRatio = finitePositive(snapshot.averageVolume)
     ? snapshot.volume / snapshot.averageVolume
     : undefined;
+  const volumeIsUnusual =
+    unusualVolumeRatio !== undefined && unusualVolumeRatio >= UNUSUAL_VOLUME_THRESHOLD;
   const unusualVolumeBoost =
-    unusualVolumeRatio !== undefined && unusualVolumeRatio >= UNUSUAL_VOLUME_THRESHOLD
-      ? Math.min(Math.log2(unusualVolumeRatio) / 8, MAX_UNUSUAL_VOLUME_BOOST)
+    volumeIsUnusual && unusualVolumeRatio !== undefined
+      ? Math.min(
+          Math.log2(unusualVolumeRatio) / UNUSUAL_VOLUME_BOOST_DIVISOR,
+          MAX_UNUSUAL_VOLUME_BOOST,
+        )
       : 0;
   const gapPercent =
     finitePositive(snapshot.open) && finitePositive(snapshot.previousClose)
       ? ((snapshot.open - snapshot.previousClose) / snapshot.previousClose) * 100
       : undefined;
+  const gapIsNotable = gapPercent !== undefined && Math.abs(gapPercent) >= GAP_THRESHOLD_PERCENT;
   const gapBoost =
-    gapPercent !== undefined && Math.abs(gapPercent) >= GAP_THRESHOLD_PERCENT
-      ? Math.min(Math.abs(gapPercent) / 50, MAX_GAP_BOOST)
+    gapIsNotable && gapPercent !== undefined
+      ? Math.min(Math.abs(gapPercent) / GAP_BOOST_DIVISOR, MAX_GAP_BOOST)
       : 0;
   const finalMultiplier = 1 + unusualVolumeBoost + gapBoost;
 
@@ -67,7 +77,14 @@ function buildMover(snapshot: MarketSnapshot): Omit<Mover, "rank"> {
       ...(gapPercent !== undefined ? { gapPercent: roundFeature(gapPercent) } : {}),
       gapBoost: roundFeature(gapBoost),
       finalMultiplier: roundFeature(finalMultiplier),
-      reasons: moverReasons(movementMagnitude, liquidityLog, unusualVolumeRatio, gapPercent),
+      reasons: moverReasons(
+        movementMagnitude,
+        liquidityLog,
+        unusualVolumeRatio,
+        volumeIsUnusual,
+        gapPercent,
+        gapIsNotable,
+      ),
     },
   };
 }

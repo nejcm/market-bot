@@ -115,6 +115,11 @@ function modelReport(subject = "AAPL", sourceId = "market-aapl"): string {
   });
 }
 
+function priorStageNames(prompt: Record<string, unknown>): readonly string[] {
+  const priorStages = prompt.priorStages as readonly { readonly stage?: string }[] | undefined;
+  return priorStages?.map((stage) => stage.stage ?? "") ?? [];
+}
+
 function secEvidenceFetch(input: string | URL | Request): Promise<Response> {
   const url = String(input);
   if (url.includes("company_tickers")) {
@@ -223,12 +228,13 @@ describe("runResearchJob", () => {
     expect(result.trace.synthesisModel).toBe("combo-synthesis");
   });
 
-  test("applies deep output requirements without changing workflow stages", async () => {
-    const prompts: string[] = [];
+  test("runs deep market updates through the coverage panel before critique and synthesis", async () => {
+    const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
       generate: async (request) => {
-        prompts.push(request.messages[1]?.content ?? "");
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
 
         return {
           content: JSON.stringify({
@@ -273,7 +279,12 @@ describe("runResearchJob", () => {
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+    const rolePrompts = prompts.filter(
+      (prompt) =>
+        prompt.stage === "regime-context-analysis" || prompt.stage === "mover-theme-analysis",
+    );
+    const critiquePrompt = prompts.find((prompt) => prompt.stage === "critique") ?? {};
+    const finalPrompt = (prompts.find((prompt) => prompt.stage === "final-synthesis") ?? {}) as {
       readonly depthProfile?: {
         readonly depth?: string;
         readonly analystStyle?: string;
@@ -291,8 +302,35 @@ describe("runResearchJob", () => {
     expect(result.trace.stages).toEqual([
       "source-collection",
       "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
       "critique",
       "final-synthesis",
+    ]);
+    expect(result.stageOutputs.map((output) => output.stage)).toEqual([
+      "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+      "critique",
+      "final-synthesis",
+    ]);
+    expect(new Set(rolePrompts.map((prompt) => prompt.stage))).toEqual(
+      new Set(["regime-context-analysis", "mover-theme-analysis"]),
+    );
+    expect(rolePrompts.map((prompt) => priorStageNames(prompt))).toEqual([
+      ["specialist-analysis"],
+      ["specialist-analysis"],
+    ]);
+    expect(priorStageNames(critiquePrompt)).toEqual([
+      "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+    ]);
+    expect(priorStageNames(finalPrompt)).toEqual([
+      "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+      "critique",
     ]);
     expect(result.report.extras?.depth).toBe("deep");
     expect(finalPrompt.depthProfile).toMatchObject({
@@ -340,9 +378,12 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(calls.map((call) => call.prompt.stage)).toEqual([
-      "evidence-request",
-      "specialist-analysis",
+    expect(calls[0]?.prompt.stage).toBe("evidence-request");
+    expect(calls[1]?.prompt.stage).toBe("specialist-analysis");
+    expect(new Set(calls.slice(2, 4).map((call) => call.prompt.stage))).toEqual(
+      new Set(["instrument-evidence-analysis", "market-behavior-analysis"]),
+    );
+    expect(calls.slice(4).map((call) => call.prompt.stage)).toEqual([
       "critique",
       "final-synthesis",
     ]);
@@ -373,6 +414,8 @@ describe("runResearchJob", () => {
       "source-collection",
       "evidence-request",
       "specialist-analysis",
+      "instrument-evidence-analysis",
+      "market-behavior-analysis",
       "critique",
       "final-synthesis",
     ]);
@@ -685,7 +728,7 @@ describe("runResearchJob", () => {
         now: new Date("2026-05-19T00:00:00.000Z"),
       });
 
-      expect(calls).toBe(3);
+      expect(calls).toBe(command.depth === "deep" ? 5 : 3);
       expect(result.trace.stages).not.toContain("evidence-request");
       expect(result.trace.evidenceRequestLoop).toBeUndefined();
     }

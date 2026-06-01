@@ -90,4 +90,56 @@ describe("buildStagePrompt", () => {
     expect(parsed.evidence?.movers?.[0]?.features?.reasons).toContain("volume 2x average");
     expect(parsed.evidence?.movers?.[0]?.features?.reasons).toContain("5% absolute opening gap");
   });
+
+  test("uses the non-final required shape for coverage panel stages", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "deep" };
+    const prompt = buildStagePrompt(
+      "regime-context-analysis",
+      command,
+      {
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      },
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 5,
+          minimumScenarios: 3,
+          minimumPredictions: 3,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "insufficient-data",
+          proxyCount: 0,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Expand coverage." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly stage?: string;
+      readonly requiredShape?: {
+        readonly findings?: readonly { readonly text?: string; readonly sourceIds?: string[] }[];
+        readonly dataGaps?: readonly string[];
+      };
+    };
+
+    expect(parsed.stage).toBe("regime-context-analysis");
+    expect(parsed.requiredShape).toEqual({
+      findings: [{ text: "string", sourceIds: ["source-id"] }],
+      dataGaps: ["string"],
+    });
+  });
 });

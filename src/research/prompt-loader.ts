@@ -5,6 +5,10 @@ import type { ResearchCommand } from "../cli/args";
 export type StageLabel =
   | "evidence-request"
   | "specialist-analysis"
+  | "regime-context-analysis"
+  | "mover-theme-analysis"
+  | "instrument-evidence-analysis"
+  | "market-behavior-analysis"
   | "critique"
   | "final-synthesis";
 

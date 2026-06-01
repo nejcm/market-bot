@@ -63,6 +63,16 @@ interface StageOutput {
   readonly costEstimateUsd: number;
 }
 
+function coveragePanelStages(command: ResearchCommand): readonly StageLabel[] {
+  if (command.depth !== "deep") {
+    return [];
+  }
+  if (isMarketUpdateJobType(command.jobType)) {
+    return ["regime-context-analysis", "mover-theme-analysis"];
+  }
+  return ["instrument-evidence-analysis", "market-behavior-analysis"];
+}
+
 async function runStage(
   stage: StageOutput["stage"],
   model: string,
@@ -152,13 +162,19 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     collectedSources,
     context,
   );
+  const panelOutputs = await Promise.all(
+    coveragePanelStages(input.command).map((stage) =>
+      runStage(stage, runParams.quickModel, input, collectedSources, context, [specialistOutput]),
+    ),
+  );
+  const analysisOutputs = [specialistOutput, ...panelOutputs];
   const critiqueOutput = await runStage(
     "critique",
     runParams.quickModel,
     input,
     collectedSources,
     context,
-    [specialistOutput],
+    analysisOutputs,
   );
   let finalOutput = await runStage(
     "final-synthesis",
@@ -166,7 +182,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     input,
     collectedSources,
     context,
-    [specialistOutput, critiqueOutput],
+    [...analysisOutputs, critiqueOutput],
   );
 
   const sources = buildSourceList(input.command, collectedSources);
@@ -176,7 +192,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   let predResult = readPredictions(payload.predictions, knownSourceIds);
   const stageOutputsArr: StageOutput[] = [
     ...evidenceLoop.stageOutputs,
-    specialistOutput,
+    ...analysisOutputs,
     critiqueOutput,
     finalOutput,
   ];
@@ -188,7 +204,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       input,
       collectedSources,
       context,
-      [specialistOutput, critiqueOutput],
+      [...analysisOutputs, critiqueOutput],
       predResult.errors,
     );
     stageOutputsArr.push(finalOutput);

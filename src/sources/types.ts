@@ -98,7 +98,7 @@ export interface SupplementalMarketDataAdapter {
 
 export interface NewsAdapter {
   readonly name: string;
-  readonly buildUrl: (command: ResearchCommand, limit: number) => string;
+  readonly provider: string;
   readonly normalizeNews: (
     payload: unknown,
     assetClass: AssetClass,

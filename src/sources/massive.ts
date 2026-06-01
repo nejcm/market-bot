@@ -250,8 +250,7 @@ export const massiveSupplementalMarketDataAdapter: SupplementalMarketDataAdapter
 
 export const massiveNewsAdapter: NewsAdapter = {
   name: "massive-news",
-  buildUrl: (command, limit) =>
-    buildMassiveNewsUrl(command, limit, "MARKET_BOT_MASSIVE_API_KEY", new Date().toISOString()),
+  provider: MASSIVE_PROVIDER,
   normalizeNews,
   collect: collectNews,
 };

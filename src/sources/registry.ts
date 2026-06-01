@@ -11,8 +11,6 @@ import type {
   SupplementalMarketDataAdapter,
 } from "./types";
 
-const NEWS_PROVIDER_ORDER: readonly string[] = ["marketaux", "finnhub", "yahoo-news", "massive"];
-
 function firstCapability<T>(
   assetClass: AssetClass,
   read: (provider: (typeof sourceProviders)[number]) => T | undefined,
@@ -41,14 +39,8 @@ export function createSourceRegistry(): SourceRegistry {
   };
 
   const newsAdapters: Record<AssetClass, NewsAdapter> = {
-    equity: createMultiNewsAdapter(
-      allCapabilities((provider) => provider.news?.equity),
-      NEWS_PROVIDER_ORDER,
-    ),
-    crypto: createMultiNewsAdapter(
-      allCapabilities((provider) => provider.news?.crypto),
-      NEWS_PROVIDER_ORDER,
-    ),
+    equity: createMultiNewsAdapter(allCapabilities((provider) => provider.news?.equity)),
+    crypto: createMultiNewsAdapter(allCapabilities((provider) => provider.news?.crypto)),
   };
   const extendedEvidenceAdapters: Record<AssetClass, ExtendedEvidenceAdapter> = {
     equity: createMultiExtendedEvidenceAdapter(

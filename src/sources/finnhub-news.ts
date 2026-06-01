@@ -109,8 +109,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
 export const finnhubNewsAdapter: NewsAdapter = {
   name: "finnhub-news",
-  buildUrl: (command: ResearchCommand) =>
-    buildFinnhubUrl(command, "MARKET_BOT_FINNHUB_API_TOKEN", new Date().toISOString()),
+  provider: "finnhub",
   normalizeNews,
   collect: collectNews,
 };

@@ -1,4 +1,3 @@
-import type { ResearchCommand } from "../cli/args";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
 import { canonicalizeUrl, encodeQuery, newsQuery } from "./news-utils";
@@ -89,8 +88,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
 export const yahooNewsAdapter: NewsAdapter = {
   name: "yahoo-news",
-  buildUrl: (command: ResearchCommand, limit: number) =>
-    `${YAHOO_SEARCH_URL}?${encodeQuery({ q: newsQuery(command), newsCount: String(limit) })}`,
+  provider: "yahoo-news",
   normalizeNews,
   collect: collectNews,
 };

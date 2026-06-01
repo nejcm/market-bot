@@ -11,8 +11,6 @@ const DEFAULT_NEWS_ADAPTERS: readonly NewsAdapter[] = [
   finnhubNewsAdapter,
   yahooNewsAdapter,
 ];
-const DEFAULT_NEWS_PROVIDER_ORDER: readonly string[] = ["marketaux", "finnhub", "yahoo-news"];
-
 function aliasFor(source: Source): SourceProviderAlias | undefined {
   if (source.provider === undefined) {
     return undefined;
@@ -164,7 +162,7 @@ function assignSourceIds(sources: readonly Source[]): readonly Source[] {
 
 export function createMultiNewsAdapter(
   adapters: readonly NewsAdapter[],
-  providerOrder: readonly string[] = adapters.map((adapter) => adapter.name),
+  providerOrder: readonly string[] = adapters.map((adapter) => adapter.provider),
 ): NewsAdapter {
   async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     const results = await Promise.all(adapters.map((adapter) => adapter.collect(ctx)));
@@ -191,13 +189,10 @@ export function createMultiNewsAdapter(
 
   return {
     name: "multi-news",
-    buildUrl: yahooNewsAdapter.buildUrl,
+    provider: "multi-news",
     normalizeNews: yahooNewsAdapter.normalizeNews,
     collect: collectNews,
   };
 }
 
-export const multiNewsAdapter: NewsAdapter = createMultiNewsAdapter(
-  DEFAULT_NEWS_ADAPTERS,
-  DEFAULT_NEWS_PROVIDER_ORDER,
-);
+export const multiNewsAdapter: NewsAdapter = createMultiNewsAdapter(DEFAULT_NEWS_ADAPTERS);

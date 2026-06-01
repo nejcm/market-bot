@@ -121,8 +121,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
 export const marketAuxNewsAdapter: NewsAdapter = {
   name: "marketaux-news",
-  buildUrl: (command: ResearchCommand, limit: number) =>
-    buildMarketAuxUrl(command, limit, "MARKET_BOT_MARKETAUX_API_TOKEN", new Date().toISOString()),
+  provider: "marketaux",
   normalizeNews,
   collect: collectNews,
 };

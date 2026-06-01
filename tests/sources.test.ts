@@ -11,6 +11,7 @@ import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { massiveNewsAdapter, normalizeMassiveSnapshotPayload } from "../src/sources/massive";
 import { createSourceRegistry } from "../src/sources/registry";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 
@@ -21,6 +22,74 @@ const throwingFetch: typeof fetch = Object.assign(
   },
   { preconnect: fetch.preconnect },
 );
+
+function secFact(
+  val: number,
+  overrides: Record<string, number | string> = {},
+): Record<string, number | string> {
+  return {
+    val,
+    form: "10-Q",
+    fp: "Q2",
+    fy: 2026,
+    filed: "2026-07-30",
+    end: "2026-06-29",
+    ...overrides,
+  };
+}
+
+function secFactUnits(current: number, prior = current - 1): { units: { USD: unknown[] } } {
+  return {
+    units: {
+      USD: [
+        secFact(prior, {
+          fy: 2025,
+          filed: "2025-07-30",
+          end: "2025-06-29",
+        }),
+        secFact(current),
+      ],
+    },
+  };
+}
+
+function secCompanyFactsPayload(): unknown {
+  return {
+    facts: {
+      "us-gaap": {
+        Revenues: {
+          units: {
+            USD: [
+              secFact(90, { fy: 2025, filed: "2025-07-30", end: "2025-06-29" }),
+              secFact(70, { fp: "Q1", filed: "2026-04-30", end: "2026-03-29" }),
+              secFact(100),
+            ],
+          },
+        },
+        GrossProfit: secFactUnits(40, 35),
+        OperatingIncomeLoss: secFactUnits(25, 20),
+        NetIncomeLoss: secFactUnits(20, 18),
+        EarningsPerShareDiluted: {
+          units: {
+            "USD/shares": [
+              secFact(1.8, { fy: 2025, filed: "2025-07-30", end: "2025-06-29" }),
+              secFact(2),
+            ],
+          },
+        },
+        CashAndCashEquivalentsAtCarryingValue: secFactUnits(30, 25),
+        LongTermDebt: secFactUnits(50, 45),
+        NetCashProvidedByUsedInOperatingActivities: secFactUnits(28, 22),
+        PaymentsToAcquirePropertyPlantAndEquipment: secFactUnits(6, 5),
+        WeightedAverageNumberOfDilutedSharesOutstanding: {
+          units: {
+            shares: [secFact(10, { fy: 2025, filed: "2025-07-30", end: "2025-06-29" }), secFact(9)],
+          },
+        },
+      },
+    },
+  };
+}
 
 describe("source normalization", () => {
   test("normalizes Yahoo quote payloads for equities", () => {
@@ -478,6 +547,65 @@ describe("news provider collection", () => {
   });
 });
 
+describe("SEC fundamental evidence", () => {
+  test("extracts operating facts with latest comparable deltas", () => {
+    const result = summarizeSecFundamentals(secCompanyFactsPayload());
+
+    expect(result?.metrics).toMatchObject({
+      revenue: 100,
+      revenuePrior: 90,
+      grossProfit: 40,
+      operatingIncome: 25,
+      netIncome: 20,
+      dilutedEps: 2,
+      cash: 30,
+      debt: 50,
+      operatingCashFlow: 28,
+      capex: 6,
+      dilutedShares: 9,
+    });
+    expect(result?.metrics.revenueDeltaPercent).toBeCloseTo(11.11);
+    expect(result?.metrics.dilutedSharesDeltaPercent).toBeCloseTo(-10);
+    expect(result?.gaps).toEqual([]);
+  });
+
+  test("uses concept fallbacks and omits non-comparable deltas", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          SalesRevenueNet: {
+            units: {
+              USD: [
+                secFact(80, { fy: 2025, fp: "Q1", filed: "2025-04-30", end: "2025-03-29" }),
+                secFact(100),
+              ],
+            },
+          },
+          CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents: secFactUnits(30, 25),
+          LongTermDebtCurrent: secFactUnits(5, 4),
+          LongTermDebtNoncurrent: secFactUnits(45, 41),
+        },
+      },
+    });
+
+    expect(result?.metrics).toMatchObject({
+      revenue: 100,
+      cash: 30,
+      cashPrior: 25,
+      debt: 50,
+      debtPrior: 45,
+    });
+    expect(result?.metrics.revenuePrior).toBeUndefined();
+    expect(result?.metrics.revenueDeltaPercent).toBeUndefined();
+    expect(result?.gaps.map((gap) => gap.message)).toContain(
+      "Missing comparable SEC company facts for YoY deltas: revenue",
+    );
+    expect(result?.gaps.some((gap) => gap.message.startsWith("Missing SEC company facts:"))).toBe(
+      true,
+    );
+  });
+});
+
 describe("extended evidence provider collection", () => {
   test("collects compact equity extended evidence", async () => {
     const requests: { adapter: string; url: string; headers: Headers }[] = [];
@@ -509,14 +637,7 @@ describe("extended evidence provider collection", () => {
         } else if (adapter === "sec-submissions") {
           payload = { filings: { recent: { form: ["10-Q"], filingDate: ["2026-05-01"] } } };
         } else if (adapter === "sec-companyfacts") {
-          payload = {
-            facts: {
-              "us-gaap": {
-                Revenues: { units: { USD: [{ val: 100 }] } },
-                NetIncomeLoss: { units: { USD: [{ val: 20 }] } },
-              },
-            },
-          };
+          payload = secCompanyFactsPayload();
         } else if (adapter.startsWith("fred-")) {
           payload = {
             observations: [
@@ -538,6 +659,16 @@ describe("extended evidence provider collection", () => {
       },
     });
 
+    const secItem = result.extendedEvidence?.items.find((item) => item.category === "sec-edgar");
+    expect(secItem?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-filings",
+      "extended-sec-edgar-aapl-fundamentals",
+    ]);
+    expect(secItem?.summary).toContain("Recent SEC filings: 10-Q 2026-05-01.");
+    expect(secItem?.summary).toContain("SEC Fundamental Evidence");
+    expect(secItem?.metrics?.revenue).toBe(100);
+    expect(secItem?.metrics?.revenuePrior).toBe(90);
+    expect(secItem?.metrics?.revenueDeltaPercent).toBeCloseTo(11.11);
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("sec-edgar");
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("equity-events");
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("fred-macro");

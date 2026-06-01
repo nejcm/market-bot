@@ -1,8 +1,119 @@
-import type { InstrumentIdentity, SourceGap } from "../../domain/types";
+import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
 import { isRecord, readNumber, readString } from "../guards";
 import { isFetchJsonResult, type CollectContext } from "../types";
-import { collectedItem, evidenceSource, type ProviderResult } from "./common";
-import { latestNumber, readArray } from "./utils";
+import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
+import { readArray } from "./utils";
+
+type SecForm = "10-K" | "10-Q";
+
+interface SecFactValue {
+  readonly val: number;
+  readonly form: SecForm;
+  readonly fp?: string;
+  readonly fy?: number;
+  readonly filed?: string;
+  readonly end?: string;
+}
+
+interface SecMetricDefinition {
+  readonly key: string;
+  readonly label: string;
+  readonly concepts: readonly string[];
+  readonly unitKeys: readonly string[];
+}
+
+interface SecMetricSelection {
+  readonly latest: SecFactValue;
+  readonly prior?: SecFactValue;
+}
+
+interface SecFundamentalsSummary {
+  readonly summary: string;
+  readonly metrics: Record<string, number>;
+  readonly gaps: readonly SourceGap[];
+}
+
+const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
+  {
+    key: "revenue",
+    label: "revenue",
+    concepts: ["Revenues", "SalesRevenueNet"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "grossProfit",
+    label: "gross profit",
+    concepts: ["GrossProfit"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "operatingIncome",
+    label: "operating income",
+    concepts: ["OperatingIncomeLoss"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "netIncome",
+    label: "net income",
+    concepts: ["NetIncomeLoss"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "dilutedEps",
+    label: "diluted EPS",
+    concepts: ["EarningsPerShareDiluted"],
+    unitKeys: ["USD/shares"],
+  },
+  {
+    key: "cash",
+    label: "cash",
+    concepts: [
+      "CashAndCashEquivalentsAtCarryingValue",
+      "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+    ],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "operatingCashFlow",
+    label: "operating cash flow",
+    concepts: ["NetCashProvidedByUsedInOperatingActivities"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "capex",
+    label: "capex",
+    concepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "dilutedShares",
+    label: "diluted shares",
+    concepts: ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+    unitKeys: ["shares"],
+  },
+];
+
+const DEBT_METRIC: SecMetricDefinition = {
+  key: "debt",
+  label: "debt",
+  concepts: ["LongTermDebt"],
+  unitKeys: ["USD"],
+};
+
+const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
+  {
+    key: "currentDebt",
+    label: "current debt",
+    concepts: ["LongTermDebtCurrent", "ShortTermBorrowings", "ShortTermDebt"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "noncurrentDebt",
+    label: "noncurrent debt",
+    concepts: ["LongTermDebtNoncurrent"],
+    unitKeys: ["USD"],
+  },
+];
 
 function secRequestInit(userAgent: string | undefined): RequestInit | undefined {
   return userAgent === undefined
@@ -56,33 +167,221 @@ function summarizeSecFilings(payload: unknown): string | undefined {
   return filings.length > 0 ? `Recent SEC filings: ${filings.slice(0, 5).join(", ")}.` : undefined;
 }
 
-function summarizeSecFacts(
-  payload: unknown,
-): { summary: string; metrics: Record<string, number> } | undefined {
+function readFiscalYear(value: Record<string, unknown>): number | undefined {
+  const year = readNumber(value, "fy");
+  if (year !== undefined) {
+    return year;
+  }
+  const text = readString(value, "fy");
+  if (text === undefined) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(text, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readSecFactValue(value: unknown): SecFactValue | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const val = readNumber(value, "val");
+  const form = readString(value, "form");
+  if (val === undefined || (form !== "10-Q" && form !== "10-K")) {
+    return undefined;
+  }
+  const fp = readString(value, "fp");
+  const fy = readFiscalYear(value);
+  const filed = readString(value, "filed");
+  const end = readString(value, "end");
+  return {
+    val,
+    form,
+    ...(fp !== undefined ? { fp } : {}),
+    ...(fy !== undefined ? { fy } : {}),
+    ...(filed !== undefined ? { filed } : {}),
+    ...(end !== undefined ? { end } : {}),
+  };
+}
+
+function compareFacts(a: SecFactValue, b: SecFactValue): number {
+  const filed = (a.filed ?? "").localeCompare(b.filed ?? "");
+  return filed !== 0 ? filed : (a.end ?? "").localeCompare(b.end ?? "");
+}
+
+function latestFact(values: readonly SecFactValue[]): SecFactValue | undefined {
+  return values.toSorted((a, b) => compareFacts(b, a))[0];
+}
+
+function factValuesForConcept(
+  gaap: Record<string, unknown>,
+  concept: string,
+  unitKeys: readonly string[],
+): readonly SecFactValue[] {
+  const fact = isRecord(gaap[concept]) ? gaap[concept] : undefined;
+  const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
+  if (units === undefined) {
+    return [];
+  }
+  return unitKeys.flatMap((unitKey) =>
+    readArray(units, unitKey).flatMap((value) => {
+      const factValue = readSecFactValue(value);
+      return factValue === undefined ? [] : [factValue];
+    }),
+  );
+}
+
+function factValuesForMetric(
+  gaap: Record<string, unknown>,
+  metric: SecMetricDefinition,
+): readonly SecFactValue[] {
+  for (const concept of metric.concepts) {
+    const values = factValuesForConcept(gaap, concept, metric.unitKeys);
+    if (values.length > 0) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boolean {
+  if (latest.fy === undefined || candidate.fy !== latest.fy - 1 || candidate.form !== latest.form) {
+    return false;
+  }
+  return latest.form === "10-Q" ? candidate.fp === latest.fp : true;
+}
+
+function comparablePrior(
+  latest: SecFactValue,
+  values: readonly SecFactValue[],
+): SecFactValue | undefined {
+  return latestFact(values.filter((value) => isComparablePrior(latest, value)));
+}
+
+function selectMetric(
+  gaap: Record<string, unknown>,
+  metric: SecMetricDefinition,
+): SecMetricSelection | undefined {
+  const values = factValuesForMetric(gaap, metric);
+  const latest = latestFact(values);
+  if (latest === undefined) {
+    return undefined;
+  }
+  const prior = comparablePrior(latest, values);
+  return { latest, ...(prior !== undefined ? { prior } : {}) };
+}
+
+function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {
+  return a.form === b.form && a.fy === b.fy && (a.form === "10-K" || a.fp === b.fp);
+}
+
+function sumMatchingFacts(
+  period: SecFactValue,
+  componentValues: readonly (readonly SecFactValue[])[],
+): SecFactValue | undefined {
+  const matches = componentValues
+    .map((values) => latestFact(values.filter((value) => sameFiscalPeriod(period, value))))
+    .filter((value): value is SecFactValue => value !== undefined);
+  if (matches.length === 0) {
+    return undefined;
+  }
+  return {
+    ...period,
+    val: matches.reduce((sum, value) => sum + value.val, 0),
+  };
+}
+
+function selectDebtMetric(gaap: Record<string, unknown>): SecMetricSelection | undefined {
+  const direct = selectMetric(gaap, DEBT_METRIC);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const componentValues = DEBT_COMPONENTS.map((metric) => factValuesForMetric(gaap, metric));
+  const latest = latestFact(componentValues.flat());
+  if (latest === undefined) {
+    return undefined;
+  }
+  const summedLatest = sumMatchingFacts(latest, componentValues);
+  if (summedLatest === undefined) {
+    return undefined;
+  }
+  const priorPeriod = comparablePrior(latest, componentValues.flat());
+  const prior =
+    priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentValues);
+  return { latest: summedLatest, ...(prior !== undefined ? { prior } : {}) };
+}
+
+function deltaPercent(latest: number, prior: number): number | undefined {
+  return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
+}
+
+function formatMetric(label: string, latest: number, delta: number | undefined): string {
+  return delta === undefined
+    ? `${label} ${String(latest)}`
+    : `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
+}
+
+export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSummary | undefined {
   if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
     return undefined;
   }
   const gaap = payload.facts["us-gaap"];
-  const keys = {
-    revenue: "Revenues",
-    netIncome: "NetIncomeLoss",
-    cash: "CashAndCashEquivalentsAtCarryingValue",
-    debt: "LongTermDebt",
-  };
   const metrics: Record<string, number> = {};
-  for (const [label, factKey] of Object.entries(keys)) {
-    const fact = isRecord(gaap) && isRecord(gaap[factKey]) ? gaap[factKey] : undefined;
-    const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
-    const usd = units !== undefined ? readArray(units, "USD") : [];
-    const value = latestNumber(usd, ["val"]);
-    if (value !== undefined) {
-      metrics[label] = value;
+  const missingFacts: string[] = [];
+  const missingDeltas: string[] = [];
+  const summaryParts: string[] = [];
+
+  const metricSelections = [
+    ...SEC_METRIC_DEFINITIONS.map((definition) => ({
+      definition,
+      selection: selectMetric(gaap, definition),
+    })),
+    { definition: DEBT_METRIC, selection: selectDebtMetric(gaap) },
+  ];
+
+  for (const { definition, selection } of metricSelections) {
+    if (selection === undefined) {
+      missingFacts.push(definition.key);
+      continue;
     }
+    const { latest, prior } = selection;
+    metrics[definition.key] = latest.val;
+    const delta = prior === undefined ? undefined : deltaPercent(latest.val, prior.val);
+    if (prior === undefined) {
+      missingDeltas.push(definition.key);
+    } else {
+      metrics[`${definition.key}Prior`] = prior.val;
+      if (delta !== undefined) {
+        metrics[`${definition.key}DeltaPercent`] = delta;
+      }
+    }
+    summaryParts.push(formatMetric(definition.label, latest.val, delta));
   }
-  const parts = Object.entries(metrics).map(([key, value]) => `${key} ${String(value)}`);
-  return parts.length > 0
-    ? { summary: `Latest SEC company facts include ${parts.join(", ")}.`, metrics }
-    : undefined;
+
+  if (summaryParts.length === 0) {
+    return undefined;
+  }
+
+  const gaps: SourceGap[] = [
+    ...(missingFacts.length > 0
+      ? [{ source: "sec-edgar", message: `Missing SEC company facts: ${missingFacts.join(", ")}` }]
+      : []),
+    ...(missingDeltas.length > 0
+      ? [
+          {
+            source: "sec-edgar",
+            message: `Missing comparable SEC company facts for YoY deltas: ${missingDeltas.join(
+              ", ",
+            )}`,
+          },
+        ]
+      : []),
+  ];
+
+  return {
+    summary: `SEC Fundamental Evidence: ${summaryParts.join(", ")}.`,
+    metrics,
+    gaps,
+  };
 }
 
 export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
@@ -147,50 +446,75 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     ...(isFetchJsonResult(submissions) ? [submissions.rawSnapshot] : []),
     ...(isFetchJsonResult(facts) ? [facts.rawSnapshot] : []),
   ];
-  const gaps = [submissions, facts].filter(
+  const fetchGaps = [submissions, facts].filter(
     (value): value is SourceGap => !isFetchJsonResult(value),
   );
-  const items = [];
+  const items: CollectedItem[] = [];
 
-  if (isFetchJsonResult(submissions)) {
-    const summary = summarizeSecFilings(submissions.payload);
-    if (summary !== undefined) {
-      const source = evidenceSource(
-        `extended-sec-edgar-${command.symbol.toLowerCase()}-filings`,
-        `${command.symbol} SEC filings`,
-        "sec-edgar",
-        command,
-        fetchedAt,
-        submissionsUrl,
-        identity,
-      );
-      items.push(collectedItem("sec-edgar", source.title, summary, source, { cik: match.cik }));
-    }
-  }
-
-  if (isFetchJsonResult(facts)) {
-    const factsSummary = summarizeSecFacts(facts.payload);
-    if (factsSummary !== undefined) {
-      const source = evidenceSource(
-        `extended-sec-edgar-${command.symbol.toLowerCase()}-facts`,
-        `${command.symbol} SEC company facts`,
-        "sec-edgar",
-        command,
-        fetchedAt,
-        factsUrl,
-        identity,
-      );
-      items.push(
-        collectedItem(
+  const filingsSummary = isFetchJsonResult(submissions)
+    ? summarizeSecFilings(submissions.payload)
+    : undefined;
+  const filingsSource =
+    isFetchJsonResult(submissions) && filingsSummary !== undefined
+      ? evidenceSource(
+          `extended-sec-edgar-${command.symbol.toLowerCase()}-filings`,
+          `${command.symbol} SEC filings`,
           "sec-edgar",
-          source.title,
-          factsSummary.summary,
-          source,
-          factsSummary.metrics,
-        ),
-      );
+          command,
+          fetchedAt,
+          submissionsUrl,
+          identity,
+        )
+      : undefined;
+
+  const fundamentals = isFetchJsonResult(facts)
+    ? summarizeSecFundamentals(facts.payload)
+    : undefined;
+  const fundamentalsSource =
+    isFetchJsonResult(facts) && fundamentals !== undefined
+      ? evidenceSource(
+          `extended-sec-edgar-${command.symbol.toLowerCase()}-fundamentals`,
+          `${command.symbol} SEC fundamentals`,
+          "sec-edgar",
+          command,
+          fetchedAt,
+          factsUrl,
+          identity,
+        )
+      : undefined;
+  const sources = [filingsSource, fundamentalsSource].filter(
+    (source): source is Source => source !== undefined,
+  );
+  const summaries = [filingsSummary, fundamentals?.summary].filter(
+    (summary): summary is string => summary !== undefined,
+  );
+  if (sources.length > 0 && summaries.length > 0) {
+    const primarySource = fundamentalsSource ?? filingsSource;
+    if (primarySource !== undefined) {
+      items.push({
+        source: primarySource,
+        sources,
+        item: {
+          category: "sec-edgar",
+          title: `${command.symbol} SEC Fundamental Evidence`,
+          summary: summaries.join(" "),
+          sourceIds: sources.map((source) => source.id),
+          observedAt: fetchedAt,
+          ...(fundamentals !== undefined ? { metrics: fundamentals.metrics } : {}),
+          identity,
+        },
+      });
     }
   }
 
-  return { rawSnapshots, items, gaps };
+  const emptyFactsGap =
+    isFetchJsonResult(facts) && fundamentals === undefined
+      ? [{ source: "sec-edgar", message: `No SEC company facts found for ${command.symbol}` }]
+      : [];
+
+  return {
+    rawSnapshots,
+    items,
+    gaps: [...fetchGaps, ...(fundamentals?.gaps ?? []), ...emptyFactsGap],
+  };
 }

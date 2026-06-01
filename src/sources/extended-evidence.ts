@@ -32,7 +32,7 @@ async function collectProviderEvidence(
   };
   return {
     rawSnapshots: result.rawSnapshots,
-    sources: result.items.map((item) => item.source),
+    sources: result.items.flatMap((item) => item.sources ?? [item.source]),
     extendedEvidence,
     sourceGaps: result.gaps,
   };

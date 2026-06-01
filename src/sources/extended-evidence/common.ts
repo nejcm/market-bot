@@ -11,6 +11,7 @@ import type { CollectContext, RawSourceSnapshot } from "../types";
 export interface CollectedItem {
   readonly item: ExtendedEvidenceItem;
   readonly source: Source;
+  readonly sources?: readonly Source[];
 }
 
 export interface ProviderResult {

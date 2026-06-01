@@ -82,6 +82,19 @@ export interface Mover {
   readonly snapshot: MarketSnapshot;
   readonly rank: number;
   readonly score: number;
+  readonly features: MoverFeatures;
+}
+
+export interface MoverFeatures {
+  readonly movementMagnitude: number;
+  readonly liquidityLog: number;
+  readonly baseScore: number;
+  readonly unusualVolumeRatio?: number;
+  readonly unusualVolumeBoost: number;
+  readonly gapPercent?: number;
+  readonly gapBoost: number;
+  readonly finalMultiplier: number;
+  readonly reasons: readonly string[];
 }
 
 export type EvidenceQuality = "high" | "medium" | "low";

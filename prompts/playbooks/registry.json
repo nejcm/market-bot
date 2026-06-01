@@ -1,0 +1,75 @@
+{
+  "playbooks": [
+    {
+      "id": "market-regime",
+      "title": "Market Regime",
+      "summary": "Classify the market backdrop from supplied market data, macro context, and source gaps.",
+      "file": "market-regime.md",
+      "jobTypes": ["daily", "weekly"],
+      "assetClasses": ["equity", "crypto"],
+      "depths": ["brief", "deep"],
+      "stages": ["specialist-analysis", "regime-context-analysis", "critique", "final-synthesis"]
+    },
+    {
+      "id": "mover-themes",
+      "title": "Mover Themes",
+      "summary": "Group liquid movers into evidence-backed themes without turning rank into conviction.",
+      "file": "mover-themes.md",
+      "jobTypes": ["daily", "weekly"],
+      "assetClasses": ["equity", "crypto"],
+      "depths": ["brief", "deep"],
+      "stages": ["specialist-analysis", "mover-theme-analysis", "critique", "final-synthesis"]
+    },
+    {
+      "id": "instrument-evidence",
+      "title": "Instrument Evidence",
+      "summary": "Use ticker-level market, news, and Extended Evidence while preserving source boundaries.",
+      "file": "instrument-evidence.md",
+      "jobTypes": ["ticker"],
+      "assetClasses": ["equity", "crypto"],
+      "depths": ["brief", "deep"],
+      "stages": [
+        "specialist-analysis",
+        "instrument-evidence-analysis",
+        "critique",
+        "final-synthesis"
+      ]
+    },
+    {
+      "id": "market-behavior",
+      "title": "Market Behavior",
+      "summary": "Describe observable price, liquidity, volatility, and participation behavior from supplied evidence.",
+      "file": "market-behavior.md",
+      "jobTypes": ["daily", "weekly", "ticker"],
+      "assetClasses": ["equity", "crypto"],
+      "depths": ["deep"],
+      "stages": [
+        "market-behavior-analysis",
+        "regime-context-analysis",
+        "mover-theme-analysis",
+        "critique",
+        "final-synthesis"
+      ]
+    },
+    {
+      "id": "critique-discipline",
+      "title": "Critique Discipline",
+      "summary": "Stress-test weak claims, missing evidence, and alternative explanations.",
+      "file": "critique-discipline.md",
+      "jobTypes": ["daily", "weekly", "ticker"],
+      "assetClasses": ["equity", "crypto"],
+      "depths": ["brief", "deep"],
+      "stages": ["critique"]
+    },
+    {
+      "id": "synthesis-discipline",
+      "title": "Synthesis Discipline",
+      "summary": "Synthesize only from supplied evidence and prior stages into research-only output.",
+      "file": "synthesis-discipline.md",
+      "jobTypes": ["daily", "weekly", "ticker"],
+      "assetClasses": ["equity", "crypto"],
+      "depths": ["brief", "deep"],
+      "stages": ["final-synthesis"]
+    }
+  ]
+}

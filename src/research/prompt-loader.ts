@@ -4,6 +4,7 @@ import type { ResearchCommand } from "../cli/args";
 
 export type StageLabel =
   | "evidence-request"
+  | "playbook-selection"
   | "specialist-analysis"
   | "regime-context-analysis"
   | "mover-theme-analysis"

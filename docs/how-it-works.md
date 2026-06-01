@@ -157,6 +157,8 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 
 Adapters convert external API payloads into internal `MarketSnapshot`, `Source`, and close-price records. Callers work with normalized shapes and source gaps, not raw provider-specific payloads.
 
+New Source Provider work should follow the [Source Provider Contract](./source-provider-contract.md).
+
 ## Movers
 
 Mover ranking lives in `src/movers/ranking.ts`.
@@ -316,7 +318,7 @@ Common extension points:
 | Change | Main files |
 | --- | --- |
 | Add an environment variable | `src/config.ts`, `docs/configuration.md` |
-| Add a source adapter | `src/sources/*`, `src/sources/registry.ts`, source tests |
+| Add a source adapter | [Source Provider Contract](./source-provider-contract.md), `src/sources/*`, `src/sources/registry.ts`, source tests |
 | Add a prediction shape | `src/forecast/observable.ts`, `src/scoring/resolver.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, tests |
 | Change report structure | `src/domain/types.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, orchestrator prompt shape, tests |
 | Change CLI syntax | `src/cli/args.ts`, CLI tests, README command docs |

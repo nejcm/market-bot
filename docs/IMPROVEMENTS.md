@@ -43,13 +43,7 @@
 - **Additional paid/provider-backed source adapters** such as expanding Massive beyond supplemental evidence
 - **SEC/EDGAR enrichment** beyond compact ticker filing/fact summaries, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
 
-New source adapters should define:
-
-- env vars and `docs/configuration.md` updates;
-- normalized output shape and Instrument Identity fields, if any;
-- cache, timeout, retry, rate-limit, and `SourceGap` behavior;
-- whether the provider contributes report Sources only or scoring Observations too;
-- source-adapter seam tests.
+New Source Provider work should follow the [Source Provider Contract](./source-provider-contract.md).
 
 ### Research quality of regime / movers (v4)
 

@@ -32,6 +32,10 @@ The current market backdrop inferred from fetched evidence, such as broad direct
 
 Market-level evidence that enriches Market Updates without targeting one Instrument.
 
+## Domain Playbook
+
+A checked-in research guidance snippet selected once per run after source collection and the Evidence Request Loop. It steers eligible downstream model stages without fetching sources, changing report schema, or adding trading behavior.
+
 ## Mover
 
 A liquid instrument ranked deterministically by price movement magnitude, liquidity, and available Mover Features.

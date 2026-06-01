@@ -9,6 +9,7 @@ CLI args
   -> config from environment
   -> source collection
   -> deterministic context
+  -> playbook selection
   -> model stages
   -> report validation
   -> artifact writing
@@ -88,7 +89,7 @@ Useful knobs:
 | --- | --- |
 | `MARKET_BOT_PROVIDER` | `openai`, `openai-compatible`, or `codex`. |
 | `MARKET_BOT_BASE_URL` | Required for `openai-compatible`. |
-| `MARKET_BOT_QUICK_MODEL` | Model for specialist, coverage-panel, and critique stages. |
+| `MARKET_BOT_QUICK_MODEL` | Model for playbook-selection, specialist, coverage-panel, and critique stages. |
 | `MARKET_BOT_SYNTHESIS_MODEL` | Model for final synthesis and `--deep` output. |
 | `MARKET_BOT_DATA_DIR` | Run artifact directory, default `data/runs`. |
 | `MARKET_BOT_CACHE_DIR` | Raw source cache directory, default `data/cache`. |
@@ -200,11 +201,12 @@ Each research run builds a depth profile:
 | `brief` | Concise report with fewer minimum findings, scenarios, and predictions. |
 | `deep` | Fuller report with higher minimum counts and broader focus areas. |
 
-Brief runs use three model stages:
+Brief runs use four model stages:
 
-1. `specialist-analysis`: extracts sourced thesis points, catalysts, risks, and gaps.
-2. `critique`: challenges the specialist output using only supplied evidence.
-3. `final-synthesis`: emits the final JSON report and predictions.
+1. `playbook-selection`: chooses checked-in Domain Playbooks for eligible downstream stages.
+2. `specialist-analysis`: extracts sourced thesis points, catalysts, risks, and gaps.
+3. `critique`: challenges the specialist output using only supplied evidence.
+4. `final-synthesis`: emits the final JSON report and predictions.
 
 Deep runs keep `specialist-analysis` as the anchor, then run two fixed coverage-panel stages before critique:
 
@@ -212,6 +214,8 @@ Deep runs keep `specialist-analysis` as the anchor, then run two fixed coverage-
 - Tickers: `instrument-evidence-analysis` and `market-behavior-analysis`.
 
 Each coverage-panel stage receives the specialist output as prior context. `critique` receives the specialist plus both role outputs, and `final-synthesis` receives all analyses plus critique. The panel broadens coverage without adding report schema fields.
+
+Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/playbooks/registry.json`. After source collection and any Evidence Request Loop, the quick model runs `playbook-selection` once with slim run context: command, depth profile, planned stages, candidate metadata, market-regime label, evidence categories, and source-gap summaries. It may select up to two playbooks per stage and six per run. Valid selections are loaded into downstream prompt JSON as `domainPlaybooks`; invalid selector output is recorded in `trace.json` and the run continues without adding report data gaps.
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 
@@ -276,7 +280,7 @@ data/runs/<run-id>/
 
 `runId` is based on the current ISO timestamp plus a short random suffix.
 
-`trace.json` records command metadata, model names, stage names, source gaps, token estimate, cost estimate, and prediction validation errors when present.
+`trace.json` records command metadata, model names, stage names, source gaps, Domain Playbook selector audit metadata, token estimate, cost estimate, and prediction validation errors when present. `stages.json` includes the `playbook-selection` model output, so selector token and cost estimates are included in run totals.
 
 ## Scoring
 
@@ -330,5 +334,6 @@ Common extension points:
 | Add a prediction shape | `src/forecast/observable.ts`, `src/scoring/resolver.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, tests |
 | Change report structure | `src/domain/types.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, orchestrator prompt shape, tests |
 | Change CLI syntax | `src/cli/args.ts`, CLI tests, README command docs |
+| Add or change Domain Playbooks | `prompts/playbooks/registry.json`, `prompts/playbooks/*.md`, `src/research/playbooks.ts`, playbook and orchestrator tests |
 
 Keep changes inside the research-only boundary in [ADR 0001](./adr/0001-research-only-boundary.md) and the observable-forecast boundary in [ADR 0004](./adr/0004-predictions-as-observable-forecasts.md).

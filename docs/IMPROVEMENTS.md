@@ -66,8 +66,6 @@
 - **TradingAgents-style research committee** with bull/bear researchers, risk personas, and a
   research-only evidence/risk summarizer. This must not introduce portfolio-manager behavior,
   trade actions, position sizing, execution instructions, or portfolio-change language.
-- **Vibe-Trading-style skill system** where domain playbooks are loaded on demand to keep
-  prompts smaller while preserving specialized guidance.
 - **Swarm/team presets** for macro desk, crypto desk, earnings desk, risk committee, or global allocation research.
 
 ### Cross-run intelligence (v2)

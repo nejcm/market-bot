@@ -247,6 +247,7 @@ export interface RunTrace {
   readonly costEstimateUsd: number;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
+  readonly predictionRetryErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
 }

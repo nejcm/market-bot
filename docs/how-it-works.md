@@ -281,7 +281,7 @@ data/runs/<run-id>/
 
 `runId` is based on the current ISO timestamp plus a short random suffix.
 
-`trace.json` records command metadata, model names, stage names, source gaps, Domain Playbook selector audit metadata, token estimate, cost estimate, and prediction validation errors when present. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health, and run shape. `stages.json` includes the `playbook-selection` model output, so selector token and cost estimates are included in run totals.
+`trace.json` records command metadata, model names, stage names, source gaps, Domain Playbook selector audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health, and run shape. `stages.json` includes the `playbook-selection` model output, so selector token and cost estimates are included in run totals.
 
 ## Scoring
 

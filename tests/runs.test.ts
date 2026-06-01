@@ -33,6 +33,21 @@ describe("resolveRunParams — fallback chain", () => {
     expect(result.synthesisModel).toBe("env-synthesis");
   });
 
+  test("codex AppConfig overrides provide default run models", () => {
+    const result = resolveRunParams(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        ...baseConfig,
+        provider: "codex",
+        codexQuickModel: "codex-quick",
+        codexSynthesisModel: "codex-synthesis",
+      },
+    );
+
+    expect(result.quickModel).toBe("codex-quick");
+    expect(result.synthesisModel).toBe("codex-synthesis");
+  });
+
   test("combo block model overrides AppConfig", () => {
     const modified = {
       ...runConfig["daily-equity"],

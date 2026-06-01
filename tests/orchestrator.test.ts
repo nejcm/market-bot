@@ -1590,6 +1590,12 @@ describe("runResearchJob", () => {
 
     expect(prompts).toHaveLength(7);
     expect(finalPrompts).toHaveLength(2);
+    expect(finalPrompts[1]?.predictionRepromptErrors).toContain(
+      "predictionShortfall: required 3, received 0",
+    );
+    expect(result.trace.predictionRetryErrors).toEqual([
+      "predictionShortfall: required 3, received 0",
+    ]);
     expect(priorStageNames(finalPrompts[1] ?? {})).toEqual([
       "specialist-analysis",
       "regime-context-analysis",
@@ -1688,6 +1694,199 @@ describe("runResearchJob", () => {
     expect(result.trace.reportValidationErrors).toEqual([
       "Major findings must reference source IDs",
     ]);
+  });
+
+  test("keeps prediction retry guidance when report validation also retries synthesis", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const invalidRelativePrediction = {
+      id: "bad-relative",
+      claim: "QQQ outperforms SPY over 5 trading days.",
+      kind: "relative",
+      subject: "QQQ",
+      measurableAs: "close(QQQ, +5)/close(QQQ, 0) > close(SPY, +5)/close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.55,
+      sourceIds: ["market-aapl"],
+    };
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+
+        if (prompt.stage === "final-synthesis" && finalCalls === 1) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [invalidRelativePrediction, ...mockPredictions(1)],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        if (prompt.stage === "final-synthesis" && finalCalls === 2) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: [] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [invalidRelativePrediction, ...mockPredictions(1)],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        return {
+          content: modelReport("SPY"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const reportRetryPrompt = finalPrompts[2] ?? {};
+
+    expect(finalPrompts).toHaveLength(3);
+    expect(reportRetryPrompt.reportValidationErrors).toContain(
+      "Major findings must reference source IDs",
+    );
+    expect(reportRetryPrompt.predictionRepromptErrors).toContain(
+      'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
+    );
+    expect(reportRetryPrompt.predictionRepromptErrors).toContain(
+      "predictionShortfall: required 2, received 1",
+    );
+    expect(result.trace.predictionRetryErrors).toContain(
+      'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
+    );
+  });
+
+  test("re-prompts when report validation retry regresses prediction validity", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const invalidRelativePrediction = {
+      id: "bad-relative",
+      claim: "QQQ outperforms SPY over 5 trading days.",
+      kind: "relative",
+      subject: "QQQ",
+      measurableAs: "close(QQQ, +5)/close(QQQ, 0) > close(SPY, +5)/close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.55,
+      sourceIds: ["market-aapl"],
+    };
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+
+        if (prompt.stage === "final-synthesis" && finalCalls === 1) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: [] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: mockPredictions(2),
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        if (prompt.stage === "final-synthesis" && finalCalls === 2) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [invalidRelativePrediction, ...mockPredictions(1)],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        return {
+          content: modelReport("SPY"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const combinedRetryPrompt = finalPrompts[2] ?? {};
+
+    expect(finalPrompts).toHaveLength(3);
+    expect(combinedRetryPrompt.reportValidationErrors).toContain(
+      "Major findings must reference source IDs",
+    );
+    expect(combinedRetryPrompt.predictionRepromptErrors).toContain(
+      'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
+    );
+    expect(result.report.predictions.length).toBeGreaterThanOrEqual(2);
   });
 
   test("logs prediction validation errors to trace when malformed predictions are dropped", async () => {

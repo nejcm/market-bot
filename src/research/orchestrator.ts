@@ -146,6 +146,19 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function predictionRetryReasons(
+  predResult: ReturnType<typeof readPredictions>,
+  minimumPredictions: number,
+): readonly string[] {
+  if (predResult.predictions.length >= minimumPredictions) {
+    return [];
+  }
+  return [
+    ...predResult.errors,
+    `predictionShortfall: required ${String(minimumPredictions)}, received ${String(predResult.predictions.length)}`,
+  ];
+}
+
 async function runPlaybookSelection(
   input: RunResearchJobInput,
   collectedSources: CollectedSources,
@@ -205,6 +218,8 @@ async function runPlaybookSelection(
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
+  const completedAt = (): string =>
+    input.now === undefined ? new Date().toISOString() : new Date(now.getTime() + 1).toISOString();
   const runId = createRunId(now);
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);
@@ -284,6 +299,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
 
   let payload: ModelReportPayload = parseModelPayload(finalOutput.content);
   let predResult = readPredictions(payload.predictions, knownSourceIds);
+  let predictionRetryErrors: readonly string[] = [];
   let reportValidationErrors: readonly string[] = [];
   const stageOutputsArr: StageOutput[] = [
     ...evidenceLoop.stageOutputs,
@@ -293,7 +309,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     finalOutput,
   ];
 
-  if (predResult.predictions.length < context.depthProfile.minimumPredictions) {
+  predictionRetryErrors = predictionRetryReasons(
+    predResult,
+    context.depthProfile.minimumPredictions,
+  );
+  if (predictionRetryErrors.length > 0) {
     finalOutput = await runStage(
       "final-synthesis",
       runParams.synthesisModel,
@@ -301,7 +321,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       collectedSources,
       playbookContext,
       [...analysisOutputs, critiqueOutput],
-      { predictionErrors: predResult.errors },
+      { predictionErrors: predictionRetryErrors },
     );
     stageOutputsArr.push(finalOutput);
     payload = parseModelPayload(finalOutput.content);
@@ -326,6 +346,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       return buildReport();
     } catch (error: unknown) {
       reportValidationErrors = [errorMessage(error)];
+      const reportRetryPredictionErrors = predictionRetryReasons(
+        predResult,
+        context.depthProfile.minimumPredictions,
+      );
+      predictionRetryErrors = [
+        ...new Set([...predictionRetryErrors, ...reportRetryPredictionErrors]),
+      ];
       finalOutput = await runStage(
         "final-synthesis",
         runParams.synthesisModel,
@@ -334,6 +361,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         playbookContext,
         [...analysisOutputs, critiqueOutput],
         {
+          predictionErrors: reportRetryPredictionErrors,
           reportValidationErrors,
           allowedSourceIds: [...knownSourceIds].toSorted(),
         },
@@ -341,6 +369,31 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       stageOutputsArr.push(finalOutput);
       payload = parseModelPayload(finalOutput.content);
       predResult = readPredictions(payload.predictions, knownSourceIds);
+      const postReportPredictionErrors = predictionRetryReasons(
+        predResult,
+        context.depthProfile.minimumPredictions,
+      );
+      if (postReportPredictionErrors.length > 0) {
+        predictionRetryErrors = [
+          ...new Set([...predictionRetryErrors, ...postReportPredictionErrors]),
+        ];
+        finalOutput = await runStage(
+          "final-synthesis",
+          runParams.synthesisModel,
+          input,
+          collectedSources,
+          playbookContext,
+          [...analysisOutputs, critiqueOutput],
+          {
+            predictionErrors: postReportPredictionErrors,
+            reportValidationErrors,
+            allowedSourceIds: [...knownSourceIds].toSorted(),
+          },
+        );
+        stageOutputsArr.push(finalOutput);
+        payload = parseModelPayload(finalOutput.content);
+        predResult = readPredictions(payload.predictions, knownSourceIds);
+      }
       return buildReport();
     }
   })();
@@ -361,13 +414,14 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     quickModel: runParams.quickModel,
     synthesisModel: runParams.synthesisModel,
     startedAt: generatedAt,
-    completedAt: new Date(now.getTime() + 1).toISOString(),
+    completedAt: completedAt(),
     sourceGaps: report.dataGaps,
     stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     domainPlaybooks: playbookSelection.audit,
+    ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
     ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
   };

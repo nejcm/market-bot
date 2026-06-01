@@ -202,10 +202,18 @@ export function resolveRunParams(
     command.jobType === "ticker"
       ? [command.symbol]
       : (merged.predictionSubjects ?? CODE_DEFAULTS.predictionSubjects);
+  const defaultQuickModel =
+    appConfig.provider === "codex"
+      ? (appConfig.codexQuickModel ?? appConfig.quickModel)
+      : appConfig.quickModel;
+  const defaultSynthesisModel =
+    appConfig.provider === "codex"
+      ? (appConfig.codexSynthesisModel ?? appConfig.synthesisModel)
+      : appConfig.synthesisModel;
 
   return {
-    quickModel: merged.quickModel ?? appConfig.quickModel,
-    synthesisModel: merged.synthesisModel ?? appConfig.synthesisModel,
+    quickModel: merged.quickModel ?? defaultQuickModel,
+    synthesisModel: merged.synthesisModel ?? defaultSynthesisModel,
     modelParams: merged.modelParams,
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,

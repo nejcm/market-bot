@@ -36,6 +36,7 @@ const trace: RunTrace = {
   },
   domainPlaybooks: { selected: [], rejected: [] },
   predictionErrors: ["Unknown source ID: missing"],
+  predictionRetryErrors: ["predictionShortfall: required 2, received 1"],
 };
 
 describe("run analytics", () => {
@@ -151,6 +152,7 @@ describe("run analytics", () => {
     expect(analytics.evidenceQuality.extendedEvidence.itemsByCategory).toEqual({ "sec-edgar": 1 });
     expect(analytics.predictions).toMatchObject({
       count: 2,
+      retryErrorCount: 1,
       validationErrorCount: 1,
       byKind: { direction: 1, iv: 1 },
       citedCount: 1,

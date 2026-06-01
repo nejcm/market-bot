@@ -336,6 +336,8 @@ export function buildStagePrompt(
   loaded: LoadedPrompt,
   priorStages: readonly unknown[] = [],
   predictionRepromptErrors: readonly string[] = [],
+  reportValidationErrors: readonly string[] = [],
+  allowedSourceIds: readonly string[] = [],
 ): string {
   const predictionInstruction =
     stage === "final-synthesis"
@@ -367,6 +369,7 @@ export function buildStagePrompt(
       ...(predictionRepromptErrors.length > 0
         ? { predictionRepromptErrors, unmetMinimum: context.depthProfile.minimumPredictions }
         : {}),
+      ...(reportValidationErrors.length > 0 ? { reportValidationErrors, allowedSourceIds } : {}),
       requiredShape,
     },
     undefined,

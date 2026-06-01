@@ -149,6 +149,9 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
   const baseUrl = readBaseUrl(provider, env.MARKET_BOT_BASE_URL);
 
   const dataDir = env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR;
+  const massiveApiKey =
+    readOptionalString(env.MARKET_BOT_MASSIVE_API_KEY) ??
+    readOptionalString(env.MARKET_BOT_POLYGON_API_KEY);
 
   return {
     provider,
@@ -185,9 +188,7 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       ...(readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) !== undefined
         ? { glassnodeApiKey: readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) as string }
         : {}),
-      ...(readOptionalString(env.MARKET_BOT_MASSIVE_API_KEY) !== undefined
-        ? { massiveApiKey: readOptionalString(env.MARKET_BOT_MASSIVE_API_KEY) as string }
-        : {}),
+      ...(massiveApiKey !== undefined ? { massiveApiKey } : {}),
       secUserAgent: readOptionalString(env.MARKET_BOT_SEC_USER_AGENT) ?? DEFAULT_SEC_USER_AGENT,
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
       cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),

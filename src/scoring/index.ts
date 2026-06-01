@@ -343,13 +343,13 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
 export async function buildAndWriteCalibration(
   dataDir: string,
   now: Date = new Date(),
-): Promise<void> {
+): Promise<boolean> {
   const runDirs = await listRunDirs(dataDir);
   const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
   const pairs = pairsPerRun.flat();
 
   if (pairs.length === 0) {
-    return;
+    return false;
   }
 
   const summary = buildCalibrationSummary(pairs, now);
@@ -361,4 +361,5 @@ export async function buildAndWriteCalibration(
     "utf8",
   );
   await writeFile(join(calibrationDir, "summary.md"), renderCalibrationMarkdown(summary), "utf8");
+  return true;
 }

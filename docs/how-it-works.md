@@ -97,7 +97,7 @@ Useful knobs:
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | Stale cache fallback window after live fetch failure. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | Enables MarketAux news. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | Enables Finnhub news. |
-| `MARKET_BOT_MASSIVE_API_KEY` | Enables supplemental Massive equity snapshots and news. |
+| `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY` | Enables supplemental Massive equity snapshots and news. `MARKET_BOT_POLYGON_API_KEY` is a legacy alias. |
 
 See [configuration.md](./configuration.md) for the full table.
 
@@ -116,7 +116,7 @@ Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime
 
 Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s but do not cap Evidence Quality.
 
-Massive, formerly Polygon.io, is a Supplemental Source Provider. `MARKET_BOT_MASSIVE_API_KEY` enables requests to `api.massive.com` for equity news and stock snapshots. Missing keys silently disable Massive. When the key is set and a Massive request fails, the failure is recorded as a `SourceGap`. Massive is equity-only in this version: it does not run for crypto, does not replace Yahoo, does not affect mover ranking or market regime, and does not create scoring Observations. Supplemental snapshots are saved as `normalized/supplemental-market-snapshots.json`, included in prompt evidence, and attached as citeable report Sources.
+Massive, formerly Polygon.io, is a Supplemental Source Provider. `MARKET_BOT_MASSIVE_API_KEY` enables requests to `api.massive.com` for equity news and stock snapshots; `MARKET_BOT_POLYGON_API_KEY` is accepted as a legacy alias. Missing keys silently disable Massive. When the key is set and a Massive request fails, the failure is recorded as a `SourceGap`. Massive is equity-only in this version: it does not run for crypto, does not replace Yahoo, does not affect mover ranking or market regime, and does not create scoring Observations. Supplemental snapshots are saved as `normalized/supplemental-market-snapshots.json`, included in prompt evidence, and attached as citeable report Sources.
 
 Ticker runs also collect Extended Evidence:
 

@@ -37,6 +37,7 @@ import {
 import {
   assembleResearchReport,
   buildSourceList,
+  type ModelReportPayload,
   parseModelPayload,
   readPredictions,
 } from "./report-assembly";
@@ -74,6 +75,12 @@ interface StageOutput {
   readonly costEstimateUsd: number;
 }
 
+interface StageReprompt {
+  readonly predictionErrors?: readonly string[];
+  readonly reportValidationErrors?: readonly string[];
+  readonly allowedSourceIds?: readonly string[];
+}
+
 function coveragePanelStages(command: ResearchCommand): readonly PlaybookStage[] {
   if (command.depth !== "deep") {
     return [];
@@ -95,7 +102,7 @@ async function runStage(
   collectedSources: CollectedSources,
   context: ResearchContext,
   priorStages: readonly StageOutput[] = [],
-  predictionRepromptErrors: readonly string[] = [],
+  reprompt: StageReprompt = {},
 ): Promise<StageOutput> {
   const loaded = await loadStagePrompt(stage, input.command, input.config.promptDir);
   const response = await input.provider.generate({
@@ -119,7 +126,9 @@ async function runStage(
           context,
           loaded,
           priorStages,
-          predictionRepromptErrors,
+          reprompt.predictionErrors ?? [],
+          reprompt.reportValidationErrors ?? [],
+          reprompt.allowedSourceIds ?? [],
         ),
       },
     ],
@@ -131,6 +140,10 @@ async function runStage(
     tokenEstimate: response.tokenEstimate,
     costEstimateUsd: response.costEstimateUsd,
   };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function runPlaybookSelection(
@@ -269,8 +282,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const sources = buildSourceList(input.command, collectedSources);
   const knownSourceIds = new Set(sources.map((source) => source.id));
 
-  let payload = parseModelPayload(finalOutput.content);
+  let payload: ModelReportPayload = parseModelPayload(finalOutput.content);
   let predResult = readPredictions(payload.predictions, knownSourceIds);
+  let reportValidationErrors: readonly string[] = [];
   const stageOutputsArr: StageOutput[] = [
     ...evidenceLoop.stageOutputs,
     playbookSelection.output,
@@ -287,27 +301,52 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       collectedSources,
       playbookContext,
       [...analysisOutputs, critiqueOutput],
-      predResult.errors,
+      { predictionErrors: predResult.errors },
     );
     stageOutputsArr.push(finalOutput);
     payload = parseModelPayload(finalOutput.content);
     predResult = readPredictions(payload.predictions, knownSourceIds);
   }
 
+  const buildReport = (): ResearchReport =>
+    assembleResearchReport({
+      runId,
+      generatedAt,
+      command: input.command,
+      payload,
+      predResult,
+      collectedSources,
+      depthProfile: playbookContext.depthProfile,
+      context: playbookContext,
+      sources,
+    });
+
+  const report = await (async (): Promise<ResearchReport> => {
+    try {
+      return buildReport();
+    } catch (error: unknown) {
+      reportValidationErrors = [errorMessage(error)];
+      finalOutput = await runStage(
+        "final-synthesis",
+        runParams.synthesisModel,
+        input,
+        collectedSources,
+        playbookContext,
+        [...analysisOutputs, critiqueOutput],
+        {
+          reportValidationErrors,
+          allowedSourceIds: [...knownSourceIds].toSorted(),
+        },
+      );
+      stageOutputsArr.push(finalOutput);
+      payload = parseModelPayload(finalOutput.content);
+      predResult = readPredictions(payload.predictions, knownSourceIds);
+      return buildReport();
+    }
+  })();
+
   const predictionErrors = predResult.errors;
   const stageOutputs = stageOutputsArr as readonly StageOutput[];
-
-  const report = assembleResearchReport({
-    runId,
-    generatedAt,
-    command: input.command,
-    payload,
-    predResult,
-    collectedSources,
-    depthProfile: playbookContext.depthProfile,
-    context: playbookContext,
-    sources,
-  });
 
   const trace: RunTrace = {
     runId,
@@ -330,6 +369,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     domainPlaybooks: playbookSelection.audit,
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
+    ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
   };
   const analytics = buildRunAnalytics({
     report,

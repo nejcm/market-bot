@@ -24,7 +24,7 @@ const baseConfig: AppConfig = {
 
 function makeSpawn(overrides: {
   version?: { exitCode: number; stdout: string };
-  auth?: { exitCode: number };
+  auth?: { exitCode: number; stderr?: string };
   exec?: { exitCode: number; stdout: string; stderr?: string };
 }): SpawnImpl {
   return async (args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
@@ -34,7 +34,7 @@ function makeSpawn(overrides: {
     }
     if (args[1] === "auth") {
       const a = overrides.auth ?? { exitCode: 0 };
-      return { stdout: "", stderr: "", exitCode: a.exitCode };
+      return { stdout: "", stderr: a.stderr ?? "", exitCode: a.exitCode };
     }
     const e = overrides.exec ?? { exitCode: 0, stdout: "" };
     return { stdout: e.stdout, stderr: e.stderr ?? "", exitCode: e.exitCode };
@@ -77,6 +77,20 @@ describe("createCodexProvider — preflight", () => {
     await expect(
       provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
     ).rejects.toThrow("Not signed into Codex");
+  });
+
+  test("continues when current codex CLI does not support auth status", async () => {
+    const spawn = makeSpawn({
+      auth: { exitCode: 1, stderr: "error: unrecognized subcommand 'status'" },
+      exec: { exitCode: 0, stdout: agentMessageStream("ok") },
+    });
+    const provider = createCodexProvider(baseConfig, spawn);
+    const result = await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(result.content).toBe("ok");
   });
 
   test("runs preflight only once across multiple generate calls", async () => {

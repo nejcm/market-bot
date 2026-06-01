@@ -1610,6 +1610,86 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
+  test("re-prompts synthesis once when report findings omit source IDs", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+
+        if (prompt.stage === "final-synthesis" && finalCalls === 1) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: [] }],
+              bullCase: [{ text: "Supplier news supports breadth.", sourceIds: [] }],
+              bearCase: [{ text: "Single-name breadth is limited.", sourceIds: [] }],
+              risks: [{ text: "Breadth can reverse.", sourceIds: [] }],
+              catalysts: [{ text: "Supplier demand is visible.", sourceIds: [] }],
+              scenarios: [
+                {
+                  name: "Base",
+                  description: "Momentum continues if liquidity persists.",
+                  sourceIds: [],
+                },
+              ],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: mockPredictions(2),
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        return {
+          content: modelReport("SPY"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const retryPrompt = finalPrompts[1] ?? {};
+
+    expect(finalPrompts).toHaveLength(2);
+    expect(result.report.keyFindings[0]?.sourceIds).toEqual(["market-aapl"]);
+    expect(result.trace.stages).toEqual([
+      "source-collection",
+      "playbook-selection",
+      "specialist-analysis",
+      "critique",
+      "final-synthesis",
+      "final-synthesis",
+    ]);
+    expect(retryPrompt.reportValidationErrors).toContain(
+      "Major findings must reference source IDs",
+    );
+    expect(retryPrompt.allowedSourceIds).toEqual(["market-aapl", "news-equity-1"]);
+    expect(result.trace.reportValidationErrors).toEqual([
+      "Major findings must reference source IDs",
+    ]);
+  });
+
   test("logs prediction validation errors to trace when malformed predictions are dropped", async () => {
     const result = await runResearchJob({
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },

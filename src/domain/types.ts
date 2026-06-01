@@ -248,4 +248,5 @@ export interface RunTrace {
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionErrors?: readonly string[];
+  readonly reportValidationErrors?: readonly string[];
 }

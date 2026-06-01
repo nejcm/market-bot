@@ -178,6 +178,14 @@ describe("resolveConfig", () => {
     });
   });
 
+  test("accepts legacy Polygon key for Massive source provider", () => {
+    expect(resolveConfig({ MARKET_BOT_POLYGON_API_KEY: "legacy-key" }).sourceOptions).toMatchObject(
+      {
+        massiveApiKey: "legacy-key",
+      },
+    );
+  });
+
   test("accepts codex provider without apiKey", () => {
     const config = resolveConfig({ MARKET_BOT_PROVIDER: "codex" });
     expect(config.provider).toBe("codex");

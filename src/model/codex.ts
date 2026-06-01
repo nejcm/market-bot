@@ -123,6 +123,11 @@ function timeoutError(timeoutMs: number): Error {
   return new Error(`Codex request timed out after ${String(timeoutMs)}ms`);
 }
 
+function authStatusUnsupported(result: SpawnResult): boolean {
+  const output = `${result.stdout}\n${result.stderr}`.toLowerCase();
+  return output.includes("unrecognized subcommand") && output.includes("status");
+}
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: Timer | undefined = undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -187,6 +192,9 @@ async function preflight(spawnImpl: SpawnImpl): Promise<void> {
 
   const authResult = await spawnImpl(["codex", "auth", "status"], "").catch(() => null);
   if (authResult === null || authResult.exitCode !== 0) {
+    if (authResult !== null && authStatusUnsupported(authResult)) {
+      return;
+    }
     throw new Error("Not signed into Codex. Run: codex login");
   }
 }

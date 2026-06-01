@@ -38,8 +38,10 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   }
 
   if (command.jobType === "calibration") {
-    await buildAndWriteCalibration(config.dataDir);
-    return "Calibration summary written to data/calibration/summary.json";
+    const written = await buildAndWriteCalibration(config.dataDir);
+    return written
+      ? "Calibration summary written to data/calibration/summary.json"
+      : "Calibration summary not written: no resolved predictions found";
   }
 
   if (command.jobType === "cache-prune") {

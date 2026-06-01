@@ -3,8 +3,10 @@
 
 ## Near-term focus
 
-- **Research candidate discovery** - still deferred until the ticker Extended Evidence layer,
-  market-update data gaps, and source reliability have been exercised over real runs.
+- **Real-run validation** - exercise ticker Extended Evidence, market-update data gaps,
+  persistent news dedupe, scoring, and calibration over real runs before adding candidate
+  discovery.
+- **Research candidate discovery** - next major research feature after real-run validation.
 - **Alpha discovery** — discover alpha signals from social media and other sources. Stock/equities that are still early but with higher risk.
 - **Social sentiment** (X, Reddit, StockTwits) - high noise; defer until calibration shows
   that it adds signal beyond current news and market-data sources.
@@ -13,6 +15,9 @@
 
 ### Research candidate discovery (v2)
 
+- **Prerequisite validation** - review recent daily, weekly, and ticker artifacts for source
+  gaps, Evidence Quality caps, repeat-news suppression, and prediction calibration before
+  promoting candidates to a first-class workflow.
 - **Research candidate workflow** - reuse V1 source adapters, mover discovery, Evidence
   Quality, citations, and run artifacts to surface evidence-backed research candidates.
   No buy/sell/hold calls, sizing, execution language, portfolio-change language, or
@@ -72,18 +77,29 @@ New source adapters should define:
 ### Cross-run intelligence (v2)
 
 - **Watchlist + thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
-- **Persistent dedup of news sources** across runs so the same headline doesn't dominate three reports.
+- **Persistent dedup of news sources** - implemented for exact canonical-URL repeats within
+  a research lane; future work can broaden this to semantic near-duplicate detection if real
+  runs show headline clustering still dominates reports.
 - **Incremental memory** — open questions and unresolved hypotheses carried forward.
 - **Session/run search** over prior reports, sources, predictions, and theses.
 
 ### Operational (v3)
 
-- **Scheduler** (cron / GitHub Actions) for daily runs without manual invocation.
 - **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
   Decide whether this replaces or complements the current non-blocking score/calibration
   side effect on research runs. Include idempotency, locking, market-calendar handling,
   GitHub Actions artifact persistence, and calibration refresh timing.
 - **Database-backed persistence** once local files become hard to query. SQLite is the likely first step; keep raw artifacts on disk if useful.
+  If optimal use db only for metadata and references to files (artifacts of runs) on disk.
+
+## Product polish (v3)
+
+Relevant only if the framing drifts from "research substrate for me" toward "shareable product":
+
+- Web frontend for browsing the run history.
+- Branding, themed report rendering.
+- Reliability SLAs, monitoring, alerting.
+- Shareable artifacts (signed JSON, RSS feed of recent runs).
 
 ## Explicitly separate / out of scope
 
@@ -104,12 +120,3 @@ separate boundary decision.
 - **Decision layer or portfolio tooling**. Any system that recommends trade actions, sizing,
   execution, allocation, or portfolio changes must live outside V1 research generation per ADR
   0001.
-
-## Product polish (v3)
-
-Relevant only if the framing drifts from "research substrate for me" toward "shareable product":
-
-- Web frontend for browsing the run history.
-- Branding, themed report rendering.
-- Reliability SLAs, monitoring, alerting.
-- Shareable artifacts (signed JSON, RSS feed of recent runs).

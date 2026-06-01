@@ -52,28 +52,8 @@ market-bot calibration
 
 ## Configuration
 
-All configuration is via environment variables.
+All configuration is via environment variables. Check .env.example for the list of all env variables.
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `OPENAI_API_KEY` / `MARKET_BOT_OPENAI_API_KEY` | — | Required for `openai`. `openai-compatible` only reads `MARKET_BOT_OPENAI_API_KEY`. |
-| `MARKET_BOT_PROVIDER` | `openai` | `openai`, `openai-compatible`, or `codex`. |
-| `MARKET_BOT_BASE_URL` | — | Required only when provider is `openai-compatible`; must be `https` unless localhost. |
-| `MARKET_BOT_QUICK_MODEL` | `gpt-5.4-mini` | Used for brief depth. |
-| `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-5.5` | Used for `--deep`. |
-| `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. |
-| `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
-| `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |
-| `MARKET_BOT_NEWS_LIMIT` | `8` | News items per run. |
-| `MARKET_BOT_NEWS_SEEN_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Persistent seen-news index. |
-| `MARKET_BOT_NEWS_SEEN_RETENTION_DAYS` | `30` | Days to suppress exact canonical-URL news repeats within the same research lane. |
-| `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
-| `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. |
-| `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news and ticker equity events. |
-| `MARKET_BOT_FRED_API_KEY` | — | Enables FRED Market Context, ticker FRED evidence, and FRED forecast scoring. |
-| `MARKET_BOT_TRADIER_API_TOKEN` | — | Enables ticker options/IV evidence and IV forecast scoring. |
-| `MARKET_BOT_GLASSNODE_API_KEY` | — | Enables ticker Glassnode on-chain evidence for crypto. |
-| `MARKET_BOT_SEC_USER_AGENT` | `market-bot research contact@example.invalid` | User-Agent sent to SEC EDGAR. |
 
 ## Layout
 
@@ -82,7 +62,9 @@ src/
   app.ts             CLI entrypoint glue
   cli/args.ts        Argument parsing
   config.ts          Environment-driven configuration
+  config/runs.ts     Typed per-run config
   domain/            Instrument, asset class, depth, prediction types
+  forecast/          Observable forecast contract and resolver helpers
   model/             OpenAI / OpenAI-compatible provider
   movers/            Mover ranking
   report/            Report schema + markdown renderer

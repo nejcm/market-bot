@@ -9,6 +9,7 @@ import type {
 } from "../domain/types";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
 import type {
+  CollectContext,
   FetchJsonResult,
   FetchLike,
   FetchTextOrGapFn,
@@ -232,7 +233,7 @@ export function resetSourceResilienceForTests(): void {
   hostStates.clear();
 }
 
-const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];
+export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];
 
 function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
@@ -369,34 +370,13 @@ export async function collectSources(
   fetchImpl: FetchLike = fetch,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
 ): Promise<SourceCollection> {
-  const fetchedAt = now.toISOString();
-
-  const staleFallbackGaps: SourceGap[] = [];
-  const { cacheDir } = sourceOptions;
-  const fetchOrGap: FetchOrGapFn =
-    cacheDir !== undefined
-      ? withCache(fetchJsonOrGap, {
-          dir: cacheDir,
-          disabled: sourceOptions.cacheDisabled ?? false,
-          fallbackDays: sourceOptions.cacheFallbackDays ?? 7,
-          now: () => now,
-          onStaleFallback: (gap) => {
-            staleFallbackGaps.push(gap);
-          },
-        } satisfies CacheOptions)
-      : fetchJsonOrGap;
-  const fetchTextOrGapCached: FetchTextOrGapFn =
-    cacheDir !== undefined
-      ? cachedTextFetch(fetchTextOrGap, {
-          dir: cacheDir,
-          disabled: sourceOptions.cacheDisabled ?? false,
-          fallbackDays: sourceOptions.cacheFallbackDays ?? 7,
-          now: () => now,
-          onStaleFallback: (gap) => {
-            staleFallbackGaps.push(gap);
-          },
-        } satisfies CacheOptions)
-      : fetchTextOrGap;
+  const { context: ctx, staleFallbackGaps } = createCollectContext(
+    command,
+    sourceOptions,
+    now,
+    fetchImpl,
+    retryDelaysMs,
+  );
 
   const registry = createSourceRegistry();
   const marketAdapter = registry.marketDataFor(command.assetClass);
@@ -404,43 +384,6 @@ export async function collectSources(
   const newsAdapter = registry.newsFor(command.assetClass);
   const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
-
-  const ctx = {
-    command,
-    fetchedAt,
-    sourceTimeoutMs: sourceOptions.sourceTimeoutMs,
-    newsLimit: sourceOptions.newsLimit,
-    cryptoMoverLimit: sourceOptions.cryptoMoverLimit,
-    ...(sourceOptions.marketauxApiToken !== undefined
-      ? { marketauxApiToken: sourceOptions.marketauxApiToken }
-      : {}),
-    ...(sourceOptions.finnhubApiToken !== undefined
-      ? { finnhubApiToken: sourceOptions.finnhubApiToken }
-      : {}),
-    ...(sourceOptions.fredApiKey !== undefined ? { fredApiKey: sourceOptions.fredApiKey } : {}),
-    ...(sourceOptions.tradierApiToken !== undefined
-      ? { tradierApiToken: sourceOptions.tradierApiToken }
-      : {}),
-    ...(sourceOptions.glassnodeApiKey !== undefined
-      ? { glassnodeApiKey: sourceOptions.glassnodeApiKey }
-      : {}),
-    ...(sourceOptions.massiveApiKey !== undefined
-      ? { massiveApiKey: sourceOptions.massiveApiKey }
-      : {}),
-    ...(sourceOptions.secUserAgent !== undefined
-      ? { secUserAgent: sourceOptions.secUserAgent }
-      : {}),
-    ...(sourceOptions.newsSeenPath !== undefined
-      ? { newsSeenPath: sourceOptions.newsSeenPath }
-      : {}),
-    ...(sourceOptions.newsSeenRetentionDays !== undefined
-      ? { newsSeenRetentionDays: sourceOptions.newsSeenRetentionDays }
-      : {}),
-    fetchImpl,
-    fetchOrGap,
-    fetchTextOrGap: fetchTextOrGapCached,
-    retryDelaysMs,
-  };
 
   const [marketResult, newsResult, extendedResult, marketContextResult] = await Promise.all([
     marketAdapter.collect(ctx),
@@ -482,5 +425,75 @@ export async function collectSources(
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...staleFallbackGaps,
     ],
+  };
+}
+
+export interface CollectContextBundle {
+  readonly context: CollectContext;
+  readonly staleFallbackGaps: SourceGap[];
+}
+
+export function createCollectContext(
+  command: ResearchCommand,
+  sourceOptions: SourceOptions,
+  now: Date = new Date(),
+  fetchImpl: FetchLike = fetch,
+  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
+): CollectContextBundle {
+  const fetchedAt = now.toISOString();
+  const staleFallbackGaps: SourceGap[] = [];
+  const { cacheDir } = sourceOptions;
+  const cacheOptions = {
+    dir: cacheDir ?? "",
+    disabled: sourceOptions.cacheDisabled ?? false,
+    fallbackDays: sourceOptions.cacheFallbackDays ?? 7,
+    now: () => now,
+    onStaleFallback: (gap) => {
+      staleFallbackGaps.push(gap);
+    },
+  } satisfies CacheOptions;
+  const fetchOrGap: FetchOrGapFn =
+    cacheDir !== undefined ? withCache(fetchJsonOrGap, cacheOptions) : fetchJsonOrGap;
+  const fetchTextOrGapCached: FetchTextOrGapFn =
+    cacheDir !== undefined ? cachedTextFetch(fetchTextOrGap, cacheOptions) : fetchTextOrGap;
+
+  return {
+    context: {
+      command,
+      fetchedAt,
+      sourceTimeoutMs: sourceOptions.sourceTimeoutMs,
+      newsLimit: sourceOptions.newsLimit,
+      cryptoMoverLimit: sourceOptions.cryptoMoverLimit,
+      ...(sourceOptions.marketauxApiToken !== undefined
+        ? { marketauxApiToken: sourceOptions.marketauxApiToken }
+        : {}),
+      ...(sourceOptions.finnhubApiToken !== undefined
+        ? { finnhubApiToken: sourceOptions.finnhubApiToken }
+        : {}),
+      ...(sourceOptions.fredApiKey !== undefined ? { fredApiKey: sourceOptions.fredApiKey } : {}),
+      ...(sourceOptions.tradierApiToken !== undefined
+        ? { tradierApiToken: sourceOptions.tradierApiToken }
+        : {}),
+      ...(sourceOptions.glassnodeApiKey !== undefined
+        ? { glassnodeApiKey: sourceOptions.glassnodeApiKey }
+        : {}),
+      ...(sourceOptions.massiveApiKey !== undefined
+        ? { massiveApiKey: sourceOptions.massiveApiKey }
+        : {}),
+      ...(sourceOptions.secUserAgent !== undefined
+        ? { secUserAgent: sourceOptions.secUserAgent }
+        : {}),
+      ...(sourceOptions.newsSeenPath !== undefined
+        ? { newsSeenPath: sourceOptions.newsSeenPath }
+        : {}),
+      ...(sourceOptions.newsSeenRetentionDays !== undefined
+        ? { newsSeenRetentionDays: sourceOptions.newsSeenRetentionDays }
+        : {}),
+      fetchImpl,
+      fetchOrGap,
+      fetchTextOrGap: fetchTextOrGapCached,
+      retryDelaysMs,
+    },
+    staleFallbackGaps,
   };
 }

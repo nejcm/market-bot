@@ -37,6 +37,19 @@ const marketSnapshots: readonly MarketSnapshot[] = [
 
 const newsSources: readonly Source[] = [newsSource({ title: "Apple supplier demand improves" })];
 
+const evidenceConfig: AppConfig = {
+  ...config,
+  sourceOptions: {
+    ...config.sourceOptions,
+    secUserAgent: "market-bot test@example.test",
+  },
+  evidenceRequestOptions: {
+    maxRounds: 2,
+    maxToolCalls: 2,
+    sourceBudget: 8,
+  },
+};
+
 const marketContextSources: readonly Source[] = [
   {
     id: "market-context-fred-macro",
@@ -85,6 +98,51 @@ function mockPredictions(count: number, subject = "SPY"): unknown[] {
     probability: 0.6,
     sourceIds: ["market-aapl"],
   }));
+}
+
+function modelReport(subject = "AAPL", sourceId = "market-aapl"): string {
+  return JSON.stringify({
+    summary: `${subject} evidence is sourced.`,
+    keyFindings: [{ text: `${subject} has sourced evidence.`, sourceIds: [sourceId] }],
+    bullCase: [{ text: "Evidence supports the setup.", sourceIds: [sourceId] }],
+    bearCase: [{ text: "Coverage remains incomplete.", sourceIds: [sourceId] }],
+    risks: [{ text: "Source coverage can change.", sourceIds: [sourceId] }],
+    catalysts: [{ text: "New evidence is visible.", sourceIds: [sourceId] }],
+    scenarios: [{ name: "Base", description: "Evidence remains relevant.", sourceIds: [sourceId] }],
+    confidence: "medium",
+    dataGaps: [],
+    predictions: mockPredictions(6, subject),
+  });
+}
+
+function secEvidenceFetch(input: string | URL | Request): Promise<Response> {
+  const url = String(input);
+  if (url.includes("company_tickers")) {
+    return Promise.resolve(
+      Response.json({ "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } }),
+    );
+  }
+  if (url.includes("submissions")) {
+    return Promise.resolve(
+      Response.json({
+        filings: {
+          recent: {
+            form: ["10-Q"],
+            filingDate: ["2026-05-01"],
+            reportDate: ["2026-03-31"],
+            accessionNumber: ["0000320193-26-000077"],
+            primaryDocument: ["a10q.htm"],
+          },
+        },
+      }),
+    );
+  }
+  if (url.includes("Archives")) {
+    return Promise.resolve(
+      new Response("<html><body><p>Latest filing evidence.</p></body></html>"),
+    );
+  }
+  return Promise.resolve(new Response("not found", { status: 404 }));
 }
 
 describe("runResearchJob", () => {
@@ -247,6 +305,288 @@ describe("runResearchJob", () => {
       label: "insufficient-data",
       sourceIds: [],
     });
+  });
+
+  test("runs empty evidence request round before deep equity ticker analysis", async () => {
+    const calls: {
+      readonly model: string;
+      readonly prompt: Record<string, unknown>;
+      readonly requestKeys: readonly string[];
+    }[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        calls.push({ model: request.model, prompt, requestKeys: Object.keys(request) });
+        return {
+          content:
+            prompt.stage === "evidence-request" ? JSON.stringify({ requests: [] }) : modelReport(),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: evidenceConfig,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(calls.map((call) => call.prompt.stage)).toEqual([
+      "evidence-request",
+      "specialist-analysis",
+      "critique",
+      "final-synthesis",
+    ]);
+    expect(calls[0]?.model).toBe("quick-test");
+    expect(calls[0]?.requestKeys).not.toContain("tools");
+    expect(calls[0]?.prompt.requiredShape).toEqual({
+      requests: [
+        {
+          tool: "sec_latest_filing|tradier_iv_term_structure",
+          args: { symbol: "run symbol only" },
+          rationale: "string",
+        },
+      ],
+    });
+    const evidenceRequestPrompt = calls[0]?.prompt.evidence as
+      | {
+          readonly evidenceRequest?: {
+            readonly availableTools?: readonly string[];
+            readonly toolUnits?: Record<string, number>;
+          };
+        }
+      | undefined;
+    expect(evidenceRequestPrompt?.evidenceRequest).toMatchObject({
+      availableTools: ["sec_latest_filing"],
+      toolUnits: { sec_latest_filing: 3, tradier_iv_term_structure: 5 },
+    });
+    expect(result.trace.stages).toEqual([
+      "source-collection",
+      "evidence-request",
+      "specialist-analysis",
+      "critique",
+      "final-synthesis",
+    ]);
+    expect(result.trace.evidenceRequestLoop).toMatchObject({
+      rounds: 1,
+      sourceUnitsUsed: 0,
+      executedTools: [],
+    });
+  });
+
+  test("merges accepted evidence tool output before specialist analysis", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        return {
+          content:
+            prompt.stage === "evidence-request"
+              ? JSON.stringify({
+                  requests: [
+                    {
+                      tool: "sec_latest_filing",
+                      args: { symbol: "AAPL" },
+                      rationale: "latest periodic filing",
+                    },
+                  ],
+                })
+              : modelReport("AAPL", "extended-sec-edgar-aapl-latest-filing"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
+      },
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const specialistPrompt = prompts[1] as {
+      readonly evidence?: {
+        readonly extendedEvidence?: {
+          readonly items?: readonly { readonly title?: string }[];
+        };
+      };
+    };
+
+    expect(specialistPrompt.evidence?.extendedEvidence?.items?.[0]?.title).toBe(
+      "AAPL latest SEC 10-Q",
+    );
+    expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
+      "sec-filing-text",
+    );
+    expect(result.report.sources.map((source) => source.id)).toContain(
+      "extended-sec-edgar-aapl-latest-filing",
+    );
+    expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
+    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(3);
+  });
+
+  test("audits rejected duplicate, invalid, and over-budget evidence requests", async () => {
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        return {
+          content:
+            prompt.stage === "evidence-request"
+              ? JSON.stringify({
+                  requests: [
+                    { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+                    { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "repeat" },
+                    {
+                      tool: "tradier_iv_term_structure",
+                      args: { symbol: "AAPL" },
+                      rationale: "term structure",
+                    },
+                    { tool: "private_account", args: { symbol: "AAPL" }, rationale: "bad" },
+                  ],
+                })
+              : modelReport(),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
+        evidenceRequestOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 7 },
+      },
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
+    expect(result.trace.evidenceRequestLoop?.rejectedRequests.map((entry) => entry.reason)).toEqual(
+      [
+        "duplicate evidence request",
+        "evidence request source budget exceeded",
+        "tool is not an allowed public evidence request tool",
+      ],
+    );
+    expect(result.trace.evidenceRequestLoop?.emittedGaps.map((gap) => gap.message)).toContain(
+      "private_account: tool is not an allowed public evidence request tool",
+    );
+  });
+
+  test("emits source gap and continues when evidence request JSON is invalid", async () => {
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        return {
+          content: prompt.stage === "evidence-request" ? "not-json" : modelReport(),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: evidenceConfig,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.dataGaps).toContain(
+      "evidence-request: Evidence request stage returned invalid JSON",
+    );
+    expect(result.trace.evidenceRequestLoop?.emittedGaps).toEqual([
+      { source: "evidence-request", message: "Evidence request stage returned invalid JSON" },
+    ]);
+  });
+
+  test("skips evidence request loop outside deep equity ticker scope", async () => {
+    const commands = [
+      {
+        jobType: "ticker" as const,
+        assetClass: "equity" as const,
+        symbol: "AAPL",
+        depth: "brief" as const,
+      },
+      {
+        jobType: "ticker" as const,
+        assetClass: "crypto" as const,
+        symbol: "BTC",
+        depth: "deep" as const,
+      },
+      { jobType: "daily" as const, assetClass: "equity" as const, depth: "deep" as const },
+      { jobType: "weekly" as const, assetClass: "equity" as const, depth: "deep" as const },
+    ];
+
+    for (const command of commands) {
+      let calls = 0;
+      const result = await runResearchJob({
+        command,
+        config: evidenceConfig,
+        provider: {
+          name: "mock",
+          generate: async () => {
+            calls += 1;
+            return {
+              content: modelReport(command.jobType === "ticker" ? command.symbol : "SPY"),
+              tokenEstimate: 100,
+              costEstimateUsd: 0.01,
+            };
+          },
+        },
+        collectedSources: {
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+        },
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+
+      expect(calls).toBe(3);
+      expect(result.trace.stages).not.toContain("evidence-request");
+      expect(result.trace.evidenceRequestLoop).toBeUndefined();
+    }
   });
 
   test("creates a daily Research View from mocked sources and model output", async () => {

@@ -12,9 +12,11 @@ import {
 import { isMarketUpdateJobType, type ResearchReport, type RunTrace } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
+import type { FetchLike } from "../sources/types";
 import { recordSeenNewsSources } from "../sources/news-seen";
+import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
-import { loadStagePrompt } from "./prompt-loader";
+import { loadStagePrompt, type StageLabel } from "./prompt-loader";
 import {
   buildDepthProfileFromParams,
   buildStagePrompt,
@@ -38,6 +40,8 @@ export interface RunResearchJobInput {
   readonly provider: ModelProvider;
   readonly collectedSources: CollectedSources;
   readonly now?: Date;
+  readonly sourceFetchImpl?: FetchLike;
+  readonly sourceRetryDelaysMs?: readonly number[];
 }
 
 export interface RunResearchJobResult {
@@ -45,6 +49,7 @@ export interface RunResearchJobResult {
   readonly markdown: string;
   readonly trace: RunTrace;
   readonly stageOutputs: readonly StageOutput[];
+  readonly collectedSources: CollectedSources;
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
@@ -52,7 +57,7 @@ export interface PersistedResearchJobResult extends RunResearchJobResult {
 }
 
 interface StageOutput {
-  readonly stage: "specialist-analysis" | "critique" | "final-synthesis";
+  readonly stage: StageLabel;
   readonly content: string;
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
@@ -62,6 +67,7 @@ async function runStage(
   stage: StageOutput["stage"],
   model: string,
   input: RunResearchJobInput,
+  collectedSources: CollectedSources,
   context: ResearchContext,
   priorStages: readonly StageOutput[] = [],
   predictionRepromptErrors: readonly string[] = [],
@@ -83,7 +89,7 @@ async function runStage(
         content: buildStagePrompt(
           stage,
           input.command,
-          input.collectedSources,
+          collectedSources,
           input.config,
           context,
           loaded,
@@ -108,41 +114,79 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const runId = createRunId(now);
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);
+  let { collectedSources } = input;
   const context: ResearchContext = {
     depthProfile: buildDepthProfileFromParams(input.command, runParams),
     runParams,
     marketRegime: addMarketContextToRegime(
-      summarizeMarketRegime(input.command.assetClass, input.collectedSources.marketSnapshots),
-      input.collectedSources.marketContext,
+      summarizeMarketRegime(input.command.assetClass, collectedSources.marketSnapshots),
+      collectedSources.marketContext,
     ),
     calibrationContext,
   };
+  const evidenceLoop = await runEvidenceRequestLoop({
+    command: input.command,
+    config: input.config,
+    collectedSources,
+    context,
+    now,
+    ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
+    ...(input.sourceRetryDelaysMs !== undefined
+      ? { retryDelaysMs: input.sourceRetryDelaysMs }
+      : {}),
+    generateRound: (currentSources, roundContext, priorStages) =>
+      runStage(
+        "evidence-request",
+        runParams.quickModel,
+        input,
+        currentSources,
+        roundContext,
+        priorStages,
+      ) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
+  });
+  ({ collectedSources } = evidenceLoop);
   const specialistOutput = await runStage(
     "specialist-analysis",
     runParams.quickModel,
     input,
+    collectedSources,
     context,
   );
-  const critiqueOutput = await runStage("critique", runParams.quickModel, input, context, [
-    specialistOutput,
-  ]);
-  let finalOutput = await runStage("final-synthesis", runParams.synthesisModel, input, context, [
-    specialistOutput,
-    critiqueOutput,
-  ]);
+  const critiqueOutput = await runStage(
+    "critique",
+    runParams.quickModel,
+    input,
+    collectedSources,
+    context,
+    [specialistOutput],
+  );
+  let finalOutput = await runStage(
+    "final-synthesis",
+    runParams.synthesisModel,
+    input,
+    collectedSources,
+    context,
+    [specialistOutput, critiqueOutput],
+  );
 
-  const sources = buildSourceList(input.command, input.collectedSources);
+  const sources = buildSourceList(input.command, collectedSources);
   const knownSourceIds = new Set(sources.map((source) => source.id));
 
   let payload = parseModelPayload(finalOutput.content);
   let predResult = readPredictions(payload.predictions, knownSourceIds);
-  const stageOutputsArr: StageOutput[] = [specialistOutput, critiqueOutput, finalOutput];
+  const stageOutputsArr: StageOutput[] = [
+    ...evidenceLoop.stageOutputs,
+    specialistOutput,
+    critiqueOutput,
+    finalOutput,
+  ];
 
   if (predResult.predictions.length < context.depthProfile.minimumPredictions) {
     finalOutput = await runStage(
       "final-synthesis",
       runParams.synthesisModel,
       input,
+      collectedSources,
       context,
       [specialistOutput, critiqueOutput],
       predResult.errors,
@@ -161,7 +205,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     command: input.command,
     payload,
     predResult,
-    collectedSources: input.collectedSources,
+    collectedSources,
     depthProfile: context.depthProfile,
     context,
     sources,
@@ -185,6 +229,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
+    ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
   };
 
@@ -193,6 +238,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     markdown: renderMarkdownReport(report),
     trace,
     stageOutputs,
+    collectedSources,
   };
 }
 
@@ -202,34 +248,34 @@ export async function persistResearchJob(
   const result = await runResearchJob(input);
   const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
 
-  await writeJson(join(artifacts.rawDir, "snapshots.json"), input.collectedSources.rawSnapshots);
+  await writeJson(join(artifacts.rawDir, "snapshots.json"), result.collectedSources.rawSnapshots);
   await writeJson(
     join(artifacts.normalizedDir, "market-snapshots.json"),
-    input.collectedSources.marketSnapshots,
+    result.collectedSources.marketSnapshots,
   );
   await writeJson(
     join(artifacts.normalizedDir, "supplemental-market-snapshots.json"),
-    input.collectedSources.supplementalMarketSnapshots ?? [],
+    result.collectedSources.supplementalMarketSnapshots ?? [],
   );
   await writeJson(
     join(artifacts.normalizedDir, "news-sources.json"),
-    input.collectedSources.newsSources,
+    result.collectedSources.newsSources,
   );
   await writeJson(
     join(artifacts.normalizedDir, "extended-sources.json"),
-    input.collectedSources.extendedSources ?? [],
+    result.collectedSources.extendedSources ?? [],
   );
   await writeJson(
     join(artifacts.normalizedDir, "extended-evidence.json"),
-    input.collectedSources.extendedEvidence ?? null,
+    result.collectedSources.extendedEvidence ?? null,
   );
   await writeJson(
     join(artifacts.normalizedDir, "market-context.json"),
-    input.collectedSources.marketContext ?? null,
+    result.collectedSources.marketContext ?? null,
   );
   await writeJson(
     join(artifacts.normalizedDir, "source-gaps.json"),
-    input.collectedSources.sourceGaps ?? [],
+    result.collectedSources.sourceGaps ?? [],
   );
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);

@@ -65,6 +65,7 @@ export interface ResearchContext {
   readonly runParams: ResolvedRunParams;
   readonly marketRegime: MarketRegimeSummary;
   readonly calibrationContext: CalibrationContext | undefined;
+  readonly evidenceRequest?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +202,7 @@ function buildEvidencePayload(
     ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
       : {}),
+    ...(context.evidenceRequest !== undefined ? { evidenceRequest: context.evidenceRequest } : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
   };

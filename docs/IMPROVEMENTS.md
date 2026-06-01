@@ -6,23 +6,27 @@
 - **Real-run validation** - exercise ticker Extended Evidence, market-update data gaps,
   persistent news dedupe, scoring, and calibration over real runs before adding candidate
   discovery.
-- **Research candidate discovery** - next major research feature after real-run validation.
-- **Alpha discovery** — discover alpha signals from social media and other sources. Stock/equities that are still early but with higher risk.
+- **Alpha search** - next major research feature after real-run validation; includes
+  evidence-backed candidate discovery as one output of the alpha-search workflow.
 - **Social sentiment** (X, Reddit, StockTwits) - high noise; defer until calibration shows
   that it adds signal beyond current news and market-data sources.
 
 ## Research backlog
 
-### Research candidate discovery (v2)
+### Alpha search (v2)
 
 - **Prerequisite validation** - review recent daily, weekly, and ticker artifacts for source
   gaps, Evidence Quality caps, repeat-news suppression, and prediction calibration before
-  promoting candidates to a first-class workflow.
-- **Research candidate workflow** - reuse V1 source adapters, mover discovery, Evidence
-  Quality, citations, and run artifacts to surface evidence-backed research candidates.
+  promoting alpha search to a first-class workflow.
+- **Alpha signal discovery** - identify early, higher-risk research signals from market
+  data, news, filings, social sources, and other public evidence. Treat social sentiment as
+  high-noise input until validation shows it adds signal beyond existing sources.
+- **Candidate discovery output** - reuse V1 source adapters, mover discovery, Evidence
+  Quality, citations, and run artifacts to surface evidence-backed research candidates as
+  alpha-search leads, not as a separate product workflow.
   No buy/sell/hold calls, sizing, execution language, portfolio-change language, or
   expected-return recommendations.
-- **Candidate signal ranking** based on explainable features, not an LLM-only list. Keep
+- **Signal ranking** based on explainable features, not an LLM-only list. Keep
   signal strength separate from Evidence Quality.
 - **Candidate report type** with thesis, why-now catalyst, evidence, bear case, risks,
   invalidation criteria, and source IDs.

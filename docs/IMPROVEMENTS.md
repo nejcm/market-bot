@@ -59,10 +59,10 @@
 
 ### Pipeline and orchestration (v2)
 
-- **Tool-use / agentic loop** - let the model request additional fetches mid-run (e.g.
-  "pull EDGAR 10-Q for X", "fetch IV term structure"). Currently fixed-shot. Any loop must
-  use enumerated tools, validated arguments, max rounds, source budgets, public-data-only
-  providers, and the existing timeout/cache/rate-limit/`SourceGap` behavior.
+- **Evidence Request Loop expansion** - V1 is implemented for deep equity ticker runs with
+  bounded SEC latest-filing and Tradier IV term-structure tools. Future work: consider crypto,
+  daily/weekly, or additional public-data tools only after real-run validation shows the loop
+  improves evidence quality without adding noisy fetches.
 - **Multi-agent debate** beyond specialist -> critique -> synthesis.
 - **TradingAgents-style research committee** with bull/bear researchers, risk personas, and a
   research-only evidence/risk summarizer. This must not introduce portfolio-manager behavior,

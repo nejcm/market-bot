@@ -18,7 +18,7 @@ Use this checklist before adding or promoting a Source Provider. Provider-level 
 - Map provider payloads into existing normalized shapes only: `Source`, `MarketSnapshot`, `ExtendedEvidence`, `MarketContext`, or `Observation`.
 - If a new normalized artifact shape is needed, make that a separate design decision before implementing the provider.
 - Preserve Instrument Identity fields when the provider exposes useful metadata, such as exchange, quote currency, display name, provider IDs, or aliases. Do not reconcile conflicting provider identities unless a separate design accepts that behavior.
-- Use the `CollectContext` `ctx.fetchOrGap` seam for source HTTP calls. The collector handles timeout, retry/backoff, cache, rate limiting, circuit breaking, and stale cache fallback. Document provider-specific handling only when the API requires it.
+- Use the `CollectContext` `ctx.fetchOrGap` seam for JSON source HTTP calls and `ctx.fetchTextOrGap` for text/HTML source HTTP calls. The collector handles timeout, retry/backoff, cache, rate limiting, circuit breaking, and stale cache fallback for both. Document provider-specific handling only when the API requires it.
 - Make `SourceGap` messages identify the provider, capability, and cause, such as missing credential, timeout, stale cache fallback, unsupported coverage, rate limit, usage limit, or provider failure.
 - Keep scoring Observations behind explicit promotion. Promotion requires an observable forecast use ([ADR 0004](./adr/0004-predictions-as-observable-forecasts.md)), coverage behavior, resolver wiring, and tests.
 
@@ -46,3 +46,15 @@ Massive satisfies this contract as a supplemental-only equity Source Provider:
 - Massive uses the shared `fetchOrGap` path for source timeout, retry, cache, rate-limit, circuit-breaker, and stale fallback behavior.
 - Massive does not replace Yahoo, run for crypto, affect mover ranking or market regime, or contribute scoring Observations.
 - Existing seam tests cover Massive normalization, registry wiring, missing-key silence, equity-only routing, supplemental snapshot collection, news round-robin inclusion, and configured failure gaps.
+
+## Evidence Request tools
+
+Evidence Request tools are Source Provider consumers, not model-provider native tools. They must:
+
+- be enumerated by name and validated before execution;
+- use only public-data providers and never account, order, portfolio, private, or trading endpoints;
+- declare source-unit cost before execution;
+- run through `ctx.fetchOrGap` or `ctx.fetchTextOrGap`;
+- emit normal `Source`, `ExtendedEvidence`, raw snapshots, and `SourceGap`s.
+
+V1 tools are `sec_latest_filing` (3 units) and `tradier_iv_term_structure` (5 units), scoped to deep equity ticker research.

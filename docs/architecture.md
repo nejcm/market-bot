@@ -38,10 +38,11 @@ Notable inputs:
 - Crypto movers: CoinGecko 24h change
 - Supplemental equity market evidence: Massive stock snapshots for already-selected Yahoo symbols when `MARKET_BOT_MASSIVE_API_KEY` is set
 - Market Context: FRED macro series for daily and weekly market updates
+- Evidence Request tools: SEC latest periodic filing text and Tradier IV term structure for eligible deep equity ticker runs
 - News: MarketAux, Finnhub, Yahoo Finance search, and optional Massive equity news
 - Observations for scoring: Yahoo closes (equities), CoinGecko closes (crypto), FRED macro values, and Tradier IV values
 
-A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-v2-canonical-request>.json`) wraps all `fetchJsonOrGap` calls. The cache key includes the adapter plus a canonicalized provider request: protocol/host/path are normalized, query params are sorted, and credential-only params such as API tokens are stripped while request-shaping params remain. Same-day equivalent requests across daily, weekly, and ticker runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness. Cache entries store the hash key, not the full request URL.
+A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-v2-canonical-request>.json`) wraps all `fetchJsonOrGap` and `fetchTextOrGap` calls. The cache key includes the adapter plus a canonicalized provider request: protocol/host/path are normalized, query params are sorted, and credential-only params such as API tokens are stripped while request-shaping params remain. Same-day equivalent requests across daily, weekly, ticker, and evidence-request runs return cached payloads without hitting the network. If a live fetch fails and a cached entry exists within `MARKET_BOT_CACHE_FALLBACK_DAYS` (default 7), that entry is returned and a `SourceGap` is emitted disclosing the staleness. Cache entries store the hash key, not the full request URL.
 
 Source providers are listed in `src/sources/providers.ts`. Each provider module exposes optional capabilities for primary market data, supplemental market data, news, Extended Evidence, Market Context, and future scoring Observation inputs. The registry composes those capabilities by asset class instead of hard-coding provider logic into one collector.
 
@@ -55,7 +56,9 @@ Market updates collect FRED Market Context when `MARKET_BOT_FRED_API_KEY` is set
 
 ### Research (`src/research/`)
 
-The orchestrator coordinates: collect sources → summarize regime → produce report → emit predictions. It is also the home for the deterministic market-regime summary.
+The orchestrator coordinates: collect sources → summarize regime → optional Evidence Request Loop → produce report → emit predictions. It is also the home for the deterministic market-regime summary.
+
+The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
 
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 
@@ -81,6 +84,7 @@ Schema is the contract. Validation enforces the research-only boundary ([ADR 000
 ```
 CLI args → AppConfig → collect sources → orchestrator
                                       ├─ regime summary
+                                      ├─ optional evidence-request loop
                                       ├─ movers
                                       └─ predictions
                                               ↓

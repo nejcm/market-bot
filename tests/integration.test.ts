@@ -22,6 +22,11 @@ const config: AppConfig = {
     newsLimit: 3,
     sourceTimeoutMs: 1000,
   },
+  evidenceRequestOptions: {
+    maxRounds: 0,
+    maxToolCalls: 0,
+    sourceBudget: 0,
+  },
 };
 
 const dataDirs: string[] = [];

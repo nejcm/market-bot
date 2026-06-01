@@ -21,6 +21,12 @@ export interface SourceOptions {
   readonly newsSeenRetentionDays?: number;
 }
 
+export interface EvidenceRequestOptions {
+  readonly maxRounds: number;
+  readonly maxToolCalls: number;
+  readonly sourceBudget: number;
+}
+
 export interface AppConfig {
   readonly provider: ProviderName;
   readonly baseUrl?: string;
@@ -33,6 +39,7 @@ export interface AppConfig {
   readonly dataDir: string;
   readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
+  readonly evidenceRequestOptions: EvidenceRequestOptions;
 }
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
@@ -55,6 +62,19 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`Expected positive integer, received ${value}`);
+  }
+
+  return parsed;
+}
+
+function readNonNegativeInteger(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`Expected non-negative integer, received ${value}`);
   }
 
   return parsed;
@@ -178,6 +198,11 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
         env.MARKET_BOT_NEWS_SEEN_RETENTION_DAYS,
         DEFAULT_NEWS_SEEN_RETENTION_DAYS,
       ),
+    },
+    evidenceRequestOptions: {
+      maxRounds: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS, 2),
+      maxToolCalls: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS, 2),
+      sourceBudget: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET, 8),
     },
   };
 }

@@ -20,6 +20,16 @@ export type FetchOrGapFn = (
   init?: RequestInit,
 ) => Promise<FetchJsonResult | SourceGap>;
 
+export type FetchTextOrGapFn = (
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+  retryDelaysMs?: readonly number[],
+  init?: RequestInit,
+) => Promise<FetchTextResult | SourceGap>;
+
 export interface CollectContext {
   readonly command: ResearchCommand;
   readonly fetchedAt: string;
@@ -37,6 +47,7 @@ export interface CollectContext {
   readonly newsSeenRetentionDays?: number;
   readonly fetchImpl: FetchLike;
   readonly fetchOrGap: FetchOrGapFn;
+  readonly fetchTextOrGap: FetchTextOrGapFn;
   readonly retryDelaysMs: readonly number[];
 }
 
@@ -131,10 +142,14 @@ export interface SourceProviderModule {
   readonly observations?: Partial<Record<AssetClass, ObservationProviderAdapter>>;
 }
 
-export interface FetchJsonResult {
+export interface FetchSourceResult<TPayload = unknown> {
   readonly rawSnapshot: RawSourceSnapshot;
-  readonly payload: unknown;
+  readonly payload: TPayload;
 }
+
+export type FetchJsonResult = FetchSourceResult<unknown>;
+
+export type FetchTextResult = FetchSourceResult<string>;
 
 export function isFetchJsonResult(value: FetchJsonResult | SourceGap): value is FetchJsonResult {
   return "rawSnapshot" in value;

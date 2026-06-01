@@ -91,6 +91,34 @@ describe("resolveConfig", () => {
     ).toBe(5000);
   });
 
+  test("uses evidence request loop defaults", () => {
+    expect(resolveConfig({}).evidenceRequestOptions).toEqual({
+      maxRounds: 2,
+      maxToolCalls: 2,
+      sourceBudget: 8,
+    });
+  });
+
+  test("reads evidence request loop settings including zero disable", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS: "0",
+        MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS: "3",
+        MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET: "13",
+      }).evidenceRequestOptions,
+    ).toEqual({
+      maxRounds: 0,
+      maxToolCalls: 3,
+      sourceBudget: 13,
+    });
+  });
+
+  test("rejects invalid evidence request loop settings", () => {
+    expect(() => resolveConfig({ MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET: "-1" })).toThrow(
+      "Expected non-negative integer",
+    );
+  });
+
   test("derives persistent news seen index from data directory", () => {
     const { sourceOptions } = resolveConfig({ MARKET_BOT_DATA_DIR: "custom/runs" });
 

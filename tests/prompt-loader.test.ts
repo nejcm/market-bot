@@ -198,7 +198,12 @@ Unexpected system delta.
 
 describe("loadStagePrompt — real prompt files", () => {
   test("loads all three real base.md files without error", async () => {
-    const stages = ["specialist-analysis", "critique", "final-synthesis"] as const;
+    const stages = [
+      "evidence-request",
+      "specialist-analysis",
+      "critique",
+      "final-synthesis",
+    ] as const;
     for (const stage of stages) {
       const result = await loadStagePrompt(stage, dailyEquityCommand);
       expect(result.system.length).toBeGreaterThan(0);

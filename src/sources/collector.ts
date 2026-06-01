@@ -8,7 +8,13 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
-import type { FetchJsonResult, FetchLike, RawSourceSnapshot } from "./types";
+import type {
+  FetchJsonResult,
+  FetchLike,
+  FetchTextOrGapFn,
+  FetchTextResult,
+  RawSourceSnapshot,
+} from "./types";
 import { createSourceRegistry } from "./registry";
 
 export interface SourceCollection {
@@ -118,18 +124,20 @@ async function runWithHostResilience<T>(
   }
 }
 
-async function fetchJson(
+async function fetchPayload<TPayload>(
   url: string,
   adapter: string,
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  accept: string,
+  parse: (response: Response) => Promise<TPayload>,
   init: RequestInit = {},
-): Promise<FetchJsonResult> {
+): Promise<{ readonly rawSnapshot: RawSourceSnapshot; readonly payload: TPayload }> {
   return runWithHostResilience(url, adapter, async () => {
     const headers = new Headers(init.headers);
     if (!headers.has("accept")) {
-      headers.set("accept", "application/json");
+      headers.set("accept", accept);
     }
     if (!headers.has("user-agent")) {
       headers.set("user-agent", "market-bot/0.1 research-cli");
@@ -145,7 +153,7 @@ async function fetchJson(
       throw new Error(`${adapter} source request failed with status ${response.status}`);
     }
 
-    const payload = (await response.json()) as unknown;
+    const payload = await parse(response);
 
     return {
       rawSnapshot: {
@@ -157,6 +165,46 @@ async function fetchJson(
       payload,
     };
   });
+}
+
+async function fetchJson(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+  init: RequestInit = {},
+): Promise<FetchJsonResult> {
+  return fetchPayload(
+    url,
+    adapter,
+    fetchedAt,
+    timeoutMs,
+    fetchImpl,
+    "application/json",
+    async (response) => (await response.json()) as unknown,
+    init,
+  );
+}
+
+async function fetchText(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+  init: RequestInit = {},
+): Promise<FetchTextResult> {
+  return fetchPayload(
+    url,
+    adapter,
+    fetchedAt,
+    timeoutMs,
+    fetchImpl,
+    "text/html, text/plain;q=0.9, */*;q=0.1",
+    async (response) => response.text(),
+    init,
+  );
 }
 
 function isTransientError(error: unknown): boolean {
@@ -221,6 +269,35 @@ async function fetchJsonWithRetry(
   }
 }
 
+async function fetchTextWithRetry(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+  remainingDelays: readonly number[],
+  init?: RequestInit,
+): Promise<FetchTextResult> {
+  try {
+    return await fetchText(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
+  } catch (error: unknown) {
+    const [nextDelay] = remainingDelays;
+    if (nextDelay === undefined || !isTransientError(error)) {
+      throw error;
+    }
+    await sleep(nextDelay);
+    return fetchTextWithRetry(
+      url,
+      adapter,
+      fetchedAt,
+      timeoutMs,
+      fetchImpl,
+      remainingDelays.slice(1),
+      init,
+    );
+  }
+}
+
 async function fetchJsonOrGap(
   url: string,
   adapter: string,
@@ -246,6 +323,45 @@ async function fetchJsonOrGap(
   }
 }
 
+async function fetchTextOrGap(
+  url: string,
+  adapter: string,
+  fetchedAt: string,
+  timeoutMs: number,
+  fetchImpl: FetchLike,
+  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
+  init?: RequestInit,
+): Promise<FetchTextResult | SourceGap> {
+  try {
+    return await fetchTextWithRetry(
+      url,
+      adapter,
+      fetchedAt,
+      timeoutMs,
+      fetchImpl,
+      retryDelaysMs,
+      init,
+    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "source request failed";
+    return { source: adapter, message };
+  }
+}
+
+function cachedTextFetch(inner: FetchTextOrGapFn, options: CacheOptions): FetchTextOrGapFn {
+  const cached = withCache(inner as FetchOrGapFn, options);
+  return async (url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init) => {
+    const result = await cached(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init);
+    if ("rawSnapshot" in result && typeof result.payload === "string") {
+      return result as FetchTextResult;
+    }
+    if ("rawSnapshot" in result) {
+      return { source: adapter, message: "cached text payload was not a string" };
+    }
+    return result;
+  };
+}
+
 export async function collectSources(
   command: ResearchCommand,
   sourceOptions: SourceOptions,
@@ -269,6 +385,18 @@ export async function collectSources(
           },
         } satisfies CacheOptions)
       : fetchJsonOrGap;
+  const fetchTextOrGapCached: FetchTextOrGapFn =
+    cacheDir !== undefined
+      ? cachedTextFetch(fetchTextOrGap, {
+          dir: cacheDir,
+          disabled: sourceOptions.cacheDisabled ?? false,
+          fallbackDays: sourceOptions.cacheFallbackDays ?? 7,
+          now: () => now,
+          onStaleFallback: (gap) => {
+            staleFallbackGaps.push(gap);
+          },
+        } satisfies CacheOptions)
+      : fetchTextOrGap;
 
   const registry = createSourceRegistry();
   const marketAdapter = registry.marketDataFor(command.assetClass);
@@ -310,6 +438,7 @@ export async function collectSources(
       : {}),
     fetchImpl,
     fetchOrGap,
+    fetchTextOrGap: fetchTextOrGapCached,
     retryDelaysMs,
   };
 

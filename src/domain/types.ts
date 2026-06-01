@@ -62,6 +62,27 @@ export interface SourceGap {
   readonly message: string;
 }
 
+export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
+
+export interface EvidenceRequestAuditEntry {
+  readonly round: number;
+  readonly tool: string;
+  readonly args?: unknown;
+  readonly rationale?: string;
+  readonly status: "accepted" | "rejected";
+  readonly reason?: string;
+  readonly sourceUnits?: number;
+}
+
+export interface EvidenceRequestLoopAudit {
+  readonly rounds: number;
+  readonly acceptedRequests: readonly EvidenceRequestAuditEntry[];
+  readonly rejectedRequests: readonly EvidenceRequestAuditEntry[];
+  readonly sourceUnitsUsed: number;
+  readonly executedTools: readonly EvidenceRequestToolName[];
+  readonly emittedGaps: readonly SourceGap[];
+}
+
 export interface MarketSnapshot {
   readonly sourceId: string;
   readonly assetClass: AssetClass;
@@ -211,5 +232,6 @@ export interface RunTrace {
   readonly stages: readonly string[];
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
+  readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly predictionErrors?: readonly string[];
 }

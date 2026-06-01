@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 
-export type StageLabel = "specialist-analysis" | "critique" | "final-synthesis";
+export type StageLabel =
+  | "evidence-request"
+  | "specialist-analysis"
+  | "critique"
+  | "final-synthesis";
 
 export interface LoadedPrompt {
   readonly system: string;

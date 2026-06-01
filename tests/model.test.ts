@@ -30,6 +30,11 @@ describe("createOpenAIProvider", () => {
           newsLimit: 8,
           sourceTimeoutMs: 1000,
         },
+        evidenceRequestOptions: {
+          maxRounds: 0,
+          maxToolCalls: 0,
+          sourceBudget: 0,
+        },
       },
       fetchImpl,
     );
@@ -76,6 +81,11 @@ describe("createOpenAIProvider", () => {
           newsLimit: 8,
           sourceTimeoutMs: 1000,
         },
+        evidenceRequestOptions: {
+          maxRounds: 0,
+          maxToolCalls: 0,
+          sourceBudget: 0,
+        },
       },
       fetchImpl,
     );
@@ -112,6 +122,11 @@ describe("createOpenAIProvider", () => {
           cryptoMoverLimit: 5,
           newsLimit: 8,
           sourceTimeoutMs: 1000,
+        },
+        evidenceRequestOptions: {
+          maxRounds: 0,
+          maxToolCalls: 0,
+          sourceBudget: 0,
         },
       },
       fetchImpl,
@@ -169,6 +184,11 @@ describe("createOpenAIProvider", () => {
           cryptoMoverLimit: 5,
           newsLimit: 8,
           sourceTimeoutMs: 1000,
+        },
+        evidenceRequestOptions: {
+          maxRounds: 0,
+          maxToolCalls: 0,
+          sourceBudget: 0,
         },
       },
       fetchImpl,

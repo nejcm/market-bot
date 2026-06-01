@@ -16,6 +16,10 @@ import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
+async function unexpectedTextFetch(): Promise<never> {
+  throw new Error("unexpected text fetch");
+}
+
 const throwingFetch: typeof fetch = Object.assign(
   async () => {
     throw new Error("timeout");
@@ -445,6 +449,7 @@ describe("market context provider collection", () => {
           payload,
         };
       },
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     expect(result.marketContext?.assetClass).toBe("equity");
@@ -474,6 +479,7 @@ describe("market context provider collection", () => {
       fetchOrGap: async () => {
         throw new Error("unexpected fetch");
       },
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     expect(result.marketContext).toEqual({
@@ -499,6 +505,7 @@ describe("market context provider collection", () => {
       fetchOrGap: async () => {
         throw new Error("unexpected fetch");
       },
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     expect(result).toEqual({ rawSnapshots: [], sources: [], sourceGaps: [] });
@@ -540,6 +547,7 @@ describe("news provider collection", () => {
           },
         ],
       }),
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     expect(result.newsSources).toHaveLength(1);
@@ -657,6 +665,7 @@ describe("extended evidence provider collection", () => {
           payload,
         };
       },
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     const secItem = result.extendedEvidence?.items.find((item) => item.category === "sec-edgar");
@@ -724,6 +733,7 @@ describe("extended evidence provider collection", () => {
       fetchOrGap: async () => {
         throw new Error("unexpected fetch");
       },
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     expect(result.extendedEvidence?.items).toEqual([]);
@@ -755,6 +765,7 @@ describe("extended evidence provider collection", () => {
           payload,
         };
       },
+      fetchTextOrGap: unexpectedTextFetch,
     });
 
     expect(result.extendedEvidence?.items.map((item) => item.category)).toEqual([

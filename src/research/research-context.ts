@@ -230,6 +230,18 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
   };
 }
 
+function evidenceRequestShape(): Record<string, unknown> {
+  return {
+    requests: [
+      {
+        tool: "sec_latest_filing|tradier_iv_term_structure",
+        args: { symbol: "run symbol only" },
+        rationale: "string",
+      },
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Stage prompt
 // ---------------------------------------------------------------------------
@@ -248,6 +260,18 @@ export function buildStagePrompt(
     stage === "final-synthesis"
       ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.`
       : "";
+  const requiredShape = (() => {
+    if (stage === "evidence-request") {
+      return evidenceRequestShape();
+    }
+    if (stage === "final-synthesis") {
+      return finalReportShape(context.depthProfile);
+    }
+    return {
+      findings: [{ text: "string", sourceIds: ["source-id"] }],
+      dataGaps: ["string"],
+    };
+  })();
 
   return JSON.stringify(
     {
@@ -260,10 +284,7 @@ export function buildStagePrompt(
       ...(predictionRepromptErrors.length > 0
         ? { predictionRepromptErrors, unmetMinimum: context.depthProfile.minimumPredictions }
         : {}),
-      requiredShape:
-        stage === "final-synthesis"
-          ? finalReportShape(context.depthProfile)
-          : { findings: [{ text: "string", sourceIds: ["source-id"] }], dataGaps: ["string"] },
+      requiredShape,
     },
     undefined,
     2,

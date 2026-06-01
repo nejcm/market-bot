@@ -17,6 +17,11 @@ const config: AppConfig = {
     newsLimit: 2,
     sourceTimeoutMs: 1000,
   },
+  evidenceRequestOptions: {
+    maxRounds: 0,
+    maxToolCalls: 0,
+    sourceBudget: 0,
+  },
 };
 
 describe("buildStagePrompt", () => {

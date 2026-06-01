@@ -31,6 +31,7 @@ export interface CollectContext {
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
   readonly glassnodeApiKey?: string;
+  readonly massiveApiKey?: string;
   readonly secUserAgent?: string;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
@@ -42,6 +43,12 @@ export interface CollectContext {
 export interface MarketCollectionResult {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly sourceGaps: readonly SourceGap[];
+}
+
+export interface SupplementalMarketCollectionResult {
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly supplementalMarketSnapshots: readonly MarketSnapshot[];
   readonly sourceGaps: readonly SourceGap[];
 }
 
@@ -79,6 +86,16 @@ export interface MarketDataAdapter {
   readonly collect: (ctx: CollectContext) => Promise<MarketCollectionResult>;
 }
 
+export interface SupplementalMarketDataAdapter {
+  readonly name: string;
+  readonly assetClass: AssetClass;
+  readonly normalizeMarkets: (payload: unknown, fetchedAt: string) => readonly MarketSnapshot[];
+  readonly collect: (
+    ctx: CollectContext,
+    primarySnapshots: readonly MarketSnapshot[],
+  ) => Promise<SupplementalMarketCollectionResult>;
+}
+
 export interface NewsAdapter {
   readonly name: string;
   readonly buildUrl: (command: ResearchCommand, limit: number) => string;
@@ -100,6 +117,20 @@ export interface MarketContextAdapter {
   readonly collect: (ctx: CollectContext) => Promise<MarketContextCollectionResult>;
 }
 
+export interface ObservationProviderAdapter {
+  readonly name: string;
+}
+
+export interface SourceProviderModule {
+  readonly name: string;
+  readonly marketData?: Partial<Record<AssetClass, MarketDataAdapter>>;
+  readonly supplementalMarketData?: Partial<Record<AssetClass, SupplementalMarketDataAdapter>>;
+  readonly news?: Partial<Record<AssetClass, NewsAdapter>>;
+  readonly extendedEvidence?: Partial<Record<AssetClass, ExtendedEvidenceAdapter>>;
+  readonly marketContext?: Partial<Record<AssetClass, MarketContextAdapter>>;
+  readonly observations?: Partial<Record<AssetClass, ObservationProviderAdapter>>;
+}
+
 export interface FetchJsonResult {
   readonly rawSnapshot: RawSourceSnapshot;
   readonly payload: unknown;
@@ -111,6 +142,9 @@ export function isFetchJsonResult(value: FetchJsonResult | SourceGap): value is 
 
 export interface SourceRegistry {
   readonly marketDataFor: (assetClass: AssetClass) => MarketDataAdapter;
+  readonly supplementalMarketDataFor: (
+    assetClass: AssetClass,
+  ) => readonly SupplementalMarketDataAdapter[];
   readonly newsFor: (assetClass: AssetClass) => NewsAdapter;
   readonly extendedEvidenceFor: (assetClass: AssetClass) => ExtendedEvidenceAdapter;
   readonly marketContextFor: (assetClass: AssetClass) => MarketContextAdapter;

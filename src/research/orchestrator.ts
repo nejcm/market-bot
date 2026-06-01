@@ -208,6 +208,10 @@ export async function persistResearchJob(
     input.collectedSources.marketSnapshots,
   );
   await writeJson(
+    join(artifacts.normalizedDir, "supplemental-market-snapshots.json"),
+    input.collectedSources.supplementalMarketSnapshots ?? [],
+  );
+  await writeJson(
     join(artifacts.normalizedDir, "news-sources.json"),
     input.collectedSources.newsSources,
   );

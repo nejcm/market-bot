@@ -6,12 +6,12 @@ import { canonicalizeUrl } from "./news-utils";
 import { type CollectContext, type NewsAdapter, type NewsCollectionResult } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
 
-const NEWS_ADAPTERS: readonly NewsAdapter[] = [
+const DEFAULT_NEWS_ADAPTERS: readonly NewsAdapter[] = [
   marketAuxNewsAdapter,
   finnhubNewsAdapter,
   yahooNewsAdapter,
 ];
-const NEWS_PROVIDER_ORDER: readonly string[] = ["marketaux", "finnhub", "yahoo-news"];
+const DEFAULT_NEWS_PROVIDER_ORDER: readonly string[] = ["marketaux", "finnhub", "yahoo-news"];
 
 function aliasFor(source: Source): SourceProviderAlias | undefined {
   if (source.provider === undefined) {
@@ -101,7 +101,11 @@ function fetchedAtMs(source: Source): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function selectRoundRobin(sources: readonly Source[], limit: number): readonly Source[] {
+function selectRoundRobin(
+  sources: readonly Source[],
+  limit: number,
+  providerOrder: readonly string[],
+): readonly Source[] {
   const groups = new Map<string, Source[]>();
 
   for (const source of sources) {
@@ -119,8 +123,8 @@ function selectRoundRobin(sources: readonly Source[], limit: number): readonly S
   const selected: Source[] = [];
   const cursors = new Map<string, number>();
   const order = [
-    ...NEWS_PROVIDER_ORDER,
-    ...[...groups.keys()].filter((key) => !NEWS_PROVIDER_ORDER.includes(key)),
+    ...providerOrder,
+    ...[...groups.keys()].filter((key) => !providerOrder.includes(key)),
   ];
 
   while (selected.length < limit) {
@@ -158,30 +162,42 @@ function assignSourceIds(sources: readonly Source[]): readonly Source[] {
   }));
 }
 
-async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
-  const results = await Promise.all(NEWS_ADAPTERS.map((adapter) => adapter.collect(ctx)));
-  const dedupedSources = dedupeByCanonicalUrl(results.flatMap((result) => result.newsSources));
-  const filtered =
-    ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
-      ? await filterSeenNewsSources(dedupedSources, {
-          path: ctx.newsSeenPath,
-          retentionDays: ctx.newsSeenRetentionDays,
-          command: ctx.command,
-          now: new Date(ctx.fetchedAt),
-        })
-      : { newsSources: dedupedSources, sourceGaps: [] };
-  const newsSources = assignSourceIds(selectRoundRobin(filtered.newsSources, ctx.newsLimit));
+export function createMultiNewsAdapter(
+  adapters: readonly NewsAdapter[],
+  providerOrder: readonly string[] = adapters.map((adapter) => adapter.name),
+): NewsAdapter {
+  async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
+    const results = await Promise.all(adapters.map((adapter) => adapter.collect(ctx)));
+    const dedupedSources = dedupeByCanonicalUrl(results.flatMap((result) => result.newsSources));
+    const filtered =
+      ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
+        ? await filterSeenNewsSources(dedupedSources, {
+            path: ctx.newsSeenPath,
+            retentionDays: ctx.newsSeenRetentionDays,
+            command: ctx.command,
+            now: new Date(ctx.fetchedAt),
+          })
+        : { newsSources: dedupedSources, sourceGaps: [] };
+    const newsSources = assignSourceIds(
+      selectRoundRobin(filtered.newsSources, ctx.newsLimit, providerOrder),
+    );
+
+    return {
+      rawSnapshots: results.flatMap((result) => result.rawSnapshots),
+      newsSources,
+      sourceGaps: [...results.flatMap((result) => result.sourceGaps), ...filtered.sourceGaps],
+    };
+  }
 
   return {
-    rawSnapshots: results.flatMap((result) => result.rawSnapshots),
-    newsSources,
-    sourceGaps: [...results.flatMap((result) => result.sourceGaps), ...filtered.sourceGaps],
+    name: "multi-news",
+    buildUrl: yahooNewsAdapter.buildUrl,
+    normalizeNews: yahooNewsAdapter.normalizeNews,
+    collect: collectNews,
   };
 }
 
-export const multiNewsAdapter: NewsAdapter = {
-  name: "multi-news",
-  buildUrl: yahooNewsAdapter.buildUrl,
-  normalizeNews: yahooNewsAdapter.normalizeNews,
-  collect: collectNews,
-};
+export const multiNewsAdapter: NewsAdapter = createMultiNewsAdapter(
+  DEFAULT_NEWS_ADAPTERS,
+  DEFAULT_NEWS_PROVIDER_ORDER,
+);

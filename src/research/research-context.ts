@@ -23,6 +23,7 @@ import type { RawSourceSnapshot } from "../sources/types";
 export interface CollectedSources {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly supplementalMarketSnapshots?: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
   readonly extendedSources?: readonly Source[];
   readonly extendedEvidence?: ExtendedEvidence;
@@ -192,6 +193,7 @@ function buildEvidencePayload(
     movers,
     marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
+    supplementalMarketSnapshots: collectedSources.supplementalMarketSnapshots ?? [],
     newsSources: collectedSources.newsSources,
     ...(collectedSources.marketContext !== undefined
       ? { marketContext: collectedSources.marketContext }

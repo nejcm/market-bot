@@ -142,6 +142,14 @@ describe("resolveConfig", () => {
     });
   });
 
+  test("reads Massive source provider key", () => {
+    expect(
+      resolveConfig({ MARKET_BOT_MASSIVE_API_KEY: "massive-key" }).sourceOptions,
+    ).toMatchObject({
+      massiveApiKey: "massive-key",
+    });
+  });
+
   test("accepts codex provider without apiKey", () => {
     const config = resolveConfig({ MARKET_BOT_PROVIDER: "codex" });
     expect(config.provider).toBe("codex");

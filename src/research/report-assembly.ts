@@ -133,9 +133,24 @@ export function buildSourceList(
       ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
     }),
   );
+  const supplementalMarketSources = (collectedSources.supplementalMarketSnapshots ?? []).map(
+    (snapshot): Source => ({
+      id: snapshot.sourceId,
+      title: `${snapshot.symbol} supplemental market snapshot`,
+      fetchedAt: snapshot.observedAt,
+      kind: "market-data",
+      assetClass: snapshot.assetClass,
+      symbol: snapshot.symbol,
+      ...(snapshot.identity?.aliases?.[0]?.provider !== undefined
+        ? { provider: snapshot.identity.aliases[0].provider }
+        : {}),
+      ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
+    }),
+  );
 
   return [
     ...marketSources,
+    ...supplementalMarketSources,
     ...collectedSources.newsSources,
     ...(isMarketUpdateJobType(command.jobType)
       ? (collectedSources.marketContextSources ?? [])

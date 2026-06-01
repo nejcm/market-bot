@@ -9,6 +9,7 @@ import { marketContextAdapter } from "../src/sources/market-context";
 import { fetchTradierIvObservation } from "../src/sources/tradier";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
+import { massiveNewsAdapter, normalizeMassiveSnapshotPayload } from "../src/sources/massive";
 import { createSourceRegistry } from "../src/sources/registry";
 import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
@@ -245,6 +246,74 @@ describe("source normalization", () => {
       summary: "Volatility increased.",
     });
   });
+
+  test("normalizes Massive stock snapshots as supplemental equity market data", () => {
+    const snapshots = normalizeMassiveSnapshotPayload(
+      {
+        tickers: [
+          {
+            ticker: "AAPL",
+            todaysChangePerc: 1.25,
+            day: { c: 192.4, o: 190.1, v: 72_000_000 },
+            prevDay: { c: 189.9 },
+          },
+        ],
+      },
+      fetchedAt,
+    );
+
+    expect(snapshots).toEqual([
+      {
+        sourceId: "supplemental-market-massive-equity-aapl",
+        assetClass: "equity",
+        symbol: "AAPL",
+        identity: {
+          aliases: [{ provider: "massive", idKind: "ticker", value: "AAPL" }],
+        },
+        price: 192.4,
+        changePercent24h: 1.25,
+        volume: 72_000_000,
+        open: 190.1,
+        previousClose: 189.9,
+        observedAt: fetchedAt,
+      },
+    ]);
+  });
+
+  test("normalizes Massive news with canonical URLs and provider metadata", () => {
+    const sources = massiveNewsAdapter.normalizeNews(
+      {
+        results: [
+          {
+            id: "article-1",
+            title: "Apple shares rise",
+            article_url: "https://www.example.test/apple?utm_source=massive",
+            publisher: { name: "Example Wire" },
+            published_utc: "2026-05-18T12:00:00Z",
+            description: "Shares moved after earnings.",
+          },
+        ],
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(sources).toEqual([
+      {
+        id: "news-equity-massive-1",
+        title: "Apple shares rise",
+        url: "https://www.example.test/apple?utm_source=massive",
+        publisher: "Example Wire",
+        fetchedAt: "2026-05-18T12:00:00Z",
+        kind: "news",
+        assetClass: "equity",
+        provider: "massive",
+        providerArticleId: "article-1",
+        canonicalUrl: "https://example.test/apple",
+        summary: "Shares moved after earnings.",
+      },
+    ]);
+  });
 });
 
 describe("source registry", () => {
@@ -255,6 +324,10 @@ describe("source registry", () => {
     expect(registry.marketDataFor("crypto").name).toBe("coingecko");
     expect(registry.newsFor("crypto").name).toBe("multi-news");
     expect(registry.marketContextFor("equity").name).toBe("market-context");
+    expect(registry.supplementalMarketDataFor("equity").map((adapter) => adapter.name)).toEqual([
+      "massive-supplemental-market",
+    ]);
+    expect(registry.supplementalMarketDataFor("crypto")).toEqual([]);
   });
 });
 

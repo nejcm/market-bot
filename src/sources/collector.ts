@@ -14,6 +14,7 @@ import { createSourceRegistry } from "./registry";
 export interface SourceCollection {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly supplementalMarketSnapshots: readonly MarketSnapshot[];
   readonly newsSources: readonly Source[];
   readonly extendedSources: readonly Source[];
   readonly extendedEvidence?: ExtendedEvidence;
@@ -271,6 +272,7 @@ export async function collectSources(
 
   const registry = createSourceRegistry();
   const marketAdapter = registry.marketDataFor(command.assetClass);
+  const supplementalMarketAdapters = registry.supplementalMarketDataFor(command.assetClass);
   const newsAdapter = registry.newsFor(command.assetClass);
   const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
@@ -294,6 +296,9 @@ export async function collectSources(
     ...(sourceOptions.glassnodeApiKey !== undefined
       ? { glassnodeApiKey: sourceOptions.glassnodeApiKey }
       : {}),
+    ...(sourceOptions.massiveApiKey !== undefined
+      ? { massiveApiKey: sourceOptions.massiveApiKey }
+      : {}),
     ...(sourceOptions.secUserAgent !== undefined
       ? { secUserAgent: sourceOptions.secUserAgent }
       : {}),
@@ -314,6 +319,12 @@ export async function collectSources(
     extendedEvidenceAdapter.collect(ctx),
     marketContextAdapter.collect(ctx),
   ]);
+  const supplementalMarketResults = await Promise.all(
+    supplementalMarketAdapters.map((adapter) => adapter.collect(ctx, marketResult.marketSnapshots)),
+  );
+  const supplementalMarketSnapshots = supplementalMarketResults.flatMap(
+    (result) => result.supplementalMarketSnapshots,
+  );
 
   return {
     rawSnapshots: [
@@ -321,8 +332,10 @@ export async function collectSources(
       ...newsResult.rawSnapshots,
       ...extendedResult.rawSnapshots,
       ...marketContextResult.rawSnapshots,
+      ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
     ],
     marketSnapshots: marketResult.marketSnapshots,
+    supplementalMarketSnapshots,
     newsSources: newsResult.newsSources,
     extendedSources: extendedResult.sources,
     ...(extendedResult.extendedEvidence !== undefined
@@ -337,6 +350,7 @@ export async function collectSources(
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
       ...marketContextResult.sourceGaps,
+      ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...staleFallbackGaps,
     ],
   };

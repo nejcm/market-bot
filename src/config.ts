@@ -12,6 +12,7 @@ export interface SourceOptions {
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
   readonly glassnodeApiKey?: string;
+  readonly massiveApiKey?: string;
   readonly secUserAgent?: string;
   readonly cacheDir?: string;
   readonly cacheDisabled?: boolean;
@@ -163,6 +164,9 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
         : {}),
       ...(readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) !== undefined
         ? { glassnodeApiKey: readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) as string }
+        : {}),
+      ...(readOptionalString(env.MARKET_BOT_MASSIVE_API_KEY) !== undefined
+        ? { massiveApiKey: readOptionalString(env.MARKET_BOT_MASSIVE_API_KEY) as string }
         : {}),
       secUserAgent: readOptionalString(env.MARKET_BOT_SEC_USER_AGENT) ?? DEFAULT_SEC_USER_AGENT,
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",

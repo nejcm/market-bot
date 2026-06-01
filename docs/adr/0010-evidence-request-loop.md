@@ -21,6 +21,7 @@ Add a bounded Evidence Request Loop before `specialist-analysis` for `ticker --d
 - enforces max rounds, max accepted tool calls, and declared source-unit budget;
 - executes tools through the source collector seam, including timeout, retry, cache, rate limit, circuit breaker, stale fallback, and `SourceGap` behavior;
 - merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s;
+- treats malformed JSON as a `SourceGap` and stops additional evidence-request rounds;
 - records an optional trace audit instead of adding report schema fields.
 
 V1 tools are:

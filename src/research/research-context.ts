@@ -6,6 +6,7 @@ import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import {
   type ExtendedEvidence,
+  type EvidenceRequestToolName,
   type MarketContext,
   type MarketRegimeSummary,
   type MarketSnapshot,
@@ -65,7 +66,18 @@ export interface ResearchContext {
   readonly runParams: ResolvedRunParams;
   readonly marketRegime: MarketRegimeSummary;
   readonly calibrationContext: CalibrationContext | undefined;
-  readonly evidenceRequest?: Record<string, unknown>;
+  readonly evidenceRequest?: EvidenceRequestContext;
+}
+
+export interface EvidenceRequestContext {
+  readonly round: number;
+  readonly availableTools: readonly EvidenceRequestToolName[];
+  readonly toolUnits: Readonly<Record<EvidenceRequestToolName, number>>;
+  readonly sourceUnitsUsed: number;
+  readonly toolCallsUsed: number;
+  readonly maxRounds: number;
+  readonly maxToolCalls: number;
+  readonly sourceBudget: number;
 }
 
 // ---------------------------------------------------------------------------

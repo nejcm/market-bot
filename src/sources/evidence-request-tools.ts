@@ -135,7 +135,8 @@ function selectLatestPeriodicFiling(payload: unknown): SecFiling | undefined {
 }
 
 function filingUrl(cik: string, filing: SecFiling): string {
-  return `https://www.sec.gov/Archives/edgar/data/${String(Number(cik))}/${filing.accessionNumber.replaceAll("-", "")}/${filing.primaryDocument}`;
+  const primaryDocument = encodeURIComponent(filing.primaryDocument);
+  return `https://www.sec.gov/Archives/edgar/data/${String(Number(cik))}/${filing.accessionNumber.replaceAll("-", "")}/${primaryDocument}`;
 }
 
 function decodeCodePoint(value: string, radix: number): string {

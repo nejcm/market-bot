@@ -506,6 +506,108 @@ describe("runResearchJob", () => {
     );
   });
 
+  test("rejects evidence requests for a different symbol", async () => {
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        return {
+          content:
+            prompt.stage === "evidence-request"
+              ? JSON.stringify({
+                  requests: [
+                    {
+                      tool: "sec_latest_filing",
+                      args: { symbol: "MSFT" },
+                      rationale: "wrong symbol",
+                    },
+                  ],
+                })
+              : modelReport(),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
+      },
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.trace.evidenceRequestLoop?.acceptedRequests).toEqual([]);
+    expect(result.trace.evidenceRequestLoop?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "sec_latest_filing",
+        args: { symbol: "MSFT" },
+        reason: "requested symbol must match run symbol",
+        status: "rejected",
+      }),
+    ]);
+    expect(result.trace.evidenceRequestLoop?.emittedGaps).toContainEqual({
+      source: "evidence-request",
+      message: "sec_latest_filing: requested symbol must match run symbol",
+    });
+  });
+
+  test("runs bounded multi-round loop and rejects duplicates across rounds", async () => {
+    let evidenceRounds = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "evidence-request") {
+          evidenceRounds += 1;
+          return {
+            content: JSON.stringify({
+              requests: [
+                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return { content: modelReport(), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: evidenceConfig,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(evidenceRounds).toBe(2);
+    expect(result.trace.stages.filter((stage) => stage === "evidence-request")).toHaveLength(2);
+    expect(result.trace.evidenceRequestLoop?.rounds).toBe(2);
+    expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
+    expect(result.trace.evidenceRequestLoop?.rejectedRequests).toEqual([
+      expect.objectContaining({ round: 2, reason: "duplicate evidence request" }),
+    ]);
+    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(3);
+  });
+
   test("emits source gap and continues when evidence request JSON is invalid", async () => {
     const provider: ModelProvider = {
       name: "mock",

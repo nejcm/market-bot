@@ -53,7 +53,14 @@ function secTickersPayload(): unknown {
   return { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } };
 }
 
-function secSubmissionsPayload(forms: readonly string[] = ["8-K", "10-Q"]): unknown {
+function secDocuments(forms: readonly string[]): readonly string[] {
+  return forms.map((form) => (form === "8-K" ? "a8k.htm" : "a10q.htm"));
+}
+
+function secSubmissionsPayload(
+  forms: readonly string[] = ["8-K", "10-Q"],
+  primaryDocuments: readonly string[] = secDocuments(forms),
+): unknown {
   return {
     filings: {
       recent: {
@@ -63,7 +70,7 @@ function secSubmissionsPayload(forms: readonly string[] = ["8-K", "10-Q"]): unkn
         accessionNumber: forms.map((form) =>
           form === "8-K" ? "0000320193-26-000100" : "0000320193-26-000077",
         ),
-        primaryDocument: forms.map((form) => (form === "8-K" ? "a8k.htm" : "a10q.htm")),
+        primaryDocument: primaryDocuments,
       },
     },
   };
@@ -129,6 +136,25 @@ describe("SEC latest filing evidence tool", () => {
         .filter((request) => request.adapter.startsWith("sec-"))
         .every((request) => request.headers.get("user-agent") === "market-bot test@example.test"),
     ).toBe(true);
+  });
+
+  test("encodes the SEC primary document URL segment", async () => {
+    let filingTextUrl = "";
+    const ctx = baseCtx({
+      fetchOrGap: async (_url, adapter) =>
+        adapter === "sec-tickers"
+          ? jsonResult(adapter, secTickersPayload())
+          : jsonResult(adapter, secSubmissionsPayload(["10-Q"], ["a 10q.htm?x=1"])),
+      fetchTextOrGap: async (url, adapter) => {
+        filingTextUrl = url;
+        return textResult(adapter, "Latest filing evidence.");
+      },
+    });
+
+    const result = await executeEvidenceRequestTool("sec_latest_filing", ctx);
+
+    expect(filingTextUrl).toContain("/a%2010q.htm%3Fx%3D1");
+    expect(result.sources[0]?.url).toBe(filingTextUrl);
   });
 
   test("emits gap when SEC ticker mapping has no CIK", async () => {

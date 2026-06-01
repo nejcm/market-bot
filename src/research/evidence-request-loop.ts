@@ -17,7 +17,7 @@ import {
 } from "../sources/evidence-request-tools";
 import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import type { FetchLike } from "../sources/types";
-import type { CollectedSources, ResearchContext } from "./research-context";
+import type { CollectedSources, EvidenceRequestContext, ResearchContext } from "./research-context";
 
 export interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";
@@ -63,7 +63,8 @@ interface ValidationState {
   readonly round: number;
 }
 
-const ALLOWED_TOOLS = new Set<string>(["sec_latest_filing", "tradier_iv_term_structure"]);
+const ALLOWED_TOOLS: ReadonlySet<string> = new Set(Object.keys(EVIDENCE_REQUEST_TOOL_UNITS));
+const MAX_RATIONALE_TRACE_LENGTH = 500;
 
 export async function runEvidenceRequestLoop(
   input: EvidenceRequestLoopInput,
@@ -197,7 +198,7 @@ function isEvidenceRequestLoopEnabled(
 
 function withEvidenceRequestContext(
   context: ResearchContext,
-  evidenceRequest: Record<string, unknown>,
+  evidenceRequest: EvidenceRequestContext,
 ): ResearchContext {
   return { ...context, evidenceRequest };
 }
@@ -263,7 +264,8 @@ function validateRequest(
   }
   const tool = typeof raw.tool === "string" ? raw.tool : "unknown";
   const args = isRecord(raw.args) ? raw.args : undefined;
-  const rationale = typeof raw.rationale === "string" ? raw.rationale : undefined;
+  const rationale =
+    typeof raw.rationale === "string" ? truncateRationale(raw.rationale) : undefined;
   if (!ALLOWED_TOOLS.has(tool)) {
     return reject(
       state.round,
@@ -305,6 +307,13 @@ function validateRequest(
 
 function requestKey(request: ModelEvidenceRequest): string {
   return `${request.tool}:${request.args.symbol.toUpperCase()}`;
+}
+
+function truncateRationale(rationale: string): string {
+  const trimmed = rationale.trim();
+  return trimmed.length > MAX_RATIONALE_TRACE_LENGTH
+    ? `${trimmed.slice(0, MAX_RATIONALE_TRACE_LENGTH - 3)}...`
+    : trimmed;
 }
 
 function reject(

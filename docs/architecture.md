@@ -58,7 +58,7 @@ Market updates collect FRED Market Context when `MARKET_BOT_FRED_API_KEY` is set
 
 The orchestrator coordinates: collect sources → summarize regime → optional Evidence Request Loop → produce report → emit predictions. It is also the home for the deterministic market-regime summary.
 
-The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
+The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. Malformed JSON emits a `SourceGap`, stops the loop, and continues to `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
 
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 

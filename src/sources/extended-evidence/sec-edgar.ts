@@ -115,13 +115,13 @@ const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
   },
 ];
 
-function secRequestInit(userAgent: string | undefined): RequestInit | undefined {
+export function secRequestInit(userAgent: string | undefined): RequestInit | undefined {
   return userAgent === undefined
     ? undefined
     : { headers: { accept: "application/json", "user-agent": userAgent } };
 }
 
-function findSecTicker(
+export function findSecTicker(
   payload: unknown,
   symbol: string,
 ): { cik: string; ticker: string; name?: string } | undefined {

@@ -1,4 +1,5 @@
 import type { AssetClass } from "../domain/types";
+import { createMultiExtendedEvidenceAdapter } from "./extended-evidence";
 import { createMultiNewsAdapter } from "./multi-news";
 import { sourceProviders } from "./providers";
 import type {
@@ -50,8 +51,14 @@ export function createSourceRegistry(): SourceRegistry {
     ),
   };
   const extendedEvidenceAdapters: Record<AssetClass, ExtendedEvidenceAdapter> = {
-    equity: firstCapability("equity", (provider) => provider.extendedEvidence?.equity),
-    crypto: firstCapability("crypto", (provider) => provider.extendedEvidence?.crypto),
+    equity: createMultiExtendedEvidenceAdapter(
+      "equity",
+      allCapabilities((provider) => provider.extendedEvidence?.equity),
+    ),
+    crypto: createMultiExtendedEvidenceAdapter(
+      "crypto",
+      allCapabilities((provider) => provider.extendedEvidence?.crypto),
+    ),
   };
   const marketContextAdapters: Record<AssetClass, MarketContextAdapter> = {
     equity: firstCapability("equity", (provider) => provider.marketContext?.equity),

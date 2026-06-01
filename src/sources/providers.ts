@@ -1,5 +1,11 @@
 import { coinGeckoMarketDataAdapter } from "./coingecko";
-import { cryptoExtendedEvidenceAdapter, equityExtendedEvidenceAdapter } from "./extended-evidence";
+import {
+  finnhubEventsExtendedEvidenceAdapter,
+  fredExtendedEvidenceAdapter,
+  glassnodeExtendedEvidenceAdapter,
+  secEdgarExtendedEvidenceAdapter,
+  tradierExtendedEvidenceAdapter,
+} from "./extended-evidence";
 import { marketContextAdapter } from "./market-context";
 import { finnhubNewsAdapter } from "./finnhub-news";
 import { marketAuxNewsAdapter } from "./marketaux-news";
@@ -32,11 +38,24 @@ export const sourceProviders: readonly SourceProviderModule[] = [
     news: { equity: massiveNewsAdapter },
   },
   {
-    name: "extended-evidence",
-    extendedEvidence: {
-      equity: equityExtendedEvidenceAdapter,
-      crypto: cryptoExtendedEvidenceAdapter,
-    },
+    name: "sec-edgar",
+    extendedEvidence: { equity: secEdgarExtendedEvidenceAdapter },
+  },
+  {
+    name: "finnhub-events",
+    extendedEvidence: { equity: finnhubEventsExtendedEvidenceAdapter },
+  },
+  {
+    name: "fred",
+    extendedEvidence: { equity: fredExtendedEvidenceAdapter, crypto: fredExtendedEvidenceAdapter },
+  },
+  {
+    name: "tradier",
+    extendedEvidence: { equity: tradierExtendedEvidenceAdapter },
+  },
+  {
+    name: "glassnode",
+    extendedEvidence: { crypto: glassnodeExtendedEvidenceAdapter },
   },
   {
     name: "market-context",

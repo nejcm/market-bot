@@ -1,0 +1,68 @@
+import type { SourceGap } from "../../domain/types";
+import { isFetchJsonResult, type CollectContext } from "../types";
+import { collectedItem, evidenceSource, type ProviderResult } from "./common";
+import { daysFrom, encodeQuery, readArray } from "./utils";
+
+function summarizeFinnhubEvents(payloads: readonly unknown[]): string | undefined {
+  const counts = payloads.map((payload) =>
+    Array.isArray(payload) ? payload.length : readArray(payload, "earningsCalendar").length,
+  );
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  return total > 0
+    ? `Finnhub returned ${String(total)} recent or upcoming earnings, dividend, and split records.`
+    : undefined;
+}
+
+export async function collectFinnhubEvents(ctx: CollectContext): Promise<ProviderResult> {
+  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  if (command.jobType !== "ticker") {
+    return { rawSnapshots: [], items: [], gaps: [] };
+  }
+  if (ctx.finnhubApiToken === undefined) {
+    return {
+      rawSnapshots: [],
+      items: [],
+      gaps: [{ source: "finnhub-events", message: "MARKET_BOT_FINNHUB_API_TOKEN is not set" }],
+    };
+  }
+  const from = daysFrom(fetchedAt, -90);
+  const to = daysFrom(fetchedAt, 90);
+  const urls = [
+    `https://finnhub.io/api/v1/calendar/earnings?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
+    `https://finnhub.io/api/v1/stock/dividend?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
+    `https://finnhub.io/api/v1/stock/split?${encodeQuery({ symbol: command.symbol, from, to, token: ctx.finnhubApiToken })}`,
+  ];
+  const results = await Promise.all(
+    urls.map((url, index) =>
+      fetchOrGap(
+        url,
+        `finnhub-events-${String(index + 1)}`,
+        fetchedAt,
+        sourceTimeoutMs,
+        fetchImpl,
+        retryDelaysMs,
+      ),
+    ),
+  );
+  const fetched = results.filter((result) => isFetchJsonResult(result));
+  const gaps = results.filter((value): value is SourceGap => !isFetchJsonResult(value));
+  const summary = summarizeFinnhubEvents(fetched.map((result) => result.payload));
+  const items =
+    summary === undefined
+      ? []
+      : [
+          collectedItem(
+            "equity-events",
+            `${command.symbol} equity events`,
+            summary,
+            evidenceSource(
+              `extended-finnhub-events-${command.symbol.toLowerCase()}`,
+              `${command.symbol} equity events`,
+              "finnhub",
+              command,
+              fetchedAt,
+            ),
+          ),
+        ];
+  return { rawSnapshots: fetched.map((result) => result.rawSnapshot), items, gaps };
+}

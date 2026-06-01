@@ -18,6 +18,15 @@ import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt, type StageLabel } from "./prompt-loader";
 import {
+  eligiblePlaybookCandidates,
+  loadPlaybookRegistry,
+  loadPlaybooksByStage,
+  parsePlaybookSelection,
+  type PlaybookSelectionAudit,
+  type PlaybookStage,
+} from "./playbooks";
+import {
+  buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
   buildStagePrompt,
   loadCalibrationContext,
@@ -63,7 +72,7 @@ interface StageOutput {
   readonly costEstimateUsd: number;
 }
 
-function coveragePanelStages(command: ResearchCommand): readonly StageLabel[] {
+function coveragePanelStages(command: ResearchCommand): readonly PlaybookStage[] {
   if (command.depth !== "deep") {
     return [];
   }
@@ -71,6 +80,10 @@ function coveragePanelStages(command: ResearchCommand): readonly StageLabel[] {
     return ["regime-context-analysis", "mover-theme-analysis"];
   }
   return ["instrument-evidence-analysis", "market-behavior-analysis"];
+}
+
+function plannedResearchStages(command: ResearchCommand): readonly PlaybookStage[] {
+  return ["specialist-analysis", ...coveragePanelStages(command), "critique", "final-synthesis"];
 }
 
 async function runStage(
@@ -118,6 +131,62 @@ async function runStage(
   };
 }
 
+async function runPlaybookSelection(
+  input: RunResearchJobInput,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+  plannedStages: readonly PlaybookStage[],
+): Promise<{
+  readonly output: StageOutput;
+  readonly audit: PlaybookSelectionAudit;
+  readonly context: ResearchContext;
+}> {
+  const registry = await loadPlaybookRegistry(input.config.promptDir);
+  const candidates = eligiblePlaybookCandidates(input.command, plannedStages, registry);
+  const loaded = await loadStagePrompt("playbook-selection", input.command, input.config.promptDir);
+  const response = await input.provider.generate({
+    model: context.runParams.quickModel,
+    ...(context.runParams.modelParams !== undefined
+      ? { params: context.runParams.modelParams }
+      : {}),
+    responseFormat: "json",
+    messages: [
+      {
+        role: "system",
+        content: loaded.system,
+      },
+      {
+        role: "user",
+        content: buildPlaybookSelectionPrompt(
+          input.command,
+          collectedSources,
+          context,
+          loaded,
+          plannedStages,
+          candidates,
+        ),
+      },
+    ],
+  });
+  const audit = parsePlaybookSelection(response.content, candidates);
+  const domainPlaybooks = await loadPlaybooksByStage(
+    input.config.promptDir,
+    registry,
+    audit.selected,
+  );
+
+  return {
+    output: {
+      stage: "playbook-selection",
+      content: response.content,
+      tokenEstimate: response.tokenEstimate,
+      costEstimateUsd: response.costEstimateUsd,
+    },
+    audit,
+    context: { ...context, domainPlaybooks },
+  };
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
@@ -155,16 +224,26 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
+  const plannedStages = plannedResearchStages(input.command);
+  const playbookSelection = await runPlaybookSelection(
+    input,
+    collectedSources,
+    context,
+    plannedStages,
+  );
+  const playbookContext = playbookSelection.context;
   const specialistOutput = await runStage(
     "specialist-analysis",
     runParams.quickModel,
     input,
     collectedSources,
-    context,
+    playbookContext,
   );
   const panelOutputs = await Promise.all(
     coveragePanelStages(input.command).map((stage) =>
-      runStage(stage, runParams.quickModel, input, collectedSources, context, [specialistOutput]),
+      runStage(stage, runParams.quickModel, input, collectedSources, playbookContext, [
+        specialistOutput,
+      ]),
     ),
   );
   const analysisOutputs = [specialistOutput, ...panelOutputs];
@@ -173,7 +252,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     runParams.quickModel,
     input,
     collectedSources,
-    context,
+    playbookContext,
     analysisOutputs,
   );
   let finalOutput = await runStage(
@@ -181,7 +260,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     runParams.synthesisModel,
     input,
     collectedSources,
-    context,
+    playbookContext,
     [...analysisOutputs, critiqueOutput],
   );
 
@@ -192,6 +271,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   let predResult = readPredictions(payload.predictions, knownSourceIds);
   const stageOutputsArr: StageOutput[] = [
     ...evidenceLoop.stageOutputs,
+    playbookSelection.output,
     ...analysisOutputs,
     critiqueOutput,
     finalOutput,
@@ -203,7 +283,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       runParams.synthesisModel,
       input,
       collectedSources,
-      context,
+      playbookContext,
       [...analysisOutputs, critiqueOutput],
       predResult.errors,
     );
@@ -222,8 +302,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     payload,
     predResult,
     collectedSources,
-    depthProfile: context.depthProfile,
-    context,
+    depthProfile: playbookContext.depthProfile,
+    context: playbookContext,
     sources,
   });
 
@@ -246,6 +326,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
+    domainPlaybooks: playbookSelection.audit,
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
   };
 

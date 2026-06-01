@@ -222,6 +222,7 @@ describe("runResearchJob", () => {
     expect(requests).toEqual([
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
       { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "medium" } },
     ]);
     expect(result.trace.quickModel).toBe("combo-quick");
@@ -301,6 +302,7 @@ describe("runResearchJob", () => {
 
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
@@ -308,6 +310,7 @@ describe("runResearchJob", () => {
       "final-synthesis",
     ]);
     expect(result.stageOutputs.map((output) => output.stage)).toEqual([
+      "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
@@ -356,9 +359,22 @@ describe("runResearchJob", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         calls.push({ model: request.model, prompt, requestKeys: Object.keys(request) });
+        if (prompt.stage === "evidence-request") {
+          return {
+            content: JSON.stringify({ requests: [] }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
         return {
-          content:
-            prompt.stage === "evidence-request" ? JSON.stringify({ requests: [] }) : modelReport(),
+          content: modelReport(),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -379,11 +395,12 @@ describe("runResearchJob", () => {
     });
 
     expect(calls[0]?.prompt.stage).toBe("evidence-request");
-    expect(calls[1]?.prompt.stage).toBe("specialist-analysis");
-    expect(new Set(calls.slice(2, 4).map((call) => call.prompt.stage))).toEqual(
+    expect(calls[1]?.prompt.stage).toBe("playbook-selection");
+    expect(calls[2]?.prompt.stage).toBe("specialist-analysis");
+    expect(new Set(calls.slice(3, 5).map((call) => call.prompt.stage))).toEqual(
       new Set(["instrument-evidence-analysis", "market-behavior-analysis"]),
     );
-    expect(calls.slice(4).map((call) => call.prompt.stage)).toEqual([
+    expect(calls.slice(5).map((call) => call.prompt.stage)).toEqual([
       "critique",
       "final-synthesis",
     ]);
@@ -413,6 +430,7 @@ describe("runResearchJob", () => {
     expect(result.trace.stages).toEqual([
       "source-collection",
       "evidence-request",
+      "playbook-selection",
       "specialist-analysis",
       "instrument-evidence-analysis",
       "market-behavior-analysis",
@@ -469,7 +487,7 @@ describe("runResearchJob", () => {
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const specialistPrompt = prompts[1] as {
+    const specialistPrompt = prompts[2] as {
       readonly evidence?: {
         readonly extendedEvidence?: {
           readonly items?: readonly { readonly title?: string }[];
@@ -488,6 +506,160 @@ describe("runResearchJob", () => {
     );
     expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
     expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(3);
+  });
+
+  test("selects playbooks after evidence request and injects them downstream", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "evidence-request") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "sec_latest_filing",
+                  args: { symbol: "AAPL" },
+                  rationale: "latest filing",
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({
+              rationale: "ticker evidence needs instrument and critique playbooks",
+              selections: [
+                { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
+                { stage: "critique", playbookIds: ["critique-discipline"] },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return {
+          content: modelReport("AAPL", "extended-sec-edgar-aapl-latest-filing"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
+      },
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const selectorPrompt = prompts.find((prompt) => prompt.stage === "playbook-selection") as
+      | {
+          readonly evidenceCategories?: readonly string[];
+          readonly plannedStages?: readonly string[];
+        }
+      | undefined;
+    const specialistPrompt = prompts.find((prompt) => prompt.stage === "specialist-analysis") as
+      | {
+          readonly domainPlaybooks?: readonly { readonly id?: string }[];
+        }
+      | undefined;
+    const critiquePrompt = prompts.find((prompt) => prompt.stage === "critique") as
+      | {
+          readonly domainPlaybooks?: readonly { readonly id?: string }[];
+        }
+      | undefined;
+
+    expect(selectorPrompt?.evidenceCategories).toContain("sec-edgar");
+    expect(selectorPrompt?.plannedStages).toEqual([
+      "specialist-analysis",
+      "instrument-evidence-analysis",
+      "market-behavior-analysis",
+      "critique",
+      "final-synthesis",
+    ]);
+    expect(specialistPrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
+      "instrument-evidence",
+    ]);
+    expect(critiquePrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
+      "critique-discipline",
+    ]);
+    expect(result.trace.domainPlaybooks).toMatchObject({
+      selected: [
+        { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
+        { stage: "critique", playbookIds: ["critique-discipline"] },
+      ],
+      rejected: [],
+    });
+    expect(result.trace.stages).toContain("playbook-selection");
+    expect(result.trace.tokenEstimate).toBe(
+      result.stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
+    );
+    expect(result.trace.costEstimateUsd).toBe(
+      result.stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
+    );
+  });
+
+  test("continues when playbook selector returns invalid choices", async () => {
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        return {
+          content:
+            prompt.stage === "playbook-selection"
+              ? JSON.stringify({
+                  rationale: "bad choices",
+                  selections: [
+                    { stage: "evidence-request", playbookIds: ["market-regime"] },
+                    { stage: "critique", playbookIds: ["unknown-playbook"] },
+                  ],
+                })
+              : modelReport(),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: {
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.summary).toBe("AAPL evidence is sourced.");
+    expect(result.trace.domainPlaybooks?.selected).toEqual([]);
+    expect(result.trace.domainPlaybooks?.rejected).toEqual([
+      { stage: "evidence-request", reason: "invalid stage" },
+      {
+        stage: "critique",
+        playbookId: "unknown-playbook",
+        reason: "playbook is not eligible",
+      },
+    ]);
   });
 
   test("audits rejected duplicate, invalid, and over-budget evidence requests", async () => {
@@ -728,11 +900,12 @@ describe("runResearchJob", () => {
         now: new Date("2026-05-19T00:00:00.000Z"),
       });
 
-      expect(calls).toBe(command.depth === "deep" ? 5 : 3);
+      expect(calls).toBe(command.depth === "deep" ? 6 : 4);
       expect(result.trace.stages).not.toContain("evidence-request");
       if (command.jobType === "ticker" && command.assetClass === "crypto") {
         expect(result.trace.stages).toEqual([
           "source-collection",
+          "playbook-selection",
           "specialist-analysis",
           "instrument-evidence-analysis",
           "market-behavior-analysis",
@@ -795,12 +968,13 @@ describe("runResearchJob", () => {
     expect(result.trace.sourceGaps).toEqual(["Macro breadth source unavailable"]);
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "playbook-selection",
       "specialist-analysis",
       "critique",
       "final-synthesis",
     ]);
-    expect(result.stageOutputs).toHaveLength(3);
-    expect(result.trace.tokenEstimate).toBe(300);
+    expect(result.stageOutputs).toHaveLength(4);
+    expect(result.trace.tokenEstimate).toBe(400);
   });
 
   test("surfaces Market Context in market update prompts, extras, citations, and regime drivers", async () => {
@@ -865,7 +1039,9 @@ describe("runResearchJob", () => {
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+    const finalPrompt = JSON.parse(
+      prompts.find((prompt) => JSON.parse(prompt).stage === "final-synthesis") ?? "{}",
+    ) as {
       readonly evidence?: {
         readonly marketContext?: unknown;
         readonly marketRegime?: {
@@ -964,7 +1140,9 @@ describe("runResearchJob", () => {
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+    const finalPrompt = JSON.parse(
+      prompts.find((prompt) => JSON.parse(prompt).stage === "final-synthesis") ?? "{}",
+    ) as {
       readonly evidence?: {
         readonly extendedEvidence?: {
           readonly items?: readonly { readonly identity?: unknown }[];
@@ -1086,7 +1264,9 @@ describe("runResearchJob", () => {
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const finalPrompt = JSON.parse(prompts[2] ?? "{}") as {
+    const finalPrompt = JSON.parse(
+      prompts.find((prompt) => JSON.parse(prompt).stage === "final-synthesis") ?? "{}",
+    ) as {
       readonly depthProfile?: {
         readonly defaultPredictionHorizon?: number;
         readonly minimumPredictions?: number;
@@ -1362,7 +1542,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(callCount).toBe(4);
+    expect(callCount).toBe(5);
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
@@ -1408,7 +1588,7 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
 
-    expect(prompts).toHaveLength(6);
+    expect(prompts).toHaveLength(7);
     expect(finalPrompts).toHaveLength(2);
     expect(priorStageNames(finalPrompts[1] ?? {})).toEqual([
       "specialist-analysis",
@@ -1418,6 +1598,7 @@ describe("runResearchJob", () => {
     ]);
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",

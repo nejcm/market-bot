@@ -16,6 +16,7 @@ import {
 import { rankMovers } from "../movers/ranking";
 import { isRecord } from "../sources/guards";
 import type { RawSourceSnapshot } from "../sources/types";
+import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 
 // ---------------------------------------------------------------------------
 // CollectedSources — the normalized output of the sources subsystem
@@ -67,6 +68,7 @@ export interface ResearchContext {
   readonly marketRegime: MarketRegimeSummary;
   readonly calibrationContext: CalibrationContext | undefined;
   readonly evidenceRequest?: EvidenceRequestContext;
+  readonly domainPlaybooks?: readonly StagePlaybooks[];
 }
 
 export interface EvidenceRequestContext {
@@ -256,6 +258,70 @@ function evidenceRequestShape(): Record<string, unknown> {
   };
 }
 
+function playbookSelectionShape(): Record<string, unknown> {
+  return {
+    rationale: "short string",
+    selections: [{ stage: "stage label", playbookIds: ["playbook-id"] }],
+  };
+}
+
+function stagePlaybooks(
+  stage: StageLabel,
+  context: ResearchContext,
+): readonly LoadedPlaybook[] | undefined {
+  if (stage === "evidence-request" || stage === "playbook-selection") {
+    return undefined;
+  }
+  return context.domainPlaybooks?.find((entry) => entry.stage === stage)?.playbooks;
+}
+
+function evidenceCategories(collectedSources: CollectedSources): readonly string[] {
+  const categories = new Set<string>();
+  if (collectedSources.marketSnapshots.length > 0) {
+    categories.add("market-data");
+  }
+  if ((collectedSources.supplementalMarketSnapshots ?? []).length > 0) {
+    categories.add("supplemental-market-data");
+  }
+  if (collectedSources.newsSources.length > 0) {
+    categories.add("news");
+  }
+  if ((collectedSources.marketContext?.items ?? []).length > 0) {
+    categories.add("market-context");
+  }
+  for (const item of collectedSources.extendedEvidence?.items ?? []) {
+    categories.add(item.category);
+  }
+  return [...categories].toSorted();
+}
+
+export function buildPlaybookSelectionPrompt(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+  loaded: LoadedPrompt,
+  plannedStages: readonly PlaybookStage[],
+  candidates: readonly PlaybookCandidate[],
+): string {
+  return JSON.stringify(
+    {
+      instruction: loaded.instruction,
+      stage: "playbook-selection",
+      stageGoal: loaded.goal,
+      command,
+      depthProfile: context.depthProfile,
+      plannedStages,
+      candidates,
+      marketRegime: { label: context.marketRegime.label },
+      evidenceCategories: evidenceCategories(collectedSources),
+      sourceGaps: deterministicSourceGaps(command, collectedSources),
+      requiredShape: playbookSelectionShape(),
+    },
+    undefined,
+    2,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Stage prompt
 // ---------------------------------------------------------------------------
@@ -286,6 +352,7 @@ export function buildStagePrompt(
       dataGaps: ["string"],
     };
   })();
+  const playbooks = stagePlaybooks(stage, context);
 
   return JSON.stringify(
     {
@@ -294,6 +361,7 @@ export function buildStagePrompt(
       stageGoal: loaded.goal,
       depthProfile: context.depthProfile,
       evidence: buildEvidencePayload(command, collectedSources, config, context),
+      ...(playbooks !== undefined && playbooks.length > 0 ? { domainPlaybooks: playbooks } : {}),
       priorStages,
       ...(predictionRepromptErrors.length > 0
         ? { predictionRepromptErrors, unmetMinimum: context.depthProfile.minimumPredictions }

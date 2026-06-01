@@ -267,7 +267,7 @@ export function parsePlaybookSelection(
     };
   }
   const eligible = buildEligibilityMap(candidates);
-  const selected: { readonly stage: PlaybookStage; readonly playbookIds: readonly string[] }[] = [];
+  const selectedByStage = new Map<PlaybookStage, string[]>();
   const rejected: {
     readonly stage?: string;
     readonly playbookId?: string;
@@ -286,15 +286,16 @@ export function parsePlaybookSelection(
       rejected.push({ stage: selection.stage, reason: "invalid stage" });
       continue;
     }
-    const acceptedIds: string[] = [];
+    const typedStage = selection.stage as PlaybookStage;
     for (const playbookId of selection.playbookIds) {
       const key = `${selection.stage}:${playbookId}`;
       const eligibleStages = eligible.get(playbookId);
-      if (eligibleStages === undefined || !eligibleStages.has(selection.stage as PlaybookStage)) {
+      const stageCount = selectedByStage.get(typedStage)?.length ?? 0;
+      if (eligibleStages === undefined || !eligibleStages.has(typedStage)) {
         rejected.push({ stage: selection.stage, playbookId, reason: "playbook is not eligible" });
       } else if (seen.has(key)) {
         rejected.push({ stage: selection.stage, playbookId, reason: "duplicate selection" });
-      } else if (acceptedIds.length >= MAX_PLAYBOOKS_PER_STAGE) {
+      } else if (stageCount >= MAX_PLAYBOOKS_PER_STAGE) {
         rejected.push({
           stage: selection.stage,
           playbookId,
@@ -307,18 +308,18 @@ export function parsePlaybookSelection(
           reason: "per-run playbook cap exceeded",
         });
       } else {
-        acceptedIds.push(playbookId);
+        selectedByStage.set(typedStage, [...(selectedByStage.get(typedStage) ?? []), playbookId]);
         seen.add(key);
         runCount += 1;
       }
     }
-    if (acceptedIds.length > 0) {
-      selected.push({ stage: selection.stage as PlaybookStage, playbookIds: acceptedIds });
-    }
   }
 
   return {
-    selected,
+    selected: [...selectedByStage.entries()].map(([stage, playbookIds]) => ({
+      stage,
+      playbookIds,
+    })),
     ...(typeof parsed.rationale === "string"
       ? { rationale: truncateRationale(parsed.rationale) }
       : {}),

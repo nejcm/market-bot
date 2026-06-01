@@ -312,4 +312,30 @@ describe("parsePlaybookSelection", () => {
       reason: "per-run playbook cap exceeded",
     });
   });
+
+  test("aggregates repeated stage selections before enforcing stage cap", () => {
+    const result = parsePlaybookSelection(
+      JSON.stringify({
+        selections: [
+          { stage: "critique", playbookIds: ["market-regime"] },
+          {
+            stage: "critique",
+            playbookIds: ["critique-discipline", "synthesis-discipline"],
+          },
+        ],
+      }),
+      candidates,
+    );
+
+    expect(result.selected).toEqual([
+      { stage: "critique", playbookIds: ["market-regime", "critique-discipline"] },
+    ]);
+    expect(result.rejected).toEqual([
+      {
+        stage: "critique",
+        playbookId: "synthesis-discipline",
+        reason: "per-stage playbook cap exceeded",
+      },
+    ]);
+  });
 });

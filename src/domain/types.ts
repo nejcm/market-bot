@@ -83,6 +83,19 @@ export interface EvidenceRequestLoopAudit {
   readonly emittedGaps: readonly SourceGap[];
 }
 
+export interface DomainPlaybookSelectionAudit {
+  readonly selected: readonly {
+    readonly stage: string;
+    readonly playbookIds: readonly string[];
+  }[];
+  readonly rationale?: string;
+  readonly rejected: readonly {
+    readonly stage?: string;
+    readonly playbookId?: string;
+    readonly reason: string;
+  }[];
+}
+
 export interface MarketSnapshot {
   readonly sourceId: string;
   readonly assetClass: AssetClass;
@@ -233,5 +246,6 @@ export interface RunTrace {
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
+  readonly domainPlaybooks?: DomainPlaybookSelectionAudit;
   readonly predictionErrors?: readonly string[];
 }

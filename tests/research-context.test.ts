@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
-import { buildDepthProfile, buildStagePrompt } from "../src/research/research-context";
+import {
+  buildDepthProfile,
+  buildPlaybookSelectionPrompt,
+  buildStagePrompt,
+} from "../src/research/research-context";
 import { marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -141,5 +145,136 @@ describe("buildStagePrompt", () => {
       findings: [{ text: "string", sourceIds: ["source-id"] }],
       dataGaps: ["string"],
     });
+  });
+
+  test("injects domain playbooks as a separate prompt field", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildStagePrompt(
+      "critique",
+      command,
+      {
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      },
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+        domainPlaybooks: [
+          {
+            stage: "critique",
+            playbooks: [
+              {
+                id: "critique-discipline",
+                title: "Critique Discipline",
+                summary: "Stress-test weak claims.",
+                file: "critique-discipline.md",
+                jobTypes: ["daily", "weekly", "ticker"],
+                assetClasses: ["equity", "crypto"],
+                depths: ["brief", "deep"],
+                stages: ["critique"],
+                instruction: "Challenge weak claims.",
+              },
+            ],
+          },
+        ],
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Review evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly domainPlaybooks?: readonly { readonly instruction?: string }[];
+    };
+
+    expect(parsed.instruction).toBe("Analyze.");
+    expect(parsed.domainPlaybooks?.[0]?.instruction).toBe("Challenge weak claims.");
+  });
+});
+
+describe("buildPlaybookSelectionPrompt", () => {
+  test("uses slim selector context", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildPlaybookSelectionPrompt(
+      command,
+      {
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [{ source: "marketaux", message: "missing token" }],
+      },
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: ["SPY higher"],
+          sourceIds: ["market-aapl"],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Select.", instruction: "Choose playbooks.", goal: "Keep prompts focused." },
+      ["specialist-analysis", "critique", "final-synthesis"],
+      [
+        {
+          id: "market-regime",
+          title: "Market Regime",
+          summary: "Regime context.",
+          eligibleStages: ["specialist-analysis", "critique"],
+        },
+      ],
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly stage?: string;
+      readonly plannedStages?: readonly string[];
+      readonly candidates?: readonly unknown[];
+      readonly marketRegime?: { readonly label?: string; readonly drivers?: readonly string[] };
+      readonly evidenceCategories?: readonly string[];
+      readonly sourceGaps?: readonly string[];
+      readonly evidence?: unknown;
+      readonly priorStages?: unknown;
+    };
+
+    expect(parsed.stage).toBe("playbook-selection");
+    expect(parsed.plannedStages).toEqual(["specialist-analysis", "critique", "final-synthesis"]);
+    expect(parsed.candidates).toHaveLength(1);
+    expect(parsed.marketRegime).toEqual({ label: "mixed" });
+    expect(parsed.evidenceCategories).toEqual(["market-data", "news"]);
+    expect(parsed.sourceGaps).toEqual(["marketaux: missing token"]);
+    expect(parsed.evidence).toBeUndefined();
+    expect(parsed.priorStages).toBeUndefined();
   });
 });

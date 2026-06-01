@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import type { AssetClass, Depth, JobType } from "../domain/types";
 import { isRecord, readString } from "../sources/guards";
+import { parseSections } from "./markdown-sections";
 import type { StageLabel } from "./prompt-loader";
 
 export type PlaybookStage = Exclude<StageLabel, "evidence-request" | "playbook-selection">;
@@ -57,6 +58,7 @@ const MAX_PLAYBOOK_CHARS = 2500;
 const MAX_PLAYBOOKS_PER_STAGE = 2;
 const MAX_PLAYBOOKS_PER_RUN = 6;
 const MAX_SELECTOR_RATIONALE_CHARS = 500;
+// Keep in sync with PlaybookStage; this runtime set validates checked-in JSON.
 const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
   "specialist-analysis",
   "regime-context-analysis",
@@ -69,30 +71,6 @@ const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
 
 function defaultPromptDir(): string {
   return join(import.meta.dir, "../../prompts");
-}
-
-function parseSections(content: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  const regex = /^## (.+)$/gmu;
-  const positions: { readonly heading: string; readonly start: number }[] = [];
-
-  let match: RegExpExecArray | null = regex.exec(content);
-  while (match !== null) {
-    positions.push({ heading: (match[1] ?? "").trim().toLowerCase(), start: match.index });
-    match = regex.exec(content);
-  }
-
-  for (let i = 0; i < positions.length; i += 1) {
-    const current = positions[i];
-    const next = positions[i + 1];
-    if (current !== undefined) {
-      const bodyStart = content.indexOf("\n", current.start) + 1;
-      const bodyEnd = next !== undefined ? next.start : content.length;
-      result[current.heading] = content.slice(bodyStart, bodyEnd).trim();
-    }
-  }
-
-  return result;
 }
 
 function readStringArray(record: Record<string, unknown>, key: string): readonly string[] {
@@ -169,7 +147,7 @@ export async function loadPlaybookRegistry(
   const raw = await readFile(registryPath, "utf8").catch(() => {
     throw new Error(`Playbook registry file missing: ${registryPath}`);
   });
-  const parsed = JSON.parse(raw) as unknown;
+  const parsed = parseRegistryJson(raw, registryPath);
   if (!isRecord(parsed) || !Array.isArray(parsed.playbooks)) {
     throw new Error("Playbook registry must contain a playbooks array");
   }
@@ -182,6 +160,14 @@ export async function loadPlaybookRegistry(
     ids.add(playbook.id);
   }
   return registry;
+}
+
+function parseRegistryJson(raw: string, registryPath: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    throw new Error(`Playbook registry file has invalid JSON: ${registryPath}`);
+  }
 }
 
 export function eligiblePlaybookCandidates(

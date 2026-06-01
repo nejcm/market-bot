@@ -651,8 +651,8 @@ describe("runResearchJob", () => {
     });
 
     expect(result.report.summary).toBe("AAPL evidence is sourced.");
-    expect(result.trace.domainPlaybooks?.selected).toEqual([]);
-    expect(result.trace.domainPlaybooks?.rejected).toEqual([
+    expect(result.trace.domainPlaybooks.selected).toEqual([]);
+    expect(result.trace.domainPlaybooks.rejected).toEqual([
       { stage: "evidence-request", reason: "invalid stage" },
       {
         stage: "critique",

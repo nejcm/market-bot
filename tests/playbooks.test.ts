@@ -109,6 +109,17 @@ describe("loadPlaybookRegistry", () => {
     await expect(loadPlaybookRegistry(invalid.dir)).rejects.toThrow("invalid stage");
   });
 
+  test("rejects malformed registry JSON with context", async () => {
+    const { dir, cleanup } = await makePromptDir({
+      "playbooks/registry.json": "{not-json",
+    });
+    cleanups.push(cleanup);
+
+    await expect(loadPlaybookRegistry(dir)).rejects.toThrow(
+      "Playbook registry file has invalid JSON",
+    );
+  });
+
   test("loads every real playbook file", async () => {
     const realRegistry = await loadPlaybookRegistry();
     const selected = realRegistry.map((playbook) => ({
@@ -137,6 +148,16 @@ describe("eligiblePlaybookCandidates", () => {
       "critique-discipline",
       "synthesis-discipline",
     ]);
+  });
+
+  test("returns no candidates when no playbooks are eligible", () => {
+    const result = eligiblePlaybookCandidates(
+      { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      ["instrument-evidence-analysis"],
+      [registry[0]!],
+    );
+
+    expect(result).toEqual([]);
   });
 });
 
@@ -311,6 +332,20 @@ describe("parsePlaybookSelection", () => {
       playbookId: "p7",
       reason: "per-run playbook cap exceeded",
     });
+  });
+
+  test("rejects selections when candidate list is empty", () => {
+    const result = parsePlaybookSelection(
+      JSON.stringify({
+        selections: [{ stage: "critique", playbookIds: ["market-regime"] }],
+      }),
+      [],
+    );
+
+    expect(result.selected).toEqual([]);
+    expect(result.rejected).toEqual([
+      { stage: "critique", playbookId: "market-regime", reason: "playbook is not eligible" },
+    ]);
   });
 
   test("aggregates repeated stage selections before enforcing stage cap", () => {

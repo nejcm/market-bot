@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
+import { parseSections } from "./markdown-sections";
 
 export type StageLabel =
   | "evidence-request"
@@ -17,35 +18,6 @@ export interface LoadedPrompt {
   readonly system: string;
   readonly instruction: string;
   readonly goal: string;
-}
-
-// ---------------------------------------------------------------------------
-// Section parser — splits markdown by "## <heading>" markers
-// ---------------------------------------------------------------------------
-
-function parseSections(content: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  const regex = /^## (.+)$/gmu;
-  const positions: { heading: string; start: number }[] = [];
-
-  let match: RegExpExecArray | null = regex.exec(content);
-  while (match !== null) {
-    positions.push({ heading: (match[1] ?? "").trim().toLowerCase(), start: match.index });
-    match = regex.exec(content);
-  }
-
-  for (let i = 0; i < positions.length; i++) {
-    const current = positions[i];
-    const next = positions[i + 1];
-    if (current === undefined) {
-      continue;
-    }
-    const bodyStart = content.indexOf("\n", current.start) + 1;
-    const bodyEnd = next !== undefined ? next.start : content.length;
-    result[current.heading] = content.slice(bodyStart, bodyEnd).trim();
-  }
-
-  return result;
 }
 
 // ---------------------------------------------------------------------------

@@ -121,10 +121,11 @@ Ticker runs also collect Extended Evidence:
 
 | Asset class | Extended Evidence |
 | --- | --- |
-| `equity` | SEC/EDGAR filings and company facts, Finnhub earnings/dividends/splits, FRED macro observations, and Tradier options IV. |
+| `equity` | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, and Tradier options IV. |
 | `crypto` | FRED macro observations and Glassnode on-chain metrics. |
 
 Extended Evidence is not collected for daily or weekly market updates. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
+SEC/EDGAR Fundamental Evidence uses curated operating basics and comparable prior-year deltas when SEC company facts expose matching periods; missing facts or non-comparable deltas are disclosed as `SourceGap`s.
 
 Fetch behavior:
 

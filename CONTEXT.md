@@ -63,3 +63,7 @@ A disclosed absence, weakness, failure, or staleness in Source Provider evidence
 ## Extended Evidence
 
 Optional, higher-specificity Source Provider evidence that enriches ticker Research Views without changing the research-only boundary.
+
+## Fundamental Evidence
+
+Sourced issuer operating and financial facts used as Extended Evidence. It supports ticker Research Views but is not investment conviction, expected return, or a trade signal.

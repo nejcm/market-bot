@@ -40,9 +40,7 @@
 
 ### Sources and data depth (v3)
 
-- **SEC/EDGAR enrichment** beyond compact ticker filing/fact summaries, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
-
-New Source Provider work should follow the [Source Provider Contract](./source-provider-contract.md).
+- **SEC/EDGAR segment and guidance enrichment** beyond current Fundamental Evidence, such as segment data, guidance-change extraction, and richer fundamentals-driven thesis support.
 
 ### Research quality of regime / movers (v4)
 
@@ -74,8 +72,7 @@ New Source Provider work should follow the [Source Provider Contract](./source-p
 ### Cross-run intelligence (v2)
 
 - **Watchlist + thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
-- **Persistent dedup of news sources** - implemented for exact canonical-URL repeats within
-  a research lane; future work can broaden this to semantic near-duplicate detection if real
+- **Semantic dedup of news sources** - broaden exact canonical-URL repeat suppression if real
   runs show headline clustering still dominates reports.
 - **Incremental memory** — open questions and unresolved hypotheses carried forward.
 - **Session/run search** over prior reports, sources, predictions, and theses.

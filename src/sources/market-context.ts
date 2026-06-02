@@ -13,17 +13,18 @@ import {
 } from "./fred";
 import {
   isFetchJsonResult,
+  latestRawSnapshotFetchedAt,
   type CollectContext,
   type MarketContextAdapter,
   type MarketContextCollectionResult,
   type RawSourceSnapshot,
 } from "./types";
 
-function marketContextSource(ctx: CollectContext): Source {
+function marketContextSource(ctx: CollectContext, fetchedAt: string): Source {
   return {
     id: "market-context-fred-macro",
     title: "FRED macro Market Context",
-    fetchedAt: ctx.fetchedAt,
+    fetchedAt,
     kind: "market-context",
     assetClass: ctx.command.assetClass,
     provider: "fred",
@@ -82,7 +83,11 @@ async function collectFredMarketContext(
       payload: result.payload,
     })),
   );
-  const source = marketContextSource(ctx);
+  const outputFetchedAt = latestRawSnapshotFetchedAt(
+    fetched.map((result) => result.rawSnapshot),
+    ctx.fetchedAt,
+  );
+  const source = marketContextSource(ctx, outputFetchedAt);
   const items =
     Object.keys(metrics).length === 0
       ? []
@@ -94,7 +99,7 @@ async function collectFredMarketContext(
               .filter((key) => isFredBaseMetricKey(key))
               .join(", ")}.`,
             sourceIds: [source.id],
-            observedAt: ctx.fetchedAt,
+            observedAt: outputFetchedAt,
             metrics,
           },
         ];

@@ -14,6 +14,7 @@ import { tradierRequestInit } from "./tradier";
 import {
   isFetchJsonResult,
   isFetchTextResult,
+  latestRawSnapshotFetchedAt,
   type CollectContext,
   type FetchJsonResult,
   type FetchTextResult,
@@ -180,7 +181,7 @@ function secIdentity(match: { cik: string; ticker: string; name?: string }): Ins
 }
 
 async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
-  const { command, fetchedAt } = ctx;
+  const { command } = ctx;
   if (command.jobType !== "ticker") {
     return emptyOutput([
       sourceGap({
@@ -259,7 +260,6 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
 
   return secFilingOutput(
     command,
-    fetchedAt,
     match,
     filing,
     url,
@@ -270,7 +270,6 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
 
 function secFilingOutput(
   command: TickerResearchCommand,
-  fetchedAt: string,
   match: { cik: string; ticker: string; name?: string },
   filing: SecFiling,
   url: string,
@@ -285,7 +284,7 @@ function secFilingOutput(
     id: `extended-sec-edgar-${command.symbol.toLowerCase()}-latest-filing`,
     title,
     url,
-    fetchedAt,
+    fetchedAt: filingText.rawSnapshot.fetchedAt,
     kind: "extended-evidence",
     assetClass: command.assetClass,
     symbol: command.symbol,
@@ -300,7 +299,7 @@ function secFilingOutput(
     title,
     summary: `${source.summary} Filing excerpt: ${excerpt}`,
     sourceIds: [source.id],
-    observedAt: fetchedAt,
+    observedAt: source.fetchedAt,
     metrics: {
       form: filing.form,
       filingDate: filing.filingDate,
@@ -388,7 +387,7 @@ function tradierChainUrl(symbol: string, expiration: string): string {
 async function collectTradierIvTermStructure(
   ctx: CollectContext,
 ): Promise<EvidenceRequestToolOutput> {
-  const { command, fetchedAt } = ctx;
+  const { command } = ctx;
   if (command.jobType !== "ticker") {
     return emptyOutput([
       sourceGap({
@@ -428,7 +427,7 @@ async function collectTradierIvTermStructure(
     return emptyOutput([expirations]);
   }
 
-  const buckets = nearestExpirationBuckets(expirations.payload, fetchedAt);
+  const buckets = nearestExpirationBuckets(expirations.payload, expirations.rawSnapshot.fetchedAt);
   if (buckets.length === 0) {
     return emptyOutput(
       [
@@ -459,12 +458,11 @@ async function collectTradierIvTermStructure(
       };
     }),
   );
-  return tradierTermStructureOutput(command, fetchedAt, expirationsUrl, expirations, chainResults);
+  return tradierTermStructureOutput(command, expirationsUrl, expirations, chainResults);
 }
 
 function tradierTermStructureOutput(
   command: TickerResearchCommand,
-  fetchedAt: string,
   expirationsUrl: string,
   expirations: FetchJsonResult,
   chainResults: readonly {
@@ -507,6 +505,12 @@ function tradierTermStructureOutput(
   if (bucketIvs.length === 0) {
     return { rawSnapshots, sources: [], items: [], gaps };
   }
+  const outputFetchedAt = latestRawSnapshotFetchedAt(
+    chainResults.flatMap((entry) =>
+      isFetchJsonResult(entry.result) ? [entry.result.rawSnapshot] : [],
+    ),
+    expirations.rawSnapshot.fetchedAt,
+  );
 
   const metrics: Record<string, number | string> = {};
   for (const bucket of bucketIvs) {
@@ -547,7 +551,7 @@ function tradierTermStructureOutput(
     id: `extended-tradier-iv-term-${command.symbol.toLowerCase()}`,
     title: `${command.symbol} IV term structure`,
     url: expirationsUrl,
-    fetchedAt,
+    fetchedAt: outputFetchedAt,
     kind: "extended-evidence",
     assetClass: command.assetClass,
     symbol: command.symbol,
@@ -560,7 +564,7 @@ function tradierTermStructureOutput(
     title: `${command.symbol} IV term structure`,
     summary,
     sourceIds: [source.id],
-    observedAt: fetchedAt,
+    observedAt: outputFetchedAt,
     metrics,
   };
 

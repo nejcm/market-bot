@@ -399,7 +399,7 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
 }
 
 export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
-  const { command, fetchedAt } = ctx;
+  const { command } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
@@ -472,7 +472,7 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           `${command.symbol} SEC filings`,
           "sec-edgar",
           command,
-          fetchedAt,
+          submissions.rawSnapshot.fetchedAt,
           submissionsUrl,
           identity,
         )
@@ -488,7 +488,7 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           `${command.symbol} SEC fundamentals`,
           "sec-edgar",
           command,
-          fetchedAt,
+          facts.rawSnapshot.fetchedAt,
           factsUrl,
           identity,
         )
@@ -510,7 +510,7 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           title: `${command.symbol} SEC Fundamental Evidence`,
           summary: summaries.join(" "),
           sourceIds: sources.map((source) => source.id),
-          observedAt: fetchedAt,
+          observedAt: primarySource.fetchedAt,
           ...(fundamentals !== undefined ? { metrics: fundamentals.metrics } : {}),
           identity,
         },

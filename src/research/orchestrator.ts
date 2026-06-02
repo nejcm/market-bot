@@ -41,8 +41,6 @@ import {
   readPredictions,
 } from "./report-assembly";
 
-export type { CollectedSources };
-
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
   readonly config: AppConfig;

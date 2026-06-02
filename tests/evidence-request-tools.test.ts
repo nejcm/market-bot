@@ -15,16 +15,20 @@ import type {
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";
 
-function rawSnapshot(adapter: string, payload: unknown): RawSourceSnapshot {
-  return { id: `raw-${adapter}`, adapter, fetchedAt, payload };
+function rawSnapshot(
+  adapter: string,
+  payload: unknown,
+  rawFetchedAt = fetchedAt,
+): RawSourceSnapshot {
+  return { id: `raw-${adapter}`, adapter, fetchedAt: rawFetchedAt, payload };
 }
 
-function jsonResult(adapter: string, payload: unknown): FetchJsonResult {
-  return { rawSnapshot: rawSnapshot(adapter, payload), payload };
+function jsonResult(adapter: string, payload: unknown, rawFetchedAt = fetchedAt): FetchJsonResult {
+  return { rawSnapshot: rawSnapshot(adapter, payload, rawFetchedAt), payload };
 }
 
-function textResult(adapter: string, payload: string): FetchTextResult {
-  return { rawSnapshot: rawSnapshot(adapter, payload), payload };
+function textResult(adapter: string, payload: string, rawFetchedAt = fetchedAt): FetchTextResult {
+  return { rawSnapshot: rawSnapshot(adapter, payload, rawFetchedAt), payload };
 }
 
 function gap(source: string, message = "fetch failed"): SourceGap {
@@ -83,6 +87,7 @@ function secSubmissionsPayload(
 
 describe("SEC latest filing evidence tool", () => {
   test("fetches latest 10-Q or 10-K filing text and normalizes excerpt", async () => {
+    const filingTextFetchedAt = "2026-04-30T00:00:00.000Z";
     const requested: {
       readonly adapter: string;
       readonly url: string;
@@ -102,6 +107,7 @@ describe("SEC latest filing evidence tool", () => {
           return textResult(
             adapter,
             "<html><style>.x{}</style><body><h1>Management&nbsp;Discussion</h1><script>bad()</script><p>Revenue &amp; margin improved.</p></body></html>",
+            filingTextFetchedAt,
           );
         },
       }),
@@ -112,6 +118,8 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps).toEqual([]);
     expect(result.rawSnapshots).toHaveLength(3);
     expect(result.sources[0]?.url).toContain("/000032019326000077/a10q.htm");
+    expect(result.sources[0]?.fetchedAt).toBe(filingTextFetchedAt);
+    expect(result.items[0]?.observedAt).toBe(filingTextFetchedAt);
     expect(result.sources[0]?.summary).toContain("10-Q filed 2026-05-01");
     expect(result.items[0]?.summary).toContain("Management Discussion");
     expect(result.items[0]?.summary).toContain("Revenue & margin improved.");
@@ -215,15 +223,23 @@ describe("SEC latest filing evidence tool", () => {
 describe("Tradier IV term structure evidence tool", () => {
   test("fetches nearest expirations and computes median IV slopes", async () => {
     const headers: string[] = [];
+    const expirationsFetchedAt = "2026-05-02T00:00:00.000Z";
+    const chainFetchedAt = "2026-04-30T00:00:00.000Z";
     const ctx = baseCtx({
       tradierApiToken: "tradier-token",
       request: requestExecutor({
         json: async ({ url, adapter, init }) => {
           headers.push(new Headers(init?.headers).get("authorization") ?? "");
           if (adapter === "tradier-expirations") {
-            return jsonResult(adapter, {
-              expirations: { date: ["2026-05-08", "2026-05-31", "2026-06-30", "2026-07-30"] },
-            });
+            return jsonResult(
+              adapter,
+              {
+                expirations: {
+                  date: ["2026-05-08", "2026-05-31", "2026-06-30", "2026-07-30"],
+                },
+              },
+              expirationsFetchedAt,
+            );
           }
           const expiration = new URL(url).searchParams.get("expiration");
           const medians: Record<string, readonly number[]> = {
@@ -232,13 +248,17 @@ describe("Tradier IV term structure evidence tool", () => {
             "2026-06-30": [0.45],
             "2026-07-30": [0.55],
           };
-          return jsonResult(adapter, {
-            options: {
-              option: (medians[expiration ?? ""] ?? []).map((iv) => ({
-                greeks: { mid_iv: iv },
-              })),
+          return jsonResult(
+            adapter,
+            {
+              options: {
+                option: (medians[expiration ?? ""] ?? []).map((iv) => ({
+                  greeks: { mid_iv: iv },
+                })),
+              },
             },
-          });
+            chainFetchedAt,
+          );
         },
       }),
     });
@@ -248,9 +268,12 @@ describe("Tradier IV term structure evidence tool", () => {
     expect(result.gaps).toEqual([]);
     expect(result.rawSnapshots).toHaveLength(5);
     expect(result.sources[0]?.provider).toBe("tradier");
+    expect(result.sources[0]?.fetchedAt).toBe(chainFetchedAt);
+    expect(result.items[0]?.observedAt).toBe(chainFetchedAt);
     expect(result.items[0]?.summary).toContain("7D 0.300");
     const metrics = result.items[0]?.metrics;
     expect(metrics?.medianIv7Dte).toBeCloseTo(0.3);
+    expect(metrics?.actualDte7Dte).toBe(6);
     expect(metrics?.medianIv30Dte).toBe(0.35);
     expect(metrics?.iv30Minus7).toBeCloseTo(0.05);
     expect(metrics?.iv90Minus30).toBeCloseTo(0.2);

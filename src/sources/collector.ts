@@ -1,7 +1,7 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { SourceGap } from "../domain/types";
-import { fetchFailureSourceGap, sourceGap } from "../domain/source-gaps";
+import { fetchFailureSourceGap } from "../domain/source-gaps";
 import { withCache, type CacheOptions } from "./cache";
 import type {
   CollectContext,
@@ -352,22 +352,10 @@ async function fetchTextOrGap(
 }
 
 function cachedTextFetch(inner: FetchTextRequestFn, options: CacheOptions): FetchTextRequestFn {
-  const cached = withCache(inner, options);
-  return async (request) => {
-    const result = await cached(request);
-    if ("rawSnapshot" in result && typeof result.payload === "string") {
-      return result as FetchTextResult;
-    }
-    if ("rawSnapshot" in result) {
-      return sourceGap({
-        source: request.adapter,
-        message: "cached text payload was not a string",
-        cause: "provider-data-missing",
-        evidenceQualityImpact: "core-cap",
-      });
-    }
-    return result;
-  };
+  return withCache(inner, options, {
+    isPayload: (payload): payload is string => typeof payload === "string",
+    invalidMessage: "cached text payload was not a string",
+  });
 }
 
 interface SourceRequestExecutorOptions {

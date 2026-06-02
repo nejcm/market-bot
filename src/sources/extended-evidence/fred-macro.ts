@@ -6,7 +6,7 @@ import {
   fredObservationsUrl,
   isFredBaseMetricKey,
 } from "../fred";
-import { isFetchJsonResult, type CollectContext } from "../types";
+import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 
 export async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
@@ -58,7 +58,16 @@ export async function collectFred(ctx: CollectContext): Promise<ProviderResult> 
             `Latest FRED macro observations captured for ${Object.keys(metrics)
               .filter((key) => isFredBaseMetricKey(key))
               .join(", ")}.`,
-            evidenceSource("extended-fred-macro", "FRED macro pack", "fred", command, fetchedAt),
+            evidenceSource(
+              "extended-fred-macro",
+              "FRED macro pack",
+              "fred",
+              command,
+              latestRawSnapshotFetchedAt(
+                fetched.map((result) => result.rawSnapshot),
+                fetchedAt,
+              ),
+            ),
             metrics,
           ),
         ];

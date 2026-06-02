@@ -176,6 +176,18 @@ export function isFetchTextResult(value: FetchTextResult | SourceGap): value is 
   return "rawSnapshot" in value;
 }
 
+export function latestRawSnapshotFetchedAt(
+  snapshots: readonly RawSourceSnapshot[],
+  fallback: string,
+): string {
+  return (
+    snapshots
+      .map((snapshot) => snapshot.fetchedAt)
+      .toSorted()
+      .at(-1) ?? fallback
+  );
+}
+
 export interface SourceRegistry {
   readonly marketDataFor: (assetClass: AssetClass) => MarketDataAdapter;
   readonly supplementalMarketDataFor: (

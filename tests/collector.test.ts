@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { rankMovers } from "../src/movers/ranking";
-import { collectSources, resetSourceResilienceForTests } from "../src/sources/collector";
+import {
+  collectSources,
+  createCollectContext,
+  resetSourceResilienceForTests,
+} from "../src/sources/collector";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 
 function jsonResponse(payload: unknown): Response {
@@ -29,7 +33,43 @@ function tempSeenPath(): string {
   return join(dir, "news-seen.json");
 }
 
+function tempCacheDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "collector-cache-test-"));
+  tmpDirs.push(dir);
+  return dir;
+}
+
 describe("collectSources", () => {
+  test("returns a gap when a cached text fetch hydrates a non-string payload", async () => {
+    const cacheDir = tempCacheDir();
+    const { context } = createCollectContext(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      {
+        equityMoverLimit: 5,
+        cryptoMoverLimit: 5,
+        newsLimit: 5,
+        sourceTimeoutMs: 100,
+        cacheDir,
+      },
+      new Date("2026-05-20T00:00:00.000Z"),
+      async () => jsonResponse({ value: 42 }),
+      [],
+    );
+
+    const request = { url: "https://example.test/filing", adapter: "sec-filing-text" };
+    await context.request.json(request);
+
+    const textResult = await context.request.text(request);
+
+    expect(textResult).toEqual(
+      expect.objectContaining({
+        source: "sec-filing-text",
+        message: "cached text payload was not a string",
+        cause: "provider-data-missing",
+      }),
+    );
+  });
+
   test("collects daily equity market data and news with injectable fetch", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);

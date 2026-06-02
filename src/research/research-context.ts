@@ -11,8 +11,6 @@ import { isRecord } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 
-export type { CollectedSources };
-
 // ---------------------------------------------------------------------------
 // DepthProfile, CalibrationContext, ResearchContext
 // ---------------------------------------------------------------------------

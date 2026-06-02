@@ -12,7 +12,7 @@ import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { massiveNewsAdapter, normalizeMassiveSnapshotPayload } from "../src/sources/massive";
 import { createSourceRegistry } from "../src/sources/registry";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
-import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
+import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 
@@ -21,9 +21,9 @@ async function unexpectedTextFetch(): Promise<never> {
   throw new Error("unexpected text fetch");
 }
 
-function rawJson(adapter: string, payload: unknown): FetchJsonResult {
+function rawJson(adapter: string, payload: unknown, rawFetchedAt = fetchedAt): FetchJsonResult {
   return {
-    rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
+    rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt: rawFetchedAt, payload },
     payload,
   };
 }
@@ -457,6 +457,7 @@ describe("market context provider collection", () => {
   });
 
   test("collects FRED Market Context for market updates", async () => {
+    const cachedFetchedAt = "2026-05-18T00:00:00.000Z";
     const result = await marketContextAdapter.collect(
       collectContext({
         command: { jobType: "daily", assetClass: "equity", depth: "brief" },
@@ -469,7 +470,7 @@ describe("market context provider collection", () => {
                 { date: "2026-05-16", value: "4.10" },
               ],
             };
-            return rawJson(adapter, payload);
+            return rawJson(adapter, payload, cachedFetchedAt);
           },
         }),
       }),
@@ -477,6 +478,7 @@ describe("market context provider collection", () => {
 
     expect(result.marketContext?.assetClass).toBe("equity");
     expect(result.marketContext?.items).toHaveLength(1);
+    expect(result.marketContext?.items[0]?.observedAt).toBe(cachedFetchedAt);
     expect(result.marketContext?.items[0]?.metrics?.DGS10).toBe(4.25);
     expect(result.marketContext?.items[0]?.metrics?.DGS10Change).toBeCloseTo(0.15);
     expect(result.sources).toEqual([
@@ -485,6 +487,7 @@ describe("market context provider collection", () => {
         kind: "market-context",
         assetClass: "equity",
         provider: "fred",
+        fetchedAt: cachedFetchedAt,
       }),
     ]);
     expect(result.sourceGaps).toEqual([]);
@@ -547,6 +550,31 @@ describe("news provider collection", () => {
     );
 
     expect(requestKeys).toEqual(["adapter", "url"]);
+  });
+
+  test("passes Yahoo credential retry as a request-specific fetch override", async () => {
+    const requestShapes: string[][] = [];
+
+    await yahooMarketDataAdapter.collect(
+      collectContext({
+        request: requestExecutor({
+          json: async (request) => {
+            requestShapes.push(Object.keys(request).toSorted());
+            expect(typeof request.fetch).toBe("function");
+            const payload =
+              request.adapter === "yahoo-movers"
+                ? { finance: { result: [{ quotes: [] }] } }
+                : { quoteResponse: { result: [] } };
+            return rawJson(request.adapter, payload);
+          },
+        }),
+      }),
+    );
+
+    expect(requestShapes).toEqual([
+      ["adapter", "fetch", "url"],
+      ["adapter", "fetch", "url"],
+    ]);
   });
 
   test("caps Finnhub normalized sources after provider fetch", async () => {
@@ -650,6 +678,10 @@ describe("SEC fundamental evidence", () => {
 describe("extended evidence provider collection", () => {
   test("collects compact equity extended evidence", async () => {
     const requests: { adapter: string; url: string; headers: Headers }[] = [];
+    const fredCachedAt = "2026-05-18T00:00:00.000Z";
+    const secFactsCachedAt = "2026-05-17T00:00:00.000Z";
+    const finnhubCachedAt = "2026-05-16T00:00:00.000Z";
+    const tradierChainCachedAt = "2026-05-15T00:00:00.000Z";
     const result = await equityExtendedEvidenceAdapter.collect(
       collectContext({
         command: { jobType: "ticker", assetClass: "equity", symbol: "aapl", depth: "brief" },
@@ -681,7 +713,17 @@ describe("extended evidence provider collection", () => {
             } else if (adapter.startsWith("finnhub-events")) {
               payload = [{ symbol: "AAPL" }];
             }
-            return rawJson(adapter, payload);
+            let rawFetchedAt = fetchedAt;
+            if (adapter === "sec-companyfacts") {
+              rawFetchedAt = secFactsCachedAt;
+            } else if (adapter.startsWith("fred-")) {
+              rawFetchedAt = fredCachedAt;
+            } else if (adapter === "tradier-options") {
+              rawFetchedAt = tradierChainCachedAt;
+            } else if (adapter.startsWith("finnhub-events")) {
+              rawFetchedAt = finnhubCachedAt;
+            }
+            return rawJson(adapter, payload, rawFetchedAt);
           },
         }),
       }),
@@ -694,6 +736,7 @@ describe("extended evidence provider collection", () => {
     ]);
     expect(secItem?.summary).toContain("Recent SEC filings: 10-Q 2026-05-01.");
     expect(secItem?.summary).toContain("SEC Fundamental Evidence");
+    expect(secItem?.observedAt).toBe(secFactsCachedAt);
     expect(secItem?.metrics?.revenue).toBe(100);
     expect(secItem?.metrics?.revenuePrior).toBe(90);
     expect(secItem?.metrics?.revenueDeltaPercent).toBeCloseTo(11.11);
@@ -704,7 +747,16 @@ describe("extended evidence provider collection", () => {
       result.extendedEvidence?.items.find((item) => item.category === "fred-macro")?.metrics
         ?.DGS10Change,
     ).toBeCloseTo(0.15);
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "fred-macro")?.observedAt,
+    ).toBe(fredCachedAt);
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "equity-events")?.observedAt,
+    ).toBe(finnhubCachedAt);
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("options-iv");
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "options-iv")?.observedAt,
+    ).toBe(tradierChainCachedAt);
     expect(result.sources.every((source) => source.kind === "extended-evidence")).toBe(true);
     expect(result.sources.find((source) => source.provider === "sec-edgar")?.identity).toEqual({
       displayName: "Apple Inc.",

@@ -3,9 +3,16 @@ import { rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
-import type { FetchJsonResult, RawSourceSnapshot, SourceRequest } from "./types";
+import type { FetchSourceResult, RawSourceSnapshot, SourceRequest } from "./types";
 
-type CacheableFetchFn = (request: SourceRequest) => Promise<FetchJsonResult | SourceGap>;
+type CacheableFetchFn<TPayload = unknown> = (
+  request: SourceRequest,
+) => Promise<FetchSourceResult<TPayload> | SourceGap>;
+
+interface CachedPayloadValidator<TPayload> {
+  readonly isPayload: (payload: unknown) => payload is TPayload;
+  readonly invalidMessage: string;
+}
 
 export interface CacheOptions {
   readonly dir: string;
@@ -147,7 +154,11 @@ async function findStaleFallback(
   return entries.find((e): e is CacheEntry => e !== undefined);
 }
 
-function toFetchJsonResult(entry: CacheEntry, adapter: string): FetchJsonResult {
+function toFetchResult<TPayload>(
+  entry: CacheEntry,
+  adapter: string,
+  payload: TPayload,
+): FetchSourceResult<TPayload> {
   const rawSnapshot: RawSourceSnapshot = {
     id: `raw-${adapter}-${entry.fetchedAt}`,
     adapter,
@@ -155,10 +166,31 @@ function toFetchJsonResult(entry: CacheEntry, adapter: string): FetchJsonResult 
     payload: entry.payload,
   };
 
-  return { rawSnapshot, payload: entry.payload };
+  return { rawSnapshot, payload };
 }
 
-export function withCache(inner: CacheableFetchFn, options: CacheOptions): CacheableFetchFn {
+function toCachedResult<TPayload>(
+  entry: CacheEntry,
+  adapter: string,
+  validator: CachedPayloadValidator<TPayload> | undefined,
+): FetchSourceResult<TPayload> | SourceGap {
+  if (validator !== undefined && !validator.isPayload(entry.payload)) {
+    return sourceGap({
+      source: adapter,
+      message: validator.invalidMessage,
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "core-cap",
+    });
+  }
+
+  return toFetchResult(entry, adapter, entry.payload as TPayload);
+}
+
+export function withCache<TPayload = unknown>(
+  inner: CacheableFetchFn<TPayload>,
+  options: CacheOptions,
+  validator?: CachedPayloadValidator<TPayload>,
+): CacheableFetchFn<TPayload> {
   return async (request) => {
     const { url, adapter } = request;
     if (options.disabled) {
@@ -171,7 +203,7 @@ export function withCache(inner: CacheableFetchFn, options: CacheOptions): Cache
 
     const cached = await readEntry(todayPath);
     if (cached !== undefined) {
-      return toFetchJsonResult(cached, adapter);
+      return toCachedResult(cached, adapter, validator);
     }
 
     const result = await inner(request);
@@ -201,7 +233,7 @@ export function withCache(inner: CacheableFetchFn, options: CacheOptions): Cache
         }),
       );
 
-      return toFetchJsonResult(stale, adapter);
+      return toCachedResult(stale, adapter, validator);
     }
 
     return result;

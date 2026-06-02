@@ -5,7 +5,7 @@ import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { daysFrom, encodeQuery } from "./utils";
 
 export async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
-  const { command, fetchedAt } = ctx;
+  const { command } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
@@ -38,7 +38,10 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
   if (!isFetchJsonResult(expirations)) {
     return { rawSnapshots: [], items: [], gaps: [expirations] };
   }
-  const expiration = selectTradierExpiration(expirations.payload, daysFrom(fetchedAt, 30));
+  const expiration = selectTradierExpiration(
+    expirations.payload,
+    daysFrom(expirations.rawSnapshot.fetchedAt, 30),
+  );
   if (expiration === undefined) {
     return {
       rawSnapshots: [expirations.rawSnapshot],
@@ -83,7 +86,7 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
               `${command.symbol} options IV`,
               "tradier",
               command,
-              fetchedAt,
+              result.rawSnapshot.fetchedAt,
               url,
             ),
             summary.metrics,

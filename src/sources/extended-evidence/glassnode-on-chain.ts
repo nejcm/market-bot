@@ -1,6 +1,6 @@
 import type { SourceGap } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
-import { isFetchJsonResult, type CollectContext } from "../types";
+import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { encodeQuery, latestNumber } from "./utils";
 
@@ -73,7 +73,10 @@ export async function collectGlassnode(ctx: CollectContext): Promise<ProviderRes
               `${command.symbol} on-chain metrics`,
               "glassnode",
               command,
-              fetchedAt,
+              latestRawSnapshotFetchedAt(
+                fetched.map((result) => result.rawSnapshot),
+                fetchedAt,
+              ),
             ),
             metrics,
           ),

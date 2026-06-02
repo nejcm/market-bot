@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli, scorePassOptions } from "../src/app";
 
 const dataDirs: string[] = [];
 const originalDataDir = process.env.MARKET_BOT_DATA_DIR;
+const originalCacheDir = process.env.MARKET_BOT_CACHE_DIR;
 const originalRedditSubreddits = process.env.MARKET_BOT_REDDIT_SUBREDDITS;
+const originalRedditRawRetentionHours = process.env.MARKET_BOT_REDDIT_RAW_RETENTION_HOURS;
 
 afterEach(async () => {
   if (originalDataDir === undefined) {
@@ -15,10 +17,20 @@ afterEach(async () => {
   } else {
     process.env.MARKET_BOT_DATA_DIR = originalDataDir;
   }
+  if (originalCacheDir === undefined) {
+    delete process.env.MARKET_BOT_CACHE_DIR;
+  } else {
+    process.env.MARKET_BOT_CACHE_DIR = originalCacheDir;
+  }
   if (originalRedditSubreddits === undefined) {
     delete process.env.MARKET_BOT_REDDIT_SUBREDDITS;
   } else {
     process.env.MARKET_BOT_REDDIT_SUBREDDITS = originalRedditSubreddits;
+  }
+  if (originalRedditRawRetentionHours === undefined) {
+    delete process.env.MARKET_BOT_REDDIT_RAW_RETENTION_HOURS;
+  } else {
+    process.env.MARKET_BOT_REDDIT_RAW_RETENTION_HOURS = originalRedditRawRetentionHours;
   }
 
   await Promise.all(
@@ -122,6 +134,38 @@ describe("runCli", () => {
 
     await expect(runCli(["alpha-search", "--asset", "equity"])).rejects.toThrow(
       "Invalid subreddit name: bad-name",
+    );
+  });
+
+  test("cache prune redacts expired Reddit raw snapshots", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-prune-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    process.env.MARKET_BOT_CACHE_DIR = join(dataDir, "cache");
+    process.env.MARKET_BOT_REDDIT_RAW_RETENTION_HOURS = "1";
+
+    const rawDir = join(dataDir, "old-run", "raw");
+    await mkdir(rawDir, { recursive: true });
+    await writeFile(
+      join(rawDir, "snapshots.json"),
+      JSON.stringify([
+        {
+          id: "raw-reddit-old",
+          adapter: "reddit",
+          fetchedAt: "2026-01-01T00:00:00.000Z",
+          payload: { body: "raw discussion text" },
+        },
+      ]),
+    );
+
+    await expect(runCli(["cache", "prune"])).resolves.toContain(
+      "1 Reddit raw snapshot(s) redacted",
+    );
+    await expect(readFile(join(rawDir, "snapshots.json"), "utf8")).resolves.toContain(
+      "Reddit raw text retention window expired",
     );
   });
 });

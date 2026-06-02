@@ -58,6 +58,7 @@ export interface AppConfig {
 
 export interface ResolveConfigOptions {
   readonly validateAlphaSearchOptions?: boolean;
+  readonly readAlphaSearchRetentionOptions?: boolean;
 }
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
@@ -186,12 +187,21 @@ function readSubredditWhitelist(value: string | undefined): readonly string[] {
   });
 }
 
-function defaultAlphaSearchOptions(dataDir: string): AlphaSearchOptions {
+function defaultAlphaSearchOptions(
+  dataDir: string,
+  env: Record<string, string | undefined>,
+  readRetentionOptions: boolean,
+): AlphaSearchOptions {
   return {
     redditUserAgent: DEFAULT_REDDIT_USER_AGENT,
     redditSubreddits: [],
     redditLookbackDays: DEFAULT_REDDIT_LOOKBACK_DAYS,
-    redditRawRetentionHours: DEFAULT_REDDIT_RAW_RETENTION_HOURS,
+    redditRawRetentionHours: readRetentionOptions
+      ? readPositiveInteger(
+          env.MARKET_BOT_REDDIT_RAW_RETENTION_HOURS,
+          DEFAULT_REDDIT_RAW_RETENTION_HOURS,
+        )
+      : DEFAULT_REDDIT_RAW_RETENTION_HOURS,
     topCandidateLimit: DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
     redditSeenPath: deriveRedditSeenPath(dataDir),
   };
@@ -341,7 +351,7 @@ export function resolveConfig(
     },
     alphaSearchOptions:
       options.validateAlphaSearchOptions === false
-        ? defaultAlphaSearchOptions(dataDir)
+        ? defaultAlphaSearchOptions(dataDir, env, options.readAlphaSearchRetentionOptions === true)
         : resolveAlphaSearchOptions(env, dataDir),
   };
 }

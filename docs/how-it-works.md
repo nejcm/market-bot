@@ -16,12 +16,25 @@ CLI args
   -> score pass + calibration refresh
 ```
 
+`alpha-search --asset equity [--deep]` uses a separate deterministic discovery path:
+
+```text
+CLI args
+  -> config from environment
+  -> Reddit posts/comments
+  -> Reddit Discovery Score ranking
+  -> Yahoo candidate validation
+  -> alpha-search report validation
+  -> artifact writing
+```
+
 1. `src/cli.ts` passes command-line arguments to `runCli`.
 2. `src/app.ts` parses the command, resolves configuration, and dispatches the workflow.
 3. Research commands collect sources, build the configured model provider, run the research job, and persist artifacts.
-4. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
-5. `cache prune` removes old cache entries without generating research.
-6. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
+4. `alpha-search` collects Reddit discussion, ranks equity candidates, Yahoo-validates the top candidates, and writes Research Leads plus rejected candidates without predictions.
+5. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
+6. `cache prune` removes old cache entries and redacts expired Reddit raw snapshots without generating research.
+7. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
 
 ## Commands
 
@@ -34,6 +47,7 @@ bun run src/cli.ts weekly --asset equity
 bun run src/cli.ts weekly --asset crypto
 bun run src/cli.ts ticker AAPL --asset equity
 bun run src/cli.ts ticker BTC --asset crypto
+bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score
 bun run src/cli.ts calibration
 bun run src/cli.ts cache prune
@@ -46,6 +60,7 @@ If installed as a binary, the same verbs are available through `market-bot`:
 market-bot daily --asset equity
 market-bot weekly --asset crypto --deep
 market-bot ticker AAPL --asset equity --deep
+market-bot alpha-search --asset equity --deep
 market-bot score
 market-bot calibration
 market-bot cache prune
@@ -59,10 +74,11 @@ Command behavior:
 | `daily --asset equity\|crypto` | Creates a daily market update for one asset class. |
 | `weekly --asset equity\|crypto` | Creates a weekly market update. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps. |
 | `ticker <symbol> --asset equity\|crypto` | Creates a single-instrument research view. Symbols are normalized to uppercase and must match the instrument validator. |
+| `alpha-search --asset equity` | Runs Reddit-first equity discovery, ranks discussion candidates, validates candidates with Yahoo, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
 | `--deep` | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass. |
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
-| `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
+| `cache prune` | Removes raw cache day directories older than 30 days, scorer close-cache files older than 365 days, and expired Reddit raw snapshots using `MARKET_BOT_REDDIT_RAW_RETENTION_HOURS`. |
 | `provider-health` | Reads persisted run artifacts and writes provider-health contract v2 to `data/provider-health/summary.json` plus `summary.md`, including a `pass`/`warn`/`fail` validation verdict, required coverage checklist, and provider gap classifications by route. |
 
 Provider-health v2 expects coverage for daily and weekly equity/crypto updates, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, and missing due scoring passes. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict.

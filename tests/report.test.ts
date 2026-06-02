@@ -130,4 +130,21 @@ describe("report schema and rendering", () => {
       "# crypto Weekly Market Update",
     );
   });
+
+  test("rejects trade-action language in alpha-search reports", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        jobType: "alpha-search",
+        assetClass: "equity",
+        summary: "Alpha search says buy this instrument.",
+        keyFindings: [{ text: "AAPL was discussed.", sourceIds: ["source-1"] }],
+        predictions: [],
+        extras: {
+          researchLeads: [],
+          rejectedCandidates: [],
+        },
+      }),
+    ).toThrow("trade-action language");
+  });
 });

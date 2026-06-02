@@ -200,10 +200,15 @@ describe("alpha-search workflow", () => {
       }),
     ]);
     expect(result.report.extras?.rejectedCandidates).toEqual([
-      expect.objectContaining({ symbol: "OTCX", reason: "OTC or pink-sheet instrument" }),
+      expect.objectContaining({
+        symbol: "OTCX",
+        reason: "OTC or pink-sheet instrument",
+        sourceIds: ["t3_post1", "t1_comment1"],
+      }),
     ]);
     expect(result.markdown).toContain("## Research Leads");
     expect(result.markdown).toContain("## Rejected Candidates");
+    expect(result.markdown).toContain("[t3_post1] [t1_comment1]");
     expect(result.markdown).not.toContain("## Predictions");
     expect(result.markdown).toContain("Research-only note");
     expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2COTCX"))).toBe(true);

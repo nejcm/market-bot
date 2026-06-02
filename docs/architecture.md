@@ -15,6 +15,7 @@ src/
   model/              OpenAI / OpenAI-compatible / Codex providers
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
+  alpha-search/       Reddit-first equity discovery, ranking, validation, retention
   research/           Orchestrator, prompt loader, Domain Playbooks, regime summary
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
@@ -49,6 +50,12 @@ Source providers are listed in `src/sources/providers.ts`. Each provider module 
 New Source Provider work should follow the [Source Provider Contract](./source-provider-contract.md).
 
 News collection fans out to enabled providers, skips missing MarketAux/Finnhub tokens with `SourceGap`s, silently skips missing Massive keys, always includes Yahoo, canonicalizes URLs, collapses exact canonical-URL duplicates into one `Source`, and preserves provider aliases on the normalized source. A persistent seen-news index (`data/news-seen.json` by default, overridable with `MARKET_BOT_NEWS_SEEN_PATH`) suppresses exact canonical-URL repeats within the same research lane for 30 days. The index is updated only after a report is successfully persisted; if every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
+
+### Alpha Search (`src/alpha-search/`)
+
+`alpha-search --asset equity [--deep]` is a Reddit-first discovery workflow. It fetches whitelisted subreddit posts and comments through the official Reddit API, skips already-seen Reddit IDs, ranks ticker-like mentions with a deterministic Reddit Discovery Score, then validates only the top candidates with Yahoo for symbol validity and basic market data. Yahoo validation does not rank candidates.
+
+Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no scoring or calibration side effects. Valid candidates are emitted as Research Leads. Rejected candidates are listed separately with Reddit rank, rejection reason, and source IDs. Raw Reddit snapshots are persisted short term and redacted by alpha-search runs and `cache prune` after `MARKET_BOT_REDDIT_RAW_RETENTION_HOURS`.
 
 Massive, formerly Polygon.io, is supplemental-only. When configured, it uses `api.massive.com` to collect equity news and stock snapshots for the symbols already selected by Yahoo. Those snapshots are persisted as supplemental market snapshots, included as report Sources, and included in prompt evidence. They do not enter mover ranking, market regime summaries, crypto workflows, or scoring Observations.
 
@@ -100,4 +107,4 @@ CLI args → AppConfig → collect sources → orchestrator
                               score pass + calibration (side effect)
 ```
 
-`score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `cache prune` removes raw cache entries older than 30 days and scorer close-cache entries older than 365 days.
+`score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `cache prune` removes raw cache entries older than 30 days, scorer close-cache entries older than 365 days, and expired Reddit raw snapshots.

@@ -44,7 +44,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_CACHE_DISABLE` | `false` | Set to `1` or `true` to bypass cache reads and writes entirely. |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | `7` | How many days back to look for a stale cached payload when a live fetch fails. A stale hit emits a `SourceGap` disclosing the staleness. |
 
-Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close cache files older than 365 days.
+Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days, scorer close cache files older than 365 days, and expired Reddit raw snapshots using `MARKET_BOT_REDDIT_RAW_RETENTION_HOURS`.
 
 ## Free provider setup
 

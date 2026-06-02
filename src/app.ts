@@ -1,5 +1,6 @@
 import { parseArgs } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
+import { redactExpiredRedditRawSnapshots } from "./alpha-search/raw-retention";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { createAnthropicProvider } from "./model/anthropic";
 import { createCodexProvider } from "./model/codex";
@@ -42,6 +43,7 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   const command = parseArgs(argv);
   const config = resolveConfig(process.env, {
     validateAlphaSearchOptions: command.jobType === "alpha-search",
+    readAlphaSearchRetentionOptions: command.jobType === "cache-prune",
   });
 
   if (command.jobType === "score") {
@@ -62,13 +64,19 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   }
 
   if (command.jobType === "cache-prune") {
+    const now = new Date();
     const result = await pruneCache({
       dir: config.sourceOptions.cacheDir ?? "data/cache",
-      now: new Date(),
+      now,
       rawRetentionDays: 30,
       closeRetentionDays: 365,
     });
-    return `Cache prune complete: ${String(result.rawDaysPruned)} raw day(s), ${String(result.closeFilesPruned)} close file(s) pruned`;
+    const redditRawSnapshotsRedacted = await redactExpiredRedditRawSnapshots({
+      dataDir: config.dataDir,
+      retentionHours: config.alphaSearchOptions.redditRawRetentionHours,
+      now,
+    });
+    return `Cache prune complete: ${String(result.rawDaysPruned)} raw day(s), ${String(result.closeFilesPruned)} close file(s) pruned, ${String(redditRawSnapshotsRedacted)} Reddit raw snapshot(s) redacted`;
   }
 
   if (command.jobType === "provider-health") {

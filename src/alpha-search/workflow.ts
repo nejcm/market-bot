@@ -149,6 +149,7 @@ function rejectedCandidate(rejected: YahooRejectedCandidate): Record<string, unk
     redditRank: rejected.candidate.rank,
     redditDiscoveryScore: rejected.candidate.redditDiscoveryScore,
     reason: rejected.reason,
+    sourceIds: rejected.candidate.sourceIds,
   };
 }
 

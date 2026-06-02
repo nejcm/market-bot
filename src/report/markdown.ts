@@ -21,6 +21,7 @@ interface AlphaSearchRejectedCandidate {
   readonly redditRank: number;
   readonly redditDiscoveryScore: number;
   readonly reason: string;
+  readonly sourceIds: readonly string[];
 }
 
 function sourceRefs(sourceIds: readonly string[]): string {
@@ -117,7 +118,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : rejected
           .map(
             (candidate) =>
-              `- **${candidate.symbol}:** Reddit rank ${String(candidate.redditRank)}, score ${String(candidate.redditDiscoveryScore)}; ${candidate.reason}.`,
+              `- **${candidate.symbol}:** Reddit rank ${String(candidate.redditRank)}, score ${String(candidate.redditDiscoveryScore)}; ${candidate.reason}. ${sourceRefs(candidate.sourceIds)}`,
           )
           .join("\n");
 

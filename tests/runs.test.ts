@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
-import { resolveRunParams, runConfig } from "../src/config/runs";
+import { resolveRunParams, runConfig, type RunConfig } from "../src/config/runs";
 
 const baseConfig: AppConfig = {
   provider: "openai",
@@ -196,5 +196,32 @@ describe("resolveRunParams — run keys", () => {
     );
 
     expect(result.modelParams).toBeUndefined();
+  });
+
+  test("AppConfig modelParams flow into resolved run params", () => {
+    const result = resolveRunParams(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { ...baseConfig, modelParams: { reasoningEffort: "medium" } },
+    );
+
+    expect(result.modelParams).toEqual({ reasoningEffort: "medium" });
+  });
+
+  test("run-specific modelParams override AppConfig defaults", () => {
+    const patchedConfig: RunConfig = {
+      ...runConfig,
+      "daily-equity": {
+        ...runConfig["daily-equity"],
+        modelParams: { temperature: 0.2, reasoningEffort: "high" },
+      },
+    };
+
+    const result = resolveRunParams(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { ...baseConfig, modelParams: { reasoningEffort: "low" } },
+      patchedConfig,
+    );
+
+    expect(result.modelParams).toEqual({ reasoningEffort: "high", temperature: 0.2 });
   });
 });

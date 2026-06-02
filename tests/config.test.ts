@@ -208,6 +208,41 @@ describe("resolveConfig", () => {
     expect(config.codexSynthesisModel).toBeUndefined();
   });
 
+  test("accepts anthropic provider and reads Anthropic API key alias", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_PROVIDER: "anthropic",
+        MARKET_BOT_ANTHROPIC_API_KEY: "anthropic-key",
+      }),
+    ).toMatchObject({
+      provider: "anthropic",
+      apiKey: "anthropic-key",
+      quickModel: "claude-sonnet-4-6",
+      synthesisModel: "claude-opus-4-8",
+    });
+  });
+
+  test("reads global Anthropic API key fallback", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "global-anthropic-key",
+      }).apiKey,
+    ).toBe("global-anthropic-key");
+  });
+
+  test("reads reasoning effort", () => {
+    expect(resolveConfig({ MARKET_BOT_REASONING_EFFORT: "high" }).modelParams).toEqual({
+      reasoningEffort: "high",
+    });
+  });
+
+  test("rejects invalid reasoning effort", () => {
+    expect(() => resolveConfig({ MARKET_BOT_REASONING_EFFORT: "max" })).toThrow(
+      "Unsupported reasoning effort",
+    );
+  });
+
   test("reads model timeout", () => {
     expect(resolveConfig({ MARKET_BOT_MODEL_TIMEOUT_MS: "60000" }).modelTimeoutMs).toBe(60_000);
   });

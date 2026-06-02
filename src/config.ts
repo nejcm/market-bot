@@ -1,6 +1,7 @@
 import { basename, dirname, join } from "node:path";
+import type { ModelParams } from "./model/types";
 
-export type ProviderName = "openai" | "openai-compatible" | "codex";
+export type ProviderName = "openai" | "openai-compatible" | "codex" | "anthropic";
 
 export interface SourceOptions {
   readonly equityMoverLimit: number;
@@ -35,6 +36,7 @@ export interface AppConfig {
   readonly synthesisModel: string;
   readonly codexQuickModel?: string;
   readonly codexSynthesisModel?: string;
+  readonly modelParams?: ModelParams;
   readonly modelTimeoutMs: number;
   readonly dataDir: string;
   readonly promptDir: string;
@@ -44,6 +46,8 @@ export interface AppConfig {
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
 const DEFAULT_SYNTHESIS_MODEL = "gpt-5.5";
+const DEFAULT_ANTHROPIC_QUICK_MODEL = "claude-sonnet-4-6";
+const DEFAULT_ANTHROPIC_SYNTHESIS_MODEL = "claude-opus-4-8";
 const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 const DEFAULT_DATA_DIR = "data/runs";
 const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
@@ -85,7 +89,7 @@ function readProvider(value: string | undefined): ProviderName {
     return "openai";
   }
 
-  if (value === "openai-compatible" || value === "codex") {
+  if (value === "openai-compatible" || value === "codex" || value === "anthropic") {
     return value;
   }
 
@@ -94,6 +98,45 @@ function readProvider(value: string | undefined): ProviderName {
 
 function readOptionalString(value: string | undefined): string | undefined {
   return value !== undefined && value.trim() !== "" ? value : undefined;
+}
+
+function readApiKey(
+  provider: ProviderName,
+  env: Record<string, string | undefined>,
+): string | undefined {
+  if (provider === "openai") {
+    return (
+      readOptionalString(env.MARKET_BOT_OPENAI_API_KEY) ?? readOptionalString(env.OPENAI_API_KEY)
+    );
+  }
+
+  if (provider === "openai-compatible") {
+    return readOptionalString(env.MARKET_BOT_OPENAI_API_KEY);
+  }
+
+  if (provider === "anthropic") {
+    return (
+      readOptionalString(env.MARKET_BOT_ANTHROPIC_API_KEY) ??
+      readOptionalString(env.ANTHROPIC_API_KEY)
+    );
+  }
+
+  return undefined;
+}
+
+function readReasoningEffort(
+  value: string | undefined,
+): ModelParams["reasoningEffort"] | undefined {
+  const effort = readOptionalString(value);
+  if (effort === undefined) {
+    return undefined;
+  }
+
+  if (effort === "low" || effort === "medium" || effort === "high") {
+    return effort;
+  }
+
+  throw new Error(`Unsupported reasoning effort: ${effort}`);
 }
 
 function deriveNewsSeenPath(dataDir: string): string {
@@ -144,9 +187,13 @@ function readBaseUrl(provider: ProviderName, value: string | undefined): string 
 
 export function resolveConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const provider = readProvider(env.MARKET_BOT_PROVIDER);
-  const apiKey =
-    env.MARKET_BOT_OPENAI_API_KEY ?? (provider === "openai" ? env.OPENAI_API_KEY : undefined);
+  const apiKey = readApiKey(provider, env);
   const baseUrl = readBaseUrl(provider, env.MARKET_BOT_BASE_URL);
+  const quickModelDefault =
+    provider === "anthropic" ? DEFAULT_ANTHROPIC_QUICK_MODEL : DEFAULT_QUICK_MODEL;
+  const synthesisModelDefault =
+    provider === "anthropic" ? DEFAULT_ANTHROPIC_SYNTHESIS_MODEL : DEFAULT_SYNTHESIS_MODEL;
+  const reasoningEffort = readReasoningEffort(env.MARKET_BOT_REASONING_EFFORT);
 
   const dataDir = env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR;
   const massiveApiKey =
@@ -156,15 +203,16 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
   return {
     provider,
     ...(baseUrl !== undefined ? { baseUrl } : {}),
-    ...(apiKey !== undefined && apiKey.trim() !== "" ? { apiKey } : {}),
-    quickModel: env.MARKET_BOT_QUICK_MODEL ?? DEFAULT_QUICK_MODEL,
-    synthesisModel: env.MARKET_BOT_SYNTHESIS_MODEL ?? DEFAULT_SYNTHESIS_MODEL,
+    ...(apiKey !== undefined ? { apiKey } : {}),
+    quickModel: env.MARKET_BOT_QUICK_MODEL ?? quickModelDefault,
+    synthesisModel: env.MARKET_BOT_SYNTHESIS_MODEL ?? synthesisModelDefault,
     ...(readOptionalString(env.MARKET_BOT_CODEX_QUICK_MODEL) !== undefined
       ? { codexQuickModel: readOptionalString(env.MARKET_BOT_CODEX_QUICK_MODEL) as string }
       : {}),
     ...(readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) !== undefined
       ? { codexSynthesisModel: readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) as string }
       : {}),
+    ...(reasoningEffort !== undefined ? { modelParams: { reasoningEffort } } : {}),
     modelTimeoutMs: readPositiveInteger(env.MARKET_BOT_MODEL_TIMEOUT_MS, DEFAULT_MODEL_TIMEOUT_MS),
     dataDir,
     promptDir: readOptionalString(env.MARKET_BOT_PROMPT_DIR) ?? DEFAULT_PROMPT_DIR,

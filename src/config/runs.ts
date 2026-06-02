@@ -187,6 +187,21 @@ function toRunKey(command: ResearchCommand): RunKey {
   return `${command.jobType}-${command.assetClass}` as RunKey;
 }
 
+function mergeModelParams(
+  base: ModelParams | undefined,
+  override: ModelParams | undefined,
+): ModelParams | undefined {
+  if (base === undefined) {
+    return override;
+  }
+
+  if (override === undefined) {
+    return base;
+  }
+
+  return { ...base, ...override };
+}
+
 export function resolveRunParams(
   command: ResearchCommand,
   appConfig: AppConfig,
@@ -214,7 +229,7 @@ export function resolveRunParams(
   return {
     quickModel: merged.quickModel ?? defaultQuickModel,
     synthesisModel: merged.synthesisModel ?? defaultSynthesisModel,
-    modelParams: merged.modelParams,
+    modelParams: mergeModelParams(appConfig.modelParams, merged.modelParams),
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
     minimumPredictions: merged.minimumPredictions ?? CODE_DEFAULTS.minimumPredictions,

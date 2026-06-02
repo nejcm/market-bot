@@ -69,6 +69,7 @@ export interface SourceGap {
 export type SourceGapCapability =
   | "market-data"
   | "news"
+  | "discussion"
   | "extended-evidence"
   | "market-context"
   | "evidence-request"

@@ -63,7 +63,9 @@ Command behavior:
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
 | `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
-| `provider-health` | Reads persisted run artifacts and writes `data/provider-health/summary.json` plus `summary.md` with real-run validation counters and provider gap health by route/status/cause. |
+| `provider-health` | Reads persisted run artifacts and writes provider-health contract v2 to `data/provider-health/summary.json` plus `summary.md`, including a `pass`/`warn`/`fail` validation verdict, required coverage checklist, and provider gap classifications by route. |
+
+Provider-health v2 expects coverage for daily and weekly equity/crypto updates, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, and missing due scoring passes. Optional or expected gaps still appear in the output without blocking the verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities.
 
 ## Setup and development commands
 
@@ -118,7 +120,7 @@ The collector fetches market data and news in parallel:
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
-Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s but do not cap Evidence Quality.
+Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s and do not abort research, but provider-health v2 treats them as validation failures because FRED is baseline-required.
 
 Massive, formerly Polygon.io, is a Supplemental Source Provider. `MARKET_BOT_MASSIVE_API_KEY` enables requests to `api.massive.com` for equity news and stock snapshots; `MARKET_BOT_POLYGON_API_KEY` is accepted as a legacy alias. Missing keys silently disable Massive. When the key is set and a Massive request fails, the failure is recorded as a `SourceGap`. Massive is equity-only in this version: it does not run for crypto, does not replace Yahoo, does not affect mover ranking or market regime, and does not create scoring Observations. Supplemental snapshots are saved as `normalized/supplemental-market-snapshots.json`, included in prompt evidence, and attached as citeable report Sources.
 

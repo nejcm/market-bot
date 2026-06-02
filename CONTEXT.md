@@ -64,6 +64,14 @@ An optional Source Provider that contributes citeable evidence without driving d
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.
 
+## Validation Baseline
+
+A declared minimum set of exercised research routes and source capabilities required before provider readiness can be treated as passing.
+
+## Provider Coverage Gap
+
+A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow.
+
 ## Extended Evidence
 
 Optional, higher-specificity Source Provider evidence that enriches ticker Research Views without changing the research-only boundary.

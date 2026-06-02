@@ -2,15 +2,16 @@
 
 ## Validation
 
-- **Real-run validation completed for V1 provider readiness** - daily, weekly, ticker, deep
-  ticker, equity, and crypto paths were exercised against live sources. Extended Evidence,
-  market-update source gaps, persistent news dedupe, scoring side effects, and provider-health
-  artifact summarization are now covered by real-run artifacts.
-- **Real-run source-route validation remains ongoing** - latest runs confirmed SEC, Finnhub
-  general/company news, MarketAux, and core market-update flows work with configured envs.
-  Known remaining gaps are provider/account capability limits or credentials: FRED is still
-  missing a non-empty API key, Glassnode and Tradier remain optional missing credentials, and
-  Massive supplemental/news routes show provider/account failures on some runs.
+- **Provider-health v2 validation baseline** - `provider-health` now emits an explicit
+  `pass`, `warn`, or `fail` verdict with required run coverage, blocking issue counts,
+  nonblocking provider coverage gaps, and per-route classifications.
+- **Baseline provider expectation** - FRED is baseline-required once `MARKET_BOT_FRED_API_KEY`
+  is expected/configured; missing or failed FRED coverage is a validation failure. Glassnode
+  and Tradier remain optional, Massive remains supplemental-only, and MarketAux/Finnhub
+  individual gaps are warnings when another usable news source exists.
+- **International equity coverage gaps** - validation accepts an international equity ticker
+  smoke run and treats US-centric unsupported coverage, such as SEC or Tradier gaps on
+  international tickers, as expected rather than blocking.
 - **Prediction minimum validation** - crypto daily runs now retry bounded model shortfalls
   before accepting an under-filled prediction set. Keep watching future artifacts for
   repeated retry failures before expanding candidate discovery.
@@ -71,13 +72,12 @@ Next major research feature after real-run validation; includes evidence-backed 
 
 ## Operational
 
-- **Source provider health dashboard** - initial artifact-backed CLI view exists via
-  `provider-health`, summarizing provider gaps by route, status code, credential state, and
-  Yahoo auth failures. Future work: turn this into a dashboard once the run history is large
+- **Source provider health dashboard** - artifact-backed CLI validation exists via
+  `provider-health` v2. Future work: turn this into a dashboard once the run history is large
   enough to need browsing/filtering.
-- **Provider credential completion** - configure non-empty FRED credentials if macro context is
-  required, and decide whether optional Glassnode, Tradier, and Massive account coverage should
-  be enabled or left as expected source gaps.
+- **Provider credential completion** - configure non-empty FRED credentials for baseline
+  validation, and decide whether optional Glassnode, Tradier, and Massive account coverage
+  should be enabled or left as expected source gaps.
 - **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
   Decide whether this replaces or complements the current non-blocking score/calibration
   side effect on research runs. Include idempotency, locking, market-calendar handling,

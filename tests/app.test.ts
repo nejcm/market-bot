@@ -7,12 +7,18 @@ import { runCli, scorePassOptions } from "../src/app";
 
 const dataDirs: string[] = [];
 const originalDataDir = process.env.MARKET_BOT_DATA_DIR;
+const originalRedditSubreddits = process.env.MARKET_BOT_REDDIT_SUBREDDITS;
 
 afterEach(async () => {
   if (originalDataDir === undefined) {
     delete process.env.MARKET_BOT_DATA_DIR;
   } else {
     process.env.MARKET_BOT_DATA_DIR = originalDataDir;
+  }
+  if (originalRedditSubreddits === undefined) {
+    delete process.env.MARKET_BOT_REDDIT_SUBREDDITS;
+  } else {
+    process.env.MARKET_BOT_REDDIT_SUBREDDITS = originalRedditSubreddits;
   }
 
   await Promise.all(
@@ -93,5 +99,27 @@ describe("runCli", () => {
       "Alpha search phase 1 ready: Reddit discovery implementation is pending",
     );
     expect(existsSync(join(dataDir, "..", "calibration", "summary.json"))).toBe(false);
+  });
+
+  test("ignores malformed alpha-search config for unrelated commands", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-calibration-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    process.env.MARKET_BOT_REDDIT_SUBREDDITS = "stocks,bad-name";
+
+    await expect(runCli(["calibration"])).resolves.toBe(
+      "Calibration summary not written: no resolved predictions found",
+    );
+  });
+
+  test("validates alpha-search config for alpha-search commands", async () => {
+    process.env.MARKET_BOT_REDDIT_SUBREDDITS = "stocks,bad-name";
+
+    await expect(runCli(["alpha-search", "--asset", "equity"])).rejects.toThrow(
+      "Invalid subreddit name: bad-name",
+    );
   });
 });

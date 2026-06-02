@@ -39,7 +39,9 @@ function createProvider(config: AppConfig): ModelProvider {
 
 export async function runCli(argv: readonly string[]): Promise<string> {
   const command = parseArgs(argv);
-  const config = resolveConfig();
+  const config = resolveConfig(process.env, {
+    includeAlphaSearchOptions: command.jobType === "alpha-search",
+  });
 
   if (command.jobType === "score") {
     const result = await runScorePass(

@@ -132,6 +132,21 @@ describe("resolveConfig", () => {
     );
   });
 
+  test("skips alpha-search env validation when alpha-search config is not included", () => {
+    expect(
+      resolveConfig(
+        {
+          MARKET_BOT_REDDIT_SUBREDDITS: "stocks,bad-name",
+          MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT: "not-a-number",
+        },
+        { includeAlphaSearchOptions: false },
+      ).alphaSearchOptions,
+    ).toMatchObject({
+      redditSubreddits: [],
+      topCandidateLimit: 15,
+    });
+  });
+
   test("uses evidence request loop defaults", () => {
     expect(resolveConfig({}).evidenceRequestOptions).toEqual({
       maxRounds: 2,

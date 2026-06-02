@@ -40,6 +40,13 @@ interface HostState {
   openedUntil: number;
 }
 
+class SourceCircuitOpenError extends Error {
+  constructor(adapter: string, host: string) {
+    super(`${adapter} circuit open for ${host}`);
+    this.name = "SourceCircuitOpenError";
+  }
+}
+
 const HOST_MIN_DELAY_MS = 1000;
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_OPEN_MS = 60_000;
@@ -103,7 +110,7 @@ async function runWithHostResilience<T>(
   try {
     const now = Date.now();
     if (state.openedUntil > now) {
-      throw new Error(`${adapter} circuit open for ${host}`);
+      throw new SourceCircuitOpenError(adapter, host);
     }
 
     const waitMs = Math.max(0, HOST_MIN_DELAY_MS - (now - state.lastStartedAt));
@@ -323,7 +330,11 @@ async function fetchJsonOrGap(
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "source request failed";
-    return fetchFailureSourceGap(adapter, message);
+    return fetchFailureSourceGap(
+      adapter,
+      message,
+      error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
+    );
   }
 }
 
@@ -348,7 +359,11 @@ async function fetchTextOrGap(
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "source request failed";
-    return fetchFailureSourceGap(adapter, message);
+    return fetchFailureSourceGap(
+      adapter,
+      message,
+      error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
+    );
   }
 }
 

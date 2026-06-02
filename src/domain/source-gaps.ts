@@ -6,6 +6,7 @@ import type {
 } from "./types";
 
 export type SourceGapAnalyticsClass = "missingCredential" | "fetchFailed" | "other";
+type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circuit-open">;
 
 export interface SourceGapInput {
   readonly source: string;
@@ -57,23 +58,42 @@ export function sourceGapWithContext(
   });
 }
 
-export function fetchFailureSourceGap(source: string, message: string): SourceGap {
+export function fetchFailureSourceGap(
+  source: string,
+  message: string,
+  cause: FetchFailureSourceGapCause = "fetch-failed",
+): SourceGap {
   return sourceGap({
     source,
     message,
-    cause: message.includes("circuit open") ? "circuit-open" : "fetch-failed",
+    cause,
     evidenceQualityImpact: "core-cap",
   });
 }
 
 export function sourceGapAnalyticsClass(gap: SourceGap): SourceGapAnalyticsClass {
-  if (gap.cause === "missing-credential") {
-    return "missingCredential";
+  const { cause } = gap;
+  switch (cause) {
+    case "missing-credential": {
+      return "missingCredential";
+    }
+    case "fetch-failed":
+    case "circuit-open": {
+      return "fetchFailed";
+    }
+    case "stale-fallback":
+    case "unsupported-coverage":
+    case "repeat-fallback":
+    case "malformed-response":
+    case "validation-failed":
+    case "provider-data-missing":
+    case undefined: {
+      return "other";
+    }
+    default: {
+      return assertNever(cause);
+    }
   }
-  if (gap.cause === "fetch-failed" || gap.cause === "circuit-open") {
-    return "fetchFailed";
-  }
-  return "other";
 }
 
 export function isRepeatFallbackGap(gap: SourceGap): boolean {
@@ -81,6 +101,7 @@ export function isRepeatFallbackGap(gap: SourceGap): boolean {
 }
 
 export function isCoreEvidenceQualityGap(gap: SourceGap): boolean {
+  // Legacy untyped gaps are core evidence gaps until their producers opt into a narrower impact.
   return gap.evidenceQualityImpact === "core-cap" || gap.evidenceQualityImpact === undefined;
 }
 
@@ -100,4 +121,8 @@ export function marketContextGap(gap: SourceGap): SourceGap {
     capability: "market-context",
     evidenceQualityImpact: "no-cap",
   });
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled source gap cause: ${String(value)}`);
 }

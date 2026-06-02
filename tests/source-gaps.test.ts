@@ -22,10 +22,15 @@ describe("source gaps", () => {
   });
 
   test("classifies fetch and circuit failures without reading message text", () => {
-    expect(sourceGapAnalyticsClass(fetchFailureSourceGap("yahoo", "timeout"))).toBe("fetchFailed");
-    expect(sourceGapAnalyticsClass(fetchFailureSourceGap("yahoo", "yahoo circuit open"))).toBe(
-      "fetchFailed",
-    );
+    const fetchGap = fetchFailureSourceGap("yahoo", "timeout");
+    const circuitGap = fetchFailureSourceGap("yahoo", "rate limit exhausted", "circuit-open");
+    const textOnlyCircuitGap = fetchFailureSourceGap("yahoo", "yahoo circuit open");
+
+    expect(fetchGap.cause).toBe("fetch-failed");
+    expect(circuitGap.cause).toBe("circuit-open");
+    expect(textOnlyCircuitGap.cause).toBe("fetch-failed");
+    expect(sourceGapAnalyticsClass(fetchGap)).toBe("fetchFailed");
+    expect(sourceGapAnalyticsClass(circuitGap)).toBe("fetchFailed");
   });
 
   test("keeps repeat fallback as typed meaning while preserving report text", () => {

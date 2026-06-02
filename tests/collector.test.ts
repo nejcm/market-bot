@@ -1193,6 +1193,7 @@ describe("collectSources", () => {
     );
 
     expect(marketAuxCalls).toBe(1);
-    expect(second.sourceGaps.some((gap) => gap.message.includes("circuit open"))).toBe(true);
+    const circuitGap = second.sourceGaps.find((gap) => gap.cause === "circuit-open");
+    expect(circuitGap?.message).toContain("circuit open");
   });
 });

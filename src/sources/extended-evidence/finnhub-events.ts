@@ -1,5 +1,5 @@
 import type { SourceGap } from "../../domain/types";
-import { sourceGap } from "../../domain/source-gaps";
+import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { daysFrom, encodeQuery, readArray } from "./utils";
@@ -11,7 +11,7 @@ const EVENT_ROUTE_NAMES: Readonly<Record<string, string>> = {
 };
 
 function isForbiddenGap(gap: SourceGap): boolean {
-  return gap.message.includes("status 403");
+  return sourceGapStatusCode(gap.message) === "403";
 }
 
 function normalizeEventGap(gap: SourceGap): SourceGap {

@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { sourceGapStatusCode } from "../domain/source-gaps";
 import type {
   AssetClass,
   Depth,
@@ -275,10 +276,6 @@ function deriveProvider(gap: SourceGap): string {
   return provider ?? "unknown";
 }
 
-function statusCode(message: string): string | undefined {
-  return message.match(/status\s+(\d{3})/iu)?.[1];
-}
-
 function isYahooAuthGap(gap: SourceGap): boolean {
   const provider = deriveProvider(gap);
   const message = gap.message.toLowerCase();
@@ -287,8 +284,8 @@ function isYahooAuthGap(gap: SourceGap): boolean {
   }
 
   return (
-    statusCode(gap.message) === "401" ||
-    statusCode(gap.message) === "403" ||
+    sourceGapStatusCode(gap.message) === "401" ||
+    sourceGapStatusCode(gap.message) === "403" ||
     message.includes("cookie") ||
     message.includes("crumb") ||
     message.includes("authorization") ||
@@ -308,7 +305,11 @@ function issueClass(gap: SourceGap): IssueClass {
   ) {
     return "missingCredential";
   }
-  if (gap.cause === "fetch-failed" || gap.cause === "circuit-open" || statusCode(gap.message)) {
+  if (
+    gap.cause === "fetch-failed" ||
+    gap.cause === "circuit-open" ||
+    sourceGapStatusCode(gap.message)
+  ) {
     return "fetchFailed";
   }
   return "other";
@@ -340,7 +341,7 @@ function routeHealth(runs: readonly RunHealth[]): readonly ProviderRouteHealth[]
       const klass = issueClass(gap);
       const statuses = { ...current.statuses };
       const causes = { ...current.causes };
-      const status = statusCode(gap.message);
+      const status = sourceGapStatusCode(gap.message);
 
       if (status !== undefined) {
         increment(statuses, status);
@@ -392,7 +393,14 @@ function generatedDates(runs: readonly RunHealth[]): readonly string[] {
 }
 
 async function hasCalibration(dataDir: string): Promise<boolean> {
-  return (await readJson(join(dataDir, "../calibration/summary.json"))) !== undefined;
+  return (
+    (await readJson(join(dataRootFromRunsDir(dataDir), "calibration", "summary.json"))) !==
+    undefined
+  );
+}
+
+function dataRootFromRunsDir(dataDir: string): string {
+  return dirname(dataDir);
 }
 
 function validationSummary(
@@ -546,7 +554,7 @@ export async function writeProviderHealthSummary(
   now: Date = new Date(),
 ): Promise<ProviderHealthWriteResult> {
   const summary = await buildProviderHealthSummary(dataDir, now);
-  const outputDir = join(dataDir, "../provider-health");
+  const outputDir = join(dataRootFromRunsDir(dataDir), "provider-health");
   const jsonPath = join(outputDir, "summary.json");
   const markdownPath = join(outputDir, "summary.md");
 

@@ -34,6 +34,10 @@ export function sourceGapReportText(gap: SourceGap): string {
   return `${gap.source}: ${gap.message}`;
 }
 
+export function sourceGapStatusCode(message: string): string | undefined {
+  return message.match(/status\s+(\d{3})/iu)?.[1];
+}
+
 export function sourceGapWithContext(
   gap: SourceGap,
   context: {

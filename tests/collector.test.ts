@@ -584,6 +584,7 @@ describe("collectSources", () => {
   });
 
   test("adds Massive equity news into provider round-robin", async () => {
+    let marketAuxUrl = "";
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
       if (url.includes("screener")) {
@@ -610,6 +611,7 @@ describe("collectSources", () => {
       }
 
       if (url.includes("marketaux")) {
+        marketAuxUrl = url;
         return jsonResponse({
           data: [
             {
@@ -686,6 +688,7 @@ describe("collectSources", () => {
       "yahoo-news",
       "massive",
     ]);
+    expect(new URL(marketAuxUrl).searchParams.get("published_after")).toBe("2026-05-16");
   });
 
   test("does not call Massive for crypto even when configured", async () => {
@@ -779,6 +782,20 @@ describe("collectSources", () => {
       "fred-macro",
       "massive-supplemental-market",
     ]);
+    expect(result.sourceGaps.find((gap) => gap.source === "massive-news")).toMatchObject({
+      provider: "massive",
+      capability: "news",
+      cause: "fetch-failed",
+      evidenceQualityImpact: "core-cap",
+    });
+    expect(
+      result.sourceGaps.find((gap) => gap.source === "massive-supplemental-market"),
+    ).toMatchObject({
+      provider: "massive",
+      capability: "market-data",
+      cause: "fetch-failed",
+      evidenceQualityImpact: "core-cap",
+    });
   });
 
   test("retries on transient 503 and succeeds on third attempt", async () => {

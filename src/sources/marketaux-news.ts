@@ -2,7 +2,14 @@ import type { ResearchCommand } from "../cli/args";
 import { sourceGap } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
-import { canonicalizeUrl, dateDaysBefore, encodeQuery, newsQuery, recencyDays } from "./news-utils";
+import {
+  canonicalizeUrl,
+  dateDaysBefore,
+  encodeQuery,
+  newsQuery,
+  recencyDays,
+  ymd,
+} from "./news-utils";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -22,7 +29,7 @@ function buildMarketAuxUrl(
     api_token: token,
     language: "en",
     limit: String(limit),
-    published_after: dateDaysBefore(fetchedAt, recencyDays(command)).toISOString(),
+    published_after: ymd(dateDaysBefore(fetchedAt, recencyDays(command))),
   };
 
   if (command.jobType === "ticker") {

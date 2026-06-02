@@ -59,9 +59,14 @@ describe("parseArgs", () => {
     expect(parseArgs(["cache", "prune"])).toEqual({ jobType: "cache-prune" });
   });
 
+  test("parses provider health command", () => {
+    expect(parseArgs(["provider-health"])).toEqual({ jobType: "provider-health" });
+  });
+
   test("labels utility commands", () => {
     expect(commandLabel({ jobType: "score" })).toBe("score");
     expect(commandLabel({ jobType: "calibration" })).toBe("calibration");
     expect(commandLabel({ jobType: "cache-prune" })).toBe("cache-prune");
+    expect(commandLabel({ jobType: "provider-health" })).toBe("provider-health");
   });
 });

@@ -4,6 +4,7 @@ import { createAnthropicProvider } from "./model/anthropic";
 import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
 import type { ModelProvider } from "./model/types";
+import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
@@ -65,6 +66,11 @@ export async function runCli(argv: readonly string[]): Promise<string> {
       closeRetentionDays: 365,
     });
     return `Cache prune complete: ${String(result.rawDaysPruned)} raw day(s), ${String(result.closeFilesPruned)} close file(s) pruned`;
+  }
+
+  if (command.jobType === "provider-health") {
+    const result = await writeProviderHealthSummary(config.dataDir);
+    return `Provider health written to ${result.markdownPath}`;
   }
 
   const provider = createProvider(config);

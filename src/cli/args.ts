@@ -32,8 +32,17 @@ export interface CachePruneCommand {
   readonly jobType: "cache-prune";
 }
 
+export interface ProviderHealthCommand {
+  readonly jobType: "provider-health";
+}
+
 export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
-export type CliCommand = ResearchCommand | ScoreCommand | CalibrationCommand | CachePruneCommand;
+export type CliCommand =
+  | ResearchCommand
+  | ScoreCommand
+  | CalibrationCommand
+  | CachePruneCommand
+  | ProviderHealthCommand;
 
 function parseAsset(value: string | undefined): AssetClass {
   if (value === "equity" || value === "crypto") {
@@ -128,8 +137,12 @@ export function parseArgs(args: readonly string[]): CliCommand {
     return { jobType: "cache-prune" };
   }
 
+  if (command === "provider-health" && args.length === 1) {
+    return { jobType: "provider-health" };
+  }
+
   throw new Error(
-    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration | market-bot cache prune",
+    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health",
   );
 }
 
@@ -137,7 +150,8 @@ export function commandLabel(command: CliCommand): string {
   if (
     command.jobType === "score" ||
     command.jobType === "calibration" ||
-    command.jobType === "cache-prune"
+    command.jobType === "cache-prune" ||
+    command.jobType === "provider-health"
   ) {
     return command.jobType;
   }

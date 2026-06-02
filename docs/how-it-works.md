@@ -37,6 +37,7 @@ bun run src/cli.ts ticker BTC --asset crypto
 bun run src/cli.ts score
 bun run src/cli.ts calibration
 bun run src/cli.ts cache prune
+bun run src/cli.ts provider-health
 ```
 
 If installed as a binary, the same verbs are available through `market-bot`:
@@ -48,6 +49,7 @@ market-bot ticker AAPL --asset equity --deep
 market-bot score
 market-bot calibration
 market-bot cache prune
+market-bot provider-health
 ```
 
 Command behavior:
@@ -61,6 +63,7 @@ Command behavior:
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
 | `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
+| `provider-health` | Reads persisted run artifacts and writes `data/provider-health/summary.json` plus `summary.md` with real-run validation counters and provider gap health by route/status/cause. |
 
 ## Setup and development commands
 

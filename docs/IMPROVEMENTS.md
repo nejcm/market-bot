@@ -2,21 +2,26 @@
 
 ## Validation
 
-- **Real-run validation** - exercise ticker Extended Evidence, market-update data gaps,
-  persistent news dedupe, scoring, and calibration over real runs before adding candidate
-  discovery.
-- **Real-run source-route validation** - latest equity validation found Yahoo's unofficial
-  quote route now needs cookie/crumb authorization rather than an API key. The collector now
-  retries that route with Yahoo cookie/crumb credentials; keep checking provider-specific
-  route behavior during real runs because Yahoo endpoints can change without notice.
+- **Real-run validation completed for V1 provider readiness** - daily, weekly, ticker, deep
+  ticker, equity, and crypto paths were exercised against live sources. Extended Evidence,
+  market-update source gaps, persistent news dedupe, scoring side effects, and provider-health
+  artifact summarization are now covered by real-run artifacts.
+- **Real-run source-route validation remains ongoing** - latest runs confirmed SEC, Finnhub
+  general/company news, MarketAux, and core market-update flows work with configured envs.
+  Known remaining gaps are provider/account capability limits or credentials: FRED is still
+  missing a non-empty API key, Glassnode and Tradier remain optional missing credentials, and
+  Massive supplemental/news routes show provider/account failures on some runs.
+- **Prediction minimum validation** - crypto daily runs now retry bounded model shortfalls
+  before accepting an under-filled prediction set. Keep watching future artifacts for
+  repeated retry failures before expanding candidate discovery.
 
 ## Alpha search
 
 Next major research feature after real-run validation; includes evidence-backed candidate discovery as one output of the alpha-search workflow.
 
-- **Prerequisite validation** - review recent daily, weekly, and ticker artifacts for source
-  gaps, Evidence Quality caps, repeat-news suppression, and prediction calibration before
-  promoting alpha search to a first-class workflow.
+- **Prerequisite validation** - keep reviewing provider-health summaries and recent artifacts
+  for unresolved source gaps, Evidence Quality caps, repeat-news suppression, and prediction
+  calibration before promoting alpha search to a first-class workflow.
 - **Alpha signal discovery** - identify early, higher-risk research signals from market
   data, news, filings, social sources, and other public evidence. Treat social sentiment as
   high-noise input until validation shows it adds signal beyond existing sources.
@@ -66,9 +71,13 @@ Next major research feature after real-run validation; includes evidence-backed 
 
 ## Operational
 
-- **Source provider health dashboard** - summarize provider gaps by route, status code, and
-  credential state across recent runs. Include Yahoo cookie/crumb failures separately from
-  missing API keys so route breakage is visible before it degrades report confidence.
+- **Source provider health dashboard** - initial artifact-backed CLI view exists via
+  `provider-health`, summarizing provider gaps by route, status code, credential state, and
+  Yahoo auth failures. Future work: turn this into a dashboard once the run history is large
+  enough to need browsing/filtering.
+- **Provider credential completion** - configure non-empty FRED credentials if macro context is
+  required, and decide whether optional Glassnode, Tradier, and Massive account coverage should
+  be enabled or left as expected source gaps.
 - **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
   Decide whether this replaces or complements the current non-blocking score/calibration
   side effect on research runs. Include idempotency, locking, market-calendar handling,

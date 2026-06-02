@@ -4,6 +4,31 @@ import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } fr
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { daysFrom, encodeQuery, readArray } from "./utils";
 
+const EVENT_ROUTE_NAMES: Readonly<Record<string, string>> = {
+  "finnhub-events-1": "earnings calendar",
+  "finnhub-events-2": "dividend",
+  "finnhub-events-3": "split",
+};
+
+function isForbiddenGap(gap: SourceGap): boolean {
+  return gap.message.includes("status 403");
+}
+
+function normalizeEventGap(gap: SourceGap): SourceGap {
+  if (!isForbiddenGap(gap)) {
+    return gap;
+  }
+
+  return sourceGap({
+    source: gap.source,
+    message: `Finnhub ${EVENT_ROUTE_NAMES[gap.source] ?? "event"} endpoint is unavailable for the configured token (status 403)`,
+    provider: "finnhub",
+    capability: "extended-evidence",
+    cause: "unsupported-coverage",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
 function summarizeFinnhubEvents(payloads: readonly unknown[]): string | undefined {
   const counts = payloads.map((payload) =>
     Array.isArray(payload) ? payload.length : readArray(payload, "earningsCalendar").length,
@@ -51,7 +76,9 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
     ),
   );
   const fetched = results.filter((result) => isFetchJsonResult(result));
-  const gaps = results.filter((value): value is SourceGap => !isFetchJsonResult(value));
+  const gaps = results
+    .filter((value): value is SourceGap => !isFetchJsonResult(value))
+    .map((gap) => normalizeEventGap(gap));
   const summary = summarizeFinnhubEvents(fetched.map((result) => result.payload));
   const items =
     summary === undefined

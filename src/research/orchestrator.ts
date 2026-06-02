@@ -78,6 +78,8 @@ interface StageReprompt {
   readonly allowedSourceIds?: readonly string[];
 }
 
+const MAX_PREDICTION_REPROMPTS = 2;
+
 function coveragePanelStages(command: ResearchCommand): readonly PlaybookStage[] {
   if (command.depth !== "deep") {
     return [];
@@ -306,11 +308,15 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     finalOutput,
   ];
 
-  predictionRetryErrors = predictionRetryReasons(
-    predResult,
-    context.depthProfile.minimumPredictions,
-  );
-  if (predictionRetryErrors.length > 0) {
+  const retryPredictionSynthesis = async (remainingAttempts: number): Promise<void> => {
+    if (remainingAttempts <= 0) {
+      return;
+    }
+    const retryErrors = predictionRetryReasons(predResult, context.depthProfile.minimumPredictions);
+    if (retryErrors.length === 0) {
+      return;
+    }
+    predictionRetryErrors = [...new Set([...predictionRetryErrors, ...retryErrors])];
     finalOutput = await runStage(
       "final-synthesis",
       runParams.synthesisModel,
@@ -318,12 +324,14 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       collectedSources,
       playbookContext,
       [...analysisOutputs, critiqueOutput],
-      { predictionErrors: predictionRetryErrors },
+      { predictionErrors: retryErrors },
     );
     stageOutputsArr.push(finalOutput);
     payload = parseModelPayload(finalOutput.content);
     predResult = readPredictions(payload.predictions, knownSourceIds);
-  }
+    await retryPredictionSynthesis(remainingAttempts - 1);
+  };
+  await retryPredictionSynthesis(MAX_PREDICTION_REPROMPTS);
 
   const buildReport = (): ResearchReport =>
     assembleResearchReport({

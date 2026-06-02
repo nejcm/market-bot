@@ -1,5 +1,13 @@
 import type { ResearchCommand } from "../cli/args";
-import type { AssetClass, InstrumentIdentity, MarketSnapshot, Source } from "../domain/types";
+import { sourceGapWithContext } from "../domain/source-gaps";
+import type {
+  AssetClass,
+  InstrumentIdentity,
+  MarketSnapshot,
+  Source,
+  SourceGap,
+  SourceGapCapability,
+} from "../domain/types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays } from "./news-utils";
 import {
@@ -103,6 +111,14 @@ function buildMassiveSnapshotUrl(symbols: string, apiKey: string): string {
   return `${MASSIVE_STOCK_SNAPSHOT_URL}?${encodeQuery({ tickers: symbols, apiKey })}`;
 }
 
+function massiveGap(gap: SourceGap, capability: SourceGapCapability): SourceGap {
+  return sourceGapWithContext(gap, {
+    provider: MASSIVE_PROVIDER,
+    capability,
+    evidenceQualityImpact: "core-cap",
+  });
+}
+
 async function collectSupplementalMarket(
   ctx: CollectContext,
   primarySnapshots: readonly MarketSnapshot[],
@@ -122,7 +138,11 @@ async function collectSupplementalMarket(
   });
 
   if (!isFetchJsonResult(fetched)) {
-    return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [fetched] };
+    return {
+      rawSnapshots: [],
+      supplementalMarketSnapshots: [],
+      sourceGaps: [massiveGap(fetched, "market-data")],
+    };
   }
 
   return {
@@ -226,7 +246,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   });
 
   if (!isFetchJsonResult(fetched)) {
-    return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
+    return { rawSnapshots: [], newsSources: [], sourceGaps: [massiveGap(fetched, "news")] };
   }
 
   return {

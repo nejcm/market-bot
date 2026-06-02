@@ -38,7 +38,11 @@ const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
   {
     key: "revenue",
     label: "revenue",
-    concepts: ["Revenues", "SalesRevenueNet"],
+    concepts: [
+      "Revenues",
+      "SalesRevenueNet",
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+    ],
     unitKeys: ["USD"],
   },
   {
@@ -262,13 +266,21 @@ function selectMetric(
   gaap: Record<string, unknown>,
   metric: SecMetricDefinition,
 ): SecMetricSelection | undefined {
-  const values = factValuesForMetric(gaap, metric);
-  const latest = latestFact(values);
-  if (latest === undefined) {
-    return undefined;
+  let fallback: SecMetricSelection | undefined = undefined;
+  for (const concept of metric.concepts) {
+    const values = factValuesForConcept(gaap, concept, metric.unitKeys);
+    const latest = latestFact(values);
+    if (latest === undefined) {
+      continue;
+    }
+    const prior = comparablePrior(latest, values);
+    const selection = { latest, ...(prior !== undefined ? { prior } : {}) };
+    if (prior !== undefined) {
+      return selection;
+    }
+    fallback ??= selection;
   }
-  const prior = comparablePrior(latest, values);
-  return { latest, ...(prior !== undefined ? { prior } : {}) };
+  return fallback;
 }
 
 function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {

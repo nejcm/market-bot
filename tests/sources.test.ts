@@ -12,6 +12,7 @@ import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { massiveNewsAdapter, normalizeMassiveSnapshotPayload } from "../src/sources/massive";
 import { createSourceRegistry } from "../src/sources/registry";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
@@ -122,6 +123,22 @@ function secCompanyFactsPayload(): unknown {
       },
     },
   };
+}
+
+function secCompanyFactsPayloadWithRevenueContractConcept(): unknown {
+  const payload = secCompanyFactsPayload();
+  if (!("facts" in (payload as Record<string, unknown>))) {
+    return payload;
+  }
+  const facts = (payload as { facts: { "us-gaap": Record<string, unknown> } }).facts["us-gaap"];
+  facts.Revenues = { units: { USD: [secFact(100)] } };
+  facts.SalesRevenueNet = { units: { USD: [] } };
+  facts.RevenueFromContractWithCustomerExcludingAssessedTax = {
+    units: {
+      USD: [secFact(90, { fy: 2025, filed: "2025-07-30", end: "2025-06-29" }), secFact(100)],
+    },
+  };
+  return payload;
 }
 
 describe("source normalization", () => {
@@ -673,6 +690,19 @@ describe("SEC fundamental evidence", () => {
       true,
     );
   });
+
+  test("uses contract revenue fallback for comparable revenue deltas", () => {
+    const result = summarizeSecFundamentals(secCompanyFactsPayloadWithRevenueContractConcept());
+
+    expect(result?.metrics).toMatchObject({
+      revenue: 100,
+      revenuePrior: 90,
+    });
+    expect(result?.metrics.revenueDeltaPercent).toBeCloseTo(11.11);
+    expect(result?.gaps.map((gap) => gap.message)).not.toContain(
+      "Missing comparable SEC company facts for YoY deltas: revenue",
+    );
+  });
 });
 
 describe("extended evidence provider collection", () => {
@@ -803,6 +833,42 @@ describe("extended evidence provider collection", () => {
     expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
       "fred-macro",
       "glassnode-on-chain",
+    ]);
+  });
+
+  test("marks inaccessible Finnhub event routes as unsupported coverage", async () => {
+    const result = await collectFinnhubEvents(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        finnhubApiToken: "finnhub-token",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "finnhub-events-1") {
+              return rawJson(adapter, { earningsCalendar: [{ symbol: "AAPL" }] });
+            }
+            return {
+              source: adapter,
+              message: `${adapter} source request failed with status 403`,
+            };
+          },
+        }),
+      }),
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "finnhub-events-2",
+        provider: "finnhub",
+        cause: "unsupported-coverage",
+        message: "Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+      }),
+      expect.objectContaining({
+        source: "finnhub-events-3",
+        provider: "finnhub",
+        cause: "unsupported-coverage",
+        message: "Finnhub split endpoint is unavailable for the configured token (status 403)",
+      }),
     ]);
   });
 

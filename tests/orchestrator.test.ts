@@ -1522,7 +1522,7 @@ describe("runResearchJob", () => {
     expect(result.report.confidence).toBe("medium");
   });
 
-  test("re-prompts synthesis once when predictions fall below minimum, then ships with shortfall gap", async () => {
+  test("re-prompts synthesis twice when predictions fall below minimum, then ships with shortfall gap", async () => {
     let callCount = 0;
     const provider: ModelProvider = {
       name: "mock",
@@ -1560,7 +1560,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(callCount).toBe(5);
+    expect(callCount).toBe(6);
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
@@ -1606,15 +1606,24 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
 
-    expect(prompts).toHaveLength(7);
-    expect(finalPrompts).toHaveLength(2);
+    expect(prompts).toHaveLength(8);
+    expect(finalPrompts).toHaveLength(3);
     expect(finalPrompts[1]?.predictionRepromptErrors).toContain(
+      "predictionShortfall: required 3, received 0",
+    );
+    expect(finalPrompts[2]?.predictionRepromptErrors).toContain(
       "predictionShortfall: required 3, received 0",
     );
     expect(result.trace.predictionRetryErrors).toEqual([
       "predictionShortfall: required 3, received 0",
     ]);
     expect(priorStageNames(finalPrompts[1] ?? {})).toEqual([
+      "specialist-analysis",
+      "regime-context-analysis",
+      "mover-theme-analysis",
+      "critique",
+    ]);
+    expect(priorStageNames(finalPrompts[2] ?? {})).toEqual([
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
@@ -1627,6 +1636,7 @@ describe("runResearchJob", () => {
       "regime-context-analysis",
       "mover-theme-analysis",
       "critique",
+      "final-synthesis",
       "final-synthesis",
       "final-synthesis",
     ]);
@@ -1756,7 +1766,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        if (prompt.stage === "final-synthesis" && finalCalls === 2) {
+        if (prompt.stage === "final-synthesis" && (finalCalls === 2 || finalCalls === 3)) {
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
@@ -1796,9 +1806,9 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
-    const reportRetryPrompt = finalPrompts[2] ?? {};
+    const reportRetryPrompt = finalPrompts[3] ?? {};
 
-    expect(finalPrompts).toHaveLength(3);
+    expect(finalPrompts).toHaveLength(4);
     expect(reportRetryPrompt.reportValidationErrors).toContain(
       "Major findings must reference source IDs",
     );

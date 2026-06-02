@@ -1,22 +1,5 @@
 # Improvements Backlog
 
-## Validation
-
-- **Provider-health v2 validation baseline** - `provider-health` now emits an explicit
-  `pass`, `warn`, or `fail` verdict with required run coverage, blocking, warning, and
-  informational issue counts, nonblocking provider coverage gaps, and per-route
-  classifications.
-- **Baseline provider expectation** - FRED is baseline-required once `MARKET_BOT_FRED_API_KEY`
-  is expected/configured; missing or failed FRED coverage is a validation failure. Glassnode
-  and Tradier remain optional, Massive remains supplemental-only, and MarketAux/Finnhub
-  individual gaps are warnings when another usable news source exists.
-- **International equity coverage gaps** - validation accepts an international equity ticker
-  smoke run and treats US-centric unsupported coverage, such as SEC or Tradier gaps on
-  international tickers, as expected rather than blocking.
-- **Prediction minimum validation** - crypto daily runs now retry bounded model shortfalls
-  before accepting an under-filled prediction set. Keep watching future artifacts for
-  repeated retry failures before expanding candidate discovery.
-
 ## Alpha search
 
 Next major research feature after real-run validation; includes evidence-backed candidate discovery as one output of the alpha-search workflow.
@@ -44,10 +27,6 @@ Next major research feature after real-run validation; includes evidence-backed 
   benchmarks over declared horizons. Validation must resolve from public market data and stay
   within the observable-forecast boundary.
 
-## Social sentiment
-
-(X, Reddit, StockTwits) - high noise; defer until calibration shows that it adds signal beyond current news and market-data sources.
-
 ## Research quality of regime / movers
 
 - **Mover ranking** - currently blends momentum, liquidity, and available unusual-volume
@@ -56,12 +35,6 @@ Next major research feature after real-run validation; includes evidence-backed 
 - **Benchmark-relative mover analysis** so a stock is compared against its sector/index
   instead of only absolute movement.
 
-## Pipeline and orchestration
-
-- **Evidence Request Loop expansion** - V1 is implemented for deep equity ticker runs with
-  bounded SEC latest-filing and Tradier IV term-structure tools. Future work: consider crypto,
-  daily/weekly, or additional public-data tools only after real-run validation shows the loop
-  improves evidence quality without adding noisy fetches.
 
 ## Cross-run intelligence
 
@@ -76,9 +49,6 @@ Next major research feature after real-run validation; includes evidence-backed 
 - **Source provider health dashboard** - artifact-backed CLI validation exists via
   `provider-health` v2. Future work: turn this into a dashboard once the run history is large
   enough to need browsing/filtering.
-- **Provider credential completion** - configure non-empty FRED credentials for baseline
-  validation, and decide whether optional Glassnode, Tradier, and Massive account coverage
-  should be enabled or left as expected source gaps.
 - **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
   Decide whether this replaces or complements the current non-blocking score/calibration
   side effect on research runs. Include idempotency, locking, market-calendar handling,
@@ -94,22 +64,3 @@ Relevant only if the framing drifts from "research substrate for me" toward "sha
 - Branding, themed report rendering.
 - Reliability SLAs, monitoring, alerting.
 - Shareable artifacts (signed JSON, RSS feed of recent runs).
-
-## Explicitly separate / out of scope
-
-These ideas may be useful, but they should not be added to V1 research generation without a
-separate boundary decision.
-
-- **Trade journal import** for broker CSV/Excel exports. If pursued, keep it local-only,
-  avoid broker credentials, avoid trade recommendations, and do not feed personal trading
-  data into public research artifacts.
-- **Behaviour diagnostics** such as holding period, win rate, overtrading, disposition effect,
-  anchoring, and momentum chasing. Diagnostics must describe historical behavior only; no
-  instructions to buy, sell, hold, size, enter, exit, rebalance, or change allocation.
-- **Shadow-account-style analysis** inspired by Vibe-Trading. This belongs outside
-  `market-bot` unless an ADR defines a separate personal analytics tool.
-- **Manual decision review loop** where the user can mark whether a Research View influenced a
-  decision and whether that was useful later. Keep it separate from report generation and
-  model prompts unless a privacy/safety design is accepted.
-- **Decision layer or portfolio tooling**. Any system that recommends trade actions, sizing,
-  execution, allocation, or portfolio changes must live outside V1 research generation per ADR 0001.

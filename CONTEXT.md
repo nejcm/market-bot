@@ -70,7 +70,7 @@ A declared minimum set of exercised research routes and source capabilities requ
 
 ## Provider Coverage Gap
 
-A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow.
+A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow. In provider-health validation it is usually expected or informational, not blocking.
 
 ## Extended Evidence
 

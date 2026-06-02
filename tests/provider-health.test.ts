@@ -224,6 +224,8 @@ describe("provider health", () => {
 
     expect(summary.validation.status).toBe("warn");
     expect(summary.validation.blockingIssueCount).toBe(0);
+    expect(summary.validation.warningIssueCount).toBe(5);
+    expect(summary.validation.informationalIssueCount).toBe(0);
     expect(summary.validation.routeClassifications).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -235,6 +237,36 @@ describe("provider health", () => {
         expect.objectContaining({ route: "marketaux-news", classification: "expected" }),
         expect.objectContaining({ route: "finnhub-news", classification: "expected" }),
       ]),
+    );
+  });
+
+  test("passes when only informational route classifications exist", async () => {
+    await writeBaselineRuns({
+      "daily-equity": {
+        gaps: [
+          {
+            source: "news-seen",
+            provider: "news-seen",
+            capability: "news",
+            cause: "repeat-fallback",
+            message: "news repeat fallback kept",
+          },
+        ],
+      },
+    });
+    await writeCalibration();
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.validation.status).toBe("pass");
+    expect(summary.validation.blockingIssueCount).toBe(0);
+    expect(summary.validation.warningIssueCount).toBe(0);
+    expect(summary.validation.informationalIssueCount).toBe(1);
+    expect(summary.validation.routeClassifications).toContainEqual(
+      expect.objectContaining({
+        route: "news-seen",
+        classification: "informational",
+      }),
     );
   });
 
@@ -366,11 +398,23 @@ describe("provider health", () => {
       jobType: "daily",
       assetClass: "crypto",
       depth: "brief",
+      gaps: [
+        {
+          source: "unknown-provider",
+          provider: "unknown",
+          capability: "news",
+          cause: "fetch-failed",
+          message: "provider returned a | separated message",
+        },
+      ],
     });
 
     const result = await writeProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
 
     await expect(readFile(result.jsonPath, "utf8")).resolves.toContain('"version": 2');
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain("## Validation");
+    await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
+      String.raw`provider returned a \| separated message`,
+    );
   });
 });

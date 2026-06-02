@@ -3,8 +3,9 @@
 ## Validation
 
 - **Provider-health v2 validation baseline** - `provider-health` now emits an explicit
-  `pass`, `warn`, or `fail` verdict with required run coverage, blocking issue counts,
-  nonblocking provider coverage gaps, and per-route classifications.
+  `pass`, `warn`, or `fail` verdict with required run coverage, blocking, warning, and
+  informational issue counts, nonblocking provider coverage gaps, and per-route
+  classifications.
 - **Baseline provider expectation** - FRED is baseline-required once `MARKET_BOT_FRED_API_KEY`
   is expected/configured; missing or failed FRED coverage is a validation failure. Glassnode
   and Tradier remain optional, Massive remains supplemental-only, and MarketAux/Finnhub

@@ -41,7 +41,7 @@ function commentDepth(command: AlphaSearchCommand): number {
 function redditPostSource(post: RedditDiscussionPost): Source {
   return {
     id: post.fullname,
-    title: `r/${post.subreddit}: ${post.title}`,
+    title: `r/${post.subreddit} Reddit post ${post.fullname}`,
     url: post.permalink,
     publisher: "reddit",
     fetchedAt: post.createdAt,

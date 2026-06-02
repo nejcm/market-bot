@@ -75,7 +75,7 @@ function listingPayload(): unknown {
             id: "post1",
             name: "t3_post1",
             subreddit: "stocks",
-            title: "$AAPL strong quarter, OTCX is noisy",
+            title: "$AAPL buy strong quarter, OTCX is noisy",
             selftext: "AAPL growth looks constructive while OTCX is only mentioned.",
             author: "poster",
             created_utc: 1_779_984_000,
@@ -209,6 +209,10 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).toContain("## Research Leads");
     expect(result.markdown).toContain("## Rejected Candidates");
     expect(result.markdown).toContain("[t3_post1] [t1_comment1]");
+    expect(result.markdown).not.toMatch(/\bbuy\b/iu);
+    expect(result.report.sources.find((source) => source.id === "t3_post1")?.title).toBe(
+      "r/stocks Reddit post t3_post1",
+    );
     expect(result.markdown).not.toContain("## Predictions");
     expect(result.markdown).toContain("Research-only note");
     expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2COTCX"))).toBe(true);
@@ -219,9 +223,14 @@ describe("alpha-search workflow", () => {
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),
-    ) as { readonly jobType?: string; readonly predictions?: readonly unknown[] };
+    ) as {
+      readonly jobType?: string;
+      readonly predictions?: readonly unknown[];
+      readonly sources?: readonly { readonly title?: string }[];
+    };
     expect(reportJson.jobType).toBe("alpha-search");
     expect(reportJson.predictions).toEqual([]);
+    expect(reportJson.sources?.map((source) => source.title).join("\n")).not.toMatch(/\bbuy\b/iu);
   });
 
   test("redacts expired Reddit raw snapshots only", async () => {

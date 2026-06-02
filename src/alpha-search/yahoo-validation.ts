@@ -209,6 +209,16 @@ function validateCandidateQuote(
   };
 }
 
+function validationUnavailableCandidate(
+  candidate: RedditRankedCandidate,
+  gap: SourceGap,
+): YahooRejectedCandidate {
+  return {
+    candidate,
+    reason: `Yahoo validation unavailable: ${gap.message}`,
+  };
+}
+
 export function validateYahooCandidateQuotes(
   candidates: readonly RedditRankedCandidate[],
   payload: unknown,
@@ -252,7 +262,14 @@ export async function crossCheckRedditCandidatesWithYahoo(input: {
     ),
   );
   if (!isFetchJsonResult(fetched)) {
-    return { rawSnapshots: [], validLeads: [], rejectedCandidates: [], sourceGaps: [fetched] };
+    return {
+      rawSnapshots: [],
+      validLeads: [],
+      rejectedCandidates: candidates.map((candidate) =>
+        validationUnavailableCandidate(candidate, fetched),
+      ),
+      sourceGaps: [fetched],
+    };
   }
 
   return {

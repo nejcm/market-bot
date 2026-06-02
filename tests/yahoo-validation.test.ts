@@ -192,7 +192,7 @@ describe("Yahoo alpha-search validation", () => {
 
   test("returns source gaps from the Yahoo request boundary", async () => {
     const result = await crossCheckRedditCandidatesWithYahoo({
-      candidates: [candidate("AAPL")],
+      candidates: [candidate("AAPL"), candidate("MSFT", 2)],
       candidateLimit: 15,
       request: {
         json: async () => ({
@@ -209,7 +209,16 @@ describe("Yahoo alpha-search validation", () => {
     expect(result).toEqual({
       rawSnapshots: [],
       validLeads: [],
-      rejectedCandidates: [],
+      rejectedCandidates: [
+        {
+          candidate: candidate("AAPL"),
+          reason: "Yahoo validation unavailable: source request failed with status 429",
+        },
+        {
+          candidate: candidate("MSFT", 2),
+          reason: "Yahoo validation unavailable: source request failed with status 429",
+        },
+      ],
       sourceGaps: [
         {
           source: "yahoo-alpha-search",

@@ -4,37 +4,14 @@ import type { AppConfig } from "../config";
 import { resolveRunParams, type ResolvedRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
-import {
-  type ExtendedEvidence,
-  type EvidenceRequestToolName,
-  type MarketContext,
-  type MarketRegimeSummary,
-  type MarketSnapshot,
-  type Source,
-  type SourceGap,
-} from "../domain/types";
+import { type EvidenceRequestToolName, type MarketRegimeSummary } from "../domain/types";
 import { sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { isRecord } from "../sources/guards";
-import type { NewsCollectionAnalytics, RawSourceSnapshot } from "../sources/types";
+import type { CollectedSources } from "../sources/types";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 
-// ---------------------------------------------------------------------------
-// CollectedSources — the normalized output of the sources subsystem
-// ---------------------------------------------------------------------------
-
-export interface CollectedSources {
-  readonly rawSnapshots: readonly RawSourceSnapshot[];
-  readonly marketSnapshots: readonly MarketSnapshot[];
-  readonly supplementalMarketSnapshots?: readonly MarketSnapshot[];
-  readonly newsSources: readonly Source[];
-  readonly extendedSources?: readonly Source[];
-  readonly extendedEvidence?: ExtendedEvidence;
-  readonly marketContext?: MarketContext;
-  readonly marketContextSources?: readonly Source[];
-  readonly sourceGaps?: readonly SourceGap[];
-  readonly newsAnalytics?: NewsCollectionAnalytics;
-}
+export type { CollectedSources };
 
 // ---------------------------------------------------------------------------
 // DepthProfile, CalibrationContext, ResearchContext
@@ -92,7 +69,7 @@ export function deterministicSourceGaps(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly string[] {
-  const gaps = collectedSources.sourceGaps?.map(sourceGapReportText) ?? [];
+  const gaps = collectedSources.sourceGaps.map(sourceGapReportText);
   const marketGaps =
     collectedSources.marketSnapshots.length === 0
       ? ["No usable market data snapshots were collected"]
@@ -210,7 +187,7 @@ function buildEvidencePayload(
     movers,
     marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
-    supplementalMarketSnapshots: collectedSources.supplementalMarketSnapshots ?? [],
+    supplementalMarketSnapshots: collectedSources.supplementalMarketSnapshots,
     newsSources: collectedSources.newsSources,
     ...(collectedSources.marketContext !== undefined
       ? { marketContext: collectedSources.marketContext }
@@ -282,7 +259,7 @@ function evidenceCategories(collectedSources: CollectedSources): readonly string
   if (collectedSources.marketSnapshots.length > 0) {
     categories.add("market-data");
   }
-  if ((collectedSources.supplementalMarketSnapshots ?? []).length > 0) {
+  if (collectedSources.supplementalMarketSnapshots.length > 0) {
     categories.add("supplemental-market-data");
   }
   if (collectedSources.newsSources.length > 0) {

@@ -9,7 +9,11 @@ import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types"
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
 import { readNewsSeenEntries } from "../src/sources/news-seen";
-import { marketSnapshot, newsSource } from "./support/fixtures";
+import {
+  collectedSources as collectedSourceBundle,
+  marketSnapshot,
+  newsSource,
+} from "./support/fixtures";
 import { providerReturning } from "./support/mocks";
 
 const config: AppConfig = {
@@ -211,12 +215,12 @@ describe("runResearchJob", () => {
       config,
       runConfig,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -273,12 +277,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "deep" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const rolePrompts = prompts.filter(
@@ -386,12 +390,12 @@ describe("runResearchJob", () => {
       command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: evidenceConfig,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -478,12 +482,12 @@ describe("runResearchJob", () => {
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
       },
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       sourceFetchImpl: secEvidenceFetch,
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
@@ -559,12 +563,12 @@ describe("runResearchJob", () => {
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
       },
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       sourceFetchImpl: secEvidenceFetch,
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
@@ -642,12 +646,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -698,12 +702,12 @@ describe("runResearchJob", () => {
         evidenceRequestOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 7 },
       },
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       sourceFetchImpl: secEvidenceFetch,
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
@@ -753,12 +757,12 @@ describe("runResearchJob", () => {
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
       },
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -805,12 +809,12 @@ describe("runResearchJob", () => {
       command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: evidenceConfig,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       sourceFetchImpl: secEvidenceFetch,
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
@@ -843,12 +847,12 @@ describe("runResearchJob", () => {
       command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: evidenceConfig,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -897,12 +901,12 @@ describe("runResearchJob", () => {
             };
           },
         },
-        collectedSources: {
+        collectedSources: collectedSourceBundle({
           rawSnapshots: [],
           marketSnapshots,
           newsSources,
           sourceGaps: [],
-        },
+        }),
         now: new Date("2026-05-19T00:00:00.000Z"),
       });
 
@@ -954,12 +958,12 @@ describe("runResearchJob", () => {
           predictions: mockPredictions(2),
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1035,14 +1039,14 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         marketContext,
         marketContextSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompt = JSON.parse(
@@ -1106,7 +1110,7 @@ describe("runResearchJob", () => {
       command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
@@ -1143,7 +1147,7 @@ describe("runResearchJob", () => {
           gaps: [],
         },
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompt = JSON.parse(
@@ -1190,7 +1194,7 @@ describe("runResearchJob", () => {
           predictions: mockPredictions(2),
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
@@ -1204,7 +1208,7 @@ describe("runResearchJob", () => {
           },
         ],
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1262,12 +1266,12 @@ describe("runResearchJob", () => {
       command: { jobType: "weekly", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompt = JSON.parse(
@@ -1313,12 +1317,12 @@ describe("runResearchJob", () => {
             dataGaps: [],
           }),
         ),
-        collectedSources: {
+        collectedSources: collectedSourceBundle({
           rawSnapshots: [],
           marketSnapshots,
           newsSources,
           sourceGaps: [],
-        },
+        }),
         now: new Date("2026-05-19T00:00:00.000Z"),
       }),
     ).rejects.toThrow("trade-action language");
@@ -1346,7 +1350,7 @@ describe("runResearchJob", () => {
           dataGaps: [],
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [
           {
             id: "raw-1",
@@ -1358,7 +1362,7 @@ describe("runResearchJob", () => {
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1399,12 +1403,12 @@ describe("runResearchJob", () => {
           dataGaps: [],
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots: [],
         newsSources: [],
         sourceGaps: [{ source: "yahoo", message: "source request failed with status 500" }],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1438,7 +1442,7 @@ describe("runResearchJob", () => {
           predictions: mockPredictions(2),
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
@@ -1457,7 +1461,7 @@ describe("runResearchJob", () => {
             sourceGap({ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }),
           ),
         ],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1491,7 +1495,7 @@ describe("runResearchJob", () => {
           predictions: mockPredictions(3, "AAPL"),
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
@@ -1511,7 +1515,7 @@ describe("runResearchJob", () => {
           { source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" },
           { source: "tradier-options", message: "MARKET_BOT_TRADIER_API_TOKEN is not set" },
         ],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1547,12 +1551,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1591,12 +1595,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "deep" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1680,12 +1684,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
@@ -1783,12 +1787,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
@@ -1882,12 +1886,12 @@ describe("runResearchJob", () => {
       command: { jobType: "daily", assetClass: "equity", depth: "brief" },
       config,
       provider,
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
@@ -1943,12 +1947,12 @@ describe("runResearchJob", () => {
           ],
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources,
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -1996,7 +2000,7 @@ describe("runResearchJob", () => {
           predictions: mockPredictions(2),
         }),
       ),
-      collectedSources: {
+      collectedSources: collectedSourceBundle({
         rawSnapshots: [],
         marketSnapshots,
         newsSources: [
@@ -2007,7 +2011,7 @@ describe("runResearchJob", () => {
           }),
         ],
         sourceGaps: [],
-      },
+      }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 

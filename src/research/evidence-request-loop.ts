@@ -17,8 +17,8 @@ import {
   type EvidenceRequestToolOutput,
 } from "../sources/evidence-request-tools";
 import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
-import type { FetchLike } from "../sources/types";
-import type { CollectedSources, EvidenceRequestContext, ResearchContext } from "./research-context";
+import type { CollectedSources, FetchLike } from "../sources/types";
+import type { EvidenceRequestContext, ResearchContext } from "./research-context";
 
 export interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";
@@ -359,9 +359,9 @@ function mergeToolOutput(
   return {
     ...collectedSources,
     rawSnapshots: [...collectedSources.rawSnapshots, ...output.rawSnapshots],
-    extendedSources: [...(collectedSources.extendedSources ?? []), ...output.sources],
+    extendedSources: [...collectedSources.extendedSources, ...output.sources],
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
-    sourceGaps: [...(collectedSources.sourceGaps ?? []), ...gaps],
+    sourceGaps: [...collectedSources.sourceGaps, ...gaps],
   };
 }
 
@@ -378,7 +378,7 @@ function mergeGaps(
   return {
     ...collectedSources,
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
-    sourceGaps: [...(collectedSources.sourceGaps ?? []), ...extendedGaps],
+    sourceGaps: [...collectedSources.sourceGaps, ...extendedGaps],
   };
 }
 

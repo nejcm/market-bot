@@ -81,6 +81,19 @@ export interface NewsCollectionAnalytics {
   readonly repeatFallbackUsed: boolean;
 }
 
+export interface CollectedSources {
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly supplementalMarketSnapshots: readonly MarketSnapshot[];
+  readonly newsSources: readonly Source[];
+  readonly extendedSources: readonly Source[];
+  readonly extendedEvidence?: ExtendedEvidence;
+  readonly marketContext?: MarketContext;
+  readonly marketContextSources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
+  readonly newsAnalytics?: NewsCollectionAnalytics;
+}
+
 export interface ExtendedEvidenceCollectionResult {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly extendedEvidence?: ExtendedEvidence;

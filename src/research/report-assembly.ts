@@ -11,9 +11,9 @@ import {
 import { isCoreEvidenceQualityGap, isExtendedEvidenceQualityGap } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { isRecord } from "../sources/guards";
+import type { CollectedSources } from "../sources/types";
 import {
   deterministicSourceGaps,
-  type CollectedSources,
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
@@ -134,7 +134,7 @@ export function buildSourceList(
       ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
     }),
   );
-  const supplementalMarketSources = (collectedSources.supplementalMarketSnapshots ?? []).map(
+  const supplementalMarketSources = collectedSources.supplementalMarketSnapshots.map(
     (snapshot): Source => ({
       id: snapshot.sourceId,
       title: `${snapshot.symbol} supplemental market snapshot`,
@@ -153,10 +153,8 @@ export function buildSourceList(
     ...marketSources,
     ...supplementalMarketSources,
     ...collectedSources.newsSources,
-    ...(isMarketUpdateJobType(command.jobType)
-      ? (collectedSources.marketContextSources ?? [])
-      : []),
-    ...(command.jobType === "ticker" ? (collectedSources.extendedSources ?? []) : []),
+    ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
+    ...(command.jobType === "ticker" ? collectedSources.extendedSources : []),
   ];
 }
 
@@ -169,8 +167,7 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
     return "low";
   }
 
-  const coreGaps =
-    collectedSources.sourceGaps?.filter((gap) => isCoreEvidenceQualityGap(gap)) ?? [];
+  const coreGaps = collectedSources.sourceGaps.filter((gap) => isCoreEvidenceQualityGap(gap));
   const extendedCategoryCount =
     collectedSources.extendedEvidence === undefined
       ? 0

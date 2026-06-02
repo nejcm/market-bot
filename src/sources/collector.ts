@@ -1,37 +1,18 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type {
-  ExtendedEvidence,
-  MarketContext,
-  MarketSnapshot,
-  Source,
-  SourceGap,
-} from "../domain/types";
+import type { SourceGap } from "../domain/types";
 import { fetchFailureSourceGap, sourceGap } from "../domain/source-gaps";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
 import type {
   CollectContext,
+  CollectedSources,
   FetchJsonResult,
   FetchLike,
   FetchTextOrGapFn,
   FetchTextResult,
-  NewsCollectionAnalytics,
   RawSourceSnapshot,
 } from "./types";
 import { createSourceRegistry } from "./registry";
-
-export interface SourceCollection {
-  readonly rawSnapshots: readonly RawSourceSnapshot[];
-  readonly marketSnapshots: readonly MarketSnapshot[];
-  readonly supplementalMarketSnapshots: readonly MarketSnapshot[];
-  readonly newsSources: readonly Source[];
-  readonly extendedSources: readonly Source[];
-  readonly extendedEvidence?: ExtendedEvidence;
-  readonly marketContext?: MarketContext;
-  readonly marketContextSources: readonly Source[];
-  readonly sourceGaps: readonly SourceGap[];
-  readonly newsAnalytics?: NewsCollectionAnalytics;
-}
 
 interface HostState {
   queue: Promise<void>;
@@ -392,7 +373,7 @@ export async function collectSources(
   now: Date = new Date(),
   fetchImpl: FetchLike = fetch,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
-): Promise<SourceCollection> {
+): Promise<CollectedSources> {
   const { context: ctx, staleFallbackGaps } = createCollectContext(
     command,
     sourceOptions,

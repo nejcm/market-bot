@@ -3,6 +3,7 @@ import type { MarketSnapshot, ResearchReport } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { validateResearchReport } from "../src/report/schema";
 import { buildSourceList } from "../src/research/report-assembly";
+import { collectedSources } from "./support/fixtures";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -61,11 +62,11 @@ describe("report schema and rendering", () => {
 
     const sources = buildSourceList(
       { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
-      {
+      collectedSources({
         rawSnapshots: [],
         marketSnapshots: [snapshot],
         newsSources: [],
-      },
+      }),
     );
 
     expect(sources[0]?.identity).toEqual(snapshot.identity);

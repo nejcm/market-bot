@@ -90,6 +90,9 @@ describe("collectSources", () => {
     expect(result.marketSnapshots[0]?.symbol).toBe("AAPL");
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toContain("SPY");
     expect(result.newsSources[0]?.id).toBe("news-equity-1");
+    expect(result.supplementalMarketSnapshots).toEqual([]);
+    expect(result.extendedSources).toEqual([]);
+    expect(result.marketContextSources).toEqual([]);
     expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
       "marketaux-news",
       "finnhub-news",
@@ -106,7 +109,6 @@ describe("collectSources", () => {
         }),
       ],
     });
-    expect(result.marketContextSources).toEqual([]);
   });
 
   test("collects weekly equity through market-update mover and regime sources", async () => {

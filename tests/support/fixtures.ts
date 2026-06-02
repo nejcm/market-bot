@@ -1,5 +1,6 @@
 import type { MarketSnapshot, Prediction, ResearchReport, Source } from "../../src/domain/types";
 import type { PredictionScore } from "../../src/scoring/types";
+import type { CollectedSources } from "../../src/sources/types";
 
 const DEFAULT_OBSERVED_AT = "2026-05-19T00:00:00.000Z";
 
@@ -59,6 +60,19 @@ export function newsSource(overrides: Partial<Source> = {}): Source {
     fetchedAt: DEFAULT_OBSERVED_AT,
     kind: "news",
     assetClass: "equity",
+    ...overrides,
+  };
+}
+
+export function collectedSources(overrides: Partial<CollectedSources> = {}): CollectedSources {
+  return {
+    rawSnapshots: [],
+    marketSnapshots: [],
+    supplementalMarketSnapshots: [],
+    newsSources: [],
+    extendedSources: [],
+    marketContextSources: [],
+    sourceGaps: [],
     ...overrides,
   };
 }

@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import type { CollectedSources } from "../src/research/orchestrator";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
 import type { RunTrace } from "../src/domain/types";
-import { marketSnapshot, newsSource, prediction, researchReport } from "./support/fixtures";
+import type { CollectedSources } from "../src/sources/types";
+import {
+  collectedSources as collectedSourceBundle,
+  marketSnapshot,
+  newsSource,
+  prediction,
+  researchReport,
+} from "./support/fixtures";
 
 const trace: RunTrace = {
   runId: "run-1",
@@ -42,7 +48,7 @@ const trace: RunTrace = {
 
 describe("run analytics", () => {
   test("summarizes deterministic source, evidence, news, prediction, and run metrics", () => {
-    const collectedSources: CollectedSources = {
+    const collectedSources: CollectedSources = collectedSourceBundle({
       rawSnapshots: [
         {
           id: "raw-marketaux",
@@ -98,7 +104,7 @@ describe("run analytics", () => {
         selectedNewsSourceCount: 1,
         repeatFallbackUsed: false,
       },
-    };
+    });
     const report = researchReport({
       jobType: "ticker",
       assetClass: "equity",

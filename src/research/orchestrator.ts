@@ -12,7 +12,7 @@ import {
 import { isMarketUpdateJobType, type ResearchReport, type RunTrace } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
-import type { FetchLike } from "../sources/types";
+import type { CollectedSources, FetchLike } from "../sources/types";
 import { recordSeenNewsSources } from "../sources/news-seen";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
@@ -31,7 +31,6 @@ import {
   buildDepthProfileFromParams,
   buildStagePrompt,
   loadCalibrationContext,
-  type CollectedSources,
   type ResearchContext,
 } from "./research-context";
 import {
@@ -456,7 +455,7 @@ export async function persistResearchJob(
   );
   await writeJson(
     join(artifacts.normalizedDir, "supplemental-market-snapshots.json"),
-    result.collectedSources.supplementalMarketSnapshots ?? [],
+    result.collectedSources.supplementalMarketSnapshots,
   );
   await writeJson(
     join(artifacts.normalizedDir, "news-sources.json"),
@@ -464,7 +463,7 @@ export async function persistResearchJob(
   );
   await writeJson(
     join(artifacts.normalizedDir, "extended-sources.json"),
-    result.collectedSources.extendedSources ?? [],
+    result.collectedSources.extendedSources,
   );
   await writeJson(
     join(artifacts.normalizedDir, "extended-evidence.json"),
@@ -476,7 +475,7 @@ export async function persistResearchJob(
   );
   await writeJson(
     join(artifacts.normalizedDir, "source-gaps.json"),
-    result.collectedSources.sourceGaps ?? [],
+    result.collectedSources.sourceGaps,
   );
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeJson(join(artifacts.runDir, "analytics.json"), result.analytics);

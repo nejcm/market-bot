@@ -5,9 +5,14 @@ import { join } from "node:path";
 import type { AppConfig } from "../src/config";
 import type { AssetClass, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
-import { persistResearchJob, type CollectedSources } from "../src/research/orchestrator";
+import { persistResearchJob } from "../src/research/orchestrator";
+import type { CollectedSources } from "../src/sources/types";
 import type { ResearchCommand } from "../src/cli/args";
-import { marketSnapshot, newsSource } from "./support/fixtures";
+import {
+  collectedSources as collectedSourceBundle,
+  marketSnapshot,
+  newsSource,
+} from "./support/fixtures";
 
 const config: AppConfig = {
   provider: "openai",
@@ -51,7 +56,7 @@ function news(assetClass: AssetClass): Source {
 }
 
 function collectedSources(assetClass: AssetClass, symbol: string): CollectedSources {
-  return {
+  return collectedSourceBundle({
     rawSnapshots: [
       {
         id: `raw-${assetClass}-${symbol}`,
@@ -62,8 +67,7 @@ function collectedSources(assetClass: AssetClass, symbol: string): CollectedSour
     ],
     marketSnapshots: [snapshot(assetClass, symbol)],
     newsSources: [news(assetClass)],
-    sourceGaps: [],
-  };
+  });
 }
 
 const provider: ModelProvider = {

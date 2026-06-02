@@ -6,7 +6,7 @@ import {
   buildPlaybookSelectionPrompt,
   buildStagePrompt,
 } from "../src/research/research-context";
-import { marketSnapshot, newsSource } from "./support/fixtures";
+import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
   provider: "openai",
@@ -34,7 +34,7 @@ describe("buildStagePrompt", () => {
     const prompt = buildStagePrompt(
       "specialist-analysis",
       command,
-      {
+      collectedSources({
         rawSnapshots: [],
         marketSnapshots: [
           marketSnapshot({
@@ -48,7 +48,7 @@ describe("buildStagePrompt", () => {
         ],
         newsSources: [newsSource()],
         sourceGaps: [],
-      },
+      }),
       config,
       {
         depthProfile: buildDepthProfile(command, config),
@@ -100,12 +100,12 @@ describe("buildStagePrompt", () => {
     const prompt = buildStagePrompt(
       "regime-context-analysis",
       command,
-      {
+      collectedSources({
         rawSnapshots: [],
         marketSnapshots: [marketSnapshot()],
         newsSources: [newsSource()],
         sourceGaps: [],
-      },
+      }),
       config,
       {
         depthProfile: buildDepthProfile(command, config),
@@ -152,12 +152,12 @@ describe("buildStagePrompt", () => {
     const prompt = buildStagePrompt(
       "critique",
       command,
-      {
+      collectedSources({
         rawSnapshots: [],
         marketSnapshots: [marketSnapshot()],
         newsSources: [newsSource()],
         sourceGaps: [],
-      },
+      }),
       config,
       {
         depthProfile: buildDepthProfile(command, config),
@@ -217,12 +217,12 @@ describe("buildPlaybookSelectionPrompt", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
     const prompt = buildPlaybookSelectionPrompt(
       command,
-      {
+      collectedSources({
         rawSnapshots: [],
         marketSnapshots: [marketSnapshot()],
         newsSources: [newsSource()],
         sourceGaps: [{ source: "marketaux", message: "missing token" }],
-      },
+      }),
       {
         depthProfile: buildDepthProfile(command, config),
         runParams: {

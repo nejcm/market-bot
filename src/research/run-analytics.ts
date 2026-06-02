@@ -1,7 +1,6 @@
 import type { ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
 import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
-import type { NewsCollectionAnalytics } from "../sources/types";
-import type { CollectedSources } from "./research-context";
+import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -124,7 +123,7 @@ function sourceProvider(source: Source): string | undefined {
 }
 
 function sourceGaps(collectedSources: CollectedSources): readonly SourceGap[] {
-  return collectedSources.sourceGaps ?? [];
+  return collectedSources.sourceGaps;
 }
 
 function sourceGapClasses(

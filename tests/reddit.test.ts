@@ -85,6 +85,28 @@ function commentWithReply(id: string, postId: string, createdUtc: number): unkno
   });
 }
 
+function commentReplyChain(
+  postId: string,
+  createdUtc: number,
+  depth: number,
+  maxDepth: number,
+): unknown {
+  const id = depth === 0 ? "c1" : `reply${depth}`;
+  return commentThing(
+    id,
+    postId,
+    createdUtc + depth,
+    depth >= maxDepth
+      ? { depth }
+      : {
+          depth,
+          replies: listingPayload(null, [
+            commentReplyChain(postId, createdUtc, depth + 1, maxDepth),
+          ]),
+        },
+  );
+}
+
 function commentsPayload(children: readonly unknown[]): unknown {
   return [listingPayload(null, []), listingPayload(null, children)];
 }
@@ -427,5 +449,24 @@ describe("Reddit discovery client", () => {
 
     expect(result.comments.map((comment) => comment.id)).toEqual(["c1", "reply1"]);
     expect(result.comments.map((comment) => comment.depth)).toEqual([0, 1]);
+  });
+
+  test("caps parsed nested comment reply depth", async () => {
+    const fetchImpl: FetchLike = async (input) => {
+      const url = String(input);
+      if (url === "https://www.reddit.com/api/v1/access_token") {
+        return jsonResponse({ access_token: "token-1", token_type: "bearer", expires_in: 3600 });
+      }
+      if (url.includes("/r/stocks/new?")) {
+        return jsonResponse(listingPayload(null, [postThing("abc", 1_780_000_000)]));
+      }
+      return jsonResponse(commentsPayload([commentReplyChain("abc", 1_780_000_100, 0, 26)]));
+    };
+
+    const result = await collectRedditDiscussions({ ...baseOptions(fetchImpl), commentDepth: 100 });
+
+    expect(result.comments.map((comment) => comment.depth)).toEqual(
+      Array.from({ length: 26 }, (_, index) => index),
+    );
   });
 });

@@ -7,6 +7,7 @@ import {
   type FetchLike,
   type MarketCollectionResult,
   type MarketDataAdapter,
+  type SourceRequest,
 } from "./types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
 
@@ -96,6 +97,17 @@ function encodeQuery(params: Record<string, string>): string {
 
 function yahooQuoteUrl(symbols: string): string {
   return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
+}
+
+export function yahooQuoteSourceRequest(
+  symbols: readonly string[],
+  adapter: string,
+): SourceRequest {
+  return {
+    url: yahooQuoteUrl(symbols.join(",")),
+    adapter,
+    fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
+  };
 }
 
 function readYahooScreenerQuotes(payload: unknown): unknown {

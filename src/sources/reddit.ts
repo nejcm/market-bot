@@ -208,6 +208,7 @@ async function collectSequential<TItem, TResult>(
 ): Promise<readonly TResult[]> {
   return items.reduce<Promise<TResult[]>>(async (previousResults, item) => {
     const results = await previousResults;
+    // Local accumulator preserves sequential requests without the O(N^2) array spread cost.
     results.push(await collect(item));
     return results;
   }, Promise.resolve([]));

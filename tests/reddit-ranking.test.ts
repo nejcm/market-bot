@@ -18,6 +18,10 @@ function input(overrides: Partial<RedditCandidateRankInput> = {}): RedditCandida
 }
 
 describe("Reddit candidate ranking", () => {
+  test("returns no candidates for empty discussion input", () => {
+    expect(rankRedditCandidates(input())).toEqual([]);
+  });
+
   test("ranks ticker-like Reddit mentions by deterministic discovery score", () => {
     const ranked = rankRedditCandidates(
       input({
@@ -122,6 +126,32 @@ describe("Reddit candidate ranking", () => {
 
     expect(ranked.map((candidate) => [candidate.symbol, candidate.discussionStance])).toEqual([
       ["NVDA", "mixed"],
+      ["TSLA", "skeptical"],
+    ]);
+  });
+
+  test("keeps stance terms scoped to the mentioned ticker", () => {
+    const ranked = rankRedditCandidates(
+      input({
+        posts: [
+          {
+            id: "p1",
+            fullname: "t3_p1",
+            subreddit: "stocks",
+            title: "AAPL strong, TSLA scam",
+            selfText: "",
+            author: "poster-a",
+            createdAt: "2026-06-01T00:00:00.000Z",
+            score: 10,
+            commentCount: 1,
+            permalink: "https://www.reddit.com/r/stocks/comments/p1/",
+          },
+        ],
+      }),
+    );
+
+    expect(ranked.map((candidate) => [candidate.symbol, candidate.discussionStance])).toEqual([
+      ["AAPL", "constructive"],
       ["TSLA", "skeptical"],
     ]);
   });

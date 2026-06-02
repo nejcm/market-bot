@@ -1,0 +1,182 @@
+import { describe, expect, test } from "bun:test";
+import {
+  crossCheckRedditCandidatesWithYahoo,
+  validateYahooCandidateQuotes,
+} from "../src/alpha-search/yahoo-validation";
+import type { RedditRankedCandidate } from "../src/alpha-search/reddit-ranking";
+import type { FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
+
+function candidate(symbol: string, rank = 1): RedditRankedCandidate {
+  return {
+    rank,
+    symbol,
+    redditDiscoveryScore: 50,
+    mentionCount: 2,
+    mentionVelocity: 1,
+    engagementScore: 20,
+    uniqueParticipantCount: 2,
+    discussionStance: "constructive",
+    recencyScore: 1,
+    sourceIds: [`t3_${symbol.toLowerCase()}`],
+  };
+}
+
+function quote(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    symbol: "AAPL",
+    shortName: "Apple Inc.",
+    exchange: "NMS",
+    fullExchangeName: "NasdaqGS",
+    quoteType: "EQUITY",
+    regularMarketPrice: 190,
+    regularMarketVolume: 80_000_000,
+    marketCap: 2_900_000_000_000,
+    ...overrides,
+  };
+}
+
+function payload(quotes: readonly Record<string, unknown>[]): unknown {
+  return { quoteResponse: { result: quotes } };
+}
+
+function fetched(payloadValue: unknown): FetchJsonResult {
+  return {
+    rawSnapshot: {
+      id: "raw-yahoo-alpha-search-2026-06-01T00:00:00.000Z",
+      adapter: "yahoo-alpha-search",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      payload: payloadValue,
+    },
+    payload: payloadValue,
+  };
+}
+
+function requestExecutor(
+  onUrl: (url: string) => void,
+  payloadValue: unknown,
+): SourceRequestExecutor {
+  return {
+    json: async (request) => {
+      onUrl(request.url);
+      return fetched(payloadValue);
+    },
+    text: async () => {
+      throw new Error("unexpected text fetch");
+    },
+  };
+}
+
+describe("Yahoo alpha-search validation", () => {
+  test("accepts Yahoo-validated stocks and ETFs with basic market info", () => {
+    const result = validateYahooCandidateQuotes(
+      [candidate("AAPL"), candidate("SPY", 2)],
+      payload([
+        quote({ symbol: "AAPL", quoteType: "EQUITY" }),
+        quote({
+          symbol: "SPY",
+          shortName: "SPDR S&P 500 ETF Trust",
+          exchange: "PCX",
+          fullExchangeName: "NYSEArca",
+          quoteType: "ETF",
+          regularMarketPrice: 520,
+          regularMarketVolume: 90_000_000,
+        }),
+      ]),
+    );
+
+    expect(result.validLeads).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        name: "Apple Inc.",
+        exchange: "NMS",
+        price: 190,
+        volume: 80_000_000,
+        marketCap: 2_900_000_000_000,
+        instrumentKind: "stock",
+      }),
+      expect.objectContaining({
+        symbol: "SPY",
+        name: "SPDR S&P 500 ETF Trust",
+        exchange: "PCX",
+        price: 520,
+        volume: 90_000_000,
+        instrumentKind: "etf",
+      }),
+    ]);
+    expect(result.rejectedCandidates).toEqual([]);
+  });
+
+  test("rejects unresolved, OTC, sub-dollar, and non-stock Yahoo candidates", () => {
+    const result = validateYahooCandidateQuotes(
+      [candidate("MISSING"), candidate("OTCM", 2), candidate("PENY", 3), candidate("FUND", 4)],
+      payload([
+        quote({
+          symbol: "OTCM",
+          exchange: "PNK",
+          fullExchangeName: "Other OTC",
+          regularMarketPrice: 50,
+        }),
+        quote({ symbol: "PENY", regularMarketPrice: 0.5 }),
+        quote({ symbol: "FUND", quoteType: "MUTUALFUND", regularMarketPrice: 20 }),
+      ]),
+    );
+
+    expect(result.validLeads).toEqual([]);
+    expect(
+      result.rejectedCandidates.map((rejected) => [rejected.candidate.symbol, rejected.reason]),
+    ).toEqual([
+      ["MISSING", "unresolved by Yahoo"],
+      ["OTCM", "OTC or pink-sheet instrument"],
+      ["PENY", "Yahoo price is below $1"],
+      ["FUND", "Yahoo quote type is not stock or ETF"],
+    ]);
+  });
+
+  test("cross-checks only the configured top Reddit candidates", async () => {
+    const requestedUrls: string[] = [];
+    const result = await crossCheckRedditCandidatesWithYahoo({
+      candidates: [candidate("AAPL"), candidate("MSFT", 2), candidate("TSLA", 3)],
+      candidateLimit: 2,
+      request: requestExecutor(
+        (url) => requestedUrls.push(url),
+        payload([quote({ symbol: "AAPL" }), quote({ symbol: "MSFT" })]),
+      ),
+    });
+
+    expect(decodeURIComponent(requestedUrls[0] ?? "")).toContain("symbols=AAPL,MSFT");
+    expect(decodeURIComponent(requestedUrls[0] ?? "")).not.toContain("TSLA");
+    expect(result.rawSnapshots).toHaveLength(1);
+    expect(result.validLeads.map((lead) => lead.symbol)).toEqual(["AAPL", "MSFT"]);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  test("returns source gaps from the Yahoo request boundary", async () => {
+    const result = await crossCheckRedditCandidatesWithYahoo({
+      candidates: [candidate("AAPL")],
+      candidateLimit: 15,
+      request: {
+        json: async () => ({
+          source: "yahoo-alpha-search",
+          message: "source request failed with status 429",
+          cause: "fetch-failed",
+        }),
+        text: async () => {
+          throw new Error("unexpected text fetch");
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      rawSnapshots: [],
+      validLeads: [],
+      rejectedCandidates: [],
+      sourceGaps: [
+        {
+          source: "yahoo-alpha-search",
+          message: "source request failed with status 429",
+          cause: "fetch-failed",
+        },
+      ],
+    });
+  });
+});

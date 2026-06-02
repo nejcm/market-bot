@@ -50,6 +50,7 @@ const SKEPTICAL_TERMS = [
   "skeptical",
   "weak",
 ];
+const WORD_CHAR_RE = /[a-z0-9_]/u;
 
 export type DiscussionStance = "constructive" | "skeptical" | "mixed" | "unclear";
 
@@ -82,6 +83,11 @@ interface DiscussionItem {
   readonly engagement: number;
 }
 
+interface TickerMention {
+  readonly symbol: string;
+  readonly index: number;
+}
+
 interface CandidateAccumulator {
   readonly symbol: string;
   mentionCount: number;
@@ -112,21 +118,76 @@ function discussionItems(input: RedditCandidateRankInput): readonly DiscussionIt
   ];
 }
 
-function extractTickerMentions(text: string): readonly string[] {
+function extractTickerMentions(text: string): readonly TickerMention[] {
   const cashtags = [...text.matchAll(CASH_TAG_RE)].flatMap((match) => {
     const [, value] = match;
-    return value === undefined ? [] : [value.toUpperCase()];
+    return value === undefined || match.index === undefined
+      ? []
+      : [{ symbol: value.toUpperCase(), index: match.index }];
   });
   const bareTickers = [...text.matchAll(BARE_TICKER_RE)]
-    .map((match) => match[0])
-    .filter((symbol) => !STOP_WORDS.has(symbol));
+    .map((match) => ({ symbol: match[0], index: match.index }))
+    .filter((mention) => mention.index !== undefined && !STOP_WORDS.has(mention.symbol));
 
   return [...cashtags, ...bareTickers];
 }
 
-function countTerms(text: string, terms: readonly string[]): number {
+function isWordChar(value: string | undefined): boolean {
+  return value !== undefined && WORD_CHAR_RE.test(value);
+}
+
+function termIndexes(lowerText: string, term: string): readonly number[] {
+  const indexes: number[] = [];
+  let fromIndex = 0;
+  while (fromIndex < lowerText.length) {
+    const index = lowerText.indexOf(term, fromIndex);
+    if (index === -1) {
+      return indexes;
+    }
+    const before = lowerText[index - 1];
+    const after = lowerText[index + term.length];
+    if (!isWordChar(before) && !isWordChar(after)) {
+      indexes.push(index);
+    }
+    fromIndex = index + term.length;
+  }
+  return indexes;
+}
+
+function nearestMention(
+  mentions: readonly TickerMention[],
+  termIndex: number,
+): TickerMention | undefined {
+  const nearest = mentions.reduce<{
+    readonly mention?: TickerMention;
+    readonly distance: number;
+    readonly tied: boolean;
+  }>(
+    (best, mention) => {
+      const distance = Math.abs(mention.index + mention.symbol.length / 2 - termIndex);
+      if (distance < best.distance) {
+        return { mention, distance, tied: false };
+      }
+      if (distance === best.distance) {
+        return { ...best, tied: true };
+      }
+      return best;
+    },
+    { distance: Number.POSITIVE_INFINITY, tied: false },
+  );
+  return nearest.tied ? undefined : nearest.mention;
+}
+
+function countTermsForSymbol(
+  text: string,
+  mentions: readonly TickerMention[],
+  symbol: string,
+  terms: readonly string[],
+): number {
   const lowerText = text.toLowerCase();
-  return terms.filter((term) => new RegExp(`\\b${term}\\b`, "u").test(lowerText)).length;
+  return terms
+    .flatMap((term) => termIndexes(lowerText, term))
+    .filter((termIndex) => nearestMention(mentions, termIndex)?.symbol === symbol).length;
 }
 
 function discussionStance(constructiveCount: number, skepticalCount: number): DiscussionStance {
@@ -232,16 +293,25 @@ export function rankRedditCandidates(
       continue;
     }
 
-    const symbolsInSource = new Set(mentions);
-    const constructiveCount = countTerms(item.text, CONSTRUCTIVE_TERMS);
-    const skepticalCount = countTerms(item.text, SKEPTICAL_TERMS);
+    const symbolsInSource = new Set(mentions.map((mention) => mention.symbol));
     for (const symbol of symbolsInSource) {
       const candidate = candidates.get(symbol) ?? accumulatorFor(symbol);
-      const mentionCount = mentions.filter((mention) => mention === symbol).length;
+      const symbolMentions = mentions.filter((mention) => mention.symbol === symbol);
+      const mentionCount = symbolMentions.length;
       candidate.mentionCount += mentionCount;
       candidate.engagementScore += item.engagement;
-      candidate.stanceConstructive += constructiveCount;
-      candidate.stanceSkeptical += skepticalCount;
+      candidate.stanceConstructive += countTermsForSymbol(
+        item.text,
+        mentions,
+        symbol,
+        CONSTRUCTIVE_TERMS,
+      );
+      candidate.stanceSkeptical += countTermsForSymbol(
+        item.text,
+        mentions,
+        symbol,
+        SKEPTICAL_TERMS,
+      );
       candidate.recencyTotal +=
         recencyValue(item.createdAt, input.fetchedAt, input.lookbackDays) * mentionCount;
       candidate.participants.add(item.author);

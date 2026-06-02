@@ -4,7 +4,9 @@ import { sourceGapStatusCode } from "../domain/source-gaps";
 import type {
   AssetClass,
   Depth,
+  InstrumentIdentity,
   JobType,
+  Source,
   SourceGap,
   SourceGapCapability,
   SourceGapCause,
@@ -16,8 +18,57 @@ const REPORT_FILE = "report.json";
 const ANALYTICS_FILE = "analytics.json";
 const SCORE_FILE = "score.json";
 const SAMPLE_MESSAGE_LIMIT = 3;
+const US_EQUITY_EXCHANGES = new Set([
+  "AMEX",
+  "BATS",
+  "CBOE",
+  "NASDAQ",
+  "NASDAQCM",
+  "NASDAQGM",
+  "NASDAQGS",
+  "NYSE",
+  "NYSEAMERICAN",
+  "NYSEARCA",
+]);
+const INTERNATIONAL_SUFFIXES = new Set(["L", "T", "TO", "PA"]);
 
 type IssueClass = "missingCredential" | "fetchFailed" | "yahooAuth" | "other";
+type ValidationStatus = "pass" | "warn" | "fail";
+type ValidationIssueClassification = "blocking" | "expected" | "informational";
+type CoverageKey =
+  | "daily-equity"
+  | "weekly-equity"
+  | "daily-crypto"
+  | "weekly-crypto"
+  | "ticker-equity"
+  | "ticker-crypto"
+  | "deep-equity-ticker"
+  | "international-equity-ticker";
+
+interface SourceHealth {
+  readonly kind: Source["kind"];
+  readonly assetClass?: AssetClass;
+  readonly symbol?: string;
+  readonly provider?: string;
+  readonly providerAliases: readonly string[];
+  readonly identity?: InstrumentIdentity;
+}
+
+export interface ValidationCoverageItem {
+  readonly key: CoverageKey;
+  readonly label: string;
+  readonly met: boolean;
+  readonly runIds: readonly string[];
+}
+
+export interface ValidationRouteClassification {
+  readonly route: string;
+  readonly provider: string;
+  readonly classification: ValidationIssueClassification;
+  readonly reason: string;
+  readonly runIds: readonly string[];
+  readonly sampleMessages: readonly string[];
+}
 
 interface RunHealth {
   readonly runId: string;
@@ -27,6 +78,8 @@ interface RunHealth {
   readonly symbol?: string;
   readonly depth?: Depth;
   readonly sourceGaps: readonly SourceGap[];
+  readonly sources: readonly SourceHealth[];
+  readonly predictionHorizons: readonly number[];
   readonly analytics?: Record<string, unknown>;
   readonly scoreCount: number;
   readonly resolvedScoreCount: number;
@@ -47,7 +100,7 @@ export interface ProviderRouteHealth {
 }
 
 export interface ProviderHealthSummary {
-  readonly version: 1;
+  readonly version: 2;
   readonly generatedAt: string;
   readonly runCount: number;
   readonly firstRunAt?: string;
@@ -73,6 +126,13 @@ export interface ProviderHealthSummary {
     readonly fetchFailed: number;
     readonly yahooAuth: number;
     readonly other: number;
+  };
+  readonly validation: {
+    readonly status: ValidationStatus;
+    readonly requiredCoverage: readonly ValidationCoverageItem[];
+    readonly blockingIssueCount: number;
+    readonly warningIssueCount: number;
+    readonly routeClassifications: readonly ValidationRouteClassification[];
   };
   readonly routes: readonly ProviderRouteHealth[];
 }
@@ -120,6 +180,16 @@ function isJobType(value: unknown): value is JobType {
 
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
+}
+
+function isSourceKind(value: unknown): value is Source["kind"] {
+  return (
+    value === "market-data" ||
+    value === "news" ||
+    value === "model" ||
+    value === "extended-evidence" ||
+    value === "market-context"
+  );
 }
 
 function isDepth(value: unknown): value is Depth {
@@ -211,6 +281,79 @@ function parseSourceGaps(value: unknown): readonly SourceGap[] {
   });
 }
 
+function parseIdentity(value: unknown): InstrumentIdentity | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const exchange = stringValue(value.exchange);
+  const quoteCurrency = stringValue(value.quoteCurrency);
+  if (exchange === undefined && quoteCurrency === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(exchange !== undefined ? { exchange } : {}),
+    ...(quoteCurrency !== undefined ? { quoteCurrency } : {}),
+  };
+}
+
+function parseProviderAliases(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const provider = stringValue(item.provider);
+    return provider === undefined ? [] : [provider];
+  });
+}
+
+function parseSources(value: unknown): readonly SourceHealth[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item) || !isSourceKind(item.kind)) {
+      return [];
+    }
+
+    const assetClass = isAssetClass(item.assetClass) ? item.assetClass : undefined;
+    const symbol = stringValue(item.symbol);
+    const provider = stringValue(item.provider);
+    const identity = parseIdentity(item.identity);
+
+    return [
+      {
+        kind: item.kind,
+        ...(assetClass !== undefined ? { assetClass } : {}),
+        ...(symbol !== undefined ? { symbol } : {}),
+        ...(provider !== undefined ? { provider } : {}),
+        providerAliases: parseProviderAliases(item.providerAliases),
+        ...(identity !== undefined ? { identity } : {}),
+      },
+    ];
+  });
+}
+
+function parsePredictionHorizons(value: unknown): readonly number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const horizon = numberValue(item.horizonTradingDays);
+    return horizon > 0 ? [horizon] : [];
+  });
+}
+
 function parseScoreCounts(value: unknown): {
   readonly scoreCount: number;
   readonly resolvedScoreCount: number;
@@ -257,6 +400,8 @@ async function loadRunHealth(runDir: string): Promise<RunHealth> {
     ...(symbol !== undefined ? { symbol } : {}),
     ...(depth !== undefined ? { depth } : {}),
     sourceGaps,
+    sources: parseSources(report.sources),
+    predictionHorizons: parsePredictionHorizons(report.predictions),
     ...(analytics !== undefined ? { analytics } : {}),
     scoreCount: score.scoreCount,
     resolvedScoreCount: score.resolvedScoreCount,
@@ -453,6 +598,345 @@ function gapOverview(routes: readonly ProviderRouteHealth[]): ProviderHealthSumm
   );
 }
 
+function exchangeKey(exchange: string): string {
+  return exchange.toUpperCase().replaceAll(/[^A-Z]/gu, "");
+}
+
+function hasInternationalSuffix(symbol: string | undefined): boolean {
+  const suffix = symbol?.match(/\.([A-Z]{1,3})$/u)?.[1];
+  return suffix !== undefined && INTERNATIONAL_SUFFIXES.has(suffix);
+}
+
+function isInternationalIdentity(identity: InstrumentIdentity | undefined): boolean {
+  if (identity?.quoteCurrency !== undefined && identity.quoteCurrency.toUpperCase() !== "USD") {
+    return true;
+  }
+  if (identity?.exchange === undefined) {
+    return false;
+  }
+  return !US_EQUITY_EXCHANGES.has(exchangeKey(identity.exchange));
+}
+
+function isInternationalEquityTicker(run: RunHealth): boolean {
+  if (run.jobType !== "ticker" || run.assetClass !== "equity") {
+    return false;
+  }
+  if (hasInternationalSuffix(run.symbol)) {
+    return true;
+  }
+  return run.sources.some(
+    (source) =>
+      (source.assetClass === "equity" || source.assetClass === undefined) &&
+      (source.symbol === run.symbol || source.symbol === undefined) &&
+      isInternationalIdentity(source.identity),
+  );
+}
+
+function coverageItem(
+  key: CoverageKey,
+  label: string,
+  runs: readonly RunHealth[],
+  matches: (run: RunHealth) => boolean,
+): ValidationCoverageItem {
+  const runIds = runs.filter((run) => matches(run)).map((run) => run.runId);
+  return {
+    key,
+    label,
+    met: runIds.length > 0,
+    runIds,
+  };
+}
+
+function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCoverageItem[] {
+  return [
+    coverageItem(
+      "daily-equity",
+      "Daily equity",
+      runs,
+      (run) => run.jobType === "daily" && run.assetClass === "equity",
+    ),
+    coverageItem(
+      "weekly-equity",
+      "Weekly equity",
+      runs,
+      (run) => run.jobType === "weekly" && run.assetClass === "equity",
+    ),
+    coverageItem(
+      "daily-crypto",
+      "Daily crypto",
+      runs,
+      (run) => run.jobType === "daily" && run.assetClass === "crypto",
+    ),
+    coverageItem(
+      "weekly-crypto",
+      "Weekly crypto",
+      runs,
+      (run) => run.jobType === "weekly" && run.assetClass === "crypto",
+    ),
+    coverageItem(
+      "ticker-equity",
+      "Ticker equity",
+      runs,
+      (run) => run.jobType === "ticker" && run.assetClass === "equity",
+    ),
+    coverageItem(
+      "ticker-crypto",
+      "Ticker crypto",
+      runs,
+      (run) => run.jobType === "ticker" && run.assetClass === "crypto",
+    ),
+    coverageItem(
+      "deep-equity-ticker",
+      "Deep equity ticker",
+      runs,
+      (run) => run.jobType === "ticker" && run.assetClass === "equity" && run.depth === "deep",
+    ),
+    coverageItem(
+      "international-equity-ticker",
+      "International equity ticker smoke",
+      runs,
+      isInternationalEquityTicker,
+    ),
+  ];
+}
+
+function usableNewsSourceCount(run: RunHealth): number {
+  return Math.max(
+    numberAt(run.analytics, ["newsDedupe", "selectedNewsSourceCount"]),
+    run.sources.filter((source) => source.kind === "news").length,
+  );
+}
+
+function routeHasCause(route: ProviderRouteHealth, cause: SourceGapCause): boolean {
+  return (route.causes[cause] ?? 0) > 0;
+}
+
+function routeRunIds(
+  route: ProviderRouteHealth,
+  runsById: ReadonlyMap<string, RunHealth>,
+): readonly string[] {
+  return route.runIds.filter((runId) => runsById.has(runId));
+}
+
+function classifyRoute(
+  route: ProviderRouteHealth,
+  runsById: ReadonlyMap<string, RunHealth>,
+): ValidationRouteClassification {
+  const routeName = route.route.toLowerCase();
+  const provider = route.provider.toLowerCase();
+  const routeRuns = routeRunIds(route, runsById).map((runId) => runsById.get(runId));
+  const hasInternationalRun = routeRuns.some(
+    (run): run is RunHealth => run !== undefined && isInternationalEquityTicker(run),
+  );
+  const base = {
+    route: route.route,
+    provider: route.provider,
+    runIds: route.runIds,
+    sampleMessages: route.sampleMessages,
+  };
+
+  if (provider === "fred" || routeName.startsWith("fred-")) {
+    return {
+      ...base,
+      classification: "blocking",
+      reason: "FRED macro coverage is baseline-required.",
+    };
+  }
+  if (provider === "yahoo" && (route.yahooAuth > 0 || routeHasCause(route, "fetch-failed"))) {
+    return {
+      ...base,
+      classification: "blocking",
+      reason: "Yahoo is the primary equity market-data source.",
+    };
+  }
+  if (provider === "coingecko" && (route.fetchFailed > 0 || routeHasCause(route, "fetch-failed"))) {
+    return {
+      ...base,
+      classification: "blocking",
+      reason: "CoinGecko is the primary crypto market-data source.",
+    };
+  }
+  if (provider === "marketaux" || provider === "finnhub") {
+    return {
+      ...base,
+      classification: "expected",
+      reason: "Individual news provider gaps are nonblocking when usable news exists.",
+    };
+  }
+  if (provider === "massive" || routeName.startsWith("massive-")) {
+    return { ...base, classification: "expected", reason: "Massive remains supplemental-only." };
+  }
+  if (provider === "tradier" || routeName.startsWith("tradier-")) {
+    return {
+      ...base,
+      classification: "expected",
+      reason: "Tradier options coverage is optional and can be account- or region-limited.",
+    };
+  }
+  if (provider === "glassnode" || routeName.startsWith("glassnode-")) {
+    return {
+      ...base,
+      classification: "expected",
+      reason: "Glassnode remains optional paid crypto enrichment.",
+    };
+  }
+  if (provider === "sec" || routeName.startsWith("sec-")) {
+    if (
+      hasInternationalRun &&
+      (routeHasCause(route, "unsupported-coverage") ||
+        routeHasCause(route, "provider-data-missing"))
+    ) {
+      return {
+        ...base,
+        classification: "expected",
+        reason: "SEC coverage is US-centric and expected to miss international equities.",
+      };
+    }
+    return {
+      ...base,
+      classification: "expected",
+      reason: "SEC extended evidence is nonblocking provider coverage.",
+    };
+  }
+  if (routeName === "news-seen" || routeHasCause(route, "repeat-fallback")) {
+    return {
+      ...base,
+      classification: "informational",
+      reason: "Persistent news dedupe fallback is disclosed but nonblocking.",
+    };
+  }
+  if (route.missingCredential > 0) {
+    return {
+      ...base,
+      classification: "expected",
+      reason: "Missing optional provider credentials are disclosed as coverage gaps.",
+    };
+  }
+  return {
+    ...base,
+    classification: "blocking",
+    reason: "Unclassified provider gap requires review.",
+  };
+}
+
+function syntheticClassification(
+  route: string,
+  classification: ValidationIssueClassification,
+  reason: string,
+  runIds: readonly string[],
+): ValidationRouteClassification {
+  return {
+    route,
+    provider: "validation",
+    classification,
+    reason,
+    runIds,
+    sampleMessages: [],
+  };
+}
+
+function hasDuePrediction(run: RunHealth, now: Date): boolean {
+  if (run.generatedAt === undefined || run.predictionHorizons.length === 0) {
+    return false;
+  }
+  const generatedAt = Date.parse(run.generatedAt);
+  if (!Number.isFinite(generatedAt)) {
+    return false;
+  }
+  const elapsedDays = Math.floor((now.getTime() - generatedAt) / 86_400_000);
+  return run.predictionHorizons.some((horizon) => elapsedDays >= horizon + 2);
+}
+
+function buildValidation(
+  runs: readonly RunHealth[],
+  routes: readonly ProviderRouteHealth[],
+  calibrationPresent: boolean,
+  now: Date,
+): ProviderHealthSummary["validation"] {
+  const coverage = requiredCoverage(runs);
+  const runsById = new Map(runs.map((run) => [run.runId, run]));
+  const classifications: ValidationRouteClassification[] = routes.map((route) =>
+    classifyRoute(route, runsById),
+  );
+
+  for (const item of coverage) {
+    if (!item.met) {
+      classifications.push(
+        syntheticClassification(
+          `coverage:${item.key}`,
+          "blocking",
+          `Missing required validation run: ${item.label}.`,
+          [],
+        ),
+      );
+      continue;
+    }
+
+    const laneRuns = item.runIds.flatMap((runId) => {
+      const run = runsById.get(runId);
+      return run === undefined ? [] : [run];
+    });
+    if (laneRuns.every((run) => usableNewsSourceCount(run) === 0)) {
+      classifications.push(
+        syntheticClassification(
+          `news:${item.key}`,
+          "blocking",
+          `No usable news was collected for validation lane: ${item.label}.`,
+          item.runIds,
+        ),
+      );
+    }
+  }
+
+  const dueRunsWithoutScores = runs.filter(
+    (run) => hasDuePrediction(run, now) && run.scoreCount === 0,
+  );
+  if (dueRunsWithoutScores.length > 0) {
+    classifications.push(
+      syntheticClassification(
+        "scoring:due",
+        "blocking",
+        "A due scoring pass is missing for matured predictions.",
+        dueRunsWithoutScores.map((run) => run.runId),
+      ),
+    );
+  }
+
+  if (!calibrationPresent && runs.some((run) => run.predictionHorizons.length > 0)) {
+    classifications.push(
+      syntheticClassification(
+        "calibration",
+        "expected",
+        "Calibration is absent before enough prediction horizons mature.",
+        runs.filter((run) => run.predictionHorizons.length > 0).map((run) => run.runId),
+      ),
+    );
+  }
+
+  const blockingIssueCount = classifications.filter(
+    (classification) => classification.classification === "blocking",
+  ).length;
+  const warningIssueCount = classifications.filter(
+    (classification) => classification.classification !== "blocking",
+  ).length;
+  let status: ValidationStatus = "pass";
+  if (blockingIssueCount > 0) {
+    status = "fail";
+  } else if (warningIssueCount > 0) {
+    status = "warn";
+  }
+
+  return {
+    status,
+    requiredCoverage: coverage,
+    blockingIssueCount,
+    warningIssueCount,
+    routeClassifications: classifications.toSorted(
+      (a, b) => a.classification.localeCompare(b.classification) || a.route.localeCompare(b.route),
+    ),
+  };
+}
+
 export async function buildProviderHealthSummary(
   dataDir: string,
   now: Date = new Date(),
@@ -461,17 +945,19 @@ export async function buildProviderHealthSummary(
   const runs = await Promise.all(runDirs.map((runDir) => loadRunHealth(runDir)));
   const dates = generatedDates(runs);
   const routes = routeHealth(runs);
+  const calibrationPresent = await hasCalibration(dataDir);
 
   return {
-    version: 1,
+    version: 2,
     generatedAt: now.toISOString(),
     runCount: runs.length,
     ...(dates[0] !== undefined ? { firstRunAt: dates[0] } : {}),
     ...(dates.at(-1) !== undefined ? { lastRunAt: dates.at(-1) as string } : {}),
     runsByJobType: countBy(runs, (run) => run.jobType),
     runsByAssetClass: countBy(runs, (run) => run.assetClass),
-    realRunValidation: validationSummary(runs, await hasCalibration(dataDir)),
+    realRunValidation: validationSummary(runs, calibrationPresent),
     gapOverview: gapOverview(routes),
+    validation: buildValidation(runs, routes, calibrationPresent, now),
     routes,
   };
 }
@@ -494,6 +980,37 @@ export function renderProviderHealthMarkdown(summary: ProviderHealthSummary): st
     "",
     `Generated: ${summary.generatedAt}`,
     `Runs: ${String(summary.runCount)}`,
+    "",
+    "## Validation",
+    "",
+    tableRow(["Metric", "Value"]),
+    tableRow(["---", "---"]),
+    tableRow(["Status", summary.validation.status]),
+    tableRow(["Blocking issues", String(summary.validation.blockingIssueCount)]),
+    tableRow(["Warning issues", String(summary.validation.warningIssueCount)]),
+    "",
+    "### Required coverage",
+    "",
+    tableRow(["Coverage", "Met", "Runs"]),
+    tableRow(["---", "---", "---"]),
+    ...summary.validation.requiredCoverage.map((item) =>
+      tableRow([item.label, item.met ? "yes" : "no", item.runIds.join(", ") || "-"]),
+    ),
+    "",
+    "### Route classifications",
+    "",
+    tableRow(["Route", "Provider", "Class", "Reason", "Runs", "Sample"]),
+    tableRow(["---", "---", "---", "---", "---", "---"]),
+    ...summary.validation.routeClassifications.map((classification) =>
+      tableRow([
+        classification.route,
+        classification.provider,
+        classification.classification,
+        classification.reason,
+        classification.runIds.join(", ") || "-",
+        classification.sampleMessages[0] ?? "-",
+      ]),
+    ),
     "",
     "## Real-run validation",
     "",

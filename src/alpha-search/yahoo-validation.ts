@@ -10,6 +10,17 @@ import type { RedditRankedCandidate } from "./reddit-ranking";
 
 const VALID_QUOTE_TYPES = new Set(["EQUITY", "ETF"]);
 const MINIMUM_ALLOWED_PRICE = 1;
+const OTC_EXCHANGE_CODES = new Set([
+  "GREY",
+  "OTC",
+  "OTCBB",
+  "OTCQB",
+  "OTCQX",
+  "PINX",
+  "PINK",
+  "PNK",
+]);
+const OTC_EXCHANGE_NAMES = new Set(["OTHER OTC", "OTC MARKETS", "OTCBB", "PINK SHEETS"]);
 
 export type YahooInstrumentKind = "stock" | "etf";
 
@@ -66,6 +77,16 @@ type YahooQuoteValidation =
       readonly reason: string;
     };
 
+type CandidateQuoteValidation =
+  | {
+      readonly status: "valid";
+      readonly lead: YahooValidatedLead;
+    }
+  | {
+      readonly status: "rejected";
+      readonly rejectedCandidate: YahooRejectedCandidate;
+    };
+
 function readYahooQuoteResults(payload: unknown): readonly unknown[] {
   if (!isRecord(payload) || !isRecord(payload.quoteResponse)) {
     return [];
@@ -92,7 +113,7 @@ function isOtcExchange(value: string | undefined): boolean {
   const normalized = value?.trim().toUpperCase();
   return (
     normalized !== undefined &&
-    (normalized === "PNK" || normalized.includes("OTC") || normalized.includes("PINK"))
+    (OTC_EXCHANGE_CODES.has(normalized) || OTC_EXCHANGE_NAMES.has(normalized))
   );
 }
 
@@ -163,6 +184,31 @@ function validatedLead(
   };
 }
 
+function validateCandidateQuote(
+  candidate: RedditRankedCandidate,
+  quote: YahooQuoteInfo | undefined,
+): CandidateQuoteValidation {
+  if (quote === undefined) {
+    return {
+      status: "rejected",
+      rejectedCandidate: { candidate, reason: "unresolved by Yahoo" },
+    };
+  }
+
+  const validation = validateQuoteInfo(quote);
+  if (validation.status === "rejected") {
+    return {
+      status: "rejected",
+      rejectedCandidate: { candidate, reason: validation.reason },
+    };
+  }
+
+  return {
+    status: "valid",
+    lead: validatedLead(candidate, validation.quote, validation.instrumentKind),
+  };
+}
+
 export function validateYahooCandidateQuotes(
   candidates: readonly RedditRankedCandidate[],
   payload: unknown,
@@ -175,41 +221,18 @@ export function validateYahooCandidateQuotes(
       })
       .map((quote) => [quote.symbol, quote]),
   );
-
-  return candidates.reduce<YahooCandidateValidation>(
-    (result, candidate) => {
-      const quote = quotesBySymbol.get(candidate.symbol);
-      if (quote === undefined) {
-        return {
-          validLeads: result.validLeads,
-          rejectedCandidates: [
-            ...result.rejectedCandidates,
-            { candidate, reason: "unresolved by Yahoo" },
-          ],
-        };
-      }
-
-      const validation = validateQuoteInfo(quote);
-      if (validation.status === "rejected") {
-        return {
-          validLeads: result.validLeads,
-          rejectedCandidates: [
-            ...result.rejectedCandidates,
-            { candidate, reason: validation.reason },
-          ],
-        };
-      }
-
-      return {
-        validLeads: [
-          ...result.validLeads,
-          validatedLead(candidate, validation.quote, validation.instrumentKind),
-        ],
-        rejectedCandidates: result.rejectedCandidates,
-      };
-    },
-    { validLeads: [], rejectedCandidates: [] },
+  const validations = candidates.map((candidate) =>
+    validateCandidateQuote(candidate, quotesBySymbol.get(candidate.symbol)),
   );
+
+  return {
+    validLeads: validations.flatMap((validation) =>
+      validation.status === "valid" ? [validation.lead] : [],
+    ),
+    rejectedCandidates: validations.flatMap((validation) =>
+      validation.status === "rejected" ? [validation.rejectedCandidate] : [],
+    ),
+  };
 }
 
 export async function crossCheckRedditCandidatesWithYahoo(input: {

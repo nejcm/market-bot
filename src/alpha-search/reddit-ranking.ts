@@ -179,12 +179,11 @@ function nearestMention(
 }
 
 function countTermsForSymbol(
-  text: string,
+  lowerText: string,
   mentions: readonly TickerMention[],
   symbol: string,
   terms: readonly string[],
 ): number {
-  const lowerText = text.toLowerCase();
   return terms
     .flatMap((term) => termIndexes(lowerText, term))
     .filter((termIndex) => nearestMention(mentions, termIndex)?.symbol === symbol).length;
@@ -293,6 +292,7 @@ export function rankRedditCandidates(
       continue;
     }
 
+    const lowerText = item.text.toLowerCase();
     const symbolsInSource = new Set(mentions.map((mention) => mention.symbol));
     for (const symbol of symbolsInSource) {
       const candidate = candidates.get(symbol) ?? accumulatorFor(symbol);
@@ -301,13 +301,13 @@ export function rankRedditCandidates(
       candidate.mentionCount += mentionCount;
       candidate.engagementScore += item.engagement;
       candidate.stanceConstructive += countTermsForSymbol(
-        item.text,
+        lowerText,
         mentions,
         symbol,
         CONSTRUCTIVE_TERMS,
       );
       candidate.stanceSkeptical += countTermsForSymbol(
-        item.text,
+        lowerText,
         mentions,
         symbol,
         SKEPTICAL_TERMS,

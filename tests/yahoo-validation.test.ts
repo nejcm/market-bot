@@ -132,6 +132,22 @@ describe("Yahoo alpha-search validation", () => {
     ]);
   });
 
+  test("does not reject listed candidates only because exchange text contains OTC", () => {
+    const result = validateYahooCandidateQuotes(
+      [candidate("SAFE")],
+      payload([
+        quote({
+          symbol: "SAFE",
+          exchange: "XOTC",
+          fullExchangeName: "Example Listed Exchange",
+        }),
+      ]),
+    );
+
+    expect(result.validLeads.map((lead) => lead.symbol)).toEqual(["SAFE"]);
+    expect(result.rejectedCandidates).toEqual([]);
+  });
+
   test("cross-checks only the configured top Reddit candidates", async () => {
     const requestedUrls: string[] = [];
     const result = await crossCheckRedditCandidatesWithYahoo({
@@ -148,6 +164,30 @@ describe("Yahoo alpha-search validation", () => {
     expect(result.rawSnapshots).toHaveLength(1);
     expect(result.validLeads.map((lead) => lead.symbol)).toEqual(["AAPL", "MSFT"]);
     expect(result.sourceGaps).toEqual([]);
+  });
+
+  test("does not call Yahoo when candidate limit is non-positive", async () => {
+    for (const candidateLimit of [0, -1]) {
+      const result = await crossCheckRedditCandidatesWithYahoo({
+        candidates: [candidate("AAPL")],
+        candidateLimit,
+        request: {
+          json: async () => {
+            throw new Error("unexpected json fetch");
+          },
+          text: async () => {
+            throw new Error("unexpected text fetch");
+          },
+        },
+      });
+
+      expect(result).toEqual({
+        rawSnapshots: [],
+        validLeads: [],
+        rejectedCandidates: [],
+        sourceGaps: [],
+      });
+    }
   });
 
   test("returns source gaps from the Yahoo request boundary", async () => {

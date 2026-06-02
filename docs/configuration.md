@@ -27,16 +27,20 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
-| `MARKET_BOT_FRED_API_KEY` | — | Enables FRED Market Context for market updates, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research. |
-| `MARKET_BOT_TRADIER_API_TOKEN` | — | Enables Tradier options/IV Extended Evidence and IV forecast scoring. Missing token emits ticker `SourceGap`s for options evidence. |
-| `MARKET_BOT_GLASSNODE_API_KEY` | — | Enables Glassnode on-chain Extended Evidence for crypto tickers. Missing token emits ticker `SourceGap`s for on-chain evidence. |
+| `MARKET_BOT_FRED_API_KEY` | — | Recommended free provider. Enables FRED Market Context for market updates, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research. |
+| `MARKET_BOT_TRADIER_API_TOKEN` | — | Optional equity options/IV provider. Enables Tradier options/IV Extended Evidence and IV forecast scoring. Free/delayed access depends on Tradier account/API access. Missing token emits ticker `SourceGap`s for options evidence. |
+| `MARKET_BOT_GLASSNODE_API_KEY` | — | Optional paid crypto on-chain provider. Glassnode API access requires a paid/API-add-on plan. Missing token emits ticker `SourceGap`s for on-chain evidence. |
 | `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY` | — | Enables Massive, formerly Polygon.io, as a supplemental equity source provider using `api.massive.com`. `MARKET_BOT_POLYGON_API_KEY` is accepted as a legacy alias. Missing key silently disables Massive. When set, failed Massive requests emit `SourceGap`s. Massive contributes equity news and supplemental equity market snapshots only; it does not affect mover ranking, market regime labels, crypto, or scoring Observations. |
-| `MARKET_BOT_SEC_USER_AGENT` | `market-bot research contact@example.invalid` | User-Agent sent to SEC EDGAR. Set to an app/contact string for live SEC access. |
+| `MARKET_BOT_SEC_USER_AGENT` | `market-bot research contact@example.invalid` | Recommended free provider. User-Agent sent to SEC EDGAR. Set to an app name plus real contact email for live SEC access. |
 | `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for raw-source cache entries and scorer close cache entries. Raw-source cache keys are v2 canonical request hashes; request URLs and credential query params are not persisted. |
 | `MARKET_BOT_CACHE_DISABLE` | `false` | Set to `1` or `true` to bypass cache reads and writes entirely. |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS` | `7` | How many days back to look for a stale cached payload when a live fetch fails. A stale hit emits a `SourceGap` disclosing the staleness. |
 
 Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close cache files older than 365 days.
+
+## Free provider setup
+
+For a free, high-value Extended Evidence setup, set `MARKET_BOT_FRED_API_KEY` and `MARKET_BOT_SEC_USER_AGENT`. Add `MARKET_BOT_TRADIER_API_TOKEN` only when you need equity options/IV evidence and have suitable Tradier API access. Leave `MARKET_BOT_GLASSNODE_API_KEY` blank unless you already pay for Glassnode API access.
 
 ## Secrets
 

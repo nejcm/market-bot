@@ -20,6 +20,14 @@ const baseConfig: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
+  alphaSearchOptions: {
+    redditUserAgent: "market-bot test@example.test",
+    redditSubreddits: [],
+    redditLookbackDays: 7,
+    redditRawRetentionHours: 48,
+    topCandidateLimit: 15,
+    redditSeenPath: "data/reddit-seen.json",
+  },
 };
 
 function makeSpawn(overrides: {

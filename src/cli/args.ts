@@ -20,6 +20,12 @@ export interface TickerCommand {
   readonly depth: Depth;
 }
 
+export interface AlphaSearchCommand {
+  readonly jobType: "alpha-search";
+  readonly assetClass: "equity";
+  readonly depth: Depth;
+}
+
 export interface ScoreCommand {
   readonly jobType: "score";
 }
@@ -39,6 +45,7 @@ export interface ProviderHealthCommand {
 export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
 export type CliCommand =
   | ResearchCommand
+  | AlphaSearchCommand
   | ScoreCommand
   | CalibrationCommand
   | CachePruneCommand
@@ -125,6 +132,21 @@ export function parseArgs(args: readonly string[]): CliCommand {
     };
   }
 
+  if (command === "alpha-search") {
+    rejectUnknownArgs(args, 1);
+
+    const assetClass = parseAsset(readFlagValue(args, "--asset"));
+    if (assetClass !== "equity") {
+      throw new Error("alpha-search supports only --asset equity in V1");
+    }
+
+    return {
+      jobType: "alpha-search",
+      assetClass,
+      depth: readDepth(args),
+    };
+  }
+
   if (command === "score") {
     return { jobType: "score" };
   }
@@ -142,7 +164,7 @@ export function parseArgs(args: readonly string[]): CliCommand {
   }
 
   throw new Error(
-    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health",
+    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health",
   );
 }
 

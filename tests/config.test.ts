@@ -91,6 +91,47 @@ describe("resolveConfig", () => {
     ).toBe(5000);
   });
 
+  test("uses alpha-search defaults", () => {
+    expect(resolveConfig({}).alphaSearchOptions).toMatchObject({
+      redditUserAgent: "market-bot alpha-search contact@example.invalid",
+      redditSubreddits: [],
+      redditLookbackDays: 7,
+      redditRawRetentionHours: 48,
+      topCandidateLimit: 15,
+      redditSeenPath: join("data", "reddit-seen.json"),
+    });
+  });
+
+  test("reads Reddit alpha-search settings", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_REDDIT_CLIENT_ID: "client-id",
+        MARKET_BOT_REDDIT_CLIENT_SECRET: "client-secret",
+        MARKET_BOT_REDDIT_USER_AGENT: "market-bot test@example.test",
+        MARKET_BOT_REDDIT_SUBREDDITS: "r/stocks,wallstreetbets, SecurityAnalysis ",
+        MARKET_BOT_REDDIT_LOOKBACK_DAYS: "5",
+        MARKET_BOT_REDDIT_RAW_RETENTION_HOURS: "24",
+        MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT: "10",
+        MARKET_BOT_REDDIT_SEEN_PATH: "custom/reddit-seen.json",
+      }).alphaSearchOptions,
+    ).toEqual({
+      redditClientId: "client-id",
+      redditClientSecret: "client-secret",
+      redditUserAgent: "market-bot test@example.test",
+      redditSubreddits: ["stocks", "wallstreetbets", "SecurityAnalysis"],
+      redditLookbackDays: 5,
+      redditRawRetentionHours: 24,
+      topCandidateLimit: 10,
+      redditSeenPath: "custom/reddit-seen.json",
+    });
+  });
+
+  test("rejects invalid Reddit subreddit names", () => {
+    expect(() => resolveConfig({ MARKET_BOT_REDDIT_SUBREDDITS: "stocks,bad-name" })).toThrow(
+      "Invalid subreddit name",
+    );
+  });
+
   test("uses evidence request loop defaults", () => {
     expect(resolveConfig({}).evidenceRequestOptions).toEqual({
       maxRounds: 2,

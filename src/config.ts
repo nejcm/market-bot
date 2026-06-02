@@ -28,6 +28,17 @@ export interface EvidenceRequestOptions {
   readonly sourceBudget: number;
 }
 
+export interface AlphaSearchOptions {
+  readonly redditClientId?: string;
+  readonly redditClientSecret?: string;
+  readonly redditUserAgent: string;
+  readonly redditSubreddits: readonly string[];
+  readonly redditLookbackDays: number;
+  readonly redditRawRetentionHours: number;
+  readonly topCandidateLimit: number;
+  readonly redditSeenPath: string;
+}
+
 export interface AppConfig {
   readonly provider: ProviderName;
   readonly baseUrl?: string;
@@ -42,6 +53,7 @@ export interface AppConfig {
   readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
+  readonly alphaSearchOptions: AlphaSearchOptions;
 }
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
@@ -53,6 +65,11 @@ const DEFAULT_DATA_DIR = "data/runs";
 const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
 const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
 const DEFAULT_NEWS_SEEN_RETENTION_DAYS = 30;
+const DEFAULT_REDDIT_USER_AGENT = "market-bot alpha-search contact@example.invalid";
+const DEFAULT_REDDIT_LOOKBACK_DAYS = 7;
+const DEFAULT_REDDIT_RAW_RETENTION_HOURS = 48;
+const DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT = 15;
+const SUBREDDIT_NAME_RE = /^[A-Za-z0-9_]{3,21}$/u;
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
@@ -142,6 +159,27 @@ function readReasoningEffort(
 function deriveNewsSeenPath(dataDir: string): string {
   const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
   return join(dataRoot, "news-seen.json");
+}
+
+function deriveRedditSeenPath(dataDir: string): string {
+  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
+  return join(dataRoot, "reddit-seen.json");
+}
+
+function readSubredditWhitelist(value: string | undefined): readonly string[] {
+  const raw = readOptionalString(value);
+  if (raw === undefined) {
+    return [];
+  }
+
+  return raw.split(",").map((entry) => {
+    const subreddit = entry.trim().replace(/^r\//iu, "");
+    if (!SUBREDDIT_NAME_RE.test(subreddit)) {
+      throw new Error(`Invalid subreddit name: ${entry.trim()}`);
+    }
+
+    return subreddit;
+  });
 }
 
 function isLoopbackHost(hostname: string): boolean {
@@ -252,6 +290,33 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       maxRounds: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS, 2),
       maxToolCalls: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS, 2),
       sourceBudget: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET, 8),
+    },
+    alphaSearchOptions: {
+      ...(readOptionalString(env.MARKET_BOT_REDDIT_CLIENT_ID) !== undefined
+        ? { redditClientId: readOptionalString(env.MARKET_BOT_REDDIT_CLIENT_ID) as string }
+        : {}),
+      ...(readOptionalString(env.MARKET_BOT_REDDIT_CLIENT_SECRET) !== undefined
+        ? {
+            redditClientSecret: readOptionalString(env.MARKET_BOT_REDDIT_CLIENT_SECRET) as string,
+          }
+        : {}),
+      redditUserAgent:
+        readOptionalString(env.MARKET_BOT_REDDIT_USER_AGENT) ?? DEFAULT_REDDIT_USER_AGENT,
+      redditSubreddits: readSubredditWhitelist(env.MARKET_BOT_REDDIT_SUBREDDITS),
+      redditLookbackDays: readPositiveInteger(
+        env.MARKET_BOT_REDDIT_LOOKBACK_DAYS,
+        DEFAULT_REDDIT_LOOKBACK_DAYS,
+      ),
+      redditRawRetentionHours: readPositiveInteger(
+        env.MARKET_BOT_REDDIT_RAW_RETENTION_HOURS,
+        DEFAULT_REDDIT_RAW_RETENTION_HOURS,
+      ),
+      topCandidateLimit: readPositiveInteger(
+        env.MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+        DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+      ),
+      redditSeenPath:
+        readOptionalString(env.MARKET_BOT_REDDIT_SEEN_PATH) ?? deriveRedditSeenPath(dataDir),
     },
   };
 }

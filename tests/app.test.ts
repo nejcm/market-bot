@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,5 +79,19 @@ describe("runCli", () => {
     await expect(runCli(["calibration"])).resolves.toBe(
       "Calibration summary not written: no resolved predictions found",
     );
+  });
+
+  test("handles alpha-search without score or calibration side effects", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-alpha-search-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+
+    await expect(runCli(["alpha-search", "--asset", "equity"])).resolves.toBe(
+      "Alpha search phase 1 ready: Reddit discovery implementation is pending",
+    );
+    expect(existsSync(join(dataDir, "..", "calibration", "summary.json"))).toBe(false);
   });
 });

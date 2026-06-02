@@ -1,6 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { createOpenAIProvider } from "../src/model/openai";
 
+const alphaSearchOptions = {
+  redditUserAgent: "market-bot test@example.test",
+  redditSubreddits: [],
+  redditLookbackDays: 7,
+  redditRawRetentionHours: 48,
+  topCandidateLimit: 15,
+  redditSeenPath: "data/reddit-seen.json",
+};
+
 describe("createOpenAIProvider", () => {
   test("posts chat completion requests and reads content", async () => {
     const requests: Request[] = [];
@@ -35,6 +44,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        alphaSearchOptions,
       },
       fetchImpl,
     );
@@ -86,6 +96,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        alphaSearchOptions,
       },
       fetchImpl,
     );
@@ -128,6 +139,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        alphaSearchOptions,
       },
       fetchImpl,
     );
@@ -190,6 +202,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        alphaSearchOptions,
       },
       fetchImpl,
     );

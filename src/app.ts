@@ -73,6 +73,10 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     return `Provider health written to ${result.markdownPath}`;
   }
 
+  if (command.jobType === "alpha-search") {
+    return "Alpha search phase 1 ready: Reddit discovery implementation is pending";
+  }
+
   const provider = createProvider(config);
   const collectedSources = await collectSources(command, config.sourceOptions);
 

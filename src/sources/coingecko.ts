@@ -92,21 +92,17 @@ function fetchLimit(ctx: CollectContext): number {
 }
 
 async function collectCrypto(ctx: CollectContext): Promise<MarketCollectionResult> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
-  const fetched = await fetchOrGap(
-    coinGeckoMarketsUrl(fetchLimit(ctx)),
-    "coingecko",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-  );
+  const { command } = ctx;
+  const fetched = await ctx.request.json({
+    url: coinGeckoMarketsUrl(fetchLimit(ctx)),
+    adapter: "coingecko",
+  });
 
   if (!isFetchJsonResult(fetched)) {
     return { rawSnapshots: [], marketSnapshots: [], sourceGaps: [fetched] };
   }
 
-  const all = normalizeCoinGeckoMarketsPayload(fetched.payload, fetchedAt);
+  const all = normalizeCoinGeckoMarketsPayload(fetched.payload, fetched.rawSnapshot.fetchedAt);
   const marketSnapshots =
     command.jobType === "ticker" ? all.filter((s) => s.symbol === command.symbol) : all;
 

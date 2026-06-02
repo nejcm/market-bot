@@ -212,7 +212,7 @@ async function yahooCredentialFetch(
 }
 
 async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResult> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const { command } = ctx;
 
   const requests: readonly { readonly role: EquityRole; readonly url: string }[] =
     command.jobType === "ticker"
@@ -225,14 +225,11 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
   const results = await Promise.all(
     requests.map(async (req) => ({
       role: req.role,
-      result: await fetchOrGap(
-        req.url,
-        `yahoo-${req.role}`,
-        fetchedAt,
-        sourceTimeoutMs,
-        (request, init) => yahooCredentialFetch(request, init, fetchImpl),
-        retryDelaysMs,
-      ),
+      result: await ctx.request.json({
+        url: req.url,
+        adapter: `yahoo-${req.role}`,
+        fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
+      }),
     })),
   );
 
@@ -249,7 +246,7 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
       isMarketUpdate && e.role === "movers"
         ? readYahooScreenerQuotes(e.result.payload)
         : e.result.payload;
-    return normalizeYahooQuotePayload(payload, "equity", fetchedAt);
+    return normalizeYahooQuotePayload(payload, "equity", e.result.rawSnapshot.fetchedAt);
   });
 
   return {

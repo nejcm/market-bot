@@ -89,8 +89,7 @@ function normalizeNews(
 }
 
 async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
-  const { command, fetchedAt, sourceTimeoutMs, newsLimit, fetchImpl, fetchOrGap, retryDelaysMs } =
-    ctx;
+  const { command, fetchedAt, newsLimit } = ctx;
 
   if (ctx.marketauxApiToken === undefined) {
     return {
@@ -109,14 +108,10 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     };
   }
 
-  const fetched = await fetchOrGap(
-    buildMarketAuxUrl(command, newsLimit, ctx.marketauxApiToken, fetchedAt),
-    "marketaux-news",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-  );
+  const fetched = await ctx.request.json({
+    url: buildMarketAuxUrl(command, newsLimit, ctx.marketauxApiToken, fetchedAt),
+    adapter: "marketaux-news",
+  });
 
   if (!isFetchJsonResult(fetched)) {
     return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
@@ -124,7 +119,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    newsSources: normalizeNews(fetched.payload, command.assetClass, fetchedAt),
+    newsSources: normalizeNews(fetched.payload, command.assetClass, fetched.rawSnapshot.fetchedAt),
     sourceGaps: [],
   };
 }

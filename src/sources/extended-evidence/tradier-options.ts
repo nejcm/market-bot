@@ -5,7 +5,7 @@ import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { daysFrom, encodeQuery } from "./utils";
 
 export async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
@@ -30,15 +30,11 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
     symbol: command.symbol,
     includeAllRoots: "true",
   })}`;
-  const expirations = await fetchOrGap(
-    expirationsUrl,
-    "tradier-expirations",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
+  const expirations = await ctx.request.json({
+    url: expirationsUrl,
+    adapter: "tradier-expirations",
     init,
-  );
+  });
   if (!isFetchJsonResult(expirations)) {
     return { rawSnapshots: [], items: [], gaps: [expirations] };
   }
@@ -65,15 +61,11 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
     expiration,
     greeks: "true",
   })}`;
-  const result = await fetchOrGap(
+  const result = await ctx.request.json({
     url,
-    "tradier-options",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
+    adapter: "tradier-options",
     init,
-  );
+  });
   if (!isFetchJsonResult(result)) {
     return { rawSnapshots: [expirations.rawSnapshot], items: [], gaps: [result] };
   }

@@ -66,14 +66,10 @@ async function collectFredMarketContext(
   const { fredApiKey } = ctx;
   const results = await Promise.all(
     FRED_SERIES.map((seriesId) =>
-      ctx.fetchOrGap(
-        fredObservationsUrl(seriesId, fredApiKey, 2),
-        `fred-${seriesId}`,
-        ctx.fetchedAt,
-        ctx.sourceTimeoutMs,
-        ctx.fetchImpl,
-        ctx.retryDelaysMs,
-      ),
+      ctx.request.json({
+        url: fredObservationsUrl(seriesId, fredApiKey, 2),
+        adapter: `fred-${seriesId}`,
+      }),
     ),
   );
   const fetched = results.filter((result) => isFetchJsonResult(result));

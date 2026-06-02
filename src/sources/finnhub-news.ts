@@ -77,8 +77,7 @@ function normalizeNews(
 }
 
 async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
-  const { command, fetchedAt, sourceTimeoutMs, newsLimit, fetchImpl, fetchOrGap, retryDelaysMs } =
-    ctx;
+  const { command, fetchedAt, newsLimit } = ctx;
 
   if (ctx.finnhubApiToken === undefined) {
     return {
@@ -97,14 +96,10 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     };
   }
 
-  const fetched = await fetchOrGap(
-    buildFinnhubUrl(command, ctx.finnhubApiToken, fetchedAt),
-    "finnhub-news",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-  );
+  const fetched = await ctx.request.json({
+    url: buildFinnhubUrl(command, ctx.finnhubApiToken, fetchedAt),
+    adapter: "finnhub-news",
+  });
 
   if (!isFetchJsonResult(fetched)) {
     return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
@@ -112,7 +107,11 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    newsSources: normalizeNews(fetched.payload, command.assetClass, fetchedAt).slice(0, newsLimit),
+    newsSources: normalizeNews(
+      fetched.payload,
+      command.assetClass,
+      fetched.rawSnapshot.fetchedAt,
+    ).slice(0, newsLimit),
     sourceGaps: [],
   };
 }

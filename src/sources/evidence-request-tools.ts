@@ -13,6 +13,7 @@ import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
 import {
   isFetchJsonResult,
+  isFetchTextResult,
   type CollectContext,
   type FetchJsonResult,
   type FetchTextResult,
@@ -179,15 +180,7 @@ function secIdentity(match: { cik: string; ticker: string; name?: string }): Ins
 }
 
 async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
-  const {
-    command,
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    fetchOrGap,
-    fetchTextOrGap,
-    retryDelaysMs,
-  } = ctx;
+  const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return emptyOutput([
       sourceGap({
@@ -201,15 +194,11 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     ]);
   }
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-  const tickers = await fetchOrGap(
-    tickersUrl,
-    "sec-tickers",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-    secRequestInit(ctx.secUserAgent),
-  );
+  const tickers = await ctx.request.json({
+    url: tickersUrl,
+    adapter: "sec-tickers",
+    init: secRequestInit(ctx.secUserAgent),
+  });
   if (!isFetchJsonResult(tickers)) {
     return emptyOutput([tickers]);
   }
@@ -232,15 +221,11 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   }
 
   const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
-  const submissions = await fetchOrGap(
-    submissionsUrl,
-    "sec-submissions",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-    secRequestInit(ctx.secUserAgent),
-  );
+  const submissions = await ctx.request.json({
+    url: submissionsUrl,
+    adapter: "sec-submissions",
+    init: secRequestInit(ctx.secUserAgent),
+  });
   if (!isFetchJsonResult(submissions)) {
     return emptyOutput([submissions], [tickers.rawSnapshot]);
   }
@@ -263,16 +248,12 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   }
 
   const url = filingUrl(match.cik, filing);
-  const filingText = await fetchTextOrGap(
+  const filingText = await ctx.request.text({
     url,
-    "sec-filing-text",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-    secTextRequestInit(ctx.secUserAgent),
-  );
-  if (!isFetchJsonResult(filingText)) {
+    adapter: "sec-filing-text",
+    init: secTextRequestInit(ctx.secUserAgent),
+  });
+  if (!isFetchTextResult(filingText)) {
     return emptyOutput([filingText], [tickers.rawSnapshot, submissions.rawSnapshot]);
   }
 
@@ -407,7 +388,7 @@ function tradierChainUrl(symbol: string, expiration: string): string {
 async function collectTradierIvTermStructure(
   ctx: CollectContext,
 ): Promise<EvidenceRequestToolOutput> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return emptyOutput([
       sourceGap({
@@ -438,15 +419,11 @@ async function collectTradierIvTermStructure(
     symbol: command.symbol,
     includeAllRoots: "true",
   })}`;
-  const expirations = await fetchOrGap(
-    expirationsUrl,
-    "tradier-expirations",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
+  const expirations = await ctx.request.json({
+    url: expirationsUrl,
+    adapter: "tradier-expirations",
     init,
-  );
+  });
   if (!isFetchJsonResult(expirations)) {
     return emptyOutput([expirations]);
   }
@@ -474,15 +451,11 @@ async function collectTradierIvTermStructure(
       return {
         bucket,
         url,
-        result: await fetchOrGap(
+        result: await ctx.request.json({
           url,
-          "tradier-options",
-          fetchedAt,
-          sourceTimeoutMs,
-          fetchImpl,
-          retryDelaysMs,
+          adapter: "tradier-options",
           init,
-        ),
+        }),
       };
     }),
   );

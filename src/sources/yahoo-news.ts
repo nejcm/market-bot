@@ -63,17 +63,12 @@ function normalizeNews(
 }
 
 async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
-  const { command, fetchedAt, sourceTimeoutMs, newsLimit, fetchImpl, fetchOrGap, retryDelaysMs } =
-    ctx;
+  const { command, newsLimit } = ctx;
   const url = `${YAHOO_SEARCH_URL}?${encodeQuery({ q: newsQuery(command), newsCount: String(newsLimit) })}`;
-  const fetched = await fetchOrGap(
+  const fetched = await ctx.request.json({
     url,
-    "yahoo-news",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-  );
+    adapter: "yahoo-news",
+  });
 
   if (!isFetchJsonResult(fetched)) {
     return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
@@ -81,7 +76,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    newsSources: normalizeNews(fetched.payload, command.assetClass, fetchedAt),
+    newsSources: normalizeNews(fetched.payload, command.assetClass, fetched.rawSnapshot.fetchedAt),
     sourceGaps: [],
   };
 }

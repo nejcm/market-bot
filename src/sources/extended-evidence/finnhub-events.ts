@@ -15,7 +15,7 @@ function summarizeFinnhubEvents(payloads: readonly unknown[]): string | undefine
 }
 
 export async function collectFinnhubEvents(ctx: CollectContext): Promise<ProviderResult> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
@@ -44,14 +44,10 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
   ];
   const results = await Promise.all(
     urls.map((url, index) =>
-      fetchOrGap(
+      ctx.request.json({
         url,
-        `finnhub-events-${String(index + 1)}`,
-        fetchedAt,
-        sourceTimeoutMs,
-        fetchImpl,
-        retryDelaysMs,
-      ),
+        adapter: `finnhub-events-${String(index + 1)}`,
+      }),
     ),
   );
   const fetched = results.filter((result) => isFetchJsonResult(result));

@@ -10,30 +10,25 @@ import type {
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-export type FetchOrGapFn = (
-  url: string,
-  adapter: string,
-  fetchedAt: string,
-  timeoutMs: number,
-  fetchImpl: FetchLike,
-  retryDelaysMs?: readonly number[],
-  init?: RequestInit,
-) => Promise<FetchJsonResult | SourceGap>;
+export interface SourceRequest {
+  readonly url: string;
+  readonly adapter: string;
+  readonly init?: RequestInit | undefined;
+  readonly fetch?: ((baseFetch: FetchLike) => FetchLike) | undefined;
+}
 
-export type FetchTextOrGapFn = (
-  url: string,
-  adapter: string,
-  fetchedAt: string,
-  timeoutMs: number,
-  fetchImpl: FetchLike,
-  retryDelaysMs?: readonly number[],
-  init?: RequestInit,
-) => Promise<FetchTextResult | SourceGap>;
+export type FetchJsonRequestFn = (request: SourceRequest) => Promise<FetchJsonResult | SourceGap>;
+
+export type FetchTextRequestFn = (request: SourceRequest) => Promise<FetchTextResult | SourceGap>;
+
+export interface SourceRequestExecutor {
+  readonly json: FetchJsonRequestFn;
+  readonly text: FetchTextRequestFn;
+}
 
 export interface CollectContext {
   readonly command: ResearchCommand;
   readonly fetchedAt: string;
-  readonly sourceTimeoutMs: number;
   readonly newsLimit: number;
   readonly cryptoMoverLimit: number;
   readonly marketauxApiToken?: string;
@@ -45,10 +40,7 @@ export interface CollectContext {
   readonly secUserAgent?: string;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
-  readonly fetchImpl: FetchLike;
-  readonly fetchOrGap: FetchOrGapFn;
-  readonly fetchTextOrGap: FetchTextOrGapFn;
-  readonly retryDelaysMs: readonly number[];
+  readonly request: SourceRequestExecutor;
 }
 
 export interface MarketCollectionResult {
@@ -177,6 +169,10 @@ export type FetchJsonResult = FetchSourceResult<unknown>;
 export type FetchTextResult = FetchSourceResult<string>;
 
 export function isFetchJsonResult(value: FetchJsonResult | SourceGap): value is FetchJsonResult {
+  return "rawSnapshot" in value;
+}
+
+export function isFetchTextResult(value: FetchTextResult | SourceGap): value is FetchTextResult {
   return "rawSnapshot" in value;
 }
 

@@ -116,14 +116,10 @@ async function collectSupplementalMarket(
     return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [] };
   }
 
-  const fetched = await ctx.fetchOrGap(
-    buildMassiveSnapshotUrl(symbols, ctx.massiveApiKey),
-    "massive-supplemental-market",
-    ctx.fetchedAt,
-    ctx.sourceTimeoutMs,
-    ctx.fetchImpl,
-    ctx.retryDelaysMs,
-  );
+  const fetched = await ctx.request.json({
+    url: buildMassiveSnapshotUrl(symbols, ctx.massiveApiKey),
+    adapter: "massive-supplemental-market",
+  });
 
   if (!isFetchJsonResult(fetched)) {
     return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [fetched] };
@@ -131,7 +127,10 @@ async function collectSupplementalMarket(
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    supplementalMarketSnapshots: normalizeMassiveSnapshotPayload(fetched.payload, ctx.fetchedAt),
+    supplementalMarketSnapshots: normalizeMassiveSnapshotPayload(
+      fetched.payload,
+      fetched.rawSnapshot.fetchedAt,
+    ),
     sourceGaps: [],
   };
 }
@@ -221,14 +220,10 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     return { rawSnapshots: [], newsSources: [], sourceGaps: [] };
   }
 
-  const fetched = await ctx.fetchOrGap(
-    buildMassiveNewsUrl(ctx.command, ctx.newsLimit, ctx.massiveApiKey, ctx.fetchedAt),
-    "massive-news",
-    ctx.fetchedAt,
-    ctx.sourceTimeoutMs,
-    ctx.fetchImpl,
-    ctx.retryDelaysMs,
-  );
+  const fetched = await ctx.request.json({
+    url: buildMassiveNewsUrl(ctx.command, ctx.newsLimit, ctx.massiveApiKey, ctx.fetchedAt),
+    adapter: "massive-news",
+  });
 
   if (!isFetchJsonResult(fetched)) {
     return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
@@ -236,7 +231,11 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
 
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    newsSources: normalizeNews(fetched.payload, ctx.command.assetClass, ctx.fetchedAt),
+    newsSources: normalizeNews(
+      fetched.payload,
+      ctx.command.assetClass,
+      fetched.rawSnapshot.fetchedAt,
+    ),
     sourceGaps: [],
   };
 }

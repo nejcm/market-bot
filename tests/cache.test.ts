@@ -8,7 +8,7 @@ import {
   withCache,
   type CacheOptions,
 } from "../src/sources/cache";
-import type { FetchJsonResult } from "../src/sources/types";
+import type { FetchJsonResult, SourceRequest } from "../src/sources/types";
 
 const fetchedAt = "2026-05-20T10:00:00.000Z";
 const today = "2026-05-20";
@@ -23,6 +23,10 @@ function makeFetchResult(payload: unknown, adapter: string): FetchJsonResult {
     rawSnapshot: { id: `raw-${adapter}-${fetchedAt}`, adapter, fetchedAt, payload },
     payload,
   };
+}
+
+function request(url: string, adapter = "test-adapter"): SourceRequest {
+  return { url, adapter };
 }
 
 function makeOptions(
@@ -65,7 +69,7 @@ describe("withCache", () => {
     const opts = makeOptions(tmpDir);
     const cached = withCache(inner, opts);
 
-    const result = await cached("https://example.test/api", "test-adapter", fetchedAt, 1000, fetch);
+    const result = await cached(request("https://example.test/api"));
 
     expect(calls).toBe(1);
     expect("rawSnapshot" in result).toBe(true);
@@ -87,8 +91,8 @@ describe("withCache", () => {
     const cached = withCache(inner, opts);
     const url = "https://example.test/api";
 
-    await cached(url, "test-adapter", fetchedAt, 1000, fetch);
-    await cached(url, "test-adapter", fetchedAt, 1000, fetch);
+    await cached(request(url));
+    await cached(request(url));
 
     expect(calls).toBe(1);
   });
@@ -102,8 +106,8 @@ describe("withCache", () => {
 
     const cached = withCache(inner, makeOptions(tmpDir));
 
-    await cached("https://example.test/api?b=2&a=1", "test-adapter", fetchedAt, 1000, fetch);
-    await cached("https://example.test/api?a=1&b=2", "test-adapter", fetchedAt, 1000, fetch);
+    await cached(request("https://example.test/api?b=2&a=1"));
+    await cached(request("https://example.test/api?a=1&b=2"));
 
     expect(calls).toBe(1);
   });
@@ -117,27 +121,9 @@ describe("withCache", () => {
 
     const cached = withCache(inner, makeOptions(tmpDir));
 
-    await cached(
-      "https://example.test/api?series_id=DGS10&api_key=first",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
-    await cached(
-      "https://example.test/api?api_key=second&series_id=DGS10",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
-    await cached(
-      "https://example.test/api?access_token=third&series_id=DGS10",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
+    await cached(request("https://example.test/api?series_id=DGS10&api_key=first"));
+    await cached(request("https://example.test/api?api_key=second&series_id=DGS10"));
+    await cached(request("https://example.test/api?access_token=third&series_id=DGS10"));
 
     expect(calls).toBe(1);
   });
@@ -151,44 +137,33 @@ describe("withCache", () => {
 
     const cached = withCache(inner, makeOptions(tmpDir));
 
-    await cached(
-      "https://example.test/api?series_id=DGS10&limit=2&api_key=secret",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
-    await cached(
-      "https://example.test/api?series_id=DGS10&limit=3&api_key=secret",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
+    await cached(request("https://example.test/api?series_id=DGS10&limit=2&api_key=secret"));
+    await cached(request("https://example.test/api?series_id=DGS10&limit=3&api_key=secret"));
 
     expect(calls).toBe(2);
   });
 
   test("cache hit returns the original fetchedAt from the stored entry", async () => {
     const originalFetchedAt = "2026-05-20T08:30:00.000Z";
-    const inner = async () => makeFetchResult({ v: 1 }, "test-adapter");
+    const inner = async (): Promise<FetchJsonResult> => ({
+      rawSnapshot: {
+        id: `raw-test-adapter-${originalFetchedAt}`,
+        adapter: "test-adapter",
+        fetchedAt: originalFetchedAt,
+        payload: { v: 1 },
+      },
+      payload: { v: 1 },
+    });
 
-    const firstResult = await withCache(inner, makeOptions(tmpDir))(
-      "https://example.test/time",
-      "test-adapter",
-      originalFetchedAt,
-      1000,
-      fetch,
-    );
+    const firstResult = await withCache(
+      inner,
+      makeOptions(tmpDir),
+    )(request("https://example.test/time"));
 
-    const laterFetchedAt = "2026-05-20T14:00:00.000Z";
-    const hitResult = await withCache(inner, makeOptions(tmpDir))(
-      "https://example.test/time",
-      "test-adapter",
-      laterFetchedAt,
-      1000,
-      fetch,
-    );
+    const hitResult = await withCache(
+      inner,
+      makeOptions(tmpDir),
+    )(request("https://example.test/time"));
 
     if ("rawSnapshot" in firstResult && "rawSnapshot" in hitResult) {
       expect(hitResult.rawSnapshot.fetchedAt).toBe(firstResult.rawSnapshot.fetchedAt);
@@ -201,25 +176,19 @@ describe("withCache", () => {
     const stalePayload = { stale: true };
 
     const warmOpts = makeOptions(tmpDir, { now: makeNow(yesterday) });
-    await withCache(async () => makeFetchResult(stalePayload, "test-adapter"), warmOpts)(
-      "https://example.test/data?api_key=old&series_id=DGS10",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
+    await withCache(
+      async () => makeFetchResult(stalePayload, "test-adapter"),
+      warmOpts,
+    )(request("https://example.test/data?api_key=old&series_id=DGS10"));
 
     const gap = { source: "test-adapter", message: "timeout" };
     const inner = async () => gap;
 
     const opts = makeOptions(tmpDir);
-    const result = await withCache(inner, opts)(
-      "https://example.test/data?series_id=DGS10&api_key=new",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
+    const result = await withCache(
+      inner,
+      opts,
+    )(request("https://example.test/data?series_id=DGS10&api_key=new"));
 
     expect("rawSnapshot" in result).toBe(true);
     if ("rawSnapshot" in result) {
@@ -235,13 +204,7 @@ describe("withCache", () => {
     const inner = async () => gap;
 
     const opts = makeOptions(tmpDir);
-    const result = await withCache(inner, opts)(
-      "https://example.test/missing",
-      "test-adapter",
-      fetchedAt,
-      1000,
-      fetch,
-    );
+    const result = await withCache(inner, opts)(request("https://example.test/missing"));
 
     expect("source" in result).toBe(true);
     if ("source" in result) {
@@ -261,8 +224,8 @@ describe("withCache", () => {
     const cached = withCache(inner, opts);
     const url = "https://example.test/disabled";
 
-    await cached(url, "test-adapter", fetchedAt, 1000, fetch);
-    await cached(url, "test-adapter", fetchedAt, 1000, fetch);
+    await cached(request(url));
+    await cached(request(url));
 
     expect(calls).toBe(2);
   });

@@ -2,15 +2,18 @@ import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { SourceGap } from "../domain/types";
 import { fetchFailureSourceGap, sourceGap } from "../domain/source-gaps";
-import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
+import { withCache, type CacheOptions } from "./cache";
 import type {
   CollectContext,
   CollectedSources,
+  FetchJsonRequestFn,
   FetchJsonResult,
   FetchLike,
-  FetchTextOrGapFn,
+  FetchTextRequestFn,
   FetchTextResult,
   RawSourceSnapshot,
+  SourceRequest,
+  SourceRequestExecutor,
 } from "./types";
 import { createSourceRegistry } from "./registry";
 
@@ -348,22 +351,62 @@ async function fetchTextOrGap(
   }
 }
 
-function cachedTextFetch(inner: FetchTextOrGapFn, options: CacheOptions): FetchTextOrGapFn {
-  const cached = withCache(inner as FetchOrGapFn, options);
-  return async (url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init) => {
-    const result = await cached(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init);
+function cachedTextFetch(inner: FetchTextRequestFn, options: CacheOptions): FetchTextRequestFn {
+  const cached = withCache(inner, options);
+  return async (request) => {
+    const result = await cached(request);
     if ("rawSnapshot" in result && typeof result.payload === "string") {
       return result as FetchTextResult;
     }
     if ("rawSnapshot" in result) {
       return sourceGap({
-        source: adapter,
+        source: request.adapter,
         message: "cached text payload was not a string",
         cause: "provider-data-missing",
         evidenceQualityImpact: "core-cap",
       });
     }
     return result;
+  };
+}
+
+interface SourceRequestExecutorOptions {
+  readonly fetchedAt: string;
+  readonly sourceTimeoutMs: number;
+  readonly fetchImpl: FetchLike;
+  readonly retryDelaysMs: readonly number[];
+  readonly cacheOptions?: CacheOptions;
+}
+
+function createSourceRequestExecutor(options: SourceRequestExecutorOptions): SourceRequestExecutor {
+  const json: FetchJsonRequestFn = (request: SourceRequest) =>
+    fetchJsonOrGap(
+      request.url,
+      request.adapter,
+      options.fetchedAt,
+      options.sourceTimeoutMs,
+      request.fetch?.(options.fetchImpl) ?? options.fetchImpl,
+      options.retryDelaysMs,
+      request.init,
+    );
+  const text: FetchTextRequestFn = (request: SourceRequest) =>
+    fetchTextOrGap(
+      request.url,
+      request.adapter,
+      options.fetchedAt,
+      options.sourceTimeoutMs,
+      request.fetch?.(options.fetchImpl) ?? options.fetchImpl,
+      options.retryDelaysMs,
+      request.init,
+    );
+
+  if (options.cacheOptions === undefined) {
+    return { json, text };
+  }
+
+  return {
+    json: withCache(json, options.cacheOptions),
+    text: cachedTextFetch(text, options.cacheOptions),
   };
 }
 
@@ -457,16 +500,18 @@ export function createCollectContext(
       staleFallbackGaps.push(gap);
     },
   } satisfies CacheOptions;
-  const fetchOrGap: FetchOrGapFn =
-    cacheDir !== undefined ? withCache(fetchJsonOrGap, cacheOptions) : fetchJsonOrGap;
-  const fetchTextOrGapCached: FetchTextOrGapFn =
-    cacheDir !== undefined ? cachedTextFetch(fetchTextOrGap, cacheOptions) : fetchTextOrGap;
+  const request = createSourceRequestExecutor({
+    fetchedAt,
+    sourceTimeoutMs: sourceOptions.sourceTimeoutMs,
+    fetchImpl,
+    retryDelaysMs,
+    ...(cacheDir !== undefined ? { cacheOptions } : {}),
+  });
 
   return {
     context: {
       command,
       fetchedAt,
-      sourceTimeoutMs: sourceOptions.sourceTimeoutMs,
       newsLimit: sourceOptions.newsLimit,
       cryptoMoverLimit: sourceOptions.cryptoMoverLimit,
       ...(sourceOptions.marketauxApiToken !== undefined
@@ -494,10 +539,7 @@ export function createCollectContext(
       ...(sourceOptions.newsSeenRetentionDays !== undefined
         ? { newsSeenRetentionDays: sourceOptions.newsSeenRetentionDays }
         : {}),
-      fetchImpl,
-      fetchOrGap,
-      fetchTextOrGap: fetchTextOrGapCached,
-      retryDelaysMs,
+      request,
     },
     staleFallbackGaps,
   };

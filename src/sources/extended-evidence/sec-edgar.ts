@@ -399,22 +399,18 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
 }
 
 export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
 
   const secInit = secRequestInit(ctx.secUserAgent);
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-  const tickers = await fetchOrGap(
-    tickersUrl,
-    "sec-tickers",
-    fetchedAt,
-    sourceTimeoutMs,
-    fetchImpl,
-    retryDelaysMs,
-    secInit,
-  );
+  const tickers = await ctx.request.json({
+    url: tickersUrl,
+    adapter: "sec-tickers",
+    init: secInit,
+  });
   if (!isFetchJsonResult(tickers)) {
     return { rawSnapshots: [], items: [], gaps: [tickers] };
   }
@@ -444,24 +440,16 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     aliases: [{ provider: "sec-edgar", idKind: "ticker", value: match.ticker }],
   };
   const [submissions, facts] = await Promise.all([
-    fetchOrGap(
-      submissionsUrl,
-      "sec-submissions",
-      fetchedAt,
-      sourceTimeoutMs,
-      fetchImpl,
-      retryDelaysMs,
-      secInit,
-    ),
-    fetchOrGap(
-      factsUrl,
-      "sec-companyfacts",
-      fetchedAt,
-      sourceTimeoutMs,
-      fetchImpl,
-      retryDelaysMs,
-      secInit,
-    ),
+    ctx.request.json({
+      url: submissionsUrl,
+      adapter: "sec-submissions",
+      init: secInit,
+    }),
+    ctx.request.json({
+      url: factsUrl,
+      adapter: "sec-companyfacts",
+      init: secInit,
+    }),
   ]);
 
   const rawSnapshots = [

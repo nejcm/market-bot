@@ -10,6 +10,7 @@ import type {
   FetchJsonResult,
   FetchTextResult,
   RawSourceSnapshot,
+  SourceRequestExecutor,
 } from "../src/sources/types";
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";
@@ -30,21 +31,25 @@ function gap(source: string, message = "fetch failed"): SourceGap {
   return { source, message };
 }
 
+function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): SourceRequestExecutor {
+  return {
+    json: async () => {
+      throw new Error("unexpected json fetch");
+    },
+    text: async () => {
+      throw new Error("unexpected text fetch");
+    },
+    ...overrides,
+  };
+}
+
 function baseCtx(overrides: Partial<CollectContext> = {}): CollectContext {
   return {
     command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
     fetchedAt,
-    sourceTimeoutMs: 1000,
     newsLimit: 2,
     cryptoMoverLimit: 2,
-    fetchImpl: fetch,
-    retryDelaysMs: [],
-    fetchOrGap: async () => {
-      throw new Error("unexpected json fetch");
-    },
-    fetchTextOrGap: async () => {
-      throw new Error("unexpected text fetch");
-    },
+    request: requestExecutor(),
     ...overrides,
   };
 }
@@ -85,35 +90,21 @@ describe("SEC latest filing evidence tool", () => {
     }[] = [];
     const ctx = baseCtx({
       secUserAgent: "market-bot test@example.test",
-      fetchOrGap: async (
-        url,
-        adapter,
-        _fetchedAt,
-        _timeoutMs,
-        _fetchImpl,
-        _retryDelaysMs,
-        init,
-      ) => {
-        requested.push({ adapter, url, headers: new Headers(init?.headers) });
-        return adapter === "sec-tickers"
-          ? jsonResult(adapter, secTickersPayload())
-          : jsonResult(adapter, secSubmissionsPayload());
-      },
-      fetchTextOrGap: async (
-        url,
-        adapter,
-        _fetchedAt,
-        _timeoutMs,
-        _fetchImpl,
-        _retryDelaysMs,
-        init,
-      ) => {
-        requested.push({ adapter, url, headers: new Headers(init?.headers) });
-        return textResult(
-          adapter,
-          "<html><style>.x{}</style><body><h1>Management&nbsp;Discussion</h1><script>bad()</script><p>Revenue &amp; margin improved.</p></body></html>",
-        );
-      },
+      request: requestExecutor({
+        json: async ({ url, adapter, init }) => {
+          requested.push({ adapter, url, headers: new Headers(init?.headers) });
+          return adapter === "sec-tickers"
+            ? jsonResult(adapter, secTickersPayload())
+            : jsonResult(adapter, secSubmissionsPayload());
+        },
+        text: async ({ url, adapter, init }) => {
+          requested.push({ adapter, url, headers: new Headers(init?.headers) });
+          return textResult(
+            adapter,
+            "<html><style>.x{}</style><body><h1>Management&nbsp;Discussion</h1><script>bad()</script><p>Revenue &amp; margin improved.</p></body></html>",
+          );
+        },
+      }),
     });
 
     const result = await executeEvidenceRequestTool("sec_latest_filing", ctx);
@@ -141,14 +132,16 @@ describe("SEC latest filing evidence tool", () => {
   test("encodes the SEC primary document URL segment", async () => {
     let filingTextUrl = "";
     const ctx = baseCtx({
-      fetchOrGap: async (_url, adapter) =>
-        adapter === "sec-tickers"
-          ? jsonResult(adapter, secTickersPayload())
-          : jsonResult(adapter, secSubmissionsPayload(["10-Q"], ["a 10q.htm?x=1"])),
-      fetchTextOrGap: async (url, adapter) => {
-        filingTextUrl = url;
-        return textResult(adapter, "Latest filing evidence.");
-      },
+      request: requestExecutor({
+        json: async ({ adapter }) =>
+          adapter === "sec-tickers"
+            ? jsonResult(adapter, secTickersPayload())
+            : jsonResult(adapter, secSubmissionsPayload(["10-Q"], ["a 10q.htm?x=1"])),
+        text: async ({ url, adapter }) => {
+          filingTextUrl = url;
+          return textResult(adapter, "Latest filing evidence.");
+        },
+      }),
     });
 
     const result = await executeEvidenceRequestTool("sec_latest_filing", ctx);
@@ -161,8 +154,10 @@ describe("SEC latest filing evidence tool", () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
-        fetchOrGap: async (url, adapter) =>
-          jsonResult(adapter, url.includes("company_tickers") ? {} : {}),
+        request: requestExecutor({
+          json: async ({ url, adapter }) =>
+            jsonResult(adapter, url.includes("company_tickers") ? {} : {}),
+        }),
       }),
     );
 
@@ -176,10 +171,12 @@ describe("SEC latest filing evidence tool", () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
-        fetchOrGap: async (_url, adapter) =>
-          adapter === "sec-tickers"
-            ? jsonResult(adapter, secTickersPayload())
-            : jsonResult(adapter, secSubmissionsPayload(["8-K"])),
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["8-K"])),
+        }),
       }),
     );
 
@@ -197,11 +194,13 @@ describe("SEC latest filing evidence tool", () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
-        fetchOrGap: async (_url, adapter) =>
-          adapter === "sec-tickers"
-            ? jsonResult(adapter, secTickersPayload())
-            : jsonResult(adapter, secSubmissionsPayload()),
-        fetchTextOrGap: async () => gap("sec-filing-text", "timeout"),
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload()),
+          text: async () => gap("sec-filing-text", "timeout"),
+        }),
       }),
     );
 
@@ -218,34 +217,30 @@ describe("Tradier IV term structure evidence tool", () => {
     const headers: string[] = [];
     const ctx = baseCtx({
       tradierApiToken: "tradier-token",
-      fetchOrGap: async (
-        url,
-        adapter,
-        _fetchedAt,
-        _timeoutMs,
-        _fetchImpl,
-        _retryDelaysMs,
-        init,
-      ) => {
-        headers.push(new Headers(init?.headers).get("authorization") ?? "");
-        if (adapter === "tradier-expirations") {
+      request: requestExecutor({
+        json: async ({ url, adapter, init }) => {
+          headers.push(new Headers(init?.headers).get("authorization") ?? "");
+          if (adapter === "tradier-expirations") {
+            return jsonResult(adapter, {
+              expirations: { date: ["2026-05-08", "2026-05-31", "2026-06-30", "2026-07-30"] },
+            });
+          }
+          const expiration = new URL(url).searchParams.get("expiration");
+          const medians: Record<string, readonly number[]> = {
+            "2026-05-08": [0.2, 0.4],
+            "2026-05-31": [0.35],
+            "2026-06-30": [0.45],
+            "2026-07-30": [0.55],
+          };
           return jsonResult(adapter, {
-            expirations: { date: ["2026-05-08", "2026-05-31", "2026-06-30", "2026-07-30"] },
+            options: {
+              option: (medians[expiration ?? ""] ?? []).map((iv) => ({
+                greeks: { mid_iv: iv },
+              })),
+            },
           });
-        }
-        const expiration = new URL(url).searchParams.get("expiration");
-        const medians: Record<string, readonly number[]> = {
-          "2026-05-08": [0.2, 0.4],
-          "2026-05-31": [0.35],
-          "2026-06-30": [0.45],
-          "2026-07-30": [0.55],
-        };
-        return jsonResult(adapter, {
-          options: {
-            option: (medians[expiration ?? ""] ?? []).map((iv) => ({ greeks: { mid_iv: iv } })),
-          },
-        });
-      },
+        },
+      }),
     });
 
     const result = await executeEvidenceRequestTool("tradier_iv_term_structure", ctx);
@@ -281,7 +276,9 @@ describe("Tradier IV term structure evidence tool", () => {
       "tradier_iv_term_structure",
       baseCtx({
         tradierApiToken: "tradier-token",
-        fetchOrGap: async (_url, adapter) => jsonResult(adapter, { expirations: { date: [] } }),
+        request: requestExecutor({
+          json: async ({ adapter }) => jsonResult(adapter, { expirations: { date: [] } }),
+        }),
       }),
     );
 
@@ -299,19 +296,21 @@ describe("Tradier IV term structure evidence tool", () => {
       "tradier_iv_term_structure",
       baseCtx({
         tradierApiToken: "tradier-token",
-        fetchOrGap: async (url, adapter) => {
-          if (adapter === "tradier-expirations") {
+        request: requestExecutor({
+          json: async ({ url, adapter }) => {
+            if (adapter === "tradier-expirations") {
+              return jsonResult(adapter, {
+                expirations: { date: ["2026-05-08", "2026-05-31"] },
+              });
+            }
+            const expiration = new URL(url).searchParams.get("expiration");
             return jsonResult(adapter, {
-              expirations: { date: ["2026-05-08", "2026-05-31"] },
+              options: {
+                option: expiration === "2026-05-08" ? [{ greeks: { mid_iv: 0.25 } }] : [],
+              },
             });
-          }
-          const expiration = new URL(url).searchParams.get("expiration");
-          return jsonResult(adapter, {
-            options: {
-              option: expiration === "2026-05-08" ? [{ greeks: { mid_iv: 0.25 } }] : [],
-            },
-          });
-        },
+          },
+        }),
       }),
     );
 
@@ -325,7 +324,9 @@ describe("Tradier IV term structure evidence tool", () => {
       "tradier_iv_term_structure",
       baseCtx({
         tradierApiToken: "tradier-token",
-        fetchOrGap: async () => gap("tradier-expirations", "rate limit"),
+        request: requestExecutor({
+          json: async () => gap("tradier-expirations", "rate limit"),
+        }),
       }),
     );
 

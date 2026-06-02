@@ -10,7 +10,7 @@ import { isFetchJsonResult, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 
 export async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
-  const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
+  const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
@@ -34,14 +34,10 @@ export async function collectFred(ctx: CollectContext): Promise<ProviderResult> 
   const urls = FRED_SERIES.map((seriesId) => fredObservationsUrl(seriesId, fredApiKey, 2));
   const results = await Promise.all(
     urls.map((url, index) =>
-      fetchOrGap(
+      ctx.request.json({
         url,
-        `fred-${FRED_SERIES[index]}`,
-        fetchedAt,
-        sourceTimeoutMs,
-        fetchImpl,
-        retryDelaysMs,
-      ),
+        adapter: `fred-${FRED_SERIES[index]}`,
+      }),
     ),
   );
   const fetched = results.filter((result) => isFetchJsonResult(result));

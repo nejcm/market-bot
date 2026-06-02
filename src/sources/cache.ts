@@ -3,9 +3,9 @@ import { rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
-import type { FetchJsonResult, FetchOrGapFn, RawSourceSnapshot } from "./types";
+import type { FetchJsonResult, RawSourceSnapshot, SourceRequest } from "./types";
 
-export type { FetchOrGapFn };
+type CacheableFetchFn = (request: SourceRequest) => Promise<FetchJsonResult | SourceGap>;
 
 export interface CacheOptions {
   readonly dir: string;
@@ -158,10 +158,11 @@ function toFetchJsonResult(entry: CacheEntry, adapter: string): FetchJsonResult 
   return { rawSnapshot, payload: entry.payload };
 }
 
-export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGapFn {
-  return async (url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init) => {
+export function withCache(inner: CacheableFetchFn, options: CacheOptions): CacheableFetchFn {
+  return async (request) => {
+    const { url, adapter } = request;
     if (options.disabled) {
-      return inner(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init);
+      return inner(request);
     }
 
     const today = utcDateString(options.now());
@@ -173,7 +174,7 @@ export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGa
       return toFetchJsonResult(cached, adapter);
     }
 
-    const result = await inner(url, adapter, fetchedAt, timeoutMs, fetchImpl, retryDelaysMs, init);
+    const result = await inner(request);
 
     if ("rawSnapshot" in result) {
       await writeEntry(todayPath, {

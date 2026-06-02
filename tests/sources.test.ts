@@ -14,10 +14,39 @@ import { createSourceRegistry } from "../src/sources/registry";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { normalizeYahooQuotePayload } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
+import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
 async function unexpectedTextFetch(): Promise<never> {
   throw new Error("unexpected text fetch");
+}
+
+function rawJson(adapter: string, payload: unknown): FetchJsonResult {
+  return {
+    rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
+    payload,
+  };
+}
+
+function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): SourceRequestExecutor {
+  return {
+    json: async () => {
+      throw new Error("unexpected json fetch");
+    },
+    text: unexpectedTextFetch,
+    ...overrides,
+  };
+}
+
+function collectContext(overrides: Partial<CollectContext> = {}): CollectContext {
+  return {
+    command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+    fetchedAt,
+    newsLimit: 1,
+    cryptoMoverLimit: 2,
+    request: requestExecutor(),
+    ...overrides,
+  };
 }
 
 const throwingFetch: typeof fetch = Object.assign(
@@ -428,29 +457,23 @@ describe("market context provider collection", () => {
   });
 
   test("collects FRED Market Context for market updates", async () => {
-    const result = await marketContextAdapter.collect({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      fredApiKey: "fred-key",
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async (_url, adapter) => {
-        const payload = {
-          observations: [
-            { date: "2026-05-19", value: "4.25" },
-            { date: "2026-05-16", value: "4.10" },
-          ],
-        };
-        return {
-          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
-          payload,
-        };
-      },
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    const result = await marketContextAdapter.collect(
+      collectContext({
+        command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+        fredApiKey: "fred-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            const payload = {
+              observations: [
+                { date: "2026-05-19", value: "4.25" },
+                { date: "2026-05-16", value: "4.10" },
+              ],
+            };
+            return rawJson(adapter, payload);
+          },
+        }),
+      }),
+    );
 
     expect(result.marketContext?.assetClass).toBe("equity");
     expect(result.marketContext?.items).toHaveLength(1);
@@ -468,19 +491,11 @@ describe("market context provider collection", () => {
   });
 
   test("emits missing-key Market Context gap for market updates", async () => {
-    const result = await marketContextAdapter.collect({
-      command: { jobType: "weekly", assetClass: "crypto", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async () => {
-        throw new Error("unexpected fetch");
-      },
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    const result = await marketContextAdapter.collect(
+      collectContext({
+        command: { jobType: "weekly", assetClass: "crypto", depth: "brief" },
+      }),
+    );
 
     expect(result.marketContext).toEqual({
       assetClass: "crypto",
@@ -503,62 +518,70 @@ describe("market context provider collection", () => {
   });
 
   test("skips Market Context for ticker runs", async () => {
-    const result = await marketContextAdapter.collect({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      fredApiKey: "fred-key",
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async () => {
-        throw new Error("unexpected fetch");
-      },
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    const result = await marketContextAdapter.collect(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        fredApiKey: "fred-key",
+      }),
+    );
 
     expect(result).toEqual({ rawSnapshots: [], sources: [], sourceGaps: [] });
   });
 });
 
 describe("news provider collection", () => {
-  test("caps Finnhub normalized sources after provider fetch", async () => {
-    const result = await finnhubNewsAdapter.collect({
-      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      finnhubApiToken: "finnhub-token",
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async () => ({
-        rawSnapshot: {
-          id: "raw-finnhub-news-test",
-          adapter: "finnhub-news",
-          fetchedAt,
-          payload: [],
-        },
-        payload: [
-          {
-            id: 1,
-            headline: "First story",
-            url: "https://example.test/first",
-            source: "Example",
-            datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
+  test("passes provider request facts without collector execution plumbing", async () => {
+    let requestKeys: readonly string[] = [];
+
+    await finnhubNewsAdapter.collect(
+      collectContext({
+        command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+        finnhubApiToken: "finnhub-token",
+        request: requestExecutor({
+          json: async (request) => {
+            requestKeys = Object.keys(request).toSorted();
+            return rawJson(request.adapter, []);
           },
-          {
-            id: 2,
-            headline: "Second story",
-            url: "https://example.test/second",
-            source: "Example",
-            datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
-          },
-        ],
+        }),
       }),
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    );
+
+    expect(requestKeys).toEqual(["adapter", "url"]);
+  });
+
+  test("caps Finnhub normalized sources after provider fetch", async () => {
+    const result = await finnhubNewsAdapter.collect(
+      collectContext({
+        command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+        finnhubApiToken: "finnhub-token",
+        request: requestExecutor({
+          json: async ({ adapter }) => ({
+            rawSnapshot: {
+              id: "raw-finnhub-news-test",
+              adapter,
+              fetchedAt,
+              payload: [],
+            },
+            payload: [
+              {
+                id: 1,
+                headline: "First story",
+                url: "https://example.test/first",
+                source: "Example",
+                datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
+              },
+              {
+                id: 2,
+                headline: "Second story",
+                url: "https://example.test/second",
+                source: "Example",
+                datetime: Math.floor(new Date(fetchedAt).getTime() / 1000),
+              },
+            ],
+          }),
+        }),
+      }),
+    );
 
     expect(result.newsSources).toHaveLength(1);
     expect(result.newsSources[0]?.providerArticleId).toBe("1");
@@ -627,56 +650,42 @@ describe("SEC fundamental evidence", () => {
 describe("extended evidence provider collection", () => {
   test("collects compact equity extended evidence", async () => {
     const requests: { adapter: string; url: string; headers: Headers }[] = [];
-    const result = await equityExtendedEvidenceAdapter.collect({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "aapl", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      finnhubApiToken: "finnhub-token",
-      fredApiKey: "fred-key",
-      tradierApiToken: "tradier-token",
-      secUserAgent: "market-bot test@example.test",
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async (
-        url,
-        adapter,
-        _fetchedAt,
-        _timeoutMs,
-        _fetchImpl,
-        _retryDelaysMs,
-        init,
-      ) => {
-        requests.push({ adapter, url, headers: new Headers(init?.headers) });
-        let payload: unknown = {};
-        if (adapter === "sec-tickers") {
-          payload = { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } };
-        } else if (adapter === "sec-submissions") {
-          payload = { filings: { recent: { form: ["10-Q"], filingDate: ["2026-05-01"] } } };
-        } else if (adapter === "sec-companyfacts") {
-          payload = secCompanyFactsPayload();
-        } else if (adapter.startsWith("fred-")) {
-          payload = {
-            observations: [
-              { date: "2026-05-19", value: "4.25" },
-              { date: "2026-05-16", value: "4.10" },
-            ],
-          };
-        } else if (adapter === "tradier-expirations") {
-          payload = { expirations: { date: ["2026-05-22", "2026-06-19"] } };
-        } else if (adapter === "tradier-options") {
-          payload = { options: { option: [{ greeks: { mid_iv: 0.32 } }] } };
-        } else if (adapter.startsWith("finnhub-events")) {
-          payload = [{ symbol: "AAPL" }];
-        }
-        return {
-          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
-          payload,
-        };
-      },
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    const result = await equityExtendedEvidenceAdapter.collect(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        finnhubApiToken: "finnhub-token",
+        fredApiKey: "fred-key",
+        tradierApiToken: "tradier-token",
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ url, adapter, init }) => {
+            requests.push({ adapter, url, headers: new Headers(init?.headers) });
+            let payload: unknown = {};
+            if (adapter === "sec-tickers") {
+              payload = { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } };
+            } else if (adapter === "sec-submissions") {
+              payload = { filings: { recent: { form: ["10-Q"], filingDate: ["2026-05-01"] } } };
+            } else if (adapter === "sec-companyfacts") {
+              payload = secCompanyFactsPayload();
+            } else if (adapter.startsWith("fred-")) {
+              payload = {
+                observations: [
+                  { date: "2026-05-19", value: "4.25" },
+                  { date: "2026-05-16", value: "4.10" },
+                ],
+              };
+            } else if (adapter === "tradier-expirations") {
+              payload = { expirations: { date: ["2026-05-22", "2026-06-19"] } };
+            } else if (adapter === "tradier-options") {
+              payload = { options: { option: [{ greeks: { mid_iv: 0.32 } }] } };
+            } else if (adapter.startsWith("finnhub-events")) {
+              payload = [{ symbol: "AAPL" }];
+            }
+            return rawJson(adapter, payload);
+          },
+        }),
+      }),
+    );
 
     const secItem = result.extendedEvidence?.items.find((item) => item.category === "sec-edgar");
     expect(secItem?.sourceIds).toEqual([
@@ -732,19 +741,11 @@ describe("extended evidence provider collection", () => {
   });
 
   test("emits gaps for missing crypto extended evidence tokens", async () => {
-    const result = await cryptoExtendedEvidenceAdapter.collect({
-      command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async () => {
-        throw new Error("unexpected fetch");
-      },
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    const result = await cryptoExtendedEvidenceAdapter.collect(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      }),
+    );
 
     expect(result.extendedEvidence?.items).toEqual([]);
     expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
@@ -755,28 +756,22 @@ describe("extended evidence provider collection", () => {
 
   test("routes crypto extended evidence only through crypto providers", async () => {
     const adapters: string[] = [];
-    const result = await cryptoExtendedEvidenceAdapter.collect({
-      command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
-      fetchedAt,
-      sourceTimeoutMs: 1000,
-      newsLimit: 1,
-      cryptoMoverLimit: 2,
-      fredApiKey: "fred-key",
-      glassnodeApiKey: "glassnode-key",
-      fetchImpl: fetch,
-      retryDelaysMs: [],
-      fetchOrGap: async (_url, adapter) => {
-        adapters.push(adapter);
-        const payload = adapter.startsWith("fred-")
-          ? { observations: [{ value: "4.25" }] }
-          : [{ v: 12 }];
-        return {
-          rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload },
-          payload,
-        };
-      },
-      fetchTextOrGap: unexpectedTextFetch,
-    });
+    const result = await cryptoExtendedEvidenceAdapter.collect(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+        fredApiKey: "fred-key",
+        glassnodeApiKey: "glassnode-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            adapters.push(adapter);
+            const payload = adapter.startsWith("fred-")
+              ? { observations: [{ value: "4.25" }] }
+              : [{ v: 12 }];
+            return rawJson(adapter, payload);
+          },
+        }),
+      }),
+    );
 
     expect(result.extendedEvidence?.items.map((item) => item.category)).toEqual([
       "fred-macro",

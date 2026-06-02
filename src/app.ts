@@ -1,5 +1,6 @@
 import { parseArgs } from "./cli/args";
-import { resolveConfig, type SourceOptions } from "./config";
+import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
+import { createAnthropicProvider } from "./model/anthropic";
 import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
 import type { ModelProvider } from "./model/types";
@@ -21,6 +22,18 @@ export function scorePassOptions(sourceOptions: SourceOptions): ScorePassOptions
   }
 
   return { closeCacheDir: sourceOptions.cacheDir, ...providerOptions };
+}
+
+function createProvider(config: AppConfig): ModelProvider {
+  if (config.provider === "codex") {
+    return createCodexProvider(config);
+  }
+
+  if (config.provider === "anthropic") {
+    return createAnthropicProvider(config);
+  }
+
+  return createOpenAIProvider(config);
 }
 
 export async function runCli(argv: readonly string[]): Promise<string> {
@@ -54,8 +67,7 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     return `Cache prune complete: ${String(result.rawDaysPruned)} raw day(s), ${String(result.closeFilesPruned)} close file(s) pruned`;
   }
 
-  const provider: ModelProvider =
-    config.provider === "codex" ? createCodexProvider(config) : createOpenAIProvider(config);
+  const provider = createProvider(config);
   const collectedSources = await collectSources(command, config.sourceOptions);
 
   const scoreResult = await runScorePass(

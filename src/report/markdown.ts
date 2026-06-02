@@ -1,6 +1,28 @@
 import type { KeyFinding, Prediction, ResearchReport, Scenario } from "../domain/types";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 
+interface AlphaSearchLead {
+  readonly symbol: string;
+  readonly name?: string;
+  readonly exchange?: string;
+  readonly price: number;
+  readonly volume: number;
+  readonly marketCap?: number;
+  readonly instrumentKind: string;
+  readonly redditRank: number;
+  readonly redditDiscoveryScore: number;
+  readonly mentionCount: number;
+  readonly discussionStance: string;
+  readonly sourceIds: readonly string[];
+}
+
+interface AlphaSearchRejectedCandidate {
+  readonly symbol: string;
+  readonly redditRank: number;
+  readonly redditDiscoveryScore: number;
+  readonly reason: string;
+}
+
 function sourceRefs(sourceIds: readonly string[]): string {
   return sourceIds.map((sourceId) => `[${sourceId}]`).join(" ");
 }
@@ -57,7 +79,84 @@ function renderExtendedEvidence(report: ResearchReport): string {
   return `## Extended Evidence\n\n${rows}\n`;
 }
 
+function readAlphaSearchLeads(report: ResearchReport): readonly AlphaSearchLead[] {
+  const leads = report.extras?.researchLeads;
+  return Array.isArray(leads) ? (leads as readonly AlphaSearchLead[]) : [];
+}
+
+function readAlphaSearchRejectedCandidates(
+  report: ResearchReport,
+): readonly AlphaSearchRejectedCandidate[] {
+  const rejected = report.extras?.rejectedCandidates;
+  return Array.isArray(rejected) ? (rejected as readonly AlphaSearchRejectedCandidate[]) : [];
+}
+
+function renderAlphaSearchReport(report: ResearchReport): string {
+  const gaps =
+    report.dataGaps.length === 0
+      ? "- No material gaps identified."
+      : report.dataGaps.map((gap) => `- ${gap}`).join("\n");
+  const sources = report.sources.map((source) => `- [${source.id}] ${source.title}`).join("\n");
+  const leads = readAlphaSearchLeads(report);
+  const rejected = readAlphaSearchRejectedCandidates(report);
+  const leadRows =
+    leads.length === 0
+      ? "- No Yahoo-validated research leads."
+      : leads
+          .map((lead) => {
+            const name = lead.name === undefined ? "" : ` (${lead.name})`;
+            const exchange = lead.exchange === undefined ? "" : `, ${lead.exchange}`;
+            const marketCap =
+              lead.marketCap === undefined ? "" : `, market cap ${String(lead.marketCap)}`;
+            return `- **${lead.symbol}${name}:** Reddit rank ${String(lead.redditRank)}, score ${String(lead.redditDiscoveryScore)}, ${String(lead.mentionCount)} mention(s), ${lead.discussionStance} stance; Yahoo ${lead.instrumentKind}, $${String(lead.price)}, volume ${String(lead.volume)}${exchange}${marketCap}. ${sourceRefs(lead.sourceIds)}`;
+          })
+          .join("\n");
+  const rejectedRows =
+    rejected.length === 0
+      ? "- No rejected candidates."
+      : rejected
+          .map(
+            (candidate) =>
+              `- **${candidate.symbol}:** Reddit rank ${String(candidate.redditRank)}, score ${String(candidate.redditDiscoveryScore)}; ${candidate.reason}.`,
+          )
+          .join("\n");
+
+  return [
+    "# equity Alpha Search Report",
+    "",
+    RESEARCH_ONLY_NOTE,
+    "",
+    `Generated: ${report.generatedAt}`,
+    `Evidence Quality: ${report.confidence}`,
+    "",
+    "## Summary",
+    "",
+    report.summary,
+    "",
+    "## Research Leads",
+    "",
+    leadRows,
+    "",
+    "## Rejected Candidates",
+    "",
+    rejectedRows,
+    "",
+    "## Data Gaps",
+    "",
+    gaps,
+    "",
+    "## Sources",
+    "",
+    sources,
+    "",
+  ].join("\n");
+}
+
 export function renderMarkdownReport(report: ResearchReport): string {
+  if (report.jobType === "alpha-search") {
+    return renderAlphaSearchReport(report);
+  }
+
   const title =
     report.jobType === "ticker"
       ? `${report.symbol} ${report.assetClass} Research View`

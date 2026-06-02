@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli, scorePassOptions } from "../src/app";
@@ -95,8 +95,10 @@ describe("runCli", () => {
     dataDirs.push(dataDir);
     process.env.MARKET_BOT_DATA_DIR = dataDir;
 
-    await expect(runCli(["alpha-search", "--asset", "equity"])).resolves.toBe(
-      "Alpha search phase 1 ready: Reddit discovery implementation is pending",
+    const runDir = await runCli(["alpha-search", "--asset", "equity"]);
+    expect(existsSync(join(runDir, "report.json"))).toBe(true);
+    await expect(readFile(join(runDir, "report.md"), "utf8")).resolves.toContain(
+      "equity Alpha Search Report",
     );
     expect(existsSync(join(dataDir, "..", "calibration", "summary.json"))).toBe(false);
   });

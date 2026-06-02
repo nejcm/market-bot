@@ -1,5 +1,6 @@
 import { parseArgs } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
+import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { createAnthropicProvider } from "./model/anthropic";
 import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
@@ -76,7 +77,8 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   }
 
   if (command.jobType === "alpha-search") {
-    return "Alpha search phase 1 ready: Reddit discovery implementation is pending";
+    const result = await runAlphaSearchWorkflow({ command, config });
+    return result.artifacts.runDir;
   }
 
   const provider = createProvider(config);

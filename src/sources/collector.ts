@@ -469,13 +469,17 @@ export interface CollectContextBundle {
   readonly staleFallbackGaps: SourceGap[];
 }
 
-export function createCollectContext(
-  command: ResearchCommand,
+export interface SourceRequestContextBundle {
+  readonly request: SourceRequestExecutor;
+  readonly staleFallbackGaps: SourceGap[];
+}
+
+export function createSourceRequestContext(
   sourceOptions: SourceOptions,
   now: Date = new Date(),
   fetchImpl: FetchLike = fetch,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
-): CollectContextBundle {
+): SourceRequestContextBundle {
   const fetchedAt = now.toISOString();
   const staleFallbackGaps: SourceGap[] = [];
   const { cacheDir } = sourceOptions;
@@ -495,6 +499,24 @@ export function createCollectContext(
     retryDelaysMs,
     ...(cacheDir !== undefined ? { cacheOptions } : {}),
   });
+
+  return { request, staleFallbackGaps };
+}
+
+export function createCollectContext(
+  command: ResearchCommand,
+  sourceOptions: SourceOptions,
+  now: Date = new Date(),
+  fetchImpl: FetchLike = fetch,
+  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
+): CollectContextBundle {
+  const fetchedAt = now.toISOString();
+  const { request, staleFallbackGaps } = createSourceRequestContext(
+    sourceOptions,
+    now,
+    fetchImpl,
+    retryDelaysMs,
+  );
 
   return {
     context: {

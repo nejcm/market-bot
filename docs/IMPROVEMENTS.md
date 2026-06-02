@@ -2,7 +2,7 @@
 
 ## Alpha search
 
-Next major research feature after real-run validation; includes evidence-backed candidate discovery as one output of the alpha-search workflow.
+Active V1 workflow for Reddit-first candidate discovery; remaining items describe promotion and future expansion after real-run validation.
 
 - **Prerequisite validation** - keep reviewing provider-health summaries and recent artifacts
   for unresolved source gaps, Evidence Quality caps, repeat-news suppression, and prediction
@@ -10,9 +10,9 @@ Next major research feature after real-run validation; includes evidence-backed 
 - **Alpha signal discovery** - identify early, higher-risk research signals from market
   data, news, filings, social sources, and other public evidence. Treat social sentiment as
   high-noise input until validation shows it adds signal beyond existing sources.
-- **Candidate discovery output** - reuse V1 source adapters, mover discovery, Evidence
-  Quality, citations, and run artifacts to surface evidence-backed research candidates as
-  alpha-search leads, not as a separate product workflow.
+- **Candidate discovery output** - current V1 uses Reddit discussion, deterministic ranking,
+  Yahoo validation, Evidence Quality, citations, and run artifacts to surface research
+  candidates as alpha-search leads, not as a separate product workflow.
   No buy/sell/hold calls, sizing, execution language, portfolio-change language, or
   expected-return recommendations.
 - **Signal ranking** based on explainable features, not an LLM-only list. Keep

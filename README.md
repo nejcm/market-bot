@@ -56,7 +56,7 @@ market-bot calibration
 ```
 
 - `--deep` switches to the synthesis model for a more thorough pass.
-- `alpha-search` is an equity-only Reddit-first discovery workflow being implemented in phases; it does not emit predictions or trigger score/calibration side effects in V1.
+- `alpha-search` is an equity-only Reddit-first discovery workflow; it ranks Reddit discussion, Yahoo-validates the top candidates, emits no predictions, and does not trigger score/calibration side effects in V1.
 - `score` resolves any due predictions across previous runs and refreshes the calibration summary.
 - `calibration` rebuilds the calibration summary without scoring.
 - Daily / weekly / ticker runs also run a score pass and calibration refresh as a side effect; failures there are logged but do not block the research job.

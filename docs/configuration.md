@@ -22,12 +22,12 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_NEWS_SEEN_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Persistent seen-news index. Defaults to `data/news-seen.json` for `data/runs`; if `MARKET_BOT_DATA_DIR` does not end in `runs`, defaults inside that directory. |
 | `MARKET_BOT_NEWS_SEEN_RETENTION_DAYS` | `30` | Days to suppress exact canonical-URL news repeats within the same research lane. |
 | `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
-| `MARKET_BOT_REDDIT_CLIENT_ID` | — | Enables future Reddit alpha-search OAuth. Keep out of code, tests, and fixtures. |
-| `MARKET_BOT_REDDIT_CLIENT_SECRET` | — | Secret for future Reddit alpha-search OAuth. Keep out of code, tests, and fixtures. |
-| `MARKET_BOT_REDDIT_USER_AGENT` | `market-bot alpha-search contact@example.invalid` | User-Agent for future Reddit API calls; set to an app name plus real contact. |
+| `MARKET_BOT_REDDIT_CLIENT_ID` | — | Enables Reddit alpha-search OAuth. Keep out of code, tests, and fixtures. |
+| `MARKET_BOT_REDDIT_CLIENT_SECRET` | — | Secret for Reddit alpha-search OAuth. Keep out of code, tests, and fixtures. |
+| `MARKET_BOT_REDDIT_USER_AGENT` | `market-bot alpha-search contact@example.invalid` | User-Agent for Reddit API calls; set to an app name plus real contact. |
 | `MARKET_BOT_REDDIT_SUBREDDITS` | — | Comma-separated subreddit whitelist for alpha-search, for example `stocks,SecurityAnalysis`. |
 | `MARKET_BOT_REDDIT_LOOKBACK_DAYS` | `7` | Reddit discussion lookback window for alpha-search. |
-| `MARKET_BOT_REDDIT_RAW_RETENTION_HOURS` | `48` | Maximum raw Reddit text retention window before pruning/redaction in future alpha-search persistence. |
+| `MARKET_BOT_REDDIT_RAW_RETENTION_HOURS` | `48` | Maximum raw Reddit text retention window before alpha-search redacts expired Reddit raw snapshots. |
 | `MARKET_BOT_REDDIT_SEEN_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Persistent seen Reddit ID index for avoiding overlapping repeated alpha-search runs. |
 | `MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT` | `15` | Number of Reddit-ranked candidates to cross-check in alpha-search V1. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `ticker --deep --asset equity`. Set to `0` to disable the loop. |

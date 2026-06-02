@@ -57,7 +57,7 @@ export interface AppConfig {
 }
 
 export interface ResolveConfigOptions {
-  readonly includeAlphaSearchOptions?: boolean;
+  readonly validateAlphaSearchOptions?: boolean;
 }
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
@@ -340,7 +340,7 @@ export function resolveConfig(
       sourceBudget: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET, 8),
     },
     alphaSearchOptions:
-      options.includeAlphaSearchOptions === false
+      options.validateAlphaSearchOptions === false
         ? defaultAlphaSearchOptions(dataDir)
         : resolveAlphaSearchOptions(env, dataDir),
   };

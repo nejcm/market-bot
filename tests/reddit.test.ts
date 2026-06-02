@@ -270,6 +270,54 @@ describe("Reddit discovery client", () => {
     );
   });
 
+  test("reports private or nonexistent subreddits as source gaps", async () => {
+    const fetchImpl: FetchLike = async (input) => {
+      const url = String(input);
+      if (url === "https://www.reddit.com/api/v1/access_token") {
+        return jsonResponse({ access_token: "token-1", token_type: "bearer", expires_in: 3600 });
+      }
+      return jsonResponse({ message: "Not Found" }, 404);
+    };
+
+    const result = await collectRedditDiscussions(baseOptions(fetchImpl));
+
+    expect(result.posts).toEqual([]);
+    expect(result.comments).toEqual([]);
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "reddit",
+        cause: "fetch-failed",
+        message: "reddit request failed with status 404",
+      }),
+    );
+  });
+
+  test("does not treat Reddit JSON source and message fields as source gaps", async () => {
+    const fetchImpl: FetchLike = async (input) => {
+      const url = String(input);
+      if (url === "https://www.reddit.com/api/v1/access_token") {
+        return jsonResponse({ access_token: "token-1", token_type: "bearer", expires_in: 3600 });
+      }
+      if (url.includes("/r/stocks/new?")) {
+        return jsonResponse({
+          source: "reddit",
+          message: "payload metadata",
+          kind: "Listing",
+          data: {
+            after: null,
+            children: [postThing("abc", 1_780_000_000)],
+          },
+        });
+      }
+      return jsonResponse(commentsPayload([]));
+    };
+
+    const result = await collectRedditDiscussions(baseOptions(fetchImpl));
+
+    expect(result.sourceGaps).toEqual([]);
+    expect(result.posts.map((post) => post.id)).toEqual(["abc"]);
+  });
+
   test("reports fetch failures as source gaps", async () => {
     const result = await collectRedditDiscussions(
       baseOptions(async () => {
@@ -333,6 +381,34 @@ describe("Reddit discovery client", () => {
 
     const commentsUrl = calls.find((call) => call.url.includes("/comments/abc.json"))?.url;
     expect(new URL(commentsUrl ?? "").searchParams.get("depth")).toBe("3");
+  });
+
+  test("encodes API-derived comment URL path segments", async () => {
+    const calls: FetchCall[] = [];
+    const fetchImpl: FetchLike = async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url === "https://www.reddit.com/api/v1/access_token") {
+        return jsonResponse({ access_token: "token-1", token_type: "bearer", expires_in: 3600 });
+      }
+      if (url.includes("/r/stocks/new?")) {
+        return jsonResponse(
+          listingPayload(null, [
+            postThing("abc/slash", 1_780_000_000, {
+              id: "abc/slash",
+              name: "t3_abc/slash",
+              subreddit: "stock picks",
+            }),
+          ]),
+        );
+      }
+      return jsonResponse(commentsPayload([]));
+    };
+
+    await collectRedditDiscussions(baseOptions(fetchImpl));
+
+    const commentsUrl = calls.find((call) => call.url.includes("/comments/"))?.url ?? "";
+    expect(commentsUrl).toContain("/r/stock%20picks/comments/abc%2Fslash.json?");
   });
 
   test("flattens nested comment replies returned by deep comment fetches", async () => {

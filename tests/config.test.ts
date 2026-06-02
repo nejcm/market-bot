@@ -139,7 +139,7 @@ describe("resolveConfig", () => {
           MARKET_BOT_REDDIT_SUBREDDITS: "stocks,bad-name",
           MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT: "not-a-number",
         },
-        { includeAlphaSearchOptions: false },
+        { validateAlphaSearchOptions: false },
       ).alphaSearchOptions,
     ).toMatchObject({
       redditSubreddits: [],

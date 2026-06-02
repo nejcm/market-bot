@@ -9,6 +9,7 @@ const REDDIT_API_URL = "https://oauth.reddit.com";
 const REDDIT_LISTING_LIMIT = 100;
 const REDDIT_COMMENT_LIMIT = 25;
 const REDDIT_MAX_LISTING_PAGES = 10;
+const REDDIT_MAX_COMMENT_PARSE_DEPTH = 25;
 const DEFAULT_COMMENT_DEPTH = 1;
 
 export interface RedditDiscoveryClientOptions {
@@ -61,6 +62,16 @@ export interface RedditDiscussionCollectionResult {
 interface RedditToken {
   readonly accessToken: string;
 }
+
+type RedditJsonResult =
+  | {
+      readonly ok: true;
+      readonly payload: unknown;
+    }
+  | {
+      readonly ok: false;
+      readonly gap: SourceGap;
+    };
 
 function redditGap(input: { readonly message: string; readonly cause: SourceGapCause }): SourceGap {
   return sourceGap({
@@ -119,23 +130,18 @@ function authHeaders(userAgent: string, token: string): Record<string, string> {
   };
 }
 
-async function readJson(response: Response): Promise<unknown | SourceGap> {
+async function readJson(response: Response): Promise<RedditJsonResult> {
   try {
-    return (await response.json()) as unknown;
+    return { ok: true, payload: (await response.json()) as unknown };
   } catch {
-    return redditGap({
-      message: "reddit response was not valid JSON",
-      cause: "malformed-response",
-    });
+    return {
+      ok: false,
+      gap: redditGap({
+        message: "reddit response was not valid JSON",
+        cause: "malformed-response",
+      }),
+    };
   }
-}
-
-function isSourceGap(value: unknown): value is SourceGap {
-  return (
-    isRecord(value) &&
-    readString(value, "source") !== undefined &&
-    readString(value, "message") !== undefined
-  );
 }
 
 async function fetchToken(options: RedditDiscoveryClientOptions): Promise<RedditToken | SourceGap> {
@@ -154,17 +160,18 @@ async function fetchToken(options: RedditDiscoveryClientOptions): Promise<Reddit
     },
     body: new URLSearchParams({ grant_type: "client_credentials" }),
   }).catch((error: unknown) => fetchFailureGap(error));
-  if (isSourceGap(response)) {
+  if (!(response instanceof Response)) {
     return response;
   }
   if (!response.ok) {
     return responseFailureGap(response);
   }
 
-  const payload = await readJson(response);
-  if (isSourceGap(payload)) {
-    return payload;
+  const json = await readJson(response);
+  if (!json.ok) {
+    return json.gap;
   }
+  const { payload } = json;
   const accessToken = isRecord(payload) ? readString(payload, "access_token") : undefined;
   if (accessToken === undefined) {
     return redditGap({
@@ -180,16 +187,16 @@ async function fetchRedditJson(
   url: string,
   token: RedditToken,
   options: RedditDiscoveryClientOptions,
-): Promise<unknown | SourceGap> {
+): Promise<RedditJsonResult> {
   const response = await (options.fetchImpl ?? fetch)(url, {
     headers: authHeaders(options.userAgent, token.accessToken),
   }).catch((error: unknown) => fetchFailureGap(error));
-  if (isSourceGap(response)) {
-    return response;
+  if (!(response instanceof Response)) {
+    return { ok: false, gap: response };
   }
 
   if (!response.ok) {
-    return responseFailureGap(response);
+    return { ok: false, gap: responseFailureGap(response) };
   }
 
   return readJson(response);
@@ -199,10 +206,11 @@ async function collectSequential<TItem, TResult>(
   items: readonly TItem[],
   collect: (item: TItem) => Promise<TResult>,
 ): Promise<readonly TResult[]> {
-  return items.reduce<Promise<readonly TResult[]>>(
-    async (previousResults, item) => [...(await previousResults), await collect(item)],
-    Promise.resolve([]),
-  );
+  return items.reduce<Promise<TResult[]>>(async (previousResults, item) => {
+    const results = await previousResults;
+    results.push(await collect(item));
+    return results;
+  }, Promise.resolve([]));
 }
 
 function dateFromUtcSeconds(value: number | undefined): string | undefined {
@@ -220,6 +228,10 @@ function absoluteRedditUrl(path: string | undefined): string | undefined {
     return path;
   }
   return `https://www.reddit.com${path}`;
+}
+
+function isListingGap(value: readonly unknown[] | SourceGap): value is SourceGap {
+  return !Array.isArray(value);
 }
 
 function parsePost(value: unknown): RedditDiscussionPost | undefined {
@@ -299,19 +311,25 @@ function parseComment(value: unknown): RedditDiscussionComment | undefined {
   };
 }
 
-function parseCommentsDeep(children: readonly unknown[]): readonly RedditDiscussionComment[] {
+function parseCommentsDeep(
+  children: readonly unknown[],
+  remainingDepth = REDDIT_MAX_COMMENT_PARSE_DEPTH,
+): readonly RedditDiscussionComment[] {
   return children.flatMap((child) => {
     const comment = parseComment(child);
+    if (remainingDepth <= 0) {
+      return comment === undefined ? [] : [comment];
+    }
     if (!isRecord(child) || !isRecord(child.data) || !isRecord(child.data.replies)) {
       return comment === undefined ? [] : [comment];
     }
 
     const replies = listingChildren(child.data.replies);
-    if (isSourceGap(replies)) {
+    if (isListingGap(replies)) {
       return comment === undefined ? [] : [comment];
     }
 
-    const nested = parseCommentsDeep(replies);
+    const nested = parseCommentsDeep(replies, remainingDepth - 1);
     return comment === undefined ? nested : [comment, ...nested];
   });
 }
@@ -352,11 +370,13 @@ function listingUrl(subreddit: string, after: string | undefined): string {
   if (after !== undefined) {
     params.after = after;
   }
-  return `${REDDIT_API_URL}/r/${subreddit}/new?${encodeQuery(params)}`;
+  return `${REDDIT_API_URL}/r/${encodeURIComponent(subreddit)}/new?${encodeQuery(params)}`;
 }
 
 function commentsUrl(post: RedditDiscussionPost, depth: number): string {
-  return `${REDDIT_API_URL}/r/${post.subreddit}/comments/${post.id}.json?${encodeQuery({
+  return `${REDDIT_API_URL}/r/${encodeURIComponent(post.subreddit)}/comments/${encodeURIComponent(
+    post.id,
+  )}.json?${encodeQuery({
     limit: String(REDDIT_COMMENT_LIMIT),
     depth: String(depth),
     sort: "top",
@@ -391,11 +411,12 @@ async function collectSubredditPosts(
   const gaps: SourceGap[] = [];
 
   async function collectPage(after: string | undefined, pageCount: number): Promise<void> {
-    const payload = await fetchRedditJson(listingUrl(subreddit, after), token, options);
-    if (isSourceGap(payload)) {
-      gaps.push(payload);
+    const result = await fetchRedditJson(listingUrl(subreddit, after), token, options);
+    if (!result.ok) {
+      gaps.push(result.gap);
       return;
     }
+    const { payload } = result;
     snapshots.push({
       id: `raw-reddit-listing-${subreddit}-${snapshots.length + 1}`,
       adapter: "reddit",
@@ -404,12 +425,12 @@ async function collectSubredditPosts(
     });
 
     const children = listingChildren(payload);
-    if (isSourceGap(children)) {
+    if (isListingGap(children)) {
       gaps.push(children);
       return;
     }
 
-    const parsedPosts = (children as readonly unknown[])
+    const parsedPosts = children
       .map((child) => parsePost(child))
       .filter((post): post is RedditDiscussionPost => post !== undefined);
     const pagePosts = parsedPosts.filter(
@@ -439,17 +460,18 @@ async function collectPostComments(
   readonly comments: readonly RedditDiscussionComment[];
   readonly gaps: readonly SourceGap[];
 }> {
-  const payload = await fetchRedditJson(
+  const result = await fetchRedditJson(
     commentsUrl(post, options.commentDepth ?? DEFAULT_COMMENT_DEPTH),
     token,
     options,
   );
-  if (isSourceGap(payload)) {
-    return { comments: [], gaps: [payload] };
+  if (!result.ok) {
+    return { comments: [], gaps: [result.gap] };
   }
+  const { payload } = result;
 
   const children = commentsChildren(payload);
-  if (isSourceGap(children)) {
+  if (isListingGap(children)) {
     return { comments: [], gaps: [children] };
   }
 
@@ -460,7 +482,7 @@ async function collectPostComments(
       fetchedAt: options.fetchedAt,
       payload,
     },
-    comments: parseCommentsDeep(children as readonly unknown[]),
+    comments: parseCommentsDeep(children),
     gaps: [],
   };
 }
@@ -473,7 +495,7 @@ export async function collectRedditDiscussions(
   }
 
   const token = await fetchToken(options);
-  if (isSourceGap(token)) {
+  if (!("accessToken" in token)) {
     return { rawSnapshots: [], posts: [], comments: [], sourceGaps: [token] };
   }
 

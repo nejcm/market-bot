@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AppConfig } from "../src/config";
 import type { RunConfig } from "../src/config/runs";
+import { marketContextGap, sourceGap } from "../src/domain/source-gaps";
 import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
@@ -770,10 +771,12 @@ describe("runResearchJob", () => {
         status: "rejected",
       }),
     ]);
-    expect(result.trace.evidenceRequestLoop?.emittedGaps).toContainEqual({
-      source: "evidence-request",
-      message: "sec_latest_filing: requested symbol must match run symbol",
-    });
+    expect(result.trace.evidenceRequestLoop?.emittedGaps).toContainEqual(
+      expect.objectContaining({
+        source: "evidence-request",
+        message: "sec_latest_filing: requested symbol must match run symbol",
+      }),
+    );
   });
 
   test("runs bounded multi-round loop and rejects duplicates across rounds", async () => {
@@ -853,7 +856,10 @@ describe("runResearchJob", () => {
       "evidence-request: Evidence request stage returned invalid JSON",
     );
     expect(result.trace.evidenceRequestLoop?.emittedGaps).toEqual([
-      { source: "evidence-request", message: "Evidence request stage returned invalid JSON" },
+      expect.objectContaining({
+        source: "evidence-request",
+        message: "Evidence request stage returned invalid JSON",
+      }),
     ]);
   });
 
@@ -1439,10 +1445,18 @@ describe("runResearchJob", () => {
         marketContext: {
           assetClass: "equity",
           items: [],
-          gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+          gaps: [
+            marketContextGap(
+              sourceGap({ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }),
+            ),
+          ],
         },
         marketContextSources: [],
-        sourceGaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+        sourceGaps: [
+          marketContextGap(
+            sourceGap({ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }),
+          ),
+        ],
       },
       now: new Date("2026-05-19T00:00:00.000Z"),
     });

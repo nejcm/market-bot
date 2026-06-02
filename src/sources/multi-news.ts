@@ -1,4 +1,5 @@
 import type { Source, SourceProviderAlias } from "../domain/types";
+import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { finnhubNewsAdapter } from "./finnhub-news";
 import { marketAuxNewsAdapter } from "./marketaux-news";
 import { filterSeenNewsSources } from "./news-seen";
@@ -197,9 +198,7 @@ export function createMultiNewsAdapter(
     const newsSources = assignSourceIds(
       selectRoundRobin(filtered.newsSources, ctx.newsLimit, providerOrder),
     );
-    const repeatFallbackUsed = filtered.sourceGaps.some((gap) =>
-      gap.message.includes("kept one repeat fallback"),
-    );
+    const repeatFallbackUsed = filtered.sourceGaps.some((gap) => isRepeatFallbackGap(gap));
     const persistentSuppressedNewsSourceCount = dedupedSources.length - filtered.newsSources.length;
 
     return {

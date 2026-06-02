@@ -6,6 +6,7 @@ import type {
   Source,
   SourceGap,
 } from "../domain/types";
+import { sourceGap } from "../domain/source-gaps";
 import { isRecord, readNumber } from "./guards";
 import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
@@ -189,7 +190,14 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   } = ctx;
   if (command.jobType !== "ticker") {
     return emptyOutput([
-      { source: "sec-edgar", message: "SEC filing requests require ticker runs" },
+      sourceGap({
+        source: "sec-edgar",
+        message: "SEC filing requests require ticker runs",
+        provider: "sec-edgar",
+        capability: "evidence-request",
+        cause: "unsupported-coverage",
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
     ]);
   }
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
@@ -209,7 +217,16 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const match = findSecTicker(tickers.payload, command.symbol);
   if (match === undefined) {
     return emptyOutput(
-      [{ source: "sec-edgar", message: `No SEC CIK match for ${command.symbol}` }],
+      [
+        sourceGap({
+          source: "sec-edgar",
+          message: `No SEC CIK match for ${command.symbol}`,
+          provider: "sec-edgar",
+          capability: "evidence-request",
+          cause: "unsupported-coverage",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
       [tickers.rawSnapshot],
     );
   }
@@ -231,7 +248,16 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const filing = selectLatestPeriodicFiling(submissions.payload);
   if (filing === undefined) {
     return emptyOutput(
-      [{ source: "sec-edgar", message: `No SEC 10-K or 10-Q filing found for ${command.symbol}` }],
+      [
+        sourceGap({
+          source: "sec-edgar",
+          message: `No SEC 10-K or 10-Q filing found for ${command.symbol}`,
+          provider: "sec-edgar",
+          capability: "evidence-request",
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
       [tickers.rawSnapshot, submissions.rawSnapshot],
     );
   }
@@ -384,12 +410,26 @@ async function collectTradierIvTermStructure(
   const { command, fetchedAt, sourceTimeoutMs, fetchImpl, fetchOrGap, retryDelaysMs } = ctx;
   if (command.jobType !== "ticker") {
     return emptyOutput([
-      { source: "tradier-options", message: "Tradier IV requests require ticker runs" },
+      sourceGap({
+        source: "tradier-options",
+        message: "Tradier IV requests require ticker runs",
+        provider: "tradier",
+        capability: "evidence-request",
+        cause: "unsupported-coverage",
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
     ]);
   }
   if (ctx.tradierApiToken === undefined) {
     return emptyOutput([
-      { source: "tradier-options", message: "MARKET_BOT_TRADIER_API_TOKEN is not set" },
+      sourceGap({
+        source: "tradier-options",
+        message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+        provider: "tradier",
+        capability: "evidence-request",
+        cause: "missing-credential",
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
     ]);
   }
 
@@ -414,7 +454,16 @@ async function collectTradierIvTermStructure(
   const buckets = nearestExpirationBuckets(expirations.payload, fetchedAt);
   if (buckets.length === 0) {
     return emptyOutput(
-      [{ source: "tradier-options", message: "No Tradier option expirations found" }],
+      [
+        sourceGap({
+          source: "tradier-options",
+          message: "No Tradier option expirations found",
+          provider: "tradier",
+          capability: "evidence-request",
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
       [expirations.rawSnapshot],
     );
   }
@@ -463,10 +512,14 @@ function tradierTermStructureOutput(
     }
     return median(readTradierIvValues(entry.result.payload)) === undefined
       ? [
-          {
+          sourceGap({
             source: "tradier-options",
             message: `No Tradier IV values found for expiration ${entry.bucket.expiration}`,
-          },
+            provider: "tradier",
+            capability: "evidence-request",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
         ]
       : [];
   });

@@ -8,6 +8,7 @@ import type {
   ExtendedEvidenceItem,
   SourceGap,
 } from "../domain/types";
+import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
 import { isRecord } from "../sources/guards";
 import {
   availableEvidenceRequestTools,
@@ -112,7 +113,13 @@ export async function runEvidenceRequestLoop(
 
     const parsed = parseModelRequests(stageOutput.content);
     if (typeof parsed === "string") {
-      const gap = { source: "evidence-request", message: parsed };
+      const gap = sourceGap({
+        source: "evidence-request",
+        message: parsed,
+        capability: "evidence-request",
+        cause: "malformed-response",
+        evidenceQualityImpact: "extended-evidence-cap",
+      });
       emittedGaps.push(gap);
       collectedSources = mergeGaps(input.command, collectedSources, [gap]);
       break;
@@ -332,7 +339,13 @@ function reject(
       status: "rejected",
       reason,
     },
-    gap: { source: "evidence-request", message: `${tool}: ${reason}` },
+    gap: sourceGap({
+      source: "evidence-request",
+      message: `${tool}: ${reason}`,
+      capability: "evidence-request",
+      cause: "validation-failed",
+      evidenceQualityImpact: "extended-evidence-cap",
+    }),
   };
 }
 
@@ -341,18 +354,14 @@ function mergeToolOutput(
   collectedSources: CollectedSources,
   output: EvidenceRequestToolOutput,
 ): CollectedSources {
-  const extendedEvidence = mergeExtendedEvidence(
-    command,
-    collectedSources,
-    output.items,
-    output.gaps,
-  );
+  const gaps = output.gaps.map(extendedEvidenceGap);
+  const extendedEvidence = mergeExtendedEvidence(command, collectedSources, output.items, gaps);
   return {
     ...collectedSources,
     rawSnapshots: [...collectedSources.rawSnapshots, ...output.rawSnapshots],
     extendedSources: [...(collectedSources.extendedSources ?? []), ...output.sources],
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
-    sourceGaps: [...(collectedSources.sourceGaps ?? []), ...output.gaps],
+    sourceGaps: [...(collectedSources.sourceGaps ?? []), ...gaps],
   };
 }
 
@@ -364,11 +373,12 @@ function mergeGaps(
   if (gaps.length === 0) {
     return collectedSources;
   }
-  const extendedEvidence = mergeExtendedEvidence(command, collectedSources, [], gaps);
+  const extendedGaps = gaps.map((gap) => extendedEvidenceGap(gap));
+  const extendedEvidence = mergeExtendedEvidence(command, collectedSources, [], extendedGaps);
   return {
     ...collectedSources,
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
-    sourceGaps: [...(collectedSources.sourceGaps ?? []), ...gaps],
+    sourceGaps: [...(collectedSources.sourceGaps ?? []), ...extendedGaps],
   };
 }
 

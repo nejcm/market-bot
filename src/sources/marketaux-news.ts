@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import { sourceGap } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, newsQuery, recencyDays } from "./news-utils";
@@ -95,7 +96,16 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     return {
       rawSnapshots: [],
       newsSources: [],
-      sourceGaps: [{ source: "marketaux-news", message: "missing MARKET_BOT_MARKETAUX_API_TOKEN" }],
+      sourceGaps: [
+        sourceGap({
+          source: "marketaux-news",
+          message: "missing MARKET_BOT_MARKETAUX_API_TOKEN",
+          provider: "marketaux",
+          capability: "news",
+          cause: "missing-credential",
+          evidenceQualityImpact: "core-cap",
+        }),
+      ],
     };
   }
 

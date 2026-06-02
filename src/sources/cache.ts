@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
 import { rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
+import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
 import type { FetchJsonResult, FetchOrGapFn, RawSourceSnapshot } from "./types";
 
@@ -189,10 +190,15 @@ export function withCache(inner: FetchOrGapFn, options: CacheOptions): FetchOrGa
     const stale = await findStaleFallback(options.dir, sha, today, options.fallbackDays);
     if (stale !== undefined) {
       const ageDays = dateDiffDays(today, stale.cachedDate);
-      options.onStaleFallback({
-        source: adapter,
-        message: `cache-fallback adapter=${adapter} stalenessDays=${ageDays}`,
-      });
+      options.onStaleFallback(
+        sourceGap({
+          source: adapter,
+          message: `cache-fallback adapter=${adapter} stalenessDays=${ageDays}`,
+          capability: "cache",
+          cause: "stale-fallback",
+          evidenceQualityImpact: "core-cap",
+        }),
+      );
 
       return toFetchJsonResult(stale, adapter);
     }

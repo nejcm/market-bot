@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { CollectedSources } from "../src/research/orchestrator";
 import { buildRunAnalytics } from "../src/research/run-analytics";
+import { sourceGap } from "../src/domain/source-gaps";
 import type { RunTrace } from "../src/domain/types";
 import { marketSnapshot, newsSource, prediction, researchReport } from "./support/fixtures";
 
@@ -70,9 +71,23 @@ describe("run analytics", () => {
             observedAt: "2026-05-19T00:00:00.000Z",
           },
         ],
-        gaps: [{ source: "tradier-options", message: "missing MARKET_BOT_TRADIER_API_TOKEN" }],
+        gaps: [
+          sourceGap({
+            source: "tradier-options",
+            message: "missing MARKET_BOT_TRADIER_API_TOKEN",
+            cause: "missing-credential",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
       },
-      sourceGaps: [{ source: "marketaux-news", message: "missing MARKET_BOT_MARKETAUX_API_TOKEN" }],
+      sourceGaps: [
+        sourceGap({
+          source: "marketaux-news",
+          message: "missing MARKET_BOT_MARKETAUX_API_TOKEN",
+          cause: "missing-credential",
+          evidenceQualityImpact: "core-cap",
+        }),
+      ],
       newsAnalytics: {
         fetchedNewsSourcesByProvider: { marketaux: 2, finnhub: 1 },
         fetchedNewsSourceCount: 3,

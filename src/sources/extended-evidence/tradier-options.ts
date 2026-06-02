@@ -1,3 +1,4 @@
+import { sourceGap } from "../../domain/source-gaps";
 import { selectTradierExpiration, summarizeTradierIv, tradierRequestInit } from "../tradier";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
@@ -12,7 +13,16 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
     return {
       rawSnapshots: [],
       items: [],
-      gaps: [{ source: "tradier-options", message: "MARKET_BOT_TRADIER_API_TOKEN is not set" }],
+      gaps: [
+        sourceGap({
+          source: "tradier-options",
+          message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+          provider: "tradier",
+          capability: "extended-evidence",
+          cause: "missing-credential",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
     };
   }
   const init = tradierRequestInit(ctx.tradierApiToken);
@@ -37,7 +47,16 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
     return {
       rawSnapshots: [expirations.rawSnapshot],
       items: [],
-      gaps: [{ source: "tradier-options", message: "No Tradier option expiration found" }],
+      gaps: [
+        sourceGap({
+          source: "tradier-options",
+          message: "No Tradier option expiration found",
+          provider: "tradier",
+          capability: "extended-evidence",
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
     };
   }
 

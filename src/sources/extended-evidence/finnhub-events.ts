@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { sourceGap } from "../../domain/source-gaps";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { daysFrom, encodeQuery, readArray } from "./utils";
@@ -22,7 +23,16 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
     return {
       rawSnapshots: [],
       items: [],
-      gaps: [{ source: "finnhub-events", message: "MARKET_BOT_FINNHUB_API_TOKEN is not set" }],
+      gaps: [
+        sourceGap({
+          source: "finnhub-events",
+          message: "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          provider: "finnhub",
+          capability: "extended-evidence",
+          cause: "missing-credential",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
     };
   }
   const from = daysFrom(fetchedAt, -90);

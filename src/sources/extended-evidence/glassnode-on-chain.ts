@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { sourceGap } from "../../domain/source-gaps";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { encodeQuery, latestNumber } from "./utils";
@@ -20,7 +21,16 @@ export async function collectGlassnode(ctx: CollectContext): Promise<ProviderRes
     return {
       rawSnapshots: [],
       items: [],
-      gaps: [{ source: "glassnode-on-chain", message: "MARKET_BOT_GLASSNODE_API_KEY is not set" }],
+      gaps: [
+        sourceGap({
+          source: "glassnode-on-chain",
+          message: "MARKET_BOT_GLASSNODE_API_KEY is not set",
+          provider: "glassnode",
+          capability: "extended-evidence",
+          cause: "missing-credential",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
     };
   }
   const { glassnodeApiKey } = ctx;

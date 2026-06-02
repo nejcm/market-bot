@@ -1,4 +1,5 @@
 import type { AssetClass, ExtendedEvidence } from "../domain/types";
+import { extendedEvidenceGap } from "../domain/source-gaps";
 import type {
   CollectContext,
   ExtendedEvidenceAdapter,
@@ -25,16 +26,17 @@ async function collectProviderEvidence(
   }
 
   const result = await provider(ctx);
+  const gaps = result.gaps.map(extendedEvidenceGap);
   const extendedEvidence: ExtendedEvidence = {
     instrument: { symbol: ctx.command.symbol, assetClass },
     items: result.items.map((item) => item.item),
-    gaps: result.gaps,
+    gaps,
   };
   return {
     rawSnapshots: result.rawSnapshots,
     sources: result.items.flatMap((item) => item.sources ?? [item.source]),
     extendedEvidence,
-    sourceGaps: result.gaps,
+    sourceGaps: gaps,
   };
 }
 

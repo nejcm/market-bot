@@ -1,4 +1,5 @@
 import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
+import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../guards";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
@@ -363,16 +364,29 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
 
   const gaps: SourceGap[] = [
     ...(missingFacts.length > 0
-      ? [{ source: "sec-edgar", message: `Missing SEC company facts: ${missingFacts.join(", ")}` }]
+      ? [
+          sourceGap({
+            source: "sec-edgar",
+            message: `Missing SEC company facts: ${missingFacts.join(", ")}`,
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ]
       : []),
     ...(missingDeltas.length > 0
       ? [
-          {
+          sourceGap({
             source: "sec-edgar",
             message: `Missing comparable SEC company facts for YoY deltas: ${missingDeltas.join(
               ", ",
             )}`,
-          },
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
         ]
       : []),
   ];
@@ -409,7 +423,16 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     return {
       rawSnapshots: [tickers.rawSnapshot],
       items: [],
-      gaps: [{ source: "sec-edgar", message: `No SEC CIK match for ${command.symbol}` }],
+      gaps: [
+        sourceGap({
+          source: "sec-edgar",
+          message: `No SEC CIK match for ${command.symbol}`,
+          provider: "sec-edgar",
+          capability: "extended-evidence",
+          cause: "unsupported-coverage",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
     };
   }
 
@@ -509,7 +532,16 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
 
   const emptyFactsGap =
     isFetchJsonResult(facts) && fundamentals === undefined
-      ? [{ source: "sec-edgar", message: `No SEC company facts found for ${command.symbol}` }]
+      ? [
+          sourceGap({
+            source: "sec-edgar",
+            message: `No SEC company facts found for ${command.symbol}`,
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ]
       : [];
 
   return {

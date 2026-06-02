@@ -8,6 +8,7 @@ import {
   type Scenario,
   type Source,
 } from "../domain/types";
+import { isCoreEvidenceQualityGap, isExtendedEvidenceQualityGap } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { isRecord } from "../sources/guards";
 import {
@@ -168,23 +169,14 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
     return "low";
   }
 
-  const extendedGapKeys = new Set(
-    collectedSources.extendedEvidence?.gaps.map((gap) => `${gap.source}: ${gap.message}`),
-  );
-  const marketContextGapKeys = new Set(
-    collectedSources.marketContext?.gaps.map((gap) => `${gap.source}: ${gap.message}`),
-  );
   const coreGaps =
-    collectedSources.sourceGaps?.filter(
-      (gap) =>
-        !extendedGapKeys.has(`${gap.source}: ${gap.message}`) &&
-        !marketContextGapKeys.has(`${gap.source}: ${gap.message}`),
-    ) ?? [];
+    collectedSources.sourceGaps?.filter((gap) => isCoreEvidenceQualityGap(gap)) ?? [];
   const extendedCategoryCount =
     collectedSources.extendedEvidence === undefined
       ? 0
       : new Set(collectedSources.extendedEvidence.items.map((item) => item.category)).size;
-  const extendedGapCount = collectedSources.extendedEvidence?.gaps.length ?? 0;
+  const extendedGapCount =
+    collectedSources.extendedEvidence?.gaps.filter(isExtendedEvidenceQualityGap).length ?? 0;
 
   if (
     coreGaps.length > 0 ||

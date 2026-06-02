@@ -60,7 +60,32 @@ export interface SourceProviderAlias {
 export interface SourceGap {
   readonly source: string;
   readonly message: string;
+  readonly provider?: string;
+  readonly capability?: SourceGapCapability;
+  readonly cause?: SourceGapCause;
+  readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
 }
+
+export type SourceGapCapability =
+  | "market-data"
+  | "news"
+  | "extended-evidence"
+  | "market-context"
+  | "evidence-request"
+  | "cache";
+
+export type SourceGapCause =
+  | "missing-credential"
+  | "fetch-failed"
+  | "circuit-open"
+  | "stale-fallback"
+  | "unsupported-coverage"
+  | "repeat-fallback"
+  | "malformed-response"
+  | "validation-failed"
+  | "provider-data-missing";
+
+export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap" | "no-cap";
 
 export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
 

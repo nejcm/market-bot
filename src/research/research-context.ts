@@ -13,6 +13,7 @@ import {
   type Source,
   type SourceGap,
 } from "../domain/types";
+import { sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { isRecord } from "../sources/guards";
 import type { NewsCollectionAnalytics, RawSourceSnapshot } from "../sources/types";
@@ -91,7 +92,7 @@ export function deterministicSourceGaps(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly string[] {
-  const gaps = collectedSources.sourceGaps?.map((gap) => `${gap.source}: ${gap.message}`) ?? [];
+  const gaps = collectedSources.sourceGaps?.map(sourceGapReportText) ?? [];
   const marketGaps =
     collectedSources.marketSnapshots.length === 0
       ? ["No usable market data snapshots were collected"]

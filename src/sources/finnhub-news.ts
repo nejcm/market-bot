@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import { sourceGap } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays, ymd } from "./news-utils";
@@ -83,7 +84,16 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     return {
       rawSnapshots: [],
       newsSources: [],
-      sourceGaps: [{ source: "finnhub-news", message: "missing MARKET_BOT_FINNHUB_API_TOKEN" }],
+      sourceGaps: [
+        sourceGap({
+          source: "finnhub-news",
+          message: "missing MARKET_BOT_FINNHUB_API_TOKEN",
+          provider: "finnhub",
+          capability: "news",
+          cause: "missing-credential",
+          evidenceQualityImpact: "core-cap",
+        }),
+      ],
     };
   }
 

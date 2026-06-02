@@ -485,10 +485,20 @@ describe("market context provider collection", () => {
     expect(result.marketContext).toEqual({
       assetClass: "crypto",
       items: [],
-      gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+      gaps: [
+        expect.objectContaining({
+          source: "fred-macro",
+          message: "MARKET_BOT_FRED_API_KEY is not set",
+          evidenceQualityImpact: "no-cap",
+        }),
+      ],
     });
     expect(result.sourceGaps).toEqual([
-      { source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" },
+      expect.objectContaining({
+        source: "fred-macro",
+        message: "MARKET_BOT_FRED_API_KEY is not set",
+        evidenceQualityImpact: "no-cap",
+      }),
     ]);
   });
 

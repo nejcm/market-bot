@@ -19,7 +19,8 @@ Use this checklist before adding or promoting a Source Provider. Provider-level 
 - If a new normalized artifact shape is needed, make that a separate design decision before implementing the provider.
 - Preserve Instrument Identity fields when the provider exposes useful metadata, such as exchange, quote currency, display name, provider IDs, or aliases. Do not reconcile conflicting provider identities unless a separate design accepts that behavior.
 - Use the `CollectContext` `ctx.fetchOrGap` seam for JSON source HTTP calls and `ctx.fetchTextOrGap` for text/HTML source HTTP calls. The collector handles timeout, retry/backoff, cache, rate limiting, circuit breaking, and stale cache fallback for both. Document provider-specific handling only when the API requires it.
-- Make `SourceGap` messages identify the provider, capability, and cause, such as missing credential, timeout, stale cache fallback, unsupported coverage, rate limit, usage limit, or provider failure.
+- Make `SourceGap`s carry typed provider/capability/cause meaning plus a stable human-readable message. Causes should distinguish missing credential, fetch failure, circuit open, stale cache fallback, unsupported coverage, repeat fallback, malformed response, validation failure, and provider data missing.
+- Set `SourceGap.evidenceQualityImpact` from source semantics instead of relying on message text. Market Context gaps are `no-cap`; Extended Evidence gaps participate in the Extended Evidence cap check; core market/news/source-collection gaps are core caps.
 - Keep scoring Observations behind explicit promotion. Promotion requires an observable forecast use ([ADR 0004](./adr/0004-predictions-as-observable-forecasts.md)), coverage behavior, resolver wiring, and tests.
 
 ## Test floor

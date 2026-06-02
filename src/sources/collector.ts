@@ -7,6 +7,7 @@ import type {
   Source,
   SourceGap,
 } from "../domain/types";
+import { fetchFailureSourceGap, sourceGap } from "../domain/source-gaps";
 import { withCache, type CacheOptions, type FetchOrGapFn } from "./cache";
 import type {
   CollectContext,
@@ -322,7 +323,7 @@ async function fetchJsonOrGap(
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "source request failed";
-    return { source: adapter, message };
+    return fetchFailureSourceGap(adapter, message);
   }
 }
 
@@ -347,7 +348,7 @@ async function fetchTextOrGap(
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "source request failed";
-    return { source: adapter, message };
+    return fetchFailureSourceGap(adapter, message);
   }
 }
 
@@ -359,7 +360,12 @@ function cachedTextFetch(inner: FetchTextOrGapFn, options: CacheOptions): FetchT
       return result as FetchTextResult;
     }
     if ("rawSnapshot" in result) {
-      return { source: adapter, message: "cached text payload was not a string" };
+      return sourceGap({
+        source: adapter,
+        message: "cached text payload was not a string",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "core-cap",
+      });
     }
     return result;
   };

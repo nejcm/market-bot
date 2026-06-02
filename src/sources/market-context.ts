@@ -4,6 +4,7 @@ import {
   type Source,
   type SourceGap,
 } from "../domain/types";
+import { marketContextGap, sourceGap } from "../domain/source-gaps";
 import {
   buildFredMacroMetrics,
   FRED_SERIES,
@@ -33,7 +34,7 @@ function emptyMarketContext(ctx: CollectContext, gaps: readonly SourceGap[]): Ma
   return {
     assetClass: ctx.command.assetClass,
     items: [],
-    gaps,
+    gaps: gaps.map((gap) => marketContextGap(gap)),
   };
 }
 
@@ -44,7 +45,16 @@ async function collectFredMarketContext(
     return { rawSnapshots: [], sources: [], sourceGaps: [] };
   }
   if (ctx.fredApiKey === undefined) {
-    const gaps = [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }];
+    const gaps = [
+      sourceGap({
+        source: "fred-macro",
+        message: "MARKET_BOT_FRED_API_KEY is not set",
+        provider: "fred",
+        capability: "market-context",
+        cause: "missing-credential",
+        evidenceQualityImpact: "no-cap",
+      }),
+    ];
     return {
       rawSnapshots: [],
       marketContext: emptyMarketContext(ctx, gaps),
@@ -67,7 +77,9 @@ async function collectFredMarketContext(
     ),
   );
   const fetched = results.filter((result) => isFetchJsonResult(result));
-  const gaps = results.filter((result): result is SourceGap => !isFetchJsonResult(result));
+  const gaps = results
+    .filter((result): result is SourceGap => !isFetchJsonResult(result))
+    .map((gap) => marketContextGap(gap));
   const metrics = buildFredMacroMetrics(
     fetched.map((result) => ({
       seriesId: result.rawSnapshot.adapter.replace("fred-", ""),

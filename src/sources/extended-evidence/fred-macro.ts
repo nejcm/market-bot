@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { sourceGap } from "../../domain/source-gaps";
 import {
   buildFredMacroMetrics,
   FRED_SERIES,
@@ -17,7 +18,16 @@ export async function collectFred(ctx: CollectContext): Promise<ProviderResult> 
     return {
       rawSnapshots: [],
       items: [],
-      gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+      gaps: [
+        sourceGap({
+          source: "fred-macro",
+          message: "MARKET_BOT_FRED_API_KEY is not set",
+          provider: "fred",
+          capability: "extended-evidence",
+          cause: "missing-credential",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
     };
   }
   const { fredApiKey } = ctx;

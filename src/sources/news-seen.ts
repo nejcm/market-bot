@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { ResearchCommand } from "../cli/args";
+import { sourceGap } from "../domain/source-gaps";
 import type { Source, SourceGap } from "../domain/types";
 import { isRecord } from "./guards";
 import { canonicalizeUrl } from "./news-utils";
@@ -153,10 +154,13 @@ export async function filterSeenNewsSources(
   return {
     newsSources: repeatFallback,
     sourceGaps: [
-      {
+      sourceGap({
         source: "news-seen",
         message: `Persistent news dedupe suppressed ${String(sources.length)} repeat source(s) for ${lane}; kept one repeat fallback`,
-      },
+        capability: "news",
+        cause: "repeat-fallback",
+        evidenceQualityImpact: "core-cap",
+      }),
     ],
   };
 }

@@ -98,7 +98,13 @@ describe("collectSources", () => {
     expect(result.marketContext).toEqual({
       assetClass: "equity",
       items: [],
-      gaps: [{ source: "fred-macro", message: "MARKET_BOT_FRED_API_KEY is not set" }],
+      gaps: [
+        expect.objectContaining({
+          source: "fred-macro",
+          message: "MARKET_BOT_FRED_API_KEY is not set",
+          evidenceQualityImpact: "no-cap",
+        }),
+      ],
     });
     expect(result.marketContextSources).toEqual([]);
   });

@@ -167,7 +167,9 @@ describe("SEC latest filing evidence tool", () => {
     );
 
     expect(result.sources).toEqual([]);
-    expect(result.gaps).toEqual([{ source: "sec-edgar", message: "No SEC CIK match for AAPL" }]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "sec-edgar", message: "No SEC CIK match for AAPL" }),
+    ]);
   });
 
   test("emits gap when submissions have no periodic filing", async () => {
@@ -205,7 +207,9 @@ describe("SEC latest filing evidence tool", () => {
 
     expect(result.sources).toEqual([]);
     expect(result.rawSnapshots).toHaveLength(2);
-    expect(result.gaps).toEqual([{ source: "sec-filing-text", message: "timeout" }]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "sec-filing-text", message: "timeout" }),
+    ]);
   });
 });
 
@@ -265,7 +269,10 @@ describe("Tradier IV term structure evidence tool", () => {
     const result = await executeEvidenceRequestTool("tradier_iv_term_structure", ctx);
 
     expect(result.gaps).toEqual([
-      { source: "tradier-options", message: "MARKET_BOT_TRADIER_API_TOKEN is not set" },
+      expect.objectContaining({
+        source: "tradier-options",
+        message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+      }),
     ]);
   });
 
@@ -280,7 +287,10 @@ describe("Tradier IV term structure evidence tool", () => {
 
     expect(result.sources).toEqual([]);
     expect(result.gaps).toEqual([
-      { source: "tradier-options", message: "No Tradier option expirations found" },
+      expect.objectContaining({
+        source: "tradier-options",
+        message: "No Tradier option expirations found",
+      }),
     ]);
   });
 
@@ -320,6 +330,8 @@ describe("Tradier IV term structure evidence tool", () => {
     );
 
     expect(result.rawSnapshots).toEqual([]);
-    expect(result.gaps).toEqual([{ source: "tradier-expirations", message: "rate limit" }]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "tradier-expirations", message: "rate limit" }),
+    ]);
   });
 });

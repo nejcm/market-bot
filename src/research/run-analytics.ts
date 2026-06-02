@@ -1,4 +1,5 @@
 import type { ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
+import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
 import type { NewsCollectionAnalytics } from "../sources/types";
 import type { CollectedSources } from "./research-context";
 
@@ -115,25 +116,6 @@ function countBy<T>(
   return counts;
 }
 
-function gapClass(gap: SourceGap): "missingCredential" | "fetchFailed" | "other" {
-  // SourceGap is message-only today, so this soft analytics counter depends on current wording.
-  const message = gap.message.toLowerCase();
-  if (message.includes("missing ") || message.includes("not set")) {
-    return "missingCredential";
-  }
-  if (
-    message.includes("failed") ||
-    message.includes("status ") ||
-    message.includes("fetch") ||
-    message.includes("timeout") ||
-    message.includes("circuit open")
-  ) {
-    return "fetchFailed";
-  }
-
-  return "other";
-}
-
 function sourceProvider(source: Source): string | undefined {
   if (source.provider !== undefined) {
     return source.provider;
@@ -148,7 +130,7 @@ function sourceGaps(collectedSources: CollectedSources): readonly SourceGap[] {
 function sourceGapClasses(
   gaps: readonly SourceGap[],
 ): RunAnalytics["sourceFunnel"]["sourceGapClasses"] {
-  const classes = countBy(gaps, gapClass);
+  const classes = countBy(gaps, sourceGapAnalyticsClass);
   return {
     missingCredential: classes.missingCredential ?? 0,
     fetchFailed: classes.fetchFailed ?? 0,
@@ -179,9 +161,7 @@ function newsDedupe(input: BuildRunAnalyticsInput): RunAnalytics["newsDedupe"] {
     persistentSuppressedNewsSourceCount: 0,
     repeatFallbackKeptCount: 0,
     selectedNewsSourceCount: selectedNewsSources.length,
-    repeatFallbackUsed: sourceGaps(input.collectedSources).some((gap) =>
-      gap.message.includes("kept one repeat fallback"),
-    ),
+    repeatFallbackUsed: sourceGaps(input.collectedSources).some((gap) => isRepeatFallbackGap(gap)),
   };
 }
 

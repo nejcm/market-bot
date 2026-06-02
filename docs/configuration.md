@@ -10,7 +10,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_BASE_URL` | — | Required when provider is `openai-compatible`; rejected otherwise. Must be `https`, except `http` is allowed for localhost. Credentials in the URL are rejected. |
 | `MARKET_BOT_QUICK_MODEL` | `gpt-5.4-mini`; `claude-sonnet-4-6` for `anthropic` | Used for brief depth (all providers). Do not set below `gpt-5.4` for OpenAI/Codex. |
 | `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-5.5`; `claude-opus-4-8` for `anthropic` | Used for `--deep` (all providers). Do not set below `gpt-5.4` for OpenAI/Codex. |
-| `MARKET_BOT_REASONING_EFFORT` | — | Optional shared reasoning-effort hint: `low`, `medium`, or `high`. Unset omits provider-specific effort parameters. Run-specific `modelParams` override this default. |
+| `MARKET_BOT_REASONING_EFFORT` | — | Optional shared reasoning-effort hint: `low`, `medium`, or `high`. Unset omits provider-specific effort parameters. Run-specific `modelParams` override this default. Honored by OpenAI, Codex, and Anthropic; OpenAI-compatible endpoints may ignore or reject it. |
 | `MARKET_BOT_CODEX_QUICK_MODEL` | — | Overrides `MARKET_BOT_QUICK_MODEL` for the `codex` provider only. |
 | `MARKET_BOT_CODEX_SYNTHESIS_MODEL` | — | Overrides `MARKET_BOT_SYNTHESIS_MODEL` for the `codex` provider only. |
 | `MARKET_BOT_MODEL_TIMEOUT_MS` | `120000` | Max ms to wait for a model response before aborting. |

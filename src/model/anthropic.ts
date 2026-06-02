@@ -24,8 +24,20 @@ interface AnthropicResponse {
   readonly usage?: AnthropicUsage;
 }
 
+interface AnthropicErrorResponse {
+  readonly error?: {
+    readonly type?: string;
+    readonly message?: string;
+  };
+  readonly request_id?: string;
+}
+
 function readAnthropicResponse(value: unknown): AnthropicResponse {
   return typeof value === "object" && value !== null ? (value as AnthropicResponse) : {};
+}
+
+function readAnthropicErrorResponse(value: unknown): AnthropicErrorResponse {
+  return typeof value === "object" && value !== null ? (value as AnthropicErrorResponse) : {};
 }
 
 function buildSystem(
@@ -45,7 +57,33 @@ function buildSystem(
 }
 
 function estimateTokens(messages: readonly ModelMessage[]): number {
-  return messages.reduce((total, message) => total + message.content.length / 4, 0);
+  return Math.ceil(messages.reduce((total, message) => total + message.content.length / 4, 0));
+}
+
+async function buildErrorMessage(response: Response): Promise<string> {
+  const status = String(response.status);
+  const body = await response.text();
+
+  if (body.trim() === "") {
+    return `Anthropic request failed with status ${status}`;
+  }
+
+  try {
+    const payload = readAnthropicErrorResponse(JSON.parse(body));
+    const details = [
+      payload.error?.message,
+      payload.error?.type !== undefined ? `type=${payload.error.type}` : undefined,
+      payload.request_id !== undefined ? `request_id=${payload.request_id}` : undefined,
+    ].filter((detail) => detail !== undefined);
+
+    if (details.length > 0) {
+      return `Anthropic request failed with status ${status}: ${details.join("; ")}`;
+    }
+  } catch {
+    // Fall through to the raw body for non-JSON provider errors.
+  }
+
+  return `Anthropic request failed with status ${status}: ${body}`;
 }
 
 export function createAnthropicProvider(
@@ -84,7 +122,7 @@ export function createAnthropicProvider(
       });
 
       if (!response.ok) {
-        throw new Error(`Anthropic request failed with status ${String(response.status)}`);
+        throw new Error(await buildErrorMessage(response));
       }
 
       const payload = readAnthropicResponse(await response.json());

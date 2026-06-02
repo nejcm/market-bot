@@ -23,6 +23,22 @@ const baseConfig: AppConfig = {
   },
 };
 
+const okWithoutUsageFetch = async (): Promise<Response> =>
+  Response.json({ content: [{ type: "text", text: "ok" }] });
+
+const invalidRequestFetch = async (): Promise<Response> =>
+  Response.json(
+    {
+      type: "error",
+      error: { type: "invalid_request_error", message: "Bad request body." },
+      request_id: "req_test",
+    },
+    { status: 400 },
+  );
+
+const responseWithoutTextFetch = async (): Promise<Response> =>
+  Response.json({ content: [{ type: "thinking", thinking: "hidden" }] });
+
 describe("createAnthropicProvider", () => {
   test("posts Messages API requests and reads text content with usage", async () => {
     const requests: Request[] = [];
@@ -107,6 +123,40 @@ describe("createAnthropicProvider", () => {
       max_tokens: 512,
       output_config: { effort: "high" },
     });
+  });
+
+  test("rounds fallback token estimate when usage is absent", async () => {
+    const provider = createAnthropicProvider(baseConfig, okWithoutUsageFetch);
+    const response = await provider.generate({
+      model: "claude-sonnet-4-6",
+      messages: [{ role: "user", content: "12345" }],
+    });
+
+    expect(response.tokenEstimate).toBe(2);
+  });
+
+  test("includes structured error details for failed requests", async () => {
+    const provider = createAnthropicProvider(baseConfig, invalidRequestFetch);
+
+    await expect(
+      provider.generate({
+        model: "claude-sonnet-4-6",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    ).rejects.toThrow(
+      "Anthropic request failed with status 400: Bad request body.; type=invalid_request_error; request_id=req_test",
+    );
+  });
+
+  test("rejects responses without text content", async () => {
+    const provider = createAnthropicProvider(baseConfig, responseWithoutTextFetch);
+
+    await expect(
+      provider.generate({
+        model: "claude-sonnet-4-6",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    ).rejects.toThrow("Anthropic response did not include content");
   });
 
   test("requires an Anthropic API key", () => {

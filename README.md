@@ -24,6 +24,15 @@ export OPENAI_API_KEY=sk-...
 bun run src/cli.ts daily --asset equity
 ```
 
+**Claude / Anthropic API**
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...
+MARKET_BOT_PROVIDER=anthropic bun run src/cli.ts daily --asset equity
+```
+
+Uses Claude defaults unless `MARKET_BOT_QUICK_MODEL` or `MARKET_BOT_SYNTHESIS_MODEL` is set.
+
 **ChatGPT / Codex subscription (no API key required)**
 
 ```sh
@@ -65,7 +74,7 @@ src/
   config/runs.ts     Typed per-run config
   domain/            Instrument, asset class, depth, prediction types
   forecast/          Observable forecast contract and resolver helpers
-  model/             OpenAI / OpenAI-compatible provider
+  model/             OpenAI / OpenAI-compatible / Codex / Anthropic providers
   movers/            Mover ranking
   report/            Report schema + markdown renderer
   research/          Orchestrator, regime summarization

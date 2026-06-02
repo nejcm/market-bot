@@ -18,7 +18,7 @@ CLI args
 
 1. `src/cli.ts` passes command-line arguments to `runCli`.
 2. `src/app.ts` parses the command, resolves configuration, and dispatches the workflow.
-3. Research commands collect sources, build an OpenAI or OpenAI-compatible provider, run the research job, and persist artifacts.
+3. Research commands collect sources, build the configured model provider, run the research job, and persist artifacts.
 4. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
 5. `cache prune` removes old cache entries without generating research.
 6. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
@@ -81,16 +81,17 @@ bun run check
 
 ## Configuration
 
-Configuration is read in `src/config.ts` from environment variables. The main required value for live model calls is `OPENAI_API_KEY` or `MARKET_BOT_OPENAI_API_KEY`.
+Configuration is read in `src/config.ts` from environment variables. Live model calls require the key for the selected provider, unless using the `codex` subscription provider.
 
 Useful knobs:
 
 | Variable | Purpose |
 | --- | --- |
-| `MARKET_BOT_PROVIDER` | `openai`, `openai-compatible`, or `codex`. |
+| `MARKET_BOT_PROVIDER` | `openai`, `openai-compatible`, `codex`, or `anthropic`. |
 | `MARKET_BOT_BASE_URL` | Required for `openai-compatible`. |
 | `MARKET_BOT_QUICK_MODEL` | Model for playbook-selection, specialist, coverage-panel, and critique stages. |
 | `MARKET_BOT_SYNTHESIS_MODEL` | Model for final synthesis and `--deep` output. |
+| `MARKET_BOT_REASONING_EFFORT` | Optional `low`, `medium`, or `high` reasoning-effort hint. |
 | `MARKET_BOT_DATA_DIR` | Run artifact directory, default `data/runs`. |
 | `MARKET_BOT_CACHE_DIR` | Raw source cache directory, default `data/cache`. |
 | `MARKET_BOT_CACHE_DISABLE` | Set `1` or `true` to bypass cache. |

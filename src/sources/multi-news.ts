@@ -1,17 +1,10 @@
 import type { Source, SourceProviderAlias } from "../domain/types";
 import { isRepeatFallbackGap } from "../domain/source-gaps";
-import { finnhubNewsAdapter } from "./finnhub-news";
-import { marketAuxNewsAdapter } from "./marketaux-news";
 import { filterSeenNewsSources } from "./news-seen";
 import { canonicalizeUrl } from "./news-utils";
 import { type CollectContext, type NewsAdapter, type NewsCollectionResult } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
 
-const DEFAULT_NEWS_ADAPTERS: readonly NewsAdapter[] = [
-  marketAuxNewsAdapter,
-  finnhubNewsAdapter,
-  yahooNewsAdapter,
-];
 function aliasFor(source: Source): SourceProviderAlias | undefined {
   if (source.provider === undefined) {
     return undefined;
@@ -225,5 +218,3 @@ export function createMultiNewsAdapter(
     collect: collectNews,
   };
 }
-
-export const multiNewsAdapter: NewsAdapter = createMultiNewsAdapter(DEFAULT_NEWS_ADAPTERS);

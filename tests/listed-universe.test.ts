@@ -26,21 +26,33 @@ function textResult(adapter: string, payload: string): FetchTextResult {
 }
 
 describe("listed universe", () => {
-  test("parses Nasdaq listed common stocks and rejects ETFs/test rows", () => {
+  test("parses Nasdaq listed common stocks and rejects ETFs/test/unsupported rows", () => {
     const entries = parseNasdaqListedPayload(
       [
         "Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares",
         "ABCD|ABCD Inc. Common Stock|Q|N|N|100|N|N",
         "FUND|Fund Trust ETF|G|N|N|100|Y|N",
         "TEST|Test Issue|S|Y|N|100|N|N",
+        "UNIT|Unit Corp Unit|Q|N|N|100|N|N",
         "File Creation Time: 0601202600:00|||||||",
       ].join("\n"),
     );
 
     expect(entries).toEqual([
-      expect.objectContaining({ symbol: "ABCD", isEtfOrFund: false, isActive: true }),
-      expect.objectContaining({ symbol: "FUND", isEtfOrFund: true, isActive: true }),
+      expect.objectContaining({
+        symbol: "ABCD",
+        isEtfOrFund: false,
+        isActive: true,
+        isSupportedStock: true,
+      }),
+      expect.objectContaining({
+        symbol: "FUND",
+        isEtfOrFund: true,
+        isActive: true,
+        isSupportedStock: false,
+      }),
       expect.objectContaining({ symbol: "TEST", isTestIssue: true, isActive: false }),
+      expect.objectContaining({ symbol: "UNIT", isSupportedStock: false }),
     ]);
   });
 
@@ -54,19 +66,45 @@ describe("listed universe", () => {
         ].join("\n"),
       ),
     ).toEqual([
-      expect.objectContaining({ symbol: "NYSE", listingVenue: "N", isEtfOrFund: false }),
-      expect.objectContaining({ symbol: "ARCA", listingVenue: "P", isEtfOrFund: true }),
+      expect.objectContaining({
+        symbol: "NYSE",
+        listingVenue: "N",
+        isEtfOrFund: false,
+        isSupportedStock: true,
+      }),
+      expect.objectContaining({
+        symbol: "ARCA",
+        listingVenue: "P",
+        isEtfOrFund: true,
+        isSupportedStock: false,
+      }),
     ]);
-    expect(parseCboeListedPayload("Name,Volume,Last Price\nCBOE,100,$10.00")).toEqual([
+    const cboeEntries = parseCboeListedPayload("Name,Volume,Last Price\nCBOE,100,$10.00");
+    expect(cboeEntries).toEqual([
       expect.objectContaining({ symbol: "CBOE", listingVenue: "CBOE", isActive: true }),
     ]);
+    expect(cboeEntries[0]).not.toHaveProperty("isSupportedStock");
   });
 
   test("filters candidates with deterministic listed-universe reasons", () => {
     const result = filterListedUniverseCandidates({
-      candidates: [candidate("ABCD"), candidate("FUND"), candidate("TEST"), candidate("MISSING")],
+      candidates: [
+        candidate("ABCD"),
+        candidate("FUND"),
+        candidate("TEST"),
+        candidate("UNIT"),
+        candidate("CBOE"),
+        candidate("MIX"),
+        candidate("MISSING"),
+      ],
       entries: [
-        { symbol: "ABCD", source: "nasdaq-listed", sourceIds: ["listed-ABCD"], isActive: true },
+        {
+          symbol: "ABCD",
+          source: "nasdaq-listed",
+          sourceIds: ["listed-ABCD"],
+          isActive: true,
+          isSupportedStock: true,
+        },
         {
           symbol: "FUND",
           source: "nasdaq-listed",
@@ -81,6 +119,32 @@ describe("listed universe", () => {
           isActive: false,
           isTestIssue: true,
         },
+        {
+          symbol: "UNIT",
+          source: "nasdaq-listed",
+          sourceIds: ["listed-UNIT"],
+          isActive: true,
+          isSupportedStock: false,
+        },
+        {
+          symbol: "CBOE",
+          source: "cboe-listed",
+          sourceIds: ["listed-CBOE"],
+          isActive: true,
+        },
+        {
+          symbol: "MIX",
+          source: "nasdaq-listed",
+          sourceIds: ["listed-MIX"],
+          isActive: true,
+          isEtfOrFund: true,
+        },
+        {
+          symbol: "MIX",
+          source: "cboe-listed",
+          sourceIds: ["listed-MIX-cboe"],
+          isActive: true,
+        },
       ],
     });
 
@@ -90,6 +154,9 @@ describe("listed universe", () => {
     ).toEqual([
       ["FUND", "Official listing universe marks candidate as ETF or fund"],
       ["TEST", "Official listing universe marks candidate as test issue"],
+      ["UNIT", "Official listing universe marks candidate as unsupported listing type"],
+      ["CBOE", "Official listing universe marks candidate as unsupported listing type"],
+      ["MIX", "Official listing universe marks candidate as ETF or fund"],
       ["MISSING", "Official listing universe did not resolve candidate"],
     ]);
   });

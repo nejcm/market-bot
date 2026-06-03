@@ -37,12 +37,15 @@ function entry(input: {
   readonly cik?: string;
   readonly accession?: string;
   readonly period?: string;
+  readonly filed?: string;
 }): string {
   return [
     "<entry>",
     `<title>${input.title}</title>`,
     `<updated>${input.updated}</updated>`,
-    input.cik === undefined ? "" : "<summary>Filed by reporting owner.</summary>",
+    input.cik === undefined && input.filed === undefined
+      ? ""
+      : `<summary>${input.filed === undefined ? "" : `Filed: ${input.filed} `}Filed by reporting owner.</summary>`,
     input.accession === undefined ? "" : `<id>${input.accession}</id>`,
     input.period === undefined ? "" : `<period>${input.period}</period>`,
     "</entry>",
@@ -63,6 +66,7 @@ function requestExecutor(): SourceRequestExecutor {
               cik: "0001111111",
               accession: "0001111111-26-000010",
               period: "2026-05-31",
+              filed: "2026-06-02",
             }),
           ]),
         );
@@ -75,12 +79,14 @@ function requestExecutor(): SourceRequestExecutor {
             updated: "2026-06-04T12:00:00-04:00",
             cik: "0002222222",
             accession: "0002222222-26-000020",
+            filed: "2026-06-01",
           }),
           entry({
             title: "8-K - Missing Mapping Co (0003333333) (Filer)",
             updated: "2026-06-04T13:00:00-04:00",
             cik: "0003333333",
             accession: "0003333333-26-000030",
+            filed: "2026-06-04",
           }),
         ]),
       );
@@ -98,6 +104,7 @@ describe("SEC alpha-search discovery", () => {
             updated: "2026-06-04T12:00:00-04:00",
             cik: "0002222222",
             accession: "0002222222-26-000020",
+            filed: "2026-06-03",
           }),
         ]),
         "8-K",
@@ -105,7 +112,7 @@ describe("SEC alpha-search discovery", () => {
     ).toEqual([
       {
         form: "8-K",
-        filingDate: "2026-06-04",
+        filingDate: "2026-06-03",
         accessionNumber: "0002222222-26-000020",
         cik: "0002222222",
         companyName: "Eight K Co",
@@ -115,10 +122,19 @@ describe("SEC alpha-search discovery", () => {
   });
 
   test("reads SEC ticker mappings", () => {
-    expect(readSecTickerMappings(tickersPayload())).toEqual([
-      { cik: "0001111111", ticker: "SNEW", name: "S-1 New Co" },
-      { cik: "0002222222", ticker: "EIGHT", name: "Eight K Co" },
-    ]);
+    expect({
+      valid: readSecTickerMappings(tickersPayload()),
+      invalid: readSecTickerMappings({
+        "0": { cik_str: 4_444_444, ticker: "../BAD", title: "Bad Co" },
+        "1": { cik_str: 5_555_555, ticker: "LONG", title: `Long ${"x".repeat(200)}` },
+      }),
+    }).toEqual({
+      valid: [
+        { cik: "0001111111", ticker: "SNEW", name: "S-1 New Co" },
+        { cik: "0002222222", ticker: "EIGHT", name: "Eight K Co" },
+      ],
+      invalid: [{ cik: "0005555555", ticker: "LONG", name: `Long ${"x".repeat(155)}` }],
+    });
   });
 
   test("discovers and ranks SEC candidates by form priority then recency", async () => {
@@ -138,7 +154,7 @@ describe("SEC alpha-search discovery", () => {
         recentSecFilings: [
           {
             form: "S-1",
-            filingDate: "2026-06-03",
+            filingDate: "2026-06-02",
             reportDate: "2026-05-31",
             accessionNumber: "0001111111-26-000010",
             sourceIds: ["sec-alpha-search-S-1-0001111111-0001111111-26-000010"],
@@ -171,6 +187,34 @@ describe("SEC alpha-search discovery", () => {
     expect(result.candidates).toEqual([]);
     expect(result.sourceGaps).toEqual([
       expect.objectContaining({ source: "sec-alpha-search-current-8-k" }),
+    ]);
+  });
+
+  test("reports malformed SEC ticker and feed payloads as nonblocking gaps", async () => {
+    const malformedTickers = await discoverSecAlphaSearchCandidates({
+      formTypes: ["8-K"],
+      candidateLimit: 10,
+      request: {
+        json: async ({ adapter }) => jsonResult(adapter, { bad: "shape" }),
+        text: async () => {
+          throw new Error("unexpected text fetch");
+        },
+      },
+    });
+    const malformedFeed = await discoverSecAlphaSearchCandidates({
+      formTypes: ["8-K"],
+      candidateLimit: 10,
+      request: {
+        json: async ({ adapter }) => jsonResult(adapter, tickersPayload()),
+        text: async ({ adapter }) => textResult(adapter, "<html>not atom</html>"),
+      },
+    });
+
+    expect(malformedTickers.sourceGaps).toEqual([
+      expect.objectContaining({ source: "sec-alpha-search", cause: "malformed-response" }),
+    ]);
+    expect(malformedFeed.sourceGaps).toEqual([
+      expect.objectContaining({ source: "sec-alpha-search", cause: "malformed-response" }),
     ]);
   });
 });

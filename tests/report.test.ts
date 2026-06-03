@@ -190,4 +190,49 @@ describe("report schema and rendering", () => {
     expect(markdown).not.toContain("BAD");
     expect(markdown).not.toContain("BROKEN");
   });
+
+  test("escapes alpha-search provider-controlled markdown fields", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "alpha-search",
+      assetClass: "equity",
+      dataGaps: ["<script>alert(1)</script>"],
+      predictions: [],
+      sources: [
+        {
+          id: "source-1",
+          title: "Provider [title](https://bad.example)",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "market-data",
+        },
+      ],
+      extras: {
+        researchLeads: [
+          {
+            symbol: "SAFE",
+            name: "Name <b>Buy</b>",
+            exchange: "NMS",
+            price: 10,
+            volume: 100_000,
+            marketCap: 100_000_000,
+            discoverySources: ["sec-filings"],
+            sourceIds: ["source-1"],
+          },
+        ],
+        rejectedCandidates: [
+          {
+            symbol: "NOPE",
+            discoverySources: ["sec-filings"],
+            reason: "Provider says [buy](https://bad.example)",
+            sourceIds: ["source-1"],
+          },
+        ],
+      },
+    });
+
+    expect(markdown).toContain(String.raw`&lt;script&gt;alert\(1\)&lt;/script&gt;`);
+    expect(markdown).toContain("Name &lt;b&gt;Buy&lt;/b&gt;");
+    expect(markdown).toContain(String.raw`Provider \[title\]\(https://bad.example\)`);
+    expect(markdown).toContain(String.raw`Provider says \[buy\]\(https://bad.example\)`);
+  });
 });

@@ -9,6 +9,18 @@ function sourceRefs(sourceIds: readonly string[]): string {
   return sourceIds.map((sourceId) => `[${sourceId}]`).join(" ");
 }
 
+function markdownText(value: string): string {
+  return value.replaceAll(/[\\[\]()*_#|<>]/gu, (char) => {
+    if (char === "<") {
+      return "&lt;";
+    }
+    if (char === ">") {
+      return "&gt;";
+    }
+    return `${String.fromCodePoint(92)}${char}`;
+  });
+}
+
 function renderFindings(title: string, findings: readonly KeyFinding[]): string {
   if (findings.length === 0) {
     return `## ${title}\n\n- No sourced items.\n`;
@@ -65,8 +77,10 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => `- ${gap}`).join("\n");
-  const sources = report.sources.map((source) => `- [${source.id}] ${source.title}`).join("\n");
+      : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
+  const sources = report.sources
+    .map((source) => `- [${markdownText(source.id)}] ${markdownText(source.title)}`)
+    .join("\n");
   const leads = readAlphaSearchLeads(report.extras);
   const rejected = readAlphaSearchRejectedCandidates(report.extras);
   const leadRows =
@@ -74,7 +88,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       ? "- No Yahoo-validated research leads."
       : leads
           .map((lead) => {
-            const name = lead.name === undefined ? "" : ` (${lead.name})`;
+            const name = lead.name === undefined ? "" : ` (${markdownText(lead.name)})`;
             const social =
               lead.socialRank === undefined ||
               lead.socialMomentumScore === undefined ||
@@ -85,8 +99,8 @@ function renderAlphaSearchReport(report: ResearchReport): string {
             const sec =
               lead.recentSecFilings === undefined || lead.recentSecFilings.length === 0
                 ? ""
-                : `SEC filings ${lead.recentSecFilings.map((filing) => `${filing.form} ${filing.filingDate}`).join(", ")}; `;
-            return `- **${lead.symbol}${name}:** Sources ${lead.discoverySources.join(", ")}; ${social}${sec}Yahoo listed stock on ${lead.exchange}, $${String(lead.price)}, volume ${String(lead.volume)}, market cap ${String(lead.marketCap)}. ${sourceRefs(lead.sourceIds)}`;
+                : `SEC filings ${lead.recentSecFilings.map((filing) => `${markdownText(filing.form)} ${markdownText(filing.filingDate)}`).join(", ")}; `;
+            return `- **${markdownText(lead.symbol)}${name}:** Sources ${lead.discoverySources.map(markdownText).join(", ")}; ${social}${sec}Yahoo listed stock on ${markdownText(lead.exchange)}, $${String(lead.price)}, volume ${String(lead.volume)}, market cap ${String(lead.marketCap)}. ${sourceRefs(lead.sourceIds)}`;
           })
           .join("\n");
   const rejectedRows =
@@ -95,7 +109,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : rejected
           .map(
             (candidate) =>
-              `- **${candidate.symbol}:** Sources ${candidate.discoverySources.join(", ")}${candidate.socialRank === undefined || candidate.socialMomentumScore === undefined ? "" : `; Social rank ${String(candidate.socialRank)}, score ${String(candidate.socialMomentumScore)}`}; ${candidate.reason}. ${sourceRefs(candidate.sourceIds)}`,
+              `- **${markdownText(candidate.symbol)}:** Sources ${candidate.discoverySources.map(markdownText).join(", ")}${candidate.socialRank === undefined || candidate.socialMomentumScore === undefined ? "" : `; Social rank ${String(candidate.socialRank)}, score ${String(candidate.socialMomentumScore)}`}; ${markdownText(candidate.reason)}. ${sourceRefs(candidate.sourceIds)}`,
           )
           .join("\n");
 

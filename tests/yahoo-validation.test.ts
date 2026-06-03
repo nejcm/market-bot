@@ -249,11 +249,11 @@ describe("Yahoo alpha-search validation", () => {
       rejectedCandidates: [
         {
           candidate: candidate("AAPL"),
-          reason: "Yahoo validation unavailable: source request failed with status 429",
+          reason: "Yahoo validation unavailable",
         },
         {
           candidate: candidate("MSFT", 2),
-          reason: "Yahoo validation unavailable: source request failed with status 429",
+          reason: "Yahoo validation unavailable",
         },
       ],
       sourceGaps: [

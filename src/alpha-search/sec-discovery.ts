@@ -14,6 +14,9 @@ const SEC_CURRENT_FILINGS_URL = "https://www.sec.gov/cgi-bin/browse-edgar";
 const CIK_RE = /\bCIK(?:=|:)?\s*0*(\d{1,10})\b/iu;
 const TITLE_CIK_RE = /\(0*(\d{1,10})\)\s*\(Filer\)/iu;
 const ACCESSION_RE = /\b\d{10}-\d{2}-\d{6}\b/u;
+const FILED_DATE_RE = /\bFiled:\s*(\d{4}-\d{2}-\d{2})\b/iu;
+const SEC_SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
+const MAX_SEC_NAME_LENGTH = 160;
 
 export interface SecDiscoveryOptions {
   readonly formTypes: readonly string[];
@@ -121,12 +124,49 @@ function parseAccession(value: string | undefined): string | undefined {
   return value === undefined ? undefined : ACCESSION_RE.exec(value)?.[0];
 }
 
+function parseFiledDate(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : FILED_DATE_RE.exec(value)?.[1];
+}
+
 function parseCompanyName(title: string | undefined): string | undefined {
   if (title === undefined) {
     return undefined;
   }
   const withoutForm = title.replace(/^\s*[0-9A-Z-]+\s*-\s*/u, "");
   return withoutForm.split("(")[0]?.trim() || undefined;
+}
+
+function normalizeSecTicker(value: string | undefined): string | undefined {
+  const ticker = value?.trim().toUpperCase();
+  return ticker !== undefined && SEC_SYMBOL_RE.test(ticker) ? ticker : undefined;
+}
+
+function withoutControlCharacters(value: string): string {
+  return [...value]
+    .map((char) => {
+      const code = char.codePointAt(0) ?? 0;
+      return code <= 31 || code === 127 ? " " : char;
+    })
+    .join("");
+}
+
+function normalizeDisplayName(value: string | undefined): string | undefined {
+  const name =
+    value === undefined
+      ? undefined
+      : withoutControlCharacters(value).replaceAll(/\s+/gu, " ").trim();
+  return name === undefined || name === "" ? undefined : name.slice(0, MAX_SEC_NAME_LENGTH);
+}
+
+function malformedSecGap(message: string): SourceGap {
+  return sourceGap({
+    source: "sec-alpha-search",
+    provider: "sec-edgar",
+    capability: "market-data",
+    cause: "malformed-response",
+    evidenceQualityImpact: "no-cap",
+    message,
+  });
 }
 
 export function parseSecCurrentFilingsAtom(
@@ -138,7 +178,8 @@ export function parseSecCurrentFilingsAtom(
     const updated = tagText(entry, "updated");
     const summary = tagText(entry, "summary");
     const id = tagText(entry, "id");
-    const filingDate = tagText(entry, "filing-date") ?? updated?.slice(0, 10);
+    const filingDate =
+      tagText(entry, "filing-date") ?? parseFiledDate(summary) ?? updated?.slice(0, 10);
     if (filingDate === undefined) {
       return [];
     }
@@ -168,9 +209,9 @@ export function readSecTickerMappings(payload: unknown): readonly SecTickerMappi
     if (!isRecord(entry)) {
       return [];
     }
-    const ticker = readString(entry, "ticker")?.trim().toUpperCase();
+    const ticker = normalizeSecTicker(readString(entry, "ticker"));
     const cikNumber = readNumber(entry, "cik_str");
-    const name = readString(entry, "title");
+    const name = normalizeDisplayName(readString(entry, "title"));
     if (ticker === undefined || cikNumber === undefined || name === undefined) {
       return [];
     }
@@ -262,9 +303,17 @@ export async function discoverSecAlphaSearchCandidates(
   if (!isFetchJsonResult(tickers)) {
     return { rawSnapshots: [], candidates: [], sourceGaps: [tickers] };
   }
-  const mappingsByCik = new Map(
-    readSecTickerMappings(tickers.payload).map((item) => [item.cik, item]),
-  );
+  const mappings = readSecTickerMappings(tickers.payload);
+  if (mappings.length === 0) {
+    return {
+      rawSnapshots: [tickers.rawSnapshot],
+      candidates: [],
+      sourceGaps: [
+        malformedSecGap("SEC company ticker mapping response did not include usable tickers"),
+      ],
+    };
+  }
+  const mappingsByCik = new Map(mappings.map((item) => [item.cik, item]));
   const feeds = await Promise.all(
     options.formTypes.map((formType) =>
       options.request.text({
@@ -279,11 +328,24 @@ export async function discoverSecAlphaSearchCandidates(
     ...feeds.flatMap((feed) => (isFetchTextResult(feed) ? [feed.rawSnapshot] : [])),
   ];
   const fetchGaps = feeds.filter((feed): feed is SourceGap => !isFetchTextResult(feed));
-  const entries = feeds.flatMap((feed, index) =>
-    isFetchTextResult(feed)
-      ? parseSecCurrentFilingsAtom(feed.payload, options.formTypes[index] ?? "UNKNOWN")
-      : [],
-  );
+  const parsedFeeds = feeds.map((feed, index) => {
+    if (!isFetchTextResult(feed)) {
+      return { entries: [], sourceGaps: [] };
+    }
+    const entries = parseSecCurrentFilingsAtom(feed.payload, options.formTypes[index] ?? "UNKNOWN");
+    const hasEntryXml = entryXml(feed.payload).length > 0;
+    const isAtom = /<feed(?:\s|>)/iu.test(feed.payload);
+    const sourceGaps =
+      !isAtom || (hasEntryXml && entries.length === 0)
+        ? [
+            malformedSecGap(
+              `SEC current filings response for ${options.formTypes[index] ?? "UNKNOWN"} was malformed`,
+            ),
+          ]
+        : [];
+    return { entries, sourceGaps };
+  });
+  const entries = parsedFeeds.flatMap((feed) => feed.entries);
   const candidates = entries.flatMap((entry) => {
     const mapping = entry.cik === undefined ? undefined : mappingsByCik.get(entry.cik);
     return mapping === undefined ? [] : [candidateFromEntry(entry, mapping)];
@@ -299,6 +361,6 @@ export async function discoverSecAlphaSearchCandidates(
       0,
       options.candidateLimit,
     ),
-    sourceGaps: [...fetchGaps, ...mappingGaps],
+    sourceGaps: [...fetchGaps, ...parsedFeeds.flatMap((feed) => feed.sourceGaps), ...mappingGaps],
   };
 }

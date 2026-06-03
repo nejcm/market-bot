@@ -234,13 +234,10 @@ function validateCandidateQuote(
   };
 }
 
-function validationUnavailableCandidate(
-  candidate: AlphaSearchCandidate,
-  gap: SourceGap,
-): YahooRejectedCandidate {
+function validationUnavailableCandidate(candidate: AlphaSearchCandidate): YahooRejectedCandidate {
   return {
     candidate,
-    reason: `Yahoo validation unavailable: ${gap.message}`,
+    reason: "Yahoo validation unavailable",
   };
 }
 
@@ -292,9 +289,7 @@ export async function crossCheckAlphaSearchCandidatesWithYahoo(input: {
     return {
       rawSnapshots: [],
       validLeads: [],
-      rejectedCandidates: candidates.map((candidate) =>
-        validationUnavailableCandidate(candidate, fetched),
-      ),
+      rejectedCandidates: candidates.map((candidate) => validationUnavailableCandidate(candidate)),
       sourceGaps: [fetched],
     };
   }

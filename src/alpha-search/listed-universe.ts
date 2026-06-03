@@ -11,6 +11,10 @@ const NASDAQ_OTHER_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/oth
 const CBOE_LISTED_CSV_URL =
   "https://www.cboe.com/us/equities/market_statistics/listed_symbols/csv/";
 const SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
+const SUPPORTED_STOCK_NAME_RE =
+  /\b(?:common stock|common shares|ordinary shares|american depositary shares|american depositary receipt|adr)\b/iu;
+const UNSUPPORTED_STOCK_NAME_RE =
+  /\b(?:etf|exchange traded fund|etn|fund|unit|units|warrant|warrants|right|rights|preferred|preference|note|notes|debenture|bond)\b/iu;
 
 export type ListedUniverseSource = "nasdaq-listed" | "nasdaq-other-listed" | "cboe-listed";
 
@@ -23,6 +27,7 @@ export interface ListedUniverseEntry {
   readonly isEtfOrFund?: boolean;
   readonly isActive: boolean;
   readonly isTestIssue?: boolean;
+  readonly isSupportedStock?: boolean;
 }
 
 export interface ListedUniverseCollectionResult {
@@ -128,24 +133,34 @@ function parseYesNo(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
+function isSupportedStockName(name: string | undefined): boolean {
+  return (
+    name !== undefined &&
+    SUPPORTED_STOCK_NAME_RE.test(name) &&
+    !UNSUPPORTED_STOCK_NAME_RE.test(name)
+  );
+}
+
 export function parseNasdaqListedPayload(text: string): readonly ListedUniverseEntry[] {
   return parsePipeRows(text).flatMap((row) => {
     const symbol = normalizeSymbol(row.Symbol);
     if (symbol === undefined) {
       return [];
     }
+    const name = row["Security Name"] === "" ? undefined : row["Security Name"];
     const isEtfOrFund = parseYesNo(row.ETF);
     const isTestIssue = parseYesNo(row["Test Issue"]);
     return [
       {
         symbol,
-        ...(row["Security Name"] !== "" ? { name: row["Security Name"] } : {}),
+        ...(name !== undefined ? { name } : {}),
         listingVenue: "NASDAQ",
         source: "nasdaq-listed",
         sourceIds: [sourceId("nasdaq-listed", symbol)],
         ...(isEtfOrFund !== undefined ? { isEtfOrFund } : {}),
         isActive: isTestIssue !== true,
         ...(isTestIssue !== undefined ? { isTestIssue } : {}),
+        isSupportedStock: isSupportedStockName(name),
       },
     ];
   });
@@ -157,18 +172,20 @@ export function parseNasdaqOtherListedPayload(text: string): readonly ListedUniv
     if (symbol === undefined) {
       return [];
     }
+    const name = row["Security Name"] === "" ? undefined : row["Security Name"];
     const isEtfOrFund = parseYesNo(row.ETF);
     const isTestIssue = parseYesNo(row["Test Issue"]);
     return [
       {
         symbol,
-        ...(row["Security Name"] !== "" ? { name: row["Security Name"] } : {}),
+        ...(name !== undefined ? { name } : {}),
         ...(row.Exchange !== "" ? { listingVenue: row.Exchange } : {}),
         source: "nasdaq-other-listed",
         sourceIds: [sourceId("nasdaq-other-listed", symbol)],
         ...(isEtfOrFund !== undefined ? { isEtfOrFund } : {}),
         isActive: isTestIssue !== true,
         ...(isTestIssue !== undefined ? { isTestIssue } : {}),
+        isSupportedStock: isSupportedStockName(name),
       },
     ];
   });
@@ -256,8 +273,11 @@ function rejectionReason(entries: readonly ListedUniverseEntry[] | undefined): s
   if (entries.every((entry) => !entry.isActive)) {
     return "Official listing universe marks candidate as inactive";
   }
-  if (entries.every((entry) => entry.isEtfOrFund === true)) {
+  if (entries.some((entry) => entry.isEtfOrFund === true)) {
     return "Official listing universe marks candidate as ETF or fund";
+  }
+  if (!entries.some((entry) => entry.isSupportedStock === true)) {
+    return "Official listing universe marks candidate as unsupported listing type";
   }
   return undefined;
 }

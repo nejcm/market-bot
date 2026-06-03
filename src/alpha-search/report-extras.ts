@@ -11,7 +11,7 @@ export interface AlphaSearchLead {
   readonly exchange?: string;
   readonly price: number;
   readonly volume: number;
-  readonly marketCap?: number;
+  readonly marketCap: number;
   readonly instrumentKind: YahooInstrumentKind;
   readonly socialRank: number;
   readonly socialMomentumScore: number;
@@ -54,7 +54,7 @@ export function alphaSearchLead(
     ...(lead.exchange !== undefined ? { exchange: lead.exchange } : {}),
     price: lead.price,
     volume: lead.volume,
-    ...(lead.marketCap !== undefined ? { marketCap: lead.marketCap } : {}),
+    marketCap: lead.marketCap,
     instrumentKind: lead.instrumentKind,
     socialRank: lead.candidate.socialRank,
     socialMomentumScore: lead.candidate.socialMomentumScore,
@@ -90,8 +90,8 @@ function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): 
   return (
     (value.name === undefined || typeof value.name === "string") &&
     (value.exchange === undefined || typeof value.exchange === "string") &&
-    (value.marketCap === undefined ||
-      (typeof value.marketCap === "number" && Number.isFinite(value.marketCap)))
+    typeof value.marketCap === "number" &&
+    Number.isFinite(value.marketCap)
   );
 }
 

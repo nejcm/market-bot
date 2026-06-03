@@ -35,6 +35,10 @@ export interface AlphaSearchOptions {
   readonly validationCandidateLimit: number;
   readonly leadLimit: number;
   readonly topCandidateLimit: number;
+  readonly minPrice: number;
+  readonly minVolume: number;
+  readonly minMarketCap: number;
+  readonly maxMarketCap: number;
 }
 
 export interface AppConfig {
@@ -73,6 +77,10 @@ const DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT = 5;
 const DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT = 10;
 const DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT = 25;
 const DEFAULT_ALPHA_SEARCH_LEAD_LIMIT = 15;
+const DEFAULT_ALPHA_SEARCH_MIN_PRICE = 0.5;
+const DEFAULT_ALPHA_SEARCH_MIN_VOLUME = 100_000;
+const DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP = 50_000_000;
+const DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP = 10_000_000_000;
 const APEWISDOM_FILTER_RE = /^[A-Za-z0-9-]+$/u;
 
 function readBoolean(value: string | undefined): boolean {
@@ -87,6 +95,19 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`Expected positive integer, received ${value}`);
+  }
+
+  return parsed;
+}
+
+function readPositiveNumber(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected positive number, received ${value}`);
   }
 
   return parsed;
@@ -181,10 +202,28 @@ function defaultAlphaSearchOptions(): AlphaSearchOptions {
     validationCandidateLimit: DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT,
     leadLimit: DEFAULT_ALPHA_SEARCH_LEAD_LIMIT,
     topCandidateLimit: DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+    minPrice: DEFAULT_ALPHA_SEARCH_MIN_PRICE,
+    minVolume: DEFAULT_ALPHA_SEARCH_MIN_VOLUME,
+    minMarketCap: DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP,
+    maxMarketCap: DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP,
   };
 }
 
 function resolveAlphaSearchOptions(env: Record<string, string | undefined>): AlphaSearchOptions {
+  const minMarketCap = readPositiveNumber(
+    env.MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP,
+    DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP,
+  );
+  const maxMarketCap = readPositiveNumber(
+    env.MARKET_BOT_ALPHA_SEARCH_MAX_MARKET_CAP,
+    DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP,
+  );
+  if (maxMarketCap < minMarketCap) {
+    throw new Error(
+      "MARKET_BOT_ALPHA_SEARCH_MAX_MARKET_CAP must be greater than or equal to minimum",
+    );
+  }
+
   return {
     apeWisdomFilter: readApeWisdomFilter(env.MARKET_BOT_APEWISDOM_FILTER),
     apeWisdomBriefPageLimit: readPositiveInteger(
@@ -207,6 +246,16 @@ function resolveAlphaSearchOptions(env: Record<string, string | undefined>): Alp
       env.MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT,
       DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
     ),
+    minPrice: readPositiveNumber(
+      env.MARKET_BOT_ALPHA_SEARCH_MIN_PRICE,
+      DEFAULT_ALPHA_SEARCH_MIN_PRICE,
+    ),
+    minVolume: readPositiveNumber(
+      env.MARKET_BOT_ALPHA_SEARCH_MIN_VOLUME,
+      DEFAULT_ALPHA_SEARCH_MIN_VOLUME,
+    ),
+    minMarketCap,
+    maxMarketCap,
   };
 }
 

@@ -99,6 +99,10 @@ describe("resolveConfig", () => {
       validationCandidateLimit: 25,
       leadLimit: 15,
       topCandidateLimit: 15,
+      minPrice: 0.5,
+      minVolume: 100_000,
+      minMarketCap: 50_000_000,
+      maxMarketCap: 10_000_000_000,
     });
   });
 
@@ -111,6 +115,10 @@ describe("resolveConfig", () => {
         MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT: "20",
         MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT: "12",
         MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT: "10",
+        MARKET_BOT_ALPHA_SEARCH_MIN_PRICE: "0.75",
+        MARKET_BOT_ALPHA_SEARCH_MIN_VOLUME: "200000",
+        MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP: "100000000",
+        MARKET_BOT_ALPHA_SEARCH_MAX_MARKET_CAP: "5000000000",
       }).alphaSearchOptions,
     ).toEqual({
       apeWisdomFilter: "wallstreetbets",
@@ -119,7 +127,23 @@ describe("resolveConfig", () => {
       validationCandidateLimit: 20,
       leadLimit: 12,
       topCandidateLimit: 10,
+      minPrice: 0.75,
+      minVolume: 200_000,
+      minMarketCap: 100_000_000,
+      maxMarketCap: 5_000_000_000,
     });
+  });
+
+  test("rejects invalid alpha-search eligibility settings", () => {
+    expect(() => resolveConfig({ MARKET_BOT_ALPHA_SEARCH_MIN_PRICE: "0" })).toThrow(
+      "Expected positive number",
+    );
+    expect(() =>
+      resolveConfig({
+        MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP: "1000000000",
+        MARKET_BOT_ALPHA_SEARCH_MAX_MARKET_CAP: "500000000",
+      }),
+    ).toThrow("MARKET_BOT_ALPHA_SEARCH_MAX_MARKET_CAP must be greater than or equal to minimum");
   });
 
   test("rejects invalid ApeWisdom filters", () => {
@@ -144,6 +168,10 @@ describe("resolveConfig", () => {
       validationCandidateLimit: 25,
       leadLimit: 15,
       topCandidateLimit: 15,
+      minPrice: 0.5,
+      minVolume: 100_000,
+      minMarketCap: 50_000_000,
+      maxMarketCap: 10_000_000_000,
     });
   });
 

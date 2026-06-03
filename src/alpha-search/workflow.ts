@@ -217,6 +217,7 @@ export async function runAlphaSearchWorkflow(input: {
     candidates: rankedCandidates,
     candidateLimit: alphaSearchOptions.validationCandidateLimit,
     request,
+    eligibility: alphaSearchOptions,
   });
   const sourceGaps = [...apeWisdom.sourceGaps, ...yahoo.sourceGaps, ...staleFallbackGaps];
   const sources = sourceList({

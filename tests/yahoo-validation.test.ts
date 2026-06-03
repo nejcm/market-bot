@@ -28,7 +28,7 @@ function quote(overrides: Record<string, unknown>): Record<string, unknown> {
     quoteType: "EQUITY",
     regularMarketPrice: 190,
     regularMarketVolume: 80_000_000,
-    marketCap: 2_900_000_000_000,
+    marketCap: 2_900_000_000,
     ...overrides,
   };
 }
@@ -65,21 +65,10 @@ function requestExecutor(
 }
 
 describe("Yahoo alpha-search validation", () => {
-  test("accepts Yahoo-validated stocks and ETFs with basic market info", () => {
+  test("accepts Yahoo-validated listed stocks with basic market info", () => {
     const result = validateYahooCandidateQuotes(
-      [candidate("AAPL"), candidate("SPY", 2)],
-      payload([
-        quote({ symbol: "AAPL", quoteType: "EQUITY" }),
-        quote({
-          symbol: "SPY",
-          shortName: "SPDR S&P 500 ETF Trust",
-          exchange: "PCX",
-          fullExchangeName: "NYSEArca",
-          quoteType: "ETF",
-          regularMarketPrice: 520,
-          regularMarketVolume: 90_000_000,
-        }),
-      ]),
+      [candidate("AAPL")],
+      payload([quote({ symbol: "AAPL", quoteType: "EQUITY" })]),
     );
 
     expect(result.validLeads).toEqual([
@@ -89,24 +78,22 @@ describe("Yahoo alpha-search validation", () => {
         exchange: "NMS",
         price: 190,
         volume: 80_000_000,
-        marketCap: 2_900_000_000_000,
+        marketCap: 2_900_000_000,
         instrumentKind: "stock",
-      }),
-      expect.objectContaining({
-        symbol: "SPY",
-        name: "SPDR S&P 500 ETF Trust",
-        exchange: "PCX",
-        price: 520,
-        volume: 90_000_000,
-        instrumentKind: "etf",
       }),
     ]);
     expect(result.rejectedCandidates).toEqual([]);
   });
 
-  test("rejects unresolved, OTC, sub-dollar, and non-stock Yahoo candidates", () => {
+  test("rejects unresolved, OTC, sub-minimum-price, ETF, and non-stock Yahoo candidates", () => {
     const result = validateYahooCandidateQuotes(
-      [candidate("MISSING"), candidate("OTCM", 2), candidate("PENY", 3), candidate("FUND", 4)],
+      [
+        candidate("MISSING"),
+        candidate("OTCM", 2),
+        candidate("PENY", 3),
+        candidate("SPY", 4),
+        candidate("FUND", 5),
+      ],
       payload([
         quote({
           symbol: "OTCM",
@@ -114,7 +101,8 @@ describe("Yahoo alpha-search validation", () => {
           fullExchangeName: "Other OTC",
           regularMarketPrice: 50,
         }),
-        quote({ symbol: "PENY", regularMarketPrice: 0.5 }),
+        quote({ symbol: "PENY", regularMarketPrice: 0.49 }),
+        quote({ symbol: "SPY", quoteType: "ETF", regularMarketPrice: 520 }),
         quote({ symbol: "FUND", quoteType: "MUTUALFUND", regularMarketPrice: 20 }),
       ]),
     );
@@ -125,8 +113,31 @@ describe("Yahoo alpha-search validation", () => {
     ).toEqual([
       ["MISSING", "unresolved by Yahoo"],
       ["OTCM", "OTC or pink-sheet instrument"],
-      ["PENY", "Yahoo price is below $1"],
+      ["PENY", "Yahoo price is below configured alpha-search minimum"],
+      ["SPY", "Yahoo quote type is not listed stock"],
       ["FUND", "Yahoo quote type is not stock or ETF"],
+    ]);
+  });
+
+  test("rejects low volume and missing or out-of-band market cap", () => {
+    const result = validateYahooCandidateQuotes(
+      [candidate("THIN"), candidate("NOCAP", 2), candidate("MICRO", 3), candidate("MEGA", 4)],
+      payload([
+        quote({ symbol: "THIN", regularMarketVolume: 99_999 }),
+        quote({ symbol: "NOCAP", marketCap: undefined }),
+        quote({ symbol: "MICRO", marketCap: 49_999_999 }),
+        quote({ symbol: "MEGA", marketCap: 10_000_000_001 }),
+      ]),
+    );
+
+    expect(result.validLeads).toEqual([]);
+    expect(
+      result.rejectedCandidates.map((rejected) => [rejected.candidate.symbol, rejected.reason]),
+    ).toEqual([
+      ["THIN", "Yahoo volume is below configured alpha-search minimum"],
+      ["NOCAP", "Yahoo quote is missing market cap"],
+      ["MICRO", "Yahoo market cap is below configured alpha-search minimum"],
+      ["MEGA", "Yahoo market cap is above configured alpha-search maximum"],
     ]);
   });
 

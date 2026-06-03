@@ -27,6 +27,10 @@ const baseConfig: AppConfig = {
     validationCandidateLimit: 25,
     leadLimit: 15,
     topCandidateLimit: 15,
+    minPrice: 0.5,
+    minVolume: 100_000,
+    minMarketCap: 50_000_000,
+    maxMarketCap: 10_000_000_000,
   },
 };
 

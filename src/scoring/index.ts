@@ -1,17 +1,11 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
-import {
-  observableForecastFromPrediction,
-  observationStrategyForForecast,
-  type ObservableForecast,
-} from "../forecast/observable";
-import { resolvePrediction } from "./resolver";
+import { resolveOutcome } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import {
   createObservationRepository,
-  type Observation,
   type ObservationRepository,
   type FetchCloseFn,
 } from "./observations";
@@ -25,27 +19,6 @@ interface ScoreFile {
   readonly runId: string;
   readonly scores: readonly PredictionScore[];
   readonly scoredAt: string;
-}
-
-function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 86_400_000);
-}
-
-function isWeekday(date: Date): boolean {
-  const dow = date.getDay();
-  return dow !== 0 && dow !== 6;
-}
-
-function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
-  let count = 0;
-  let cursor = new Date(generatedAt);
-  while (count < horizonTradingDays) {
-    cursor = addDays(cursor, 1);
-    if (isWeekday(cursor)) {
-      count += 1;
-    }
-  }
-  return cursor;
 }
 
 export interface ScorePassOptions {
@@ -74,48 +47,6 @@ function unresolvedScore(
   };
 }
 
-async function closeObservations(
-  forecast: ObservableForecast,
-  report: ResearchReport,
-  now: Date,
-  repo: ObservationRepository,
-  subjects: readonly string[],
-): Promise<readonly Observation[]> {
-  const windows = await Promise.all(
-    subjects.map((subject) =>
-      repo.window(subject, report.assetClass, new Date(report.generatedAt), now),
-    ),
-  );
-  const required = forecast.horizonTradingDays + 1;
-  const enough = windows.every((window) => window.length >= required);
-
-  if (!enough) {
-    return [];
-  }
-
-  return windows.flatMap((window) => window.slice(0, required));
-}
-
-async function pointObservations(
-  report: ResearchReport,
-  resDate: Date,
-  repo: ObservationRepository,
-  symbols: readonly string[],
-  includeOrigin: boolean,
-): Promise<readonly Observation[]> {
-  const originDate = new Date(report.generatedAt);
-  const atOrigin = includeOrigin
-    ? await Promise.all(symbols.map((symbol) => repo.point(symbol, report.assetClass, originDate)))
-    : [];
-  const atHorizon = await Promise.all(
-    symbols.map((symbol) => repo.point(symbol, report.assetClass, resDate)),
-  );
-
-  return [...atOrigin, ...atHorizon].filter(
-    (observation): observation is Observation => observation !== undefined,
-  );
-}
-
 async function scoreOnePrediction(
   prediction: Prediction,
   report: ResearchReport,
@@ -124,18 +55,6 @@ async function scoreOnePrediction(
   options: ScorePassOptions,
 ): Promise<PredictionScore> {
   const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
-  const forecast = observableForecastFromPrediction(prediction);
-  if (!("prediction" in forecast)) {
-    throw new Error(forecast.message);
-  }
-  const resDate = resolutionDate(report.generatedAt, prediction.horizonTradingDays);
-
-  if (resDate > now) {
-    return unresolvedScore(prediction, report, existingScore?.attemptCount ?? 0, {
-      reason: "horizon not yet elapsed",
-    });
-  }
-
   const repo =
     options.observationRepository ??
     createObservationRepository({
@@ -148,15 +67,15 @@ async function scoreOnePrediction(
         : {}),
       now,
     });
-  const strategy = observationStrategyForForecast(forecast);
-  const observations =
-    strategy.mode === "close-window"
-      ? await closeObservations(forecast, report, now, repo, strategy.subjects)
-      : await pointObservations(report, resDate, repo, strategy.subjects, strategy.includeOrigin);
 
-  const resolveResult = resolvePrediction(prediction, observations);
+  const resolveResult = await resolveOutcome(prediction, report, repo, now);
 
-  if (resolveResult === undefined) {
+  if (resolveResult.status === "unresolved") {
+    if (resolveResult.reason === "horizon-not-elapsed") {
+      return unresolvedScore(prediction, report, existingScore?.attemptCount ?? 0, {
+        reason: "horizon not yet elapsed",
+      });
+    }
     if (attemptCount >= MAX_SCORE_ATTEMPTS) {
       return {
         predictionId: prediction.id,
@@ -169,9 +88,7 @@ async function scoreOnePrediction(
         evidence: { reason: "abandoned after max attempts" },
       };
     }
-    return unresolvedScore(prediction, report, attemptCount, {
-      reason: "observation unavailable",
-    });
+    return unresolvedScore(prediction, report, attemptCount, resolveResult.evidence);
   }
 
   return {

@@ -1,34 +1,97 @@
 import { describe, expect, test } from "bun:test";
-import { resolvePrediction } from "../src/scoring/resolver";
+import { resolveOutcome, type Observation } from "../src/scoring/resolver";
 import { buildCalibrationSummary } from "../src/scoring/calibration";
 import { renderCalibrationMarkdown } from "../src/scoring/calibration-markdown";
 import type { Prediction } from "../src/domain/types";
-import { prediction, predictionScore } from "./support/fixtures";
+import type { ObservationRepository } from "../src/scoring/observations";
+import { prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const basePrediction: Prediction = prediction();
+const report = researchReport({ generatedAt: "2026-05-01T00:00:00.000Z" });
+const now = new Date("2026-05-20T00:00:00.000Z");
 
-describe("resolvePrediction", () => {
+function observationRepository(observations: readonly Observation[]): ObservationRepository {
+  return {
+    async point(subject, _assetClass, date) {
+      const ymd = date.toISOString().slice(0, 10);
+      return observations.find(
+        (observation) => observation.subject === subject && observation.date === ymd,
+      );
+    },
+
+    async window(subject) {
+      return observations
+        .filter((observation) => observation.subject === subject)
+        .toSorted((left, right) => left.date.localeCompare(right.date));
+    },
+  };
+}
+
+async function resolveWith(
+  pred: Prediction,
+  observations: readonly Observation[],
+): Promise<Awaited<ReturnType<typeof resolveOutcome>>> {
+  return resolveOutcome(pred, report, observationRepository(observations), now);
+}
+
+describe("resolveOutcome", () => {
   describe("direction", () => {
-    test("returns hit when close-N > close-0", () => {
-      const result = resolvePrediction(basePrediction, [
+    test("returns hit when close-N > close-0", async () => {
+      const result = await resolveWith(basePrediction, [
         { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-02", value: 502 },
+        { subject: "SPY", date: "2026-05-03", value: 504 },
+        { subject: "SPY", date: "2026-05-04", value: 506 },
+        { subject: "SPY", date: "2026-05-05", value: 508 },
         { subject: "SPY", date: "2026-05-08", value: 510 },
       ]);
-      expect(result?.outcome).toBe("hit");
-      expect(result?.evidence).toMatchObject({ close0: 500, closeN: 510 });
+      expect(result.status).toBe("resolved");
+      expect(result).toMatchObject({ outcome: "hit", evidence: { close0: 500, closeN: 510 } });
     });
 
-    test("returns miss when close-N <= close-0", () => {
-      const result = resolvePrediction(basePrediction, [
+    test("returns miss when close-N <= close-0", async () => {
+      const result = await resolveWith(basePrediction, [
         { subject: "SPY", date: "2026-05-01", value: 510 },
+        { subject: "SPY", date: "2026-05-02", value: 508 },
+        { subject: "SPY", date: "2026-05-03", value: 506 },
+        { subject: "SPY", date: "2026-05-04", value: 504 },
+        { subject: "SPY", date: "2026-05-05", value: 502 },
         { subject: "SPY", date: "2026-05-08", value: 500 },
       ]);
-      expect(result?.outcome).toBe("miss");
+      expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
 
-    test("returns undefined when close prices unavailable", () => {
-      const result = resolvePrediction(basePrediction, []);
-      expect(result).toBeUndefined();
+    test("returns unresolved when close prices unavailable", async () => {
+      const result = await resolveWith(basePrediction, []);
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "observation-unavailable",
+        evidence: { reason: "observation unavailable" },
+      });
+    });
+
+    test("returns unresolved before horizon without fetching observations", async () => {
+      const repo: ObservationRepository = {
+        point: async () => {
+          throw new Error("unexpected point observation request");
+        },
+        window: async () => {
+          throw new Error("unexpected window observation request");
+        },
+      };
+
+      const result = await resolveOutcome(
+        basePrediction,
+        report,
+        repo,
+        new Date("2026-05-05T00:00:00.000Z"),
+      );
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "horizon-not-elapsed",
+        evidence: { reason: "horizon not yet elapsed" },
+      });
     });
   });
 
@@ -42,24 +105,40 @@ describe("resolvePrediction", () => {
       claim: "QQQ outperforms SPY.",
     };
 
-    test("returns hit when QQQ outperforms SPY", () => {
-      const result = resolvePrediction(relPrediction, [
+    test("returns hit when QQQ outperforms SPY", async () => {
+      const result = await resolveWith(relPrediction, [
         { subject: "QQQ", date: "2026-05-01", value: 400 },
+        { subject: "QQQ", date: "2026-05-02", value: 404 },
+        { subject: "QQQ", date: "2026-05-03", value: 408 },
+        { subject: "QQQ", date: "2026-05-04", value: 412 },
+        { subject: "QQQ", date: "2026-05-05", value: 416 },
         { subject: "QQQ", date: "2026-05-08", value: 420 },
         { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-02", value: 501 },
+        { subject: "SPY", date: "2026-05-03", value: 502 },
+        { subject: "SPY", date: "2026-05-04", value: 503 },
+        { subject: "SPY", date: "2026-05-05", value: 504 },
         { subject: "SPY", date: "2026-05-08", value: 505 },
       ]);
-      expect(result?.outcome).toBe("hit");
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
 
-    test("returns miss when SPY outperforms QQQ", () => {
-      const result = resolvePrediction(relPrediction, [
+    test("returns miss when SPY outperforms QQQ", async () => {
+      const result = await resolveWith(relPrediction, [
         { subject: "QQQ", date: "2026-05-01", value: 400 },
+        { subject: "QQQ", date: "2026-05-02", value: 400 },
+        { subject: "QQQ", date: "2026-05-03", value: 400 },
+        { subject: "QQQ", date: "2026-05-04", value: 400 },
+        { subject: "QQQ", date: "2026-05-05", value: 400 },
         { subject: "QQQ", date: "2026-05-08", value: 401 },
         { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-02", value: 502 },
+        { subject: "SPY", date: "2026-05-03", value: 504 },
+        { subject: "SPY", date: "2026-05-04", value: 506 },
+        { subject: "SPY", date: "2026-05-05", value: 508 },
         { subject: "SPY", date: "2026-05-08", value: 510 },
       ]);
-      expect(result?.outcome).toBe("miss");
+      expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
   });
 
@@ -73,21 +152,28 @@ describe("resolvePrediction", () => {
       claim: "VIX spikes above 20.",
     };
 
-    test("returns hit when any close exceeds threshold", () => {
-      const result = resolvePrediction(volPrediction, [
+    test("returns hit when any close exceeds threshold", async () => {
+      const result = await resolveWith(volPrediction, [
         { subject: "^VIX", date: "2026-05-01", value: 18 },
         { subject: "^VIX", date: "2026-05-03", value: 22 },
         { subject: "^VIX", date: "2026-05-05", value: 19 },
+        { subject: "^VIX", date: "2026-05-06", value: 18 },
+        { subject: "^VIX", date: "2026-05-07", value: 17 },
+        { subject: "^VIX", date: "2026-05-08", value: 16 },
       ]);
-      expect(result?.outcome).toBe("hit");
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
 
-    test("returns miss when all closes stay below threshold", () => {
-      const result = resolvePrediction(volPrediction, [
+    test("returns miss when all closes stay below threshold", async () => {
+      const result = await resolveWith(volPrediction, [
         { subject: "^VIX", date: "2026-05-01", value: 15 },
+        { subject: "^VIX", date: "2026-05-02", value: 16 },
+        { subject: "^VIX", date: "2026-05-03", value: 17 },
+        { subject: "^VIX", date: "2026-05-04", value: 18 },
         { subject: "^VIX", date: "2026-05-05", value: 18 },
+        { subject: "^VIX", date: "2026-05-08", value: 19 },
       ]);
-      expect(result?.outcome).toBe("miss");
+      expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
   });
 
@@ -102,34 +188,52 @@ describe("resolvePrediction", () => {
       claim: "BTC breaks the 90k-110k band.",
     };
 
-    test("returns hit when close-N is below lo", () => {
-      const result = resolvePrediction(rangePrediction, [
+    test("returns hit when close-N is below lo", async () => {
+      const result = await resolveWith(rangePrediction, [
         { subject: "BTC", date: "2026-05-01", value: 100_000 },
         { subject: "BTC", date: "2026-05-08", value: 85_000 },
+        { subject: "BTC", date: "2026-05-09", value: 86_000 },
+        { subject: "BTC", date: "2026-05-10", value: 87_000 },
+        { subject: "BTC", date: "2026-05-11", value: 88_000 },
+        { subject: "BTC", date: "2026-05-12", value: 89_000 },
+        { subject: "BTC", date: "2026-05-13", value: 90_000 },
+        { subject: "BTC", date: "2026-05-14", value: 85_000 },
       ]);
-      expect(result?.outcome).toBe("hit");
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
 
-    test("returns hit when close-N is above hi", () => {
-      const result = resolvePrediction(rangePrediction, [
+    test("returns hit when close-N is above hi", async () => {
+      const result = await resolveWith(rangePrediction, [
         { subject: "BTC", date: "2026-05-01", value: 100_000 },
         { subject: "BTC", date: "2026-05-08", value: 115_000 },
+        { subject: "BTC", date: "2026-05-09", value: 114_000 },
+        { subject: "BTC", date: "2026-05-10", value: 113_000 },
+        { subject: "BTC", date: "2026-05-11", value: 112_000 },
+        { subject: "BTC", date: "2026-05-12", value: 111_000 },
+        { subject: "BTC", date: "2026-05-13", value: 110_000 },
+        { subject: "BTC", date: "2026-05-14", value: 115_000 },
       ]);
-      expect(result?.outcome).toBe("hit");
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
 
-    test("returns miss when close-N is within range", () => {
-      const result = resolvePrediction(rangePrediction, [
+    test("returns miss when close-N is within range", async () => {
+      const result = await resolveWith(rangePrediction, [
         { subject: "BTC", date: "2026-05-01", value: 100_000 },
         { subject: "BTC", date: "2026-05-08", value: 102_000 },
+        { subject: "BTC", date: "2026-05-09", value: 103_000 },
+        { subject: "BTC", date: "2026-05-10", value: 104_000 },
+        { subject: "BTC", date: "2026-05-11", value: 105_000 },
+        { subject: "BTC", date: "2026-05-12", value: 106_000 },
+        { subject: "BTC", date: "2026-05-13", value: 107_000 },
+        { subject: "BTC", date: "2026-05-14", value: 102_000 },
       ]);
-      expect(result?.outcome).toBe("miss");
+      expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
   });
 
   describe("macro and IV", () => {
-    test("returns hit when FRED series rises", () => {
-      const result = resolvePrediction(
+    test("returns hit when FRED series rises", async () => {
+      const result = await resolveWith(
         {
           ...basePrediction,
           id: "pred-macro",
@@ -143,12 +247,12 @@ describe("resolvePrediction", () => {
           { subject: "FRED:DGS10", date: "2026-05-08", value: 4.3 },
         ],
       );
-      expect(result?.outcome).toBe("hit");
-      expect(result?.evidence).toMatchObject({ fred0: 4.1, fredN: 4.3 });
+      expect(result.status).toBe("resolved");
+      expect(result).toMatchObject({ outcome: "hit", evidence: { fred0: 4.1, fredN: 4.3 } });
     });
 
-    test("returns hit when IV exceeds threshold", () => {
-      const result = resolvePrediction(
+    test("returns hit when IV exceeds threshold", async () => {
+      const result = await resolveWith(
         {
           ...basePrediction,
           id: "pred-iv",
@@ -159,7 +263,7 @@ describe("resolvePrediction", () => {
         },
         [{ subject: "IV:AAPL", date: "2026-05-08", value: 0.4 }],
       );
-      expect(result?.outcome).toBe("hit");
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
   });
 });

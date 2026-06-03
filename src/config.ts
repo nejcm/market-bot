@@ -35,6 +35,8 @@ export interface AlphaSearchOptions {
   readonly validationCandidateLimit: number;
   readonly leadLimit: number;
   readonly topCandidateLimit: number;
+  readonly secDiscoveryLimit: number;
+  readonly secFormTypes: readonly string[];
   readonly minPrice: number;
   readonly minVolume: number;
   readonly minMarketCap: number;
@@ -77,11 +79,14 @@ const DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT = 5;
 const DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT = 10;
 const DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT = 25;
 const DEFAULT_ALPHA_SEARCH_LEAD_LIMIT = 15;
+const DEFAULT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT = 25;
+const DEFAULT_ALPHA_SEARCH_SEC_FORM_TYPES = ["S-1", "F-1", "8-K", "6-K"] as const;
 const DEFAULT_ALPHA_SEARCH_MIN_PRICE = 0.5;
 const DEFAULT_ALPHA_SEARCH_MIN_VOLUME = 100_000;
 const DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP = 50_000_000;
 const DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP = 10_000_000_000;
 const APEWISDOM_FILTER_RE = /^[A-Za-z0-9-]+$/u;
+const SEC_FORM_TYPE_RE = /^[0-9A-Z-]+$/u;
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
@@ -194,6 +199,17 @@ function readApeWisdomFilter(value: string | undefined): string {
   return filter;
 }
 
+function readSecFormTypes(value: string | undefined): readonly string[] {
+  const forms = readOptionalString(value)
+    ?.split(",")
+    .map((form) => form.trim().toUpperCase())
+    .filter((form) => form !== "") ?? [...DEFAULT_ALPHA_SEARCH_SEC_FORM_TYPES];
+  if (forms.length === 0 || forms.some((form) => !SEC_FORM_TYPE_RE.test(form))) {
+    throw new Error("Invalid alpha-search SEC form types");
+  }
+  return [...new Set(forms)];
+}
+
 function defaultAlphaSearchOptions(): AlphaSearchOptions {
   return {
     apeWisdomFilter: DEFAULT_APEWISDOM_FILTER,
@@ -202,6 +218,8 @@ function defaultAlphaSearchOptions(): AlphaSearchOptions {
     validationCandidateLimit: DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT,
     leadLimit: DEFAULT_ALPHA_SEARCH_LEAD_LIMIT,
     topCandidateLimit: DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+    secDiscoveryLimit: DEFAULT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT,
+    secFormTypes: DEFAULT_ALPHA_SEARCH_SEC_FORM_TYPES,
     minPrice: DEFAULT_ALPHA_SEARCH_MIN_PRICE,
     minVolume: DEFAULT_ALPHA_SEARCH_MIN_VOLUME,
     minMarketCap: DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP,
@@ -246,6 +264,11 @@ function resolveAlphaSearchOptions(env: Record<string, string | undefined>): Alp
       env.MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT,
       DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
     ),
+    secDiscoveryLimit: readPositiveInteger(
+      env.MARKET_BOT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT,
+      DEFAULT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT,
+    ),
+    secFormTypes: readSecFormTypes(env.MARKET_BOT_ALPHA_SEARCH_SEC_FORM_TYPES),
     minPrice: readPositiveNumber(
       env.MARKET_BOT_ALPHA_SEARCH_MIN_PRICE,
       DEFAULT_ALPHA_SEARCH_MIN_PRICE,

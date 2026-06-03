@@ -99,6 +99,8 @@ describe("resolveConfig", () => {
       validationCandidateLimit: 25,
       leadLimit: 15,
       topCandidateLimit: 15,
+      secDiscoveryLimit: 25,
+      secFormTypes: ["S-1", "F-1", "8-K", "6-K"],
       minPrice: 0.5,
       minVolume: 100_000,
       minMarketCap: 50_000_000,
@@ -115,6 +117,8 @@ describe("resolveConfig", () => {
         MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT: "20",
         MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT: "12",
         MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT: "10",
+        MARKET_BOT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT: "6",
+        MARKET_BOT_ALPHA_SEARCH_SEC_FORM_TYPES: "8-K, S-1",
         MARKET_BOT_ALPHA_SEARCH_MIN_PRICE: "0.75",
         MARKET_BOT_ALPHA_SEARCH_MIN_VOLUME: "200000",
         MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP: "100000000",
@@ -127,6 +131,8 @@ describe("resolveConfig", () => {
       validationCandidateLimit: 20,
       leadLimit: 12,
       topCandidateLimit: 10,
+      secDiscoveryLimit: 6,
+      secFormTypes: ["8-K", "S-1"],
       minPrice: 0.75,
       minVolume: 200_000,
       minMarketCap: 100_000_000,
@@ -137,6 +143,12 @@ describe("resolveConfig", () => {
   test("rejects invalid alpha-search eligibility settings", () => {
     expect(() => resolveConfig({ MARKET_BOT_ALPHA_SEARCH_MIN_PRICE: "0" })).toThrow(
       "Expected positive number",
+    );
+    expect(() => resolveConfig({ MARKET_BOT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT: "0" })).toThrow(
+      "Expected positive integer",
+    );
+    expect(() => resolveConfig({ MARKET_BOT_ALPHA_SEARCH_SEC_FORM_TYPES: "8-K,../x" })).toThrow(
+      "Invalid alpha-search SEC form types",
     );
     expect(() =>
       resolveConfig({
@@ -168,6 +180,8 @@ describe("resolveConfig", () => {
       validationCandidateLimit: 25,
       leadLimit: 15,
       topCandidateLimit: 15,
+      secDiscoveryLimit: 25,
+      secFormTypes: ["S-1", "F-1", "8-K", "6-K"],
       minPrice: 0.5,
       minVolume: 100_000,
       minMarketCap: 50_000_000,

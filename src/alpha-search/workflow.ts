@@ -15,6 +15,11 @@ import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
 import {
+  collectListedUniverse,
+  filterListedUniverseCandidates,
+  type ListedUniverseRejectedCandidate,
+} from "./listed-universe";
+import {
   alphaSearchLead,
   alphaSearchRejectedCandidate,
   leadSourceIds,
@@ -63,7 +68,7 @@ function socialCandidateSource(
 function yahooValidationSource(fetchedAt: string): Source {
   return {
     id: "market-yahoo-alpha-search",
-    title: "Yahoo quote validation for ApeWisdom alpha-search candidates",
+    title: "Yahoo quote validation for official-listed alpha-search candidates",
     fetchedAt,
     kind: "market-data",
     assetClass: "equity",
@@ -71,13 +76,26 @@ function yahooValidationSource(fetchedAt: string): Source {
   };
 }
 
+function listedUniverseSource(fetchedAt: string): Source {
+  return {
+    id: "market-listed-universe-alpha-search",
+    title: "Official listed-symbol universe for alpha-search candidates",
+    fetchedAt,
+    kind: "market-data",
+    assetClass: "equity",
+    provider: "listed-universe",
+  };
+}
+
 function sourceList(input: {
   readonly candidates: readonly SocialMomentumRankedCandidate[];
+  readonly listedUniverseRawSnapshots: readonly RawSourceSnapshot[];
   readonly yahooRawSnapshots: readonly RawSourceSnapshot[];
   readonly fetchedAt: string;
 }): readonly Source[] {
   return [
     ...input.candidates.map((candidate) => socialCandidateSource(candidate, input.fetchedAt)),
+    ...(input.listedUniverseRawSnapshots.length > 0 ? [listedUniverseSource(input.fetchedAt)] : []),
     ...(input.yahooRawSnapshots.length > 0 ? [yahooValidationSource(input.fetchedAt)] : []),
   ];
 }
@@ -113,7 +131,10 @@ function buildAlphaSearchReport(input: {
   readonly leadLimit: number;
   readonly rankedCandidates: readonly SocialMomentumRankedCandidate[];
   readonly validLeads: readonly YahooValidatedLead[];
-  readonly rejectedCandidates: readonly YahooRejectedCandidate[];
+  readonly rejectedCandidates: readonly (
+    | YahooRejectedCandidate
+    | ListedUniverseRejectedCandidate<SocialMomentumRankedCandidate>
+  )[];
   readonly sourceGaps: readonly SourceGap[];
   readonly sources: readonly Source[];
 }): ResearchReport {
@@ -175,6 +196,7 @@ function buildTrace(input: {
     stages: [
       "apewisdom-discovery",
       "social-momentum-ranking",
+      "official-listed-universe-filter",
       "yahoo-validation",
       "alpha-search-report",
     ],
@@ -214,15 +236,30 @@ export async function runAlphaSearchWorkflow(input: {
     candidates: apeWisdom.candidates,
     candidateLimit: rankedCandidateLimit,
   });
+  const listedUniverse = await collectListedUniverse(request);
+  const listingValidationCandidates = rankedCandidates.slice(
+    0,
+    alphaSearchOptions.validationCandidateLimit,
+  );
+  const listed = filterListedUniverseCandidates({
+    candidates: listingValidationCandidates,
+    entries: listedUniverse.entries,
+  });
   const yahoo = await crossCheckAlphaSearchCandidatesWithYahoo({
-    candidates: rankedCandidates,
+    candidates: listed.eligibleCandidates,
     candidateLimit: alphaSearchOptions.validationCandidateLimit,
     request,
     eligibility: alphaSearchOptions,
   });
-  const sourceGaps = [...apeWisdom.sourceGaps, ...yahoo.sourceGaps, ...staleFallbackGaps];
+  const sourceGaps = [
+    ...apeWisdom.sourceGaps,
+    ...listedUniverse.sourceGaps,
+    ...yahoo.sourceGaps,
+    ...staleFallbackGaps,
+  ];
   const sources = sourceList({
     candidates: rankedCandidates,
+    listedUniverseRawSnapshots: listedUniverse.rawSnapshots,
     yahooRawSnapshots: yahoo.rawSnapshots,
     fetchedAt: startedAt,
   });
@@ -233,7 +270,7 @@ export async function runAlphaSearchWorkflow(input: {
     leadLimit: alphaSearchOptions.leadLimit,
     rankedCandidates,
     validLeads: yahoo.validLeads,
-    rejectedCandidates: yahoo.rejectedCandidates,
+    rejectedCandidates: [...listed.rejectedCandidates, ...yahoo.rejectedCandidates],
     sourceGaps,
     sources,
   });
@@ -251,17 +288,19 @@ export async function runAlphaSearchWorkflow(input: {
 
   await writeJson(join(artifacts.rawDir, "snapshots.json"), [
     ...apeWisdom.rawSnapshots,
+    ...listedUniverse.rawSnapshots,
     ...yahoo.rawSnapshots,
   ]);
   await writeJson(join(artifacts.normalizedDir, "social-candidates.json"), rankedCandidates);
+  await writeJson(join(artifacts.normalizedDir, "listed-universe.json"), listedUniverse.entries);
   await writeJson(
     join(artifacts.normalizedDir, "research-leads.json"),
     readAlphaSearchLeads(report.extras),
   );
-  await writeJson(
-    join(artifacts.normalizedDir, "rejected-candidates.json"),
-    yahoo.rejectedCandidates,
-  );
+  await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), [
+    ...listed.rejectedCandidates,
+    ...yahoo.rejectedCandidates,
+  ]);
   await writeJson(join(artifacts.normalizedDir, "source-gaps.json"), sourceGaps);
   await writeRunOutputs(artifacts, report, markdown, trace);
 

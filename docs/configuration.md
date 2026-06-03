@@ -28,6 +28,8 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT` | `25` | Number of ranked alpha-search candidates to validate with Yahoo. |
 | `MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT` | `15` | Maximum Yahoo-validated Research Leads to show. |
 | `MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT` | `15` | Minimum number of ApeWisdom-ranked candidates to persist before Yahoo validation. |
+| `MARKET_BOT_ALPHA_SEARCH_SEC_DISCOVERY_LIMIT` | `25` | Maximum SEC filing-discovered alpha-search candidates to consider after ApeWisdom ranking. |
+| `MARKET_BOT_ALPHA_SEARCH_SEC_FORM_TYPES` | `S-1,F-1,8-K,6-K` | Comma-separated SEC form types used by alpha-search SEC discovery. |
 | `MARKET_BOT_ALPHA_SEARCH_MIN_PRICE` | `0.50` | Minimum Yahoo regular-market price for alpha-search Research Leads. |
 | `MARKET_BOT_ALPHA_SEARCH_MIN_VOLUME` | `100000` | Minimum Yahoo regular-market volume for alpha-search Research Leads. |
 | `MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP` | `50000000` | Minimum Yahoo market cap for alpha-search Research Leads. |

@@ -49,6 +49,8 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
       validationCandidateLimit: 25,
       leadLimit: 15,
       topCandidateLimit: 15,
+      secDiscoveryLimit: 25,
+      secFormTypes: ["S-1", "F-1", "8-K", "6-K"],
       minPrice: 0.5,
       minVolume: 100_000,
       minMarketCap: 50_000_000,
@@ -130,6 +132,27 @@ function yahooPayload(): unknown {
   };
 }
 
+function nasdaqListedPayload(): string {
+  return [
+    "Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares",
+    "AAPL|Apple Inc. Common Stock|Q|N|N|100|N|N",
+    "MSFT|Microsoft Common Stock|Q|N|N|100|N|N",
+    "TSLA|Tesla Common Stock|Q|N|N|100|N|N",
+    "MEGA|Mega Cap Example Common Stock|Q|N|N|100|N|N",
+  ].join("\n");
+}
+
+function nasdaqOtherListedPayload(): string {
+  return [
+    "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol",
+    "OTCX|OTC Example|N|OTCX|N|100|Y|OTCX",
+  ].join("\n");
+}
+
+function cboeListedPayload(): string {
+  return "Symbol,Volume,Last Price\nAAPL,100,$195.50\nMEGA,100,$120.00";
+}
+
 function validationLimitApeWisdomPayload(): unknown {
   return {
     pages: 1,
@@ -174,10 +197,27 @@ function validationLimitYahooPayload(): unknown {
   };
 }
 
+function listingResponse(url: string): Response | undefined {
+  if (url.includes("nasdaqlisted.txt")) {
+    return new Response(nasdaqListedPayload());
+  }
+  if (url.includes("otherlisted.txt")) {
+    return new Response(nasdaqOtherListedPayload());
+  }
+  if (url.includes("listed_symbols/csv")) {
+    return new Response(cboeListedPayload());
+  }
+  return undefined;
+}
+
 function fetchImpl(requestedUrls: string[]): FetchLike {
   return async (input) => {
     const url = String(input);
     requestedUrls.push(url);
+    const listedUniverseResponse = listingResponse(url);
+    if (listedUniverseResponse !== undefined) {
+      return listedUniverseResponse;
+    }
 
     if (url.includes("apewisdom.io")) {
       return jsonResponse(apeWisdomPayload());
@@ -194,6 +234,10 @@ function validationLimitFetchImpl(requestedUrls: string[]): FetchLike {
   return async (input) => {
     const url = String(input);
     requestedUrls.push(url);
+    const listedUniverseResponse = listingResponse(url);
+    if (listedUniverseResponse !== undefined) {
+      return listedUniverseResponse;
+    }
 
     if (url.includes("apewisdom.io")) {
       return jsonResponse(validationLimitApeWisdomPayload());
@@ -223,6 +267,7 @@ describe("alpha-search workflow", () => {
     await expect(readdir(result.artifacts.normalizedDir)).resolves.toEqual(
       expect.arrayContaining([
         "social-candidates.json",
+        "listed-universe.json",
         "rejected-candidates.json",
         "research-leads.json",
         "source-gaps.json",
@@ -244,7 +289,7 @@ describe("alpha-search workflow", () => {
       expect.arrayContaining([
         expect.objectContaining({
           symbol: "OTCX",
-          reason: "OTC or pink-sheet instrument",
+          reason: "Official listing universe marks candidate as test issue",
           sourceIds: ["apewisdom-all-stocks-OTCX"],
         }),
         expect.objectContaining({
@@ -264,7 +309,8 @@ describe("alpha-search workflow", () => {
     ).toBe("ApeWisdom AAPL social momentum rank 1");
     expect(result.markdown).not.toContain("## Predictions");
     expect(result.markdown).toContain("Research-only note");
-    expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2COTCX%2CMEGA"))).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("nasdaqlisted.txt"))).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2CMEGA"))).toBe(true);
     expect(result.report.extras?.researchLeads).toEqual([
       {
         symbol: "AAPL",

@@ -15,6 +15,11 @@ import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
 import {
+  mergeAlphaSearchCandidates,
+  socialAlphaSearchCandidate,
+  type AlphaSearchCandidate,
+} from "./candidates";
+import {
   collectListedUniverse,
   filterListedUniverseCandidates,
   type ListedUniverseRejectedCandidate,
@@ -26,6 +31,7 @@ import {
   readAlphaSearchLeads,
   type AlphaSearchReportExtras,
 } from "./report-extras";
+import { discoverSecAlphaSearchCandidates, type SecDiscoveryCandidate } from "./sec-discovery";
 import {
   rankSocialMomentumCandidates,
   type SocialMomentumRankedCandidate,
@@ -76,6 +82,23 @@ function yahooValidationSource(fetchedAt: string): Source {
   };
 }
 
+function secDiscoverySource(
+  candidate: SecDiscoveryCandidate,
+  fetchedAt: string,
+): readonly Source[] {
+  return candidate.recentSecFilings.flatMap((filing) =>
+    filing.sourceIds.map((sourceId) => ({
+      id: sourceId,
+      title: `SEC ${filing.form} filing for ${candidate.symbol} filed ${filing.filingDate}`,
+      fetchedAt,
+      kind: "market-data" as const,
+      assetClass: "equity" as const,
+      symbol: candidate.symbol,
+      provider: "sec-edgar",
+    })),
+  );
+}
+
 function listedUniverseSource(fetchedAt: string): Source {
   return {
     id: "market-listed-universe-alpha-search",
@@ -89,12 +112,14 @@ function listedUniverseSource(fetchedAt: string): Source {
 
 function sourceList(input: {
   readonly candidates: readonly SocialMomentumRankedCandidate[];
+  readonly secCandidates: readonly SecDiscoveryCandidate[];
   readonly listedUniverseRawSnapshots: readonly RawSourceSnapshot[];
   readonly yahooRawSnapshots: readonly RawSourceSnapshot[];
   readonly fetchedAt: string;
 }): readonly Source[] {
   return [
     ...input.candidates.map((candidate) => socialCandidateSource(candidate, input.fetchedAt)),
+    ...input.secCandidates.flatMap((candidate) => secDiscoverySource(candidate, input.fetchedAt)),
     ...(input.listedUniverseRawSnapshots.length > 0 ? [listedUniverseSource(input.fetchedAt)] : []),
     ...(input.yahooRawSnapshots.length > 0 ? [yahooValidationSource(input.fetchedAt)] : []),
   ];
@@ -102,8 +127,16 @@ function sourceList(input: {
 
 function leadFinding(lead: YahooValidatedLead, yahooSourceId: string | undefined): KeyFinding {
   const name = lead.name === undefined ? lead.symbol : `${lead.symbol} (${lead.name})`;
+  const social =
+    lead.candidate.socialRank === undefined || lead.candidate.socialMomentumScore === undefined
+      ? ""
+      : ` ranked ${String(lead.candidate.socialRank)} by ApeWisdom social momentum with score ${String(lead.candidate.socialMomentumScore)}`;
+  const sec =
+    lead.candidate.recentSecFilings === undefined || lead.candidate.recentSecFilings.length === 0
+      ? ""
+      : ` with recent SEC filing evidence (${lead.candidate.recentSecFilings.map((filing) => `${filing.form} ${filing.filingDate}`).join(", ")})`;
   return {
-    text: `${name} ranked ${String(lead.candidate.socialRank)} by ApeWisdom social momentum with score ${String(lead.candidate.socialMomentumScore)} and ${String(lead.candidate.mentions)} mention(s); Yahoo resolved it as a listed stock on ${lead.exchange}.`,
+    text: `${name}${social}${sec}; Yahoo resolved it as a listed stock on ${lead.exchange}.`,
     sourceIds: leadSourceIds(lead, yahooSourceId),
   };
 }
@@ -130,10 +163,11 @@ function buildAlphaSearchReport(input: {
   readonly generatedAt: string;
   readonly leadLimit: number;
   readonly rankedCandidates: readonly SocialMomentumRankedCandidate[];
+  readonly secCandidates: readonly SecDiscoveryCandidate[];
   readonly validLeads: readonly YahooValidatedLead[];
   readonly rejectedCandidates: readonly (
     | YahooRejectedCandidate
-    | ListedUniverseRejectedCandidate<SocialMomentumRankedCandidate>
+    | ListedUniverseRejectedCandidate<AlphaSearchCandidate>
   )[];
   readonly sourceGaps: readonly SourceGap[];
   readonly sources: readonly Source[];
@@ -144,6 +178,7 @@ function buildAlphaSearchReport(input: {
   const extras: AlphaSearchReportExtras = {
     depth: input.command.depth,
     socialCandidateCount: input.rankedCandidates.length,
+    secCandidateCount: input.secCandidates.length,
     researchLeads,
     rejectedCandidates: input.rejectedCandidates.map(alphaSearchRejectedCandidate),
   };
@@ -158,7 +193,7 @@ function buildAlphaSearchReport(input: {
     jobType: "alpha-search",
     assetClass: "equity",
     generatedAt: input.generatedAt,
-    summary: `Alpha search reviewed ApeWisdom social momentum and found ${String(validLeads.length)} Yahoo-validated research lead(s) from ${String(input.rankedCandidates.length)} ranked candidate(s).`,
+    summary: `Alpha search reviewed ApeWisdom social momentum and SEC filing discovery, then found ${String(validLeads.length)} Yahoo-validated research lead(s) from ${String(input.rankedCandidates.length)} ranked social candidate(s) and ${String(input.secCandidates.length)} SEC candidate(s).`,
     keyFindings: validLeads.map((lead) => leadFinding(lead, yahooSourceId)),
     bullCase: [],
     bearCase: [],
@@ -196,6 +231,7 @@ function buildTrace(input: {
     stages: [
       "apewisdom-discovery",
       "social-momentum-ranking",
+      "sec-filing-discovery",
       "official-listed-universe-filter",
       "yahoo-validation",
       "alpha-search-report",
@@ -236,29 +272,42 @@ export async function runAlphaSearchWorkflow(input: {
     candidates: apeWisdom.candidates,
     candidateLimit: rankedCandidateLimit,
   });
+  const secDiscovery = await discoverSecAlphaSearchCandidates({
+    formTypes: alphaSearchOptions.secFormTypes,
+    candidateLimit: alphaSearchOptions.secDiscoveryLimit,
+    ...(input.config.sourceOptions.secUserAgent !== undefined
+      ? { secUserAgent: input.config.sourceOptions.secUserAgent }
+      : {}),
+    request,
+  });
+  const socialValidationCandidates = rankedCandidates
+    .slice(0, alphaSearchOptions.validationCandidateLimit)
+    .map((candidate) => socialAlphaSearchCandidate(candidate));
+  const validationCandidates = mergeAlphaSearchCandidates([
+    ...socialValidationCandidates,
+    ...secDiscovery.candidates,
+  ]);
   const listedUniverse = await collectListedUniverse(request);
-  const listingValidationCandidates = rankedCandidates.slice(
-    0,
-    alphaSearchOptions.validationCandidateLimit,
-  );
   const listed = filterListedUniverseCandidates({
-    candidates: listingValidationCandidates,
+    candidates: validationCandidates,
     entries: listedUniverse.entries,
   });
   const yahoo = await crossCheckAlphaSearchCandidatesWithYahoo({
     candidates: listed.eligibleCandidates,
-    candidateLimit: alphaSearchOptions.validationCandidateLimit,
+    candidateLimit: listed.eligibleCandidates.length,
     request,
     eligibility: alphaSearchOptions,
   });
   const sourceGaps = [
     ...apeWisdom.sourceGaps,
+    ...secDiscovery.sourceGaps,
     ...listedUniverse.sourceGaps,
     ...yahoo.sourceGaps,
     ...staleFallbackGaps,
   ];
   const sources = sourceList({
     candidates: rankedCandidates,
+    secCandidates: secDiscovery.candidates,
     listedUniverseRawSnapshots: listedUniverse.rawSnapshots,
     yahooRawSnapshots: yahoo.rawSnapshots,
     fetchedAt: startedAt,
@@ -269,6 +318,7 @@ export async function runAlphaSearchWorkflow(input: {
     generatedAt: startedAt,
     leadLimit: alphaSearchOptions.leadLimit,
     rankedCandidates,
+    secCandidates: secDiscovery.candidates,
     validLeads: yahoo.validLeads,
     rejectedCandidates: [...listed.rejectedCandidates, ...yahoo.rejectedCandidates],
     sourceGaps,
@@ -288,10 +338,19 @@ export async function runAlphaSearchWorkflow(input: {
 
   await writeJson(join(artifacts.rawDir, "snapshots.json"), [
     ...apeWisdom.rawSnapshots,
+    ...secDiscovery.rawSnapshots,
     ...listedUniverse.rawSnapshots,
     ...yahoo.rawSnapshots,
   ]);
   await writeJson(join(artifacts.normalizedDir, "social-candidates.json"), rankedCandidates);
+  await writeJson(
+    join(artifacts.normalizedDir, "sec-discovery-candidates.json"),
+    secDiscovery.candidates,
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "alpha-search-candidates.json"),
+    validationCandidates,
+  );
   await writeJson(join(artifacts.normalizedDir, "listed-universe.json"), listedUniverse.entries);
   await writeJson(
     join(artifacts.normalizedDir, "research-leads.json"),

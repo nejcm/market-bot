@@ -3,16 +3,16 @@ import {
   crossCheckAlphaSearchCandidatesWithYahoo,
   validateYahooCandidateQuotes,
 } from "../src/alpha-search/yahoo-validation";
-import type { SocialMomentumRankedCandidate } from "../src/alpha-search/social-momentum-ranking";
+import type { AlphaSearchCandidate } from "../src/alpha-search/candidates";
 import type { FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 
-function candidate(symbol: string, rank = 1): SocialMomentumRankedCandidate {
+function candidate(symbol: string, rank = 1): AlphaSearchCandidate {
   return {
     socialRank: rank,
     symbol,
     name: symbol,
-    sourceProvider: "apewisdom",
     sourceIds: [`apewisdom-all-stocks-${symbol}`],
+    discoverySources: ["apewisdom"],
     socialMomentumScore: 50,
     mentions: 2,
     upvotes: 20,

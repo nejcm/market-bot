@@ -75,7 +75,18 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : leads
           .map((lead) => {
             const name = lead.name === undefined ? "" : ` (${lead.name})`;
-            return `- **${lead.symbol}${name}:** Social rank ${String(lead.socialRank)}, score ${String(lead.socialMomentumScore)}, ${String(lead.mentions)} mention(s), ${String(lead.upvotes)} upvote(s); Yahoo listed stock on ${lead.exchange}, $${String(lead.price)}, volume ${String(lead.volume)}, market cap ${String(lead.marketCap)}. ${sourceRefs(lead.sourceIds)}`;
+            const social =
+              lead.socialRank === undefined ||
+              lead.socialMomentumScore === undefined ||
+              lead.mentions === undefined ||
+              lead.upvotes === undefined
+                ? ""
+                : `Social rank ${String(lead.socialRank)}, score ${String(lead.socialMomentumScore)}, ${String(lead.mentions)} mention(s), ${String(lead.upvotes)} upvote(s); `;
+            const sec =
+              lead.recentSecFilings === undefined || lead.recentSecFilings.length === 0
+                ? ""
+                : `SEC filings ${lead.recentSecFilings.map((filing) => `${filing.form} ${filing.filingDate}`).join(", ")}; `;
+            return `- **${lead.symbol}${name}:** Sources ${lead.discoverySources.join(", ")}; ${social}${sec}Yahoo listed stock on ${lead.exchange}, $${String(lead.price)}, volume ${String(lead.volume)}, market cap ${String(lead.marketCap)}. ${sourceRefs(lead.sourceIds)}`;
           })
           .join("\n");
   const rejectedRows =
@@ -84,7 +95,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : rejected
           .map(
             (candidate) =>
-              `- **${candidate.symbol}:** Social rank ${String(candidate.socialRank)}, score ${String(candidate.socialMomentumScore)}; ${candidate.reason}. ${sourceRefs(candidate.sourceIds)}`,
+              `- **${candidate.symbol}:** Sources ${candidate.discoverySources.join(", ")}${candidate.socialRank === undefined || candidate.socialMomentumScore === undefined ? "" : `; Social rank ${String(candidate.socialRank)}, score ${String(candidate.socialMomentumScore)}`}; ${candidate.reason}. ${sourceRefs(candidate.sourceIds)}`,
           )
           .join("\n");
 

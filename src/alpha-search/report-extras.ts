@@ -1,5 +1,6 @@
 import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validation";
 import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
+import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
@@ -8,18 +9,25 @@ export interface AlphaSearchLead {
   readonly price: number;
   readonly volume: number;
   readonly marketCap: number;
-  readonly socialRank: number;
-  readonly socialMomentumScore: number;
-  readonly mentions: number;
-  readonly upvotes: number;
+  readonly discoverySources: readonly AlphaSearchDiscoverySource[];
+  readonly socialRank?: number;
+  readonly socialMomentumScore?: number;
+  readonly mentions?: number;
+  readonly upvotes?: number;
+  readonly secCik?: string;
+  readonly secCompanyName?: string;
+  readonly recentSecFilings?: readonly AlphaSearchSecFiling[];
   readonly sourceIds: readonly string[];
 }
 
 export interface AlphaSearchRejectedCandidate {
   readonly symbol: string;
-  readonly socialRank: number;
-  readonly socialMomentumScore: number;
+  readonly discoverySources: readonly AlphaSearchDiscoverySource[];
+  readonly socialRank?: number;
+  readonly socialMomentumScore?: number;
   readonly reason: string;
+  readonly secCik?: string;
+  readonly secCompanyName?: string;
   readonly sourceIds: readonly string[];
 }
 
@@ -50,10 +58,20 @@ export function alphaSearchLead(
     price: lead.price,
     volume: lead.volume,
     marketCap: lead.marketCap,
-    socialRank: lead.candidate.socialRank,
-    socialMomentumScore: lead.candidate.socialMomentumScore,
-    mentions: lead.candidate.mentions,
-    upvotes: lead.candidate.upvotes,
+    discoverySources: lead.candidate.discoverySources,
+    ...(lead.candidate.socialRank !== undefined ? { socialRank: lead.candidate.socialRank } : {}),
+    ...(lead.candidate.socialMomentumScore !== undefined
+      ? { socialMomentumScore: lead.candidate.socialMomentumScore }
+      : {}),
+    ...(lead.candidate.mentions !== undefined ? { mentions: lead.candidate.mentions } : {}),
+    ...(lead.candidate.upvotes !== undefined ? { upvotes: lead.candidate.upvotes } : {}),
+    ...(lead.candidate.secCik !== undefined ? { secCik: lead.candidate.secCik } : {}),
+    ...(lead.candidate.secCompanyName !== undefined
+      ? { secCompanyName: lead.candidate.secCompanyName }
+      : {}),
+    ...(lead.candidate.recentSecFilings !== undefined
+      ? { recentSecFilings: lead.candidate.recentSecFilings }
+      : {}),
     sourceIds: leadSourceIds(lead, yahooSourceId),
   };
 }
@@ -63,9 +81,18 @@ export function alphaSearchRejectedCandidate(
 ): AlphaSearchRejectedCandidate {
   return {
     symbol: rejected.candidate.symbol,
-    socialRank: rejected.candidate.socialRank,
-    socialMomentumScore: rejected.candidate.socialMomentumScore,
+    discoverySources: rejected.candidate.discoverySources,
+    ...(rejected.candidate.socialRank !== undefined
+      ? { socialRank: rejected.candidate.socialRank }
+      : {}),
+    ...(rejected.candidate.socialMomentumScore !== undefined
+      ? { socialMomentumScore: rejected.candidate.socialMomentumScore }
+      : {}),
     reason: rejected.reason,
+    ...(rejected.candidate.secCik !== undefined ? { secCik: rejected.candidate.secCik } : {}),
+    ...(rejected.candidate.secCompanyName !== undefined
+      ? { secCompanyName: rejected.candidate.secCompanyName }
+      : {}),
     sourceIds: rejected.candidate.sourceIds,
   };
 }
@@ -75,7 +102,15 @@ function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): 
     (value.name === undefined || typeof value.name === "string") &&
     typeof value.exchange === "string" &&
     typeof value.marketCap === "number" &&
-    Number.isFinite(value.marketCap)
+    Number.isFinite(value.marketCap) &&
+    (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
+    (value.socialMomentumScore === undefined ||
+      readNumber(value, "socialMomentumScore") !== undefined) &&
+    (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&
+    (value.upvotes === undefined || readNumber(value, "upvotes") !== undefined) &&
+    (value.secCik === undefined || typeof value.secCik === "string") &&
+    (value.secCompanyName === undefined || typeof value.secCompanyName === "string") &&
+    (value.recentSecFilings === undefined || Array.isArray(value.recentSecFilings))
   );
 }
 
@@ -89,10 +124,7 @@ export function isAlphaSearchLead(value: unknown): value is AlphaSearchLead {
     readString(value, "symbol") !== undefined &&
     readNumber(value, "price") !== undefined &&
     readNumber(value, "volume") !== undefined &&
-    readNumber(value, "socialRank") !== undefined &&
-    readNumber(value, "socialMomentumScore") !== undefined &&
-    readNumber(value, "mentions") !== undefined &&
-    readNumber(value, "upvotes") !== undefined &&
+    readStringArray(value, "discoverySources") !== undefined &&
     readStringArray(value, "sourceIds") !== undefined
   );
 }
@@ -106,8 +138,10 @@ export function isAlphaSearchRejectedCandidate(
 
   return (
     readString(value, "symbol") !== undefined &&
-    readNumber(value, "socialRank") !== undefined &&
-    readNumber(value, "socialMomentumScore") !== undefined &&
+    (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
+    (value.socialMomentumScore === undefined ||
+      readNumber(value, "socialMomentumScore") !== undefined) &&
+    readStringArray(value, "discoverySources") !== undefined &&
     readString(value, "reason") !== undefined &&
     readStringArray(value, "sourceIds") !== undefined
   );

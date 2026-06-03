@@ -7,7 +7,7 @@ import {
   type SourceRequestExecutor,
 } from "../sources/types";
 import type { AlphaSearchOptions } from "../config";
-import type { SocialMomentumRankedCandidate } from "./social-momentum-ranking";
+import type { AlphaSearchCandidate } from "./candidates";
 
 const DEFAULT_ALPHA_SEARCH_ELIGIBILITY: AlphaSearchEligibilityOptions = {
   minPrice: 0.5,
@@ -33,7 +33,7 @@ export type AlphaSearchEligibilityOptions = Pick<
 >;
 
 export interface YahooValidatedLead {
-  readonly candidate: SocialMomentumRankedCandidate;
+  readonly candidate: AlphaSearchCandidate;
   readonly symbol: string;
   readonly name?: string;
   readonly exchange: string;
@@ -43,7 +43,7 @@ export interface YahooValidatedLead {
 }
 
 export interface YahooRejectedCandidate {
-  readonly candidate: SocialMomentumRankedCandidate;
+  readonly candidate: AlphaSearchCandidate;
   readonly reason: string;
 }
 
@@ -194,7 +194,7 @@ function validateQuoteInfo(
 }
 
 function validatedLead(
-  candidate: SocialMomentumRankedCandidate,
+  candidate: AlphaSearchCandidate,
   quote: ValidatedYahooQuoteInfo,
 ): YahooValidatedLead {
   return {
@@ -209,7 +209,7 @@ function validatedLead(
 }
 
 function validateCandidateQuote(
-  candidate: SocialMomentumRankedCandidate,
+  candidate: AlphaSearchCandidate,
   quote: YahooQuoteInfo | undefined,
   eligibility: AlphaSearchEligibilityOptions,
 ): CandidateQuoteValidation {
@@ -235,7 +235,7 @@ function validateCandidateQuote(
 }
 
 function validationUnavailableCandidate(
-  candidate: SocialMomentumRankedCandidate,
+  candidate: AlphaSearchCandidate,
   gap: SourceGap,
 ): YahooRejectedCandidate {
   return {
@@ -245,7 +245,7 @@ function validationUnavailableCandidate(
 }
 
 export function validateYahooCandidateQuotes(
-  candidates: readonly SocialMomentumRankedCandidate[],
+  candidates: readonly AlphaSearchCandidate[],
   payload: unknown,
   eligibility: AlphaSearchEligibilityOptions = DEFAULT_ALPHA_SEARCH_ELIGIBILITY,
 ): YahooCandidateValidation {
@@ -272,7 +272,7 @@ export function validateYahooCandidateQuotes(
 }
 
 export async function crossCheckAlphaSearchCandidatesWithYahoo(input: {
-  readonly candidates: readonly SocialMomentumRankedCandidate[];
+  readonly candidates: readonly AlphaSearchCandidate[];
   readonly candidateLimit: number;
   readonly request: SourceRequestExecutor;
   readonly eligibility?: AlphaSearchEligibilityOptions;

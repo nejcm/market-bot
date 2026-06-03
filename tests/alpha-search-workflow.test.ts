@@ -50,7 +50,7 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
       leadLimit: 15,
       topCandidateLimit: 15,
       secDiscoveryLimit: 25,
-      secFormTypes: ["S-1", "F-1", "8-K", "6-K"],
+      secFormTypes: ["S-1"],
       minPrice: 0.5,
       minVolume: 100_000,
       minMarketCap: 50_000_000,
@@ -150,7 +150,7 @@ function nasdaqOtherListedPayload(): string {
 }
 
 function cboeListedPayload(): string {
-  return "Symbol,Volume,Last Price\nAAPL,100,$195.50\nMEGA,100,$120.00";
+  return "Name,Volume,Last Price\nAAPL,100,$195.50\nMEGA,100,$120.00";
 }
 
 function validationLimitApeWisdomPayload(): unknown {
@@ -197,6 +197,36 @@ function validationLimitYahooPayload(): unknown {
   };
 }
 
+function emptySecTickersPayload(): unknown {
+  return {};
+}
+
+function secTickersPayload(): unknown {
+  return {
+    "0": { cik_str: 4_444_444, ticker: "SECO", title: "Sec Only Co" },
+    "1": { cik_str: 3_200_193, ticker: "AAPL", title: "Apple Inc." },
+  };
+}
+
+function secAtomPayload(): string {
+  return [
+    "<feed>",
+    "<entry>",
+    "<title>S-1 - Sec Only Co (0004444444) (Filer)</title>",
+    "<updated>2026-06-02T12:00:00-04:00</updated>",
+    "<summary>CIK=0004444444</summary>",
+    "<id>0004444444-26-000010</id>",
+    "</entry>",
+    "<entry>",
+    "<title>S-1 - Apple Inc. (0003200193) (Filer)</title>",
+    "<updated>2026-06-01T12:00:00-04:00</updated>",
+    "<summary>CIK=0003200193</summary>",
+    "<id>0003200193-26-000020</id>",
+    "</entry>",
+    "</feed>",
+  ].join("");
+}
+
 function listingResponse(url: string): Response | undefined {
   if (url.includes("nasdaqlisted.txt")) {
     return new Response(nasdaqListedPayload());
@@ -210,10 +240,24 @@ function listingResponse(url: string): Response | undefined {
   return undefined;
 }
 
+function secResponse(url: string, withCandidates = false): Response | undefined {
+  if (url.includes("company_tickers.json")) {
+    return jsonResponse(withCandidates ? secTickersPayload() : emptySecTickersPayload());
+  }
+  if (url.includes("browse-edgar")) {
+    return new Response(withCandidates && url.includes("type=S-1") ? secAtomPayload() : "<feed />");
+  }
+  return undefined;
+}
+
 function fetchImpl(requestedUrls: string[]): FetchLike {
   return async (input) => {
     const url = String(input);
     requestedUrls.push(url);
+    const sec = secResponse(url);
+    if (sec !== undefined) {
+      return sec;
+    }
     const listedUniverseResponse = listingResponse(url);
     if (listedUniverseResponse !== undefined) {
       return listedUniverseResponse;
@@ -234,6 +278,10 @@ function validationLimitFetchImpl(requestedUrls: string[]): FetchLike {
   return async (input) => {
     const url = String(input);
     requestedUrls.push(url);
+    const sec = secResponse(url);
+    if (sec !== undefined) {
+      return sec;
+    }
     const listedUniverseResponse = listingResponse(url);
     if (listedUniverseResponse !== undefined) {
       return listedUniverseResponse;
@@ -246,6 +294,67 @@ function validationLimitFetchImpl(requestedUrls: string[]): FetchLike {
       return jsonResponse(validationLimitYahooPayload());
     }
 
+    return new Response("not found", { status: 404 });
+  };
+}
+
+function secDiscoveryFetchImpl(requestedUrls: string[]): FetchLike {
+  return async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    const sec = secResponse(url, true);
+    if (sec !== undefined) {
+      return sec;
+    }
+    if (url.includes("nasdaqlisted.txt")) {
+      return new Response(
+        [
+          "Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares",
+          "AAPL|Apple Inc. Common Stock|Q|N|N|100|N|N",
+          "SECO|Sec Only Co Common Stock|Q|N|N|100|N|N",
+        ].join("\n"),
+      );
+    }
+    if (url.includes("otherlisted.txt")) {
+      return new Response(
+        "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol",
+      );
+    }
+    if (url.includes("listed_symbols/csv")) {
+      return new Response("Name,Volume,Last Price\nAAPL,100,$195.50\nSECO,100,$12.00");
+    }
+    if (url.includes("apewisdom.io")) {
+      return jsonResponse({
+        pages: 1,
+        results: [{ rank: 1, ticker: "AAPL", name: "Apple Inc.", mentions: 40, upvotes: 120 }],
+      });
+    }
+    if (url.includes("query1.finance.yahoo.com")) {
+      return jsonResponse({
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              shortName: "Apple Inc.",
+              exchange: "NMS",
+              quoteType: "EQUITY",
+              regularMarketPrice: 195.5,
+              regularMarketVolume: 55_000_000,
+              marketCap: 3_000_000_000,
+            },
+            {
+              symbol: "SECO",
+              shortName: "Sec Only Co",
+              exchange: "NMS",
+              quoteType: "EQUITY",
+              regularMarketPrice: 12,
+              regularMarketVolume: 500_000,
+              marketCap: 250_000_000,
+            },
+          ],
+        },
+      });
+    }
     return new Response("not found", { status: 404 });
   };
 }
@@ -267,6 +376,8 @@ describe("alpha-search workflow", () => {
     await expect(readdir(result.artifacts.normalizedDir)).resolves.toEqual(
       expect.arrayContaining([
         "social-candidates.json",
+        "sec-discovery-candidates.json",
+        "alpha-search-candidates.json",
         "listed-universe.json",
         "rejected-candidates.json",
         "research-leads.json",
@@ -319,6 +430,7 @@ describe("alpha-search workflow", () => {
         price: 195.5,
         volume: 55_000_000,
         marketCap: 3_000_000_000,
+        discoverySources: ["apewisdom"],
         socialRank: 1,
         socialMomentumScore: 100,
         mentions: 40,
@@ -371,5 +483,37 @@ describe("alpha-search workflow", () => {
     expect(persistedLeads).toEqual(researchLeadRows);
     expect(JSON.stringify(persistedLeads)).not.toContain("candidate");
     expect(JSON.stringify(persistedLeads)).not.toContain("instrumentKind");
+  });
+
+  test("adds SEC-discovered leads and enriches ApeWisdom duplicates", async () => {
+    const requestedUrls: string[] = [];
+    const result = await runAlphaSearchWorkflow({
+      command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },
+      config: config(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      fetchImpl: secDiscoveryFetchImpl(requestedUrls),
+      retryDelaysMs: [],
+    });
+
+    expect(requestedUrls.some((url) => url.includes("company_tickers.json"))).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("browse-edgar"))).toBe(true);
+    expect(result.report.extras?.researchLeads).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        discoverySources: ["apewisdom", "sec-filings"],
+        socialRank: 1,
+        secCik: "0003200193",
+        recentSecFilings: [expect.objectContaining({ form: "S-1", filingDate: "2026-06-01" })],
+      }),
+      expect.objectContaining({
+        symbol: "SECO",
+        discoverySources: ["sec-filings"],
+        secCik: "0004444444",
+        recentSecFilings: [expect.objectContaining({ form: "S-1", filingDate: "2026-06-02" })],
+      }),
+    ]);
+    expect(result.markdown).toContain("SEC filings S-1 2026-06-02");
+    expect(result.report.predictions).toEqual([]);
+    expect(result.markdown).not.toMatch(/\b(undervalued|10x|buy|sell|hold)\b/iu);
   });
 });

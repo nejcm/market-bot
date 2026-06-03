@@ -23,6 +23,8 @@ CLI args
   -> config from environment
   -> ApeWisdom social-momentum pages
   -> social momentum ranking
+  -> SEC current-filing discovery
+  -> official listed-universe filtering
   -> Yahoo candidate validation
   -> alpha-search report validation
   -> artifact writing
@@ -31,7 +33,7 @@ CLI args
 1. `src/cli.ts` passes command-line arguments to `runCli`.
 2. `src/app.ts` parses the command, resolves configuration, and dispatches the workflow.
 3. Research commands collect sources, build the configured model provider, run the research job, and persist artifacts.
-4. `alpha-search` collects ApeWisdom social-momentum candidates, ranks equity candidates, Yahoo-validates the top candidates against the stock-only small-cap eligibility screen, and writes Research Leads plus rejected candidates without predictions.
+4. `alpha-search` collects ApeWisdom social-momentum candidates, ranks equity candidates, adds SEC current-filing candidates, filters candidates through official listed-symbol data, Yahoo-validates eligible rows against the stock-only small-cap screen, and writes Research Leads plus rejected candidates without predictions.
 5. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
 6. `cache prune` removes old cache entries without generating research.
 7. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
@@ -74,7 +76,7 @@ Command behavior:
 | `daily --asset equity\|crypto` | Creates a daily market update for one asset class. |
 | `weekly --asset equity\|crypto` | Creates a weekly market update. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps. |
 | `ticker <symbol> --asset equity\|crypto` | Creates a single-instrument research view. Symbols are normalized to uppercase and must match the instrument validator. |
-| `alpha-search --asset equity` | Runs ApeWisdom equity discovery, ranks social-momentum candidates, validates candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
+| `alpha-search --asset equity` | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol data, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
 | `--deep` | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass. |
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |

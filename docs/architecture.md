@@ -15,7 +15,7 @@ src/
   model/              OpenAI / OpenAI-compatible / Codex providers
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
-  alpha-search/       ApeWisdom equity discovery, ranking, validation
+  alpha-search/       Equity lead discovery, listed-universe filtering, validation
   research/           Orchestrator, prompt loader, Domain Playbooks, regime summary
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
@@ -53,9 +53,9 @@ News collection fans out to enabled providers, skips missing MarketAux/Finnhub t
 
 ### Alpha Search (`src/alpha-search/`)
 
-`alpha-search --asset equity [--deep]` is an ApeWisdom discovery workflow. It fetches social-momentum pages from the ApeWisdom API, ranks candidates with a deterministic social momentum score, then validates only the top candidates with Yahoo for listed-stock validity and basic market data. Yahoo validation does not rank candidates.
+`alpha-search --asset equity [--deep]` is an equity lead discovery workflow. It fetches social-momentum pages from the ApeWisdom API, ranks candidates with a deterministic social momentum score, then runs SEC current-filing discovery for configured catalyst forms (`S-1,F-1,8-K,6-K` by default). SEC candidates are mapped to tickers through official SEC `company_tickers.json`. ApeWisdom runs first; SEC runs second. Candidates are deduped by symbol so ApeWisdom-backed rows keep social evidence while SEC evidence enriches the same symbol.
 
-Alpha-search Research Leads must pass the configured Yahoo eligibility screen: stock only, non-OTC, minimum price, minimum volume, and market-cap band. Defaults target listed small/mid-cap discovery (`$0.50+`, `100k+` volume, `$50M-$10B` market cap). Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no scoring or calibration side effects. Valid candidates are emitted as Research Leads. Rejected candidates are listed separately with social rank, rejection reason, and source IDs.
+Before Yahoo validation, alpha-search filters candidates through official listed-symbol data from Nasdaq Trader `nasdaqlisted.txt` / `otherlisted.txt` and Cboe listed-symbol CSV. The filter rejects not-found, ETF/fund, inactive, and test-issue rows with deterministic reasons. Yahoo remains final validation for stock-only, non-OTC status, price, volume, and market-cap band. Defaults target listed small/mid-cap discovery (`$0.50+`, `100k+` volume, `$50M-$10B` market cap). Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no scoring or calibration side effects. Valid candidates are emitted as Research Leads. Rejected candidates are listed separately with discovery sources, rejection reason, and source IDs.
 
 Massive, formerly Polygon.io, is supplemental-only. When configured, it uses `api.massive.com` to collect equity news and stock snapshots for the symbols already selected by Yahoo. Those snapshots are persisted as supplemental market snapshots, included as report Sources, and included in prompt evidence. They do not enter mover ranking, market regime summaries, crypto workflows, or scoring Observations.
 

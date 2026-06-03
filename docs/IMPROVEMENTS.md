@@ -26,6 +26,10 @@ Active V1 workflow for ApeWisdom candidate discovery; remaining items describe p
 - **Candidate validation loop** that scores whether candidates later outperformed relevant
   benchmarks over declared horizons. Validation must resolve from public market data and stay
   within the observable-forecast boundary.
+- **Future paid/credentialed social sources** - evaluate Stocktwits Firestream, X cashtag
+  search, and Google Trends only as future social-sentiment inputs. Keep them out of the
+  default free alpha-search path until credentialing, costs, rate limits, provenance,
+  retention rules, and measured signal quality are understood.
 
 ## Research quality of regime / movers
 

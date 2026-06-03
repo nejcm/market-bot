@@ -18,24 +18,14 @@ promotion and expansion work after real-run validation.
   invalidation criteria, and source IDs.
 - **Candidate watchlist output** that persists candidates across runs and tracks thesis
   changes over time.
-- **Factor-style research inspired by Vibe-Trading Alpha Zoo** - factor registry, factor
-  metadata, benchmark jobs, and lookahead/purity tests if quant-style research becomes useful.
 - **Candidate validation loop** that scores whether candidates later outperformed relevant
   benchmarks over declared horizons. Validation must resolve from public market data and stay
   within the observable-forecast boundary.
-- **Future paid/credentialed social sources** - evaluate Stocktwits Firestream, X cashtag
-  search, and Google Trends only as future social-sentiment inputs. Keep them out of the
-  default free alpha-search path until credentialing, costs, rate limits, provenance,
-  retention rules, and measured signal quality are understood.
 
 ## Research quality of regime / movers
 
-- **Mover ranking** - currently blends momentum, liquidity, and available unusual-volume
-  or gap-size Mover Features. Sector-relative movement and short-interest remain deferred
-  until provider depth supports them.
 - **Benchmark-relative mover analysis** so a stock is compared against its sector/index
   instead of only absolute movement.
-
 
 ## Cross-run intelligence
 
@@ -50,10 +40,6 @@ promotion and expansion work after real-run validation.
 - **Source provider health dashboard** - artifact-backed CLI validation exists via
   `provider-health` v2. Future work: turn this into a dashboard once the run history is large
   enough to need browsing/filtering.
-- **Decouple the scoring pass** into its own scheduled job (daily after US close, ~21:30 UTC).
-  Decide whether this replaces or complements the current non-blocking score/calibration
-  side effect on research runs. Include idempotency, locking, market-calendar handling,
-  GitHub Actions artifact persistence, and calibration refresh timing.
 - **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
   keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 
@@ -65,3 +51,12 @@ Relevant only if the framing drifts from "research substrate for me" toward "sha
 - Branding, themed report rendering.
 - Reliability SLAs, monitoring, alerting.
 - Shareable artifacts (signed JSON, RSS feed of recent runs).
+
+## Other
+
+- finding alpha stocks with checking the growth, PE ratio, profits, over time
+- store all artifacts about stocks and track stats over runs and over time
+- based on real runs implement improvements
+- improvements based on other projects
+  - https://github.com/TauricResearch/TradingAgents
+  - https://github.com/HKUDS/Vibe-Trading

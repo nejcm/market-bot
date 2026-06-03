@@ -82,6 +82,13 @@ function apeWisdomPayload(): unknown {
         mentions: 8,
         upvotes: 12,
       },
+      {
+        rank: 3,
+        ticker: "MEGA",
+        name: "Mega Cap Example",
+        mentions: 6,
+        upvotes: 10,
+      },
     ],
   };
 }
@@ -98,7 +105,7 @@ function yahooPayload(): unknown {
           quoteType: "EQUITY",
           regularMarketPrice: 195.5,
           regularMarketVolume: 55_000_000,
-          marketCap: 3_000_000_000_000,
+          marketCap: 3_000_000_000,
         },
         {
           symbol: "OTCX",
@@ -107,6 +114,16 @@ function yahooPayload(): unknown {
           quoteType: "EQUITY",
           regularMarketPrice: 2,
           regularMarketVolume: 1000,
+          marketCap: 100_000_000,
+        },
+        {
+          symbol: "MEGA",
+          shortName: "Mega Cap Example",
+          exchange: "NMS",
+          quoteType: "EQUITY",
+          regularMarketPrice: 120,
+          regularMarketVolume: 10_000_000,
+          marketCap: 1_000_000_000_000,
         },
       ],
     },
@@ -134,6 +151,7 @@ function validationLimitYahooPayload(): unknown {
           quoteType: "EQUITY",
           regularMarketPrice: 195.5,
           regularMarketVolume: 55_000_000,
+          marketCap: 3_000_000_000,
         },
         {
           symbol: "MSFT",
@@ -141,6 +159,7 @@ function validationLimitYahooPayload(): unknown {
           quoteType: "EQUITY",
           regularMarketPrice: 410,
           regularMarketVolume: 22_000_000,
+          marketCap: 4_000_000_000,
         },
         {
           symbol: "TSLA",
@@ -148,6 +167,7 @@ function validationLimitYahooPayload(): unknown {
           quoteType: "EQUITY",
           regularMarketPrice: 180,
           regularMarketVolume: 80_000_000,
+          marketCap: 5_000_000_000,
         },
       ],
     },
@@ -217,15 +237,24 @@ describe("alpha-search workflow", () => {
         name: "Apple Inc.",
         socialRank: 1,
         mentions: 40,
+        marketCap: 3_000_000_000,
       }),
     ]);
-    expect(result.report.extras?.rejectedCandidates).toEqual([
-      expect.objectContaining({
-        symbol: "OTCX",
-        reason: "OTC or pink-sheet instrument",
-        sourceIds: ["apewisdom-all-stocks-OTCX"],
-      }),
-    ]);
+    expect(result.report.extras?.rejectedCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          symbol: "OTCX",
+          reason: "OTC or pink-sheet instrument",
+          sourceIds: ["apewisdom-all-stocks-OTCX"],
+        }),
+        expect.objectContaining({
+          symbol: "MEGA",
+          reason: "Yahoo market cap is above configured alpha-search maximum",
+          sourceIds: ["apewisdom-all-stocks-MEGA"],
+        }),
+      ]),
+    );
+    expect(result.report.extras?.rejectedCandidates).toHaveLength(2);
     expect(result.markdown).toContain("## Research Leads");
     expect(result.markdown).toContain("## Rejected Candidates");
     expect(result.markdown).toContain("[apewisdom-all-stocks-AAPL]");
@@ -235,7 +264,7 @@ describe("alpha-search workflow", () => {
     ).toBe("ApeWisdom AAPL social momentum rank 1");
     expect(result.markdown).not.toContain("## Predictions");
     expect(result.markdown).toContain("Research-only note");
-    expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2COTCX"))).toBe(true);
+    expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2COTCX%2CMEGA"))).toBe(true);
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),

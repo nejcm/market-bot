@@ -28,6 +28,10 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT` | `25` | Number of ranked alpha-search candidates to validate with Yahoo. |
 | `MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT` | `15` | Maximum Yahoo-validated Research Leads to show. |
 | `MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT` | `15` | Minimum number of ApeWisdom-ranked candidates to persist before Yahoo validation. |
+| `MARKET_BOT_ALPHA_SEARCH_MIN_PRICE` | `0.50` | Minimum Yahoo regular-market price for alpha-search Research Leads. |
+| `MARKET_BOT_ALPHA_SEARCH_MIN_VOLUME` | `100000` | Minimum Yahoo regular-market volume for alpha-search Research Leads. |
+| `MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP` | `50000000` | Minimum Yahoo market cap for alpha-search Research Leads. |
+| `MARKET_BOT_ALPHA_SEARCH_MAX_MARKET_CAP` | `10000000000` | Maximum Yahoo market cap for alpha-search Research Leads. Must be greater than or equal to the minimum. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `ticker --deep --asset equity`. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS` | `2` | Max accepted evidence tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |

@@ -53,9 +53,9 @@ News collection fans out to enabled providers, skips missing MarketAux/Finnhub t
 
 ### Alpha Search (`src/alpha-search/`)
 
-`alpha-search --asset equity [--deep]` is an ApeWisdom discovery workflow. It fetches social-momentum pages from the ApeWisdom API, ranks candidates with a deterministic social momentum score, then validates only the top candidates with Yahoo for symbol validity and basic market data. Yahoo validation does not rank candidates.
+`alpha-search --asset equity [--deep]` is an ApeWisdom discovery workflow. It fetches social-momentum pages from the ApeWisdom API, ranks candidates with a deterministic social momentum score, then validates only the top candidates with Yahoo for listed-stock validity and basic market data. Yahoo validation does not rank candidates.
 
-Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no scoring or calibration side effects. Valid candidates are emitted as Research Leads. Rejected candidates are listed separately with social rank, rejection reason, and source IDs.
+Alpha-search Research Leads must pass the configured Yahoo eligibility screen: stock only, non-OTC, minimum price, minimum volume, and market-cap band. Defaults target listed small/mid-cap discovery (`$0.50+`, `100k+` volume, `$50M-$10B` market cap). Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no scoring or calibration side effects. Valid candidates are emitted as Research Leads. Rejected candidates are listed separately with social rank, rejection reason, and source IDs.
 
 Massive, formerly Polygon.io, is supplemental-only. When configured, it uses `api.massive.com` to collect equity news and stock snapshots for the symbols already selected by Yahoo. Those snapshots are persisted as supplemental market snapshots, included as report Sources, and included in prompt evidence. They do not enter mover ranking, market regime summaries, crypto workflows, or scoring Observations.
 

@@ -2,6 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { createOpenAIProvider } from "../src/model/openai";
 
 const alphaSearchOptions = {
+  apeWisdomFilter: "all-stocks",
+  apeWisdomBriefPageLimit: 5,
+  apeWisdomDeepPageLimit: 10,
+  validationCandidateLimit: 25,
+  leadLimit: 15,
   redditUserAgent: "market-bot test@example.test",
   redditSubreddits: [],
   redditLookbackDays: 7,

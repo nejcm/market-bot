@@ -93,6 +93,11 @@ describe("resolveConfig", () => {
 
   test("uses alpha-search defaults", () => {
     expect(resolveConfig({}).alphaSearchOptions).toMatchObject({
+      apeWisdomFilter: "all-stocks",
+      apeWisdomBriefPageLimit: 5,
+      apeWisdomDeepPageLimit: 10,
+      validationCandidateLimit: 25,
+      leadLimit: 15,
       redditUserAgent: "market-bot alpha-search contact@example.invalid",
       redditSubreddits: [],
       redditLookbackDays: 7,
@@ -102,9 +107,14 @@ describe("resolveConfig", () => {
     });
   });
 
-  test("reads Reddit alpha-search settings", () => {
+  test("reads alpha-search discovery settings", () => {
     expect(
       resolveConfig({
+        MARKET_BOT_APEWISDOM_FILTER: "wallstreetbets",
+        MARKET_BOT_APEWISDOM_BRIEF_PAGE_LIMIT: "3",
+        MARKET_BOT_APEWISDOM_DEEP_PAGE_LIMIT: "8",
+        MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT: "20",
+        MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT: "12",
         MARKET_BOT_REDDIT_CLIENT_ID: "client-id",
         MARKET_BOT_REDDIT_CLIENT_SECRET: "client-secret",
         MARKET_BOT_REDDIT_USER_AGENT: "market-bot test@example.test",
@@ -115,6 +125,11 @@ describe("resolveConfig", () => {
         MARKET_BOT_REDDIT_SEEN_PATH: "custom/reddit-seen.json",
       }).alphaSearchOptions,
     ).toEqual({
+      apeWisdomFilter: "wallstreetbets",
+      apeWisdomBriefPageLimit: 3,
+      apeWisdomDeepPageLimit: 8,
+      validationCandidateLimit: 20,
+      leadLimit: 12,
       redditClientId: "client-id",
       redditClientSecret: "client-secret",
       redditUserAgent: "market-bot test@example.test",
@@ -132,6 +147,12 @@ describe("resolveConfig", () => {
     );
   });
 
+  test("rejects invalid ApeWisdom filters", () => {
+    expect(() => resolveConfig({ MARKET_BOT_APEWISDOM_FILTER: "all/stocks" })).toThrow(
+      "Invalid ApeWisdom filter",
+    );
+  });
+
   test("skips alpha-search env validation when alpha-search config is not included", () => {
     expect(
       resolveConfig(
@@ -142,6 +163,11 @@ describe("resolveConfig", () => {
         { validateAlphaSearchOptions: false },
       ).alphaSearchOptions,
     ).toMatchObject({
+      apeWisdomFilter: "all-stocks",
+      apeWisdomBriefPageLimit: 5,
+      apeWisdomDeepPageLimit: 10,
+      validationCandidateLimit: 25,
+      leadLimit: 15,
       redditSubreddits: [],
       topCandidateLimit: 15,
     });

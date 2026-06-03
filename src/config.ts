@@ -29,6 +29,11 @@ export interface EvidenceRequestOptions {
 }
 
 export interface AlphaSearchOptions {
+  readonly apeWisdomFilter: string;
+  readonly apeWisdomBriefPageLimit: number;
+  readonly apeWisdomDeepPageLimit: number;
+  readonly validationCandidateLimit: number;
+  readonly leadLimit: number;
   readonly redditClientId?: string;
   readonly redditClientSecret?: string;
   readonly redditUserAgent: string;
@@ -74,7 +79,13 @@ const DEFAULT_REDDIT_USER_AGENT = "market-bot alpha-search contact@example.inval
 const DEFAULT_REDDIT_LOOKBACK_DAYS = 7;
 const DEFAULT_REDDIT_RAW_RETENTION_HOURS = 48;
 const DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT = 15;
+const DEFAULT_APEWISDOM_FILTER = "all-stocks";
+const DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT = 5;
+const DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT = 10;
+const DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT = 25;
+const DEFAULT_ALPHA_SEARCH_LEAD_LIMIT = 15;
 const SUBREDDIT_NAME_RE = /^[A-Za-z0-9_]{3,21}$/u;
+const APEWISDOM_FILTER_RE = /^[A-Za-z0-9-]+$/u;
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
@@ -187,12 +198,25 @@ function readSubredditWhitelist(value: string | undefined): readonly string[] {
   });
 }
 
+function readApeWisdomFilter(value: string | undefined): string {
+  const filter = readOptionalString(value) ?? DEFAULT_APEWISDOM_FILTER;
+  if (!APEWISDOM_FILTER_RE.test(filter)) {
+    throw new Error(`Invalid ApeWisdom filter: ${filter}`);
+  }
+  return filter;
+}
+
 function defaultAlphaSearchOptions(
   dataDir: string,
   env: Record<string, string | undefined>,
   readRetentionOptions: boolean,
 ): AlphaSearchOptions {
   return {
+    apeWisdomFilter: DEFAULT_APEWISDOM_FILTER,
+    apeWisdomBriefPageLimit: DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT,
+    apeWisdomDeepPageLimit: DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT,
+    validationCandidateLimit: DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT,
+    leadLimit: DEFAULT_ALPHA_SEARCH_LEAD_LIMIT,
     redditUserAgent: DEFAULT_REDDIT_USER_AGENT,
     redditSubreddits: [],
     redditLookbackDays: DEFAULT_REDDIT_LOOKBACK_DAYS,
@@ -215,6 +239,23 @@ function resolveAlphaSearchOptions(
   const redditClientSecret = readOptionalString(env.MARKET_BOT_REDDIT_CLIENT_SECRET);
 
   return {
+    apeWisdomFilter: readApeWisdomFilter(env.MARKET_BOT_APEWISDOM_FILTER),
+    apeWisdomBriefPageLimit: readPositiveInteger(
+      env.MARKET_BOT_APEWISDOM_BRIEF_PAGE_LIMIT,
+      DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT,
+    ),
+    apeWisdomDeepPageLimit: readPositiveInteger(
+      env.MARKET_BOT_APEWISDOM_DEEP_PAGE_LIMIT,
+      DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT,
+    ),
+    validationCandidateLimit: readPositiveInteger(
+      env.MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT,
+      DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT,
+    ),
+    leadLimit: readPositiveInteger(
+      env.MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT,
+      DEFAULT_ALPHA_SEARCH_LEAD_LIMIT,
+    ),
     ...(redditClientId !== undefined ? { redditClientId } : {}),
     ...(redditClientSecret !== undefined ? { redditClientSecret } : {}),
     redditUserAgent:

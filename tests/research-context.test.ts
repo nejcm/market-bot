@@ -27,6 +27,11 @@ const config: AppConfig = {
     sourceBudget: 0,
   },
   alphaSearchOptions: {
+    apeWisdomFilter: "all-stocks",
+    apeWisdomBriefPageLimit: 5,
+    apeWisdomDeepPageLimit: 10,
+    validationCandidateLimit: 25,
+    leadLimit: 15,
     redditUserAgent: "market-bot test@example.test",
     redditSubreddits: [],
     redditLookbackDays: 7,

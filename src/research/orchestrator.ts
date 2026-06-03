@@ -15,8 +15,13 @@ import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { recordSeenNewsSources } from "../sources/news-seen";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
+import {
+  synthesizeReportUntilValid,
+  type StageOutput,
+  type StageReprompt,
+} from "./final-synthesis";
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
-import { loadStagePrompt, type StageLabel } from "./prompt-loader";
+import { loadStagePrompt } from "./prompt-loader";
 import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
 import {
   eligiblePlaybookCandidates,
@@ -33,13 +38,7 @@ import {
   loadCalibrationContext,
   type ResearchContext,
 } from "./research-context";
-import {
-  assembleResearchReport,
-  buildSourceList,
-  type ModelReportPayload,
-  parseModelPayload,
-  readPredictions,
-} from "./report-assembly";
+import { buildSourceList } from "./report-assembly";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -63,19 +62,6 @@ export interface RunResearchJobResult {
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
   readonly artifacts: RunArtifacts;
-}
-
-interface StageOutput {
-  readonly stage: StageLabel;
-  readonly content: string;
-  readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
-}
-
-interface StageReprompt {
-  readonly predictionErrors?: readonly string[];
-  readonly reportValidationErrors?: readonly string[];
-  readonly allowedSourceIds?: readonly string[];
 }
 
 const MAX_PREDICTION_REPROMPTS = 2;
@@ -139,23 +125,6 @@ async function runStage(
     tokenEstimate: response.tokenEstimate,
     costEstimateUsd: response.costEstimateUsd,
   };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function predictionRetryReasons(
-  predResult: ReturnType<typeof readPredictions>,
-  minimumPredictions: number,
-): readonly string[] {
-  if (predResult.predictions.length >= minimumPredictions) {
-    return [];
-  }
-  return [
-    ...predResult.errors,
-    `predictionShortfall: required ${String(minimumPredictions)}, received ${String(predResult.predictions.length)}`,
-  ];
 }
 
 async function runPlaybookSelection(
@@ -284,127 +253,38 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     playbookContext,
     analysisOutputs,
   );
-  let finalOutput = await runStage(
-    "final-synthesis",
-    runParams.synthesisModel,
-    input,
-    collectedSources,
-    playbookContext,
-    [...analysisOutputs, critiqueOutput],
-  );
-
   const sources = buildSourceList(input.command, collectedSources);
   const knownSourceIds = new Set(sources.map((source) => source.id));
 
-  let payload: ModelReportPayload = parseModelPayload(finalOutput.content);
-  let predResult = readPredictions(payload.predictions, knownSourceIds);
-  let predictionRetryErrors: readonly string[] = [];
-  let reportValidationErrors: readonly string[] = [];
-  const stageOutputsArr: StageOutput[] = [
-    ...evidenceLoop.stageOutputs,
-    playbookSelection.output,
-    ...analysisOutputs,
-    critiqueOutput,
-    finalOutput,
-  ];
-
-  const retryPredictionSynthesis = async (remainingAttempts: number): Promise<void> => {
-    if (remainingAttempts <= 0) {
-      return;
-    }
-    const retryErrors = predictionRetryReasons(predResult, context.depthProfile.minimumPredictions);
-    if (retryErrors.length === 0) {
-      return;
-    }
-    predictionRetryErrors = [...new Set([...predictionRetryErrors, ...retryErrors])];
-    finalOutput = await runStage(
-      "final-synthesis",
-      runParams.synthesisModel,
-      input,
-      collectedSources,
-      playbookContext,
-      [...analysisOutputs, critiqueOutput],
-      { predictionErrors: retryErrors },
-    );
-    stageOutputsArr.push(finalOutput);
-    payload = parseModelPayload(finalOutput.content);
-    predResult = readPredictions(payload.predictions, knownSourceIds);
-    await retryPredictionSynthesis(remainingAttempts - 1);
-  };
-  await retryPredictionSynthesis(MAX_PREDICTION_REPROMPTS);
-
-  const buildReport = (): ResearchReport =>
-    assembleResearchReport({
-      runId,
-      generatedAt,
-      command: input.command,
-      payload,
-      predResult,
-      collectedSources,
-      depthProfile: playbookContext.depthProfile,
-      context: playbookContext,
-      sources,
-    });
-
-  const report = await (async (): Promise<ResearchReport> => {
-    try {
-      return buildReport();
-    } catch (error: unknown) {
-      reportValidationErrors = [errorMessage(error)];
-      const reportRetryPredictionErrors = predictionRetryReasons(
-        predResult,
-        context.depthProfile.minimumPredictions,
-      );
-      predictionRetryErrors = [
-        ...new Set([...predictionRetryErrors, ...reportRetryPredictionErrors]),
-      ];
-      finalOutput = await runStage(
+  const synthesis = await synthesizeReportUntilValid({
+    runId,
+    generatedAt,
+    command: input.command,
+    collectedSources,
+    context: playbookContext,
+    sources,
+    knownSourceIds,
+    priorStages: [...analysisOutputs, critiqueOutput],
+    maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
+    runFinalSynthesis: (priorStages, reprompt) =>
+      runStage(
         "final-synthesis",
         runParams.synthesisModel,
         input,
         collectedSources,
         playbookContext,
-        [...analysisOutputs, critiqueOutput],
-        {
-          predictionErrors: reportRetryPredictionErrors,
-          reportValidationErrors,
-          allowedSourceIds: [...knownSourceIds].toSorted(),
-        },
-      );
-      stageOutputsArr.push(finalOutput);
-      payload = parseModelPayload(finalOutput.content);
-      predResult = readPredictions(payload.predictions, knownSourceIds);
-      const postReportPredictionErrors = predictionRetryReasons(
-        predResult,
-        context.depthProfile.minimumPredictions,
-      );
-      if (postReportPredictionErrors.length > 0) {
-        predictionRetryErrors = [
-          ...new Set([...predictionRetryErrors, ...postReportPredictionErrors]),
-        ];
-        finalOutput = await runStage(
-          "final-synthesis",
-          runParams.synthesisModel,
-          input,
-          collectedSources,
-          playbookContext,
-          [...analysisOutputs, critiqueOutput],
-          {
-            predictionErrors: postReportPredictionErrors,
-            reportValidationErrors,
-            allowedSourceIds: [...knownSourceIds].toSorted(),
-          },
-        );
-        stageOutputsArr.push(finalOutput);
-        payload = parseModelPayload(finalOutput.content);
-        predResult = readPredictions(payload.predictions, knownSourceIds);
-      }
-      return buildReport();
-    }
-  })();
-
-  const predictionErrors = predResult.errors;
-  const stageOutputs = stageOutputsArr as readonly StageOutput[];
+        priorStages,
+        reprompt,
+      ),
+  });
+  const { report, predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
+  const stageOutputs: readonly StageOutput[] = [
+    ...evidenceLoop.stageOutputs,
+    playbookSelection.output,
+    ...analysisOutputs,
+    critiqueOutput,
+    ...synthesis.stageOutputs,
+  ];
 
   const trace: RunTrace = {
     runId,

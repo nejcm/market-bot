@@ -1,5 +1,31 @@
 import { describe, expect, test } from "bun:test";
-import { parseObservableExpression } from "../src/forecast/observable";
+import {
+  observationStrategyForForecast,
+  parseObservableExpression,
+  type ObservableExpression,
+  type ObservableForecast,
+  type ObservationStrategy,
+} from "../src/forecast/observable";
+
+function forecastFor(expression: ObservableExpression): ObservableForecast {
+  return {
+    prediction: {
+      id: "p1",
+      claim: "test claim",
+      kind: expression.kind,
+      subject: "test",
+      measurableAs: "test",
+      horizonTradingDays: expression.horizonTradingDays,
+      probability: 0.5,
+      sourceIds: [],
+    },
+    expression,
+    instruments: [],
+    measurableAs: "test",
+    subject: "test",
+    horizonTradingDays: expression.horizonTradingDays,
+  };
+}
 
 describe("parseObservableExpression", () => {
   describe("direction", () => {
@@ -144,5 +170,64 @@ describe("parseObservableExpression", () => {
         "Cannot parse measurableAs",
       );
     });
+  });
+});
+
+describe("observationStrategyForForecast", () => {
+  test("maps each expression kind to its observation strategy", () => {
+    const cases: readonly {
+      readonly expression: ObservableExpression;
+      readonly expected: ObservationStrategy;
+    }[] = [
+      {
+        expression: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
+        expected: { mode: "close-window", subjects: ["SPY"] },
+      },
+      {
+        expression: {
+          kind: "relative",
+          subjectA: "QQQ",
+          subjectB: "SPY",
+          horizonTradingDays: 5,
+        },
+        expected: { mode: "close-window", subjects: ["QQQ", "SPY"] },
+      },
+      {
+        expression: {
+          kind: "volatility",
+          subject: "^VIX",
+          horizonTradingDays: 5,
+          threshold: 20,
+        },
+        expected: { mode: "close-window", subjects: ["^VIX"] },
+      },
+      {
+        expression: {
+          kind: "range",
+          subject: "BTC",
+          horizonTradingDays: 7,
+          lo: 90_000,
+          hi: 110_000,
+        },
+        expected: { mode: "close-window", subjects: ["BTC"] },
+      },
+      {
+        expression: { kind: "macro", seriesId: "DGS10", horizonTradingDays: 5 },
+        expected: { mode: "point", subjects: ["FRED:DGS10"], includeOrigin: true },
+      },
+      {
+        expression: {
+          kind: "iv",
+          subject: "AAPL",
+          horizonTradingDays: 5,
+          threshold: 0.35,
+        },
+        expected: { mode: "point", subjects: ["IV:AAPL"], includeOrigin: false },
+      },
+    ];
+
+    for (const { expression, expected } of cases) {
+      expect(observationStrategyForForecast(forecastFor(expression))).toEqual(expected);
+    }
   });
 });

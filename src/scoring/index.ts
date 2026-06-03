@@ -1,7 +1,11 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
-import { observableForecastFromPrediction, type ObservableForecast } from "../forecast/observable";
+import {
+  observableForecastFromPrediction,
+  observationStrategyForForecast,
+  type ObservableForecast,
+} from "../forecast/observable";
 import { resolvePrediction } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
@@ -70,36 +74,13 @@ function unresolvedScore(
   };
 }
 
-function isCloseBasedForecast(forecast: ObservableForecast): boolean {
-  return (
-    forecast.expression.kind === "direction" ||
-    forecast.expression.kind === "relative" ||
-    forecast.expression.kind === "volatility" ||
-    forecast.expression.kind === "range"
-  );
-}
-
-function windowSubjects(forecast: ObservableForecast): readonly string[] {
-  if (forecast.expression.kind === "relative") {
-    return [forecast.expression.subjectA, forecast.expression.subjectB];
-  }
-  if (
-    forecast.expression.kind === "direction" ||
-    forecast.expression.kind === "volatility" ||
-    forecast.expression.kind === "range"
-  ) {
-    return [forecast.expression.subject];
-  }
-  return [];
-}
-
 async function closeObservations(
   forecast: ObservableForecast,
   report: ResearchReport,
   now: Date,
   repo: ObservationRepository,
+  subjects: readonly string[],
 ): Promise<readonly Observation[]> {
-  const subjects = windowSubjects(forecast);
   const windows = await Promise.all(
     subjects.map((subject) =>
       repo.window(subject, report.assetClass, new Date(report.generatedAt), now),
@@ -116,19 +97,16 @@ async function closeObservations(
 }
 
 async function pointObservations(
-  forecast: ObservableForecast,
   report: ResearchReport,
   resDate: Date,
   repo: ObservationRepository,
+  symbols: readonly string[],
+  includeOrigin: boolean,
 ): Promise<readonly Observation[]> {
   const originDate = new Date(report.generatedAt);
-  const symbols = forecast.instruments;
-  const atOrigin =
-    forecast.expression.kind === "iv"
-      ? []
-      : await Promise.all(
-          symbols.map((symbol) => repo.point(symbol, report.assetClass, originDate)),
-        );
+  const atOrigin = includeOrigin
+    ? await Promise.all(symbols.map((symbol) => repo.point(symbol, report.assetClass, originDate)))
+    : [];
   const atHorizon = await Promise.all(
     symbols.map((symbol) => repo.point(symbol, report.assetClass, resDate)),
   );
@@ -170,9 +148,11 @@ async function scoreOnePrediction(
         : {}),
       now,
     });
-  const observations = isCloseBasedForecast(forecast)
-    ? await closeObservations(forecast, report, now, repo)
-    : await pointObservations(forecast, report, resDate, repo);
+  const strategy = observationStrategyForForecast(forecast);
+  const observations =
+    strategy.mode === "close-window"
+      ? await closeObservations(forecast, report, now, repo, strategy.subjects)
+      : await pointObservations(report, resDate, repo, strategy.subjects, strategy.includeOrigin);
 
   const resolveResult = resolvePrediction(prediction, observations);
 

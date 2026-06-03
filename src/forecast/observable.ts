@@ -110,6 +110,17 @@ export type ObservableForecastResolution =
   | ObservableForecastResolved
   | ObservableForecastUnresolved;
 
+export type ObservationStrategy =
+  | {
+      readonly mode: "close-window";
+      readonly subjects: readonly string[];
+    }
+  | {
+      readonly mode: "point";
+      readonly subjects: readonly string[];
+      readonly includeOrigin: boolean;
+    };
+
 const SYMBOL = String.raw`([\w\^]+(?::[.\w]+)*)`;
 const N = String.raw`(\d+)`;
 const NUM = String.raw`(-?\d+(?:\.\d+)?)`;
@@ -135,15 +146,30 @@ const IV_RE = new RegExp(String.raw`^iv\(${SYMBOL},\s*\+${N}\)\s*>\s*${NUM}$`, "
 
 const READER_ACTION_PATTERN = /\b(consider|watch for|should|could be a|expect to)\b/iu;
 
+type ObservableExpressionOf<K extends PredictionKind> = Extract<
+  ObservableExpression,
+  { readonly kind: K }
+>;
+
+interface PredictionShape<K extends PredictionKind> {
+  readonly kind: K;
+  readonly parse: (expr: string) => ObservableExpressionOf<K> | undefined;
+  readonly measurableAs: (expression: ObservableExpressionOf<K>) => string;
+  readonly subject: (expression: ObservableExpressionOf<K>) => string;
+  readonly instruments: (expression: ObservableExpressionOf<K>) => readonly string[];
+  readonly observationStrategy: (expression: ObservableExpressionOf<K>) => ObservationStrategy;
+  readonly resolve: (
+    expression: ObservableExpressionOf<K>,
+    observations: readonly Observation[],
+  ) => ObservableForecastResolution;
+}
+
+type AnyPredictionShape = {
+  readonly [K in PredictionKind]: PredictionShape<K>;
+}[PredictionKind];
+
 function isPredictionKind(value: unknown): value is PredictionKind {
-  return (
-    value === "direction" ||
-    value === "relative" ||
-    value === "volatility" ||
-    value === "range" ||
-    value === "macro" ||
-    value === "iv"
-  );
+  return typeof value === "string" && value in PREDICTION_SHAPE_BY_KIND;
 }
 
 function readStringArray(value: unknown): readonly string[] {
@@ -160,36 +186,157 @@ function issue(
   return predictionId === undefined ? { code, message } : { code, message, predictionId };
 }
 
-export function parseObservableExpression(expr: string): ObservableExpression {
-  const s = expr.trim();
+const directionShape: PredictionShape<"direction"> = {
+  kind: "direction",
 
-  const dir = DIRECTION_RE.exec(s);
-  if (dir !== null) {
+  parse(expr) {
+    const dir = DIRECTION_RE.exec(expr);
+    if (dir === null) {
+      return;
+    }
     return { kind: "direction", subject: dir[1] as string, horizonTradingDays: Number(dir[2]) };
-  }
+  },
 
-  const rel = RELATIVE_RE.exec(s);
-  if (rel !== null) {
+  measurableAs(expression) {
+    return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) > close(${expression.subject}, 0)`;
+  },
+
+  subject(expression) {
+    return expression.subject;
+  },
+
+  instruments(expression) {
+    return [expression.subject];
+  },
+
+  observationStrategy(expression) {
+    return { mode: "close-window", subjects: [expression.subject] };
+  },
+
+  resolve(expression, observations) {
+    const closes = sortedObservations(observations, expression.subject);
+    const close0 = closes[0]?.value;
+    const closeN = closes.at(-1)?.value;
+    if (close0 === undefined || closeN === undefined) {
+      return unresolved("missing-horizon", [expression.subject]);
+    }
+    return resolvedForecast(closeN > close0 ? "hit" : "miss", { close0, closeN });
+  },
+};
+
+const relativeShape: PredictionShape<"relative"> = {
+  kind: "relative",
+
+  parse(expr) {
+    const rel = RELATIVE_RE.exec(expr);
+    if (rel === null) {
+      return;
+    }
     return {
       kind: "relative",
       subjectA: rel[1] as string,
       subjectB: rel[3] as string,
       horizonTradingDays: Number(rel[2]),
     };
-  }
+  },
 
-  const vol = VOLATILITY_RE.exec(s);
-  if (vol !== null) {
+  measurableAs(expression) {
+    return `close(${expression.subjectA}, +${String(expression.horizonTradingDays)}) / close(${expression.subjectA}, 0) > close(${expression.subjectB}, +${String(expression.horizonTradingDays)}) / close(${expression.subjectB}, 0)`;
+  },
+
+  subject(expression) {
+    return `${expression.subjectA}:${expression.subjectB}`;
+  },
+
+  instruments(expression) {
+    return [expression.subjectA, expression.subjectB];
+  },
+
+  observationStrategy(expression) {
+    return { mode: "close-window", subjects: [expression.subjectA, expression.subjectB] };
+  },
+
+  resolve(expression, observations) {
+    const closesA = sortedObservations(observations, expression.subjectA);
+    const closesB = sortedObservations(observations, expression.subjectB);
+    const closeA0 = closesA[0]?.value;
+    const closeAN = closesA.at(-1)?.value;
+    const closeB0 = closesB[0]?.value;
+    const closeBN = closesB.at(-1)?.value;
+    const missing = [
+      ...(closeA0 === undefined || closeAN === undefined ? [expression.subjectA] : []),
+      ...(closeB0 === undefined || closeBN === undefined ? [expression.subjectB] : []),
+    ];
+    if (
+      missing.length > 0 ||
+      closeA0 === undefined ||
+      closeAN === undefined ||
+      closeB0 === undefined ||
+      closeBN === undefined
+    ) {
+      return unresolved("missing-horizon", missing);
+    }
+    const returnA = closeAN / closeA0;
+    const returnB = closeBN / closeB0;
+    return resolvedForecast(returnA > returnB ? "hit" : "miss", { returnA, returnB });
+  },
+};
+
+const volatilityShape: PredictionShape<"volatility"> = {
+  kind: "volatility",
+
+  parse(expr) {
+    const vol = VOLATILITY_RE.exec(expr);
+    if (vol === null) {
+      return;
+    }
     return {
       kind: "volatility",
       subject: vol[1] as string,
       horizonTradingDays: Number(vol[2]),
       threshold: Number(vol[3]),
     };
-  }
+  },
 
-  const range = RANGE_RE.exec(s);
-  if (range !== null) {
+  measurableAs(expression) {
+    return `max(close(${expression.subject}), 0..+${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
+  },
+
+  subject(expression) {
+    return expression.subject;
+  },
+
+  instruments(expression) {
+    return [expression.subject];
+  },
+
+  observationStrategy(expression) {
+    return { mode: "close-window", subjects: [expression.subject] };
+  },
+
+  resolve(expression, observations) {
+    const closes = sortedObservations(observations, expression.subject).map(
+      (observation) => observation.value,
+    );
+    if (closes.length === 0) {
+      return unresolved("missing-window", [expression.subject]);
+    }
+    const maxClose = Math.max(...closes);
+    return resolvedForecast(maxClose > expression.threshold ? "hit" : "miss", {
+      maxClose,
+      threshold: expression.threshold,
+    });
+  },
+};
+
+const rangeShape: PredictionShape<"range"> = {
+  kind: "range",
+
+  parse(expr) {
+    const range = RANGE_RE.exec(expr);
+    if (range === null) {
+      return;
+    }
     const lo = Number(range[3]);
     const hi = Number(range[4]);
     if (lo >= hi) {
@@ -204,65 +351,203 @@ export function parseObservableExpression(expr: string): ObservableExpression {
       lo,
       hi,
     };
-  }
+  },
 
-  const fred = FRED_RE.exec(s);
-  if (fred !== null) {
+  measurableAs(expression) {
+    return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) outside [${String(expression.lo)}, ${String(expression.hi)}]`;
+  },
+
+  subject(expression) {
+    return expression.subject;
+  },
+
+  instruments(expression) {
+    return [expression.subject];
+  },
+
+  observationStrategy(expression) {
+    return { mode: "close-window", subjects: [expression.subject] };
+  },
+
+  resolve(expression, observations) {
+    const closes = sortedObservations(observations, expression.subject);
+    const closeN = closes.at(-1)?.value;
+    if (closeN === undefined) {
+      return unresolved("missing-horizon", [expression.subject]);
+    }
+    return resolvedForecast(closeN < expression.lo || closeN > expression.hi ? "hit" : "miss", {
+      closeN,
+      lo: expression.lo,
+      hi: expression.hi,
+    });
+  },
+};
+
+const macroShape: PredictionShape<"macro"> = {
+  kind: "macro",
+
+  parse(expr) {
+    const fred = FRED_RE.exec(expr);
+    if (fred === null) {
+      return;
+    }
     return { kind: "macro", seriesId: fred[1] as string, horizonTradingDays: Number(fred[2]) };
-  }
+  },
 
-  const iv = IV_RE.exec(s);
-  if (iv !== null) {
+  measurableAs(expression) {
+    return `fred(${expression.seriesId}, +${String(expression.horizonTradingDays)}) > fred(${expression.seriesId}, 0)`;
+  },
+
+  subject(expression) {
+    return expression.seriesId;
+  },
+
+  instruments(expression) {
+    return [`FRED:${expression.seriesId}`];
+  },
+
+  observationStrategy(expression) {
+    return {
+      mode: "point",
+      subjects: [`FRED:${expression.seriesId}`],
+      includeOrigin: true,
+    };
+  },
+
+  resolve(expression, observations) {
+    const subject = `FRED:${expression.seriesId}`;
+    const closes = sortedObservations(observations, subject);
+    const [origin] = closes;
+    const horizon = closes.at(-1);
+    if (origin === undefined) {
+      return unresolved("missing-origin", [subject]);
+    }
+    if (horizon === undefined || horizon.date === origin.date) {
+      return unresolved("missing-horizon", [subject]);
+    }
+    return resolvedForecast(horizon.value > origin.value ? "hit" : "miss", {
+      seriesId: expression.seriesId,
+      fred0: origin.value,
+      fredN: horizon.value,
+      date0: origin.date,
+      dateN: horizon.date,
+    });
+  },
+};
+
+const ivShape: PredictionShape<"iv"> = {
+  kind: "iv",
+
+  parse(expr) {
+    const iv = IV_RE.exec(expr);
+    if (iv === null) {
+      return;
+    }
     return {
       kind: "iv",
       subject: iv[1] as string,
       horizonTradingDays: Number(iv[2]),
       threshold: Number(iv[3]),
     };
+  },
+
+  measurableAs(expression) {
+    return `iv(${expression.subject}, +${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
+  },
+
+  subject(expression) {
+    return expression.subject;
+  },
+
+  instruments(expression) {
+    return [`IV:${expression.subject}`];
+  },
+
+  observationStrategy(expression) {
+    return {
+      mode: "point",
+      subjects: [`IV:${expression.subject}`],
+      includeOrigin: false,
+    };
+  },
+
+  resolve(expression, observations) {
+    const subject = `IV:${expression.subject}`;
+    const closes = sortedObservations(observations, subject);
+    const horizon = closes.at(-1);
+    if (horizon === undefined) {
+      return unresolved("missing-horizon", [subject]);
+    }
+    return resolvedForecast(horizon.value > expression.threshold ? "hit" : "miss", {
+      subject: expression.subject,
+      ivN: horizon.value,
+      threshold: expression.threshold,
+      dateN: horizon.date,
+    });
+  },
+};
+
+const PREDICTION_SHAPES: readonly AnyPredictionShape[] = [
+  directionShape,
+  relativeShape,
+  volatilityShape,
+  rangeShape,
+  macroShape,
+  ivShape,
+];
+
+const PREDICTION_SHAPE_BY_KIND: {
+  readonly [K in PredictionKind]: PredictionShape<K>;
+} = {
+  direction: directionShape,
+  relative: relativeShape,
+  volatility: volatilityShape,
+  range: rangeShape,
+  macro: macroShape,
+  iv: ivShape,
+};
+
+function shapeByKind<K extends PredictionKind>(kind: K): PredictionShape<K> {
+  return PREDICTION_SHAPE_BY_KIND[kind];
+}
+
+function shapeForExpression<E extends ObservableExpression>(
+  expression: E,
+): PredictionShape<E["kind"]> {
+  const shape = shapeByKind(expression.kind);
+  return shape;
+}
+
+export function parseObservableExpression(expr: string): ObservableExpression {
+  const s = expr.trim();
+  for (const shape of PREDICTION_SHAPES) {
+    const expression = shape.parse(s);
+    if (expression !== undefined) {
+      return expression;
+    }
   }
 
   throw new Error(`Cannot parse measurableAs: "${expr}"`);
 }
 
 export function measurableAsForExpression(expression: ObservableExpression): string {
-  if (expression.kind === "direction") {
-    return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) > close(${expression.subject}, 0)`;
-  }
-  if (expression.kind === "relative") {
-    return `close(${expression.subjectA}, +${String(expression.horizonTradingDays)}) / close(${expression.subjectA}, 0) > close(${expression.subjectB}, +${String(expression.horizonTradingDays)}) / close(${expression.subjectB}, 0)`;
-  }
-  if (expression.kind === "volatility") {
-    return `max(close(${expression.subject}), 0..+${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
-  }
-  if (expression.kind === "range") {
-    return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) outside [${String(expression.lo)}, ${String(expression.hi)}]`;
-  }
-  if (expression.kind === "macro") {
-    return `fred(${expression.seriesId}, +${String(expression.horizonTradingDays)}) > fred(${expression.seriesId}, 0)`;
-  }
-  return `iv(${expression.subject}, +${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
+  return shapeForExpression(expression).measurableAs(expression);
 }
 
 export function subjectForExpression(expression: ObservableExpression): string {
-  if (expression.kind === "macro") {
-    return expression.seriesId;
-  }
-  return expression.kind === "relative"
-    ? `${expression.subjectA}:${expression.subjectB}`
-    : expression.subject;
+  return shapeForExpression(expression).subject(expression);
 }
 
 export function instrumentsForExpression(expression: ObservableExpression): readonly string[] {
-  if (expression.kind === "relative") {
-    return [expression.subjectA, expression.subjectB];
-  }
-  if (expression.kind === "macro") {
-    return [`FRED:${expression.seriesId}`];
-  }
-  if (expression.kind === "iv") {
-    return [`IV:${expression.subject}`];
-  }
-  return [expression.subject];
+  return shapeForExpression(expression).instruments(expression);
+}
+
+function observationStrategyForExpression(expression: ObservableExpression): ObservationStrategy {
+  return shapeForExpression(expression).observationStrategy(expression);
+}
+
+export function observationStrategyForForecast(forecast: ObservableForecast): ObservationStrategy {
+  return observationStrategyForExpression(forecast.expression);
 }
 
 function validateProjection(
@@ -471,100 +756,5 @@ export function resolveObservableForecast(
   forecast: ObservableForecast,
   observations: readonly Observation[],
 ): ObservableForecastResolution {
-  const { expression } = forecast;
-
-  if (expression.kind === "direction") {
-    const closes = sortedObservations(observations, expression.subject);
-    const close0 = closes[0]?.value;
-    const closeN = closes.at(-1)?.value;
-    if (close0 === undefined || closeN === undefined) {
-      return unresolved("missing-horizon", [expression.subject]);
-    }
-    return resolvedForecast(closeN > close0 ? "hit" : "miss", { close0, closeN });
-  }
-
-  if (expression.kind === "relative") {
-    const closesA = sortedObservations(observations, expression.subjectA);
-    const closesB = sortedObservations(observations, expression.subjectB);
-    const closeA0 = closesA[0]?.value;
-    const closeAN = closesA.at(-1)?.value;
-    const closeB0 = closesB[0]?.value;
-    const closeBN = closesB.at(-1)?.value;
-    const missing = [
-      ...(closeA0 === undefined || closeAN === undefined ? [expression.subjectA] : []),
-      ...(closeB0 === undefined || closeBN === undefined ? [expression.subjectB] : []),
-    ];
-    if (
-      missing.length > 0 ||
-      closeA0 === undefined ||
-      closeAN === undefined ||
-      closeB0 === undefined ||
-      closeBN === undefined
-    ) {
-      return unresolved("missing-horizon", missing);
-    }
-    const returnA = closeAN / closeA0;
-    const returnB = closeBN / closeB0;
-    return resolvedForecast(returnA > returnB ? "hit" : "miss", { returnA, returnB });
-  }
-
-  if (expression.kind === "volatility") {
-    const closes = sortedObservations(observations, expression.subject).map(
-      (observation) => observation.value,
-    );
-    if (closes.length === 0) {
-      return unresolved("missing-window", [expression.subject]);
-    }
-    const maxClose = Math.max(...closes);
-    return resolvedForecast(maxClose > expression.threshold ? "hit" : "miss", {
-      maxClose,
-      threshold: expression.threshold,
-    });
-  }
-
-  if (expression.kind === "range") {
-    const closes = sortedObservations(observations, expression.subject);
-    const closeN = closes.at(-1)?.value;
-    if (closeN === undefined) {
-      return unresolved("missing-horizon", [expression.subject]);
-    }
-    return resolvedForecast(closeN < expression.lo || closeN > expression.hi ? "hit" : "miss", {
-      closeN,
-      lo: expression.lo,
-      hi: expression.hi,
-    });
-  }
-
-  if (expression.kind === "macro") {
-    const subject = `FRED:${expression.seriesId}`;
-    const closes = sortedObservations(observations, subject);
-    const [origin] = closes;
-    const horizon = closes.at(-1);
-    if (origin === undefined) {
-      return unresolved("missing-origin", [subject]);
-    }
-    if (horizon === undefined || horizon.date === origin.date) {
-      return unresolved("missing-horizon", [subject]);
-    }
-    return resolvedForecast(horizon.value > origin.value ? "hit" : "miss", {
-      seriesId: expression.seriesId,
-      fred0: origin.value,
-      fredN: horizon.value,
-      date0: origin.date,
-      dateN: horizon.date,
-    });
-  }
-
-  const subject = `IV:${expression.subject}`;
-  const closes = sortedObservations(observations, subject);
-  const horizon = closes.at(-1);
-  if (horizon === undefined) {
-    return unresolved("missing-horizon", [subject]);
-  }
-  return resolvedForecast(horizon.value > expression.threshold ? "hit" : "miss", {
-    subject: expression.subject,
-    ivN: horizon.value,
-    threshold: expression.threshold,
-    dateN: horizon.date,
-  });
+  return shapeForExpression(forecast.expression).resolve(forecast.expression, observations);
 }

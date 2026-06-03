@@ -1,5 +1,5 @@
 import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validation";
-import { isRecord, readNumber, readString } from "../sources/guards";
+import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
@@ -68,16 +68,6 @@ export function alphaSearchRejectedCandidate(
     reason: rejected.reason,
     sourceIds: rejected.candidate.sourceIds,
   };
-}
-
-function readStringArray(
-  record: Record<string, unknown>,
-  key: string,
-): readonly string[] | undefined {
-  const value = record[key];
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string")
-    ? value
-    : undefined;
 }
 
 function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): boolean {

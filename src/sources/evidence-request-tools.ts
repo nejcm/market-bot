@@ -7,7 +7,7 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { sourceGap } from "../domain/source-gaps";
-import { isRecord, readNumber } from "./guards";
+import { isRecord, readNumber, stringArrayValue } from "./guards";
 import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
@@ -89,24 +89,17 @@ function secTextRequestInit(userAgent: string | undefined): RequestInit | undefi
   return userAgent === undefined ? undefined : { headers: { "user-agent": userAgent } };
 }
 
-function readStringArray(record: Record<string, unknown>, key: string): readonly string[] {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
 function selectLatestPeriodicFiling(payload: unknown): SecFiling | undefined {
   if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
     return undefined;
   }
 
   const { recent } = payload.filings;
-  const forms = readStringArray(recent, "form");
-  const filingDates = readStringArray(recent, "filingDate");
-  const reportDates = readStringArray(recent, "reportDate");
-  const accessionNumbers = readStringArray(recent, "accessionNumber");
-  const primaryDocuments = readStringArray(recent, "primaryDocument");
+  const forms = stringArrayValue(recent.form);
+  const filingDates = stringArrayValue(recent.filingDate);
+  const reportDates = stringArrayValue(recent.reportDate);
+  const accessionNumbers = stringArrayValue(recent.accessionNumber);
+  const primaryDocuments = stringArrayValue(recent.primaryDocument);
 
   return forms
     .flatMap((form, index): SecFiling[] => {

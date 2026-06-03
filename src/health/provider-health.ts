@@ -12,6 +12,7 @@ import type {
   SourceGapCause,
   SourceGapEvidenceQualityImpact,
 } from "../domain/types";
+import { isRecord, numberAt } from "../sources/guards";
 import { buildValidation, type ProviderValidationSummary } from "./validation";
 
 export type { ValidationCoverageItem, ValidationRouteClassification } from "./validation";
@@ -99,35 +100,12 @@ export interface ProviderHealthWriteResult {
   readonly summary: ProviderHealthSummary;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
 function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function recordAt(
-  value: Record<string, unknown> | undefined,
-  key: string,
-): Record<string, unknown> {
-  const next = value?.[key];
-  return isRecord(next) ? next : {};
-}
-
-function numberAt(value: Record<string, unknown> | undefined, path: readonly string[]): number {
-  const [first, ...rest] = path;
-  if (first === undefined) {
-    return 0;
-  }
-  if (rest.length === 0) {
-    return numberValue(value?.[first]);
-  }
-  return numberAt(recordAt(value, first), rest);
 }
 
 function isJobType(value: unknown): value is JobType {

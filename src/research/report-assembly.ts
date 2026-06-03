@@ -10,7 +10,7 @@ import {
 } from "../domain/types";
 import { isCoreEvidenceQualityGap, isExtendedEvidenceQualityGap } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
-import { isRecord } from "../sources/guards";
+import { isRecord, nonEmptyStringArrayValue } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
 import {
   deterministicSourceGaps,
@@ -54,12 +54,6 @@ function readArray(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function readStringArray(value: unknown): readonly string[] {
-  return readArray(value).filter(
-    (item): item is string => typeof item === "string" && item.trim() !== "",
-  );
-}
-
 function readFindings(value: unknown): readonly KeyFinding[] {
   return readArray(value)
     .map((item): KeyFinding | undefined => {
@@ -69,7 +63,7 @@ function readFindings(value: unknown): readonly KeyFinding[] {
 
       return {
         text: item.text,
-        sourceIds: readStringArray(item.sourceIds),
+        sourceIds: nonEmptyStringArrayValue(item.sourceIds),
       };
     })
     .filter((item): item is KeyFinding => item !== undefined);
@@ -89,7 +83,7 @@ function readScenarios(value: unknown): readonly Scenario[] {
       return {
         name: item.name,
         description: item.description,
-        sourceIds: readStringArray(item.sourceIds),
+        sourceIds: nonEmptyStringArrayValue(item.sourceIds),
       };
     })
     .filter((item): item is Scenario => item !== undefined);
@@ -232,7 +226,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
 
   const dataGapsRaw = [
     ...new Set([
-      ...readStringArray(payload.dataGaps),
+      ...nonEmptyStringArrayValue(payload.dataGaps),
       ...deterministicSourceGaps(command, collectedSources),
     ]),
   ];

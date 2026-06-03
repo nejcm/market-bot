@@ -1,4 +1,5 @@
 import type { InstrumentIdentity, SourceGapCause } from "../domain/types";
+import { numberAt } from "../sources/guards";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";
 
 const US_EQUITY_EXCHANGES = new Set([
@@ -84,33 +85,6 @@ export interface ProviderValidationSummary {
   readonly warningIssueCount: number;
   readonly informationalIssueCount: number;
   readonly routeClassifications: readonly ValidationRouteClassification[];
-}
-
-function numberValue(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function recordAt(
-  value: Record<string, unknown> | undefined,
-  key: string,
-): Record<string, unknown> {
-  const next = value?.[key];
-  return isRecord(next) ? next : {};
-}
-
-function numberAt(value: Record<string, unknown> | undefined, path: readonly string[]): number {
-  const [first, ...rest] = path;
-  if (first === undefined) {
-    return 0;
-  }
-  if (rest.length === 0) {
-    return numberValue(value?.[first]);
-  }
-  return numberAt(recordAt(value, first), rest);
 }
 
 function exchangeKey(exchange: string): string {

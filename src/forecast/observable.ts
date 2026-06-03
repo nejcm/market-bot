@@ -1,5 +1,6 @@
 import type { Prediction, PredictionKind } from "../domain/types";
 import { violatesResearchOnly } from "../domain/research-language";
+import { stringArrayValue } from "../sources/guards";
 
 export interface ObservableDirection {
   readonly kind: "direction";
@@ -170,12 +171,6 @@ type AnyPredictionShape = {
 
 function isPredictionKind(value: unknown): value is PredictionKind {
   return typeof value === "string" && value in PREDICTION_SHAPE_BY_KIND;
-}
-
-function readStringArray(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
 }
 
 function issue(
@@ -614,7 +609,7 @@ function resolveCandidate(
   const horizonTradingDays =
     typeof horizonTradingDaysValue === "number" ? horizonTradingDaysValue : undefined;
   const probability = typeof probabilityValue === "number" ? probabilityValue : undefined;
-  const sourceIds = readStringArray(sourceIdsValue);
+  const sourceIds = stringArrayValue(sourceIdsValue);
 
   if (id === undefined) {
     return issue("missing-id", "Prediction missing id");

@@ -2,7 +2,9 @@
 
 ## Alpha search
 
-Active V1 workflow for ApeWisdom candidate discovery; remaining items describe promotion and future expansion after real-run validation.
+Implemented alpha-search discovery is documented in `docs/how-it-works.md`,
+`docs/architecture.md`, and `docs/configuration.md`. This section tracks remaining
+promotion and expansion work after real-run validation.
 
 - **Prerequisite validation** - keep reviewing provider-health summaries and recent artifacts
   for unresolved source gaps, Evidence Quality caps, repeat-news suppression, and prediction
@@ -10,11 +12,6 @@ Active V1 workflow for ApeWisdom candidate discovery; remaining items describe p
 - **Alpha signal discovery** - identify early, higher-risk research signals from market
   data, news, filings, social sources, and other public evidence. Treat social sentiment as
   high-noise input until validation shows it adds signal beyond existing sources.
-- **Candidate discovery output** - current V1 uses ApeWisdom social momentum, deterministic ranking,
-  Yahoo validation, Evidence Quality, citations, and run artifacts to surface research
-  candidates as alpha-search leads, not as a separate product workflow.
-  No buy/sell/hold calls, sizing, execution language, portfolio-change language, or
-  expected-return recommendations.
 - **Signal ranking** based on explainable features, not an LLM-only list. Keep
   signal strength separate from Evidence Quality.
 - **Candidate report type** with thesis, why-now catalyst, evidence, bear case, risks,

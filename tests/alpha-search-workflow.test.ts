@@ -265,6 +265,21 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).not.toContain("## Predictions");
     expect(result.markdown).toContain("Research-only note");
     expect(requestedUrls.some((url) => url.includes("symbols=AAPL%2COTCX%2CMEGA"))).toBe(true);
+    expect(result.report.extras?.researchLeads).toEqual([
+      {
+        symbol: "AAPL",
+        name: "Apple Inc.",
+        exchange: "NMS",
+        price: 195.5,
+        volume: 55_000_000,
+        marketCap: 3_000_000_000,
+        socialRank: 1,
+        socialMomentumScore: 100,
+        mentions: 40,
+        upvotes: 120,
+        sourceIds: ["apewisdom-all-stocks-AAPL", "market-yahoo-alpha-search"],
+      },
+    ]);
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),
@@ -305,7 +320,10 @@ describe("alpha-search workflow", () => {
     expect(
       decodeURIComponent(requestedUrls.find((url) => url.includes("symbols=")) ?? ""),
     ).toContain("symbols=AAPL,MSFT,TSLA");
-    expect(Array.isArray(researchLeads) ? researchLeads : []).toHaveLength(1);
-    expect(persistedLeads).toHaveLength(1);
+    const researchLeadRows = Array.isArray(researchLeads) ? researchLeads : [];
+    expect(researchLeadRows).toHaveLength(1);
+    expect(persistedLeads).toEqual(researchLeadRows);
+    expect(JSON.stringify(persistedLeads)).not.toContain("candidate");
+    expect(JSON.stringify(persistedLeads)).not.toContain("instrumentKind");
   });
 });

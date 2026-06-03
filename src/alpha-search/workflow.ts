@@ -18,6 +18,7 @@ import {
   alphaSearchLead,
   alphaSearchRejectedCandidate,
   leadSourceIds,
+  readAlphaSearchLeads,
   type AlphaSearchReportExtras,
 } from "./report-extras";
 import {
@@ -83,9 +84,8 @@ function sourceList(input: {
 
 function leadFinding(lead: YahooValidatedLead, yahooSourceId: string | undefined): KeyFinding {
   const name = lead.name === undefined ? lead.symbol : `${lead.symbol} (${lead.name})`;
-  const exchange = lead.exchange === undefined ? "" : ` on ${lead.exchange}`;
   return {
-    text: `${name} ranked ${String(lead.candidate.socialRank)} by ApeWisdom social momentum with score ${String(lead.candidate.socialMomentumScore)} and ${String(lead.candidate.mentions)} mention(s); Yahoo resolved it as a ${lead.instrumentKind}${exchange}.`,
+    text: `${name} ranked ${String(lead.candidate.socialRank)} by ApeWisdom social momentum with score ${String(lead.candidate.socialMomentumScore)} and ${String(lead.candidate.mentions)} mention(s); Yahoo resolved it as a listed stock on ${lead.exchange}.`,
     sourceIds: leadSourceIds(lead, yahooSourceId),
   };
 }
@@ -119,10 +119,11 @@ function buildAlphaSearchReport(input: {
 }): ResearchReport {
   const yahooSourceId = input.sources.find((source) => source.provider === "yahoo")?.id;
   const validLeads = input.validLeads.slice(0, input.leadLimit);
+  const researchLeads = validLeads.map((lead) => alphaSearchLead(lead, yahooSourceId));
   const extras: AlphaSearchReportExtras = {
     depth: input.command.depth,
     socialCandidateCount: input.rankedCandidates.length,
-    researchLeads: validLeads.map((lead) => alphaSearchLead(lead, yahooSourceId)),
+    researchLeads,
     rejectedCandidates: input.rejectedCandidates.map(alphaSearchRejectedCandidate),
   };
   const gaps = dataGaps({
@@ -255,7 +256,7 @@ export async function runAlphaSearchWorkflow(input: {
   await writeJson(join(artifacts.normalizedDir, "social-candidates.json"), rankedCandidates);
   await writeJson(
     join(artifacts.normalizedDir, "research-leads.json"),
-    yahoo.validLeads.slice(0, alphaSearchOptions.leadLimit),
+    readAlphaSearchLeads(report.extras),
   );
   await writeJson(
     join(artifacts.normalizedDir, "rejected-candidates.json"),

@@ -158,10 +158,10 @@ describe("report schema and rendering", () => {
         researchLeads: [
           {
             symbol: "AAPL",
+            exchange: "NMS",
             price: 190,
             volume: 80_000_000,
             marketCap: 2_900_000_000,
-            instrumentKind: "stock",
             socialRank: 1,
             socialMomentumScore: 50,
             mentions: 2,

@@ -75,10 +75,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : leads
           .map((lead) => {
             const name = lead.name === undefined ? "" : ` (${lead.name})`;
-            const exchange = lead.exchange === undefined ? "" : `, ${lead.exchange}`;
-            const marketCap =
-              lead.marketCap === undefined ? "" : `, market cap ${String(lead.marketCap)}`;
-            return `- **${lead.symbol}${name}:** Social rank ${String(lead.socialRank)}, score ${String(lead.socialMomentumScore)}, ${String(lead.mentions)} mention(s), ${String(lead.upvotes)} upvote(s); Yahoo ${lead.instrumentKind}, $${String(lead.price)}, volume ${String(lead.volume)}${exchange}${marketCap}. ${sourceRefs(lead.sourceIds)}`;
+            return `- **${lead.symbol}${name}:** Social rank ${String(lead.socialRank)}, score ${String(lead.socialMomentumScore)}, ${String(lead.mentions)} mention(s), ${String(lead.upvotes)} upvote(s); Yahoo listed stock on ${lead.exchange}, $${String(lead.price)}, volume ${String(lead.volume)}, market cap ${String(lead.marketCap)}. ${sourceRefs(lead.sourceIds)}`;
           })
           .join("\n");
   const rejectedRows =

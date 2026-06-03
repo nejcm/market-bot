@@ -1,18 +1,13 @@
-import type {
-  YahooInstrumentKind,
-  YahooRejectedCandidate,
-  YahooValidatedLead,
-} from "./yahoo-validation";
+import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validation";
 import { isRecord, readNumber, readString } from "../sources/guards";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
   readonly name?: string;
-  readonly exchange?: string;
+  readonly exchange: string;
   readonly price: number;
   readonly volume: number;
   readonly marketCap: number;
-  readonly instrumentKind: YahooInstrumentKind;
   readonly socialRank: number;
   readonly socialMomentumScore: number;
   readonly mentions: number;
@@ -51,11 +46,10 @@ export function alphaSearchLead(
   return {
     symbol: lead.symbol,
     ...(lead.name !== undefined ? { name: lead.name } : {}),
-    ...(lead.exchange !== undefined ? { exchange: lead.exchange } : {}),
+    exchange: lead.exchange,
     price: lead.price,
     volume: lead.volume,
     marketCap: lead.marketCap,
-    instrumentKind: lead.instrumentKind,
     socialRank: lead.candidate.socialRank,
     socialMomentumScore: lead.candidate.socialMomentumScore,
     mentions: lead.candidate.mentions,
@@ -89,7 +83,7 @@ function readStringArray(
 function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): boolean {
   return (
     (value.name === undefined || typeof value.name === "string") &&
-    (value.exchange === undefined || typeof value.exchange === "string") &&
+    typeof value.exchange === "string" &&
     typeof value.marketCap === "number" &&
     Number.isFinite(value.marketCap)
   );
@@ -105,7 +99,6 @@ export function isAlphaSearchLead(value: unknown): value is AlphaSearchLead {
     readString(value, "symbol") !== undefined &&
     readNumber(value, "price") !== undefined &&
     readNumber(value, "volume") !== undefined &&
-    readString(value, "instrumentKind") !== undefined &&
     readNumber(value, "socialRank") !== undefined &&
     readNumber(value, "socialMomentumScore") !== undefined &&
     readNumber(value, "mentions") !== undefined &&

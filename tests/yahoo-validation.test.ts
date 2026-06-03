@@ -79,7 +79,6 @@ describe("Yahoo alpha-search validation", () => {
         price: 190,
         volume: 80_000_000,
         marketCap: 2_900_000_000,
-        instrumentKind: "stock",
       }),
     ]);
     expect(result.rejectedCandidates).toEqual([]);
@@ -115,18 +114,25 @@ describe("Yahoo alpha-search validation", () => {
       ["OTCM", "OTC or pink-sheet instrument"],
       ["PENY", "Yahoo price is below configured alpha-search minimum"],
       ["SPY", "Yahoo quote type is not listed stock"],
-      ["FUND", "Yahoo quote type is not stock or ETF"],
+      ["FUND", "Yahoo quote type is not listed stock"],
     ]);
   });
 
   test("rejects low volume and missing or out-of-band market cap", () => {
     const result = validateYahooCandidateQuotes(
-      [candidate("THIN"), candidate("NOCAP", 2), candidate("MICRO", 3), candidate("MEGA", 4)],
+      [
+        candidate("THIN"),
+        candidate("NOCAP", 2),
+        candidate("MICRO", 3),
+        candidate("MEGA", 4),
+        candidate("NOEXCH", 5),
+      ],
       payload([
         quote({ symbol: "THIN", regularMarketVolume: 99_999 }),
         quote({ symbol: "NOCAP", marketCap: undefined }),
         quote({ symbol: "MICRO", marketCap: 49_999_999 }),
         quote({ symbol: "MEGA", marketCap: 10_000_000_001 }),
+        quote({ symbol: "NOEXCH", exchange: undefined, fullExchangeName: undefined }),
       ]),
     );
 
@@ -138,6 +144,28 @@ describe("Yahoo alpha-search validation", () => {
       ["NOCAP", "Yahoo quote is missing market cap"],
       ["MICRO", "Yahoo market cap is below configured alpha-search minimum"],
       ["MEGA", "Yahoo market cap is above configured alpha-search maximum"],
+      ["NOEXCH", "Yahoo quote is missing listed exchange"],
+    ]);
+  });
+
+  test("applies custom alpha-search eligibility thresholds", () => {
+    const result = validateYahooCandidateQuotes(
+      [candidate("AAPL")],
+      payload([quote({ symbol: "AAPL", regularMarketVolume: 80_000_000 })]),
+      {
+        minPrice: 200,
+        minVolume: 90_000_000,
+        minMarketCap: 1_000_000_000,
+        maxMarketCap: 5_000_000_000,
+      },
+    );
+
+    expect(result.validLeads).toEqual([]);
+    expect(result.rejectedCandidates).toEqual([
+      expect.objectContaining({
+        candidate: expect.objectContaining({ symbol: "AAPL" }),
+        reason: "Yahoo price is below configured alpha-search minimum",
+      }),
     ]);
   });
 

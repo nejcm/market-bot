@@ -9,7 +9,6 @@ import {
 import type { AlphaSearchOptions } from "../config";
 import type { SocialMomentumRankedCandidate } from "./social-momentum-ranking";
 
-const VALID_QUOTE_TYPES = new Set(["EQUITY", "ETF"]);
 const DEFAULT_ALPHA_SEARCH_ELIGIBILITY: AlphaSearchEligibilityOptions = {
   minPrice: 0.5,
   minVolume: 100_000,
@@ -28,8 +27,6 @@ const OTC_EXCHANGE_CODES = new Set([
 ]);
 const OTC_EXCHANGE_NAMES = new Set(["OTHER OTC", "OTC MARKETS", "OTCBB", "PINK SHEETS"]);
 
-export type YahooInstrumentKind = "stock";
-
 export type AlphaSearchEligibilityOptions = Pick<
   AlphaSearchOptions,
   "minPrice" | "minVolume" | "minMarketCap" | "maxMarketCap"
@@ -39,11 +36,10 @@ export interface YahooValidatedLead {
   readonly candidate: SocialMomentumRankedCandidate;
   readonly symbol: string;
   readonly name?: string;
-  readonly exchange?: string;
+  readonly exchange: string;
   readonly price: number;
   readonly volume: number;
   readonly marketCap: number;
-  readonly instrumentKind: YahooInstrumentKind;
 }
 
 export interface YahooRejectedCandidate {
@@ -73,6 +69,7 @@ interface YahooQuoteInfo {
 }
 
 interface ValidatedYahooQuoteInfo extends YahooQuoteInfo {
+  readonly exchange: string;
   readonly price: number;
   readonly volume: number;
   readonly marketCap: number;
@@ -82,7 +79,6 @@ type YahooQuoteValidation =
   | {
       readonly status: "valid";
       readonly quote: ValidatedYahooQuoteInfo;
-      readonly instrumentKind: YahooInstrumentKind;
     }
   | {
       readonly status: "rejected";
@@ -109,13 +105,6 @@ function readYahooQuoteResults(payload: unknown): readonly unknown[] {
 
 function normalizeQuoteType(value: string | undefined): string | undefined {
   return value?.trim().toUpperCase();
-}
-
-function instrumentKind(quoteType: string | undefined): YahooInstrumentKind | undefined {
-  if (quoteType === "EQUITY") {
-    return "stock";
-  }
-  return undefined;
 }
 
 function isOtcExchange(value: string | undefined): boolean {
@@ -159,15 +148,14 @@ function validateQuoteInfo(
   quote: YahooQuoteInfo,
   eligibility: AlphaSearchEligibilityOptions,
 ): YahooQuoteValidation {
-  if (!VALID_QUOTE_TYPES.has(quote.quoteType ?? "")) {
-    return { status: "rejected", reason: "Yahoo quote type is not stock or ETF" };
-  }
-  const kind = instrumentKind(quote.quoteType);
-  if (kind !== "stock") {
+  if (quote.quoteType !== "EQUITY") {
     return { status: "rejected", reason: "Yahoo quote type is not listed stock" };
   }
   if (isOtcExchange(quote.exchange) || isOtcExchange(quote.fullExchangeName)) {
     return { status: "rejected", reason: "OTC or pink-sheet instrument" };
+  }
+  if (quote.exchange === undefined) {
+    return { status: "rejected", reason: "Yahoo quote is missing listed exchange" };
   }
   if (quote.price === undefined || quote.volume === undefined) {
     return { status: "rejected", reason: "Yahoo quote is missing price or volume" };
@@ -195,25 +183,28 @@ function validateQuoteInfo(
   }
   return {
     status: "valid",
-    quote: { ...quote, price: quote.price, volume: quote.volume, marketCap: quote.marketCap },
-    instrumentKind: kind,
+    quote: {
+      ...quote,
+      exchange: quote.exchange,
+      price: quote.price,
+      volume: quote.volume,
+      marketCap: quote.marketCap,
+    },
   };
 }
 
 function validatedLead(
   candidate: SocialMomentumRankedCandidate,
   quote: ValidatedYahooQuoteInfo,
-  yahooInstrumentKind: YahooInstrumentKind,
 ): YahooValidatedLead {
   return {
     candidate,
     symbol: quote.symbol,
     ...(quote.name !== undefined ? { name: quote.name } : {}),
-    ...(quote.exchange !== undefined ? { exchange: quote.exchange } : {}),
+    exchange: quote.exchange,
     price: quote.price,
     volume: quote.volume,
     marketCap: quote.marketCap,
-    instrumentKind: yahooInstrumentKind,
   };
 }
 
@@ -239,7 +230,7 @@ function validateCandidateQuote(
 
   return {
     status: "valid",
-    lead: validatedLead(candidate, validation.quote, validation.instrumentKind),
+    lead: validatedLead(candidate, validation.quote),
   };
 }
 

@@ -22,6 +22,12 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_NEWS_SEEN_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Persistent seen-news index. Defaults to `data/news-seen.json` for `data/runs`; if `MARKET_BOT_DATA_DIR` does not end in `runs`, defaults inside that directory. |
 | `MARKET_BOT_NEWS_SEEN_RETENTION_DAYS` | `30` | Days to suppress exact canonical-URL news repeats within the same research lane. |
 | `MARKET_BOT_SOURCE_TIMEOUT_MS` | `15000` | Per-source fetch timeout. |
+| `MARKET_BOT_APEWISDOM_FILTER` | `all-stocks` | ApeWisdom filter for alpha-search discovery. Filter names may contain letters, numbers, and hyphens. |
+| `MARKET_BOT_APEWISDOM_BRIEF_PAGE_LIMIT` | `5` | ApeWisdom pages to fetch for brief alpha-search discovery. |
+| `MARKET_BOT_APEWISDOM_DEEP_PAGE_LIMIT` | `10` | ApeWisdom pages to fetch for deep alpha-search discovery. |
+| `MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT` | `25` | Number of ranked alpha-search candidates to validate with Yahoo. |
+| `MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT` | `15` | Maximum Yahoo-validated Research Leads to show. |
+| `MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT` | `15` | Minimum number of ApeWisdom-ranked candidates to persist before Yahoo validation. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `ticker --deep --asset equity`. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS` | `2` | Max accepted evidence tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |

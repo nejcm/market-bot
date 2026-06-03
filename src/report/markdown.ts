@@ -1,5 +1,9 @@
 import type { KeyFinding, Prediction, ResearchReport, Scenario } from "../domain/types";
 import { RESEARCH_ONLY_NOTE } from "./schema";
+import {
+  readAlphaSearchLeads,
+  readAlphaSearchRejectedCandidates,
+} from "../alpha-search/report-extras";
 
 function sourceRefs(sourceIds: readonly string[]): string {
   return sourceIds.map((sourceId) => `[${sourceId}]`).join(" ");
@@ -57,7 +61,72 @@ function renderExtendedEvidence(report: ResearchReport): string {
   return `## Extended Evidence\n\n${rows}\n`;
 }
 
+function renderAlphaSearchReport(report: ResearchReport): string {
+  const gaps =
+    report.dataGaps.length === 0
+      ? "- No material gaps identified."
+      : report.dataGaps.map((gap) => `- ${gap}`).join("\n");
+  const sources = report.sources.map((source) => `- [${source.id}] ${source.title}`).join("\n");
+  const leads = readAlphaSearchLeads(report.extras);
+  const rejected = readAlphaSearchRejectedCandidates(report.extras);
+  const leadRows =
+    leads.length === 0
+      ? "- No Yahoo-validated research leads."
+      : leads
+          .map((lead) => {
+            const name = lead.name === undefined ? "" : ` (${lead.name})`;
+            const exchange = lead.exchange === undefined ? "" : `, ${lead.exchange}`;
+            const marketCap =
+              lead.marketCap === undefined ? "" : `, market cap ${String(lead.marketCap)}`;
+            return `- **${lead.symbol}${name}:** Social rank ${String(lead.socialRank)}, score ${String(lead.socialMomentumScore)}, ${String(lead.mentions)} mention(s), ${String(lead.upvotes)} upvote(s); Yahoo ${lead.instrumentKind}, $${String(lead.price)}, volume ${String(lead.volume)}${exchange}${marketCap}. ${sourceRefs(lead.sourceIds)}`;
+          })
+          .join("\n");
+  const rejectedRows =
+    rejected.length === 0
+      ? "- No rejected candidates."
+      : rejected
+          .map(
+            (candidate) =>
+              `- **${candidate.symbol}:** Social rank ${String(candidate.socialRank)}, score ${String(candidate.socialMomentumScore)}; ${candidate.reason}. ${sourceRefs(candidate.sourceIds)}`,
+          )
+          .join("\n");
+
+  return [
+    `# ${report.assetClass} Alpha Search Report`,
+    "",
+    RESEARCH_ONLY_NOTE,
+    "",
+    `Generated: ${report.generatedAt}`,
+    `Evidence Quality: ${report.confidence}`,
+    "",
+    "## Summary",
+    "",
+    report.summary,
+    "",
+    "## Research Leads",
+    "",
+    leadRows,
+    "",
+    "## Rejected Candidates",
+    "",
+    rejectedRows,
+    "",
+    "## Data Gaps",
+    "",
+    gaps,
+    "",
+    "## Sources",
+    "",
+    sources,
+    "",
+  ].join("\n");
+}
+
 export function renderMarkdownReport(report: ResearchReport): string {
+  if (report.jobType === "alpha-search") {
+    return renderAlphaSearchReport(report);
+  }
+
   const title =
     report.jobType === "ticker"
       ? `${report.symbol} ${report.assetClass} Research View`

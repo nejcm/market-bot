@@ -28,6 +28,15 @@ export interface EvidenceRequestOptions {
   readonly sourceBudget: number;
 }
 
+export interface AlphaSearchOptions {
+  readonly apeWisdomFilter: string;
+  readonly apeWisdomBriefPageLimit: number;
+  readonly apeWisdomDeepPageLimit: number;
+  readonly validationCandidateLimit: number;
+  readonly leadLimit: number;
+  readonly topCandidateLimit: number;
+}
+
 export interface AppConfig {
   readonly provider: ProviderName;
   readonly baseUrl?: string;
@@ -42,6 +51,11 @@ export interface AppConfig {
   readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
+  readonly alphaSearchOptions: AlphaSearchOptions;
+}
+
+export interface ResolveConfigOptions {
+  readonly validateAlphaSearchOptions?: boolean;
 }
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
@@ -53,6 +67,13 @@ const DEFAULT_DATA_DIR = "data/runs";
 const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
 const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
 const DEFAULT_NEWS_SEEN_RETENTION_DAYS = 30;
+const DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT = 15;
+const DEFAULT_APEWISDOM_FILTER = "all-stocks";
+const DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT = 5;
+const DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT = 10;
+const DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT = 25;
+const DEFAULT_ALPHA_SEARCH_LEAD_LIMIT = 15;
+const APEWISDOM_FILTER_RE = /^[A-Za-z0-9-]+$/u;
 
 function readBoolean(value: string | undefined): boolean {
   return value === "1" || value === "true";
@@ -144,6 +165,51 @@ function deriveNewsSeenPath(dataDir: string): string {
   return join(dataRoot, "news-seen.json");
 }
 
+function readApeWisdomFilter(value: string | undefined): string {
+  const filter = readOptionalString(value) ?? DEFAULT_APEWISDOM_FILTER;
+  if (!APEWISDOM_FILTER_RE.test(filter)) {
+    throw new Error(`Invalid ApeWisdom filter: ${filter}`);
+  }
+  return filter;
+}
+
+function defaultAlphaSearchOptions(): AlphaSearchOptions {
+  return {
+    apeWisdomFilter: DEFAULT_APEWISDOM_FILTER,
+    apeWisdomBriefPageLimit: DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT,
+    apeWisdomDeepPageLimit: DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT,
+    validationCandidateLimit: DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT,
+    leadLimit: DEFAULT_ALPHA_SEARCH_LEAD_LIMIT,
+    topCandidateLimit: DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+  };
+}
+
+function resolveAlphaSearchOptions(env: Record<string, string | undefined>): AlphaSearchOptions {
+  return {
+    apeWisdomFilter: readApeWisdomFilter(env.MARKET_BOT_APEWISDOM_FILTER),
+    apeWisdomBriefPageLimit: readPositiveInteger(
+      env.MARKET_BOT_APEWISDOM_BRIEF_PAGE_LIMIT,
+      DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT,
+    ),
+    apeWisdomDeepPageLimit: readPositiveInteger(
+      env.MARKET_BOT_APEWISDOM_DEEP_PAGE_LIMIT,
+      DEFAULT_APEWISDOM_DEEP_PAGE_LIMIT,
+    ),
+    validationCandidateLimit: readPositiveInteger(
+      env.MARKET_BOT_ALPHA_SEARCH_VALIDATION_LIMIT,
+      DEFAULT_ALPHA_SEARCH_VALIDATION_LIMIT,
+    ),
+    leadLimit: readPositiveInteger(
+      env.MARKET_BOT_ALPHA_SEARCH_LEAD_LIMIT,
+      DEFAULT_ALPHA_SEARCH_LEAD_LIMIT,
+    ),
+    topCandidateLimit: readPositiveInteger(
+      env.MARKET_BOT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+      DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT,
+    ),
+  };
+}
+
 function isLoopbackHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[/u, "").replace(/\]$/u, "");
   return host === "localhost" || host === "::1" || host.startsWith("127.");
@@ -185,7 +251,10 @@ function readBaseUrl(provider: ProviderName, value: string | undefined): string 
   return parsed.toString().replace(/\/$/u, "");
 }
 
-export function resolveConfig(env: Record<string, string | undefined> = process.env): AppConfig {
+export function resolveConfig(
+  env: Record<string, string | undefined> = process.env,
+  options: ResolveConfigOptions = {},
+): AppConfig {
   const provider = readProvider(env.MARKET_BOT_PROVIDER);
   const apiKey = readApiKey(provider, env);
   const baseUrl = readBaseUrl(provider, env.MARKET_BOT_BASE_URL);
@@ -253,5 +322,9 @@ export function resolveConfig(env: Record<string, string | undefined> = process.
       maxToolCalls: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS, 2),
       sourceBudget: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET, 8),
     },
+    alphaSearchOptions:
+      options.validateAlphaSearchOptions === false
+        ? defaultAlphaSearchOptions()
+        : resolveAlphaSearchOptions(env),
   };
 }

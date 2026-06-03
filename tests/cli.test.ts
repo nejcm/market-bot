@@ -27,6 +27,20 @@ describe("parseArgs", () => {
     });
   });
 
+  test("parses alpha-search equity deep", () => {
+    expect(parseArgs(["alpha-search", "--asset", "equity", "--deep"])).toEqual({
+      jobType: "alpha-search",
+      assetClass: "equity",
+      depth: "deep",
+    });
+  });
+
+  test("rejects alpha-search non-equity assets", () => {
+    expect(() => parseArgs(["alpha-search", "--asset", "crypto"])).toThrow(
+      "alpha-search supports only --asset equity in V1",
+    );
+  });
+
   test("rejects missing asset class", () => {
     expect(() => parseArgs(["daily"])).toThrow("Expected --asset equity|crypto");
   });
@@ -44,6 +58,9 @@ describe("parseArgs", () => {
     );
     expect(commandLabel({ jobType: "weekly", assetClass: "equity", depth: "deep" })).toBe(
       "weekly equity deep",
+    );
+    expect(commandLabel({ jobType: "alpha-search", assetClass: "equity", depth: "deep" })).toBe(
+      "alpha-search equity deep",
     );
   });
 

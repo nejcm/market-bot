@@ -2,7 +2,7 @@ export type AssetClass = "equity" | "crypto";
 
 export type MarketUpdateJobType = "daily" | "weekly";
 
-export type JobType = MarketUpdateJobType | "ticker";
+export type JobType = MarketUpdateJobType | "ticker" | "alpha-search";
 
 export type Depth = "brief" | "deep";
 
@@ -36,7 +36,13 @@ export interface Source {
   readonly url?: string;
   readonly publisher?: string;
   readonly fetchedAt: string;
-  readonly kind: "market-data" | "news" | "model" | "extended-evidence" | "market-context";
+  readonly kind:
+    | "market-data"
+    | "news"
+    | "model"
+    | "extended-evidence"
+    | "market-context"
+    | "discussion";
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;
@@ -69,6 +75,7 @@ export interface SourceGap {
 export type SourceGapCapability =
   | "market-data"
   | "news"
+  | "discussion"
   | "extended-evidence"
   | "market-context"
   | "evidence-request"

@@ -1,5 +1,6 @@
 import { parseArgs } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
+import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { createAnthropicProvider } from "./model/anthropic";
 import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
@@ -39,7 +40,9 @@ function createProvider(config: AppConfig): ModelProvider {
 
 export async function runCli(argv: readonly string[]): Promise<string> {
   const command = parseArgs(argv);
-  const config = resolveConfig();
+  const config = resolveConfig(process.env, {
+    validateAlphaSearchOptions: command.jobType === "alpha-search",
+  });
 
   if (command.jobType === "score") {
     const result = await runScorePass(
@@ -71,6 +74,11 @@ export async function runCli(argv: readonly string[]): Promise<string> {
   if (command.jobType === "provider-health") {
     const result = await writeProviderHealthSummary(config.dataDir);
     return `Provider health written to ${result.markdownPath}`;
+  }
+
+  if (command.jobType === "alpha-search") {
+    const result = await runAlphaSearchWorkflow({ command, config });
+    return result.artifacts.runDir;
   }
 
   const provider = createProvider(config);

@@ -50,11 +50,13 @@ Run artifacts land under `data/runs/<run-id>/` (override with `MARKET_BOT_DATA_D
 market-bot daily   --asset equity|crypto [--deep]
 market-bot weekly  --asset equity|crypto [--deep]
 market-bot ticker  <symbol> --asset equity|crypto [--deep]
+market-bot alpha-search --asset equity [--deep]
 market-bot score
 market-bot calibration
 ```
 
 - `--deep` switches to the synthesis model for a more thorough pass.
+- `alpha-search` is an equity-only ApeWisdom discovery workflow; it ranks social-momentum candidates, Yahoo-validates the top candidates, emits no predictions, and does not trigger score/calibration side effects in V1.
 - `score` resolves any due predictions across previous runs and refreshes the calibration summary.
 - `calibration` rebuilds the calibration summary without scoring.
 - Daily / weekly / ticker runs also run a score pass and calibration refresh as a side effect; failures there are logged but do not block the research job.

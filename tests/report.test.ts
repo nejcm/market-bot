@@ -130,4 +130,61 @@ describe("report schema and rendering", () => {
       "# crypto Weekly Market Update",
     );
   });
+
+  test("rejects trade-action language in alpha-search reports", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        jobType: "alpha-search",
+        assetClass: "equity",
+        summary: "Alpha search says buy this instrument.",
+        keyFindings: [{ text: "AAPL was discussed.", sourceIds: ["source-1"] }],
+        predictions: [],
+        extras: {
+          researchLeads: [],
+          rejectedCandidates: [],
+        },
+      }),
+    ).toThrow("trade-action language");
+  });
+
+  test("renders only well-shaped alpha-search extras", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "alpha-search",
+      assetClass: "equity",
+      predictions: [],
+      extras: {
+        researchLeads: [
+          {
+            symbol: "AAPL",
+            price: 190,
+            volume: 80_000_000,
+            instrumentKind: "stock",
+            socialRank: 1,
+            socialMomentumScore: 50,
+            mentions: 2,
+            upvotes: 10,
+            sourceIds: ["source-1"],
+          },
+          { symbol: "BAD", price: "not-a-number", sourceIds: ["source-1"] },
+        ],
+        rejectedCandidates: [
+          {
+            symbol: "OTCM",
+            socialRank: 2,
+            socialMomentumScore: 30,
+            reason: "OTC or pink-sheet instrument",
+            sourceIds: ["source-1"],
+          },
+          { symbol: "BROKEN", reason: 123, sourceIds: ["source-1"] },
+        ],
+      },
+    });
+
+    expect(markdown).toContain("AAPL");
+    expect(markdown).toContain("OTCM");
+    expect(markdown).not.toContain("BAD");
+    expect(markdown).not.toContain("BROKEN");
+  });
 });

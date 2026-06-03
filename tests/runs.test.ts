@@ -20,6 +20,14 @@ const baseConfig: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
+  alphaSearchOptions: {
+    apeWisdomFilter: "all-stocks",
+    apeWisdomBriefPageLimit: 5,
+    apeWisdomDeepPageLimit: 10,
+    validationCandidateLimit: 25,
+    leadLimit: 15,
+    topCandidateLimit: 15,
+  },
 };
 
 describe("resolveRunParams — fallback chain", () => {

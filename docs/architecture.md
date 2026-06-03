@@ -15,6 +15,7 @@ src/
   model/              OpenAI / OpenAI-compatible / Codex providers
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
+  alpha-search/       ApeWisdom equity discovery, ranking, validation
   research/           Orchestrator, prompt loader, Domain Playbooks, regime summary
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
@@ -49,6 +50,12 @@ Source providers are listed in `src/sources/providers.ts`. Each provider module 
 New Source Provider work should follow the [Source Provider Contract](./source-provider-contract.md).
 
 News collection fans out to enabled providers, skips missing MarketAux/Finnhub tokens with `SourceGap`s, silently skips missing Massive keys, always includes Yahoo, canonicalizes URLs, collapses exact canonical-URL duplicates into one `Source`, and preserves provider aliases on the normalized source. A persistent seen-news index (`data/news-seen.json` by default, overridable with `MARKET_BOT_NEWS_SEEN_PATH`) suppresses exact canonical-URL repeats within the same research lane for 30 days. The index is updated only after a report is successfully persisted; if every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
+
+### Alpha Search (`src/alpha-search/`)
+
+`alpha-search --asset equity [--deep]` is an ApeWisdom discovery workflow. It fetches social-momentum pages from the ApeWisdom API, ranks candidates with a deterministic social momentum score, then validates only the top candidates with Yahoo for symbol validity and basic market data. Yahoo validation does not rank candidates.
+
+Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no scoring or calibration side effects. Valid candidates are emitted as Research Leads. Rejected candidates are listed separately with social rank, rejection reason, and source IDs.
 
 Massive, formerly Polygon.io, is supplemental-only. When configured, it uses `api.massive.com` to collect equity news and stock snapshots for the symbols already selected by Yahoo. Those snapshots are persisted as supplemental market snapshots, included as report Sources, and included in prompt evidence. They do not enter mover ranking, market regime summaries, crypto workflows, or scoring Observations.
 

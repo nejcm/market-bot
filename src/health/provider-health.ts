@@ -170,6 +170,7 @@ function isSourceGapCapability(value: unknown): value is SourceGapCapability {
   return (
     value === "market-data" ||
     value === "news" ||
+    value === "discussion" ||
     value === "extended-evidence" ||
     value === "market-context" ||
     value === "evidence-request" ||

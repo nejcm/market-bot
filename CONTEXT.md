@@ -64,6 +64,22 @@ An optional Source Provider that contributes citeable evidence without driving d
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.
 
+## Research Lead
+
+An equity candidate surfaced for further research by alpha-search. It is not a recommendation, trade signal, expected return, or portfolio action.
+
+## Social Momentum Score
+
+A deterministic alpha-search ranking score derived only from ApeWisdom aggregate social-momentum features before market-data validation.
+
+## Discussion Stance
+
+A heuristic label for whether cited discussion appears constructive, skeptical, mixed, or unclear. It is noisy social evidence, not conviction.
+
+## Alpha Search Report
+
+A research-only discovery artifact that lists valid Research Leads and separately discloses rejected candidates with source IDs and reasons.
+
 ## Validation Baseline
 
 A declared minimum set of exercised research routes and source capabilities required before provider readiness can be treated as passing.

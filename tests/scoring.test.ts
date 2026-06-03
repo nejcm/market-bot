@@ -12,10 +12,11 @@ const now = new Date("2026-05-20T00:00:00.000Z");
 
 function observationRepository(observations: readonly Observation[]): ObservationRepository {
   return {
-    async point(subject, _assetClass, date) {
+    async point(request, _assetClass, date) {
       const ymd = date.toISOString().slice(0, 10);
       return observations.find(
-        (observation) => observation.subject === subject && observation.date === ymd,
+        (observation) =>
+          observation.subject === request.observationSubject && observation.date === ymd,
       );
     },
 

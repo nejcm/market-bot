@@ -111,6 +111,18 @@ export type ObservableForecastResolution =
   | ObservableForecastResolved
   | ObservableForecastUnresolved;
 
+export type PointObservationRequest =
+  | {
+      readonly kind: "fred";
+      readonly subject: string;
+      readonly observationSubject: string;
+    }
+  | {
+      readonly kind: "iv";
+      readonly subject: string;
+      readonly observationSubject: string;
+    };
+
 export type ObservationStrategy =
   | {
       readonly mode: "close-window";
@@ -118,7 +130,7 @@ export type ObservationStrategy =
     }
   | {
       readonly mode: "point";
-      readonly subjects: readonly string[];
+      readonly requests: readonly PointObservationRequest[];
       readonly includeOrigin: boolean;
     };
 
@@ -404,7 +416,13 @@ const macroShape: PredictionShape<"macro"> = {
   observationStrategy(expression) {
     return {
       mode: "point",
-      subjects: [`FRED:${expression.seriesId}`],
+      requests: [
+        {
+          kind: "fred",
+          subject: expression.seriesId,
+          observationSubject: `FRED:${expression.seriesId}`,
+        },
+      ],
       includeOrigin: true,
     };
   },
@@ -461,7 +479,13 @@ const ivShape: PredictionShape<"iv"> = {
   observationStrategy(expression) {
     return {
       mode: "point",
-      subjects: [`IV:${expression.subject}`],
+      requests: [
+        {
+          kind: "iv",
+          subject: expression.subject,
+          observationSubject: `IV:${expression.subject}`,
+        },
+      ],
       includeOrigin: false,
     };
   },

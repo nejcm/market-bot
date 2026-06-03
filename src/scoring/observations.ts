@@ -1,9 +1,9 @@
 import type { AssetClass, InstrumentIdentity, ResearchReport } from "../domain/types";
-import type { Observation } from "../forecast/observable";
-import { fetchCoinGeckoClose, fetchCoinGeckoCloseWindow } from "../sources/coingecko";
+import type { Observation, PointObservationRequest } from "../forecast/observable";
+import { fetchCoinGeckoCloseWindow } from "../sources/coingecko";
 import { fetchFredObservation } from "../sources/fred";
 import { fetchTradierIvObservation } from "../sources/tradier";
-import { fetchYahooClose, fetchYahooCloseWindow } from "../sources/yahoo";
+import { fetchYahooCloseWindow } from "../sources/yahoo";
 import {
   fetchCloseWithCache,
   fetchWindowWithCache,
@@ -14,7 +14,11 @@ import {
 export type { FetchCloseFn, FetchWindowFn, Observation };
 
 export interface ObservationRepository {
-  point(subject: string, assetClass: AssetClass, date: Date): Promise<Observation | undefined>;
+  point(
+    request: PointObservationRequest,
+    assetClass: AssetClass,
+    date: Date,
+  ): Promise<Observation | undefined>;
   window(
     subject: string,
     assetClass: AssetClass,
@@ -63,32 +67,27 @@ function coinGeckoId(report: ResearchReport, subject: string): string | undefine
   );
 }
 
-function routePointFetch(
-  options: Pick<ObservationRepositoryOptions, "report" | "fredApiKey" | "tradierApiToken" | "now">,
-): FetchCloseFn {
-  const now = options.now ?? new Date();
-  return async (subject, assetClass, date) => {
-    if (subject.startsWith("FRED:")) {
-      return fetchFredObservation(subject.slice("FRED:".length), date, options.fredApiKey);
+async function pointValue(
+  request: PointObservationRequest,
+  assetClass: AssetClass,
+  date: Date,
+  options: Pick<ObservationRepositoryOptions, "fredApiKey" | "tradierApiToken" | "now">,
+): Promise<number | undefined> {
+  switch (request.kind) {
+    case "fred": {
+      return fetchFredObservation(request.subject, date, options.fredApiKey);
     }
-    if (subject.startsWith("IV:")) {
+    case "iv": {
       if (assetClass !== "equity") {
         return;
       }
-      return fetchTradierIvObservation(
-        subject.slice("IV:".length),
-        date,
-        options.tradierApiToken,
-        fetch,
-        now,
-      );
+      const now = options.now ?? new Date();
+      return fetchTradierIvObservation(request.subject, date, options.tradierApiToken, fetch, now);
     }
-    if (assetClass === "equity") {
-      return fetchYahooClose(subject, date);
-    }
-    const id = coinGeckoId(options.report, subject);
-    return id === undefined ? undefined : fetchCoinGeckoClose(id, date);
-  };
+  }
+
+  const exhaustive: never = request;
+  return exhaustive;
 }
 
 function routeWindowFetch(report: ResearchReport): FetchWindowFn {
@@ -105,21 +104,26 @@ function routeWindowFetch(report: ResearchReport): FetchWindowFn {
 export function createObservationRepository(
   options: ObservationRepositoryOptions,
 ): ObservationRepository {
-  const fetchPoint = options.fetchClose ?? routePointFetch(options);
   const fetchWindow = options.fetchWindow ?? routeWindowFetch(options.report);
   const now = options.now ?? new Date();
 
   return {
-    async point(subject, assetClass, date) {
+    async point(request, assetClass, date) {
+      const fetchPoint =
+        options.fetchClose ??
+        ((_subject: string, pointAssetClass: AssetClass, pointDate: Date) =>
+          pointValue(request, pointAssetClass, pointDate, options));
       const value = await fetchCloseWithCache(
-        subject,
+        request.observationSubject,
         assetClass,
         date,
         options.cacheDir,
         fetchPoint,
         now,
       );
-      return value === undefined ? undefined : { subject, date: ymd(date), value };
+      return value === undefined
+        ? undefined
+        : { subject: request.observationSubject, date: ymd(date), value };
     },
 
     async window(subject, assetClass, from, to) {

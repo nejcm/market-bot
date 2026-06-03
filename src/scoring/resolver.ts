@@ -2,6 +2,7 @@ import type { Prediction, ResearchReport } from "../domain/types";
 import {
   type ObservableForecast,
   type Observation,
+  type PointObservationRequest,
   observableForecastFromPrediction,
   observationStrategyForForecast,
   resolveObservableForecast,
@@ -72,15 +73,17 @@ async function pointObservations(
   report: ResearchReport,
   resDate: Date,
   repo: ObservationRepository,
-  symbols: readonly string[],
+  requests: readonly PointObservationRequest[],
   includeOrigin: boolean,
 ): Promise<readonly Observation[]> {
   const originDate = new Date(report.generatedAt);
   const atOrigin = includeOrigin
-    ? await Promise.all(symbols.map((symbol) => repo.point(symbol, report.assetClass, originDate)))
+    ? await Promise.all(
+        requests.map((request) => repo.point(request, report.assetClass, originDate)),
+      )
     : [];
   const atHorizon = await Promise.all(
-    symbols.map((symbol) => repo.point(symbol, report.assetClass, resDate)),
+    requests.map((request) => repo.point(request, report.assetClass, resDate)),
   );
 
   return [...atOrigin, ...atHorizon].filter(
@@ -112,7 +115,7 @@ export async function resolveOutcome(
   const observations =
     strategy.mode === "close-window"
       ? await closeObservations(forecast, report, now, repo, strategy.subjects)
-      : await pointObservations(report, resDate, repo, strategy.subjects, strategy.includeOrigin);
+      : await pointObservations(report, resDate, repo, strategy.requests, strategy.includeOrigin);
 
   const result = resolveObservableForecast(forecast, observations);
   if (result.status === "unresolved") {

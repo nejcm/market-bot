@@ -213,7 +213,11 @@ describe("observationStrategyForForecast", () => {
       },
       {
         expression: { kind: "macro", seriesId: "DGS10", horizonTradingDays: 5 },
-        expected: { mode: "point", subjects: ["FRED:DGS10"], includeOrigin: true },
+        expected: {
+          mode: "point",
+          requests: [{ kind: "fred", subject: "DGS10", observationSubject: "FRED:DGS10" }],
+          includeOrigin: true,
+        },
       },
       {
         expression: {
@@ -222,7 +226,11 @@ describe("observationStrategyForForecast", () => {
           horizonTradingDays: 5,
           threshold: 0.35,
         },
-        expected: { mode: "point", subjects: ["IV:AAPL"], includeOrigin: false },
+        expected: {
+          mode: "point",
+          requests: [{ kind: "iv", subject: "AAPL", observationSubject: "IV:AAPL" }],
+          includeOrigin: false,
+        },
       },
     ];
 

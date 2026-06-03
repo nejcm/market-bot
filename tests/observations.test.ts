@@ -24,21 +24,45 @@ function report(sources: ResearchReport["sources"] = []): ResearchReport {
 }
 
 describe("ObservationRepository point routing", () => {
-  test("routes FRED prefixed subjects to FRED observations", async () => {
+  test("routes FRED point requests to FRED observations", async () => {
     const { calls, fetch: stub } = recordingFetch(() => ({
       observations: [{ value: "4.1" }, { value: "4.2" }],
     }));
     globalThis.fetch = stub;
     const repo = createObservationRepository({ report: report(), fredApiKey: "fred-key" });
 
-    const result = await repo.point("FRED:DGS10", "equity", new Date("2026-05-19T00:00:00.000Z"));
+    const result = await repo.point(
+      { kind: "fred", subject: "DGS10", observationSubject: "FRED:DGS10" },
+      "equity",
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
 
     expect(result).toEqual({ subject: "FRED:DGS10", date: "2026-05-19", value: 4.2 });
     expect(calls[0]).toContain("series_id=DGS10");
     expect(calls[0]).toContain("api_key=fred-key");
   });
 
-  test("routes IV prefixed equity subjects to Tradier", async () => {
+  test("passes observation labels to injected point fetches", async () => {
+    const seenSubjects: string[] = [];
+    const repo = createObservationRepository({
+      report: report(),
+      fetchClose: async (subject) => {
+        seenSubjects.push(subject);
+        return 4.2;
+      },
+    });
+
+    const result = await repo.point(
+      { kind: "fred", subject: "DGS10", observationSubject: "FRED:DGS10" },
+      "equity",
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
+
+    expect(result).toEqual({ subject: "FRED:DGS10", date: "2026-05-19", value: 4.2 });
+    expect(seenSubjects).toEqual(["FRED:DGS10"]);
+  });
+
+  test("routes IV equity point requests to Tradier", async () => {
     const date = new Date("2026-05-19T00:00:00.000Z");
     const { calls, fetch: stub } = recordingFetch((url) =>
       url.includes("/expirations?")
@@ -60,7 +84,11 @@ describe("ObservationRepository point routing", () => {
       now: date,
     });
 
-    const result = await repo.point("IV:AAPL", "equity", date);
+    const result = await repo.point(
+      { kind: "iv", subject: "AAPL", observationSubject: "IV:AAPL" },
+      "equity",
+      date,
+    );
 
     expect(result).toEqual({ subject: "IV:AAPL", date: "2026-05-19", value: 0.38 });
     expect(calls).toHaveLength(2);
@@ -74,14 +102,22 @@ describe("ObservationRepository point routing", () => {
       tradierApiToken: "tradier-token",
     });
 
-    const result = await repo.point("IV:ETH", "crypto", new Date("2026-05-19T00:00:00.000Z"));
+    const result = await repo.point(
+      { kind: "iv", subject: "ETH", observationSubject: "IV:ETH" },
+      "crypto",
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
 
     expect(result).toBeUndefined();
     expect(calls).toHaveLength(0);
   });
+});
 
-  test("uses report Instrument Identity for CoinGecko coin id", async () => {
-    const { calls, fetch: stub } = recordingFetch(() => ({ prices: [[0, 68_000]] }));
+describe("ObservationRepository window routing", () => {
+  test("uses report Instrument Identity for CoinGecko window coin id", async () => {
+    const { calls, fetch: stub } = recordingFetch(() => ({
+      prices: [[Date.parse("2026-05-19T00:00:00.000Z"), 68_000]],
+    }));
     globalThis.fetch = stub;
     const repo = createObservationRepository({
       report: report([
@@ -99,29 +135,38 @@ describe("ObservationRepository point routing", () => {
       ]),
     });
 
-    const result = await repo.point("BTC", "crypto", new Date("2026-05-19T00:00:00.000Z"));
+    const result = await repo.window(
+      "BTC",
+      "crypto",
+      new Date("2026-05-19T00:00:00.000Z"),
+      new Date("2026-05-20T00:00:00.000Z"),
+    );
 
-    expect(result?.value).toBe(68_000);
+    expect(result).toContainEqual({ subject: "BTC", date: "2026-05-19", value: 68_000 });
     expect(calls[0]).toContain("/coins/bitcoin/market_chart/range");
   });
 
-  test("uses BTC fallback and leaves unknown crypto unresolved", async () => {
-    const { calls, fetch: stub } = recordingFetch(() => ({ prices: [[0, 68_000]] }));
+  test("uses BTC fallback and leaves unknown crypto windows unresolved", async () => {
+    const { calls, fetch: stub } = recordingFetch(() => ({
+      prices: [[Date.parse("2026-05-19T00:00:00.000Z"), 68_000]],
+    }));
     globalThis.fetch = stub;
     const repo = createObservationRepository({ report: report() });
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-20T00:00:00.000Z");
 
-    const btc = await repo.point("BTC", "crypto", new Date("2026-05-19T00:00:00.000Z"));
-    const unknown = await repo.point("DOGE", "crypto", new Date("2026-05-19T00:00:00.000Z"));
+    const btc = await repo.window("BTC", "crypto", from, to);
+    const unknown = await repo.window("DOGE", "crypto", from, to);
 
-    expect(btc?.value).toBe(68_000);
-    expect(unknown).toBeUndefined();
+    expect(btc).toContainEqual({ subject: "BTC", date: "2026-05-19", value: 68_000 });
+    expect(unknown).toEqual([]);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toContain("/coins/bitcoin/market_chart/range");
   });
 });
 
 describe("ObservationRepository caching", () => {
-  test("a second point call for the same subject and date hits the cache", async () => {
+  test("a second point call for the same observation subject and date hits the cache", async () => {
     let calls = 0;
     const repo = createObservationRepository({
       report: report(),
@@ -132,11 +177,13 @@ describe("ObservationRepository caching", () => {
       },
     });
     const date = new Date("2026-05-19T00:00:00.000Z");
+    const request = { kind: "fred", subject: "DGS10", observationSubject: "FRED:DGS10" } as const;
 
-    const first = await repo.point("SPY", "equity", date);
-    const second = await repo.point("SPY", "equity", date);
+    const first = await repo.point(request, "equity", date);
+    const second = await repo.point(request, "equity", date);
 
     expect(first?.value).toBe(500);
+    expect(first?.subject).toBe("FRED:DGS10");
     expect(second?.value).toBe(500);
     expect(calls).toBe(1);
   });

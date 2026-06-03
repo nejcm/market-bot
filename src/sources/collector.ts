@@ -34,6 +34,7 @@ class SourceCircuitOpenError extends Error {
 const HOST_MIN_DELAY_MS = 1000;
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_OPEN_MS = 60_000;
+const MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
 const hostStates = new Map<string, HostState>();
 
 function noop(): void {}
@@ -62,6 +63,26 @@ function isLimitError(error: unknown): boolean {
 
 function shouldRecordCircuitFailure(error: unknown): boolean {
   return isLimitError(error) || isTransientError(error);
+}
+
+async function readCappedChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  adapter: string,
+  chunks: Uint8Array[] = [],
+  total = 0,
+): Promise<{ readonly chunks: readonly Uint8Array[]; readonly total: number }> {
+  const { done, value } = await reader.read();
+  if (done) {
+    return { chunks, total };
+  }
+  const nextTotal = total + value.byteLength;
+  if (nextTotal > MAX_SOURCE_RESPONSE_BYTES) {
+    throw new Error(
+      `${adapter} source response exceeded ${String(MAX_SOURCE_RESPONSE_BYTES)} bytes`,
+    );
+  }
+  chunks.push(value);
+  return readCappedChunks(reader, adapter, chunks, nextTotal);
 }
 
 async function runWithHostResilience<T>(
@@ -162,6 +183,35 @@ async function fetchPayload<TPayload>(
   });
 }
 
+async function readCappedResponseText(response: Response, adapter: string): Promise<string> {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength !== null && Number(contentLength) > MAX_SOURCE_RESPONSE_BYTES) {
+    throw new Error(
+      `${adapter} source response exceeded ${String(MAX_SOURCE_RESPONSE_BYTES)} bytes`,
+    );
+  }
+
+  const reader = response.body?.getReader();
+  if (reader === undefined) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > MAX_SOURCE_RESPONSE_BYTES) {
+      throw new Error(
+        `${adapter} source response exceeded ${String(MAX_SOURCE_RESPONSE_BYTES)} bytes`,
+      );
+    }
+    return text;
+  }
+
+  const { chunks, total } = await readCappedChunks(reader, adapter);
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
+}
+
 async function fetchJson(
   url: string,
   adapter: string,
@@ -177,7 +227,7 @@ async function fetchJson(
     timeoutMs,
     fetchImpl,
     "application/json",
-    async (response) => (await response.json()) as unknown,
+    async (response) => JSON.parse(await readCappedResponseText(response, adapter)) as unknown,
     init,
   );
 }
@@ -197,7 +247,7 @@ async function fetchText(
     timeoutMs,
     fetchImpl,
     "text/html, text/plain;q=0.9, */*;q=0.1",
-    async (response) => response.text(),
+    async (response) => readCappedResponseText(response, adapter),
     init,
   );
 }

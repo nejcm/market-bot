@@ -86,6 +86,20 @@ describe("listed universe", () => {
     expect(cboeEntries[0]).not.toHaveProperty("isSupportedStock");
   });
 
+  test("handles escaped CSV quotes and caps listed-universe rows", () => {
+    const escapedEntries = parseCboeListedPayload('Name,Volume\n"AB""C",100\nGOOD,100');
+    const cappedEntries = parseCboeListedPayload(
+      [
+        "Name,Volume",
+        ...Array.from({ length: 25_001 }, (_, index) => `SYM${String(index)},100`),
+      ].join("\n"),
+    );
+
+    expect(escapedEntries.map((entry) => entry.symbol)).toEqual(["GOOD"]);
+    expect(cappedEntries).toHaveLength(25_000);
+    expect(cappedEntries.at(-1)?.symbol).toBe("SYM24999");
+  });
+
   test("filters candidates with deterministic listed-universe reasons", () => {
     const result = filterListedUniverseCandidates({
       candidates: [

@@ -11,6 +11,7 @@ const NASDAQ_OTHER_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/oth
 const CBOE_LISTED_CSV_URL =
   "https://www.cboe.com/us/equities/market_statistics/listed_symbols/csv/";
 const SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
+const MAX_LISTED_UNIVERSE_ROWS = 25_000;
 const SUPPORTED_STOCK_NAME_RE =
   /\b(?:common stock|common shares|ordinary shares|american depositary shares|american depositary receipt|adr)\b/iu;
 const UNSUPPORTED_STOCK_NAME_RE =
@@ -66,7 +67,7 @@ function parsePipeRows(text: string): readonly Record<string, string>[] {
     .map((line) => line.trim())
     .filter((line) => line !== "" && !line.startsWith("File Creation Time"));
   const [headerLine] = rows;
-  const lines = rows.slice(1);
+  const lines = rows.slice(1, MAX_LISTED_UNIVERSE_ROWS + 1);
   if (headerLine === undefined) {
     return [];
   }
@@ -86,8 +87,14 @@ function parseCsvLine(line: string): readonly string[] {
   const values: string[] = [];
   let current = "";
   let inQuotes = false;
-  for (const char of line) {
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
     if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+        continue;
+      }
       inQuotes = !inQuotes;
     } else if (char === "," && !inQuotes) {
       values.push(current.trim());
@@ -106,13 +113,13 @@ function parseCsvRows(text: string): readonly Record<string, string>[] {
     .map((line) => line.trim())
     .filter((line) => line !== "");
   const [headerLine] = rows;
-  const lines = rows.slice(1);
+  const lines = rows.slice(1, MAX_LISTED_UNIVERSE_ROWS + 1);
   if (headerLine === undefined) {
     return [];
   }
-  const headers = parseCsvLine(headerLine).map((header) => header.replaceAll('"', ""));
+  const headers = parseCsvLine(headerLine);
   return lines.flatMap((line) => {
-    const values = parseCsvLine(line).map((value) => value.replaceAll('"', ""));
+    const values = parseCsvLine(line);
     if (values.length !== headers.length) {
       return [];
     }

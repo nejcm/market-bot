@@ -120,6 +120,51 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("[extended-fred-macro]");
   });
 
+  test("escapes generic report metadata in Markdown", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      dataGaps: ["Provider <gap> [link](https://bad.example)"],
+      sources: [
+        {
+          id: "source-[1]",
+          title: "Provider [title](https://bad.example)",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "market-data",
+          assetClass: "crypto",
+          symbol: "BTC",
+        },
+      ],
+      keyFindings: [{ text: "BTC liquidity remains high.", sourceIds: ["source-[1]"] }],
+      risks: [{ text: "Volatility remains elevated.", sourceIds: ["source-[1]"] }],
+      scenarios: [
+        {
+          name: "Base",
+          description: "Range-bound conditions persist.",
+          sourceIds: ["source-[1]"],
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "crypto", symbol: "BTC" },
+        items: [
+          {
+            category: "fred-macro",
+            title: "Provider <title>",
+            summary: "Provider [summary](https://bad.example)",
+            sourceIds: ["source-[1]"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+          },
+        ],
+        gaps: [],
+      },
+    });
+
+    expect(markdown).toContain(String.raw`Provider &lt;gap&gt; \[link\]\(https://bad.example\)`);
+    expect(markdown).toContain(String.raw`[source-\[1\]]`);
+    expect(markdown).toContain(String.raw`Provider \[title\]\(https://bad.example\)`);
+    expect(markdown).toContain(String.raw`Provider &lt;title&gt;`);
+    expect(markdown).toContain(String.raw`Provider \[summary\]\(https://bad.example\)`);
+  });
+
   test("renders cadence-specific market update titles", () => {
     const { symbol: _symbol, ...marketReport } = report;
 

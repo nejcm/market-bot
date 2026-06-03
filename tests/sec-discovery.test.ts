@@ -121,6 +121,25 @@ describe("SEC alpha-search discovery", () => {
     ]);
   });
 
+  test("caps parsed SEC feed entries", () => {
+    const entries = parseSecCurrentFilingsAtom(
+      atom(
+        Array.from({ length: 251 }, (_, index) =>
+          entry({
+            title: `8-K - Eight K Co (0002222222) (Filer)`,
+            updated: "2026-06-04T12:00:00-04:00",
+            accession: `0002222222-26-${String(index).padStart(6, "0")}`,
+            filed: "2026-06-03",
+          }),
+        ),
+      ),
+      "8-K",
+    );
+
+    expect(entries).toHaveLength(250);
+    expect(entries.at(-1)?.accessionNumber).toBe("0002222222-26-000249");
+  });
+
   test("reads SEC ticker mappings", () => {
     expect({
       valid: readSecTickerMappings(tickersPayload()),

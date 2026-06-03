@@ -17,6 +17,8 @@ const ACCESSION_RE = /\b\d{10}-\d{2}-\d{6}\b/u;
 const FILED_DATE_RE = /\bFiled:\s*(\d{4}-\d{2}-\d{2})\b/iu;
 const SEC_SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
 const MAX_SEC_NAME_LENGTH = 160;
+const MAX_SEC_FEED_ENTRIES = 250;
+const MAX_SEC_TICKER_MAPPINGS = 20_000;
 
 export interface SecDiscoveryOptions {
   readonly formTypes: readonly string[];
@@ -93,7 +95,9 @@ function tagText(xml: string, tag: string): string | undefined {
 }
 
 function entryXml(atom: string): readonly string[] {
-  return [...atom.matchAll(/<entry(?:\s[^>]*)?>[\s\S]*?<\/entry>/giu)].map((match) => match[0]);
+  return [...atom.matchAll(/<entry(?:\s[^>]*)?>[\s\S]*?<\/entry>/giu)]
+    .slice(0, MAX_SEC_FEED_ENTRIES)
+    .map((match) => match[0]);
 }
 
 function sourceIdFor(
@@ -205,18 +209,20 @@ export function readSecTickerMappings(payload: unknown): readonly SecTickerMappi
   if (!isRecord(payload)) {
     return [];
   }
-  return Object.values(payload).flatMap((entry) => {
-    if (!isRecord(entry)) {
-      return [];
-    }
-    const ticker = normalizeSecTicker(readString(entry, "ticker"));
-    const cikNumber = readNumber(entry, "cik_str");
-    const name = normalizeDisplayName(readString(entry, "title"));
-    if (ticker === undefined || cikNumber === undefined || name === undefined) {
-      return [];
-    }
-    return [{ ticker, name, cik: String(cikNumber).padStart(10, "0") }];
-  });
+  return Object.values(payload)
+    .slice(0, MAX_SEC_TICKER_MAPPINGS)
+    .flatMap((entry) => {
+      if (!isRecord(entry)) {
+        return [];
+      }
+      const ticker = normalizeSecTicker(readString(entry, "ticker"));
+      const cikNumber = readNumber(entry, "cik_str");
+      const name = normalizeDisplayName(readString(entry, "title"));
+      if (ticker === undefined || cikNumber === undefined || name === undefined) {
+        return [];
+      }
+      return [{ ticker, name, cik: String(cikNumber).padStart(10, "0") }];
+    });
 }
 
 function rankCandidates(

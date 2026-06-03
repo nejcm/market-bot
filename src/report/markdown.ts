@@ -6,7 +6,7 @@ import {
 } from "../alpha-search/report-extras";
 
 function sourceRefs(sourceIds: readonly string[]): string {
-  return sourceIds.map((sourceId) => `[${sourceId}]`).join(" ");
+  return sourceIds.map((sourceId) => `[${markdownText(sourceId)}]`).join(" ");
 }
 
 function markdownText(value: string): string {
@@ -67,7 +67,7 @@ function renderExtendedEvidence(report: ResearchReport): string {
   const rows = items
     .map((item) => {
       const refs = sourceRefs(item.sourceIds);
-      return `- **${item.title}:** ${item.summary}${refs === "" ? "" : ` ${refs}`}`;
+      return `- **${markdownText(item.title)}:** ${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`;
     })
     .join("\n");
   return `## Extended Evidence\n\n${rows}\n`;
@@ -156,8 +156,10 @@ export function renderMarkdownReport(report: ResearchReport): string {
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => `- ${gap}`).join("\n");
-  const sources = report.sources.map((source) => `- [${source.id}] ${source.title}`).join("\n");
+      : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
+  const sources = report.sources
+    .map((source) => `- [${markdownText(source.id)}] ${markdownText(source.title)}`)
+    .join("\n");
 
   return [
     `# ${title}`,

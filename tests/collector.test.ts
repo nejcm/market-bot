@@ -70,6 +70,32 @@ describe("collectSources", () => {
     );
   });
 
+  test("returns a gap when a provider response exceeds the byte cap", async () => {
+    const { context } = createCollectContext(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 100 },
+      new Date("2026-05-20T00:00:00.000Z"),
+      async () =>
+        new Response("", {
+          headers: { "content-length": "5000001" },
+        }),
+      [],
+    );
+
+    const result = await context.request.text({
+      url: "https://example.test/oversized",
+      adapter: "oversized-source",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        source: "oversized-source",
+        message: "oversized-source source response exceeded 5000000 bytes",
+        cause: "fetch-failed",
+      }),
+    );
+  });
+
   test("collects daily equity market data and news with injectable fetch", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);

@@ -1,4 +1,11 @@
-import type { ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "../types";
+import type { ConsoleJob, ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "../types";
+
+export interface CreateJobRequest {
+  readonly jobType: string;
+  readonly assetClass?: string;
+  readonly symbol?: string;
+  readonly depth?: string;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -29,8 +36,33 @@ function isProviderHealthDetail(value: unknown): value is ProviderHealthDetail {
   return isRecord(value);
 }
 
+function isConsoleJob(value: unknown): value is ConsoleJob {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.status === "string" &&
+    Array.isArray(value.argv) &&
+    typeof value.label === "string" &&
+    typeof value.createdAt === "string" &&
+    typeof value.stdout === "string" &&
+    typeof value.stderr === "string"
+  );
+}
+
 async function fetchJson(path: string): Promise<unknown> {
   const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`Request failed: ${String(response.status)}`);
+  }
+  return (await response.json()) as unknown;
+}
+
+async function postJson(path: string, body: unknown): Promise<unknown> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
     throw new Error(`Request failed: ${String(response.status)}`);
   }
@@ -70,6 +102,24 @@ export async function fetchProviderHealth(): Promise<ProviderHealthDetail> {
   const payload = await fetchJson("/api/provider-health");
   if (!isProviderHealthDetail(payload)) {
     throw new Error("Provider health response is invalid");
+  }
+
+  return payload;
+}
+
+export async function fetchJobs(): Promise<readonly ConsoleJob[]> {
+  const payload = await fetchJson("/api/jobs");
+  if (!isRecord(payload) || !Array.isArray(payload.jobs)) {
+    throw new Error("Job list response is invalid");
+  }
+
+  return payload.jobs.filter(isConsoleJob);
+}
+
+export async function createJob(request: CreateJobRequest): Promise<ConsoleJob> {
+  const payload = await postJson("/api/jobs", request);
+  if (!isConsoleJob(payload)) {
+    throw new Error("Job response is invalid");
   }
 
   return payload;

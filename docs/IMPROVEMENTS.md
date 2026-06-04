@@ -55,8 +55,8 @@ section tracks remaining expansion work.
   artifacts, reports, logs, analytics, and provider health.
 - **Branded structured report rendering** - research-desk presentation of `report.json`
   with source-first navigation and markdown fallback.
-- **Typed job controls** - later phase for allowlisted CLI jobs with basic queued/running/
-  succeeded/failed status and captured output.
+- **Typed job controls** - allowlisted CLI jobs with basic queued/running/succeeded/failed
+  status and captured output.
 
 ## Monitoring
 

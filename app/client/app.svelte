@@ -1,6 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchProviderHealth, fetchRunDetail, fetchRunFile, fetchRuns } from "./api";
+  import {
+    createJob,
+    fetchJobs,
+    fetchProviderHealth,
+    fetchRunDetail,
+    fetchRunFile,
+    fetchRuns,
+  } from "./api";
   import {
     formatDate,
     jsonBlock,
@@ -12,7 +19,7 @@
     stringArray,
     textItems,
   } from "./view-model";
-  import type { ProviderHealthDetail, RunDetail, RunSummary } from "../types";
+  import type { ConsoleJob, ProviderHealthDetail, RunDetail, RunSummary } from "../types";
 
   const SECTION_KEYS = [
     ["keyFindings", "Key findings"],
@@ -22,7 +29,16 @@
     ["catalysts", "Catalysts"],
   ] as const;
 
-  const TABS = ["report", "sources", "analytics", "trace", "files", "score", "health"] as const;
+  const TABS = [
+    "report",
+    "sources",
+    "analytics",
+    "trace",
+    "files",
+    "score",
+    "health",
+    "jobs",
+  ] as const;
 
   type Tab = (typeof TABS)[number];
 
@@ -37,6 +53,13 @@
   let fileContent = $state("");
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
+  let jobs = $state<readonly ConsoleJob[]>([]);
+  const jobForm = $state({
+    jobType: "daily",
+    assetClass: "equity",
+    symbol: "",
+    depth: "brief",
+  });
 
   async function selectRun(runId: string): Promise<void> {
     selectedRunId = runId;
@@ -74,11 +97,37 @@
     }
   }
 
+  async function refreshJobs(): Promise<void> {
+    jobs = await fetchJobs();
+  }
+
+  async function submitJob(): Promise<void> {
+    error = "";
+
+    try {
+      await createJob({
+        jobType: jobForm.jobType,
+        assetClass: jobForm.assetClass,
+        symbol: jobForm.symbol,
+        depth: jobForm.depth,
+      });
+      await refreshJobs();
+      activeTab = "jobs";
+    } catch (caughtError: unknown) {
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   onMount(() => {
+    const interval = setInterval(() => {
+      void refreshJobs().catch(() => {});
+    }, 2000);
+
     void (async () => {
       try {
         runs = await fetchRuns();
         providerHealth = await fetchProviderHealth();
+        await refreshJobs();
         if (runs[0] !== undefined) {
           await selectRun(runs[0].runId);
         }
@@ -88,6 +137,8 @@
         loadingRuns = false;
       }
     })();
+
+    return () => clearInterval(interval);
   });
 
   const filteredRuns = $derived(
@@ -321,6 +372,70 @@
             <pre>{providerHealth.markdown}</pre>
           {/if}
         </section>
+      {:else if activeTab === "jobs"}
+        <section class="panel wide">
+          <h3>Jobs</h3>
+          <form class="job-form" onsubmit={(event) => { event.preventDefault(); void submitJob(); }}>
+            <label>
+              Job
+              <select bind:value={jobForm.jobType}>
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="ticker">ticker</option>
+                <option value="alpha-search">alpha-search</option>
+                <option value="score">score</option>
+                <option value="calibration">calibration</option>
+                <option value="cache-prune">cache prune</option>
+                <option value="provider-health">provider health</option>
+              </select>
+            </label>
+            {#if jobForm.jobType === "daily" || jobForm.jobType === "weekly" || jobForm.jobType === "ticker"}
+              <label>
+                Asset
+                <select bind:value={jobForm.assetClass}>
+                  <option value="equity">equity</option>
+                  <option value="crypto">crypto</option>
+                </select>
+              </label>
+            {/if}
+            {#if jobForm.jobType === "ticker"}
+              <label>
+                Symbol
+                <input bind:value={jobForm.symbol} placeholder="AAPL" />
+              </label>
+            {/if}
+            {#if jobForm.jobType === "daily" || jobForm.jobType === "weekly" || jobForm.jobType === "ticker" || jobForm.jobType === "alpha-search"}
+              <label>
+                Depth
+                <select bind:value={jobForm.depth}>
+                  <option value="brief">brief</option>
+                  <option value="deep">deep</option>
+                </select>
+              </label>
+            {/if}
+            <button type="submit">Queue job</button>
+          </form>
+
+          <div class="job-list">
+            {#if jobs.length === 0}
+              <p class="muted">No jobs queued yet.</p>
+            {:else}
+              {#each jobs as job}
+                <div class="job-row">
+                  <strong>{job.label}</strong>
+                  <span class:running={job.status === "running"}>{job.status}</span>
+                  <small>{formatDate(job.createdAt)}</small>
+                  {#if job.outputRunPath !== undefined}
+                    <small>{job.outputRunPath}</small>
+                  {/if}
+                  {#if job.stdout !== "" || job.stderr !== ""}
+                    <pre>{job.stdout}{job.stderr}</pre>
+                  {/if}
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </section>
       {/if}
     {/if}
   </section>
@@ -418,6 +533,61 @@
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
+  }
+
+  .job-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 18px;
+  }
+
+  .job-form label {
+    display: grid;
+    gap: 6px;
+    color: #344640;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .job-form button {
+    border: 1px solid #1d2522;
+    border-radius: 4px;
+    background: #1d2522;
+    color: #fffdf8;
+    padding: 9px 12px;
+    cursor: pointer;
+  }
+
+  .job-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .job-row {
+    display: grid;
+    gap: 6px;
+    border: 1px solid rgba(29, 37, 34, 0.14);
+    border-radius: 6px;
+    background: #fffdf8;
+    padding: 12px;
+  }
+
+  .job-row span {
+    width: fit-content;
+    border: 1px solid rgba(29, 37, 34, 0.16);
+    border-radius: 999px;
+    padding: 3px 8px;
+    color: #344640;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .job-row span.running {
+    border-color: #b45f3a;
+    color: #7c3d23;
   }
 
   input {

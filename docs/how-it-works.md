@@ -114,6 +114,7 @@ bun run console
 ```
 
 The server binds to `127.0.0.1` and reads `MARKET_BOT_DATA_DIR` / `data/runs`.
+The Jobs view queues allowlisted CLI verbs one at a time and shows basic status plus captured output.
 
 ## Configuration
 

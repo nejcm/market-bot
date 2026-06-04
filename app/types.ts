@@ -32,3 +32,19 @@ export interface ProviderHealthDetail {
   readonly summary?: Record<string, unknown>;
   readonly markdown?: string;
 }
+
+export type ConsoleJobState = "queued" | "running" | "succeeded" | "failed";
+
+export interface ConsoleJob {
+  readonly id: string;
+  readonly status: ConsoleJobState;
+  readonly argv: readonly string[];
+  readonly label: string;
+  readonly createdAt: string;
+  readonly startedAt?: string;
+  readonly completedAt?: string;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode?: number;
+  readonly outputRunPath?: string;
+}

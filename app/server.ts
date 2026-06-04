@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { resolveResearchConsoleConfig } from "../src/config";
 import { listRunSummaries, readProviderHealth, readRunDetail, readRunFile } from "./artifacts";
+import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
 
@@ -15,7 +16,10 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 
 interface ResearchConsoleRequestOptions {
   readonly dataDir?: string;
+  readonly jobQueue?: ResearchConsoleJobQueue;
 }
+
+const DEFAULT_JOB_QUEUE = createJobQueue();
 
 function contentType(path: string): string {
   return CONTENT_TYPES[extname(path)] ?? "application/octet-stream";
@@ -110,11 +114,51 @@ async function handleApiRequest(url: URL, dataDir: string): Promise<Response | u
   return undefined;
 }
 
+async function readRequestJson(request: Request): Promise<unknown> {
+  try {
+    return (await request.json()) as unknown;
+  } catch {
+    throw new Error("Request body must be JSON");
+  }
+}
+
+async function handleJobRequest(
+  request: Request,
+  url: URL,
+  queue: ResearchConsoleJobQueue,
+): Promise<Response | undefined> {
+  if (url.pathname === "/api/jobs" && request.method === "GET") {
+    return jsonResponse({ jobs: queue.list() });
+  }
+
+  if (url.pathname === "/api/jobs" && request.method === "POST") {
+    try {
+      const job = queue.enqueue(await readRequestJson(request));
+      return jsonResponse(job, 202);
+    } catch (error: unknown) {
+      return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  }
+
+  const jobMatch = /^\/api\/jobs\/([^/]+)$/u.exec(url.pathname);
+  if (jobMatch !== null && request.method === "GET") {
+    const job = queue.get(jobMatch[1] ?? "");
+    return job === undefined ? jsonResponse({ error: "Job not found" }, 404) : jsonResponse(job);
+  }
+
+  return undefined;
+}
+
 export async function handleResearchConsoleRequest(
   request: Request,
   options: ResearchConsoleRequestOptions = {},
 ): Promise<Response> {
   const url = new URL(request.url);
+  const jobResponse = await handleJobRequest(request, url, options.jobQueue ?? DEFAULT_JOB_QUEUE);
+  if (jobResponse !== undefined) {
+    return jobResponse;
+  }
+
   const config = resolveResearchConsoleConfig();
   const apiResponse = await handleApiRequest(url, options.dataDir ?? config.dataDir);
   if (apiResponse !== undefined) {

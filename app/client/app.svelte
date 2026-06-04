@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { AlertCircle } from "@lucide/svelte";
+  import { AlertCircle, Clock } from "@lucide/svelte";
   import { Badge } from "$lib/components/ui/badge";
   import {
     createJob,
@@ -22,7 +22,16 @@
     RunSearchResult,
     RunSummary,
   } from "../types";
-  import { dashboardMetrics, matchesQuery, runTrend } from "./view-model";
+  import {
+    dashboardMetrics,
+    formatDate,
+    matchesQuery,
+    recentRunSummaries,
+    runIdFromPathname,
+    runLabel,
+    runPath,
+    runTrend,
+  } from "./view-model";
 
   let runs = $state<readonly RunSummary[]>([]);
   let selectedRunId = $state("");
@@ -59,7 +68,17 @@
   );
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
+  const recentRuns = $derived(recentRunSummaries(runs));
   const JOBS_POLL_INTERVAL_MS = 2000;
+
+  function clearSelectedRun(): void {
+    selectedRunId = "";
+    detail = null;
+    loadingDetail = false;
+    activeTab = "report";
+    selectedFile = "";
+    fileContent = "";
+  }
 
   async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     selectedRunId = runId;
@@ -70,13 +89,40 @@
     fileContent = "";
 
     try {
-      detail = await fetchRunDetail(runId);
+      const nextDetail = await fetchRunDetail(runId);
+      if (selectedRunId === runId) {
+        detail = nextDetail;
+      }
     } catch (caughtError: unknown) {
-      detail = null;
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      if (selectedRunId === runId) {
+        clearSelectedRun();
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      }
     } finally {
-      loadingDetail = false;
+      if (selectedRunId === runId) {
+        loadingDetail = false;
+      }
     }
+  }
+
+  async function openRun(runId: string, nextTab: Tab = "report"): Promise<void> {
+    const pathname = runPath(runId);
+    if (globalThis.location.pathname !== pathname) {
+      globalThis.history.pushState({}, "", pathname);
+    }
+
+    await selectRun(runId, nextTab);
+  }
+
+  function handlePopState(): void {
+    const runId = runIdFromPathname(globalThis.location.pathname);
+    if (runId === undefined) {
+      clearSelectedRun();
+      error = "";
+      return;
+    }
+
+    void selectRun(runId);
   }
 
   function tabForSearchResult(result: RunSearchResult): Tab {
@@ -84,7 +130,7 @@
   }
 
   async function openSearchResult(result: RunSearchResult): Promise<void> {
-    await selectRun(result.run.runId, tabForSearchResult(result));
+    await openRun(result.run.runId, tabForSearchResult(result));
   }
 
   async function runSearch(): Promise<void> {
@@ -170,14 +216,21 @@
         void refreshJobs().catch(() => {});
       }
     }, JOBS_POLL_INTERVAL_MS);
+    globalThis.addEventListener("popstate", handlePopState);
 
     void (async () => {
       try {
-        runs = await fetchRuns();
-        providerHealth = await fetchProviderHealth();
-        await refreshJobs();
-        if (runs[0] !== undefined) {
-          await selectRun(runs[0].runId);
+        const initialRunId = runIdFromPathname(globalThis.location.pathname);
+        const [nextRuns, nextProviderHealth, nextJobs] = await Promise.all([
+          fetchRuns(),
+          fetchProviderHealth(),
+          fetchJobs(),
+        ]);
+        runs = nextRuns;
+        providerHealth = nextProviderHealth;
+        jobs = nextJobs;
+        if (initialRunId !== undefined) {
+          await selectRun(initialRunId);
         }
       } catch (caughtError: unknown) {
         error = caughtError instanceof Error ? caughtError.message : String(caughtError);
@@ -186,7 +239,10 @@
       }
     })();
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      globalThis.removeEventListener("popstate", handlePopState);
+    };
   });
 </script>
 
@@ -198,7 +254,7 @@
       {loadingRuns}
       queryText={query.text}
       onQueryChange={(value) => (query.text = value)}
-      onSelectRun={(runId) => void selectRun(runId)}
+      onSelectRun={(runId) => void openRun(runId)}
     />
 
     <section class="min-w-0 flex-1">
@@ -225,31 +281,82 @@
           </div>
         {/if}
 
-        <DashboardOverview {metrics} {trend} />
+        {#if selectedRunId === ""}
+          <DashboardOverview {metrics} {trend} />
 
-        <div class="mt-4">
-          <RunWorkspace
-            {activeTab}
-            {detail}
-            {loadingDetail}
-            {selectedFile}
-            {fileContent}
-            {providerHealth}
-            {jobs}
-            {searchResults}
-            {searchLoading}
-            {searchNotice}
-            {searchForm}
-            {jobForm}
-            onTabChange={(tab) => (activeTab = tab)}
-            onLoadFile={(path) => void loadFile(path)}
-            onRunSearch={() => void runSearch()}
-            onOpenSearchResult={(result) => void openSearchResult(result)}
-            onSearchFormChange={updateSearchForm}
-            onJobFormChange={updateJobForm}
-            onSubmitJob={() => void submitJob()}
-          />
-        </div>
+          <section class="mt-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-base font-semibold tracking-normal text-foreground">Recent runs</h3>
+              <Badge variant="outline" class="border-cyan-700/30 bg-cyan-100/70 text-cyan-900">
+                Last {recentRuns.length}
+              </Badge>
+            </div>
+
+            {#if loadingRuns}
+              <div class="rounded-md border border-cyan-900/10 bg-card/90 p-5 text-sm text-muted-foreground">
+                Loading recent runs...
+              </div>
+            {:else if recentRuns.length === 0}
+              <div class="rounded-md border border-cyan-900/10 bg-card/90 p-5 text-sm text-muted-foreground">
+                No stored runs yet.
+              </div>
+            {:else}
+              <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                {#each recentRuns as run}
+                  <button
+                    class="min-h-36 rounded-md border border-cyan-900/10 bg-card/90 p-4 text-left shadow-sm transition hover:border-cyan-500/45 hover:bg-cyan-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/35"
+                    type="button"
+                    onclick={() => void openRun(run.runId)}
+                  >
+                    <span class="block truncate text-sm font-semibold text-foreground">{runLabel(run)}</span>
+                    <span class="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock class="size-3" />
+                      {formatDate(run.generatedAt)}
+                    </span>
+                    <span class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                      <span class="rounded-md border bg-cyan-50/60 px-2 py-2">
+                        <span class="block font-semibold text-foreground">{run.sourceCount}</span>
+                        <span class="text-muted-foreground">sources</span>
+                      </span>
+                      <span class="rounded-md border bg-cyan-50/60 px-2 py-2">
+                        <span class="block font-semibold text-foreground">{run.predictionCount}</span>
+                        <span class="text-muted-foreground">forecasts</span>
+                      </span>
+                      <span class="rounded-md border bg-cyan-50/60 px-2 py-2">
+                        <span class="block font-semibold text-foreground">{run.dataGapCount}</span>
+                        <span class="text-muted-foreground">gaps</span>
+                      </span>
+                    </span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </section>
+        {:else}
+          <div class="mt-4">
+            <RunWorkspace
+              {activeTab}
+              {detail}
+              {loadingDetail}
+              {selectedFile}
+              {fileContent}
+              {providerHealth}
+              {jobs}
+              {searchResults}
+              {searchLoading}
+              {searchNotice}
+              {searchForm}
+              {jobForm}
+              onTabChange={(tab) => (activeTab = tab)}
+              onLoadFile={(path) => void loadFile(path)}
+              onRunSearch={() => void runSearch()}
+              onOpenSearchResult={(result) => void openSearchResult(result)}
+              onSearchFormChange={updateSearchForm}
+              onJobFormChange={updateJobForm}
+              onSubmitJob={() => void submitJob()}
+            />
+          </div>
+        {/if}
       </div>
     </section>
   </div>

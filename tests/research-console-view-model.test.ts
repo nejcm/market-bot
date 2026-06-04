@@ -4,7 +4,10 @@ import {
   groupedSearchResults,
   matchesQuery,
   predictions,
+  recentRunSummaries,
+  runIdFromPathname,
   runLabel,
+  runPath,
   runTrend,
   sources,
   textItems,
@@ -30,6 +33,43 @@ describe("research console app view model", () => {
     expect(matchesQuery(run, "aapl")).toBe(true);
     expect(matchesQuery(run, "crypto")).toBe(false);
     expect(runLabel(run)).toBe("ticker / AAPL");
+  });
+
+  test("parses selected run ids from client routes", () => {
+    expect(runIdFromPathname("/")).toBeUndefined();
+    expect(runIdFromPathname("/settings")).toBeUndefined();
+    expect(runIdFromPathname("/runs/run-1")).toBe("run-1");
+    expect(runIdFromPathname("/runs/")).toBeUndefined();
+    expect(runIdFromPathname("/runs/run-1/files")).toBeUndefined();
+  });
+
+  test("round-trips run ids through client run paths", () => {
+    const runId = "daily run+alpha";
+
+    expect(runPath(runId)).toBe("/runs/daily%20run%2Balpha");
+    expect(runIdFromPathname(runPath(runId))).toBe(runId);
+    expect(runIdFromPathname("/runs/%")).toBeUndefined();
+  });
+
+  test("returns the five newest run summaries from the current order", () => {
+    const runs = Array.from({ length: 6 }, (_, index) => ({
+      runId: `run-${String(index + 1)}`,
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    }));
+
+    expect(recentRunSummaries(runs).map((run) => run.runId)).toEqual([
+      "run-1",
+      "run-2",
+      "run-3",
+      "run-4",
+      "run-5",
+    ]);
+    expect(recentRunSummaries(runs, 2).map((run) => run.runId)).toEqual(["run-1", "run-2"]);
   });
 
   test("narrows report sections without throwing on malformed entries", () => {

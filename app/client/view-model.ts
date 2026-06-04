@@ -2,6 +2,9 @@ import type { RunSearchResult, RunSummary } from "../types";
 
 export { predictions, scenarios, sources, stringArray, textItems } from "../report-artifact-view";
 
+const RUN_PATH_PREFIX = "/runs/";
+const RECENT_RUN_LIMIT = 5;
+
 export interface SearchResultGroup {
   readonly run: RunSummary;
   readonly results: readonly RunSearchResult[];
@@ -42,6 +45,35 @@ export function formatDate(value: string | undefined): string {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+export function runPath(runId: string): string {
+  return `${RUN_PATH_PREFIX}${encodeURIComponent(runId)}`;
+}
+
+export function runIdFromPathname(pathname: string): string | undefined {
+  if (!pathname.startsWith(RUN_PATH_PREFIX)) {
+    return undefined;
+  }
+
+  const encodedRunId = pathname.slice(RUN_PATH_PREFIX.length);
+  if (encodedRunId === "" || encodedRunId.includes("/")) {
+    return undefined;
+  }
+
+  try {
+    const runId = decodeURIComponent(encodedRunId);
+    return runId === "" ? undefined : runId;
+  } catch {
+    return undefined;
+  }
+}
+
+export function recentRunSummaries(
+  runs: readonly RunSummary[],
+  limit: number = RECENT_RUN_LIMIT,
+): readonly RunSummary[] {
+  return runs.slice(0, Math.max(0, limit));
 }
 
 export function matchesQuery(run: RunSummary, text: string): boolean {

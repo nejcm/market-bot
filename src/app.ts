@@ -11,6 +11,15 @@ import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
 
+export interface RunCliDependencies {
+  readonly createProvider?: (config: AppConfig) => ModelProvider;
+  readonly collectSources?: typeof collectSources;
+  readonly persistResearchJob?: typeof persistResearchJob;
+  readonly runScorePass?: typeof runScorePass;
+  readonly buildAndWriteCalibration?: typeof buildAndWriteCalibration;
+  readonly now?: () => Date;
+}
+
 export function scorePassOptions(sourceOptions: SourceOptions): ScorePassOptions {
   const providerOptions = {
     ...(sourceOptions.fredApiKey !== undefined ? { fredApiKey: sourceOptions.fredApiKey } : {}),
@@ -38,24 +47,26 @@ function createProvider(config: AppConfig): ModelProvider {
   return createOpenAIProvider(config);
 }
 
-export async function runCli(argv: readonly string[]): Promise<string> {
+export async function runCli(
+  argv: readonly string[],
+  dependencies: RunCliDependencies = {},
+): Promise<string> {
   const command = parseArgs(argv);
   const config = resolveConfig(process.env, {
     validateAlphaSearchOptions: command.jobType === "alpha-search",
   });
+  const now = dependencies.now ?? (() => new Date());
+  const runScore = dependencies.runScorePass ?? runScorePass;
+  const writeCalibration = dependencies.buildAndWriteCalibration ?? buildAndWriteCalibration;
 
   if (command.jobType === "score") {
-    const result = await runScorePass(
-      config.dataDir,
-      new Date(),
-      scorePassOptions(config.sourceOptions),
-    );
-    await buildAndWriteCalibration(config.dataDir);
+    const result = await runScore(config.dataDir, now(), scorePassOptions(config.sourceOptions));
+    await writeCalibration(config.dataDir);
     return `Score pass complete: ${String(result.scored)} run(s) scored, ${String(result.skipped)} skipped`;
   }
 
   if (command.jobType === "calibration") {
-    const written = await buildAndWriteCalibration(config.dataDir);
+    const written = await writeCalibration(config.dataDir);
     return written
       ? "Calibration summary written to data/calibration/summary.json"
       : "Calibration summary not written: no resolved predictions found";
@@ -81,12 +92,22 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     return result.artifacts.runDir;
   }
 
-  const provider = createProvider(config);
-  const collectedSources = await collectSources(command, config.sourceOptions);
+  const provider = (dependencies.createProvider ?? createProvider)(config);
+  const collectedSources = await (dependencies.collectSources ?? collectSources)(
+    command,
+    config.sourceOptions,
+  );
 
-  const scoreResult = await runScorePass(
+  const result = await (dependencies.persistResearchJob ?? persistResearchJob)({
+    command,
+    config,
+    provider,
+    collectedSources,
+  });
+
+  const scoreResult = await runScore(
     config.dataDir,
-    new Date(),
+    now(),
     scorePassOptions(config.sourceOptions),
   ).catch((error: unknown) => {
     process.stderr.write(
@@ -94,19 +115,12 @@ export async function runCli(argv: readonly string[]): Promise<string> {
     );
   });
   if (scoreResult !== undefined) {
-    await buildAndWriteCalibration(config.dataDir).catch((error: unknown) => {
+    await writeCalibration(config.dataDir).catch((error: unknown) => {
       process.stderr.write(
         `Calibration build failed: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     });
   }
-
-  const result = await persistResearchJob({
-    command,
-    config,
-    provider,
-    collectedSources,
-  });
 
   return result.artifacts.runDir;
 }

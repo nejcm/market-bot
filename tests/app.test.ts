@@ -3,6 +3,9 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli, scorePassOptions } from "../src/app";
+import type { ModelProvider } from "../src/model/types";
+import type { PersistedResearchJobResult } from "../src/research/orchestrator";
+import { collectedSources, researchReport } from "./support/fixtures";
 
 const dataDirs: string[] = [];
 const originalDataDir = process.env.MARKET_BOT_DATA_DIR;
@@ -79,6 +82,57 @@ describe("scorePassOptions", () => {
 });
 
 describe("runCli", () => {
+  test("scores prediction runs after persisting the new report", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-score-order-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+    const provider: ModelProvider = {
+      name: "test",
+      generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+    };
+    const runDir = join(dataDir, "run-1");
+
+    const result = await runCli(["daily", "--asset", "equity"], {
+      createProvider: () => provider,
+      collectSources: async () => collectedSources(),
+      persistResearchJob: async () => {
+        calls.push("persist");
+        return {
+          report: researchReport({ runId: "run-1" }),
+          markdown: "",
+          trace: {},
+          analytics: {},
+          stageOutputs: [],
+          collectedSources: collectedSources(),
+          historicalContext: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as unknown as PersistedResearchJobResult;
+      },
+      runScorePass: async (receivedDataDir) => {
+        calls.push("score");
+        expect(receivedDataDir).toBe(dataDir);
+        return { scored: 1, skipped: 0 };
+      },
+      buildAndWriteCalibration: async (receivedDataDir) => {
+        calls.push("calibration");
+        expect(receivedDataDir).toBe(dataDir);
+        return true;
+      },
+      now: () => new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    expect(result).toBe(runDir);
+    expect(calls).toEqual(["persist", "score", "calibration"]);
+  });
+
   test("reports when calibration has no resolved predictions to write", async () => {
     const dataDir = join(
       tmpdir(),

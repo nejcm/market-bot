@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   buildAlphaValidationSummary,
+  isAlphaValidationComplete,
   renderAlphaValidationSummaryMarkdown,
   validateAlphaSearchReport,
   type AlphaValidationFile,
@@ -152,10 +153,16 @@ async function writeAlphaValidationRunDir(
   now: Date,
   options: ScorePassOptions,
 ): Promise<boolean> {
+  const existing = await loadAlphaValidationFile(runDir);
+  if (isAlphaValidationComplete({ report, validation: existing })) {
+    return true;
+  }
+
   const validation = await validateAlphaSearchReport({
     report,
     repository: observationRepositoryFor(report, now, options),
     now,
+    ...(existing !== undefined ? { existingValidation: existing } : {}),
   });
   if (validation === undefined) {
     return false;
@@ -168,12 +175,12 @@ async function writeAlphaValidationRunDir(
   return true;
 }
 
-async function scoreRunDir(runDir: string, now: Date, options: ScorePassOptions): Promise<boolean> {
-  const report = await loadReport(runDir);
-  if (report === undefined) {
-    return false;
-  }
-
+async function scoreRunDir(
+  runDir: string,
+  report: ResearchReport,
+  now: Date,
+  options: ScorePassOptions,
+): Promise<boolean> {
   let wroteScore = false;
   if (report.predictions.length > 0) {
     const existing = await loadScoreFile(runDir);
@@ -255,7 +262,7 @@ export async function runScorePass(
       if (report === undefined) {
         return "skipped" as const;
       }
-      const wrote = await scoreRunDir(runDir, now, options);
+      const wrote = await scoreRunDir(runDir, report, now, options);
       return report.predictions.length > 0 || wrote ? ("scored" as const) : ("skipped" as const);
     }),
   );

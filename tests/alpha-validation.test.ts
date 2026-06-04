@@ -65,6 +65,13 @@ function closeWindow(subject: string, values: readonly number[]): readonly Obser
   }));
 }
 
+function datedWindow(
+  subject: string,
+  values: readonly (readonly [string, number])[],
+): readonly Observation[] {
+  return values.map(([date, value]) => ({ subject, date, value }));
+}
+
 describe("validateAlphaSearchReport", () => {
   test("resolves outperformance when candidate return beats IWM", async () => {
     const result = await validateAlphaSearchReport({
@@ -140,6 +147,68 @@ describe("validateAlphaSearchReport", () => {
       status: "unresolved",
       reason: "observation-unavailable",
       missingInstruments: ["IWM"],
+    });
+  });
+
+  test("fetches each close window once across horizons", async () => {
+    const calls: string[] = [];
+    const repository: ObservationRepository = {
+      async point() {
+        throw new Error("unexpected point observation request");
+      },
+      async window(subject) {
+        calls.push(subject);
+        const values =
+          subject === "ALFA"
+            ? Array.from({ length: 21 }, (_, index) => (index === 20 ? 12 : 10))
+            : Array.from({ length: 21 }, (_, index) => (index === 20 ? 105 : 100));
+        return closeWindow(subject, values);
+      },
+    };
+
+    await validateAlphaSearchReport({
+      report: alphaReport(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      repository,
+      horizons: [5, 20],
+    });
+
+    expect(calls.toSorted()).toEqual(["ALFA", "IWM"]);
+  });
+
+  test("aligns candidate and benchmark horizon closes by common date", async () => {
+    const result = await validateAlphaSearchReport({
+      report: alphaReport(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      repository: observationRepository([
+        ...datedWindow("ALFA", [
+          ["2026-05-01", 10],
+          ["2026-05-02", 10],
+          ["2026-05-05", 10],
+          ["2026-05-06", 10],
+          ["2026-05-07", 10],
+          ["2026-05-08", 50],
+          ["2026-05-12", 12],
+        ]),
+        ...datedWindow("IWM", [
+          ["2026-05-01", 100],
+          ["2026-05-02", 100],
+          ["2026-05-05", 100],
+          ["2026-05-06", 100],
+          ["2026-05-07", 100],
+          ["2026-05-11", 200],
+          ["2026-05-12", 105],
+        ]),
+      ]),
+      horizons: [5],
+    });
+
+    expect(result?.leads[0]?.horizons[0]).toMatchObject({
+      status: "resolved",
+      candidateDateN: "2026-05-12",
+      benchmarkDateN: "2026-05-12",
+      candidateReturn: 0.2,
+      benchmarkReturn: 0.05,
     });
   });
 });

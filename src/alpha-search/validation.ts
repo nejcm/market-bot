@@ -90,6 +90,14 @@ export interface AlphaValidationOptions {
   readonly now?: Date;
   readonly benchmarkSymbol?: string;
   readonly horizons?: readonly number[];
+  readonly existingValidation?: AlphaValidationFile;
+}
+
+export interface AlphaValidationCompletenessOptions {
+  readonly report: ResearchReport;
+  readonly validation: AlphaValidationFile | undefined;
+  readonly benchmarkSymbol?: string;
+  readonly horizons?: readonly number[];
 }
 
 interface MetricAccumulator {
@@ -112,6 +120,7 @@ function isWeekday(date: Date): boolean {
 function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
   let count = 0;
   let cursor = new Date(generatedAt);
+  // Weekday-only gate; observation counts remain the source of truth for holidays and missing sessions.
   while (count < horizonTradingDays) {
     cursor = addDays(cursor, 1);
     if (isWeekday(cursor)) {
@@ -173,50 +182,123 @@ function sortedWindow(
   return window.length < required ? undefined : window.slice(0, required);
 }
 
-async function resolveLeadHorizon(input: {
+function alignedWindows(input: {
+  readonly candidateObservations: readonly Observation[];
+  readonly benchmarkObservations: readonly Observation[];
+  readonly required: number;
+}):
+  | {
+      readonly candidateWindow: readonly Observation[];
+      readonly benchmarkWindow: readonly Observation[];
+    }
+  | undefined {
+  const candidateWindow = sortedWindow(input.candidateObservations, input.required);
+  const benchmarkWindow = sortedWindow(input.benchmarkObservations, input.required);
+  const candidateByDate = new Map(
+    input.candidateObservations
+      .filter((observation) => Number.isFinite(observation.value))
+      .map((observation) => [observation.date, observation]),
+  );
+  const benchmarkByDate = new Map(
+    input.benchmarkObservations
+      .filter((observation) => Number.isFinite(observation.value))
+      .map((observation) => [observation.date, observation]),
+  );
+  const commonDates = [...candidateByDate.keys()]
+    .filter((date) => benchmarkByDate.has(date))
+    .toSorted();
+
+  if (
+    candidateWindow === undefined ||
+    benchmarkWindow === undefined ||
+    commonDates.length < input.required
+  ) {
+    return;
+  }
+
+  const dates = commonDates.slice(0, input.required);
+  return {
+    candidateWindow: dates.map((date) => candidateByDate.get(date) as Observation),
+    benchmarkWindow: dates.map((date) => benchmarkByDate.get(date) as Observation),
+  };
+}
+
+function existingResolvedHorizon(
+  validation: AlphaValidationFile | undefined,
+  symbol: string,
+  horizonTradingDays: number,
+  benchmarkSymbol: string,
+): AlphaValidationResolvedHorizon | undefined {
+  const horizon = validation?.leads
+    .find((lead) => lead.symbol === symbol)
+    ?.horizons.find(
+      (candidate) =>
+        candidate.horizonTradingDays === horizonTradingDays &&
+        candidate.benchmarkSymbol === benchmarkSymbol,
+    );
+  return horizon?.status === "resolved" ? horizon : undefined;
+}
+
+function unresolvedHorizon(input: {
+  readonly horizonTradingDays: number;
+  readonly benchmarkSymbol: string;
+  readonly reason: AlphaValidationUnresolvedReason;
+  readonly missingInstruments?: readonly string[];
+}): AlphaValidationUnresolvedHorizon {
+  return {
+    status: "unresolved",
+    horizonTradingDays: input.horizonTradingDays,
+    benchmarkSymbol: input.benchmarkSymbol,
+    reason: input.reason,
+    ...(input.missingInstruments !== undefined && input.missingInstruments.length > 0
+      ? { missingInstruments: input.missingInstruments }
+      : {}),
+  };
+}
+
+function resolveLeadHorizon(input: {
   readonly lead: AlphaSearchLead;
   readonly report: ResearchReport;
-  readonly repository: ObservationRepository;
   readonly now: Date;
   readonly benchmarkSymbol: string;
   readonly horizonTradingDays: number;
-}): Promise<AlphaValidationHorizon> {
+  readonly candidateObservations: readonly Observation[];
+  readonly benchmarkObservations: readonly Observation[];
+}): AlphaValidationHorizon {
   const resolution = resolutionDate(input.report.generatedAt, input.horizonTradingDays);
   if (resolution > input.now) {
-    return {
-      status: "unresolved",
+    return unresolvedHorizon({
       horizonTradingDays: input.horizonTradingDays,
       benchmarkSymbol: input.benchmarkSymbol,
       reason: "horizon-not-elapsed",
-    };
+    });
   }
 
-  const from = new Date(input.report.generatedAt);
-  const [candidateObservations, benchmarkObservations] = await Promise.all([
-    input.repository.window(input.lead.symbol, "equity", from, input.now),
-    input.repository.window(input.benchmarkSymbol, "equity", from, input.now),
-  ]);
   const required = input.horizonTradingDays + 1;
-  const candidateWindow = sortedWindow(candidateObservations, required);
-  const benchmarkWindow = sortedWindow(benchmarkObservations, required);
+  const aligned = alignedWindows({
+    candidateObservations: input.candidateObservations,
+    benchmarkObservations: input.benchmarkObservations,
+    required,
+  });
+  const candidateWindow = sortedWindow(input.candidateObservations, required);
+  const benchmarkWindow = sortedWindow(input.benchmarkObservations, required);
   const missingInstruments = [
     ...(candidateWindow === undefined ? [input.lead.symbol] : []),
     ...(benchmarkWindow === undefined ? [input.benchmarkSymbol] : []),
   ];
-  if (candidateWindow === undefined || benchmarkWindow === undefined) {
-    return {
-      status: "unresolved",
+  if (aligned === undefined) {
+    return unresolvedHorizon({
       horizonTradingDays: input.horizonTradingDays,
       benchmarkSymbol: input.benchmarkSymbol,
       reason: "observation-unavailable",
-      ...(missingInstruments.length > 0 ? { missingInstruments } : {}),
-    };
+      missingInstruments,
+    });
   }
 
-  const candidateOrigin = candidateWindow[0] as Observation;
-  const candidateHorizon = candidateWindow.at(-1) as Observation;
-  const benchmarkOrigin = benchmarkWindow[0] as Observation;
-  const benchmarkHorizon = benchmarkWindow.at(-1) as Observation;
+  const candidateOrigin = aligned.candidateWindow[0] as Observation;
+  const candidateHorizon = aligned.candidateWindow.at(-1) as Observation;
+  const benchmarkOrigin = aligned.benchmarkWindow[0] as Observation;
+  const benchmarkHorizon = aligned.benchmarkWindow.at(-1) as Observation;
   const candidateReturn = returnFrom(candidateOrigin.value, candidateHorizon.value);
   const benchmarkReturn = returnFrom(benchmarkOrigin.value, benchmarkHorizon.value);
   const excessReturn = candidateReturn - benchmarkReturn;
@@ -255,21 +337,57 @@ export async function validateAlphaSearchReport(
   const now = options.now ?? new Date();
   const benchmarkSymbol = options.benchmarkSymbol ?? ALPHA_VALIDATION_BENCHMARK_SYMBOL;
   const horizons = options.horizons ?? ALPHA_VALIDATION_HORIZONS;
+  const from = new Date(options.report.generatedAt);
+  const observationWindows = new Map<string, Promise<readonly Observation[]>>();
+  const observationsFor = (symbol: string): Promise<readonly Observation[]> => {
+    const existing = observationWindows.get(symbol);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const request = options.repository.window(symbol, "equity", from, now);
+    observationWindows.set(symbol, request);
+    return request;
+  };
+
   const leadResults = await Promise.all(
     leads.map(async (lead) => ({
       ...leadSnapshot(lead),
       sourceGroup: sourceGroup(lead.discoverySources),
       horizons: await Promise.all(
-        horizons.map((horizonTradingDays) =>
-          resolveLeadHorizon({
+        horizons.map(async (horizonTradingDays) => {
+          const existing = existingResolvedHorizon(
+            options.existingValidation,
+            lead.symbol,
+            horizonTradingDays,
+            benchmarkSymbol,
+          );
+          if (existing !== undefined) {
+            return existing;
+          }
+
+          const resolution = resolutionDate(options.report.generatedAt, horizonTradingDays);
+          if (resolution > now) {
+            return unresolvedHorizon({
+              horizonTradingDays,
+              benchmarkSymbol,
+              reason: "horizon-not-elapsed",
+            });
+          }
+
+          const [candidateObservations, benchmarkObservations] = await Promise.all([
+            observationsFor(lead.symbol),
+            observationsFor(benchmarkSymbol),
+          ]);
+          return resolveLeadHorizon({
             lead,
             report: options.report,
-            repository: options.repository,
             now,
             benchmarkSymbol,
             horizonTradingDays,
-          }),
-        ),
+            candidateObservations,
+            benchmarkObservations,
+          });
+        }),
       ),
     })),
   );
@@ -282,6 +400,39 @@ export async function validateAlphaSearchReport(
     horizons,
     leads: leadResults,
   };
+}
+
+export function isAlphaValidationComplete(options: AlphaValidationCompletenessOptions): boolean {
+  if (options.report.jobType !== "alpha-search" || options.validation === undefined) {
+    return false;
+  }
+
+  const leads = readAlphaSearchLeads(options.report.extras);
+  if (leads.length === 0) {
+    return false;
+  }
+
+  const benchmarkSymbol = options.benchmarkSymbol ?? ALPHA_VALIDATION_BENCHMARK_SYMBOL;
+  const horizons = options.horizons ?? ALPHA_VALIDATION_HORIZONS;
+  if (
+    options.validation.runId !== options.report.runId ||
+    options.validation.generatedAt !== options.report.generatedAt ||
+    options.validation.benchmarkSymbol !== benchmarkSymbol
+  ) {
+    return false;
+  }
+
+  return leads.every((lead) =>
+    horizons.every(
+      (horizonTradingDays) =>
+        existingResolvedHorizon(
+          options.validation,
+          lead.symbol,
+          horizonTradingDays,
+          benchmarkSymbol,
+        ) !== undefined,
+    ),
+  );
 }
 
 function emptyAccumulator(): MetricAccumulator {

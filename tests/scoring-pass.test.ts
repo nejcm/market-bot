@@ -327,6 +327,111 @@ describe("runScorePass Alpha validation", () => {
     expect(markdown).toContain("# Alpha Validation Summary");
   });
 
+  test("does not recompute completed alpha validation sidecars", async () => {
+    const runDir = await writeRun(
+      "alpha-run-1",
+      report([], {
+        runId: "alpha-run-1",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 1,
+          secCandidateCount: 0,
+          researchLeads: [
+            {
+              symbol: "ALFA",
+              name: "Alpha Co.",
+              exchange: "NMS",
+              price: 10,
+              volume: 1_000_000,
+              marketCap: 500_000_000,
+              discoverySources: ["apewisdom"],
+              socialRank: 1,
+              socialMomentumScore: 75,
+              sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+            },
+          ],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+    const existing: AlphaValidationFile = {
+      runId: "alpha-run-1",
+      validatedAt: "2026-05-31T00:00:00.000Z",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      benchmarkSymbol: "IWM",
+      horizons: [5, 20],
+      leads: [
+        {
+          symbol: "ALFA",
+          name: "Alpha Co.",
+          discoverySources: ["apewisdom"],
+          socialRank: 1,
+          socialMomentumScore: 75,
+          sourceGroup: "apewisdom-only",
+          sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+          horizons: [
+            {
+              status: "resolved",
+              horizonTradingDays: 5,
+              benchmarkSymbol: "IWM",
+              candidateClose0: 10,
+              candidateCloseN: 12,
+              benchmarkClose0: 100,
+              benchmarkCloseN: 105,
+              candidateDate0: "2026-05-01",
+              candidateDateN: "2026-05-08",
+              benchmarkDate0: "2026-05-01",
+              benchmarkDateN: "2026-05-08",
+              candidateReturn: 0.2,
+              benchmarkReturn: 0.05,
+              excessReturn: 0.15,
+              outcome: "outperformed",
+            },
+            {
+              status: "resolved",
+              horizonTradingDays: 20,
+              benchmarkSymbol: "IWM",
+              candidateClose0: 10,
+              candidateCloseN: 11,
+              benchmarkClose0: 100,
+              benchmarkCloseN: 101,
+              candidateDate0: "2026-05-01",
+              candidateDateN: "2026-05-29",
+              benchmarkDate0: "2026-05-01",
+              benchmarkDateN: "2026-05-29",
+              candidateReturn: 0.1,
+              benchmarkReturn: 0.01,
+              excessReturn: 0.09,
+              outcome: "outperformed",
+            },
+          ],
+        },
+      ],
+    };
+    await writeFile(
+      join(runDir, "alpha-validation.json"),
+      `${JSON.stringify(existing, undefined, 2)}\n`,
+      "utf8",
+    );
+
+    const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      observationRepository: {
+        point: noObservation,
+        window: async () => {
+          throw new Error("unexpected window request");
+        },
+      },
+    });
+
+    const validation = await readAlphaValidation(runDir);
+    const summary = await readAlphaValidationSummary();
+    expect(result).toEqual({ scored: 1, skipped: 0 });
+    expect(validation.validatedAt).toBe("2026-05-31T00:00:00.000Z");
+    expect(summary.overall["20"]).toMatchObject({ resolvedCount: 1, hitRate: 1 });
+  });
+
   test("does not write alpha validation for non-alpha reports", async () => {
     const runDir = await writeRun("run-1", report([]));
 

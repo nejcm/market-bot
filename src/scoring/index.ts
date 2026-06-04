@@ -1,6 +1,12 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  buildAlphaCandidateProfiles,
+  buildAlphaCandidateWatchlist,
+  renderAlphaCandidateWatchlistMarkdown,
+  type AlphaCandidateProfile,
+} from "../alpha-search/candidate-state";
+import {
   buildAlphaValidationSummary,
   isAlphaValidationComplete,
   renderAlphaValidationSummaryMarkdown,
@@ -21,6 +27,7 @@ import type { PredictionScore } from "./types";
 const MAX_SCORE_ATTEMPTS = 5;
 const SCORE_FILE = "score.json";
 const ALPHA_VALIDATION_FILE = "alpha-validation.json";
+const ALPHA_CANDIDATE_PROFILES_FILE = "candidate-profiles.json";
 export const SCORING_VERSION = 2;
 
 interface ScoreFile {
@@ -138,6 +145,18 @@ async function loadAlphaValidationFile(runDir: string): Promise<AlphaValidationF
   }
 }
 
+async function loadAlphaCandidateProfiles(
+  runDir: string,
+): Promise<readonly AlphaCandidateProfile[]> {
+  try {
+    const raw = await readFile(join(runDir, "normalized", ALPHA_CANDIDATE_PROFILES_FILE), "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as readonly AlphaCandidateProfile[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function loadReport(runDir: string): Promise<ResearchReport | undefined> {
   try {
     const raw = await readFile(join(runDir, "report.json"), "utf8");
@@ -155,7 +174,7 @@ async function writeAlphaValidationRunDir(
 ): Promise<boolean> {
   const existing = await loadAlphaValidationFile(runDir);
   if (isAlphaValidationComplete({ report, validation: existing })) {
-    return true;
+    return false;
   }
 
   const validation = await validateAlphaSearchReport({
@@ -170,6 +189,30 @@ async function writeAlphaValidationRunDir(
   await writeFile(
     join(runDir, ALPHA_VALIDATION_FILE),
     `${JSON.stringify(validation, undefined, 2)}\n`,
+    "utf8",
+  );
+  return true;
+}
+
+async function writeAlphaCandidateProfilesRunDir(
+  runDir: string,
+  report: ResearchReport,
+): Promise<boolean> {
+  const profiles = buildAlphaCandidateProfiles(report);
+  if (profiles.length === 0) {
+    return false;
+  }
+
+  const existingProfiles = await loadAlphaCandidateProfiles(runDir);
+  if (existingProfiles.length > 0) {
+    return false;
+  }
+
+  const normalizedDir = join(runDir, "normalized");
+  await mkdir(normalizedDir, { recursive: true });
+  await writeFile(
+    join(normalizedDir, ALPHA_CANDIDATE_PROFILES_FILE),
+    `${JSON.stringify(profiles, undefined, 2)}\n`,
     "utf8",
   );
   return true;
@@ -231,8 +274,9 @@ async function scoreRunDir(
     }
   }
 
+  const wroteAlphaProfiles = await writeAlphaCandidateProfilesRunDir(runDir, report);
   const wroteAlphaValidation = await writeAlphaValidationRunDir(runDir, report, now, options);
-  return wroteScore || wroteAlphaValidation;
+  return wroteScore || wroteAlphaProfiles || wroteAlphaValidation;
 }
 
 async function listRunDirs(dataDir: string): Promise<readonly string[]> {
@@ -267,11 +311,45 @@ export async function runScorePass(
     }),
   );
   await buildAndWriteAlphaValidationSummary(dataDir, now);
+  await buildAndWriteAlphaCandidateWatchlist(dataDir, now);
 
   return {
     scored: results.filter((result) => result === "scored").length,
     skipped: results.filter((result) => result === "skipped").length,
   };
+}
+
+export async function buildAndWriteAlphaCandidateWatchlist(
+  dataDir: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const runDirs = await listRunDirs(dataDir);
+  const [profilesPerRun, maybeValidations] = await Promise.all([
+    Promise.all(runDirs.map((runDir) => loadAlphaCandidateProfiles(runDir))),
+    Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir))),
+  ]);
+  const profiles = profilesPerRun.flat();
+  if (profiles.length === 0) {
+    return false;
+  }
+
+  const validations = maybeValidations.filter(
+    (file): file is AlphaValidationFile => file !== undefined,
+  );
+  const watchlist = buildAlphaCandidateWatchlist({ profiles, validations, now });
+  const watchlistDir = join(dataDir, "../alpha-search");
+  await mkdir(watchlistDir, { recursive: true });
+  await writeFile(
+    join(watchlistDir, "watchlist.json"),
+    `${JSON.stringify(watchlist, undefined, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(
+    join(watchlistDir, "watchlist.md"),
+    renderAlphaCandidateWatchlistMarkdown(watchlist),
+    "utf8",
+  );
+  return true;
 }
 
 export async function buildAndWriteAlphaValidationSummary(

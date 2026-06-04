@@ -379,6 +379,7 @@ describe("alpha-search workflow", () => {
         "sec-discovery-candidates.json",
         "alpha-search-candidates.json",
         "listed-universe.json",
+        "candidate-profiles.json",
         "rejected-candidates.json",
         "research-leads.json",
         "source-gaps.json",
@@ -449,6 +450,19 @@ describe("alpha-search workflow", () => {
     expect(reportJson.jobType).toBe("alpha-search");
     expect(reportJson.predictions).toEqual([]);
     expect(reportJson.sources?.map((source) => source.title).join("\n")).not.toMatch(/\bbuy\b/iu);
+
+    const candidateProfiles = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "candidate-profiles.json"), "utf8"),
+    ) as readonly unknown[];
+    expect(candidateProfiles).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        runId: result.report.runId,
+        sourceGroup: "apewisdom-only",
+        price: 195.5,
+        socialMomentumScore: 100,
+      }),
+    ]);
   });
 
   test("validates a wider candidate pool than the displayed lead limit", async () => {

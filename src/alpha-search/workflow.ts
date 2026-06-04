@@ -14,6 +14,7 @@ import { validateResearchReport } from "../report/schema";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
+import { buildAlphaCandidateProfiles } from "./candidate-state";
 import {
   mergeAlphaSearchCandidates,
   socialAlphaSearchCandidate,
@@ -355,6 +356,10 @@ export async function runAlphaSearchWorkflow(input: {
   await writeJson(
     join(artifacts.normalizedDir, "research-leads.json"),
     readAlphaSearchLeads(report.extras),
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "candidate-profiles.json"),
+    buildAlphaCandidateProfiles(report),
   );
   await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), [
     ...listed.rejectedCandidates,

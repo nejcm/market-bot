@@ -8,6 +8,10 @@ import {
   type AlphaCandidateProfile,
 } from "../alpha-search/candidate-state";
 import {
+  buildAlphaFeatureAttribution,
+  renderAlphaFeatureAttributionMarkdown,
+} from "../alpha-search/feature-attribution";
+import {
   buildAlphaValidationSummary,
   isAlphaValidationComplete,
   renderAlphaValidationSummaryMarkdown,
@@ -347,6 +351,7 @@ export async function runScorePass(
     }),
   );
   await buildAndWriteAlphaValidationSummary(dataDir, now);
+  await buildAndWriteAlphaFeatureAttribution(dataDir, now);
   await buildAndWriteAlphaCandidateWatchlist(dataDir, now);
 
   return {
@@ -383,6 +388,39 @@ export async function buildAndWriteAlphaCandidateWatchlist(
   await writeFile(
     join(watchlistDir, "watchlist.md"),
     renderAlphaCandidateWatchlistMarkdown(watchlist),
+    "utf8",
+  );
+  return true;
+}
+
+export async function buildAndWriteAlphaFeatureAttribution(
+  dataDir: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const runDirs = await listRunDirs(dataDir);
+  const [profilesPerRun, maybeValidations] = await Promise.all([
+    Promise.all(runDirs.map((runDir) => loadAlphaCandidateProfiles(runDir))),
+    Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir))),
+  ]);
+  const profiles = profilesPerRun.flat();
+  const validations = maybeValidations.filter(
+    (file): file is AlphaValidationFile => file !== undefined,
+  );
+  if (profiles.length === 0 || validations.length === 0) {
+    return false;
+  }
+
+  const attribution = buildAlphaFeatureAttribution({ profiles, validations, now });
+  const outputDir = join(dataDir, "../alpha-search");
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(
+    join(outputDir, "feature-attribution.json"),
+    `${JSON.stringify(attribution, undefined, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(
+    join(outputDir, "feature-attribution.md"),
+    renderAlphaFeatureAttributionMarkdown(attribution),
     "utf8",
   );
   return true;

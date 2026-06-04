@@ -4,7 +4,7 @@
 
 Implemented alpha-search discovery, validation, and deterministic candidate state are documented in
 `docs/how-it-works.md`, `docs/architecture.md`, and `docs/configuration.md`. This
-section tracks remaining promotion and expansion work.
+section tracks remaining expansion work.
 
 ### Next
 
@@ -14,8 +14,6 @@ section tracks remaining promotion and expansion work.
   <= 45% with negative average excess return, otherwise `mixed` or `insufficient-sample`.
   Provider-health validation failures block labels without hiding metrics. Do not promote
   individual Research Leads.
-- **Feature attribution** - bucket deterministic candidate features against Alpha
-  validation outcomes before changing ranking weights.
 
 ### Add after validation
 

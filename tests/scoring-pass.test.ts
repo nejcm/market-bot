@@ -8,6 +8,7 @@ import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { PredictionScore } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
+import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
@@ -59,6 +60,14 @@ async function readAlphaValidationSummary(): Promise<AlphaValidationSummary> {
 async function readAlphaWatchlist(): Promise<AlphaCandidateWatchlist> {
   const raw = await readFile(join(tmpDir, "..", "alpha-search", "watchlist.json"), "utf8");
   return JSON.parse(raw) as AlphaCandidateWatchlist;
+}
+
+async function readAlphaFeatureAttribution(): Promise<AlphaFeatureAttribution> {
+  const raw = await readFile(
+    join(tmpDir, "..", "alpha-search", "feature-attribution.json"),
+    "utf8",
+  );
+  return JSON.parse(raw) as AlphaFeatureAttribution;
 }
 
 async function writeProviderHealthSummary(validation: Record<string, unknown>): Promise<void> {
@@ -349,6 +358,11 @@ describe("runScorePass Alpha validation", () => {
     });
     const summary = await readAlphaValidationSummary();
     const markdown = await readFile(join(tmpDir, "..", "alpha-validation", "summary.md"), "utf8");
+    const attribution = await readAlphaFeatureAttribution();
+    const attributionMarkdown = await readFile(
+      join(tmpDir, "..", "alpha-search", "feature-attribution.md"),
+      "utf8",
+    );
     expect(summary.overall["5"]).toMatchObject({
       resolvedCount: 1,
       outperformedCount: 1,
@@ -364,7 +378,14 @@ describe("runScorePass Alpha validation", () => {
         expect.objectContaining({ status: "resolved", horizonTradingDays: 5 }),
       ]),
     );
+    expect(
+      attribution.features.sourceGroup?.buckets["apewisdom-only"]?.horizons["5"],
+    ).toMatchObject({
+      resolvedCount: 1,
+      outperformedCount: 1,
+    });
     expect(markdown).toContain("# Alpha Validation Summary");
+    expect(attributionMarkdown).toContain("# Alpha Feature Attribution");
   });
 
   test("rebuilds alpha candidate watchlist with cross-run deltas", async () => {

@@ -331,11 +331,13 @@ Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src
 ```text
 data/alpha-validation/summary.json
 data/alpha-validation/summary.md
+data/alpha-search/feature-attribution.json
+data/alpha-search/feature-attribution.md
 data/alpha-search/watchlist.json
 data/alpha-search/watchlist.md
 ```
 
-The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. It is historical research state, not a promotion verdict.
+The Alpha feature-attribution summary buckets deterministic candidate profile features against Alpha validation outcomes. The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. These artifacts are historical research state, not promotion verdicts.
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
 

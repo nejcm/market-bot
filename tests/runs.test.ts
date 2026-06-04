@@ -120,7 +120,6 @@ describe("resolveRunParams — fallback chain", () => {
       "SPY",
       "QQQ",
       "^VIX",
-      "BTC",
       "DGS10",
       "DGS2",
       "T10Y2Y",
@@ -141,6 +140,7 @@ describe("resolveRunParams — run keys", () => {
 
     expect(result.defaultPredictionHorizon).toBe(5);
     expect(result.predictionSubjects).toContain("DGS10");
+    expect(result.predictionSubjects).not.toContain("BTC");
     expect(result.focus).toContain("market regime");
     expect(result.focus).not.toContain("weekly market regime");
   });
@@ -188,7 +188,7 @@ describe("resolveRunParams — run keys", () => {
     expect(result.analystStyle).toBe("fuller analyst-style");
   });
 
-  test("daily-crypto has same depth profile as daily-equity", () => {
+  test("daily-crypto keeps depth profile but uses crypto prediction subjects", () => {
     const equity = resolveRunParams(
       { jobType: "daily", assetClass: "equity", depth: "brief" },
       baseConfig,
@@ -201,6 +201,8 @@ describe("resolveRunParams — run keys", () => {
     expect(crypto.minimumKeyFindings).toBe(equity.minimumKeyFindings);
     expect(crypto.minimumPredictions).toBe(equity.minimumPredictions);
     expect(crypto.analystStyle).toBe(equity.analystStyle);
+    expect(crypto.predictionSubjects).toEqual(["BTC", "ETH"]);
+    expect(crypto.predictionSubjects).not.toContain("SPY");
   });
 
   test("modelParams is undefined by default (no sampling knobs seeded)", () => {

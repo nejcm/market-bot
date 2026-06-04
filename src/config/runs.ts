@@ -44,11 +44,10 @@ export interface ResolvedRunParams {
 // Code defaults — last-resort fallback when nothing else is configured
 // ---------------------------------------------------------------------------
 
-const MARKET_UPDATE_PREDICTION_SUBJECTS = [
+const EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS = [
   "SPY",
   "QQQ",
   "^VIX",
-  "BTC",
   // FRED series are eligible observable macro forecast subjects for market updates.
   "DGS10",
   "DGS2",
@@ -59,12 +58,14 @@ const MARKET_UPDATE_PREDICTION_SUBJECTS = [
   "DTWEXBGS",
 ] as const;
 
+const CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS = ["BTC", "ETH"] as const;
+
 const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "modelParams"> = {
   minimumKeyFindings: 3,
   minimumScenarios: 1,
   minimumPredictions: 2,
   defaultPredictionHorizon: 5,
-  predictionSubjects: MARKET_UPDATE_PREDICTION_SUBJECTS,
+  predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
   focus: ["market regime", "movers", "risks", "source gaps"],
   analystStyle: "concise brief",
 };
@@ -80,7 +81,7 @@ export const runConfig: RunConfig = {
     minimumScenarios: 1,
     minimumPredictions: 2,
     defaultPredictionHorizon: 5,
-    predictionSubjects: MARKET_UPDATE_PREDICTION_SUBJECTS,
+    predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["market regime", "movers", "risks", "source gaps"],
     deep: {
@@ -96,7 +97,7 @@ export const runConfig: RunConfig = {
     minimumScenarios: 1,
     minimumPredictions: 2,
     defaultPredictionHorizon: 5,
-    predictionSubjects: MARKET_UPDATE_PREDICTION_SUBJECTS,
+    predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["market regime", "movers", "risks", "source gaps"],
     deep: {
@@ -112,7 +113,7 @@ export const runConfig: RunConfig = {
     minimumScenarios: 1,
     minimumPredictions: 2,
     defaultPredictionHorizon: 15,
-    predictionSubjects: MARKET_UPDATE_PREDICTION_SUBJECTS,
+    predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["weekly market regime", "5-session movers", "risks", "source gaps"],
     deep: {
@@ -134,7 +135,7 @@ export const runConfig: RunConfig = {
     minimumScenarios: 1,
     minimumPredictions: 2,
     defaultPredictionHorizon: 15,
-    predictionSubjects: MARKET_UPDATE_PREDICTION_SUBJECTS,
+    predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["weekly market regime", "5-session movers", "risks", "source gaps"],
     deep: {

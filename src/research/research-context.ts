@@ -241,6 +241,7 @@ function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<
 }
 
 function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
+  const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
   return {
     summary: "string",
     keyFindings: [{ text: "string", sourceIds: ["source-id"] }],
@@ -255,8 +256,8 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
       id: `pred-${String(idx + 1)}`,
       claim: "string describing market quantity",
       kind: "direction|relative|volatility|range|macro|iv",
-      subject: depthProfile.predictionSubjects[0] ?? "SPY",
-      measurableAs: `close(SPY, +${String(depthProfile.defaultPredictionHorizon)}) > close(SPY, 0)`,
+      subject: exampleSubject,
+      measurableAs: `close(${exampleSubject}, +${String(depthProfile.defaultPredictionHorizon)}) > close(${exampleSubject}, 0)`,
       horizonTradingDays: depthProfile.defaultPredictionHorizon,
       probability: 0.6,
       sourceIds: ["source-id"],

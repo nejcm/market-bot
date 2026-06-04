@@ -348,6 +348,8 @@ function buildAlphaSearchAnalytics(input: {
         byKind: countBy(report.sources, (source) => source.kind),
         byProvider: countBy(report.sources, (source) => sourceProvider(source)),
       },
+      // Funnel metric: tracks raw gap volume before dedupe, so it can exceed
+      // The deduped count surfaced in report.dataGaps below.
       sourceGaps: {
         total: input.sourceGaps.length,
         bySource: countBy(input.sourceGaps, (gap) => gap.source),

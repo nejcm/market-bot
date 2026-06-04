@@ -98,16 +98,18 @@ export async function runCli(
     config.sourceOptions,
   );
 
+  const invokedAt = now();
   const result = await (dependencies.persistResearchJob ?? persistResearchJob)({
     command,
     config,
     provider,
     collectedSources,
+    now: invokedAt,
   });
 
   const scoreResult = await runScore(
     config.dataDir,
-    now(),
+    invokedAt,
     scorePassOptions(config.sourceOptions),
   ).catch((error: unknown) => {
     process.stderr.write(

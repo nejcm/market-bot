@@ -18,7 +18,6 @@ section tracks remaining expansion work.
   keep V1 rankings stable until an experiment is explicitly accepted, and document any
   ranking-policy change before implementation.
 
-
 ## Cross-run intelligence
 
 - **Narrative thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
@@ -34,11 +33,6 @@ section tracks remaining expansion work.
   `provider-health` v2. Future work: turn this into a dashboard once the run history is large
   enough to need browsing/filtering.
 
-## Research Console App
-
-- **Structured run search** - search prior `report.json` artifacts by summary, findings,
-  forecasts, sources, gaps, symbol, asset class, job type, and date range.
-
 ## Monitoring
 
 - Reliability SLAs, monitoring, alerting.
@@ -46,9 +40,9 @@ section tracks remaining expansion work.
 ## Other (deferred)
 
 - based on real runs implement improvements
-- https://github.com/defeat-beta/defeatbeta-api
+- <https://github.com/defeat-beta/defeatbeta-api>
 - **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
   keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 - improvements based on other projects
-  - https://github.com/TauricResearch/TradingAgents
-  - https://github.com/HKUDS/Vibe-Trading
+  - <https://github.com/TauricResearch/TradingAgents>
+  - <https://github.com/HKUDS/Vibe-Trading>

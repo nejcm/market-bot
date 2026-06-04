@@ -49,7 +49,56 @@ export interface AlphaSearchWorkflowResult {
   readonly report: ResearchReport;
   readonly markdown: string;
   readonly trace: RunTrace;
+  readonly analytics: AlphaSearchRunAnalytics;
   readonly artifacts: RunArtifacts;
+}
+
+export interface AlphaSearchRunAnalytics {
+  readonly version: 1;
+  readonly runId: string;
+  readonly generatedAt: string;
+  readonly jobType: "alpha-search";
+  readonly assetClass: "equity";
+  readonly depth: AlphaSearchCommand["depth"];
+  readonly sourceFunnel: {
+    readonly reportSources: {
+      readonly total: number;
+      readonly byKind: Readonly<Record<string, number>>;
+      readonly byProvider: Readonly<Record<string, number>>;
+    };
+    readonly sourceGaps: {
+      readonly total: number;
+      readonly bySource: Readonly<Record<string, number>>;
+    };
+    readonly dataGaps: {
+      readonly total: number;
+    };
+  };
+  readonly alphaSearch: {
+    readonly socialCandidateCount: number;
+    readonly secCandidateCount: number;
+    readonly validLeadCount: number;
+    readonly rejectedCandidateCount: number;
+    readonly fundamentalGapCount: number;
+  };
+  readonly runShape: {
+    readonly traceStages: readonly string[];
+    readonly tokenEstimate: number;
+    readonly costEstimateUsd: number;
+    readonly durationMs?: number;
+  };
+}
+
+function countBy<T>(
+  items: readonly T[],
+  keyFor: (item: T) => string | undefined,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const key = keyFor(item) ?? "unknown";
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
 }
 
 function pageLimit(command: AlphaSearchCommand, config: AppConfig): number {
@@ -255,6 +304,74 @@ function buildTrace(input: {
   };
 }
 
+function sourceProvider(source: Source): string | undefined {
+  if (source.provider !== undefined) {
+    return source.provider;
+  }
+  return source.providerAliases?.[0]?.provider;
+}
+
+function durationMs(trace: RunTrace): number | undefined {
+  const startedAt = Date.parse(trace.startedAt);
+  const completedAt = Date.parse(trace.completedAt);
+  if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt)) {
+    return undefined;
+  }
+  return Math.max(0, completedAt - startedAt);
+}
+
+function buildAlphaSearchAnalytics(input: {
+  readonly report: ResearchReport;
+  readonly trace: RunTrace;
+  readonly rankedCandidates: readonly SocialMomentumRankedCandidate[];
+  readonly secCandidates: readonly SecDiscoveryCandidate[];
+  readonly validLeads: readonly YahooValidatedLead[];
+  readonly rejectedCandidates: readonly (
+    | YahooRejectedCandidate
+    | ListedUniverseRejectedCandidate<AlphaSearchCandidate>
+  )[];
+  readonly sourceGaps: readonly SourceGap[];
+  readonly fundamentalSourceGaps: readonly SourceGap[];
+}): AlphaSearchRunAnalytics {
+  const { report, trace } = input;
+  const runDurationMs = durationMs(trace);
+  return {
+    version: 1,
+    runId: report.runId,
+    generatedAt: report.generatedAt,
+    jobType: "alpha-search",
+    assetClass: "equity",
+    depth: trace.depth,
+    sourceFunnel: {
+      reportSources: {
+        total: report.sources.length,
+        byKind: countBy(report.sources, (source) => source.kind),
+        byProvider: countBy(report.sources, (source) => sourceProvider(source)),
+      },
+      sourceGaps: {
+        total: input.sourceGaps.length,
+        bySource: countBy(input.sourceGaps, (gap) => gap.source),
+      },
+      dataGaps: {
+        total: report.dataGaps.length,
+      },
+    },
+    alphaSearch: {
+      socialCandidateCount: input.rankedCandidates.length,
+      secCandidateCount: input.secCandidates.length,
+      validLeadCount: input.validLeads.length,
+      rejectedCandidateCount: input.rejectedCandidates.length,
+      fundamentalGapCount: input.fundamentalSourceGaps.length,
+    },
+    runShape: {
+      traceStages: trace.stages,
+      tokenEstimate: trace.tokenEstimate,
+      costEstimateUsd: trace.costEstimateUsd,
+      ...(runDurationMs !== undefined ? { durationMs: runDurationMs } : {}),
+    },
+  };
+}
+
 export async function runAlphaSearchWorkflow(input: {
   readonly command: AlphaSearchCommand;
   readonly config: AppConfig;
@@ -325,6 +442,7 @@ export async function runAlphaSearchWorkflow(input: {
     yahooRawSnapshots: yahoo.rawSnapshots,
     fetchedAt: startedAt,
   });
+  const rejectedCandidates = [...listed.rejectedCandidates, ...yahoo.rejectedCandidates];
   const report = buildAlphaSearchReport({
     runId,
     command: input.command,
@@ -333,7 +451,7 @@ export async function runAlphaSearchWorkflow(input: {
     rankedCandidates,
     secCandidates: secDiscovery.candidates,
     validLeads: yahoo.validLeads,
-    rejectedCandidates: [...listed.rejectedCandidates, ...yahoo.rejectedCandidates],
+    rejectedCandidates,
     sourceGaps,
     sources,
   });
@@ -364,6 +482,16 @@ export async function runAlphaSearchWorkflow(input: {
     startedAt,
     completedAt,
     sourceGaps,
+  });
+  const analytics = buildAlphaSearchAnalytics({
+    report,
+    trace,
+    rankedCandidates,
+    secCandidates: secDiscovery.candidates,
+    validLeads: yahoo.validLeads,
+    rejectedCandidates,
+    sourceGaps,
+    fundamentalSourceGaps: fundamentals.sourceGaps,
   });
   const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
 
@@ -397,12 +525,10 @@ export async function runAlphaSearchWorkflow(input: {
     join(artifacts.normalizedDir, "candidate-profiles.json"),
     buildAlphaCandidateProfiles(report, fundamentalsBySymbol),
   );
-  await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), [
-    ...listed.rejectedCandidates,
-    ...yahoo.rejectedCandidates,
-  ]);
+  await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), rejectedCandidates);
   await writeJson(join(artifacts.normalizedDir, "source-gaps.json"), sourceGaps);
+  await writeJson(join(artifacts.runDir, "analytics.json"), analytics);
   await writeRunOutputs(artifacts, report, markdown, trace);
 
-  return { report, markdown, trace, artifacts };
+  return { report, markdown, trace, analytics, artifacts };
 }

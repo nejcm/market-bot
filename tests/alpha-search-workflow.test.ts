@@ -415,7 +415,14 @@ describe("alpha-search workflow", () => {
     });
 
     await expect(readdir(result.artifacts.runDir)).resolves.toEqual(
-      expect.arrayContaining(["normalized", "raw", "report.json", "report.md", "trace.json"]),
+      expect.arrayContaining([
+        "analytics.json",
+        "normalized",
+        "raw",
+        "report.json",
+        "report.md",
+        "trace.json",
+      ]),
     );
     await expect(readdir(result.artifacts.normalizedDir)).resolves.toEqual(
       expect.arrayContaining([
@@ -434,6 +441,17 @@ describe("alpha-search workflow", () => {
 
     expect(result.report.jobType).toBe("alpha-search");
     expect(result.report.predictions).toEqual([]);
+    expect(result.analytics).toMatchObject({
+      version: 1,
+      runId: result.report.runId,
+      jobType: "alpha-search",
+      alphaSearch: {
+        socialCandidateCount: 3,
+        secCandidateCount: 0,
+        validLeadCount: 1,
+        rejectedCandidateCount: 2,
+      },
+    });
     expect(result.report.extras?.researchLeads).toEqual([
       expect.objectContaining({
         symbol: "AAPL",
@@ -496,6 +514,13 @@ describe("alpha-search workflow", () => {
     expect(reportJson.jobType).toBe("alpha-search");
     expect(reportJson.predictions).toEqual([]);
     expect(reportJson.sources?.map((source) => source.title).join("\n")).not.toMatch(/\bbuy\b/iu);
+    const analyticsJson = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "analytics.json"), "utf8"),
+    ) as { readonly runId?: string; readonly alphaSearch?: { readonly validLeadCount?: number } };
+    expect(analyticsJson).toMatchObject({
+      runId: result.report.runId,
+      alphaSearch: { validLeadCount: 1 },
+    });
 
     const candidateProfiles = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "candidate-profiles.json"), "utf8"),

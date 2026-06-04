@@ -3,13 +3,16 @@ import { getContext, setContext, type Component, type Snippet } from "svelte";
 
 export const THEMES = { light: "", dark: ".dark" } as const;
 
-export type ChartConfig = Record<string, {
+export type ChartConfig = Record<
+  string,
+  {
     label?: string;
     icon?: Component;
   } & (
     | { color?: string; theme?: never }
     | { color?: never; theme: Record<keyof typeof THEMES, string> }
-  )>;
+  )
+>;
 
 export type ExtractSnippetParams<T> = T extends Snippet<[infer P]> ? P : never;
 
@@ -23,7 +26,9 @@ export function getPayloadConfigFromPayload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: Record<string, any> | null,
 ) {
-  if (typeof payload !== "object" || payload === null) {return undefined;}
+  if (typeof payload !== "object" || payload === null) {
+    return;
+  }
 
   const payloadConfig =
     "config" in payload && typeof payload.config === "object" && payload.config !== null

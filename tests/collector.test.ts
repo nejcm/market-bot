@@ -152,7 +152,7 @@ describe("collectSources", () => {
       fetchImpl,
     );
 
-    expect(result.rawSnapshots).toHaveLength(3);
+    expect(result.rawSnapshots).toHaveLength(4);
     expect(result.marketSnapshots[0]?.symbol).toBe("AAPL");
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toContain("SPY");
     expect(result.newsSources[0]?.id).toBe("news-equity-1");
@@ -224,8 +224,202 @@ describe("collectSources", () => {
       fetchImpl,
     );
 
-    expect(result.rawSnapshots).toHaveLength(3);
+    expect(result.rawSnapshots).toHaveLength(4);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
+  });
+
+  test("adds sector benchmark context to equity movers without standalone snapshots", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "AAPL",
+                    sector: "Technology",
+                    regularMarketPrice: 190,
+                    regularMarketChangePercent: 2,
+                    regularMarketVolume: 80_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("symbols=XLK")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "XLK",
+                shortName: "Technology Select Sector SPDR Fund",
+                regularMarketPrice: 220,
+                regularMarketChangePercent: -1,
+                regularMarketVolume: 20_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
+    expect(result.marketSnapshots[0]?.benchmark).toMatchObject({
+      sourceId: "market-yahoo-equity-xlk",
+      symbol: "XLK",
+      name: "Technology Select Sector SPDR Fund",
+      basis: "sector-etf",
+      sector: "Technology",
+      changePercent24h: -1,
+    });
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain("yahoo-benchmarks");
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).not.toContain("XLK");
+  });
+
+  test("falls back to SPY benchmark when equity mover sector is missing", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "AAPL",
+                    regularMarketPrice: 190,
+                    regularMarketChangePercent: 2,
+                    regularMarketVolume: 80_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots[0]?.benchmark).toMatchObject({
+      sourceId: "market-yahoo-equity-spy",
+      symbol: "SPY",
+      basis: "broad-index",
+      changePercent24h: 0.4,
+    });
+  });
+
+  test("emits no-cap gap when equity benchmark quote is missing", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "AAPL",
+                    sector: "Technology",
+                    regularMarketPrice: 190,
+                    regularMarketChangePercent: 2,
+                    regularMarketVolume: 80_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("symbols=XLK")) {
+        return jsonResponse({ quoteResponse: { result: [] } });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots[0]?.benchmark).toBeUndefined();
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "yahoo-benchmarks",
+        message: "Yahoo benchmark quote missing for XLK",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
   });
 
   test("retries Yahoo quote route with cookie and crumb after 401", async () => {
@@ -802,6 +996,7 @@ describe("collectSources", () => {
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL"]);
     expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
+      "yahoo-benchmarks",
       "marketaux-news",
       "finnhub-news",
       "massive-news",

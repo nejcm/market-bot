@@ -1,4 +1,11 @@
-import type { AssetClass, InstrumentIdentity, MarketSnapshot, SourceGap } from "../domain/types";
+import type {
+  AssetClass,
+  InstrumentIdentity,
+  MarketBenchmark,
+  MarketSnapshot,
+  SourceGap,
+} from "../domain/types";
+import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
 import {
   isFetchJsonResult,
@@ -17,6 +24,17 @@ function readYahooResults(payload: unknown): readonly unknown[] {
   }
 
   return Array.isArray(payload.quoteResponse.result) ? payload.quoteResponse.result : [];
+}
+
+function readYahooScreenerQuoteValues(payload: unknown): readonly unknown[] {
+  if (typeof payload !== "object" || payload === null || !("finance" in payload)) {
+    return [];
+  }
+
+  const { finance } = payload as {
+    finance?: { result?: readonly { quotes?: readonly unknown[] }[] };
+  };
+  return finance?.result?.[0]?.quotes ?? [];
 }
 
 function normalizeYahooQuote(
@@ -76,6 +94,11 @@ function normalizeYahooQuote(
   };
 }
 
+interface EquityMoverSnapshot {
+  readonly snapshot: MarketSnapshot;
+  readonly sector?: string;
+}
+
 export function normalizeYahooQuotePayload(
   payload: unknown,
   assetClass: AssetClass,
@@ -86,10 +109,46 @@ export function normalizeYahooQuotePayload(
     .filter((snapshot): snapshot is MarketSnapshot => snapshot !== undefined);
 }
 
+function normalizeYahooMoverQuoteValues(
+  values: readonly unknown[],
+  fetchedAt: string,
+): readonly EquityMoverSnapshot[] {
+  return values
+    .map((value): EquityMoverSnapshot | undefined => {
+      const snapshot = normalizeYahooQuote(value, "equity", fetchedAt);
+      if (snapshot === undefined || !isRecord(value)) {
+        return undefined;
+      }
+      const sector = optionalString(value, "sector");
+      return {
+        snapshot,
+        ...(sector !== undefined ? { sector } : {}),
+      };
+    })
+    .filter((snapshot): snapshot is EquityMoverSnapshot => snapshot !== undefined);
+}
+
 const EQUITY_DAILY_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
+const BROAD_EQUITY_BENCHMARK = "SPY";
+const SECTOR_BENCHMARKS: Readonly<Record<string, string>> = {
+  "Basic Materials": "XLB",
+  "Communication Services": "XLC",
+  "Consumer Cyclical": "XLY",
+  "Consumer Defensive": "XLP",
+  "Consumer Discretionary": "XLY",
+  "Consumer Staples": "XLP",
+  Energy: "XLE",
+  Financial: "XLF",
+  "Financial Services": "XLF",
+  Healthcare: "XLV",
+  Industrials: "XLI",
+  "Real Estate": "XLRE",
+  Technology: "XLK",
+  Utilities: "XLU",
+};
 
 function encodeQuery(params: Record<string, string>): string {
   return new URLSearchParams(params).toString();
@@ -110,20 +169,108 @@ export function yahooQuoteSourceRequest(
   };
 }
 
-function readYahooScreenerQuotes(payload: unknown): unknown {
-  if (typeof payload !== "object" || payload === null || !("finance" in payload)) {
-    return { quoteResponse: { result: [] } };
-  }
+type EquityRole = "movers" | "regime";
 
-  const { finance } = payload as {
-    finance?: { result?: readonly { quotes?: readonly unknown[] }[] };
-  };
-  const quotes = finance?.result?.[0]?.quotes ?? [];
-
-  return { quoteResponse: { result: quotes } };
+interface BenchmarkSelection {
+  readonly symbol: string;
+  readonly basis: MarketBenchmark["basis"];
+  readonly sector?: string;
 }
 
-type EquityRole = "movers" | "regime";
+function benchmarkSelectionForSector(sector: string | undefined): BenchmarkSelection {
+  const benchmark = sector !== undefined ? SECTOR_BENCHMARKS[sector] : undefined;
+  return {
+    symbol: benchmark ?? BROAD_EQUITY_BENCHMARK,
+    basis: benchmark !== undefined ? "sector-etf" : "broad-index",
+    ...(sector !== undefined ? { sector } : {}),
+  };
+}
+
+function benchmarkSourceId(symbol: string): string {
+  return `market-yahoo-equity-${symbol.toLowerCase()}`;
+}
+
+function benchmarkFromSnapshot(
+  snapshot: MarketSnapshot,
+  selection: BenchmarkSelection,
+): MarketBenchmark {
+  return {
+    sourceId: benchmarkSourceId(snapshot.symbol),
+    symbol: snapshot.symbol,
+    ...(snapshot.name !== undefined ? { name: snapshot.name } : {}),
+    basis: selection.basis,
+    ...(selection.sector !== undefined ? { sector: selection.sector } : {}),
+    changePercent24h: snapshot.changePercent24h,
+    observedAt: snapshot.observedAt,
+  };
+}
+
+async function enrichMoverBenchmarks(
+  ctx: CollectContext,
+  movers: readonly EquityMoverSnapshot[],
+): Promise<{
+  readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly rawSnapshots: readonly FetchJsonResult["rawSnapshot"][];
+  readonly sourceGaps: readonly SourceGap[];
+}> {
+  if (movers.length === 0) {
+    return { marketSnapshots: [], rawSnapshots: [], sourceGaps: [] };
+  }
+
+  const selections = new Map(
+    movers.map((mover) => [mover.snapshot.symbol, benchmarkSelectionForSector(mover.sector)]),
+  );
+  const benchmarkSymbols = [...new Set([...selections.values()].map((item) => item.symbol))];
+  const fetched = await ctx.request.json({
+    url: yahooQuoteUrl(benchmarkSymbols.join(",")),
+    adapter: "yahoo-benchmarks",
+    fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
+  });
+
+  if (!isFetchJsonResult(fetched)) {
+    return {
+      marketSnapshots: movers.map((mover) => mover.snapshot),
+      rawSnapshots: [],
+      sourceGaps: [
+        sourceGapWithContext(fetched, {
+          capability: "market-data",
+          evidenceQualityImpact: "no-cap",
+        }),
+      ],
+    };
+  }
+
+  const benchmarks = new Map(
+    normalizeYahooQuotePayload(fetched.payload, "equity", fetched.rawSnapshot.fetchedAt).map(
+      (snapshot) => [snapshot.symbol, snapshot],
+    ),
+  );
+  const missing = benchmarkSymbols
+    .filter((symbol) => !benchmarks.has(symbol))
+    .map((symbol) =>
+      sourceGap({
+        source: "yahoo-benchmarks",
+        message: `Yahoo benchmark quote missing for ${symbol}`,
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
+  const marketSnapshots = movers.map((mover) => {
+    const selection = selections.get(mover.snapshot.symbol);
+    const benchmark = selection !== undefined ? benchmarks.get(selection.symbol) : undefined;
+    return selection !== undefined && benchmark !== undefined
+      ? { ...mover.snapshot, benchmark: benchmarkFromSnapshot(benchmark, selection) }
+      : mover.snapshot;
+  });
+
+  return {
+    marketSnapshots,
+    rawSnapshots: [fetched.rawSnapshot],
+    sourceGaps: missing,
+  };
+}
 
 interface YahooCredentials {
   readonly cookie: string;
@@ -253,18 +400,26 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     .filter((r): r is SourceGap => !isFetchJsonResult(r));
 
   const isMarketUpdate = command.jobType === "daily" || command.jobType === "weekly";
-  const snapshots = fetched.flatMap((e) => {
-    const payload =
-      isMarketUpdate && e.role === "movers"
-        ? readYahooScreenerQuotes(e.result.payload)
-        : e.result.payload;
-    return normalizeYahooQuotePayload(payload, "equity", e.result.rawSnapshot.fetchedAt);
-  });
+  const moverResults = fetched.filter((e) => isMarketUpdate && e.role === "movers");
+  const regimeSnapshots = fetched.flatMap((e) =>
+    isMarketUpdate && e.role === "movers"
+      ? []
+      : normalizeYahooQuotePayload(e.result.payload, "equity", e.result.rawSnapshot.fetchedAt),
+  );
+  const moverSnapshots = moverResults.flatMap((e) =>
+    normalizeYahooMoverQuoteValues(
+      readYahooScreenerQuoteValues(e.result.payload),
+      e.result.rawSnapshot.fetchedAt,
+    ),
+  );
+  const benchmarkResult = isMarketUpdate
+    ? await enrichMoverBenchmarks(ctx, moverSnapshots)
+    : { marketSnapshots: [], rawSnapshots: [], sourceGaps: [] };
 
   return {
-    rawSnapshots: fetched.map((e) => e.result.rawSnapshot),
-    marketSnapshots: snapshots,
-    sourceGaps,
+    rawSnapshots: [...fetched.map((e) => e.result.rawSnapshot), ...benchmarkResult.rawSnapshots],
+    marketSnapshots: [...benchmarkResult.marketSnapshots, ...regimeSnapshots],
+    sourceGaps: [...sourceGaps, ...benchmarkResult.sourceGaps],
   };
 }
 

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   buildAlphaCandidateProfiles,
   buildAlphaCandidateWatchlist,
+  isAlphaCandidateProfile,
   renderAlphaCandidateWatchlistMarkdown,
   type AlphaCandidateProfile,
 } from "../alpha-search/candidate-state";
@@ -151,7 +152,7 @@ async function loadAlphaCandidateProfiles(
   try {
     const raw = await readFile(join(runDir, "normalized", ALPHA_CANDIDATE_PROFILES_FILE), "utf8");
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as readonly AlphaCandidateProfile[]) : [];
+    return Array.isArray(parsed) ? parsed.filter((entry) => isAlphaCandidateProfile(entry)) : [];
   } catch {
     return [];
   }

@@ -1,4 +1,5 @@
 import type { ResearchReport } from "../domain/types";
+import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
 import type { AlphaValidationFile, AlphaValidationHorizon } from "./validation";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 import { readAlphaSearchLeads } from "./report-extras";
@@ -60,6 +61,61 @@ function roundMetric(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
 
+function isAlphaSearchDiscoverySource(value: string): value is AlphaSearchDiscoverySource {
+  return value === "apewisdom" || value === "sec-filings";
+}
+
+function isAlphaCandidateSourceGroup(value: unknown): value is AlphaCandidateSourceGroup {
+  return value === "apewisdom-only" || value === "sec-only" || value === "apewisdom+sec";
+}
+
+function isAlphaSearchSecFiling(value: unknown): value is AlphaSearchSecFiling {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    readString(value, "form") !== undefined &&
+    readString(value, "filingDate") !== undefined &&
+    (value.reportDate === undefined || readString(value, "reportDate") !== undefined) &&
+    (value.accessionNumber === undefined || readString(value, "accessionNumber") !== undefined) &&
+    readStringArray(value, "sourceIds") !== undefined
+  );
+}
+
+export function isAlphaCandidateProfile(value: unknown): value is AlphaCandidateProfile {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const { recentSecFilings } = value;
+  const discoverySources = readStringArray(value, "discoverySources");
+  return (
+    readString(value, "symbol") !== undefined &&
+    (value.name === undefined || readString(value, "name") !== undefined) &&
+    readString(value, "runId") !== undefined &&
+    readString(value, "generatedAt") !== undefined &&
+    discoverySources !== undefined &&
+    discoverySources.every((entry) => isAlphaSearchDiscoverySource(entry)) &&
+    isAlphaCandidateSourceGroup(value.sourceGroup) &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    readString(value, "exchange") !== undefined &&
+    readNumber(value, "price") !== undefined &&
+    readNumber(value, "volume") !== undefined &&
+    readNumber(value, "marketCap") !== undefined &&
+    (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
+    (value.socialMomentumScore === undefined ||
+      readNumber(value, "socialMomentumScore") !== undefined) &&
+    (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&
+    (value.upvotes === undefined || readNumber(value, "upvotes") !== undefined) &&
+    (value.secCik === undefined || readString(value, "secCik") !== undefined) &&
+    (value.secCompanyName === undefined || readString(value, "secCompanyName") !== undefined) &&
+    (recentSecFilings === undefined ||
+      (Array.isArray(recentSecFilings) &&
+        recentSecFilings.every((filing) => isAlphaSearchSecFiling(filing))))
+  );
+}
+
 function sourceGroup(
   discoverySources: readonly AlphaSearchDiscoverySource[],
 ): AlphaCandidateSourceGroup {
@@ -104,7 +160,8 @@ function numericChange(
   if (previous === undefined || latest === undefined) {
     return undefined;
   }
-  return roundMetric(latest - previous);
+  const change = roundMetric(latest - previous);
+  return change === 0 ? undefined : change;
 }
 
 function buildDelta(
@@ -216,34 +273,37 @@ export function buildAlphaCandidateWatchlist(input: {
   }
 
   const validationsBySymbol = latestValidationBySymbol(input.validations ?? []);
-  const candidates = [...profilesBySymbol.entries()]
-    .map(([symbol, profiles]) => {
-      const sorted = profiles.toSorted(compareGeneratedAt);
-      const latest = sorted.at(-1) as AlphaCandidateProfile;
-      const previous = sorted.at(-2);
-      const runIds = [...new Set(sorted.map((profile) => profile.runId))];
-      const delta = buildDelta(previous, latest);
-      return {
-        symbol,
-        ...(latest.name !== undefined ? { name: latest.name } : {}),
-        firstSeenAt: (sorted[0] as AlphaCandidateProfile).generatedAt,
-        lastSeenAt: latest.generatedAt,
-        seenCount: sorted.length,
-        runIds,
-        latestProfile: latest,
-        ...(delta !== undefined ? { delta } : {}),
-        latestValidation: validationsBySymbol.get(symbol) ?? [],
-      };
-    })
-    .toSorted(
-      (left, right) =>
-        right.lastSeenAt.localeCompare(left.lastSeenAt) || left.symbol.localeCompare(right.symbol),
-    );
+  const candidates: AlphaCandidateWatchlistItem[] = [];
+  for (const [symbol, profiles] of profilesBySymbol.entries()) {
+    const sorted = profiles.toSorted(compareGeneratedAt);
+    const latest = sorted.at(-1);
+    if (latest === undefined) {
+      continue;
+    }
+    const previous = sorted.at(-2);
+    const runIds = [...new Set(sorted.map((profile) => profile.runId))];
+    const delta = buildDelta(previous, latest);
+    candidates.push({
+      symbol,
+      ...(latest.name !== undefined ? { name: latest.name } : {}),
+      firstSeenAt: sorted[0]?.generatedAt ?? latest.generatedAt,
+      lastSeenAt: latest.generatedAt,
+      seenCount: sorted.length,
+      runIds,
+      latestProfile: latest,
+      ...(delta !== undefined ? { delta } : {}),
+      latestValidation: validationsBySymbol.get(symbol) ?? [],
+    });
+  }
+  const sortedCandidates = candidates.toSorted(
+    (left, right) =>
+      right.lastSeenAt.localeCompare(left.lastSeenAt) || left.symbol.localeCompare(right.symbol),
+  );
 
   return {
     generatedAt: (input.now ?? new Date()).toISOString(),
-    candidateCount: candidates.length,
-    candidates,
+    candidateCount: sortedCandidates.length,
+    candidates: sortedCandidates,
   };
 }
 

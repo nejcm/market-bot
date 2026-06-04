@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildAlphaCandidateProfiles,
   buildAlphaCandidateWatchlist,
+  isAlphaCandidateProfile,
   renderAlphaCandidateWatchlistMarkdown,
   type AlphaCandidateProfile,
 } from "../src/alpha-search/candidate-state";
@@ -154,6 +155,12 @@ describe("buildAlphaCandidateProfiles", () => {
     expect(buildAlphaCandidateProfiles(researchReport())).toEqual([]);
     expect(buildAlphaCandidateProfiles(alphaReport([]))).toEqual([]);
   });
+
+  test("narrows persisted candidate profiles", () => {
+    expect(isAlphaCandidateProfile(profile())).toBe(true);
+    expect(isAlphaCandidateProfile({ ...profile(), symbol: undefined })).toBe(false);
+    expect(isAlphaCandidateProfile({ ...profile(), discoverySources: ["other"] })).toBe(false);
+  });
 });
 
 describe("buildAlphaCandidateWatchlist", () => {
@@ -216,6 +223,26 @@ describe("buildAlphaCandidateWatchlist", () => {
         excessReturn: 0.15,
       }),
     ]);
+  });
+
+  test("omits zero numeric deltas", () => {
+    const watchlist = buildAlphaCandidateWatchlist({
+      profiles: [
+        profile(),
+        profile({
+          runId: "alpha-run-2",
+          generatedAt: "2026-05-08T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    expect(watchlist.candidates[0]?.delta).toEqual({
+      fromRunId: "alpha-run-1",
+      toRunId: "alpha-run-2",
+      addedDiscoverySources: [],
+      removedDiscoverySources: [],
+      newSecFilings: [],
+    });
   });
 
   test("renders markdown table without promotion verdicts", () => {

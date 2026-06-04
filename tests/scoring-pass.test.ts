@@ -448,6 +448,71 @@ describe("runScorePass Alpha validation", () => {
     expect(markdown).not.toMatch(/\b(promote|buy|sell|hold)\b/iu);
   });
 
+  test("ignores malformed persisted alpha candidate profiles", async () => {
+    const malformedRunDir = await writeRun(
+      "alpha-run-malformed",
+      report([], {
+        runId: "alpha-run-malformed",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 0,
+          secCandidateCount: 0,
+          researchLeads: [],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+    await mkdir(join(malformedRunDir, "normalized"), { recursive: true });
+    await writeFile(
+      join(malformedRunDir, "normalized", "candidate-profiles.json"),
+      `${JSON.stringify([{ generatedAt: "2026-05-01T00:00:00.000Z" }], undefined, 2)}\n`,
+      "utf8",
+    );
+
+    await writeRun(
+      "alpha-run-valid",
+      report([], {
+        runId: "alpha-run-valid",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 1,
+          secCandidateCount: 0,
+          researchLeads: [
+            {
+              symbol: "ALFA",
+              name: "Alpha Co.",
+              exchange: "NMS",
+              price: 10,
+              volume: 1_000_000,
+              marketCap: 500_000_000,
+              discoverySources: ["apewisdom"],
+              socialRank: 1,
+              socialMomentumScore: 75,
+              sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+            },
+          ],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+
+    const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      observationRepository: {
+        point: noObservation,
+        window: async () => [],
+      },
+    });
+
+    const watchlist = await readAlphaWatchlist();
+    expect(result).toEqual({ scored: 1, skipped: 1 });
+    expect(watchlist.candidates).toHaveLength(1);
+    expect(watchlist.candidates[0]?.symbol).toBe("ALFA");
+  });
+
   test("does not recompute completed alpha validation sidecars", async () => {
     const runDir = await writeRun(
       "alpha-run-1",

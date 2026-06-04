@@ -181,4 +181,28 @@ describe("runCli", () => {
       "Cache prune complete: 0 raw day(s), 0 close file(s) pruned",
     );
   });
+
+  test("runs history rebuild through CLI dispatch", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-history-rebuild-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+
+    await expect(
+      runCli(["history", "rebuild"], {
+        rebuildHistoryArtifacts: async (receivedDataDir) => {
+          expect(receivedDataDir).toBe(dataDir);
+          return {
+            historyDir: join(dataDir, "..", "history"),
+            indexPath: join(dataDir, "..", "history", "index.json"),
+            instrumentCount: 1,
+            sourceRunCount: 2,
+            malformedRunCount: 0,
+          };
+        },
+      }),
+    ).resolves.toBe("History rebuilt: 2 run(s), 1 instrument timeline(s), 0 malformed");
+  });
 });

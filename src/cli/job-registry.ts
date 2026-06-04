@@ -1,4 +1,5 @@
 import type { AssetClass, Depth } from "../domain/types";
+import type { HistorySection } from "../history/artifacts";
 
 export interface DailyCommand {
   readonly jobType: "daily";
@@ -41,6 +42,32 @@ export interface ProviderHealthCommand {
   readonly jobType: "provider-health";
 }
 
+export interface HistoryRebuildCommand {
+  readonly jobType: "history-rebuild";
+}
+
+export interface HistorySearchCommand {
+  readonly jobType: "history-search";
+  readonly query: string;
+  readonly symbol?: string;
+  readonly assetClass?: AssetClass;
+  readonly sourceJobType?: "daily" | "weekly" | "ticker" | "alpha-search";
+  readonly from?: string;
+  readonly to?: string;
+  readonly section?: HistorySection;
+  readonly provider?: string;
+  readonly limit?: number;
+}
+
+export interface HistoryThesisDeltaCommand {
+  readonly jobType: "history-thesis-delta";
+  readonly symbol: string;
+  readonly assetClass: AssetClass;
+  readonly since?: string;
+  readonly to?: string;
+  readonly narrative: boolean;
+}
+
 export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
 export type CliCommand =
   | ResearchCommand
@@ -48,7 +75,10 @@ export type CliCommand =
   | ScoreCommand
   | CalibrationCommand
   | CachePruneCommand
-  | ProviderHealthCommand;
+  | ProviderHealthCommand
+  | HistoryRebuildCommand
+  | HistorySearchCommand
+  | HistoryThesisDeltaCommand;
 
 export const ASSET_CLASS_OPTIONS = ["equity", "crypto"] as const;
 export const DEPTH_OPTIONS = ["brief", "deep"] as const;
@@ -65,7 +95,7 @@ export const CONSOLE_JOB_TYPES = [
 export const SEARCH_JOB_TYPE_OPTIONS = ["", "daily", "weekly", "ticker", "alpha-search"] as const;
 
 export const USAGE =
-  "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health";
+  "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -118,9 +148,16 @@ export function commandLabel(command: CliCommand): string {
     command.jobType === "score" ||
     command.jobType === "calibration" ||
     command.jobType === "cache-prune" ||
-    command.jobType === "provider-health"
+    command.jobType === "provider-health" ||
+    command.jobType === "history-rebuild"
   ) {
     return command.jobType;
+  }
+  if (command.jobType === "history-search") {
+    return `history search ${command.query}`;
+  }
+  if (command.jobType === "history-thesis-delta") {
+    return `history thesis-delta ${command.assetClass}:${command.symbol}`;
   }
   const depthSuffix = command.depth === "deep" ? " deep" : "";
   const symbolPart = command.jobType === "ticker" ? ` ${command.symbol}` : "";

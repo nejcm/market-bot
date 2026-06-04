@@ -17,6 +17,7 @@ src/
   report/             Report schema (zod) + markdown renderer
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
   research/           Orchestrator, prompt loader, history, Market Spotlights, Domain Playbooks, regime summary
+  history/            Derived Historical Research Context indexes, search, and thesis deltas
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
 prompts/              Stage prompt files and checked-in Domain Playbooks
@@ -71,6 +72,8 @@ The Evidence Request Loop runs only for `ticker --deep --asset equity` when its 
 
 Historical Research Context scans `MARKET_BOT_DATA_DIR` run artifacts only; it never reads `data/cache`. It loads compact prior report summaries, findings, risks, catalysts, data gaps, scored prediction status, selected extras, and normalized snapshots. Prior reports are added as citeable internal `model` Sources with IDs like `history-report-<runId>`. Missing or malformed history is recorded as a soft historical-context gap, not a provider `SourceGap`.
 
+The `history` CLI family uses the same artifact-only boundary for user-facing historical views. `history rebuild` derives searchable indexes and per-Instrument timelines under `data/history/` from canonical run artifacts without rewriting those runs. `history search` reads the derived index, and `history thesis-delta` compares two historical Research Thesis states. Narrative thesis-delta output is generated only when explicitly requested and is persisted with the deterministic delta input and model metadata.
+
 Market Spotlights run only for daily and weekly market updates. Candidates are built from the current collected market snapshot universe and may be enriched with mover features, benchmark context, history availability, and alpha-search watchlist annotations. The quick-model `spotlight-selection` stage may select zero candidates up to the configured cap. Invalid selector output is audit-only. Spotlights do not fetch extra evidence, run nested ticker jobs, use provider-native tools, or auto-upgrade depth. Selected history and spotlights flow into final synthesis as compact context and can render through `report.extras` without a top-level report schema migration.
 
 Domain Playbooks are checked-in markdown guidance snippets under `prompts/playbooks/`, registered by `prompts/playbooks/registry.json` ([ADR 0012](./adr/0012-model-requested-domain-playbooks.md)). After historical context, any eligible Evidence Request Loop, and market spotlight selection, the quick model runs the `playbook-selection` stage against slim run context and eligible candidate metadata. Valid selections are loaded into downstream prompt JSON as `domainPlaybooks`; invalid JSON, unknown IDs, invalid stages, duplicates, and cap overages are trace-only rejections. The selector does not fetch sources, use provider-native tools, or add report schema fields.
@@ -116,3 +119,4 @@ CLI args → AppConfig → collect sources → orchestrator
 ```
 
 `score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `cache prune` removes raw cache entries older than 30 days and scorer close-cache entries older than 365 days.
+`history rebuild`, `history search`, and `history thesis-delta` operate on existing artifacts only; they do not fetch fresh Source Provider data.

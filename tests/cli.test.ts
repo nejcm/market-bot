@@ -87,11 +87,86 @@ describe("parseArgs", () => {
     expect(parseArgs(["provider-health"])).toEqual({ jobType: "provider-health" });
   });
 
+  test("parses history rebuild command", () => {
+    expect(parseArgs(["history", "rebuild"])).toEqual({ jobType: "history-rebuild" });
+  });
+
+  test("parses history search command with filters", () => {
+    expect(
+      parseArgs([
+        "history",
+        "search",
+        "--query",
+        "margin",
+        "--symbol",
+        "aapl",
+        "--asset",
+        "equity",
+        "--job-type",
+        "ticker",
+        "--from",
+        "2026-06-01",
+        "--to",
+        "2026-06-05",
+        "--section",
+        "risks",
+        "--provider",
+        "yahoo",
+        "--limit",
+        "5",
+      ]),
+    ).toEqual({
+      jobType: "history-search",
+      query: "margin",
+      symbol: "AAPL",
+      assetClass: "equity",
+      sourceJobType: "ticker",
+      from: "2026-06-01",
+      to: "2026-06-05",
+      section: "risks",
+      provider: "yahoo",
+      limit: 5,
+    });
+  });
+
+  test("parses history thesis-delta command", () => {
+    expect(
+      parseArgs([
+        "history",
+        "thesis-delta",
+        "aapl",
+        "--asset",
+        "equity",
+        "--since",
+        "2026-06-01",
+        "--narrative",
+      ]),
+    ).toEqual({
+      jobType: "history-thesis-delta",
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "2026-06-01",
+      narrative: true,
+    });
+  });
+
   test("labels utility commands", () => {
     expect(commandLabel({ jobType: "score" })).toBe("score");
     expect(commandLabel({ jobType: "calibration" })).toBe("calibration");
     expect(commandLabel({ jobType: "cache-prune" })).toBe("cache-prune");
     expect(commandLabel({ jobType: "provider-health" })).toBe("provider-health");
+    expect(commandLabel({ jobType: "history-rebuild" })).toBe("history-rebuild");
+    expect(commandLabel({ jobType: "history-search", query: "margin" })).toBe(
+      "history search margin",
+    );
+    expect(
+      commandLabel({
+        jobType: "history-thesis-delta",
+        assetClass: "equity",
+        symbol: "AAPL",
+        narrative: false,
+      }),
+    ).toBe("history thesis-delta equity:AAPL");
   });
 
   test("exposes shared registry job options", () => {

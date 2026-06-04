@@ -1,0 +1,245 @@
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  buildThesisDelta,
+  rebuildHistoryArtifacts,
+  searchHistoryIndex,
+} from "../src/history/artifacts";
+import type { ModelProvider } from "../src/model/types";
+import { prediction, researchReport } from "./support/fixtures";
+
+function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function writeRun(
+  dataDir: string,
+  runId: string,
+  generatedAt: string,
+  summary: string,
+  risk: string,
+  options: { readonly writeScore?: boolean } = {},
+): void {
+  const writeScore = options.writeScore ?? true;
+  const runDir = join(dataDir, runId);
+  mkdirSync(join(runDir, "normalized"), { recursive: true });
+  writeJson(
+    join(runDir, "report.json"),
+    researchReport({
+      runId,
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      generatedAt,
+      summary,
+      keyFindings: [{ text: `${summary} finding`, sourceIds: ["s1"] }],
+      risks: [{ text: risk, sourceIds: ["s1"] }],
+      dataGaps: [`${summary} gap`],
+      predictions: [
+        prediction({
+          id: "p1",
+          claim: `${summary} AAPL closes higher.`,
+          subject: "AAPL",
+          sourceIds: ["s1"],
+        }),
+      ],
+      sources: [
+        {
+          id: "s1",
+          title: `${summary} Yahoo source`,
+          fetchedAt: generatedAt,
+          kind: "news",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "yahoo",
+          identity: {
+            aliases: [{ provider: "yahoo", idKind: "symbol", value: "AAPL" }],
+          },
+        },
+      ],
+    }),
+  );
+  if (writeScore) {
+    writeJson(join(runDir, "score.json"), {
+      scores: [
+        {
+          predictionId: "p1",
+          runId,
+          resolved: runId === "run-new",
+          outcome: runId === "run-new" ? "hit" : undefined,
+          observedAt: runId === "run-new" ? generatedAt : undefined,
+          attemptCount: 1,
+          evidence: {},
+        },
+      ],
+    });
+  }
+  writeJson(join(runDir, "normalized", "market-snapshots.json"), [
+    {
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: runId === "run-new" ? 120 : 100,
+      changePercent24h: 1,
+      volume: 1_000_000,
+      observedAt: generatedAt,
+    },
+  ]);
+  writeJson(join(runDir, "normalized", "sec-fundamentals.json"), [
+    { symbol: "AAPL", revenueGrowth: runId === "run-new" ? 0.2 : 0.1 },
+  ]);
+}
+
+describe("history artifacts", () => {
+  test("rebuilds derived index and per-instrument timeline from run artifacts", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-artifacts-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    mkdirSync(join(dataDir, "malformed"));
+    writeFileSync(join(dataDir, "malformed", "report.json"), "{", "utf8");
+
+    const result = await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    expect(result.sourceRunCount).toBe(2);
+    expect(result.malformedRunCount).toBe(1);
+    expect(result.instrumentCount).toBe(1);
+    const index = JSON.parse(await readFile(join(rootDir, "history", "index.json"), "utf8")) as {
+      readonly entries: readonly { readonly section: string; readonly text: string }[];
+    };
+    expect(index.entries.some((entry) => entry.section === "openQuestions")).toBe(true);
+    const timeline = JSON.parse(
+      await readFile(join(rootDir, "history", "instruments", "equity-AAPL.json"), "utf8"),
+    ) as { readonly entries: readonly { readonly runId: string }[] };
+    expect(timeline.entries.map((entry) => entry.runId)).toEqual(["run-old", "run-new"]);
+  });
+
+  test("searches structured history index with filters", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-search-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const results = await searchHistoryIndex(dataDir, {
+      query: "New risk",
+      symbol: "AAPL",
+      assetClass: "equity",
+      jobType: "ticker",
+      section: "risks",
+      from: "2026-06-05",
+      to: "2026-06-05",
+      limit: 5,
+    });
+
+    expect(results.map((result) => result.runId)).toEqual(["run-new"]);
+    expect(results[0]?.section).toBe("risks");
+  });
+
+  test("builds deterministic thesis deltas and persists explicit narratives", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-delta-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const provider: ModelProvider = {
+      name: "test",
+      generate: async () => ({
+        content: "The research thesis shifted from old evidence to new evidence.",
+        tokenEstimate: 10,
+        costEstimateUsd: 0.01,
+      }),
+    };
+    const delta = await buildThesisDelta({
+      dataDir,
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "run-old",
+      to: "run-new",
+      narrative: true,
+      provider,
+      model: "test-model",
+      now: new Date("2026-06-06T00:00:00.000Z"),
+    });
+
+    expect(delta.sections.summary?.added).toEqual(["New thesis"]);
+    expect(delta.sections.summary?.removed).toEqual(["Old thesis"]);
+    expect(delta.narrative?.model).toBe("test-model");
+    const persisted = await readFile(
+      join(rootDir, "history", "deltas", "equity-AAPL-run-old-to-run-new.json"),
+      "utf8",
+    );
+    expect(persisted).toContain("The research thesis shifted");
+  });
+
+  test("rejects narratives with trade-action language and persists nothing", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-reject-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const provider: ModelProvider = {
+      name: "test",
+      generate: async () => ({
+        content: "Investors should buy AAPL now.",
+        tokenEstimate: 10,
+        costEstimateUsd: 0.01,
+      }),
+    };
+
+    await expect(
+      buildThesisDelta({
+        dataDir,
+        symbol: "AAPL",
+        assetClass: "equity",
+        since: "run-old",
+        to: "run-new",
+        narrative: true,
+        provider,
+        model: "test-model",
+        now: new Date("2026-06-06T00:00:00.000Z"),
+      }),
+    ).rejects.toThrow(/trade-action language/u);
+
+    const persisted = await readdir(join(rootDir, "history", "deltas")).catch(() => []);
+    expect(persisted).toEqual([]);
+  });
+
+  test("rebuilds when scores are missing and surfaces unresolved predictions", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-noscore-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk", {
+      writeScore: false,
+    });
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk", {
+      writeScore: false,
+    });
+
+    const result = await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    expect(result.sourceRunCount).toBe(2);
+    expect(result.malformedRunCount).toBe(0);
+    const index = JSON.parse(await readFile(join(rootDir, "history", "index.json"), "utf8")) as {
+      readonly entries: readonly { readonly section: string; readonly text: string }[];
+    };
+    expect(
+      index.entries.some(
+        (entry) =>
+          entry.section === "openQuestions" && entry.text.startsWith("Unresolved prediction:"),
+      ),
+    ).toBe(true);
+    const timeline = JSON.parse(
+      await readFile(join(rootDir, "history", "instruments", "equity-AAPL.json"), "utf8"),
+    ) as { readonly entries: readonly { readonly scores: readonly unknown[] }[] };
+    expect(timeline.entries.every((entry) => entry.scores.length === 0)).toBe(true);
+  });
+});

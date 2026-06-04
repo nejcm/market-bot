@@ -10,6 +10,13 @@ import { persistResearchJob } from "./research/orchestrator";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
+import {
+  buildThesisDelta,
+  rebuildHistoryArtifacts,
+  renderSearchResults,
+  renderThesisDelta,
+  searchHistoryIndex,
+} from "./history/artifacts";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -17,6 +24,9 @@ export interface RunCliDependencies {
   readonly persistResearchJob?: typeof persistResearchJob;
   readonly runScorePass?: typeof runScorePass;
   readonly buildAndWriteCalibration?: typeof buildAndWriteCalibration;
+  readonly rebuildHistoryArtifacts?: typeof rebuildHistoryArtifacts;
+  readonly searchHistoryIndex?: typeof searchHistoryIndex;
+  readonly buildThesisDelta?: typeof buildThesisDelta;
   readonly now?: () => Date;
 }
 
@@ -85,6 +95,48 @@ export async function runCli(
   if (command.jobType === "provider-health") {
     const result = await writeProviderHealthSummary(config.dataDir);
     return `Provider health written to ${result.markdownPath}`;
+  }
+
+  if (command.jobType === "history-rebuild") {
+    const result = await (dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts)(
+      config.dataDir,
+      now(),
+    );
+    return `History rebuilt: ${String(result.sourceRunCount)} run(s), ${String(
+      result.instrumentCount,
+    )} instrument timeline(s), ${String(result.malformedRunCount)} malformed`;
+  }
+
+  if (command.jobType === "history-search") {
+    const results = await (dependencies.searchHistoryIndex ?? searchHistoryIndex)(config.dataDir, {
+      query: command.query,
+      ...(command.symbol !== undefined ? { symbol: command.symbol } : {}),
+      ...(command.assetClass !== undefined ? { assetClass: command.assetClass } : {}),
+      ...(command.sourceJobType !== undefined ? { jobType: command.sourceJobType } : {}),
+      ...(command.from !== undefined ? { from: command.from } : {}),
+      ...(command.to !== undefined ? { to: command.to } : {}),
+      ...(command.section !== undefined ? { section: command.section } : {}),
+      ...(command.provider !== undefined ? { provider: command.provider } : {}),
+      ...(command.limit !== undefined ? { limit: command.limit } : {}),
+    });
+    return renderSearchResults(results);
+  }
+
+  if (command.jobType === "history-thesis-delta") {
+    const provider = command.narrative
+      ? (dependencies.createProvider ?? createProvider)(config)
+      : undefined;
+    const delta = await (dependencies.buildThesisDelta ?? buildThesisDelta)({
+      dataDir: config.dataDir,
+      symbol: command.symbol,
+      assetClass: command.assetClass,
+      ...(command.since !== undefined ? { since: command.since } : {}),
+      ...(command.to !== undefined ? { to: command.to } : {}),
+      narrative: command.narrative,
+      ...(provider !== undefined ? { provider, model: config.synthesisModel } : {}),
+      now: now(),
+    });
+    return renderThesisDelta(delta);
   }
 
   if (command.jobType === "alpha-search") {

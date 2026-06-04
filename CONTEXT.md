@@ -30,7 +30,11 @@ Weekly market updates are a cadence and horizon change in V1, not a separate tra
 
 ## Historical Research Context
 
-Compact context loaded from prior `MARKET_BOT_DATA_DIR` run artifacts. It can summarize prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots, and prior reports can appear as citeable `model` Sources. It is context for research wording and probability calibration, not a new prediction-count or horizon policy.
+Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts. In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
+
+## Research Thesis
+
+The research-only narrative state of a Research View, assembled from sourced summary, key findings, bull and bear cases, risks, catalysts, data gaps, and observable Predictions. A Research Thesis is not an investment thesis, recommendation, trade signal, or portfolio action.
 
 ## Historical Context Gap
 

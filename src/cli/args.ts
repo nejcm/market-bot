@@ -1,6 +1,14 @@
 import type { AssetClass, Depth } from "../domain/types";
 import { createInstrument } from "../domain/instrument";
-import { commandLabel, USAGE, type CliCommand } from "./job-registry";
+import { HISTORY_SECTIONS, type HistorySection } from "../history/artifacts";
+import {
+  commandLabel,
+  USAGE,
+  type CliCommand,
+  type HistoryRebuildCommand,
+  type HistorySearchCommand,
+  type HistoryThesisDeltaCommand,
+} from "./job-registry";
 
 export { commandLabel };
 export type {
@@ -9,6 +17,9 @@ export type {
   CalibrationCommand,
   CliCommand,
   DailyCommand,
+  HistoryRebuildCommand,
+  HistorySearchCommand,
+  HistoryThesisDeltaCommand,
   ProviderHealthCommand,
   ResearchCommand,
   ScoreCommand,
@@ -40,6 +51,52 @@ function readFlagValue(args: readonly string[], flag: string): string | undefine
 
 function readDepth(args: readonly string[]): Depth {
   return args.includes("--deep") ? "deep" : "brief";
+}
+
+function readOptionalAsset(value: string | undefined): AssetClass | undefined {
+  return value === undefined ? undefined : parseAsset(value);
+}
+
+function readLimit(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("Expected positive integer after --limit");
+  }
+  return parsed;
+}
+
+function readSection(value: string | undefined): HistorySection | undefined {
+  if (value === undefined) {
+    return;
+  }
+  if (!(HISTORY_SECTIONS as readonly string[]).includes(value)) {
+    throw new Error(`Expected --section ${HISTORY_SECTIONS.join("|")}`);
+  }
+  return value as HistorySection;
+}
+
+function rejectUnknownHistoryArgs(
+  args: readonly string[],
+  allowedFlags: ReadonlySet<string>,
+): void {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined) {
+      continue;
+    }
+    if (!arg.startsWith("--")) {
+      throw new Error(`Unexpected argument: ${arg}`);
+    }
+    if (!allowedFlags.has(arg)) {
+      throw new Error(`Unknown flag: ${arg}`);
+    }
+    if (arg !== "--narrative") {
+      index += 1;
+    }
+  }
 }
 
 function rejectUnknownArgs(args: readonly string[], allowedPositionals: number): void {
@@ -126,6 +183,78 @@ export function parseArgs(args: readonly string[]): CliCommand {
 
   if (command === "provider-health" && args.length === 1) {
     return { jobType: "provider-health" };
+  }
+
+  if (command === "history" && maybeSymbol === "rebuild" && args.length === 2) {
+    return { jobType: "history-rebuild" } satisfies HistoryRebuildCommand;
+  }
+
+  if (command === "history" && maybeSymbol === "search") {
+    rejectUnknownHistoryArgs(
+      args.slice(2),
+      new Set([
+        "--query",
+        "--symbol",
+        "--asset",
+        "--job-type",
+        "--from",
+        "--to",
+        "--section",
+        "--provider",
+        "--limit",
+      ]),
+    );
+    const query = readFlagValue(args, "--query");
+    if (query === undefined || query.trim() === "") {
+      throw new Error("Expected --query for history search");
+    }
+    const symbol = readFlagValue(args, "--symbol");
+    const assetClass = readOptionalAsset(readFlagValue(args, "--asset"));
+    const jobType = readFlagValue(args, "--job-type");
+    const from = readFlagValue(args, "--from");
+    const to = readFlagValue(args, "--to");
+    const section = readSection(readFlagValue(args, "--section"));
+    const provider = readFlagValue(args, "--provider");
+    const limit = readLimit(readFlagValue(args, "--limit"));
+    if (
+      jobType !== undefined &&
+      jobType !== "daily" &&
+      jobType !== "weekly" &&
+      jobType !== "ticker" &&
+      jobType !== "alpha-search"
+    ) {
+      throw new Error("Expected --job-type daily|weekly|ticker|alpha-search");
+    }
+    return {
+      jobType: "history-search",
+      query,
+      ...(symbol !== undefined ? { symbol: symbol.toUpperCase() } : {}),
+      ...(assetClass !== undefined ? { assetClass } : {}),
+      ...(jobType !== undefined ? { sourceJobType: jobType } : {}),
+      ...(from !== undefined ? { from } : {}),
+      ...(to !== undefined ? { to } : {}),
+      ...(section !== undefined ? { section } : {}),
+      ...(provider !== undefined ? { provider } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    } satisfies HistorySearchCommand;
+  }
+
+  if (command === "history" && maybeSymbol === "thesis-delta") {
+    rejectUnknownHistoryArgs(args.slice(3), new Set(["--asset", "--since", "--to", "--narrative"]));
+    const symbol = args.at(2);
+    if (symbol === undefined || symbol.startsWith("--")) {
+      throw new Error("Expected symbol for history thesis-delta");
+    }
+    const since = readFlagValue(args, "--since");
+    const to = readFlagValue(args, "--to");
+    return {
+      jobType: "history-thesis-delta",
+      symbol: symbol.toUpperCase(),
+      assetClass: readOptionalAsset(readFlagValue(args, "--asset")) ?? "equity",
+      ...(since !== undefined ? { since } : {}),
+      ...(to !== undefined ? { to } : {}),
+      narrative: args.includes("--narrative"),
+    } satisfies HistoryThesisDeltaCommand;
   }
 
   throw new Error(USAGE);

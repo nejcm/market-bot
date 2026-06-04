@@ -57,6 +57,9 @@ bun run src/cli.ts score
 bun run src/cli.ts calibration
 bun run src/cli.ts cache prune
 bun run src/cli.ts provider-health
+bun run src/cli.ts history rebuild
+bun run src/cli.ts history search --query catalyst
+bun run src/cli.ts history thesis-delta AAPL --asset equity --since 2026-06-01
 ```
 
 If installed as a binary, the same verbs are available through `market-bot`:
@@ -70,6 +73,9 @@ market-bot score
 market-bot calibration
 market-bot cache prune
 market-bot provider-health
+market-bot history rebuild
+market-bot history search --query catalyst
+market-bot history thesis-delta AAPL --asset equity --since 2026-06-01 --narrative
 ```
 
 Command behavior:
@@ -85,6 +91,9 @@ Command behavior:
 | `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
 | `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
 | `provider-health` | Reads persisted run artifacts and writes provider-health contract v2 to `data/provider-health/summary.json` plus `summary.md`, including a `pass`/`warn`/`fail` validation verdict, required coverage checklist, and provider gap classifications by route. |
+| `history rebuild` | Rebuilds derived Historical Research Context indexes and per-Instrument timelines under `data/history/` from existing run artifacts. |
+| `history search --query <text>` | Searches the derived history index across prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts with optional filters. |
+| `history thesis-delta <symbol>` | Compares two historical Research Thesis states for an Instrument. By default it renders a deterministic delta; `--narrative` adds and persists a model-written research-only narrative. |
 
 Provider-health v2 expects coverage for daily and weekly equity/crypto updates, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, and missing due scoring passes. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict. Missing history on first-run paths is a soft Historical Context Gap, not a provider-health failure.
 
@@ -192,6 +201,10 @@ Fetch behavior:
 Historical Research Context reads prior run artifacts from `MARKET_BOT_DATA_DIR` only. It does not read raw source cache files under `data/cache`. The reader loads matching `report.json` files, optional `score.json`, and selected normalized market snapshots. Recent history uses the configured lookback window; anchor history picks the closest matching run at or before configured month offsets.
 
 The prompt receives compact history: prior summaries, findings, risks, catalysts, confidence, data gaps, scored prediction status, key extras, and selected numeric snapshots. History can inform forecast wording and probability calibration, but prediction counts, subjects, and horizons remain governed by run config.
+
+Historical Research Context also has user-facing derived views. `history rebuild` scans existing run artifacts and writes `data/history/index.json` plus per-Instrument timelines under `data/history/instruments/`. These derived files keep `data/runs/<run-id>/` as the source of truth, use `assetClass:symbol` as the compatibility key, and preserve any Instrument Identity metadata that prior Sources exposed. History commands are artifact-only: they do not fetch fresh market data, news, fundamentals, or Observations.
+
+The derived index supports local structured text search over report sections, Sources, Predictions, open questions, Fundamental Evidence, and validation artifacts. Thesis deltas compare Research Thesis components between two historical runs for the same Instrument: summary, findings, bull/bear cases, risks, catalysts, data gaps, open questions, observable Predictions, score state, fundamentals, and validation. Each timeline entry is tagged `instrument` or `market-update` scope: an `instrument`-scoped entry comes from a run whose subject is that symbol (a ticker run), while a `market-update`-scoped entry only references the symbol from a broader daily/weekly report. `history thesis-delta` compares `instrument`-scoped entries only, so a whole-market narrative is never compared as if it were a single Instrument's Research Thesis. When `--narrative` is passed, the model summarizes the deterministic delta and the output is persisted with the input delta and model metadata under `data/history/deltas/`; a narrative that contains trade-action language is rejected before any file is written.
 
 Ticker jobs include recent same-symbol ticker runs plus same-asset daily/weekly market updates. This context is loaded before the Evidence Request Loop, so eligible deep ticker runs can ask for extra public evidence in response to prior-run changes.
 

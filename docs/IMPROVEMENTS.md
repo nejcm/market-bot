@@ -20,11 +20,20 @@ section tracks remaining expansion work.
 
 ## Cross-run intelligence
 
-- **Narrative thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
-- **Incremental memory** — open questions and unresolved hypotheses carried forward.
-- **Session/run search** over prior reports, sources, predictions, and theses.
-- Finding alpha stocks with checking the growth, PE ratio, profits, etc... and comparing over time
-- Store all artifacts per stock and track stats over runs and over time by comparing against historical data
+First vertical slice implemented under Historical Research Context:
+
+- **Artifact-backed history indexes** from canonical `data/runs/<run-id>/` artifacts via `history rebuild`.
+- **Session/run search** over prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts via `history search`.
+- **Research Thesis delta tracking** — "what changed in the AAPL thesis since last Tuesday" — via deterministic `history thesis-delta`, with optional persisted `--narrative` summaries.
+- **Per-Instrument timelines** keyed by `assetClass:symbol`, preserving Instrument Identity metadata when available.
+- **Historical Research Lead state** remains framed through alpha-search validation, candidate profiles, watchlists, and Fundamental Evidence trends, not a recommendation or confirmed alpha label.
+
+Still deferred:
+
+- Console UI over history indexes and thesis deltas.
+- Semantic/vector search across historical artifacts.
+- Database-backed persistence once local JSON indexes become hard to query.
+- User-authored open questions and notes; V1 open questions are extracted from existing artifacts.
 
 ## Operational
 

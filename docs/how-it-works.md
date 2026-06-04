@@ -103,6 +103,18 @@ bun run check
 
 `bun run check` is the local definition of done: lint, format check, typecheck, and tests.
 
+## Research Console
+
+The local Research Console browses existing artifacts without changing the research-only
+boundary. Build the Svelte client, then start the localhost Bun server:
+
+```sh
+bun run console:build
+bun run console
+```
+
+The server binds to `127.0.0.1` and reads `MARKET_BOT_DATA_DIR` / `data/runs`.
+
 ## Configuration
 
 Configuration is read in `src/config.ts` from environment variables. Live model calls require the key for the selected provider, unless using the `codex` subscription provider.

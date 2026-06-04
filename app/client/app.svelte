@@ -1,35 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { fetchProviderHealth, fetchRunDetail, fetchRunFile, fetchRuns } from "./api";
+  import {
+    formatDate,
+    jsonBlock,
+    matchesQuery,
+    predictions,
+    runLabel,
+    scenarios,
+    sources,
+    stringArray,
+    textItems,
+  } from "./view-model";
   import type { ProviderHealthDetail, RunDetail, RunSummary } from "../types";
-
-  interface TextWithSources {
-    readonly text: string;
-    readonly sourceIds: readonly string[];
-  }
-
-  interface ScenarioView {
-    readonly name: string;
-    readonly description: string;
-    readonly sourceIds: readonly string[];
-  }
-
-  interface PredictionView {
-    readonly id: string;
-    readonly claim: string;
-    readonly kind?: string;
-    readonly probability?: number;
-    readonly horizonTradingDays?: number;
-    readonly sourceIds: readonly string[];
-  }
-
-  interface SourceView {
-    readonly id: string;
-    readonly title: string;
-    readonly kind?: string;
-    readonly provider?: string;
-    readonly url?: string;
-  }
 
   const SECTION_KEYS = [
     ["keyFindings", "Key findings"],
@@ -46,8 +29,7 @@
   let runs = $state<readonly RunSummary[]>([]);
   let selectedRunId = $state("");
   let detail = $state<RunDetail | null>(null);
-  // oxlint-disable-next-line eslint(prefer-const) -- Svelte bind:value updates this state.
-  let query = $state("");
+  const query = $state({ text: "" });
   let error = $state("");
   let loadingRuns = $state(true);
   let loadingDetail = $state(false);
@@ -55,157 +37,6 @@
   let fileContent = $state("");
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
-
-  function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-  }
-
-  function readString(record: Record<string, unknown>, key: string): string | undefined {
-    const value = record[key];
-    return typeof value === "string" ? value : undefined;
-  }
-
-  function readNumber(record: Record<string, unknown>, key: string): number | undefined {
-    const value = record[key];
-    return typeof value === "number" ? value : undefined;
-  }
-
-  function readSourceIds(record: Record<string, unknown>): readonly string[] {
-    const { sourceIds } = record;
-    return Array.isArray(sourceIds)
-      ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
-      : [];
-  }
-
-  function textItems(
-    report: Record<string, unknown> | undefined,
-    key: string,
-  ): readonly TextWithSources[] {
-    const value = report?.[key];
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((item) => isRecord(item)).flatMap((item) => {
-      const text = readString(item, "text");
-      return text === undefined ? [] : [{ text, sourceIds: readSourceIds(item) }];
-    });
-  }
-
-  function scenarios(report: Record<string, unknown> | undefined): readonly ScenarioView[] {
-    const value = report?.scenarios;
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((item) => isRecord(item)).flatMap((item) => {
-      const name = readString(item, "name");
-      const description = readString(item, "description");
-      return name === undefined || description === undefined
-        ? []
-        : [{ name, description, sourceIds: readSourceIds(item) }];
-    });
-  }
-
-  function predictions(report: Record<string, unknown> | undefined): readonly PredictionView[] {
-    const value = report?.predictions;
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((item) => isRecord(item)).flatMap((item) => {
-      const id = readString(item, "id");
-      const claim = readString(item, "claim");
-      return id === undefined || claim === undefined
-        ? []
-        : [
-            {
-              id,
-              claim,
-              ...(readString(item, "kind") !== undefined
-                ? { kind: readString(item, "kind") as string }
-                : {}),
-              ...(readNumber(item, "probability") !== undefined
-                ? { probability: readNumber(item, "probability") as number }
-                : {}),
-              ...(readNumber(item, "horizonTradingDays") !== undefined
-                ? { horizonTradingDays: readNumber(item, "horizonTradingDays") as number }
-                : {}),
-              sourceIds: readSourceIds(item),
-            },
-          ];
-    });
-  }
-
-  function sources(report: Record<string, unknown> | undefined): readonly SourceView[] {
-    const value = report?.sources;
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((item) => isRecord(item)).flatMap((item) => {
-      const id = readString(item, "id");
-      const title = readString(item, "title");
-      return id === undefined || title === undefined
-        ? []
-        : [
-            {
-              id,
-              title,
-              ...(readString(item, "kind") !== undefined
-                ? { kind: readString(item, "kind") as string }
-                : {}),
-              ...(readString(item, "provider") !== undefined
-                ? { provider: readString(item, "provider") as string }
-                : {}),
-              ...(readString(item, "url") !== undefined
-                ? { url: readString(item, "url") as string }
-                : {}),
-            },
-          ];
-    });
-  }
-
-  function jsonBlock(value: Record<string, unknown> | undefined): string {
-    return value === undefined ? "Not available" : JSON.stringify(value, null, 2);
-  }
-
-  function stringArray(report: Record<string, unknown> | undefined, key: string): readonly string[] {
-    const value = report?.[key];
-    return Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string")
-      : [];
-  }
-
-  function runLabel(run: RunSummary): string {
-    const subject = run.symbol ?? run.assetClass ?? "unknown";
-    return `${run.jobType ?? "run"} / ${subject}`;
-  }
-
-  function formatDate(value: string | undefined): string {
-    if (value === undefined) {
-      return "unknown time";
-    }
-
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-  }
-
-  function matchesQuery(run: RunSummary, text: string): boolean {
-    const haystack = [
-      run.runId,
-      run.jobType,
-      run.assetClass,
-      run.symbol,
-      run.depth,
-      run.confidence,
-    ]
-      .filter((value): value is string => value !== undefined)
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(text.trim().toLowerCase());
-  }
 
   async function selectRun(runId: string): Promise<void> {
     selectedRunId = runId;
@@ -260,10 +91,12 @@
   });
 
   const filteredRuns = $derived(
-    query.trim() === "" ? runs : runs.filter((run) => matchesQuery(run, query)),
+    query.text.trim() === "" ? runs : runs.filter((run) => matchesQuery(run, query.text)),
   );
   const report = $derived(detail?.report);
-  const reportSummary = $derived(readString(report ?? {}, "summary") ?? "No summary is available.");
+  const reportSummary = $derived(
+    typeof report?.summary === "string" ? report.summary : "No summary is available.",
+  );
   const scenarioItems = $derived(scenarios(report));
   const forecastItems = $derived(predictions(report));
   const sourceItems = $derived(sources(report));
@@ -279,7 +112,7 @@
 
     <label class="search">
       <span>Search runs</span>
-      <input bind:value={query} placeholder="ticker, asset, job, confidence" />
+      <input bind:value={query.text} placeholder="ticker, asset, job, confidence" />
     </label>
 
     {#if loadingRuns}

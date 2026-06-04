@@ -360,6 +360,117 @@ describe("collectSources", () => {
     });
   });
 
+  test("falls back to SPY benchmark when equity mover sector is unrecognized", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "AAPL",
+                    sector: "Experimental Finance",
+                    regularMarketPrice: 190,
+                    regularMarketChangePercent: 2,
+                    regularMarketVolume: 80_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots[0]?.benchmark).toMatchObject({
+      sourceId: "market-yahoo-equity-spy",
+      symbol: "SPY",
+      basis: "broad-index",
+      sector: "Experimental Finance",
+      changePercent24h: 0.4,
+    });
+  });
+
+  test("does not add benchmark context when an equity mover selects itself", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "SPY",
+                    regularMarketPrice: 510,
+                    regularMarketChangePercent: 0.4,
+                    regularMarketVolume: 70_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots[0]?.symbol).toBe("SPY");
+    expect(result.marketSnapshots[0]?.benchmark).toBeUndefined();
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).not.toContain(
+      "yahoo-benchmarks",
+    );
+  });
+
   test("emits no-cap gap when equity benchmark quote is missing", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);

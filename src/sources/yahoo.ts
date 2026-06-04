@@ -218,9 +218,19 @@ async function enrichMoverBenchmarks(
   }
 
   const selections = new Map(
-    movers.map((mover) => [mover.snapshot.symbol, benchmarkSelectionForSector(mover.sector)]),
+    movers.flatMap((mover) => {
+      const selection = benchmarkSelectionForSector(mover.sector);
+      return selection.symbol === mover.snapshot.symbol ? [] : [[mover.snapshot.symbol, selection]];
+    }),
   );
   const benchmarkSymbols = [...new Set([...selections.values()].map((item) => item.symbol))];
+  if (benchmarkSymbols.length === 0) {
+    return {
+      marketSnapshots: movers.map((mover) => mover.snapshot),
+      rawSnapshots: [],
+      sourceGaps: [],
+    };
+  }
   const fetched = await ctx.request.json({
     url: yahooQuoteUrl(benchmarkSymbols.join(",")),
     adapter: "yahoo-benchmarks",

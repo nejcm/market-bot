@@ -18,6 +18,8 @@ function roundFeature(value: number): number {
 
 function moverReasons(
   movementMagnitude: number,
+  benchmarkSymbol: string | undefined,
+  relativeChangePercent24h: number | undefined,
   liquidityLog: number,
   unusualVolumeRatio: number | undefined,
   volumeIsUnusual: boolean,
@@ -26,6 +28,9 @@ function moverReasons(
 ): readonly string[] {
   return [
     `${roundFeature(movementMagnitude)}% absolute 24h move`,
+    ...(benchmarkSymbol !== undefined && relativeChangePercent24h !== undefined
+      ? [`${roundFeature(relativeChangePercent24h)}pp move vs ${benchmarkSymbol}`]
+      : []),
     `log10 volume ${roundFeature(liquidityLog)}`,
     ...(volumeIsUnusual && unusualVolumeRatio !== undefined
       ? [`volume ${roundFeature(unusualVolumeRatio)}x average`]
@@ -38,6 +43,12 @@ function moverReasons(
 
 function buildMover(snapshot: MarketSnapshot): Omit<Mover, "rank"> {
   const movementMagnitude = Math.abs(snapshot.changePercent24h);
+  const relativeChangePercent24h =
+    snapshot.benchmark !== undefined
+      ? snapshot.changePercent24h - snapshot.benchmark.changePercent24h
+      : undefined;
+  const relativeMovementMagnitude =
+    relativeChangePercent24h !== undefined ? Math.abs(relativeChangePercent24h) : undefined;
   const liquidityLog = Math.log10(snapshot.volume);
   const baseScore = movementMagnitude * liquidityLog;
   const unusualVolumeRatio = finitePositive(snapshot.averageVolume)
@@ -68,6 +79,18 @@ function buildMover(snapshot: MarketSnapshot): Omit<Mover, "rank"> {
     score: baseScore * finalMultiplier,
     features: {
       movementMagnitude: roundFeature(movementMagnitude),
+      ...(snapshot.benchmark !== undefined
+        ? {
+            benchmarkSymbol: snapshot.benchmark.symbol,
+            benchmarkChangePercent24h: roundFeature(snapshot.benchmark.changePercent24h),
+          }
+        : {}),
+      ...(relativeChangePercent24h !== undefined
+        ? { relativeChangePercent24h: roundFeature(relativeChangePercent24h) }
+        : {}),
+      ...(relativeMovementMagnitude !== undefined
+        ? { relativeMovementMagnitude: roundFeature(relativeMovementMagnitude) }
+        : {}),
       liquidityLog: roundFeature(liquidityLog),
       baseScore: roundFeature(baseScore),
       ...(unusualVolumeRatio !== undefined
@@ -79,6 +102,8 @@ function buildMover(snapshot: MarketSnapshot): Omit<Mover, "rank"> {
       finalMultiplier: roundFeature(finalMultiplier),
       reasons: moverReasons(
         movementMagnitude,
+        snapshot.benchmark?.symbol,
+        relativeChangePercent24h,
         liquidityLog,
         unusualVolumeRatio,
         volumeIsUnusual,

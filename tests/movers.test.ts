@@ -46,6 +46,43 @@ describe("rankMovers", () => {
     expect(ranked.map((mover) => mover.snapshot.symbol)).toEqual(["AAA", "BBB"]);
   });
 
+  test("adds benchmark-relative context without changing absolute-move ranking", () => {
+    const ranked = rankMovers(
+      [
+        snapshot("ABS", 8, 1_000_000, {
+          benchmark: {
+            sourceId: "market-yahoo-equity-spy",
+            symbol: "SPY",
+            basis: "broad-index",
+            changePercent24h: 7,
+            observedAt: "2026-05-19T00:00:00.000Z",
+          },
+        }),
+        snapshot("REL", 5, 1_000_000, {
+          benchmark: {
+            sourceId: "market-yahoo-equity-xlk",
+            symbol: "XLK",
+            basis: "sector-etf",
+            sector: "Technology",
+            changePercent24h: -4,
+            observedAt: "2026-05-19T00:00:00.000Z",
+          },
+        }),
+      ],
+      2,
+    );
+
+    expect(ranked.map((mover) => mover.snapshot.symbol)).toEqual(["ABS", "REL"]);
+    expect(ranked[1]?.features).toMatchObject({
+      benchmarkSymbol: "XLK",
+      benchmarkChangePercent24h: -4,
+      relativeChangePercent24h: 9,
+      relativeMovementMagnitude: 9,
+      baseScore: 30,
+    });
+    expect(ranked[1]?.features.reasons).toContain("9pp move vs XLK");
+  });
+
   test("boosts unusual volume without replacing the baseline score", () => {
     const ranked = rankMovers(
       [snapshot("AAA", 5, 1_000_000), snapshot("ZZZ", 5, 1_000_000, { averageVolume: 500_000 })],

@@ -134,6 +134,7 @@ export interface MarketSnapshot {
   readonly symbol: string;
   readonly name?: string;
   readonly identity?: InstrumentIdentity;
+  readonly benchmark?: MarketBenchmark;
   readonly price: number;
   readonly changePercent24h: number;
   readonly volume: number;
@@ -141,6 +142,16 @@ export interface MarketSnapshot {
   readonly open?: number;
   readonly previousClose?: number;
   readonly averageVolume?: number;
+  readonly observedAt: string;
+}
+
+export interface MarketBenchmark {
+  readonly sourceId: string;
+  readonly symbol: string;
+  readonly name?: string;
+  readonly basis: "sector-etf" | "broad-index";
+  readonly sector?: string;
+  readonly changePercent24h: number;
   readonly observedAt: string;
 }
 
@@ -153,6 +164,10 @@ export interface Mover {
 
 export interface MoverFeatures {
   readonly movementMagnitude: number;
+  readonly benchmarkSymbol?: string;
+  readonly benchmarkChangePercent24h?: number;
+  readonly relativeChangePercent24h?: number;
+  readonly relativeMovementMagnitude?: number;
   readonly liquidityLog: number;
   readonly baseScore: number;
   readonly unusualVolumeRatio?: number;

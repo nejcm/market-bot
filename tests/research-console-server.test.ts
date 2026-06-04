@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { researchConsoleStaticPath } from "../app/server";
+import { handleResearchConsoleRequest, researchConsoleStaticPath } from "../app/server";
+import { researchReport } from "./support/fixtures";
+
+function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
 
 describe("research console static assets", () => {
   test("resolves built files under dist", () => {
@@ -29,5 +34,53 @@ describe("research console static assets", () => {
 
     expect(researchConsoleStaticPath("/../secret.txt", distDir)).toBeUndefined();
     expect(researchConsoleStaticPath("/%2e%2e/secret.txt", distDir)).toBeUndefined();
+  });
+});
+
+describe("research console API", () => {
+  test("serves run summaries", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-1");
+    mkdirSync(runDir);
+    writeJson(join(runDir, "report.json"), researchReport({ runId: "run-1", summary: "Summary" }));
+
+    const response = await handleResearchConsoleRequest(new Request("http://127.0.0.1/api/runs"), {
+      dataDir,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      runs: [{ runId: "run-1", findingCount: 0, predictionCount: 0 }],
+    });
+  });
+
+  test("serves run detail", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-2");
+    mkdirSync(runDir);
+    writeJson(join(runDir, "report.json"), researchReport({ runId: "run-2", summary: "Detail" }));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/runs/run-2"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      summary: { runId: "run-2" },
+      report: { summary: "Detail" },
+    });
+  });
+
+  test("returns not found for missing runs", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/runs/missing"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "Run not found" });
   });
 });

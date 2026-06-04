@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { resolveResearchConsoleConfig } from "../src/config";
+import { listRunSummaries, readRunDetail } from "./artifacts";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
 
@@ -12,8 +13,19 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   ".svg": "image/svg+xml",
 };
 
+interface ResearchConsoleRequestOptions {
+  readonly dataDir?: string;
+}
+
 function contentType(path: string): string {
   return CONTENT_TYPES[extname(path)] ?? "application/octet-stream";
+}
+
+function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(`${JSON.stringify(value)}\n`, {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }
 
 function isWithinDirectory(root: string, path: string): boolean {
@@ -57,8 +69,42 @@ export function researchConsoleStaticPath(
   return existsSync(indexPath) ? indexPath : undefined;
 }
 
-export async function handleResearchConsoleRequest(request: Request): Promise<Response> {
+async function handleApiRequest(url: URL, dataDir: string): Promise<Response | undefined> {
+  if (url.pathname === "/api/runs") {
+    return jsonResponse({ runs: await listRunSummaries(dataDir) });
+  }
+
+  const runMatch = /^\/api\/runs\/([^/]+)$/u.exec(url.pathname);
+  if (runMatch !== null) {
+    const runId = decodePathname(runMatch[1] ?? "");
+    if (runId === undefined) {
+      return jsonResponse({ error: "Invalid run id" }, 400);
+    }
+
+    const detail = await readRunDetail(dataDir, runId);
+    return detail === undefined
+      ? jsonResponse({ error: "Run not found" }, 404)
+      : jsonResponse(detail);
+  }
+
+  if (url.pathname.startsWith("/api/")) {
+    return jsonResponse({ error: "Not found" }, 404);
+  }
+
+  return undefined;
+}
+
+export async function handleResearchConsoleRequest(
+  request: Request,
+  options: ResearchConsoleRequestOptions = {},
+): Promise<Response> {
   const url = new URL(request.url);
+  const config = resolveResearchConsoleConfig();
+  const apiResponse = await handleApiRequest(url, options.dataDir ?? config.dataDir);
+  if (apiResponse !== undefined) {
+    return apiResponse;
+  }
+
   const path = researchConsoleStaticPath(url.pathname);
 
   if (path === undefined) {
@@ -79,7 +125,7 @@ if (import.meta.main) {
   Bun.serve({
     hostname: config.host,
     port: config.port,
-    fetch: handleResearchConsoleRequest,
+    fetch: (request) => handleResearchConsoleRequest(request),
   });
 
   process.stdout.write(`Research Console listening at http://${config.host}:${config.port}\n`);

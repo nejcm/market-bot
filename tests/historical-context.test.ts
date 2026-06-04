@@ -3,7 +3,10 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { HistoryOptions } from "../src/config";
-import { loadHistoricalContext } from "../src/research/historical-context";
+import {
+  createHistoricalContextReader,
+  loadHistoricalContext,
+} from "../src/research/historical-context";
 import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -237,5 +240,48 @@ describe("loadHistoricalContext", () => {
         changePercent24hDelta: 1.5,
       },
     ]);
+  });
+
+  test("reader reuses a stable artifact scan across selection loads", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "market-existing",
+      report: researchReport({
+        runId: "market-existing",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+      }),
+    });
+
+    const reader = await createHistoricalContextReader(dataDir);
+
+    await writeRun({
+      dataDir,
+      runDirName: "ticker-created-after-scan",
+      report: researchReport({
+        runId: "ticker-created-after-scan",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-25T00:00:00.000Z",
+      }),
+    });
+
+    const context = await reader.load({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config: { historyOptions: options() },
+      now,
+      spotlightSymbols: ["AAPL"],
+    });
+
+    expect(context.runs.map((run) => run.runId)).toEqual(["market-existing"]);
+    expect(context.audit).toMatchObject({
+      scannedRunCount: 1,
+      candidateRunCount: 1,
+      selectedRunCount: 1,
+    });
   });
 });

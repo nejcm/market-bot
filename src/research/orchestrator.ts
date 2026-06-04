@@ -23,7 +23,10 @@ import {
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt } from "./prompt-loader";
 import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
-import { loadHistoricalContext, type HistoricalResearchContext } from "./historical-context";
+import {
+  createHistoricalContextReader,
+  type HistoricalResearchContext,
+} from "./historical-context";
 import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
@@ -301,8 +304,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ),
     calibrationContext,
   };
-  let historicalContext = await loadHistoricalContext({
-    dataDir: input.config.dataDir,
+  const historicalContextReader = await createHistoricalContextReader(input.config.dataDir);
+  let historicalContext = await historicalContextReader.load({
     command: input.command,
     config: input.config,
     now,
@@ -342,8 +345,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ),
     ];
     if (currentMarketSymbols.length > 0) {
-      historicalContext = await loadHistoricalContext({
-        dataDir: input.config.dataDir,
+      historicalContext = await historicalContextReader.load({
         command: input.command,
         config: input.config,
         now,
@@ -370,8 +372,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     spotlightSelection = spotlight.selection;
     spotlightOutput = spotlight.output;
     if (spotlightSelection.selected.length > 0) {
-      historicalContext = await loadHistoricalContext({
-        dataDir: input.config.dataDir,
+      historicalContext = await historicalContextReader.load({
         command: input.command,
         config: input.config,
         now,

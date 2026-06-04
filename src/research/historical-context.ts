@@ -128,6 +128,12 @@ export interface LoadHistoricalContextInput {
   readonly spotlightSymbols?: readonly string[];
 }
 
+export interface HistoricalContextReader {
+  readonly load: (
+    input: Omit<LoadHistoricalContextInput, "dataDir">,
+  ) => Promise<HistoricalResearchContext>;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 8;
 
@@ -665,17 +671,17 @@ function computeArtifactDeltas(
   return deltas;
 }
 
-export async function loadHistoricalContext(
+function buildHistoricalContext(
   input: LoadHistoricalContextInput,
-): Promise<HistoricalResearchContext> {
+  scan: ScanResult,
+): HistoricalResearchContext {
   const options = historyOptions(input.config);
   const now = input.now ?? new Date();
-  const scan = await scanRunArtifacts(input.dataDir);
   const selected = new Map<string, SelectedArtifact>();
   const candidateRunIds = new Set<string>();
   const gaps: string[] = [];
   const spotlightSymbols = normalizedSymbols(input.spotlightSymbols);
-  const focusSymbols = spotlightSymbols;
+  const focusSymbols = new Set(spotlightSymbols);
 
   const sameAssetMarketRuns = scan.artifacts.filter(
     (artifact) =>
@@ -784,4 +790,20 @@ export async function loadHistoricalContext(
     },
     artifactDeltas: computeArtifactDeltas(runs),
   };
+}
+
+export async function createHistoricalContextReader(
+  dataDir: string,
+): Promise<HistoricalContextReader> {
+  const scan = await scanRunArtifacts(dataDir);
+  return {
+    load: async (input) => buildHistoricalContext({ ...input, dataDir }, scan),
+  };
+}
+
+export async function loadHistoricalContext(
+  input: LoadHistoricalContextInput,
+): Promise<HistoricalResearchContext> {
+  const scan = await scanRunArtifacts(input.dataDir);
+  return buildHistoricalContext(input, scan);
 }

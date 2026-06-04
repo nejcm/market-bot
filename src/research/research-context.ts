@@ -424,6 +424,13 @@ export function buildStagePrompt(
     stage === "final-synthesis"
       ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.`
       : "";
+  const predictionRepair =
+    stage === "final-synthesis" && predictionRepromptErrors.length > 0
+      ? {
+          requiredPredictionCount: context.depthProfile.minimumPredictions,
+          instruction: `Return a complete final report with exactly ${String(context.depthProfile.minimumPredictions)} valid predictions. Do not omit the predictions array, and do not return a partial patch.`,
+        }
+      : undefined;
   const requiredShape = (() => {
     if (stage === "evidence-request") {
       return evidenceRequestShape();
@@ -448,7 +455,11 @@ export function buildStagePrompt(
       ...(playbooks !== undefined && playbooks.length > 0 ? { domainPlaybooks: playbooks } : {}),
       priorStages,
       ...(predictionRepromptErrors.length > 0
-        ? { predictionRepromptErrors, unmetMinimum: context.depthProfile.minimumPredictions }
+        ? {
+            predictionRepromptErrors,
+            unmetMinimum: context.depthProfile.minimumPredictions,
+            predictionRepair,
+          }
         : {}),
       ...(reportValidationErrors.length > 0 ? { reportValidationErrors, allowedSourceIds } : {}),
       requiredShape,

@@ -163,6 +163,63 @@ describe("buildStagePrompt", () => {
     });
   });
 
+  test("adds explicit prediction repair guidance on final-synthesis retries", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+      [],
+      ["predictionShortfall: required 2, received 1"],
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly predictionRepair?: {
+        readonly requiredPredictionCount?: number;
+        readonly instruction?: string;
+      };
+      readonly predictionRepromptErrors?: readonly string[];
+    };
+
+    expect(parsed.predictionRepromptErrors).toEqual([
+      "predictionShortfall: required 2, received 1",
+    ]);
+    expect(parsed.predictionRepair).toEqual({
+      requiredPredictionCount: 2,
+      instruction:
+        "Return a complete final report with exactly 2 valid predictions. Do not omit the predictions array, and do not return a partial patch.",
+    });
+  });
+
   test("injects domain playbooks as a separate prompt field", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
     const prompt = buildStagePrompt(

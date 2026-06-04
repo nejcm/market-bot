@@ -21,7 +21,7 @@ src/
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
 prompts/              Stage prompt files and checked-in Domain Playbooks
 tests/                Bun test suites
-  app/                  Local Svelte + Bun Research Console App
+app/                  Local Svelte + Bun Research Console App
 docs/adr/             Architecture decision records
 plans/                Curated planning docs (humans only)
 data/                 Run artifacts and calibration output (gitignored)

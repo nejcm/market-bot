@@ -161,6 +161,30 @@ describe("research console app API", () => {
     });
   });
 
+  test("decodes special character structured search queries", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-special");
+    mkdirSync(runDir);
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-special",
+        summary: "net+margin% expansion",
+      }),
+    );
+    const params = new URLSearchParams({ query: "net+margin%" });
+
+    const response = await handleResearchConsoleRequest(
+      new Request(`http://127.0.0.1/api/search?${params.toString()}`),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      results: [{ run: { runId: "run-special" }, section: "summary" }],
+    });
+  });
+
   test("rejects empty structured search queries", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
 

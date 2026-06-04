@@ -210,7 +210,7 @@ export function groupedSearchResults(
       continue;
     }
 
-    group.results.push(result);
+    groups.set(result.run.runId, { run: group.run, results: [...group.results, result] });
   }
 
   return [...groups.values()];

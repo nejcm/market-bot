@@ -7,6 +7,7 @@ import type {
   RunFile,
   RunSearchFilters,
   RunSearchResult,
+  RunSearchSection,
   RunSummary,
 } from "./types";
 
@@ -23,7 +24,7 @@ const MAX_SEARCH_RESULTS = 100;
 const SNIPPET_RADIUS = 72;
 
 interface SearchCandidate {
-  readonly section: string;
+  readonly section: RunSearchSection;
   readonly label: string;
   readonly text: string;
   readonly sourceIds: readonly string[];
@@ -211,6 +212,10 @@ function reportMatchesFilters(
     return false;
   }
 
+  if ((filters.from !== undefined || filters.to !== undefined) && generatedDate === "") {
+    return false;
+  }
+
   if (filters.from !== undefined && generatedDate < filters.from.slice(0, 10)) {
     return false;
   }
@@ -224,10 +229,6 @@ function reportMatchesFilters(
 
 function textSnippet(text: string, query: string): string {
   const index = text.toLowerCase().indexOf(query);
-  if (index === -1) {
-    return text.slice(0, SNIPPET_RADIUS * 2).trim();
-  }
-
   const start = Math.max(0, index - SNIPPET_RADIUS);
   const end = Math.min(text.length, index + query.length + SNIPPET_RADIUS);
   const prefix = start === 0 ? "" : "...";
@@ -237,7 +238,7 @@ function textSnippet(text: string, query: string): string {
 
 function textItemCandidates(
   report: Record<string, unknown>,
-  key: string,
+  key: RunSearchSection,
   label: string,
 ): readonly SearchCandidate[] {
   const value = report[key];
@@ -339,10 +340,13 @@ function dataGapCandidates(report: Record<string, unknown>): readonly SearchCand
 
 function searchCandidates(report: Record<string, unknown>): readonly SearchCandidate[] {
   const summary = readString(report, "summary");
-  return [
-    ...(summary === undefined
+  const summaryCandidates: readonly SearchCandidate[] =
+    summary === undefined
       ? []
-      : [{ section: "summary", label: "Summary", text: summary, sourceIds: [] }]),
+      : [{ section: "summary", label: "Summary", text: summary, sourceIds: [] }];
+
+  return [
+    ...summaryCandidates,
     ...textItemCandidates(report, "keyFindings", "Key finding"),
     ...textItemCandidates(report, "bullCase", "Bull case"),
     ...textItemCandidates(report, "bearCase", "Bear case"),

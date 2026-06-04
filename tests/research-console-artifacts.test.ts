@@ -240,6 +240,27 @@ describe("research console app artifacts", () => {
     expect(results.map((result) => result.run.runId)).toEqual(["run-h"]);
   });
 
+  test("excludes undated reports when date filters are present", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-undated");
+    mkdirSync(runDir);
+    const report = {
+      ...researchReport({
+        runId: "run-undated",
+        summary: "needle undated",
+      }),
+      generatedAt: undefined,
+    };
+    writeJson(join(runDir, "report.json"), report);
+
+    await expect(searchRunReports(dataDir, { query: "needle", to: "2026-06-01" })).resolves.toEqual(
+      [],
+    );
+    await expect(
+      searchRunReports(dataDir, { query: "needle", from: "2026-06-01" }),
+    ).resolves.toEqual([]);
+  });
+
   test("ignores malformed reports during structured search", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-j");

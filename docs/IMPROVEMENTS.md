@@ -17,21 +17,7 @@ section tracks remaining expansion work.
   the current discovery/ranking inputs. Keep signal strength separate from Evidence Quality,
   keep V1 rankings stable until an experiment is explicitly accepted, and document any
   ranking-policy change before implementation.
-- **Alpha candidate drill-down view** for watchlist, validation, attribution, and
-  fundamentals artifacts. This should be a browsing surface over existing artifacts, not a
-  new report contract.
 
-### Defer or skip
-
-- **Narrative candidate report type** with thesis, why-now catalyst, evidence, bear case,
-  risks, invalidation criteria, and source IDs. Defer until source criteria and attribution
-  have enough resolved history to show Alpha leads are worth model-written reports.
-- **New social/news providers** for alpha-search discovery. Defer until fundamentals
-  and feature attribution have enough resolved history to show provider expansion would add
-  signal instead of noise.
-- **Automatic source changes** such as changing source weights, candidate budgets, or
-  inclusion from criteria labels. Keep Source Promotion Criteria report-only until a ranking
-  experiment is reviewed and accepted.
 
 ## Cross-run intelligence
 
@@ -43,11 +29,10 @@ section tracks remaining expansion work.
 
 ## Operational
 
+- **Expand sources** - Include more sources than just Yahoo for daily and weekly runs
 - **Source provider health dashboard** - artifact-backed CLI validation exists via
   `provider-health` v2. Future work: turn this into a dashboard once the run history is large
   enough to need browsing/filtering.
-- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
-  keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 
 ## Research Console App
 
@@ -62,6 +47,8 @@ section tracks remaining expansion work.
 
 - based on real runs implement improvements
 - https://github.com/defeat-beta/defeatbeta-api
+- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
+  keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 - improvements based on other projects
   - https://github.com/TauricResearch/TradingAgents
   - https://github.com/HKUDS/Vibe-Trading

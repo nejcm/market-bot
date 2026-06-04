@@ -44,11 +44,22 @@ export interface RunSearchFilters {
 
 export interface RunSearchResult {
   readonly run: RunSummary;
-  readonly section: string;
+  readonly section: RunSearchSection;
   readonly label: string;
   readonly snippet: string;
   readonly sourceIds: readonly string[];
 }
+
+export type RunSearchSection =
+  | "summary"
+  | "keyFindings"
+  | "bullCase"
+  | "bearCase"
+  | "risks"
+  | "catalysts"
+  | "predictions"
+  | "sources"
+  | "dataGaps";
 
 export type ConsoleJobState = "queued" | "running" | "succeeded" | "failed";
 

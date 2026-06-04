@@ -131,11 +131,12 @@ export async function fetchRunSearch(
   filters: RunSearchFilters,
 ): Promise<readonly RunSearchResult[]> {
   const params = new URLSearchParams({ query: filters.query });
-  for (const [key, value] of Object.entries(filters)) {
-    if (key !== "query" && typeof value === "string" && value.trim() !== "") {
-      params.set(key, value);
-    }
-  }
+
+  appendSearchParam(params, "symbol", filters.symbol);
+  appendSearchParam(params, "assetClass", filters.assetClass);
+  appendSearchParam(params, "jobType", filters.jobType);
+  appendSearchParam(params, "from", filters.from);
+  appendSearchParam(params, "to", filters.to);
 
   const payload = await fetchJson(`/api/search?${params.toString()}`);
   if (!isRecord(payload) || !Array.isArray(payload.results)) {
@@ -143,6 +144,12 @@ export async function fetchRunSearch(
   }
 
   return payload.results.filter(isRunSearchResult);
+}
+
+function appendSearchParam(params: URLSearchParams, key: string, value: string | undefined): void {
+  if (value !== undefined && value.trim() !== "") {
+    params.set(key, value);
+  }
 }
 
 export async function fetchJobs(): Promise<readonly ConsoleJob[]> {

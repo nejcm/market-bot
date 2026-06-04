@@ -196,6 +196,19 @@ describe("buildAlphaFeatureAttribution", () => {
     });
   });
 
+  test("treats debt-to-market-cap as missing when market cap is zero", () => {
+    const attribution = buildAlphaFeatureAttribution({
+      profiles: [profile({ marketCap: 0 })],
+      validations: [validationFile()],
+    });
+
+    expect(attribution.features.debtToMarketCap?.buckets.missing?.horizons["5"]).toMatchObject({
+      totalCount: 1,
+      resolvedCount: 1,
+    });
+    expect(attribution.features.debtToMarketCap?.buckets["gte-100pct"]).toBeUndefined();
+  });
+
   test("counts unresolved horizons without including them in hit-rate metrics", () => {
     const attribution = buildAlphaFeatureAttribution({
       profiles: [profile()],

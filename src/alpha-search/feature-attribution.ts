@@ -162,7 +162,9 @@ function profileBuckets(profile: AlphaCandidateProfile): readonly BucketAssignme
       : [...new Set(profile.recentSecFilings.map((filing) => filing.form))];
   const fundamentals = profile.fundamentals?.metrics;
   const debtToMarketCap =
-    fundamentals?.debt === undefined ? undefined : fundamentals.debt / profile.marketCap;
+    fundamentals?.debt === undefined || profile.marketCap <= 0
+      ? undefined
+      : fundamentals.debt / profile.marketCap;
   return [
     { feature: "sourceGroup", key: profile.sourceGroup, label: profile.sourceGroup },
     numericBucket(

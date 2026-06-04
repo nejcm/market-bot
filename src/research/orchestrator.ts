@@ -1,4 +1,4 @@
-import type { AppConfig } from "../config";
+import { marketSpotlightOptions, type AppConfig } from "../config";
 import { resolveRunParams, type RunConfig } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import { join } from "node:path";
@@ -23,6 +23,7 @@ import {
 import { addMarketContextToRegime, summarizeMarketRegime } from "./regime";
 import { loadStagePrompt } from "./prompt-loader";
 import { buildRunAnalytics, type RunAnalytics } from "./run-analytics";
+import { loadHistoricalContext, type HistoricalResearchContext } from "./historical-context";
 import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
@@ -34,11 +35,19 @@ import {
 import {
   buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
+  buildSpotlightSelectionPrompt,
   buildStagePrompt,
   loadCalibrationContext,
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
+import {
+  buildSpotlightCandidates,
+  loadAlphaWatchlistForSpotlights,
+  parseSpotlightSelection,
+  type SpotlightCandidate,
+  type SpotlightSelectionResult,
+} from "./spotlights";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -58,6 +67,9 @@ export interface RunResearchJobResult {
   readonly analytics: RunAnalytics;
   readonly stageOutputs: readonly StageOutput[];
   readonly collectedSources: CollectedSources;
+  readonly historicalContext: HistoricalResearchContext;
+  readonly spotlightCandidates?: readonly SpotlightCandidate[];
+  readonly spotlightSelection?: SpotlightSelectionResult;
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
@@ -183,6 +195,94 @@ async function runPlaybookSelection(
   };
 }
 
+function spotlightCap(command: ResearchCommand, config: AppConfig): number {
+  const options = marketSpotlightOptions(config);
+  return command.depth === "deep" ? options.deepLimit : options.briefLimit;
+}
+
+function emptySpotlightSelection(cap: number, candidateCount: number): SpotlightSelectionResult {
+  return {
+    selected: [],
+    rejected: [],
+    audit: {
+      cap,
+      candidateCount,
+      selectedCount: 0,
+      rejectedCount: 0,
+      malformed: false,
+    },
+  };
+}
+
+async function runSpotlightSelection(
+  input: RunResearchJobInput,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+  candidates: readonly SpotlightCandidate[],
+  cap: number,
+): Promise<{
+  readonly output?: StageOutput;
+  readonly selection: SpotlightSelectionResult;
+}> {
+  if (cap <= 0 || candidates.length === 0) {
+    return { selection: emptySpotlightSelection(cap, candidates.length) };
+  }
+  const loaded = await loadStagePrompt(
+    "spotlight-selection",
+    input.command,
+    input.config.promptDir,
+  );
+  const response = await input.provider.generate({
+    model: context.runParams.quickModel,
+    ...(context.runParams.modelParams !== undefined
+      ? { params: context.runParams.modelParams }
+      : {}),
+    responseFormat: "json",
+    messages: [
+      {
+        role: "system",
+        content: loaded.system,
+      },
+      {
+        role: "user",
+        content: buildSpotlightSelectionPrompt(
+          input.command,
+          collectedSources,
+          context,
+          loaded,
+          candidates,
+          cap,
+        ),
+      },
+    ],
+  });
+  return {
+    output: {
+      stage: "spotlight-selection",
+      content: response.content,
+      tokenEstimate: response.tokenEstimate,
+      costEstimateUsd: response.costEstimateUsd,
+    },
+    selection: parseSpotlightSelection(response.content, candidates, cap),
+  };
+}
+
+function refreshSpotlightSelection(
+  selection: SpotlightSelectionResult,
+  candidates: readonly SpotlightCandidate[],
+): SpotlightSelectionResult {
+  const candidateBySymbol = new Map(candidates.map((candidate) => [candidate.symbol, candidate]));
+  return {
+    ...(selection.rationale !== undefined ? { rationale: selection.rationale } : {}),
+    selected: selection.selected.flatMap((item) => {
+      const candidate = candidateBySymbol.get(item.symbol);
+      return candidate === undefined ? [] : [{ ...item, candidate }];
+    }),
+    rejected: selection.rejected,
+    audit: selection.audit,
+  };
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
@@ -192,7 +292,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);
   let { collectedSources } = input;
-  const context: ResearchContext = {
+  let context: ResearchContext = {
     depthProfile: buildDepthProfileFromParams(input.command, runParams),
     runParams,
     marketRegime: addMarketContextToRegime(
@@ -201,6 +301,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ),
     calibrationContext,
   };
+  let historicalContext = await loadHistoricalContext({
+    dataDir: input.config.dataDir,
+    command: input.command,
+    config: input.config,
+    now,
+  });
+  context = { ...context, historicalContext };
   const evidenceLoop = await runEvidenceRequestLoop({
     command: input.command,
     config: input.config,
@@ -222,6 +329,72 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
+  let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;
+  let spotlightSelection: SpotlightSelectionResult | undefined = undefined;
+  let spotlightOutput: StageOutput | undefined = undefined;
+  if (isMarketUpdateJobType(input.command.jobType)) {
+    const marketOnlyHistoricalContext = historicalContext;
+    const currentMarketSymbols = [
+      ...new Set(
+        collectedSources.marketSnapshots
+          .filter((snapshot) => snapshot.assetClass === input.command.assetClass)
+          .map((snapshot) => snapshot.symbol.toUpperCase()),
+      ),
+    ];
+    if (currentMarketSymbols.length > 0) {
+      historicalContext = await loadHistoricalContext({
+        dataDir: input.config.dataDir,
+        command: input.command,
+        config: input.config,
+        now,
+        spotlightSymbols: currentMarketSymbols,
+      });
+      context = { ...context, historicalContext };
+    }
+    const alpha = await loadAlphaWatchlistForSpotlights(input.config.dataDir);
+    const cap = spotlightCap(input.command, input.config);
+    spotlightCandidates = buildSpotlightCandidates({
+      marketSnapshots: collectedSources.marketSnapshots.filter(
+        (snapshot) => snapshot.assetClass === input.command.assetClass,
+      ),
+      historicalContext,
+      ...(alpha.watchlist !== undefined ? { alphaWatchlist: alpha.watchlist } : {}),
+    });
+    const spotlight = await runSpotlightSelection(
+      input,
+      collectedSources,
+      { ...context, spotlightCandidates },
+      spotlightCandidates,
+      cap,
+    );
+    spotlightSelection = spotlight.selection;
+    spotlightOutput = spotlight.output;
+    if (spotlightSelection.selected.length > 0) {
+      historicalContext = await loadHistoricalContext({
+        dataDir: input.config.dataDir,
+        command: input.command,
+        config: input.config,
+        now,
+        spotlightSymbols: spotlightSelection.selected.map((item) => item.symbol),
+      });
+      spotlightCandidates = buildSpotlightCandidates({
+        marketSnapshots: collectedSources.marketSnapshots.filter(
+          (snapshot) => snapshot.assetClass === input.command.assetClass,
+        ),
+        historicalContext,
+        ...(alpha.watchlist !== undefined ? { alphaWatchlist: alpha.watchlist } : {}),
+      });
+      spotlightSelection = refreshSpotlightSelection(spotlightSelection, spotlightCandidates);
+    } else {
+      historicalContext = marketOnlyHistoricalContext;
+    }
+    context = {
+      ...context,
+      historicalContext,
+      spotlightCandidates: spotlightSelection.selected.map((item) => item.candidate),
+      spotlightSelection,
+    };
+  }
   const plannedStages = plannedResearchStages(input.command);
   const playbookSelection = await runPlaybookSelection(
     input,
@@ -253,7 +426,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     playbookContext,
     analysisOutputs,
   );
-  const sources = buildSourceList(input.command, collectedSources);
+  const sources = buildSourceList(input.command, collectedSources, historicalContext);
   const knownSourceIds = new Set(sources.map((source) => source.id));
 
   const synthesis = await synthesizeReportUntilValid({
@@ -280,6 +453,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const { report, predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
+    ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
     playbookSelection.output,
     ...analysisOutputs,
     critiqueOutput,
@@ -305,6 +479,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
+    historicalContext: historicalContext.audit,
+    ...(spotlightSelection !== undefined ? { spotlightSelection: spotlightSelection.audit } : {}),
     domainPlaybooks: playbookSelection.audit,
     ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
@@ -325,6 +501,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     analytics,
     stageOutputs,
     collectedSources,
+    historicalContext,
+    ...(spotlightCandidates !== undefined ? { spotlightCandidates } : {}),
+    ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
   };
 }
 
@@ -363,6 +542,21 @@ export async function persistResearchJob(
     join(artifacts.normalizedDir, "source-gaps.json"),
     result.collectedSources.sourceGaps,
   );
+  await writeJson(
+    join(artifacts.normalizedDir, "historical-context.json"),
+    result.historicalContext,
+  );
+  if (isMarketUpdateJobType(input.command.jobType)) {
+    await writeJson(
+      join(artifacts.normalizedDir, "spotlight-candidates.json"),
+      result.spotlightCandidates ?? [],
+    );
+    await writeJson(
+      join(artifacts.normalizedDir, "spotlight-selection.json"),
+      result.spotlightSelection ??
+        emptySpotlightSelection(spotlightCap(input.command, input.config), 0),
+    );
+  }
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeJson(join(artifacts.runDir, "analytics.json"), result.analytics);
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);

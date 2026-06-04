@@ -21,6 +21,19 @@ function markdownText(value: string): string {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readStringArray(value: unknown): readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+function knownSourceIds(report: ResearchReport, sourceIds: unknown): readonly string[] {
+  const known = new Set(report.sources.map((source) => source.id));
+  return readStringArray(sourceIds).filter((sourceId) => known.has(sourceId));
+}
+
 function renderFindings(title: string, findings: readonly KeyFinding[]): string {
   if (findings.length === 0) {
     return `## ${title}\n\n- No sourced items.\n`;
@@ -71,6 +84,66 @@ function renderExtendedEvidence(report: ResearchReport): string {
     })
     .join("\n");
   return `## Extended Evidence\n\n${rows}\n`;
+}
+
+function renderHistoricalContext(report: ResearchReport): string {
+  const extra = report.extras?.historicalContext;
+  if (!isRecord(extra)) {
+    return "";
+  }
+  const lines: string[] = [];
+  if (typeof extra.summary === "string" && extra.summary !== "") {
+    const refs = sourceRefs(knownSourceIds(report, extra.sourceIds));
+    lines.push(`${markdownText(extra.summary)}${refs === "" ? "" : ` ${refs}`}`);
+  }
+  if (Array.isArray(extra.items)) {
+    for (const item of extra.items) {
+      if (!isRecord(item) || typeof item.text !== "string") {
+        continue;
+      }
+      const refs = sourceRefs(knownSourceIds(report, item.sourceIds));
+      if (refs === "") {
+        continue;
+      }
+      lines.push(`- ${markdownText(item.text)} ${refs}`);
+    }
+  }
+  if (Array.isArray(extra.gaps)) {
+    for (const gap of extra.gaps) {
+      if (typeof gap === "string" && gap !== "") {
+        lines.push(`- ${markdownText(gap)}`);
+      }
+    }
+  }
+  return lines.length === 0 ? "" : `## Historical Context\n\n${lines.join("\n")}\n`;
+}
+
+function renderSpotlights(report: ResearchReport): string {
+  const extra = report.extras?.spotlights;
+  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+    return "";
+  }
+  const rows = extra.items.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const { symbol, rationale: rawRationale, text, sourceIds } = item;
+    if (typeof symbol !== "string") {
+      return [];
+    }
+    let rationale = "";
+    if (typeof rawRationale === "string") {
+      rationale = rawRationale;
+    } else if (typeof text === "string") {
+      rationale = text;
+    }
+    const refs = sourceRefs(knownSourceIds(report, sourceIds));
+    if (rationale === "" || refs === "") {
+      return [];
+    }
+    return [`- **${markdownText(symbol)}:** ${markdownText(rationale)} ${refs}`];
+  });
+  return rows.length === 0 ? "" : `## Market Spotlights\n\n${rows.join("\n")}\n`;
 }
 
 function renderAlphaSearchReport(report: ResearchReport): string {
@@ -180,6 +253,8 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Catalysts", report.catalysts),
     renderScenarios(report.scenarios),
     renderExtendedEvidence(report),
+    renderHistoricalContext(report),
+    renderSpotlights(report),
     renderPredictions(report.predictions),
     "## Data Gaps",
     "",

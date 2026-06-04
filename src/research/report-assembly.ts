@@ -12,11 +12,13 @@ import { isCoreEvidenceQualityGap, isExtendedEvidenceQualityGap } from "../domai
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { isRecord, nonEmptyStringArrayValue } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import type { HistoricalResearchContext } from "./historical-context";
 import {
   deterministicSourceGaps,
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
+import type { SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
 // Raw model payload
@@ -116,6 +118,7 @@ function lowerQuality(left: EvidenceQuality, right: EvidenceQuality): EvidenceQu
 export function buildSourceList(
   command: ResearchCommand,
   collectedSources: CollectedSources,
+  historicalContext?: HistoricalResearchContext,
 ): readonly Source[] {
   const benchmarkSourcesById = new Map<string, Source>();
   const marketSources = collectedSources.marketSnapshots.map((snapshot): Source => {
@@ -167,6 +170,7 @@ export function buildSourceList(
     ...collectedSources.newsSources,
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
     ...(command.jobType === "ticker" ? collectedSources.extendedSources : []),
+    ...(historicalContext?.sources ?? []),
   ];
 }
 
@@ -208,6 +212,42 @@ export function readPredictions(
 ): { predictions: readonly Prediction[]; errors: readonly string[] } {
   const result = validatePredictions(readArray(value), knownSourceIds);
   return { predictions: result.valid, errors: result.errors };
+}
+
+function historicalContextExtra(context: HistoricalResearchContext | undefined): unknown {
+  if (context === undefined) {
+    return undefined;
+  }
+  if (context.runs.length === 0) {
+    return {
+      summary: "No prior run artifacts matched this research scope.",
+      sourceIds: [],
+      gaps: context.gaps,
+    };
+  }
+  return {
+    summary: `Historical context includes ${String(context.runs.length)} prior run artifact(s).`,
+    sourceIds: context.sources.map((source) => source.id),
+    items: context.runs.map((run) => ({
+      text: `${run.runId}: ${run.summary}`,
+      sourceIds: [run.sourceId],
+    })),
+    gaps: context.gaps,
+  };
+}
+
+function spotlightsExtra(selection: SpotlightSelectionResult | undefined): unknown {
+  if (selection === undefined || selection.selected.length === 0) {
+    return undefined;
+  }
+  return {
+    ...(selection.rationale !== undefined ? { rationale: selection.rationale } : {}),
+    items: selection.selected.map((item) => ({
+      symbol: item.symbol,
+      rationale: item.rationale,
+      sourceIds: item.sourceIds,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -264,6 +304,8 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
       ? (payload.extras as Record<string, unknown>)
       : {};
+  const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
+  const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
 
   return validateResearchReport({
     runId,
@@ -288,6 +330,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     notFinancialAdvice: true,
     extras: {
       ...modelExtras,
+      ...(modelExtras.historicalContext === undefined && defaultHistoricalContext !== undefined
+        ? { historicalContext: defaultHistoricalContext }
+        : {}),
+      ...(modelExtras.spotlights === undefined && defaultSpotlights !== undefined
+        ? { spotlights: defaultSpotlights }
+        : {}),
       depth: command.depth,
       depthProfile,
       ...(isMarketUpdateJobType(command.jobType) ? { marketUpdateCadence: command.jobType } : {}),

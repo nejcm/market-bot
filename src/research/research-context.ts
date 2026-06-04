@@ -9,7 +9,9 @@ import { sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { isRecord } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import type { HistoricalResearchContext } from "./historical-context";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
+import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
 // DepthProfile, CalibrationContext, ResearchContext
@@ -46,6 +48,9 @@ export interface ResearchContext {
   readonly calibrationContext: CalibrationContext | undefined;
   readonly evidenceRequest?: EvidenceRequestContext;
   readonly domainPlaybooks?: readonly StagePlaybooks[];
+  readonly historicalContext?: HistoricalResearchContext;
+  readonly spotlightCandidates?: readonly SpotlightCandidate[];
+  readonly spotlightSelection?: SpotlightSelectionResult;
 }
 
 export interface EvidenceRequestContext {
@@ -193,9 +198,45 @@ function buildEvidencePayload(
     ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
       : {}),
+    ...(context.historicalContext !== undefined
+      ? { historicalContext: compactHistoricalContext(context.historicalContext) }
+      : {}),
+    ...(context.spotlightCandidates !== undefined
+      ? { spotlightCandidates: context.spotlightCandidates }
+      : {}),
+    ...(context.spotlightSelection !== undefined
+      ? { spotlightSelection: compactSpotlightSelection(context.spotlightSelection) }
+      : {}),
     ...(context.evidenceRequest !== undefined ? { evidenceRequest: context.evidenceRequest } : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
+  };
+}
+
+function compactHistoricalContext(context: HistoricalResearchContext): Record<string, unknown> {
+  return {
+    generatedAt: context.generatedAt,
+    recentDays: context.recentDays,
+    anchorMonths: context.anchorMonths,
+    sourceIds: context.sources.map((source) => source.id),
+    runs: context.runs,
+    gaps: context.gaps,
+    audit: context.audit,
+    artifactDeltas: context.artifactDeltas,
+  };
+}
+
+function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<string, unknown> {
+  return {
+    ...(selection.rationale !== undefined ? { rationale: selection.rationale } : {}),
+    selected: selection.selected.map((item) => ({
+      symbol: item.symbol,
+      rationale: item.rationale,
+      sourceIds: item.sourceIds,
+      candidateId: item.candidate.id,
+    })),
+    rejected: selection.rejected,
+    audit: selection.audit,
   };
 }
 
@@ -220,6 +261,17 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
       probability: 0.6,
       sourceIds: ["source-id"],
     })),
+    extras: {
+      historicalContext: {
+        summary: "string",
+        sourceIds: ["history-report-run-id"],
+        items: [{ text: "string", sourceIds: ["history-report-run-id"] }],
+        gaps: ["string"],
+      },
+      spotlights: {
+        items: [{ symbol: "string", rationale: "string", sourceIds: ["source-id"] }],
+      },
+    },
   };
 }
 
@@ -242,17 +294,33 @@ function playbookSelectionShape(): Record<string, unknown> {
   };
 }
 
+function spotlightSelectionShape(): Record<string, unknown> {
+  return {
+    rationale: "short string",
+    selections: [
+      { symbol: "ticker", rationale: "string", sourceIds: ["current-market-source-id"] },
+    ],
+  };
+}
+
 function stagePlaybooks(
   stage: StageLabel,
   context: ResearchContext,
 ): readonly LoadedPlaybook[] | undefined {
-  if (stage === "evidence-request" || stage === "playbook-selection") {
+  if (
+    stage === "evidence-request" ||
+    stage === "playbook-selection" ||
+    stage === "spotlight-selection"
+  ) {
     return undefined;
   }
   return context.domainPlaybooks?.find((entry) => entry.stage === stage)?.playbooks;
 }
 
-function evidenceCategories(collectedSources: CollectedSources): readonly string[] {
+function evidenceCategories(
+  collectedSources: CollectedSources,
+  context?: ResearchContext,
+): readonly string[] {
   const categories = new Set<string>();
   if (collectedSources.marketSnapshots.length > 0) {
     categories.add("market-data");
@@ -268,6 +336,12 @@ function evidenceCategories(collectedSources: CollectedSources): readonly string
   }
   for (const item of collectedSources.extendedEvidence?.items ?? []) {
     categories.add(item.category);
+  }
+  if ((context?.historicalContext?.runs.length ?? 0) > 0) {
+    categories.add("historical-context");
+  }
+  if ((context?.spotlightSelection?.selected.length ?? 0) > 0) {
+    categories.add("market-spotlights");
   }
   return [...categories].toSorted();
 }
@@ -290,9 +364,40 @@ export function buildPlaybookSelectionPrompt(
       plannedStages,
       candidates,
       marketRegime: { label: context.marketRegime.label },
-      evidenceCategories: evidenceCategories(collectedSources),
+      evidenceCategories: evidenceCategories(collectedSources, context),
       sourceGaps: deterministicSourceGaps(command, collectedSources),
       requiredShape: playbookSelectionShape(),
+    },
+    undefined,
+    2,
+  );
+}
+
+export function buildSpotlightSelectionPrompt(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+  loaded: LoadedPrompt,
+  candidates: readonly SpotlightCandidate[],
+  cap: number,
+): string {
+  return JSON.stringify(
+    {
+      instruction: loaded.instruction,
+      stage: "spotlight-selection",
+      stageGoal: loaded.goal,
+      command,
+      depthProfile: context.depthProfile,
+      selectionCap: cap,
+      candidates,
+      marketRegime: { label: context.marketRegime.label },
+      historicalContext:
+        context.historicalContext === undefined
+          ? undefined
+          : compactHistoricalContext(context.historicalContext),
+      evidenceCategories: evidenceCategories(collectedSources, context),
+      sourceGaps: deterministicSourceGaps(command, collectedSources),
+      requiredShape: spotlightSelectionShape(),
     },
     undefined,
     2,

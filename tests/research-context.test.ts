@@ -4,8 +4,10 @@ import type { ResearchCommand } from "../src/cli/args";
 import {
   buildDepthProfile,
   buildPlaybookSelectionPrompt,
+  buildSpotlightSelectionPrompt,
   buildStagePrompt,
 } from "../src/research/research-context";
+import { buildSpotlightCandidates } from "../src/research/spotlights";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -290,5 +292,61 @@ describe("buildPlaybookSelectionPrompt", () => {
     expect(parsed.sourceGaps).toEqual(["marketaux: missing token"]);
     expect(parsed.evidence).toBeUndefined();
     expect(parsed.priorStages).toBeUndefined();
+  });
+});
+
+describe("buildSpotlightSelectionPrompt", () => {
+  test("uses candidate-only selector context", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const sources = collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot()],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    });
+    const context = {
+      depthProfile: buildDepthProfile(command, config),
+      runParams: {
+        quickModel: "quick-test",
+        synthesisModel: "synthesis-test",
+        analystStyle: "concise brief" as const,
+        minimumKeyFindings: 3,
+        minimumScenarios: 2,
+        minimumPredictions: 2,
+        defaultPredictionHorizon: 5,
+        predictionSubjects: ["SPY"],
+        focus: ["market regime", "movers"],
+        modelParams: undefined,
+      },
+      marketRegime: {
+        assetClass: "equity" as const,
+        label: "mixed" as const,
+        proxyCount: 1,
+        drivers: ["SPY higher"],
+        sourceIds: ["market-aapl"],
+      },
+      calibrationContext: undefined,
+    };
+    const prompt = buildSpotlightSelectionPrompt(
+      command,
+      sources,
+      context,
+      { system: "Select.", instruction: "Choose spotlights.", goal: "Keep focus." },
+      buildSpotlightCandidates({ marketSnapshots: sources.marketSnapshots }),
+      2,
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly stage?: string;
+      readonly selectionCap?: number;
+      readonly candidates?: readonly { readonly symbol?: string; readonly sourceIds?: string[] }[];
+      readonly evidence?: unknown;
+      readonly requiredShape?: { readonly selections?: readonly unknown[] };
+    };
+
+    expect(parsed.stage).toBe("spotlight-selection");
+    expect(parsed.selectionCap).toBe(2);
+    expect(parsed.candidates?.[0]).toMatchObject({ symbol: "AAPL", sourceIds: ["market-aapl"] });
+    expect(parsed.evidence).toBeUndefined();
+    expect(parsed.requiredShape?.selections).toHaveLength(1);
   });
 });

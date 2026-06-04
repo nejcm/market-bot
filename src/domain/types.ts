@@ -293,6 +293,22 @@ export interface RunTrace {
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
+  readonly historicalContext?: {
+    readonly scannedRunCount: number;
+    readonly malformedRunCount: number;
+    readonly malformedScoreCount: number;
+    readonly candidateRunCount: number;
+    readonly selectedRunCount: number;
+    readonly recentSelectedCount: number;
+    readonly anchorSelectedCount: number;
+  };
+  readonly spotlightSelection?: {
+    readonly cap: number;
+    readonly candidateCount: number;
+    readonly selectedCount: number;
+    readonly rejectedCount: number;
+    readonly malformed: boolean;
+  };
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];

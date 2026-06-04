@@ -201,6 +201,7 @@ describe("loadStagePrompt — real prompt files", () => {
     const stages = [
       "evidence-request",
       "playbook-selection",
+      "spotlight-selection",
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AppConfig } from "../src/config";
@@ -16,12 +16,17 @@ import {
 } from "./support/fixtures";
 import { providerReturning } from "./support/mocks";
 
+const defaultDataDir = join(
+  tmpdir(),
+  `market-bot-orchestrator-empty-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+);
+
 const config: AppConfig = {
   provider: "openai",
   quickModel: "quick-test",
   synthesisModel: "synthesis-test",
   modelTimeoutMs: 120_000,
-  dataDir: "data/runs",
+  dataDir: defaultDataDir,
   promptDir: "prompts",
   sourceOptions: {
     equityMoverLimit: 2,
@@ -105,6 +110,52 @@ afterEach(async () => {
     dataDirs.splice(0).map((dataDir) => rm(dataDir, { recursive: true, force: true })),
   );
 });
+
+function tempDataDir(prefix: string): string {
+  const dataDir = join(tmpdir(), `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  dataDirs.push(dataDir);
+  return dataDir;
+}
+
+async function writeHistoricalRun(input: {
+  readonly dataDir: string;
+  readonly runId: string;
+  readonly jobType: "daily" | "weekly" | "ticker";
+  readonly generatedAt: string;
+  readonly symbol?: string;
+  readonly snapshots?: readonly MarketSnapshot[];
+}): Promise<void> {
+  const runDir = join(input.dataDir, input.runId);
+  await mkdir(join(runDir, "normalized"), { recursive: true });
+  await writeFile(
+    join(runDir, "report.json"),
+    JSON.stringify({
+      runId: input.runId,
+      jobType: input.jobType,
+      assetClass: "equity",
+      ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
+      generatedAt: input.generatedAt,
+      summary: `${input.runId} prior research summary.`,
+      keyFindings: [{ text: "Prior sourced finding.", sourceIds: ["prior-source"] }],
+      bullCase: [],
+      bearCase: [],
+      risks: [{ text: "Prior risk.", sourceIds: ["prior-source"] }],
+      catalysts: [{ text: "Prior catalyst.", sourceIds: ["prior-source"] }],
+      scenarios: [],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: [],
+      sources: [],
+      notFinancialAdvice: true,
+    }),
+    "utf8",
+  );
+  await writeFile(
+    join(runDir, "normalized", "market-snapshots.json"),
+    JSON.stringify(input.snapshots ?? []),
+    "utf8",
+  );
+}
 
 function mockPredictions(count: number, subject = "SPY"): unknown[] {
   return Array.from({ length: count }, (_, idx) => ({
@@ -242,6 +293,7 @@ describe("runResearchJob", () => {
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
       { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "medium" } },
     ]);
     expect(result.trace.quickModel).toBe("combo-quick");
@@ -321,6 +373,7 @@ describe("runResearchJob", () => {
 
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "spotlight-selection",
       "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
@@ -329,6 +382,7 @@ describe("runResearchJob", () => {
       "final-synthesis",
     ]);
     expect(result.stageOutputs.map((output) => output.stage)).toEqual([
+      "spotlight-selection",
       "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
@@ -461,6 +515,165 @@ describe("runResearchJob", () => {
       sourceUnitsUsed: 0,
       executedTools: [],
     });
+  });
+
+  test("loads ticker history before the evidence request loop", async () => {
+    const dataDir = tempDataDir("market-bot-history-prompt");
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-aapl-ticker",
+      jobType: "ticker",
+      symbol: "AAPL",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      snapshots: marketSnapshots,
+    });
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-daily-equity",
+      jobType: "daily",
+      generatedAt: "2026-05-02T00:00:00.000Z",
+      snapshots: marketSnapshots,
+    });
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        return {
+          content:
+            prompt.stage === "evidence-request" || prompt.stage === "playbook-selection"
+              ? JSON.stringify({ selections: [], requests: [] })
+              : modelReport("AAPL"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: { ...evidenceConfig, dataDir },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const evidencePrompt = prompts[0] as {
+      readonly evidence?: {
+        readonly historicalContext?: {
+          readonly runs?: readonly { readonly runId?: string }[];
+          readonly sourceIds?: readonly string[];
+        };
+      };
+    };
+
+    expect(prompts[0]?.stage).toBe("evidence-request");
+    expect(evidencePrompt.evidence?.historicalContext?.runs?.map((run) => run.runId)).toEqual([
+      "prior-daily-equity",
+      "prior-aapl-ticker",
+    ]);
+    expect(evidencePrompt.evidence?.historicalContext?.sourceIds).toContain(
+      "history-report-prior-aapl-ticker",
+    );
+    expect(result.report.sources.map((source) => source.id)).toContain(
+      "history-report-prior-aapl-ticker",
+    );
+    expect(result.report.extras?.historicalContext).toBeDefined();
+    expect(result.trace.historicalContext?.selectedRunCount).toBe(2);
+  });
+
+  test("runs market spotlight selection before playbooks and exposes selected extras", async () => {
+    const dataDir = tempDataDir("market-bot-spotlight");
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-aapl-ticker",
+      jobType: "ticker",
+      symbol: "AAPL",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      snapshots: marketSnapshots,
+    });
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "spotlight-selection") {
+          return {
+            content: JSON.stringify({
+              rationale: "AAPL has the strongest current mover evidence.",
+              selections: [
+                {
+                  symbol: "AAPL",
+                  rationale: "Liquid positive mover with current market evidence.",
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return {
+          content: modelReport("AAPL"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const stageNames = prompts.map((prompt) => prompt.stage);
+    const spotlightPrompt = prompts.find((prompt) => prompt.stage === "spotlight-selection") as
+      | {
+          readonly candidates?: readonly {
+            readonly symbol?: string;
+            readonly history?: { readonly tickerRunIds?: readonly string[] };
+          }[];
+        }
+      | undefined;
+
+    expect(stageNames.indexOf("spotlight-selection")).toBeLessThan(
+      stageNames.indexOf("playbook-selection"),
+    );
+    expect(spotlightPrompt?.candidates?.[0]?.history?.tickerRunIds).toEqual(["prior-aapl-ticker"]);
+    expect(result.trace.spotlightSelection).toMatchObject({
+      cap: 2,
+      candidateCount: 1,
+      selectedCount: 1,
+      rejectedCount: 0,
+      malformed: false,
+    });
+    expect(result.report.extras?.spotlights).toMatchObject({
+      items: [{ symbol: "AAPL", sourceIds: ["market-aapl"] }],
+    });
+    expect(result.report.sources.map((source) => source.id)).toContain(
+      "history-report-prior-aapl-ticker",
+    );
+    expect(result.markdown).toContain("## Market Spotlights");
   });
 
   test("merges accepted evidence tool output before specialist analysis", async () => {
@@ -924,7 +1137,11 @@ describe("runResearchJob", () => {
         now: new Date("2026-05-19T00:00:00.000Z"),
       });
 
-      expect(calls).toBe(command.depth === "deep" ? 6 : 4);
+      let expectedCalls = command.depth === "deep" ? 6 : 4;
+      if (command.jobType === "daily" || command.jobType === "weekly") {
+        expectedCalls = command.depth === "deep" ? 7 : 5;
+      }
+      expect(calls).toBe(expectedCalls);
       expect(result.trace.stages).not.toContain("evidence-request");
       if (command.jobType === "ticker" && command.assetClass === "crypto") {
         expect(result.trace.stages).toEqual([
@@ -992,13 +1209,14 @@ describe("runResearchJob", () => {
     expect(result.trace.sourceGaps).toEqual(["Macro breadth source unavailable"]);
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "spotlight-selection",
       "playbook-selection",
       "specialist-analysis",
       "critique",
       "final-synthesis",
     ]);
-    expect(result.stageOutputs).toHaveLength(4);
-    expect(result.trace.tokenEstimate).toBe(400);
+    expect(result.stageOutputs).toHaveLength(5);
+    expect(result.trace.tokenEstimate).toBe(500);
   });
 
   test("surfaces Market Context in market update prompts, extras, citations, and regime drivers", async () => {
@@ -1386,6 +1604,15 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "market-snapshots.json"), "utf8"),
     ).resolves.toContain("market-aapl");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "historical-context.json"), "utf8"),
+    ).resolves.toContain("selectedRunCount");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "spotlight-candidates.json"), "utf8"),
+    ).resolves.toContain("market-aapl");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "spotlight-selection.json"), "utf8"),
+    ).resolves.toContain("malformed");
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "Equity market breadth",
     );
@@ -1396,7 +1623,7 @@ describe("runResearchJob", () => {
       "quick-test",
     );
     await expect(readFile(join(result.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain(
-      "specialist-analysis",
+      "spotlight-selection",
     );
   });
 
@@ -1574,7 +1801,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(callCount).toBe(6);
+    expect(callCount).toBe(7);
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
@@ -1620,7 +1847,7 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
 
-    expect(prompts).toHaveLength(8);
+    expect(prompts).toHaveLength(9);
     expect(finalPrompts).toHaveLength(3);
     expect(finalPrompts[1]?.predictionRepromptErrors).toContain(
       "predictionShortfall: required 3, received 0",
@@ -1645,6 +1872,7 @@ describe("runResearchJob", () => {
     ]);
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "spotlight-selection",
       "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
@@ -1723,6 +1951,7 @@ describe("runResearchJob", () => {
     expect(result.report.keyFindings[0]?.sourceIds).toEqual(["market-aapl"]);
     expect(result.trace.stages).toEqual([
       "source-collection",
+      "spotlight-selection",
       "playbook-selection",
       "specialist-analysis",
       "critique",

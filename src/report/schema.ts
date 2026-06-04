@@ -37,6 +37,30 @@ function validateSourceIds(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readStringArray(value: unknown): readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+function validateKnownSourceIds(
+  section: string,
+  sourceIds: readonly string[],
+  knownSourceIds: ReadonlySet<string>,
+  requireAny: boolean,
+): void {
+  if (requireAny && sourceIds.length === 0) {
+    throw new Error(`${section} items must reference source IDs`);
+  }
+  for (const sourceId of sourceIds) {
+    if (!knownSourceIds.has(sourceId)) {
+      throw new Error(`Unknown source ID: ${sourceId}`);
+    }
+  }
+}
+
 function validateFindings(
   findings: readonly KeyFinding[],
   knownSourceIds: ReadonlySet<string>,
@@ -64,11 +88,107 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     risks: report.risks,
     catalysts: report.catalysts,
     scenarios: report.scenarios,
+    renderedExtras: researchOnlyExtraText(report.extras),
   });
 
   if (violatesResearchOnly(text) !== null) {
     throw new Error("Report contains trade-action language");
   }
+}
+
+function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string, unknown> {
+  if (extras === undefined) {
+    return {};
+  }
+  return {
+    historicalContext: historicalContextText(extras.historicalContext),
+    spotlights: spotlightsText(extras.spotlights),
+  };
+}
+
+function historicalContextText(extra: unknown): readonly string[] {
+  if (!isRecord(extra)) {
+    return [];
+  }
+  return [
+    ...(typeof extra.summary === "string" ? [extra.summary] : []),
+    ...(Array.isArray(extra.items)
+      ? extra.items.flatMap((item) =>
+          isRecord(item) && typeof item.text === "string" ? [item.text] : [],
+        )
+      : []),
+    ...readStringArray(extra.gaps),
+  ];
+}
+
+function spotlightsText(extra: unknown): readonly string[] {
+  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+    return [];
+  }
+  return extra.items.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    if (typeof item.rationale === "string") {
+      return [item.rationale];
+    }
+    return typeof item.text === "string" ? [item.text] : [];
+  });
+}
+
+function validateHistoricalContextExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+  if (!isRecord(extra)) {
+    return;
+  }
+  validateKnownSourceIds(
+    "Historical Context",
+    readStringArray(extra.sourceIds),
+    knownSourceIds,
+    false,
+  );
+  if (!Array.isArray(extra.items)) {
+    return;
+  }
+  for (const item of extra.items) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    validateKnownSourceIds(
+      "Historical Context",
+      readStringArray(item.sourceIds),
+      knownSourceIds,
+      typeof item.text === "string",
+    );
+  }
+}
+
+function validateSpotlightsExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+    return;
+  }
+  for (const item of extra.items) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    validateKnownSourceIds(
+      "Market Spotlights",
+      readStringArray(item.sourceIds),
+      knownSourceIds,
+      typeof item.symbol === "string" &&
+        (typeof item.rationale === "string" || typeof item.text === "string"),
+    );
+  }
+}
+
+function validateRenderedExtras(
+  extras: ResearchReport["extras"],
+  knownSourceIds: ReadonlySet<string>,
+): void {
+  if (extras === undefined) {
+    return;
+  }
+  validateHistoricalContextExtra(extras.historicalContext, knownSourceIds);
+  validateSpotlightsExtra(extras.spotlights, knownSourceIds);
 }
 
 export function validatePredictions(
@@ -94,6 +214,7 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   validateFindings(report.risks, knownSourceIds);
   validateFindings(report.catalysts, knownSourceIds);
   validateScenarios(report.scenarios, knownSourceIds);
+  validateRenderedExtras(report.extras, knownSourceIds);
   assertSafeReportLanguage(report);
 
   return report;

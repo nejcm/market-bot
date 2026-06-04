@@ -3,6 +3,7 @@ import type { MarketSnapshot, ResearchReport } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { validateResearchReport } from "../src/report/schema";
 import { buildSourceList } from "../src/research/report-assembly";
+import type { HistoricalResearchContext } from "../src/research/historical-context";
 import { collectedSources } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -70,6 +71,57 @@ describe("report schema and rendering", () => {
     );
 
     expect(sources[0]?.identity).toEqual(snapshot.identity);
+  });
+
+  test("adds historical report sources to report source lists", () => {
+    const history: HistoricalResearchContext = {
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      recentDays: 90,
+      anchorMonths: [3, 6, 12],
+      runs: [],
+      sources: [
+        {
+          id: "history-report-prior-run",
+          title: "Prior daily equity report",
+          fetchedAt: "2026-05-01T00:00:00.000Z",
+          kind: "model",
+          assetClass: "equity",
+          rawRef: "prior-run/report.json",
+          provider: "market-bot",
+        },
+      ],
+      gaps: [],
+      audit: {
+        scannedRunCount: 1,
+        malformedRunCount: 0,
+        malformedScoreCount: 0,
+        candidateRunCount: 1,
+        selectedRunCount: 1,
+        recentSelectedCount: 1,
+        anchorSelectedCount: 0,
+      },
+      artifactDeltas: [],
+    };
+
+    const sources = buildSourceList(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [],
+        newsSources: [],
+      }),
+      history,
+    );
+
+    expect(sources).toContainEqual({
+      id: "history-report-prior-run",
+      title: "Prior daily equity report",
+      fetchedAt: "2026-05-01T00:00:00.000Z",
+      kind: "model",
+      assetClass: "equity",
+      rawRef: "prior-run/report.json",
+      provider: "market-bot",
+    });
   });
 
   test("adds de-duped benchmark market sources from market snapshots", () => {
@@ -269,6 +321,40 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain(String.raw`Provider \[summary\]\(https://bad.example\)`);
   });
 
+  test("renders historical context and spotlights with escaped known-source citations", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "daily",
+      extras: {
+        historicalContext: {
+          summary: "Prior [run] <changed>",
+          sourceIds: ["source-1"],
+          items: [
+            { text: "Old *finding* held.", sourceIds: ["source-1"] },
+            { text: "Unknown source item", sourceIds: ["missing"] },
+          ],
+          gaps: ["No [older] artifact"],
+        },
+        spotlights: {
+          items: [
+            { symbol: "A[APL]", rationale: "Mover <up> [link](x)", sourceIds: ["source-1"] },
+            { symbol: "BAD", rationale: "Unknown source", sourceIds: ["missing"] },
+          ],
+        },
+      },
+    });
+
+    expect(markdown).toContain("## Historical Context");
+    expect(markdown).toContain(String.raw`Prior \[run\] &lt;changed&gt; [source-1]`);
+    expect(markdown).toContain(String.raw`Old \*finding\* held.`);
+    expect(markdown).toContain(String.raw`No \[older\] artifact`);
+    expect(markdown).toContain("## Market Spotlights");
+    expect(markdown).toContain(String.raw`A\[APL\]`);
+    expect(markdown).toContain(String.raw`Mover &lt;up&gt; \[link\]\(x\)`);
+    expect(markdown).not.toContain("Unknown source item");
+    expect(markdown).not.toContain("BAD");
+  });
+
   test("renders cadence-specific market update titles", () => {
     const { symbol: _symbol, ...marketReport } = report;
 
@@ -292,6 +378,32 @@ describe("report schema and rendering", () => {
         extras: {
           researchLeads: [],
           rejectedCandidates: [],
+        },
+      }),
+    ).toThrow("trade-action language");
+  });
+
+  test("rejects rendered extras with unknown source IDs or trade-action language", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        extras: {
+          historicalContext: {
+            items: [{ text: "Prior run evidence.", sourceIds: ["missing"] }],
+          },
+        },
+      }),
+    ).toThrow("Unknown source ID");
+
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        extras: {
+          spotlights: {
+            items: [
+              { symbol: "BTC", rationale: "Buy after the catalyst.", sourceIds: ["source-1"] },
+            ],
+          },
         },
       }),
     ).toThrow("trade-action language");

@@ -6,7 +6,10 @@ import { isRecord, readString } from "../sources/guards";
 import { parseSections } from "./markdown-sections";
 import type { StageLabel } from "./prompt-loader";
 
-export type PlaybookStage = Exclude<StageLabel, "evidence-request" | "playbook-selection">;
+export type PlaybookStage = Exclude<
+  StageLabel,
+  "evidence-request" | "playbook-selection" | "spotlight-selection"
+>;
 
 export interface PlaybookMetadata {
   readonly id: string;

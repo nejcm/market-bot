@@ -22,12 +22,6 @@ promotion and expansion work after real-run validation.
   benchmarks over declared horizons. Validation must resolve from public market data and stay
   within the observable-forecast boundary.
 
-## Research quality of regime / movers
-
-- **Benchmark-relative ranking or universe expansion** - daily and weekly equity movers include
-  citeable benchmark-relative context in V1. Future work can decide whether relative movement
-  should affect ranking or whether mover collection should include a broader universe.
-
 ## Cross-run intelligence
 
 - **Watchlist + thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.

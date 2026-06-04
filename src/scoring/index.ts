@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { validateAlphaSearchReport } from "../alpha-search/validation";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
 import { resolveOutcome } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
@@ -13,6 +14,7 @@ import type { PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
 const SCORE_FILE = "score.json";
+const ALPHA_VALIDATION_FILE = "alpha-validation.json";
 export const SCORING_VERSION = 2;
 
 interface ScoreFile {
@@ -47,15 +49,12 @@ function unresolvedScore(
   };
 }
 
-async function scoreOnePrediction(
-  prediction: Prediction,
+function observationRepositoryFor(
   report: ResearchReport,
-  existingScore: PredictionScore | undefined,
   now: Date,
   options: ScorePassOptions,
-): Promise<PredictionScore> {
-  const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
-  const repo =
+): ObservationRepository {
+  return (
     options.observationRepository ??
     createObservationRepository({
       report,
@@ -66,7 +65,19 @@ async function scoreOnePrediction(
         ? { tradierApiToken: options.tradierApiToken }
         : {}),
       now,
-    });
+    })
+  );
+}
+
+async function scoreOnePrediction(
+  prediction: Prediction,
+  report: ResearchReport,
+  existingScore: PredictionScore | undefined,
+  now: Date,
+  options: ScorePassOptions,
+): Promise<PredictionScore> {
+  const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
+  const repo = observationRepositoryFor(report, now, options);
 
   const resolveResult = await resolveOutcome(prediction, report, repo, now);
 
@@ -121,55 +132,86 @@ async function loadReport(runDir: string): Promise<ResearchReport | undefined> {
   }
 }
 
-async function scoreRunDir(runDir: string, now: Date, options: ScorePassOptions): Promise<void> {
-  const report = await loadReport(runDir);
-  if (report === undefined || report.predictions.length === 0) {
-    return;
-  }
-
-  const existing = await loadScoreFile(runDir);
-  const existingScores = new Map(existing?.scores.map((score) => [score.predictionId, score]));
-
-  const pendingPredictions = report.predictions.filter((prediction) => {
-    const prev = existingScores.get(prediction.id);
-    if (prev === undefined) {
-      return true;
-    }
-    if (prev.resolved) {
-      // Resolved scores are historical records; version bumps apply only to new scoring writes.
-      return false;
-    }
-    return prev.attemptCount < MAX_SCORE_ATTEMPTS;
+async function writeAlphaValidationRunDir(
+  runDir: string,
+  report: ResearchReport,
+  now: Date,
+  options: ScorePassOptions,
+): Promise<boolean> {
+  const validation = await validateAlphaSearchReport({
+    report,
+    repository: observationRepositoryFor(report, now, options),
+    now,
   });
+  if (validation === undefined) {
+    return false;
+  }
+  await writeFile(
+    join(runDir, ALPHA_VALIDATION_FILE),
+    `${JSON.stringify(validation, undefined, 2)}\n`,
+    "utf8",
+  );
+  return true;
+}
 
-  if (pendingPredictions.length === 0) {
-    return;
+async function scoreRunDir(runDir: string, now: Date, options: ScorePassOptions): Promise<boolean> {
+  const report = await loadReport(runDir);
+  if (report === undefined) {
+    return false;
   }
 
-  const newScores = await Promise.all(
-    pendingPredictions.map((prediction) =>
-      scoreOnePrediction(prediction, report, existingScores.get(prediction.id), now, options),
-    ),
-  );
+  let wroteScore = false;
+  if (report.predictions.length > 0) {
+    const existing = await loadScoreFile(runDir);
+    const existingScores = new Map(existing?.scores.map((score) => [score.predictionId, score]));
 
-  const mergedScores: PredictionScore[] = [];
-  for (const prediction of report.predictions) {
-    const newScore = newScores.find((score) => score.predictionId === prediction.id);
-    const existing2 = existingScores.get(prediction.id);
-    if (newScore !== undefined) {
-      mergedScores.push(newScore);
-    } else if (existing2 !== undefined) {
-      mergedScores.push(existing2);
+    const pendingPredictions = report.predictions.filter((prediction) => {
+      const prev = existingScores.get(prediction.id);
+      if (prev === undefined) {
+        return true;
+      }
+      if (prev.resolved) {
+        // Resolved scores are historical records; version bumps apply only to new scoring writes.
+        return false;
+      }
+      return prev.attemptCount < MAX_SCORE_ATTEMPTS;
+    });
+
+    if (pendingPredictions.length > 0) {
+      const newScores = await Promise.all(
+        pendingPredictions.map((prediction) =>
+          scoreOnePrediction(prediction, report, existingScores.get(prediction.id), now, options),
+        ),
+      );
+
+      const mergedScores: PredictionScore[] = [];
+      for (const prediction of report.predictions) {
+        const newScore = newScores.find((score) => score.predictionId === prediction.id);
+        const existing2 = existingScores.get(prediction.id);
+        if (newScore !== undefined) {
+          mergedScores.push(newScore);
+        } else if (existing2 !== undefined) {
+          mergedScores.push(existing2);
+        }
+      }
+
+      const scoreFile: ScoreFile = {
+        runId: report.runId,
+        scores: mergedScores,
+        scoredAt: now.toISOString(),
+      };
+
+      await writeFile(
+        join(runDir, SCORE_FILE),
+        `${JSON.stringify(scoreFile, undefined, 2)}\n`,
+        "utf8",
+      );
+      wroteScore = true;
     }
   }
 
-  const scoreFile: ScoreFile = {
-    runId: report.runId,
-    scores: mergedScores,
-    scoredAt: now.toISOString(),
-  };
-
-  await writeFile(join(runDir, SCORE_FILE), `${JSON.stringify(scoreFile, undefined, 2)}\n`, "utf8");
+  const wroteAlphaValidation = await writeAlphaValidationRunDir(runDir, report, now, options);
+  return wroteScore || wroteAlphaValidation;
 }
 
 async function listRunDirs(dataDir: string): Promise<readonly string[]> {
@@ -196,11 +238,11 @@ export async function runScorePass(
   const results = await Promise.all(
     runDirs.map(async (runDir) => {
       const report = await loadReport(runDir);
-      if (report === undefined || report.predictions.length === 0) {
+      if (report === undefined) {
         return "skipped" as const;
       }
-      await scoreRunDir(runDir, now, options);
-      return "scored" as const;
+      const wrote = await scoreRunDir(runDir, now, options);
+      return report.predictions.length > 0 || wrote ? ("scored" as const) : ("skipped" as const);
     }),
   );
 

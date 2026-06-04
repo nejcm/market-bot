@@ -7,6 +7,7 @@ import type { ResearchReport } from "../src/domain/types";
 import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { PredictionScore } from "../src/scoring/types";
+import type { AlphaValidationFile } from "../src/alpha-search/validation";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 
@@ -39,6 +40,11 @@ async function writeRun(runId: string, value: ResearchReport): Promise<string> {
 async function readScores(runDir: string): Promise<readonly PredictionScore[]> {
   const raw = await readFile(join(runDir, "score.json"), "utf8");
   return (JSON.parse(raw) as { scores: readonly PredictionScore[] }).scores;
+}
+
+async function readAlphaValidation(runDir: string): Promise<AlphaValidationFile> {
+  const raw = await readFile(join(runDir, "alpha-validation.json"), "utf8");
+  return JSON.parse(raw) as AlphaValidationFile;
 }
 
 async function noObservation(): Promise<Observation | undefined> {
@@ -243,5 +249,109 @@ describe("runScorePass Observation scoring", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toContain("/coins/bitcoin/market_chart/range");
     expect(calls[1]).toContain("/coins/ethereum/market_chart/range");
+  });
+});
+
+describe("runScorePass Alpha validation", () => {
+  test("writes alpha validation sidecar for alpha-search reports with research leads", async () => {
+    const runDir = await writeRun(
+      "alpha-run-1",
+      report([], {
+        runId: "alpha-run-1",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 1,
+          secCandidateCount: 0,
+          researchLeads: [
+            {
+              symbol: "ALFA",
+              name: "Alpha Co.",
+              exchange: "NMS",
+              price: 10,
+              volume: 1_000_000,
+              marketCap: 500_000_000,
+              discoverySources: ["apewisdom"],
+              socialRank: 1,
+              socialMomentumScore: 75,
+              sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+            },
+          ],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => {
+        const values =
+          subject === "ALFA" ? [10, 10, 10, 10, 10, 12] : [100, 100, 100, 100, 100, 105];
+        return values.map((value, index) => ({
+          subject,
+          date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+          value,
+        }));
+      },
+    };
+
+    const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const validation = await readAlphaValidation(runDir);
+    expect(result).toEqual({ scored: 1, skipped: 0 });
+    expect(validation).toMatchObject({
+      runId: "alpha-run-1",
+      benchmarkSymbol: "IWM",
+      horizons: [5, 20],
+    });
+    expect(validation.leads[0]?.horizons[0]).toMatchObject({
+      status: "resolved",
+      horizonTradingDays: 5,
+      outcome: "outperformed",
+    });
+  });
+
+  test("does not write alpha validation for non-alpha reports", async () => {
+    const runDir = await writeRun("run-1", report([]));
+
+    const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      observationRepository: {
+        point: noObservation,
+        window: async () => [],
+      },
+    });
+
+    await expect(readFile(join(runDir, "alpha-validation.json"), "utf8")).rejects.toThrow();
+    expect(result).toEqual({ scored: 0, skipped: 1 });
+  });
+
+  test("skips alpha-search reports without research leads", async () => {
+    const runDir = await writeRun(
+      "alpha-run-empty",
+      report([], {
+        runId: "alpha-run-empty",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 0,
+          secCandidateCount: 0,
+          researchLeads: [],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+
+    const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      observationRepository: {
+        point: noObservation,
+        window: async () => [],
+      },
+    });
+
+    await expect(readFile(join(runDir, "alpha-validation.json"), "utf8")).rejects.toThrow();
+    expect(result).toEqual({ scored: 0, skipped: 1 });
   });
 });

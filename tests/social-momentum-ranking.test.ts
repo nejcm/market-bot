@@ -125,6 +125,41 @@ describe("Social Momentum ranking", () => {
     expect(result.map((entry) => entry.socialRank)).toEqual([1, 2, 3]);
   });
 
+  test("dedupes repeated tickers before assigning social ranks", () => {
+    const result = ranked({
+      candidates: [
+        candidate({
+          ticker: "AAPL",
+          sourceId: "apewisdom-all-stocks-AAPL",
+          mentions: 10,
+          upvotes: 20,
+          rank: 8,
+        }),
+        candidate({
+          ticker: "AAPL",
+          sourceId: "apewisdom-all-stocks-AAPL",
+          mentions: 30,
+          upvotes: 80,
+          rank: 4,
+        }),
+        candidate({
+          ticker: "MSFT",
+          mentions: 20,
+          upvotes: 30,
+          rank: 3,
+        }),
+      ],
+    });
+
+    expect(result.map((entry) => entry.symbol)).toEqual(["AAPL", "MSFT"]);
+    expect(result.map((entry) => entry.socialRank)).toEqual([1, 2]);
+    expect(result[0]).toMatchObject({
+      sourceIds: ["apewisdom-all-stocks-AAPL"],
+      mentions: 30,
+      upvotes: 80,
+    });
+  });
+
   test("does not inflate momentum when 24h fields are missing", () => {
     const [missing24h, currentOnly] = ranked({
       candidates: [

@@ -53,6 +53,28 @@ function featuresFor(candidate: ApeWisdomCandidate): CandidateFeatures {
   };
 }
 
+function compareRawCandidates(left: ApeWisdomCandidate, right: ApeWisdomCandidate): number {
+  return (
+    right.mentions - left.mentions ||
+    right.upvotes - left.upvotes ||
+    left.rank - right.rank ||
+    left.ticker.localeCompare(right.ticker)
+  );
+}
+
+function dedupeCandidates(
+  candidates: readonly ApeWisdomCandidate[],
+): readonly ApeWisdomCandidate[] {
+  const byTicker = new Map<string, ApeWisdomCandidate>();
+  for (const candidate of candidates) {
+    const existing = byTicker.get(candidate.ticker);
+    if (existing === undefined || compareRawCandidates(candidate, existing) < 0) {
+      byTicker.set(candidate.ticker, candidate);
+    }
+  }
+  return [...byTicker.values()];
+}
+
 function scoreCandidate(
   features: CandidateFeatures,
   maxValues: {
@@ -89,7 +111,7 @@ export function rankSocialMomentumCandidates(
     return [];
   }
 
-  const features = input.candidates.map(featuresFor);
+  const features = dedupeCandidates(input.candidates).map((candidate) => featuresFor(candidate));
   const maxValues = {
     mentionGrowth: Math.max(0, ...features.map((entry) => entry.mentionGrowth)),
     rankImprovement: Math.max(0, ...features.map((entry) => entry.rankImprovement)),

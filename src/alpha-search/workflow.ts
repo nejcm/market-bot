@@ -113,6 +113,16 @@ function listedUniverseSource(fetchedAt: string): Source {
   };
 }
 
+function dedupeSourcesById(sources: readonly Source[]): readonly Source[] {
+  const byId = new Map<string, Source>();
+  for (const source of sources) {
+    if (!byId.has(source.id)) {
+      byId.set(source.id, source);
+    }
+  }
+  return [...byId.values()];
+}
+
 function sourceList(input: {
   readonly candidates: readonly SocialMomentumRankedCandidate[];
   readonly secCandidates: readonly SecDiscoveryCandidate[];
@@ -120,12 +130,12 @@ function sourceList(input: {
   readonly yahooRawSnapshots: readonly RawSourceSnapshot[];
   readonly fetchedAt: string;
 }): readonly Source[] {
-  return [
+  return dedupeSourcesById([
     ...input.candidates.map((candidate) => socialCandidateSource(candidate, input.fetchedAt)),
     ...input.secCandidates.flatMap((candidate) => secDiscoverySource(candidate, input.fetchedAt)),
     ...(input.listedUniverseRawSnapshots.length > 0 ? [listedUniverseSource(input.fetchedAt)] : []),
     ...(input.yahooRawSnapshots.length > 0 ? [yahooValidationSource(input.fetchedAt)] : []),
-  ];
+  ]);
 }
 
 function leadFinding(lead: YahooValidatedLead, yahooSourceId: string | undefined): KeyFinding {

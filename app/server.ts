@@ -225,7 +225,7 @@ export async function handleResearchConsoleRequest(
   const path = researchConsoleStaticPath(url.pathname);
 
   if (path === undefined) {
-    return new Response("Research Console App assets not built. Run bun run console:build.\n", {
+    return new Response("Research Console App assets not built. Run bun run app:build.\n", {
       status: 503,
       headers: { "content-type": "text/plain; charset=utf-8" },
     });

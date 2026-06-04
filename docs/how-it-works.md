@@ -109,8 +109,8 @@ The local Research Console App browses existing artifacts without changing the r
 boundary. Build the Svelte client, then start the localhost Bun server:
 
 ```sh
-bun run console:build
-bun run console
+bun run app:build
+bun run app
 ```
 
 The server binds to `127.0.0.1` and reads `MARKET_BOT_DATA_DIR` / `data/runs`.

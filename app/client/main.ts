@@ -1,5 +1,7 @@
 import { mount } from "svelte";
 import App from "./app.svelte";
+// oxlint-disable-next-line import/no-unassigned-import
+import "./app.css";
 
 const target = document.querySelector("#app");
 

@@ -7,7 +7,12 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
-    "types": ["bun-types"]
+    "types": ["bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "$lib": ["./app/client/lib"],
+      "$lib/*": ["./app/client/lib/*"]
+    }
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "app/**/*.ts", "app/**/*.d.ts"]
 }

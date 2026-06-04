@@ -227,6 +227,23 @@ function secAtomPayload(): string {
   ].join("");
 }
 
+function secCompanyFactsPayload(): unknown {
+  const annual = [
+    { val: 100, form: "10-K", fy: 2025, filed: "2026-02-01", end: "2025-12-31" },
+    { val: 80, form: "10-K", fy: 2024, filed: "2025-02-01", end: "2024-12-31" },
+  ];
+  return {
+    facts: {
+      "us-gaap": {
+        Revenues: { units: { USD: annual } },
+        NetIncomeLoss: { units: { USD: annual } },
+        NetCashProvidedByUsedInOperatingActivities: { units: { USD: annual } },
+        LongTermDebt: { units: { USD: annual } },
+      },
+    },
+  };
+}
+
 function listingResponse(url: string): Response | undefined {
   if (url.includes("nasdaqlisted.txt")) {
     return new Response(nasdaqListedPayload());
@@ -359,6 +376,33 @@ function secDiscoveryFetchImpl(requestedUrls: string[]): FetchLike {
   };
 }
 
+function fundamentalsFetchImpl(requestedUrls: string[]): FetchLike {
+  return async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("company_tickers.json")) {
+      return jsonResponse({ "0": { cik_str: 3_200_193, ticker: "AAPL", title: "Apple Inc." } });
+    }
+    if (url.includes("companyfacts")) {
+      return jsonResponse(secCompanyFactsPayload());
+    }
+    const listedUniverseResponse = listingResponse(url);
+    if (listedUniverseResponse !== undefined) {
+      return listedUniverseResponse;
+    }
+    if (url.includes("browse-edgar")) {
+      return new Response("<feed />");
+    }
+    if (url.includes("apewisdom.io")) {
+      return jsonResponse(apeWisdomPayload());
+    }
+    if (url.includes("query1.finance.yahoo.com")) {
+      return jsonResponse(yahooPayload());
+    }
+    return new Response("not found", { status: 404 });
+  };
+}
+
 describe("alpha-search workflow", () => {
   test("persists ApeWisdom-ranked Yahoo-validated research leads without predictions", async () => {
     const requestedUrls: string[] = [];
@@ -382,6 +426,8 @@ describe("alpha-search workflow", () => {
         "candidate-profiles.json",
         "rejected-candidates.json",
         "research-leads.json",
+        "sec-fundamentals.json",
+        "sec-fundamentals-source-gaps.json",
         "source-gaps.json",
       ]),
     );
@@ -497,6 +543,60 @@ describe("alpha-search workflow", () => {
     expect(persistedLeads).toEqual(researchLeadRows);
     expect(JSON.stringify(persistedLeads)).not.toContain("candidate");
     expect(JSON.stringify(persistedLeads)).not.toContain("instrumentKind");
+  });
+
+  test("persists SEC fundamentals in candidate profiles without changing report semantics", async () => {
+    const requestedUrls: string[] = [];
+    const result = await runAlphaSearchWorkflow({
+      command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },
+      config: config(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      fetchImpl: fundamentalsFetchImpl(requestedUrls),
+      retryDelaysMs: [],
+    });
+
+    const candidateProfiles = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "candidate-profiles.json"), "utf8"),
+    ) as readonly unknown[];
+    const fundamentals = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "sec-fundamentals.json"), "utf8"),
+    ) as readonly unknown[];
+    const fundamentalGaps = JSON.parse(
+      await readFile(
+        join(result.artifacts.normalizedDir, "sec-fundamentals-source-gaps.json"),
+        "utf8",
+      ),
+    ) as readonly { readonly message?: string }[];
+
+    expect(requestedUrls.some((url) => url.includes("companyfacts"))).toBe(true);
+    expect(result.report.extras?.researchLeads).toEqual([
+      expect.not.objectContaining({ fundamentals: expect.anything() }),
+    ]);
+    expect(candidateProfiles[0]).toMatchObject({
+      symbol: "AAPL",
+      fundamentals: {
+        secCik: "0003200193",
+        sourceIds: ["alpha-sec-fundamentals-aapl"],
+        metrics: {
+          revenue: 100,
+          revenueDeltaPercent: 25,
+          netIncome: 100,
+          operatingCashFlow: 100,
+          debt: 100,
+        },
+      },
+    });
+    expect(fundamentals).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        metrics: expect.objectContaining({ revenueDeltaPercent: 25 }),
+      }),
+    ]);
+    expect(fundamentalGaps.some((gap) => gap.message?.includes("Missing SEC company facts"))).toBe(
+      true,
+    );
+    expect(result.report.predictions).toEqual([]);
+    expect(result.markdown).not.toMatch(/\b(buy|sell|hold)\b/iu);
   });
 
   test("adds SEC-discovered leads and enriches ApeWisdom duplicates", async () => {

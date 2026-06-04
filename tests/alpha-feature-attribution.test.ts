@@ -23,6 +23,16 @@ function profile(overrides: Partial<AlphaCandidateProfile> = {}): AlphaCandidate
     socialMomentumScore: 80,
     mentions: 500,
     upvotes: 1500,
+    fundamentals: {
+      secCik: "0000320193",
+      sourceIds: ["alpha-sec-fundamentals-alfa"],
+      metrics: {
+        revenueDeltaPercent: 25,
+        netIncome: 10,
+        operatingCashFlow: 20,
+        debt: 100_000_000,
+      },
+    },
     ...overrides,
   };
 }
@@ -102,6 +112,16 @@ describe("buildAlphaFeatureAttribution", () => {
           sourceGroup: "sec-only",
           discoverySources: ["sec-filings"],
           recentSecFilings: [{ form: "8-K", filingDate: "2026-05-02", sourceIds: ["sec-BETA"] }],
+          fundamentals: {
+            secCik: "0000000002",
+            sourceIds: ["alpha-sec-fundamentals-beta"],
+            metrics: {
+              revenueDeltaPercent: -5,
+              netIncome: -1,
+              operatingCashFlow: -2,
+              debt: 2_000_000_000,
+            },
+          },
         }),
       ],
       validations: [
@@ -144,6 +164,16 @@ describe("buildAlphaFeatureAttribution", () => {
     expect(attribution.features.secFilingForm?.buckets["8-K"]?.horizons["5"]).toMatchObject({
       resolvedCount: 1,
       averageExcessReturn: -0.02,
+    });
+    expect(
+      attribution.features.revenueDeltaPercent?.buckets["gte-20"]?.horizons["5"],
+    ).toMatchObject({
+      resolvedCount: 1,
+      outperformedCount: 1,
+    });
+    expect(attribution.features.debtToMarketCap?.buckets["lt-25pct"]?.horizons["5"]).toMatchObject({
+      resolvedCount: 1,
+      outperformedCount: 1,
     });
   });
 

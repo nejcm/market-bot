@@ -297,6 +297,8 @@ data/runs/<run-id>/
   normalized/market-context.json
   normalized/news-sources.json
   normalized/source-gaps.json
+  normalized/sec-fundamentals.json  # alpha-search only
+  normalized/sec-fundamentals-source-gaps.json  # alpha-search only
   normalized/candidate-profiles.json  # alpha-search only
   stages.json
   analytics.json
@@ -337,7 +339,7 @@ data/alpha-search/watchlist.json
 data/alpha-search/watchlist.md
 ```
 
-The Alpha feature-attribution summary buckets deterministic candidate profile features against Alpha validation outcomes. The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. These artifacts are historical research state, not promotion verdicts.
+The Alpha feature-attribution summary buckets deterministic candidate profile features, including available SEC Fundamental Evidence metrics, against Alpha validation outcomes. The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. These artifacts are historical research state, not promotion verdicts.
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
 

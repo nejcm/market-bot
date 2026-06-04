@@ -15,11 +15,6 @@ section tracks remaining expansion work.
   Provider-health validation failures block labels without hiding metrics. Do not promote
   individual Research Leads.
 
-### Add after validation
-
-- **Fundamentals enrichment** - attach existing SEC Fundamental Evidence metrics to Alpha
-  candidate profiles/watchlist for attribution first. Do not use fundamentals in ranking
-  until validation supports it.
 - **Expanded signal ranking** based on explainable features beyond the current
   discovery/ranking inputs. Keep signal strength separate from Evidence Quality.
 

@@ -14,7 +14,11 @@ export type AlphaFeatureName =
   | "socialMomentumScore"
   | "mentions"
   | "upvotesPerMention"
-  | "secFilingForm";
+  | "secFilingForm"
+  | "revenueDeltaPercent"
+  | "netIncome"
+  | "operatingCashFlow"
+  | "debtToMarketCap";
 
 export interface AlphaFeatureAttributionBucket {
   readonly label: string;
@@ -134,6 +138,19 @@ function numericBucket(
     : { feature, key: last[1], label: last[2] };
 }
 
+function signedBucket(
+  feature: AlphaFeatureName,
+  value: number | undefined,
+  missingLabel: string,
+): BucketAssignment {
+  if (value === undefined) {
+    return { feature, key: "missing", label: missingLabel };
+  }
+  return value < 0
+    ? { feature, key: "negative", label: "negative" }
+    : { feature, key: "nonnegative", label: "nonnegative" };
+}
+
 function profileBuckets(profile: AlphaCandidateProfile): readonly BucketAssignment[] {
   const upvotesPerMention =
     profile.upvotes === undefined || profile.mentions === undefined
@@ -143,6 +160,9 @@ function profileBuckets(profile: AlphaCandidateProfile): readonly BucketAssignme
     profile.recentSecFilings === undefined
       ? []
       : [...new Set(profile.recentSecFilings.map((filing) => filing.form))];
+  const fundamentals = profile.fundamentals?.metrics;
+  const debtToMarketCap =
+    fundamentals?.debt === undefined ? undefined : fundamentals.debt / profile.marketCap;
   return [
     { feature: "sourceGroup", key: profile.sourceGroup, label: profile.sourceGroup },
     numericBucket(
@@ -222,6 +242,32 @@ function profileBuckets(profile: AlphaCandidateProfile): readonly BucketAssignme
           key: form,
           label: form,
         }))),
+    numericBucket(
+      "revenueDeltaPercent",
+      fundamentals?.revenueDeltaPercent,
+      [
+        [0, "negative", "< 0%"],
+        [20, "0-to-20", "0%-20%"],
+        [Number.POSITIVE_INFINITY, "gte-20", ">= 20%"],
+      ],
+      "revenue delta missing",
+    ),
+    signedBucket("netIncome", fundamentals?.netIncome, "net income missing"),
+    signedBucket(
+      "operatingCashFlow",
+      fundamentals?.operatingCashFlow,
+      "operating cash flow missing",
+    ),
+    numericBucket(
+      "debtToMarketCap",
+      debtToMarketCap,
+      [
+        [0.25, "lt-25pct", "< 25%"],
+        [0.75, "25-to-75pct", "25%-75%"],
+        [Number.POSITIVE_INFINITY, "gte-75pct", ">= 75%"],
+      ],
+      "debt/market cap missing",
+    ),
   ];
 }
 

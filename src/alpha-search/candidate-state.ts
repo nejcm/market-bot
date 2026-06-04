@@ -6,6 +6,12 @@ import { readAlphaSearchLeads } from "./report-extras";
 
 export type AlphaCandidateSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
 
+export interface AlphaCandidateFundamentals {
+  readonly secCik: string;
+  readonly sourceIds: readonly string[];
+  readonly metrics: Readonly<Record<string, number>>;
+}
+
 export interface AlphaCandidateProfile {
   readonly symbol: string;
   readonly name?: string;
@@ -25,6 +31,7 @@ export interface AlphaCandidateProfile {
   readonly secCik?: string;
   readonly secCompanyName?: string;
   readonly recentSecFilings?: readonly AlphaSearchSecFiling[];
+  readonly fundamentals?: AlphaCandidateFundamentals;
 }
 
 export interface AlphaCandidateDelta {
@@ -83,6 +90,31 @@ function isAlphaSearchSecFiling(value: unknown): value is AlphaSearchSecFiling {
   );
 }
 
+function readNumberRecord(value: unknown): Readonly<Record<string, number>> | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const result: Record<string, number> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry !== "number" || !Number.isFinite(entry)) {
+      return;
+    }
+    result[key] = entry;
+  }
+  return result;
+}
+
+function isAlphaCandidateFundamentals(value: unknown): value is AlphaCandidateFundamentals {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    readString(value, "secCik") !== undefined &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    readNumberRecord(value.metrics) !== undefined
+  );
+}
+
 export function isAlphaCandidateProfile(value: unknown): value is AlphaCandidateProfile {
   if (!isRecord(value)) {
     return false;
@@ -110,6 +142,7 @@ export function isAlphaCandidateProfile(value: unknown): value is AlphaCandidate
     (value.upvotes === undefined || readNumber(value, "upvotes") !== undefined) &&
     (value.secCik === undefined || readString(value, "secCik") !== undefined) &&
     (value.secCompanyName === undefined || readString(value, "secCompanyName") !== undefined) &&
+    (value.fundamentals === undefined || isAlphaCandidateFundamentals(value.fundamentals)) &&
     (recentSecFilings === undefined ||
       (Array.isArray(recentSecFilings) &&
         recentSecFilings.every((filing) => isAlphaSearchSecFiling(filing))))
@@ -197,33 +230,38 @@ function buildDelta(
 
 export function buildAlphaCandidateProfiles(
   report: ResearchReport,
+  fundamentalsBySymbol: ReadonlyMap<string, AlphaCandidateFundamentals> = new Map(),
 ): readonly AlphaCandidateProfile[] {
   if (report.jobType !== "alpha-search") {
     return [];
   }
 
-  return readAlphaSearchLeads(report.extras).map((lead) => ({
-    symbol: lead.symbol,
-    ...(lead.name !== undefined ? { name: lead.name } : {}),
-    runId: report.runId,
-    generatedAt: report.generatedAt,
-    discoverySources: lead.discoverySources,
-    sourceGroup: sourceGroup(lead.discoverySources),
-    sourceIds: lead.sourceIds,
-    exchange: lead.exchange,
-    price: lead.price,
-    volume: lead.volume,
-    marketCap: lead.marketCap,
-    ...(lead.socialRank !== undefined ? { socialRank: lead.socialRank } : {}),
-    ...(lead.socialMomentumScore !== undefined
-      ? { socialMomentumScore: lead.socialMomentumScore }
-      : {}),
-    ...(lead.mentions !== undefined ? { mentions: lead.mentions } : {}),
-    ...(lead.upvotes !== undefined ? { upvotes: lead.upvotes } : {}),
-    ...(lead.secCik !== undefined ? { secCik: lead.secCik } : {}),
-    ...(lead.secCompanyName !== undefined ? { secCompanyName: lead.secCompanyName } : {}),
-    ...(lead.recentSecFilings !== undefined ? { recentSecFilings: lead.recentSecFilings } : {}),
-  }));
+  return readAlphaSearchLeads(report.extras).map((lead) => {
+    const fundamentals = fundamentalsBySymbol.get(lead.symbol);
+    return {
+      symbol: lead.symbol,
+      ...(lead.name !== undefined ? { name: lead.name } : {}),
+      runId: report.runId,
+      generatedAt: report.generatedAt,
+      discoverySources: lead.discoverySources,
+      sourceGroup: sourceGroup(lead.discoverySources),
+      sourceIds: lead.sourceIds,
+      exchange: lead.exchange,
+      price: lead.price,
+      volume: lead.volume,
+      marketCap: lead.marketCap,
+      ...(lead.socialRank !== undefined ? { socialRank: lead.socialRank } : {}),
+      ...(lead.socialMomentumScore !== undefined
+        ? { socialMomentumScore: lead.socialMomentumScore }
+        : {}),
+      ...(lead.mentions !== undefined ? { mentions: lead.mentions } : {}),
+      ...(lead.upvotes !== undefined ? { upvotes: lead.upvotes } : {}),
+      ...(lead.secCik !== undefined ? { secCik: lead.secCik } : {}),
+      ...(lead.secCompanyName !== undefined ? { secCompanyName: lead.secCompanyName } : {}),
+      ...(lead.recentSecFilings !== undefined ? { recentSecFilings: lead.recentSecFilings } : {}),
+      ...(fundamentals !== undefined ? { fundamentals } : {}),
+    };
+  });
 }
 
 function latestValidationBySymbol(

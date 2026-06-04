@@ -151,6 +151,48 @@ describe("buildAlphaCandidateProfiles", () => {
     ]);
   });
 
+  test("attaches SEC fundamentals by symbol when provided", () => {
+    const profiles = buildAlphaCandidateProfiles(
+      alphaReport([
+        {
+          symbol: "SOC",
+          exchange: "NMS",
+          price: 11,
+          volume: 1_100_000,
+          marketCap: 600_000_000,
+          discoverySources: ["apewisdom"],
+          sourceIds: ["apewisdom-SOC", "market-yahoo-alpha-search"],
+        },
+      ]),
+      new Map([
+        [
+          "SOC",
+          {
+            secCik: "0000320193",
+            sourceIds: ["alpha-sec-fundamentals-soc"],
+            metrics: { revenue: 100, revenueDeltaPercent: 12.5 },
+          },
+        ],
+      ]),
+    );
+
+    expect(profiles[0]).toMatchObject({
+      symbol: "SOC",
+      fundamentals: {
+        secCik: "0000320193",
+        sourceIds: ["alpha-sec-fundamentals-soc"],
+        metrics: { revenue: 100, revenueDeltaPercent: 12.5 },
+      },
+    });
+    expect(isAlphaCandidateProfile(profiles[0])).toBe(true);
+    expect(
+      isAlphaCandidateProfile({
+        ...profiles[0],
+        fundamentals: { secCik: "0000320193", sourceIds: ["x"], metrics: { revenue: "bad" } },
+      }),
+    ).toBe(false);
+  });
+
   test("ignores non-alpha reports and alpha reports without valid leads", () => {
     expect(buildAlphaCandidateProfiles(researchReport())).toEqual([]);
     expect(buildAlphaCandidateProfiles(alphaReport([]))).toEqual([]);

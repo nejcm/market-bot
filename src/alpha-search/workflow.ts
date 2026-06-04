@@ -14,12 +14,13 @@ import { validateResearchReport } from "../report/schema";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
-import { buildAlphaCandidateProfiles } from "./candidate-state";
+import { buildAlphaCandidateProfiles, type AlphaCandidateFundamentals } from "./candidate-state";
 import {
   mergeAlphaSearchCandidates,
   socialAlphaSearchCandidate,
   type AlphaSearchCandidate,
 } from "./candidates";
+import { collectAlphaSearchFundamentals } from "./fundamentals";
 import {
   collectListedUniverse,
   filterListedUniverseCandidates,
@@ -325,6 +326,24 @@ export async function runAlphaSearchWorkflow(input: {
     sourceGaps,
     sources,
   });
+  const researchLeads = readAlphaSearchLeads(report.extras);
+  const fundamentals = await collectAlphaSearchFundamentals({
+    leads: researchLeads,
+    request,
+    ...(input.config.sourceOptions.secUserAgent !== undefined
+      ? { secUserAgent: input.config.sourceOptions.secUserAgent }
+      : {}),
+  });
+  const fundamentalsBySymbol = new Map<string, AlphaCandidateFundamentals>(
+    fundamentals.fundamentals.map((entry) => [
+      entry.symbol,
+      {
+        secCik: entry.secCik,
+        sourceIds: entry.sourceIds,
+        metrics: entry.metrics,
+      },
+    ]),
+  );
   const markdown = renderMarkdownReport(report);
   const completedAt = new Date().toISOString();
   const trace = buildTrace({
@@ -340,6 +359,7 @@ export async function runAlphaSearchWorkflow(input: {
   await writeJson(join(artifacts.rawDir, "snapshots.json"), [
     ...apeWisdom.rawSnapshots,
     ...secDiscovery.rawSnapshots,
+    ...fundamentals.rawSnapshots,
     ...listedUniverse.rawSnapshots,
     ...yahoo.rawSnapshots,
   ]);
@@ -353,13 +373,18 @@ export async function runAlphaSearchWorkflow(input: {
     validationCandidates,
   );
   await writeJson(join(artifacts.normalizedDir, "listed-universe.json"), listedUniverse.entries);
+  await writeJson(join(artifacts.normalizedDir, "research-leads.json"), researchLeads);
   await writeJson(
-    join(artifacts.normalizedDir, "research-leads.json"),
-    readAlphaSearchLeads(report.extras),
+    join(artifacts.normalizedDir, "sec-fundamentals.json"),
+    fundamentals.fundamentals,
+  );
+  await writeJson(
+    join(artifacts.normalizedDir, "sec-fundamentals-source-gaps.json"),
+    fundamentals.sourceGaps,
   );
   await writeJson(
     join(artifacts.normalizedDir, "candidate-profiles.json"),
-    buildAlphaCandidateProfiles(report),
+    buildAlphaCandidateProfiles(report, fundamentalsBySymbol),
   );
   await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), [
     ...listed.rejectedCandidates,

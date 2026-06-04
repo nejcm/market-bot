@@ -31,11 +31,13 @@ class SourceCircuitOpenError extends Error {
   }
 }
 
-const HOST_MIN_DELAY_MS = 1000;
+const DEFAULT_HOST_MIN_DELAY_MS = 1000;
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_OPEN_MS = 60_000;
 const MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
 const hostStates = new Map<string, HostState>();
+
+let hostMinDelayMs = DEFAULT_HOST_MIN_DELAY_MS;
 
 function noop(): void {}
 
@@ -118,7 +120,7 @@ async function runWithHostResilience<T>(
       throw new SourceCircuitOpenError(adapter, host);
     }
 
-    const waitMs = Math.max(0, HOST_MIN_DELAY_MS - (now - state.lastStartedAt));
+    const waitMs = Math.max(0, hostMinDelayMs - (now - state.lastStartedAt));
     if (waitMs > 0) {
       await sleep(waitMs);
     }
@@ -275,6 +277,13 @@ function isTransientError(error: unknown): boolean {
 
 export function resetSourceResilienceForTests(): void {
   hostStates.clear();
+}
+
+export function setSourceHostMinDelayMsForTests(ms: number): void {
+  if (!Number.isFinite(ms) || ms < 0) {
+    throw new RangeError("source host minimum delay must be a finite non-negative number");
+  }
+  hostMinDelayMs = ms;
 }
 
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];

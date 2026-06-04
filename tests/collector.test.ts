@@ -7,6 +7,7 @@ import {
   collectSources,
   createCollectContext,
   resetSourceResilienceForTests,
+  setSourceHostMinDelayMsForTests,
 } from "../src/sources/collector";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 
@@ -1586,5 +1587,10 @@ describe("collectSources", () => {
     expect(marketAuxCalls).toBe(1);
     const circuitGap = second.sourceGaps.find((gap) => gap.cause === "circuit-open");
     expect(circuitGap?.message).toContain("circuit open");
+  });
+
+  test("rejects invalid test host delay overrides", () => {
+    expect(() => setSourceHostMinDelayMsForTests(Number.NaN)).toThrow(RangeError);
+    expect(() => setSourceHostMinDelayMsForTests(-1)).toThrow(RangeError);
   });
 });

@@ -31,10 +31,10 @@ promotion and expansion work after real-run validation.
 ## Cross-run intelligence
 
 - **Watchlist + thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
-- **Semantic dedup of news sources** - broaden exact canonical-URL repeat suppression if real
-  runs show headline clustering still dominates reports.
 - **Incremental memory** — open questions and unresolved hypotheses carried forward.
 - **Session/run search** over prior reports, sources, predictions, and theses.
+- Finding alpha stocks with checking the growth, PE ratio, profits, etc... and comparing over time
+- Store all artifacts per stock and track stats over runs and over time by comparing against historical data
 
 ## Operational
 
@@ -46,17 +46,13 @@ promotion and expansion work after real-run validation.
 
 ## Product polish
 
-Relevant only if the framing drifts from "research substrate for me" toward "shareable product":
-
 - Web frontend for browsing the run history.
 - Branding, themed report rendering.
 - Reliability SLAs, monitoring, alerting.
-- Shareable artifacts (signed JSON, RSS feed of recent runs).
+- https://github.com/defeat-beta/defeatbeta-api
 
-## Other
+## Other (deferred)
 
-- finding alpha stocks with checking the growth, PE ratio, profits, over time
-- store all artifacts about stocks and track stats over runs and over time
 - based on real runs implement improvements
 - improvements based on other projects
   - https://github.com/TauricResearch/TradingAgents

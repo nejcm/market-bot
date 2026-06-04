@@ -16,7 +16,7 @@ src/
   movers/             Deterministic mover ranking
   report/             Report schema (zod) + markdown renderer
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
-  research/           Orchestrator, prompt loader, Domain Playbooks, regime summary
+  research/           Orchestrator, prompt loader, history, Market Spotlights, Domain Playbooks, regime summary
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
 prompts/              Stage prompt files and checked-in Domain Playbooks
@@ -65,11 +65,15 @@ Market updates collect FRED Market Context when `MARKET_BOT_FRED_API_KEY` is set
 
 ### Research (`src/research/`)
 
-The orchestrator coordinates: collect sources → summarize regime → optional Evidence Request Loop → select Domain Playbooks → produce report → emit predictions. It is also the home for the deterministic market-regime summary.
+The orchestrator coordinates: collect sources → load Historical Research Context → summarize regime → optional Market Spotlight selection for market updates → optional Evidence Request Loop for eligible deep ticker runs → select Domain Playbooks → produce report → emit predictions. It is also the home for the deterministic market-regime summary.
 
 The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. Malformed JSON emits a `SourceGap`, stops the loop, and continues to `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
 
-Domain Playbooks are checked-in markdown guidance snippets under `prompts/playbooks/`, registered by `prompts/playbooks/registry.json` ([ADR 0012](./adr/0012-model-requested-domain-playbooks.md)). After the Evidence Request Loop, the quick model runs the `playbook-selection` stage against slim run context and eligible candidate metadata. Valid selections are loaded into downstream prompt JSON as `domainPlaybooks`; invalid JSON, unknown IDs, invalid stages, duplicates, and cap overages are trace-only rejections. The selector does not fetch sources, use provider-native tools, or add report schema fields.
+Historical Research Context scans `MARKET_BOT_DATA_DIR` run artifacts only; it never reads `data/cache`. It loads compact prior report summaries, findings, risks, catalysts, data gaps, scored prediction status, selected extras, and normalized snapshots. Prior reports are added as citeable internal `model` Sources with IDs like `history-report-<runId>`. Missing or malformed history is recorded as a soft historical-context gap, not a provider `SourceGap`.
+
+Market Spotlights run only for daily and weekly market updates. Candidates are built from the current collected market snapshot universe and may be enriched with mover features, benchmark context, history availability, and alpha-search watchlist annotations. The quick-model `spotlight-selection` stage may select zero candidates up to the configured cap. Invalid selector output is audit-only. Spotlights do not fetch extra evidence, run nested ticker jobs, use provider-native tools, or auto-upgrade depth. Selected history and spotlights flow into final synthesis as compact context and can render through `report.extras` without a top-level report schema migration.
+
+Domain Playbooks are checked-in markdown guidance snippets under `prompts/playbooks/`, registered by `prompts/playbooks/registry.json` ([ADR 0012](./adr/0012-model-requested-domain-playbooks.md)). After historical context, any eligible Evidence Request Loop, and market spotlight selection, the quick model runs the `playbook-selection` stage against slim run context and eligible candidate metadata. Valid selections are loaded into downstream prompt JSON as `domainPlaybooks`; invalid JSON, unknown IDs, invalid stages, duplicates, and cap overages are trace-only rejections. The selector does not fetch sources, use provider-native tools, or add report schema fields.
 
 Deep runs use a fixed Coverage Panel after `specialist-analysis` and before `critique` ([ADR 0011](./adr/0011-fixed-coverage-panel-for-deep-research.md)). Market updates run `regime-context-analysis` and `mover-theme-analysis`; ticker runs run `instrument-evidence-analysis` and `market-behavior-analysis`. The two role stages use the quick model, see the specialist output as their only prior stage, run concurrently, and are persisted in deterministic stage order. `critique` sees the specialist plus both role outputs, and `final-synthesis` sees all analyses plus critique. The panel does not add report schema fields.
 
@@ -96,7 +100,9 @@ Schema is the contract. Validation enforces the research-only boundary ([ADR 000
 
 ```
 CLI args → AppConfig → collect sources → orchestrator
+                                      ├─ historical context from run artifacts
                                       ├─ regime summary
+                                      ├─ optional market spotlight selection
                                       ├─ optional evidence-request loop
                                       ├─ playbook selection
                                       ├─ movers

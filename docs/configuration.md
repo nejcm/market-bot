@@ -57,6 +57,8 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 
 Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close cache files older than 365 days.
 
+Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The history env vars control how many prior reports are summarized and which older anchor runs are considered; they do not make the reader scan `MARKET_BOT_CACHE_DIR`. Market Spotlight limits cap AI-selected spotlights for daily and weekly updates. Setting a spotlight limit to `0` disables the selector for that depth.
+
 ## Free provider setup
 
 For a free, high-value Extended Evidence setup, set `MARKET_BOT_FRED_API_KEY` and `MARKET_BOT_SEC_USER_AGENT`. FRED is also the provider-health v2 baseline macro expectation. Add `MARKET_BOT_TRADIER_API_TOKEN` only when you need equity options/IV evidence and have suitable Tradier API access. Leave `MARKET_BOT_GLASSNODE_API_KEY` blank unless you already pay for Glassnode API access.

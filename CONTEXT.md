@@ -28,6 +28,18 @@ A daily or weekly research run for an asset class that summarizes market regime,
 
 Weekly market updates are a cadence and horizon change in V1, not a separate trailing-window data product. Equity mover inputs still come from Yahoo `day_gainers`, and crypto mover inputs still use CoinGecko 24h change fields; reports must disclose this as a source gap.
 
+## Historical Research Context
+
+Compact context loaded from prior `MARKET_BOT_DATA_DIR` run artifacts. It can summarize prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots, and prior reports can appear as citeable `model` Sources. It is context for research wording and probability calibration, not a new prediction-count or horizon policy.
+
+## Historical Context Gap
+
+A soft absence, parse failure, or mismatch in prior run artifacts. It is disclosed in historical context, but it is not a provider `SourceGap` and does not mean live source collection failed.
+
+## Market Spotlight
+
+An optional daily or weekly Market Update focus selected from the current collected market snapshot universe. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
+
 ## Market Regime
 
 The current market backdrop inferred from fetched evidence, such as broad direction, volatility, liquidity, and dominant themes.

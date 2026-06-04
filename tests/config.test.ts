@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { resolveConfig } from "../src/config";
+import { resolveConfig, resolveResearchConsoleConfig } from "../src/config";
 
 describe("resolveConfig", () => {
   test("uses OpenAI defaults", () => {
@@ -347,5 +347,34 @@ describe("resolveConfig", () => {
 
   test("rejects unknown provider", () => {
     expect(() => resolveConfig({ MARKET_BOT_PROVIDER: "unknown" })).toThrow("Unsupported provider");
+  });
+});
+
+describe("resolveResearchConsoleConfig", () => {
+  test("uses localhost defaults", () => {
+    expect(resolveResearchConsoleConfig({})).toEqual({
+      host: "127.0.0.1",
+      port: 4173,
+      dataDir: "data/runs",
+    });
+  });
+
+  test("reads console port and data directory", () => {
+    expect(
+      resolveResearchConsoleConfig({
+        MARKET_BOT_CONSOLE_PORT: "5123",
+        MARKET_BOT_DATA_DIR: "custom/runs",
+      }),
+    ).toEqual({
+      host: "127.0.0.1",
+      port: 5123,
+      dataDir: "custom/runs",
+    });
+  });
+
+  test("rejects invalid console port", () => {
+    expect(() => resolveResearchConsoleConfig({ MARKET_BOT_CONSOLE_PORT: "0" })).toThrow(
+      "Expected positive integer",
+    );
   });
 });

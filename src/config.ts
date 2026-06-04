@@ -60,6 +60,12 @@ export interface AppConfig {
   readonly alphaSearchOptions: AlphaSearchOptions;
 }
 
+export interface ResearchConsoleConfig {
+  readonly host: "127.0.0.1";
+  readonly port: number;
+  readonly dataDir: string;
+}
+
 export interface ResolveConfigOptions {
   readonly validateAlphaSearchOptions?: boolean;
 }
@@ -70,6 +76,7 @@ const DEFAULT_ANTHROPIC_QUICK_MODEL = "claude-sonnet-4-6";
 const DEFAULT_ANTHROPIC_SYNTHESIS_MODEL = "claude-opus-4-8";
 const DEFAULT_MODEL_TIMEOUT_MS = 120_000;
 const DEFAULT_DATA_DIR = "data/runs";
+const DEFAULT_RESEARCH_CONSOLE_PORT = 4173;
 const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
 const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
 const DEFAULT_NEWS_SEEN_RETENTION_DAYS = 30;
@@ -398,5 +405,15 @@ export function resolveConfig(
       options.validateAlphaSearchOptions === false
         ? defaultAlphaSearchOptions()
         : resolveAlphaSearchOptions(env),
+  };
+}
+
+export function resolveResearchConsoleConfig(
+  env: Record<string, string | undefined> = process.env,
+): ResearchConsoleConfig {
+  return {
+    host: "127.0.0.1",
+    port: readPositiveInteger(env.MARKET_BOT_CONSOLE_PORT, DEFAULT_RESEARCH_CONSOLE_PORT),
+    dataDir: env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR,
   };
 }

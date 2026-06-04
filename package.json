@@ -7,15 +7,18 @@
   },
   "type": "module",
   "scripts": {
+    "console": "bun run app/server.ts",
+    "console:build": "vite build --config app/vite.config.ts",
+    "console:dev": "bun run app/server.ts",
     "test": "bun test",
     "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "lint:staged": "oxlint --fix",
-    "fmt": "oxfmt src tests scripts",
+    "fmt": "oxfmt src tests scripts app/server.ts app/vite.config.ts app/client",
     "fmt:staged": "oxfmt",
-    "fmt:check": "oxfmt --check src tests scripts",
+    "fmt:check": "oxfmt --check src tests scripts app/server.ts app/vite.config.ts app/client",
     "commitlint": "commitlint",
     "knip": "knip",
     "audit": "bun audit --audit-level=high",
@@ -24,11 +27,14 @@
   "devDependencies": {
     "@commitlint/cli": "21.0.1",
     "@commitlint/config-conventional": "21.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/bun": "1.3.14",
     "knip": "6.14.1",
     "lefthook": "2.1.8",
     "oxfmt": "0.51.0",
     "oxlint": "1.66.0",
-    "typescript": "5.9.3"
+    "svelte": "^5.56.1",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16"
   }
 }

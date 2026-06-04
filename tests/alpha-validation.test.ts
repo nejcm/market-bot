@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { validateAlphaSearchReport } from "../src/alpha-search/validation";
+import {
+  buildAlphaValidationSummary,
+  renderAlphaValidationSummaryMarkdown,
+  validateAlphaSearchReport,
+  type AlphaValidationFile,
+} from "../src/alpha-search/validation";
 import type { AlphaSearchLead } from "../src/alpha-search/report-extras";
 import type { ResearchReport } from "../src/domain/types";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
@@ -138,3 +143,140 @@ describe("validateAlphaSearchReport", () => {
     });
   });
 });
+
+describe("buildAlphaValidationSummary", () => {
+  test("aggregates resolved outcomes by horizon overall and source group", () => {
+    const summary = buildAlphaValidationSummary(
+      [
+        validationFile({
+          leads: [
+            validationLead({
+              symbol: "ALFA",
+              sourceGroup: "apewisdom-only",
+              horizons: [resolvedHorizon(5, 0.1, "outperformed"), unresolvedHorizon(20)],
+            }),
+            validationLead({
+              symbol: "BRAV",
+              sourceGroup: "sec-only",
+              discoverySources: ["sec-filings"],
+              horizons: [resolvedHorizon(5, -0.02, "did-not-outperform")],
+            }),
+            validationLead({
+              symbol: "BOTH",
+              sourceGroup: "apewisdom+sec",
+              discoverySources: ["apewisdom", "sec-filings"],
+              horizons: [resolvedHorizon(20, 0.03, "outperformed")],
+            }),
+          ],
+        }),
+      ],
+      new Date("2026-06-02T00:00:00.000Z"),
+    );
+
+    expect(summary.overall["5"]).toMatchObject({
+      totalCount: 2,
+      resolvedCount: 2,
+      unresolvedCount: 0,
+      outperformedCount: 1,
+      hitRate: 0.5,
+      averageExcessReturn: 0.04,
+    });
+    expect(summary.overall["20"]).toMatchObject({
+      totalCount: 2,
+      resolvedCount: 1,
+      unresolvedCount: 1,
+      outperformedCount: 1,
+      hitRate: 1,
+      averageExcessReturn: 0.03,
+    });
+    expect(summary.bySourceGroup["sec-only"]?.["5"]).toMatchObject({
+      resolvedCount: 1,
+      outperformedCount: 0,
+      averageExcessReturn: -0.02,
+    });
+  });
+
+  test("renders alpha validation summary markdown", () => {
+    const markdown = renderAlphaValidationSummaryMarkdown(
+      buildAlphaValidationSummary(
+        [
+          validationFile({
+            leads: [
+              validationLead({
+                horizons: [resolvedHorizon(5, 0.1, "outperformed")],
+              }),
+            ],
+          }),
+        ],
+        new Date("2026-06-02T00:00:00.000Z"),
+      ),
+    );
+
+    expect(markdown).toContain("# Alpha Validation Summary");
+    expect(markdown).toContain("Benchmark: IWM");
+    expect(markdown).toContain("apewisdom-only");
+  });
+});
+
+function validationFile(overrides: Partial<AlphaValidationFile> = {}): AlphaValidationFile {
+  return {
+    runId: "alpha-run-1",
+    validatedAt: "2026-06-01T00:00:00.000Z",
+    generatedAt: "2026-05-01T00:00:00.000Z",
+    benchmarkSymbol: "IWM",
+    horizons: [5, 20],
+    leads: [],
+    ...overrides,
+  };
+}
+
+function validationLead(
+  overrides: Partial<AlphaValidationFile["leads"][number]> = {},
+): AlphaValidationFile["leads"][number] {
+  return {
+    symbol: "ALFA",
+    name: "Alpha Co.",
+    discoverySources: ["apewisdom"],
+    socialRank: 1,
+    socialMomentumScore: 75,
+    sourceGroup: "apewisdom-only",
+    sourceIds: ["apewisdom-ALFA"],
+    horizons: [],
+    ...overrides,
+  };
+}
+
+function resolvedHorizon(
+  horizonTradingDays: number,
+  excessReturn: number,
+  outcome: "outperformed" | "did-not-outperform",
+): AlphaValidationFile["leads"][number]["horizons"][number] {
+  return {
+    status: "resolved",
+    horizonTradingDays,
+    benchmarkSymbol: "IWM",
+    candidateClose0: 10,
+    candidateCloseN: 11,
+    benchmarkClose0: 100,
+    benchmarkCloseN: 105,
+    candidateDate0: "2026-05-01",
+    candidateDateN: "2026-05-08",
+    benchmarkDate0: "2026-05-01",
+    benchmarkDateN: "2026-05-08",
+    candidateReturn: 0.1,
+    benchmarkReturn: 0.05,
+    excessReturn,
+    outcome,
+  };
+}
+
+function unresolvedHorizon(
+  horizonTradingDays: number,
+): AlphaValidationFile["leads"][number]["horizons"][number] {
+  return {
+    status: "unresolved",
+    horizonTradingDays,
+    benchmarkSymbol: "IWM",
+    reason: "observation-unavailable",
+  };
+}

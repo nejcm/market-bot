@@ -1,6 +1,11 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { validateAlphaSearchReport } from "../alpha-search/validation";
+import {
+  buildAlphaValidationSummary,
+  renderAlphaValidationSummaryMarkdown,
+  validateAlphaSearchReport,
+  type AlphaValidationFile,
+} from "../alpha-search/validation";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
 import { resolveOutcome } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
@@ -118,6 +123,15 @@ async function loadScoreFile(runDir: string): Promise<ScoreFile | undefined> {
   try {
     const raw = await readFile(join(runDir, SCORE_FILE), "utf8");
     return JSON.parse(raw) as ScoreFile;
+  } catch {
+    return undefined;
+  }
+}
+
+async function loadAlphaValidationFile(runDir: string): Promise<AlphaValidationFile | undefined> {
+  try {
+    const raw = await readFile(join(runDir, ALPHA_VALIDATION_FILE), "utf8");
+    return JSON.parse(raw) as AlphaValidationFile;
   } catch {
     return undefined;
   }
@@ -245,11 +259,39 @@ export async function runScorePass(
       return report.predictions.length > 0 || wrote ? ("scored" as const) : ("skipped" as const);
     }),
   );
+  await buildAndWriteAlphaValidationSummary(dataDir, now);
 
   return {
     scored: results.filter((result) => result === "scored").length,
     skipped: results.filter((result) => result === "skipped").length,
   };
+}
+
+export async function buildAndWriteAlphaValidationSummary(
+  dataDir: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const runDirs = await listRunDirs(dataDir);
+  const maybeFiles = await Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir)));
+  const files = maybeFiles.filter((file): file is AlphaValidationFile => file !== undefined);
+  if (files.length === 0) {
+    return false;
+  }
+
+  const summary = buildAlphaValidationSummary(files, now);
+  const summaryDir = join(dataDir, "../alpha-validation");
+  await mkdir(summaryDir, { recursive: true });
+  await writeFile(
+    join(summaryDir, "summary.json"),
+    `${JSON.stringify(summary, undefined, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(
+    join(summaryDir, "summary.md"),
+    renderAlphaValidationSummaryMarkdown(summary),
+    "utf8",
+  );
+  return true;
 }
 
 async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {

@@ -302,6 +302,7 @@ data/runs/<run-id>/
   report.md
   trace.json
   score.json             # written later when predictions become due
+  alpha-validation.json  # written later for alpha-search Research Leads
 ```
 
 `runId` is based on the current ISO timestamp plus a short random suffix.
@@ -315,15 +316,23 @@ Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src
 `score` scans every run directory:
 
 1. Load `report.json`.
-2. Skip runs without predictions.
-3. Skip predictions that are already resolved or have reached the max attempt count.
-4. Check whether the prediction horizon has elapsed in trading days.
-5. Fetch point or window Observations from Yahoo, CoinGecko, FRED, or Tradier.
-6. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
-7. Resolve each observable forecast as `hit`, `miss`, or unresolved.
-8. Write or update `score.json`.
+2. For prediction reports, skip predictions that are already resolved or have reached the max attempt count.
+3. Check whether the prediction horizon has elapsed in trading days.
+4. Fetch point or window Observations from Yahoo, CoinGecko, FRED, or Tradier.
+5. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
+6. Resolve each observable forecast as `hit`, `miss`, or unresolved.
+7. Write or update `score.json`.
+8. For alpha-search reports with Research Leads, validate 5- and 20-trading-day excess returns against `IWM` and write `alpha-validation.json`.
+9. Rebuild Alpha validation summaries:
+
+```text
+data/alpha-validation/summary.json
+data/alpha-validation/summary.md
+```
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
+
+Alpha validation sidecars are historical Research Lead checks, not report predictions. They do not feed calibration.
 
 ## Calibration
 

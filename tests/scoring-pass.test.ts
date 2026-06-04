@@ -7,7 +7,7 @@ import type { ResearchReport } from "../src/domain/types";
 import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { PredictionScore } from "../src/scoring/types";
-import type { AlphaValidationFile } from "../src/alpha-search/validation";
+import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 
@@ -20,6 +20,7 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  rmSync(join(tmpDir, "..", "alpha-validation"), { recursive: true, force: true });
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -45,6 +46,11 @@ async function readScores(runDir: string): Promise<readonly PredictionScore[]> {
 async function readAlphaValidation(runDir: string): Promise<AlphaValidationFile> {
   const raw = await readFile(join(runDir, "alpha-validation.json"), "utf8");
   return JSON.parse(raw) as AlphaValidationFile;
+}
+
+async function readAlphaValidationSummary(): Promise<AlphaValidationSummary> {
+  const raw = await readFile(join(tmpDir, "..", "alpha-validation", "summary.json"), "utf8");
+  return JSON.parse(raw) as AlphaValidationSummary;
 }
 
 async function noObservation(): Promise<Observation | undefined> {
@@ -311,6 +317,14 @@ describe("runScorePass Alpha validation", () => {
       horizonTradingDays: 5,
       outcome: "outperformed",
     });
+    const summary = await readAlphaValidationSummary();
+    const markdown = await readFile(join(tmpDir, "..", "alpha-validation", "summary.md"), "utf8");
+    expect(summary.overall["5"]).toMatchObject({
+      resolvedCount: 1,
+      outperformedCount: 1,
+      hitRate: 1,
+    });
+    expect(markdown).toContain("# Alpha Validation Summary");
   });
 
   test("does not write alpha validation for non-alpha reports", async () => {

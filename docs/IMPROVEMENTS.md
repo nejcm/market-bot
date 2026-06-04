@@ -18,9 +18,8 @@ promotion and expansion work after real-run validation.
   invalidation criteria, and source IDs.
 - **Candidate watchlist output** that persists candidates across runs and tracks thesis
   changes over time.
-- **Candidate validation loop** that scores whether candidates later outperformed relevant
-  benchmarks over declared horizons. Validation must resolve from public market data and stay
-  within the observable-forecast boundary.
+- **Candidate validation loop tuning** - use the persisted 5- and 20-trading-day excess-return
+  summaries to decide whether the current discovery sources merit promotion or need ranking changes.
 
 ## Cross-run intelligence
 

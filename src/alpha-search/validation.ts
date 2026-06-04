@@ -63,12 +63,41 @@ export interface AlphaValidationFile {
   readonly leads: readonly AlphaValidationLeadResult[];
 }
 
+export interface AlphaValidationMetrics {
+  readonly totalCount: number;
+  readonly resolvedCount: number;
+  readonly unresolvedCount: number;
+  readonly outperformedCount: number;
+  readonly hitRate?: number;
+  readonly averageExcessReturn?: number;
+}
+
+export interface AlphaValidationSummary {
+  readonly generatedAt: string;
+  readonly benchmarkSymbol: string;
+  readonly horizons: readonly number[];
+  readonly runCount: number;
+  readonly leadCount: number;
+  readonly overall: Readonly<Record<string, AlphaValidationMetrics>>;
+  readonly bySourceGroup: Partial<
+    Readonly<Record<AlphaValidationSourceGroup, Readonly<Record<string, AlphaValidationMetrics>>>>
+  >;
+}
+
 export interface AlphaValidationOptions {
   readonly report: ResearchReport;
   readonly repository: ObservationRepository;
   readonly now?: Date;
   readonly benchmarkSymbol?: string;
   readonly horizons?: readonly number[];
+}
+
+interface MetricAccumulator {
+  totalCount: number;
+  resolvedCount: number;
+  unresolvedCount: number;
+  outperformedCount: number;
+  excessReturnTotal: number;
 }
 
 function addDays(date: Date, days: number): Date {
@@ -94,6 +123,14 @@ function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
 
 function roundMetric(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function formatRate(value: number | undefined): string {
+  return value === undefined ? "n/a" : `${String(Math.round(value * 1000) / 10)}%`;
+}
+
+function formatReturn(value: number | undefined): string {
+  return value === undefined ? "n/a" : `${String(Math.round(value * 10_000) / 100)}%`;
 }
 
 function returnFrom(close0: number, closeN: number): number {
@@ -245,4 +282,155 @@ export async function validateAlphaSearchReport(
     horizons,
     leads: leadResults,
   };
+}
+
+function emptyAccumulator(): MetricAccumulator {
+  return {
+    totalCount: 0,
+    resolvedCount: 0,
+    unresolvedCount: 0,
+    outperformedCount: 0,
+    excessReturnTotal: 0,
+  };
+}
+
+function addHorizon(target: Map<number, MetricAccumulator>, horizon: AlphaValidationHorizon): void {
+  const current = target.get(horizon.horizonTradingDays) ?? emptyAccumulator();
+  current.totalCount += 1;
+  if (horizon.status === "unresolved") {
+    current.unresolvedCount += 1;
+  } else {
+    current.resolvedCount += 1;
+    current.excessReturnTotal += horizon.excessReturn;
+    if (horizon.outcome === "outperformed") {
+      current.outperformedCount += 1;
+    }
+  }
+  target.set(horizon.horizonTradingDays, current);
+}
+
+function metricFromAccumulator(accumulator: MetricAccumulator): AlphaValidationMetrics {
+  return {
+    totalCount: accumulator.totalCount,
+    resolvedCount: accumulator.resolvedCount,
+    unresolvedCount: accumulator.unresolvedCount,
+    outperformedCount: accumulator.outperformedCount,
+    ...(accumulator.resolvedCount > 0
+      ? {
+          hitRate: roundMetric(accumulator.outperformedCount / accumulator.resolvedCount),
+          averageExcessReturn: roundMetric(
+            accumulator.excessReturnTotal / accumulator.resolvedCount,
+          ),
+        }
+      : {}),
+  };
+}
+
+function metricsByHorizon(
+  accumulators: ReadonlyMap<number, MetricAccumulator>,
+): Readonly<Record<string, AlphaValidationMetrics>> {
+  return Object.fromEntries(
+    [...accumulators.entries()]
+      .toSorted(([left], [right]) => left - right)
+      .map(([horizon, accumulator]) => [String(horizon), metricFromAccumulator(accumulator)]),
+  );
+}
+
+export function buildAlphaValidationSummary(
+  files: readonly AlphaValidationFile[],
+  now: Date = new Date(),
+): AlphaValidationSummary {
+  const overall = new Map<number, MetricAccumulator>();
+  const bySourceGroup = new Map<AlphaValidationSourceGroup, Map<number, MetricAccumulator>>();
+  const horizons = new Set<number>();
+  const benchmarkSymbol =
+    files.find((file) => file.benchmarkSymbol !== "")?.benchmarkSymbol ??
+    ALPHA_VALIDATION_BENCHMARK_SYMBOL;
+
+  for (const file of files) {
+    for (const horizon of file.horizons) {
+      horizons.add(horizon);
+    }
+    for (const lead of file.leads) {
+      const sourceMetrics = bySourceGroup.get(lead.sourceGroup) ?? new Map();
+      for (const horizon of lead.horizons) {
+        horizons.add(horizon.horizonTradingDays);
+        addHorizon(overall, horizon);
+        addHorizon(sourceMetrics, horizon);
+      }
+      bySourceGroup.set(lead.sourceGroup, sourceMetrics);
+    }
+  }
+
+  return {
+    generatedAt: now.toISOString(),
+    benchmarkSymbol,
+    horizons: [...horizons].toSorted((left, right) => left - right),
+    runCount: files.length,
+    leadCount: files.reduce((total, file) => total + file.leads.length, 0),
+    overall: metricsByHorizon(overall),
+    bySourceGroup: Object.fromEntries(
+      [...bySourceGroup.entries()]
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(([group, metrics]) => [group, metricsByHorizon(metrics)]),
+    ),
+  };
+}
+
+function metricRows(metrics: Readonly<Record<string, AlphaValidationMetrics>>): readonly string[] {
+  return Object.entries(metrics)
+    .toSorted(([left], [right]) => Number(left) - Number(right))
+    .map(([horizon, metric]) =>
+      [
+        horizon,
+        String(metric.totalCount),
+        String(metric.resolvedCount),
+        String(metric.unresolvedCount),
+        String(metric.outperformedCount),
+        formatRate(metric.hitRate),
+        formatReturn(metric.averageExcessReturn),
+      ].join(" | "),
+    );
+}
+
+function renderMetricTable(metrics: Readonly<Record<string, AlphaValidationMetrics>>): string {
+  const rows = metricRows(metrics);
+  if (rows.length === 0) {
+    return "_No alpha validation outcomes yet._";
+  }
+  return [
+    "Horizon | Total | Resolved | Unresolved | Outperformed | Hit rate | Avg excess return",
+    "--- | ---: | ---: | ---: | ---: | ---: | ---:",
+    ...rows,
+  ].join("\n");
+}
+
+export function renderAlphaValidationSummaryMarkdown(summary: AlphaValidationSummary): string {
+  const sourceGroups = Object.entries(summary.bySourceGroup).toSorted(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  return [
+    "# Alpha Validation Summary",
+    "",
+    `Generated: ${summary.generatedAt}`,
+    `Benchmark: ${summary.benchmarkSymbol}`,
+    `Runs: ${String(summary.runCount)}`,
+    `Leads: ${String(summary.leadCount)}`,
+    "",
+    "## Overall",
+    "",
+    renderMetricTable(summary.overall),
+    "",
+    "## By Source Group",
+    "",
+    ...(sourceGroups.length === 0
+      ? ["_No source-group validation outcomes yet._"]
+      : sourceGroups.flatMap(([group, metrics]) => [
+          `### ${group}`,
+          "",
+          renderMetricTable(metrics),
+          "",
+        ])),
+    "",
+  ].join("\n");
 }

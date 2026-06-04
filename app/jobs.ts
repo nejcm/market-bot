@@ -1,6 +1,8 @@
 import { commandLabel, parseArgs } from "../src/cli/args";
-import type { AssetClass, Depth } from "../src/domain/types";
+import { jobRequestArgv } from "../src/cli/job-registry";
 import type { ConsoleJob } from "./types";
+
+export { jobRequestArgv } from "../src/cli/job-registry";
 
 export interface JobRunResult {
   readonly exitCode: number;
@@ -22,86 +24,6 @@ type MutableConsoleJob = {
 const DEFAULT_MAX_RETAINED_JOBS = 50;
 const DEFAULT_MAX_JOB_OUTPUT_CHARS = 20_000;
 const TRUNCATION_NOTICE = "\n[truncated]";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function readAssetClass(value: string | undefined): AssetClass {
-  if (value === "equity" || value === "crypto") {
-    return value;
-  }
-
-  throw new Error("Expected assetClass equity|crypto");
-}
-
-function readDepth(value: string | undefined): Depth {
-  if (value === undefined || value === "brief") {
-    return "brief";
-  }
-
-  if (value === "deep") {
-    return "deep";
-  }
-
-  throw new Error("Expected depth brief|deep");
-}
-
-function depthArg(depth: Depth): readonly string[] {
-  return depth === "deep" ? ["--deep"] : [];
-}
-
-export function jobRequestArgv(value: unknown): readonly string[] {
-  if (!isRecord(value)) {
-    throw new Error("Job request must be an object");
-  }
-
-  const jobType = readString(value, "jobType");
-  if (jobType === "daily" || jobType === "weekly") {
-    const assetClass = readAssetClass(readString(value, "assetClass"));
-    return [jobType, "--asset", assetClass, ...depthArg(readDepth(readString(value, "depth")))];
-  }
-
-  if (jobType === "ticker") {
-    const symbol = readString(value, "symbol");
-    if (symbol === undefined || symbol.trim() === "") {
-      throw new Error("Expected ticker symbol");
-    }
-
-    const assetClass = readAssetClass(readString(value, "assetClass"));
-    return [
-      "ticker",
-      symbol,
-      "--asset",
-      assetClass,
-      ...depthArg(readDepth(readString(value, "depth"))),
-    ];
-  }
-
-  if (jobType === "alpha-search") {
-    return [
-      "alpha-search",
-      "--asset",
-      "equity",
-      ...depthArg(readDepth(readString(value, "depth"))),
-    ];
-  }
-
-  if (jobType === "score" || jobType === "calibration" || jobType === "provider-health") {
-    return [jobType];
-  }
-
-  if (jobType === "cache-prune") {
-    return ["cache", "prune"];
-  }
-
-  throw new Error("Unsupported job type");
-}
 
 function nowIso(): string {
   return new Date().toISOString();

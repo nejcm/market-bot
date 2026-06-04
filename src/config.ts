@@ -43,6 +43,18 @@ export interface AlphaSearchOptions {
   readonly maxMarketCap: number;
 }
 
+export interface MarketSpotlightOptions {
+  readonly briefLimit: number;
+  readonly deepLimit: number;
+}
+
+export interface HistoryOptions {
+  readonly tickerRecentLimit: number;
+  readonly marketRecentLimit: number;
+  readonly recentDays: number;
+  readonly anchorMonths: readonly number[];
+}
+
 export interface AppConfig {
   readonly provider: ProviderName;
   readonly baseUrl?: string;
@@ -58,6 +70,8 @@ export interface AppConfig {
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
   readonly alphaSearchOptions: AlphaSearchOptions;
+  readonly marketSpotlightOptions?: MarketSpotlightOptions;
+  readonly historyOptions?: HistoryOptions;
 }
 
 export interface ResearchConsoleConfig {
@@ -92,6 +106,12 @@ const DEFAULT_ALPHA_SEARCH_MIN_PRICE = 0.5;
 const DEFAULT_ALPHA_SEARCH_MIN_VOLUME = 100_000;
 const DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP = 50_000_000;
 const DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP = 10_000_000_000;
+const DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT = 2;
+const DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT = 4;
+const DEFAULT_HISTORY_TICKER_RECENT_LIMIT = 3;
+const DEFAULT_HISTORY_MARKET_RECENT_LIMIT = 5;
+const DEFAULT_HISTORY_RECENT_DAYS = 90;
+const DEFAULT_HISTORY_ANCHOR_MONTHS = [3, 6, 12] as const;
 const APEWISDOM_FILTER_RE = /^[A-Za-z0-9-]+$/u;
 const SEC_FORM_TYPE_RE = /^[0-9A-Z-]+$/u;
 
@@ -136,6 +156,27 @@ function readNonNegativeInteger(value: string | undefined, fallback: number): nu
   }
 
   return parsed;
+}
+
+function readPositiveIntegerList(
+  value: string | undefined,
+  fallback: readonly number[],
+): readonly number[] {
+  const raw = readOptionalString(value);
+  if (raw === undefined) {
+    return [...fallback];
+  }
+
+  const parsed = raw.split(",").map((entry) => {
+    const item = entry.trim();
+    const number = Number.parseInt(item, 10);
+    if (item === "" || !Number.isInteger(number) || number <= 0 || String(number) !== item) {
+      throw new Error(`Expected comma-separated positive integers, received ${raw}`);
+    }
+    return number;
+  });
+
+  return [...new Set(parsed)];
 }
 
 function readProvider(value: string | undefined): ProviderName {
@@ -234,6 +275,32 @@ function defaultAlphaSearchOptions(): AlphaSearchOptions {
   };
 }
 
+export function defaultMarketSpotlightOptions(): MarketSpotlightOptions {
+  return {
+    briefLimit: DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT,
+    deepLimit: DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT,
+  };
+}
+
+export function defaultHistoryOptions(): HistoryOptions {
+  return {
+    tickerRecentLimit: DEFAULT_HISTORY_TICKER_RECENT_LIMIT,
+    marketRecentLimit: DEFAULT_HISTORY_MARKET_RECENT_LIMIT,
+    recentDays: DEFAULT_HISTORY_RECENT_DAYS,
+    anchorMonths: [...DEFAULT_HISTORY_ANCHOR_MONTHS],
+  };
+}
+
+export function marketSpotlightOptions(
+  config: Pick<AppConfig, "marketSpotlightOptions">,
+): MarketSpotlightOptions {
+  return config.marketSpotlightOptions ?? defaultMarketSpotlightOptions();
+}
+
+export function historyOptions(config: Pick<AppConfig, "historyOptions">): HistoryOptions {
+  return config.historyOptions ?? defaultHistoryOptions();
+}
+
 function resolveAlphaSearchOptions(env: Record<string, string | undefined>): AlphaSearchOptions {
   const minMarketCap = readPositiveNumber(
     env.MARKET_BOT_ALPHA_SEARCH_MIN_MARKET_CAP,
@@ -286,6 +353,42 @@ function resolveAlphaSearchOptions(env: Record<string, string | undefined>): Alp
     ),
     minMarketCap,
     maxMarketCap,
+  };
+}
+
+function resolveMarketSpotlightOptions(
+  env: Record<string, string | undefined>,
+): MarketSpotlightOptions {
+  return {
+    briefLimit: readNonNegativeInteger(
+      env.MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT,
+      DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT,
+    ),
+    deepLimit: readNonNegativeInteger(
+      env.MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT,
+      DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT,
+    ),
+  };
+}
+
+function resolveHistoryOptions(env: Record<string, string | undefined>): HistoryOptions {
+  return {
+    tickerRecentLimit: readNonNegativeInteger(
+      env.MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT,
+      DEFAULT_HISTORY_TICKER_RECENT_LIMIT,
+    ),
+    marketRecentLimit: readNonNegativeInteger(
+      env.MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT,
+      DEFAULT_HISTORY_MARKET_RECENT_LIMIT,
+    ),
+    recentDays: readPositiveInteger(
+      env.MARKET_BOT_HISTORY_RECENT_DAYS,
+      DEFAULT_HISTORY_RECENT_DAYS,
+    ),
+    anchorMonths: readPositiveIntegerList(
+      env.MARKET_BOT_HISTORY_ANCHOR_MONTHS,
+      DEFAULT_HISTORY_ANCHOR_MONTHS,
+    ),
   };
 }
 
@@ -405,6 +508,8 @@ export function resolveConfig(
       options.validateAlphaSearchOptions === false
         ? defaultAlphaSearchOptions()
         : resolveAlphaSearchOptions(env),
+    marketSpotlightOptions: resolveMarketSpotlightOptions(env),
+    historyOptions: resolveHistoryOptions(env),
   };
 }
 

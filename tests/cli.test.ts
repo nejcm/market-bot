@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { commandLabel, parseArgs } from "../src/cli/args";
+import {
+  CONSOLE_JOB_TYPES,
+  SEARCH_JOB_TYPE_OPTIONS,
+  jobRequestArgv,
+  jobSupportsAsset,
+  jobSupportsDepth,
+} from "../src/cli/job-registry";
 
 describe("parseArgs", () => {
   test("parses daily equity brief", () => {
@@ -85,5 +92,32 @@ describe("parseArgs", () => {
     expect(commandLabel({ jobType: "calibration" })).toBe("calibration");
     expect(commandLabel({ jobType: "cache-prune" })).toBe("cache-prune");
     expect(commandLabel({ jobType: "provider-health" })).toBe("provider-health");
+  });
+
+  test("exposes shared registry job options", () => {
+    expect(CONSOLE_JOB_TYPES).toEqual([
+      "daily",
+      "weekly",
+      "ticker",
+      "alpha-search",
+      "score",
+      "calibration",
+      "cache-prune",
+      "provider-health",
+    ]);
+    expect(SEARCH_JOB_TYPE_OPTIONS).toEqual(["", "daily", "weekly", "ticker", "alpha-search"]);
+    expect(jobSupportsAsset("ticker")).toBe(true);
+    expect(jobSupportsAsset("score")).toBe(false);
+    expect(jobSupportsDepth("alpha-search")).toBe(true);
+    expect(jobSupportsDepth("provider-health")).toBe(false);
+  });
+
+  test("converts job requests from the shared registry", () => {
+    expect(jobRequestArgv({ jobType: "ticker", symbol: "aapl", assetClass: "equity" })).toEqual([
+      "ticker",
+      "aapl",
+      "--asset",
+      "equity",
+    ]);
   });
 });

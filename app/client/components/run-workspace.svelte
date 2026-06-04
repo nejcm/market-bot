@@ -15,6 +15,7 @@
   import { Input } from "$lib/components/ui/input";
   import * as Table from "$lib/components/ui/table";
   import * as Tabs from "$lib/components/ui/tabs";
+  import { ASSET_CLASS_OPTIONS, CONSOLE_JOB_TYPES, DEPTH_OPTIONS, SEARCH_JOB_TYPE_OPTIONS, jobSupportsAsset, jobSupportsDepth } from "../../../src/cli/job-registry";
   import type { ConsoleJob, ProviderHealthDetail, RunDetail, RunSearchResult } from "../../types";
   import {
     formatDate,
@@ -368,8 +369,8 @@
                   oninput={(event) => onSearchFormChange("symbol", event.currentTarget.value)}
                 />
               </label>
-              <SelectField label="Asset" value={searchForm.assetClass} options={["", "equity", "crypto"]} onChange={(value) => onSearchFormChange("assetClass", value)} />
-              <SelectField label="Job" value={searchForm.jobType} options={["", "daily", "weekly", "ticker", "alpha-search"]} onChange={(value) => onSearchFormChange("jobType", value)} />
+              <SelectField label="Asset" value={searchForm.assetClass} options={["", ...ASSET_CLASS_OPTIONS]} onChange={(value) => onSearchFormChange("assetClass", value)} />
+              <SelectField label="Job" value={searchForm.jobType} options={SEARCH_JOB_TYPE_OPTIONS} onChange={(value) => onSearchFormChange("jobType", value)} />
               <Button class="mt-5" type="submit">
                 <Search class="size-4" />
                 Search
@@ -444,9 +445,9 @@
                 onSubmitJob();
               }}
             >
-              <SelectField label="Job" value={jobForm.jobType} options={["daily", "weekly", "ticker", "alpha-search", "score", "calibration", "cache-prune", "provider-health"]} onChange={(value) => onJobFormChange("jobType", value)} />
-              {#if jobForm.jobType === "daily" || jobForm.jobType === "weekly" || jobForm.jobType === "ticker"}
-                <SelectField label="Asset" value={jobForm.assetClass} options={["equity", "crypto"]} onChange={(value) => onJobFormChange("assetClass", value)} />
+              <SelectField label="Job" value={jobForm.jobType} options={CONSOLE_JOB_TYPES} onChange={(value) => onJobFormChange("jobType", value)} />
+              {#if jobSupportsAsset(jobForm.jobType)}
+                <SelectField label="Asset" value={jobForm.assetClass} options={ASSET_CLASS_OPTIONS} onChange={(value) => onJobFormChange("assetClass", value)} />
               {/if}
               {#if jobForm.jobType === "ticker"}
                 <label class="space-y-1">
@@ -454,8 +455,8 @@
                   <Input value={jobForm.symbol} placeholder="AAPL" oninput={(event) => onJobFormChange("symbol", event.currentTarget.value)} />
                 </label>
               {/if}
-              {#if jobForm.jobType === "daily" || jobForm.jobType === "weekly" || jobForm.jobType === "ticker" || jobForm.jobType === "alpha-search"}
-                <SelectField label="Depth" value={jobForm.depth} options={["brief", "deep"]} onChange={(value) => onJobFormChange("depth", value)} />
+              {#if jobSupportsDepth(jobForm.jobType)}
+                <SelectField label="Depth" value={jobForm.depth} options={DEPTH_OPTIONS} onChange={(value) => onJobFormChange("depth", value)} />
               {/if}
               <Button class="mt-5" type="submit">
                 <Play class="size-4" />

@@ -1,55 +1,20 @@
 import type { AssetClass, Depth } from "../domain/types";
 import { createInstrument } from "../domain/instrument";
+import { commandLabel, USAGE, type CliCommand } from "./job-registry";
 
-export interface DailyCommand {
-  readonly jobType: "daily";
-  readonly assetClass: AssetClass;
-  readonly depth: Depth;
-}
-
-export interface WeeklyCommand {
-  readonly jobType: "weekly";
-  readonly assetClass: AssetClass;
-  readonly depth: Depth;
-}
-
-export interface TickerCommand {
-  readonly jobType: "ticker";
-  readonly assetClass: AssetClass;
-  readonly symbol: string;
-  readonly depth: Depth;
-}
-
-export interface AlphaSearchCommand {
-  readonly jobType: "alpha-search";
-  readonly assetClass: "equity";
-  readonly depth: Depth;
-}
-
-export interface ScoreCommand {
-  readonly jobType: "score";
-}
-
-export interface CalibrationCommand {
-  readonly jobType: "calibration";
-}
-
-export interface CachePruneCommand {
-  readonly jobType: "cache-prune";
-}
-
-export interface ProviderHealthCommand {
-  readonly jobType: "provider-health";
-}
-
-export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
-export type CliCommand =
-  | ResearchCommand
-  | AlphaSearchCommand
-  | ScoreCommand
-  | CalibrationCommand
-  | CachePruneCommand
-  | ProviderHealthCommand;
+export { commandLabel };
+export type {
+  AlphaSearchCommand,
+  CachePruneCommand,
+  CalibrationCommand,
+  CliCommand,
+  DailyCommand,
+  ProviderHealthCommand,
+  ResearchCommand,
+  ScoreCommand,
+  TickerCommand,
+  WeeklyCommand,
+} from "./job-registry";
 
 function parseAsset(value: string | undefined): AssetClass {
   if (value === "equity" || value === "crypto") {
@@ -163,22 +128,5 @@ export function parseArgs(args: readonly string[]): CliCommand {
     return { jobType: "provider-health" };
   }
 
-  throw new Error(
-    "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health",
-  );
-}
-
-export function commandLabel(command: CliCommand): string {
-  if (
-    command.jobType === "score" ||
-    command.jobType === "calibration" ||
-    command.jobType === "cache-prune" ||
-    command.jobType === "provider-health"
-  ) {
-    return command.jobType;
-  }
-  const depthSuffix = command.depth === "deep" ? " deep" : "";
-  const symbolPart = command.jobType === "ticker" ? ` ${command.symbol}` : "";
-
-  return `${command.jobType}${symbolPart} ${command.assetClass}${depthSuffix}`;
+  throw new Error(USAGE);
 }

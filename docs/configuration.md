@@ -38,6 +38,12 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `ticker --deep --asset equity`. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS` | `2` | Max accepted evidence tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` | `2` | Max AI-selected Market Spotlights for brief daily/weekly market updates. Set `0` to disable spotlights. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | `4` | Max AI-selected Market Spotlights for deep daily/weekly market updates. Set `0` to disable spotlights. |
+| `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` | `3` | Recent same-symbol ticker artifacts to include in ticker historical context. |
+| `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT` | `5` | Recent daily/weekly market-update artifacts to include in market historical context. |
+| `MARKET_BOT_HISTORY_RECENT_DAYS` | `90` | Lookback window for recent historical run artifacts. |
+| `MARKET_BOT_HISTORY_ANCHOR_MONTHS` | `3,6,12` | Comma-separated month anchors used to pick older historical run artifacts. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FRED_API_KEY` | — | Baseline free provider. Enables FRED Market Context for market updates, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research, but provider-health v2 treats missing or failed FRED coverage as a validation failure. |

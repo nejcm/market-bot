@@ -197,6 +197,55 @@ describe("resolveConfig", () => {
     });
   });
 
+  test("uses history and market spotlight defaults", () => {
+    expect(resolveConfig({}).marketSpotlightOptions).toEqual({
+      briefLimit: 2,
+      deepLimit: 4,
+    });
+    expect(resolveConfig({}).historyOptions).toEqual({
+      tickerRecentLimit: 3,
+      marketRecentLimit: 5,
+      recentDays: 90,
+      anchorMonths: [3, 6, 12],
+    });
+  });
+
+  test("reads history and market spotlight settings", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT: "1",
+        MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT: "3",
+        MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT: "2",
+        MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT: "4",
+        MARKET_BOT_HISTORY_RECENT_DAYS: "45",
+        MARKET_BOT_HISTORY_ANCHOR_MONTHS: "1, 3,3, 9",
+      }),
+    ).toMatchObject({
+      marketSpotlightOptions: {
+        briefLimit: 1,
+        deepLimit: 3,
+      },
+      historyOptions: {
+        tickerRecentLimit: 2,
+        marketRecentLimit: 4,
+        recentDays: 45,
+        anchorMonths: [1, 3, 9],
+      },
+    });
+  });
+
+  test("rejects invalid history and market spotlight settings", () => {
+    expect(() => resolveConfig({ MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT: "-1" })).toThrow(
+      "Expected non-negative integer",
+    );
+    expect(() => resolveConfig({ MARKET_BOT_HISTORY_RECENT_DAYS: "0" })).toThrow(
+      "Expected positive integer",
+    );
+    expect(() => resolveConfig({ MARKET_BOT_HISTORY_ANCHOR_MONTHS: "3,0" })).toThrow(
+      "Expected comma-separated positive integers",
+    );
+  });
+
   test("reads evidence request loop settings including zero disable", () => {
     expect(
       resolveConfig({

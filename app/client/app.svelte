@@ -59,6 +59,7 @@
   );
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
+  const JOBS_POLL_INTERVAL_MS = 2000;
 
   async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     selectedRunId = runId;
@@ -168,7 +169,7 @@
       if (activeTab === "jobs") {
         void refreshJobs().catch(() => {});
       }
-    }, 2000);
+    }, JOBS_POLL_INTERVAL_MS);
 
     void (async () => {
       try {

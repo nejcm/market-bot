@@ -41,6 +41,13 @@
         "max-lines-per-function": "off",
         "max-lines": "off"
       }
+    },
+    {
+      "files": ["**/*.svelte"],
+      "rules": {
+        "prefer-const": "off",
+        "import/no-namespace": "off"
+      }
     }
   ],
   "ignorePatterns": ["node_modules/**", "coverage/**", "research/**", "plans/**"]

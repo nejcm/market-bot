@@ -2,9 +2,9 @@
 
 ## Alpha search
 
-Implemented alpha-search discovery is documented in `docs/how-it-works.md`,
-`docs/architecture.md`, and `docs/configuration.md`. This section tracks remaining
-promotion and expansion work after real-run validation.
+Implemented alpha-search discovery, validation, and deterministic candidate state are documented in
+`docs/how-it-works.md`, `docs/architecture.md`, and `docs/configuration.md`. This
+section tracks remaining promotion and expansion work.
 
 - **Prerequisite validation** - keep reviewing provider-health summaries and recent artifacts
   for unresolved source gaps, Evidence Quality caps, repeat-news suppression, and prediction
@@ -12,18 +12,17 @@ promotion and expansion work after real-run validation.
 - **Alpha signal discovery** - identify early, higher-risk research signals from market
   data, news, filings, social sources, and other public evidence. Treat social sentiment as
   high-noise input until validation shows it adds signal beyond existing sources.
-- **Signal ranking** based on explainable features, not an LLM-only list. Keep
-  signal strength separate from Evidence Quality.
-- **Candidate report type** with thesis, why-now catalyst, evidence, bear case, risks,
-  invalidation criteria, and source IDs.
-- **Candidate watchlist output** that persists candidates across runs and tracks thesis
-  changes over time.
-- **Candidate validation loop tuning** - use the persisted 5- and 20-trading-day excess-return
-  summaries to decide whether the current discovery sources merit promotion or need ranking changes.
+- **Expanded signal ranking** based on explainable features beyond the current
+  discovery/ranking inputs. Keep signal strength separate from Evidence Quality.
+- **Narrative candidate report type** with thesis, why-now catalyst, evidence, bear case,
+  risks, invalidation criteria, and source IDs. Keep this separate from the implemented
+  deterministic candidate profile/watchlist artifacts.
+- **Promotion criteria** - define what validation-summary sample size, hit rate, and
+  excess-return thresholds justify promoting or changing discovery sources.
 
 ## Cross-run intelligence
 
-- **Watchlist + thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
+- **Narrative thesis-delta tracking** — "what changed in the AAPL thesis since last Tuesday". Long-term notes the bot consults across runs.
 - **Incremental memory** — open questions and unresolved hypotheses carried forward.
 - **Session/run search** over prior reports, sources, predictions, and theses.
 - Finding alpha stocks with checking the growth, PE ratio, profits, etc... and comparing over time

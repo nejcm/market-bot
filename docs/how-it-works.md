@@ -27,13 +27,14 @@ CLI args
   -> official listed-universe filtering
   -> Yahoo candidate validation
   -> alpha-search report validation
+  -> candidate profile artifact
   -> artifact writing
 ```
 
 1. `src/cli.ts` passes command-line arguments to `runCli`.
 2. `src/app.ts` parses the command, resolves configuration, and dispatches the workflow.
 3. Research commands collect sources, build the configured model provider, run the research job, and persist artifacts.
-4. `alpha-search` collects ApeWisdom social-momentum candidates, ranks equity candidates, adds SEC current-filing candidates, filters candidates through official listed-symbol metadata, Yahoo-validates eligible rows against the stock-only small-cap screen, and writes Research Leads plus rejected candidates without predictions.
+4. `alpha-search` collects ApeWisdom social-momentum candidates, ranks equity candidates, adds SEC current-filing candidates, filters candidates through official listed-symbol metadata, Yahoo-validates eligible rows against the stock-only small-cap screen, and writes Research Leads, deterministic candidate profiles, and rejected candidates without predictions.
 5. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
 6. `cache prune` removes old cache entries without generating research.
 7. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
@@ -296,6 +297,7 @@ data/runs/<run-id>/
   normalized/market-context.json
   normalized/news-sources.json
   normalized/source-gaps.json
+  normalized/candidate-profiles.json  # alpha-search only
   stages.json
   analytics.json
   report.json
@@ -322,17 +324,22 @@ Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src
 5. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
 6. Resolve each observable forecast as `hit`, `miss`, or unresolved.
 7. Write or update `score.json`.
-8. For alpha-search reports with Research Leads, validate 5- and 20-trading-day excess returns against `IWM` and write `alpha-validation.json`.
-9. Rebuild Alpha validation summaries:
+8. For alpha-search reports with Research Leads, backfill `normalized/candidate-profiles.json` if missing.
+9. Validate 5- and 20-trading-day excess returns against `IWM` and write `alpha-validation.json`.
+10. Rebuild Alpha validation summaries and candidate watchlist artifacts:
 
 ```text
 data/alpha-validation/summary.json
 data/alpha-validation/summary.md
+data/alpha-search/watchlist.json
+data/alpha-search/watchlist.md
 ```
+
+The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. It is historical research state, not a promotion verdict.
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
 
-Alpha validation sidecars are historical Research Lead checks, not report predictions. They do not feed calibration.
+Alpha validation sidecars and candidate watchlists are historical Research Lead checks, not report predictions. They do not feed calibration.
 
 ## Calibration
 

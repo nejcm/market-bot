@@ -3,14 +3,20 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listRunSummaries, readProviderHealth, readRunDetail, readRunFile } from "../app/artifacts";
+import {
+  listRunSummaries,
+  readProviderHealth,
+  readRunDetail,
+  readRunFile,
+  searchRunReports,
+} from "../app/artifacts";
 import { researchReport } from "./support/fixtures";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-describe("research console artifacts", () => {
+describe("research console app artifacts", () => {
   test("indexes run summaries from report artifacts", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-a");
@@ -146,5 +152,100 @@ describe("research console artifacts", () => {
       summary: { verdict: "pass" },
       markdown: "# Provider Health\n",
     });
+  });
+
+  test("searches structured report sections", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-g");
+    mkdirSync(runDir);
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-g",
+        summary: "needle summary",
+        keyFindings: [{ text: "needle finding", sourceIds: ["s1"] }],
+        predictions: [
+          {
+            id: "p1",
+            claim: "needle forecast",
+            kind: "direction",
+            subject: "SPY",
+            measurableAs: "close(SPY, +5) > close(SPY, 0)",
+            horizonTradingDays: 5,
+            probability: 0.6,
+            sourceIds: ["s2"],
+          },
+        ],
+        sources: [
+          {
+            id: "s3",
+            title: "needle source",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+        dataGaps: ["needle gap"],
+      }),
+    );
+
+    const results = await searchRunReports(dataDir, { query: "needle" });
+
+    expect(results.map((result) => result.section)).toEqual([
+      "summary",
+      "keyFindings",
+      "predictions",
+      "sources",
+      "dataGaps",
+    ]);
+    expect(results.map((result) => result.sourceIds)).toEqual([[], ["s1"], ["s2"], ["s3"], []]);
+  });
+
+  test("filters structured report search by run metadata", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const equityDir = join(dataDir, "run-h");
+    const cryptoDir = join(dataDir, "run-i");
+    mkdirSync(equityDir);
+    mkdirSync(cryptoDir);
+    writeJson(
+      join(equityDir, "report.json"),
+      researchReport({
+        runId: "run-h",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        summary: "needle equity",
+      }),
+    );
+    writeJson(
+      join(cryptoDir, "report.json"),
+      researchReport({
+        runId: "run-i",
+        jobType: "daily",
+        assetClass: "crypto",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        summary: "needle crypto",
+      }),
+    );
+
+    const results = await searchRunReports(dataDir, {
+      query: "needle",
+      symbol: "aapl",
+      assetClass: "equity",
+      jobType: "ticker",
+      from: "2026-06-01",
+      to: "2026-06-01",
+    });
+
+    expect(results.map((result) => result.run.runId)).toEqual(["run-h"]);
+  });
+
+  test("ignores malformed reports during structured search", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-j");
+    mkdirSync(runDir);
+    writeFileSync(join(runDir, "report.json"), "{", "utf8");
+
+    await expect(searchRunReports(dataDir, { query: "needle" })).resolves.toEqual([]);
   });
 });

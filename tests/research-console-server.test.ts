@@ -9,7 +9,7 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-describe("research console static assets", () => {
+describe("research console app static assets", () => {
   test("resolves built files under dist", () => {
     const distDir = mkdtempSync(join(tmpdir(), "research-console-dist-"));
     const assetDir = join(distDir, "assets");
@@ -37,7 +37,7 @@ describe("research console static assets", () => {
   });
 });
 
-describe("research console API", () => {
+describe("research console app API", () => {
   test("serves run summaries", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-1");
@@ -135,5 +135,70 @@ describe("research console API", () => {
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "File not found" });
+  });
+
+  test("serves structured run search results", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-5");
+    mkdirSync(runDir);
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-5",
+        summary: "Searchable report summary",
+        symbol: "AAPL",
+      }),
+    );
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/search?query=searchable&symbol=AAPL"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      results: [{ run: { runId: "run-5" }, section: "summary", label: "Summary" }],
+    });
+  });
+
+  test("rejects empty structured search queries", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/search?query=%20"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Search query is required" });
+  });
+
+  test("caps structured search results and skips malformed reports", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const malformedDir = join(dataDir, "malformed");
+    mkdirSync(malformedDir);
+    writeFileSync(join(malformedDir, "report.json"), "{", "utf8");
+
+    for (let index = 0; index < 101; index += 1) {
+      const runDir = join(dataDir, `run-${String(index).padStart(3, "0")}`);
+      mkdirSync(runDir);
+      writeJson(
+        join(runDir, "report.json"),
+        researchReport({
+          runId: `run-${String(index).padStart(3, "0")}`,
+          generatedAt: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
+          summary: "needle capped result",
+        }),
+      );
+    }
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/search?query=needle"),
+      { dataDir },
+    );
+    const payload = (await response.json()) as { readonly results?: readonly unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(payload.results?.length).toBe(100);
   });
 });

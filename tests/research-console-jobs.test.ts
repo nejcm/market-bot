@@ -30,7 +30,7 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   throw new Error("Timed out waiting for condition");
 }
 
-describe("research console jobs", () => {
+describe("research console app jobs", () => {
   test("converts typed requests to allowlisted CLI argv", () => {
     expect(jobRequestArgv({ jobType: "daily", assetClass: "equity", depth: "deep" })).toEqual([
       "daily",

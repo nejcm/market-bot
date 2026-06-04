@@ -6,10 +6,12 @@
     fetchProviderHealth,
     fetchRunDetail,
     fetchRunFile,
+    fetchRunSearch,
     fetchRuns,
   } from "./api";
   import {
     formatDate,
+    groupedSearchResults,
     jsonBlock,
     matchesQuery,
     predictions,
@@ -19,7 +21,13 @@
     stringArray,
     textItems,
   } from "./view-model";
-  import type { ConsoleJob, ProviderHealthDetail, RunDetail, RunSummary } from "../types";
+  import type {
+    ConsoleJob,
+    ProviderHealthDetail,
+    RunDetail,
+    RunSearchResult,
+    RunSummary,
+  } from "../types";
 
   const SECTION_KEYS = [
     ["keyFindings", "Key findings"],
@@ -36,6 +44,7 @@
     "trace",
     "files",
     "score",
+    "search",
     "health",
     "jobs",
   ] as const;
@@ -54,6 +63,17 @@
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
+  let searchResults = $state<readonly RunSearchResult[]>([]);
+  let searchLoading = $state(false);
+  let searchNotice = $state("");
+  const searchForm = $state({
+    query: "",
+    symbol: "",
+    assetClass: "",
+    jobType: "",
+    from: "",
+    to: "",
+  });
   const jobForm = $state({
     jobType: "daily",
     assetClass: "equity",
@@ -61,11 +81,11 @@
     depth: "brief",
   });
 
-  async function selectRun(runId: string): Promise<void> {
+  async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     selectedRunId = runId;
     loadingDetail = true;
     error = "";
-    activeTab = "report";
+    activeTab = nextTab;
     selectedFile = "";
     fileContent = "";
 
@@ -76,6 +96,44 @@
       error = caughtError instanceof Error ? caughtError.message : String(caughtError);
     } finally {
       loadingDetail = false;
+    }
+  }
+
+  function tabForSearchResult(result: RunSearchResult): Tab {
+    return result.section === "sources" ? "sources" : "report";
+  }
+
+  async function openSearchResult(result: RunSearchResult): Promise<void> {
+    await selectRun(result.run.runId, tabForSearchResult(result));
+  }
+
+  async function runSearch(): Promise<void> {
+    const searchQuery = searchForm.query.trim();
+    searchNotice = "";
+    error = "";
+
+    if (searchQuery === "") {
+      searchResults = [];
+      searchNotice = "Enter a search query.";
+      return;
+    }
+
+    searchLoading = true;
+    try {
+      searchResults = await fetchRunSearch({
+        query: searchQuery,
+        symbol: searchForm.symbol,
+        assetClass: searchForm.assetClass,
+        jobType: searchForm.jobType,
+        from: searchForm.from,
+        to: searchForm.to,
+      });
+      searchNotice = searchResults.length === 0 ? "No matching report sections." : "";
+    } catch (caughtError: unknown) {
+      searchResults = [];
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    } finally {
+      searchLoading = false;
     }
   }
 
@@ -154,13 +212,14 @@
   const forecastItems = $derived(predictions(report));
   const sourceItems = $derived(sources(report));
   const gaps = $derived(stringArray(report, "dataGaps"));
+  const searchGroups = $derived(groupedSearchResults(searchResults));
 </script>
 
 <main class="shell">
   <aside class="sidebar" aria-label="Run history">
     <div class="brand">
       <p>Market Bot</p>
-      <h1>Research Console</h1>
+      <h1>Research Console App</h1>
     </div>
 
     <label class="search">
@@ -366,6 +425,80 @@
           <h3>Score</h3>
           <pre>{jsonBlock(detail.score)}</pre>
         </section>
+      {:else if activeTab === "search"}
+        <section class="panel wide">
+          <h3>Search</h3>
+          <form
+            class="search-form"
+            onsubmit={(event) => {
+              event.preventDefault();
+              void runSearch();
+            }}
+          >
+            <label class="search-query">
+              Query
+              <input bind:value={searchForm.query} placeholder="source, forecast, gap, thesis" />
+            </label>
+            <label>
+              Symbol
+              <input bind:value={searchForm.symbol} placeholder="AAPL" />
+            </label>
+            <label>
+              Asset
+              <select bind:value={searchForm.assetClass}>
+                <option value="">any</option>
+                <option value="equity">equity</option>
+                <option value="crypto">crypto</option>
+              </select>
+            </label>
+            <label>
+              Job
+              <select bind:value={searchForm.jobType}>
+                <option value="">any</option>
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="ticker">ticker</option>
+                <option value="alpha-search">alpha-search</option>
+              </select>
+            </label>
+            <label>
+              From
+              <input bind:value={searchForm.from} type="date" />
+            </label>
+            <label>
+              To
+              <input bind:value={searchForm.to} type="date" />
+            </label>
+            <button type="submit">Search</button>
+          </form>
+
+          {#if searchLoading}
+            <p class="muted">Searching reports...</p>
+          {:else if searchNotice !== ""}
+            <p class="muted">{searchNotice}</p>
+          {:else if searchGroups.length > 0}
+            <div class="search-results">
+              {#each searchGroups as group}
+                <section class="search-group">
+                  <header>
+                    <strong>{runLabel(group.run)}</strong>
+                    <small>{formatDate(group.run.generatedAt)}</small>
+                  </header>
+                  {#each group.results as result}
+                    <button type="button" onclick={() => void openSearchResult(result)}>
+                      <span>{result.label}</span>
+                      <small>{result.section}</small>
+                      <p>{result.snippet}</p>
+                      {#if result.sourceIds.length > 0}
+                        <small>{result.sourceIds.join(", ")}</small>
+                      {/if}
+                    </button>
+                  {/each}
+                </section>
+              {/each}
+            </div>
+          {/if}
+        </section>
       {:else if activeTab === "health"}
         <section class="panel wide raw">
           <h3>Provider Health</h3>
@@ -537,7 +670,8 @@
     text-transform: uppercase;
   }
 
-  .job-form {
+  .job-form,
+  .search-form {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -545,7 +679,8 @@
     margin-bottom: 18px;
   }
 
-  .job-form label {
+  .job-form label,
+  .search-form label {
     display: grid;
     gap: 6px;
     color: #344640;
@@ -554,7 +689,12 @@
     text-transform: uppercase;
   }
 
-  .job-form button {
+  .search-query {
+    flex: 1 1 260px;
+  }
+
+  .job-form button,
+  .search-form button {
     border: 1px solid #1d2522;
     border-radius: 4px;
     background: #1d2522;
@@ -563,9 +703,52 @@
     cursor: pointer;
   }
 
-  .job-list {
+  .job-list,
+  .search-results,
+  .search-group {
     display: grid;
     gap: 10px;
+  }
+
+  .search-group {
+    border-top: 1px solid rgba(29, 37, 34, 0.12);
+    padding-top: 12px;
+  }
+
+  .search-group header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .search-group button {
+    display: grid;
+    gap: 5px;
+    width: 100%;
+    border: 1px solid rgba(29, 37, 34, 0.14);
+    border-radius: 6px;
+    background: #fffdf8;
+    color: #344640;
+    padding: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .search-group button:hover,
+  .search-group button:focus-visible {
+    border-color: #b45f3a;
+    outline: none;
+  }
+
+  .search-group button span {
+    color: #111715;
+    font-weight: 800;
+  }
+
+  .search-group button p {
+    overflow-wrap: anywhere;
   }
 
   .job-row {
@@ -592,7 +775,8 @@
     color: #7c3d23;
   }
 
-  input {
+  input,
+  select {
     min-width: 0;
     border: 1px solid rgba(29, 37, 34, 0.22);
     border-radius: 4px;

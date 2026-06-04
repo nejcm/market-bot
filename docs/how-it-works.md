@@ -103,9 +103,9 @@ bun run check
 
 `bun run check` is the local definition of done: lint, format check, typecheck, and tests.
 
-## Research Console
+## Research Console App
 
-The local Research Console browses existing artifacts without changing the research-only
+The local Research Console App browses existing artifacts without changing the research-only
 boundary. Build the Svelte client, then start the localhost Bun server:
 
 ```sh
@@ -115,6 +115,7 @@ bun run console
 
 The server binds to `127.0.0.1` and reads `MARKET_BOT_DATA_DIR` / `data/runs`.
 The Jobs view queues allowlisted CLI verbs one at a time and shows basic status plus captured output.
+The Search view scans existing `report.json` artifacts for structured report sections and filters by symbol, asset class, job type, and date range.
 
 ## Configuration
 

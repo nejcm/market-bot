@@ -1,7 +1,14 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
-import type { ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "./types";
+import type {
+  ProviderHealthDetail,
+  RunDetail,
+  RunFile,
+  RunSearchFilters,
+  RunSearchResult,
+  RunSummary,
+} from "./types";
 
 const REPORT_FILE = "report.json";
 const MARKDOWN_FILE = "report.md";
@@ -12,6 +19,15 @@ const PROVIDER_HEALTH_DIR = "provider-health";
 const SUMMARY_FILE = "summary.json";
 const SUMMARY_MARKDOWN_FILE = "summary.md";
 const MAX_RUN_FILE_BYTES = 5_000_000;
+const MAX_SEARCH_RESULTS = 100;
+const SNIPPET_RADIUS = 72;
+
+interface SearchCandidate {
+  readonly section: string;
+  readonly label: string;
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -20,6 +36,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function readSourceIds(record: Record<string, unknown>): readonly string[] {
+  const { sourceIds } = record;
+  return Array.isArray(sourceIds)
+    ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
+    : [];
 }
 
 function arrayCount(record: Record<string, unknown>, key: string): number {
@@ -163,6 +186,209 @@ function runSummary(
   };
 }
 
+function reportMatchesFilters(
+  summary: RunSummary,
+  filters: Omit<RunSearchFilters, "query">,
+): boolean {
+  const symbol = filters.symbol?.trim().toLowerCase();
+  const assetClass = filters.assetClass?.trim().toLowerCase();
+  const jobType = filters.jobType?.trim().toLowerCase();
+  const generatedDate = summary.generatedAt?.slice(0, 10) ?? "";
+
+  if (symbol !== undefined && symbol !== "" && summary.symbol?.toLowerCase() !== symbol) {
+    return false;
+  }
+
+  if (
+    assetClass !== undefined &&
+    assetClass !== "" &&
+    summary.assetClass?.toLowerCase() !== assetClass
+  ) {
+    return false;
+  }
+
+  if (jobType !== undefined && jobType !== "" && summary.jobType?.toLowerCase() !== jobType) {
+    return false;
+  }
+
+  if (filters.from !== undefined && generatedDate < filters.from.slice(0, 10)) {
+    return false;
+  }
+
+  if (filters.to !== undefined && generatedDate > filters.to.slice(0, 10)) {
+    return false;
+  }
+
+  return true;
+}
+
+function textSnippet(text: string, query: string): string {
+  const index = text.toLowerCase().indexOf(query);
+  if (index === -1) {
+    return text.slice(0, SNIPPET_RADIUS * 2).trim();
+  }
+
+  const start = Math.max(0, index - SNIPPET_RADIUS);
+  const end = Math.min(text.length, index + query.length + SNIPPET_RADIUS);
+  const prefix = start === 0 ? "" : "...";
+  const suffix = end === text.length ? "" : "...";
+  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
+}
+
+function textItemCandidates(
+  report: Record<string, unknown>,
+  key: string,
+  label: string,
+): readonly SearchCandidate[] {
+  const value = report[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item, index) => {
+      const text = readString(item, "text");
+      return text === undefined
+        ? []
+        : [
+            {
+              section: key,
+              label: `${label} ${String(index + 1)}`,
+              text,
+              sourceIds: readSourceIds(item),
+            },
+          ];
+    });
+}
+
+function predictionCandidates(report: Record<string, unknown>): readonly SearchCandidate[] {
+  const value = report.predictions;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const claim = readString(item, "claim");
+      const id = readString(item, "id");
+      const measurableAs = readString(item, "measurableAs");
+      if (claim === undefined) {
+        return [];
+      }
+
+      return [
+        {
+          section: "predictions",
+          label: id === undefined ? "Observable forecast" : `Observable forecast ${id}`,
+          text: [claim, measurableAs]
+            .filter((part): part is string => part !== undefined)
+            .join(" "),
+          sourceIds: readSourceIds(item),
+        },
+      ];
+    });
+}
+
+function sourceCandidates(report: Record<string, unknown>): readonly SearchCandidate[] {
+  const value = report.sources;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const id = readString(item, "id");
+      const title = readString(item, "title");
+      if (id === undefined || title === undefined) {
+        return [];
+      }
+
+      const text = [
+        title,
+        readString(item, "publisher"),
+        readString(item, "provider"),
+        readString(item, "summary"),
+        readString(item, "snippet"),
+        readString(item, "url"),
+      ]
+        .filter((part): part is string => part !== undefined)
+        .join(" ");
+
+      return [{ section: "sources", label: `Source ${id}`, text, sourceIds: [id] }];
+    });
+}
+
+function dataGapCandidates(report: Record<string, unknown>): readonly SearchCandidate[] {
+  const value = report.dataGaps;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((text, index) => ({
+      section: "dataGaps",
+      label: `Data gap ${String(index + 1)}`,
+      text,
+      sourceIds: [],
+    }));
+}
+
+function searchCandidates(report: Record<string, unknown>): readonly SearchCandidate[] {
+  const summary = readString(report, "summary");
+  return [
+    ...(summary === undefined
+      ? []
+      : [{ section: "summary", label: "Summary", text: summary, sourceIds: [] }]),
+    ...textItemCandidates(report, "keyFindings", "Key finding"),
+    ...textItemCandidates(report, "bullCase", "Bull case"),
+    ...textItemCandidates(report, "bearCase", "Bear case"),
+    ...textItemCandidates(report, "risks", "Risk"),
+    ...textItemCandidates(report, "catalysts", "Catalyst"),
+    ...predictionCandidates(report),
+    ...sourceCandidates(report),
+    ...dataGapCandidates(report),
+  ];
+}
+
+async function searchRun(
+  dataDir: string,
+  runId: string,
+  filters: RunSearchFilters,
+): Promise<readonly RunSearchResult[]> {
+  const runDir = safeRunDir(dataDir, runId);
+  if (runDir === undefined || !existsSync(runDir)) {
+    return [];
+  }
+
+  const [report, availableFiles] = await Promise.all([
+    readJsonRecord(join(runDir, REPORT_FILE)),
+    listArtifactFiles(runDir),
+  ]);
+  if (report === undefined) {
+    return [];
+  }
+
+  const summary = runSummary(runId, report, availableFiles);
+  if (!reportMatchesFilters(summary, filters)) {
+    return [];
+  }
+
+  const normalizedQuery = filters.query.trim().toLowerCase();
+  return searchCandidates(report)
+    .filter((candidate) => candidate.text.toLowerCase().includes(normalizedQuery))
+    .map((candidate) => ({
+      run: summary,
+      section: candidate.section,
+      label: candidate.label,
+      snippet: textSnippet(candidate.text, normalizedQuery),
+      sourceIds: candidate.sourceIds,
+    }));
+}
+
 async function runSummaryFromDir(dataDir: string, runId: string): Promise<RunSummary | undefined> {
   const runDir = safeRunDir(dataDir, runId);
   if (runDir === undefined || !existsSync(runDir)) {
@@ -190,6 +416,33 @@ export async function listRunSummaries(dataDir: string): Promise<readonly RunSum
     .toSorted((left, right) =>
       (right.generatedAt ?? right.runId).localeCompare(left.generatedAt ?? left.runId),
     );
+}
+
+export async function searchRunReports(
+  dataDir: string,
+  filters: RunSearchFilters,
+  limit: number = MAX_SEARCH_RESULTS,
+): Promise<readonly RunSearchResult[]> {
+  const query = filters.query.trim();
+  if (query === "" || limit <= 0) {
+    return [];
+  }
+
+  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
+  const runResults = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => searchRun(dataDir, entry.name, { ...filters, query })),
+  );
+  const results = runResults.flat();
+
+  return results
+    .toSorted((left, right) =>
+      (right.run.generatedAt ?? right.run.runId).localeCompare(
+        left.run.generatedAt ?? left.run.runId,
+      ),
+    )
+    .slice(0, limit);
 }
 
 export async function readRunDetail(

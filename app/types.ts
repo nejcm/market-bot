@@ -33,6 +33,23 @@ export interface ProviderHealthDetail {
   readonly markdown?: string;
 }
 
+export interface RunSearchFilters {
+  readonly query: string;
+  readonly symbol?: string;
+  readonly assetClass?: string;
+  readonly jobType?: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
+export interface RunSearchResult {
+  readonly run: RunSummary;
+  readonly section: string;
+  readonly label: string;
+  readonly snippet: string;
+  readonly sourceIds: readonly string[];
+}
+
 export type ConsoleJobState = "queued" | "running" | "succeeded" | "failed";
 
 export interface ConsoleJob {

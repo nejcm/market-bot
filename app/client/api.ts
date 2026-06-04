@@ -1,4 +1,12 @@
-import type { ConsoleJob, ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "../types";
+import type {
+  ConsoleJob,
+  ProviderHealthDetail,
+  RunDetail,
+  RunFile,
+  RunSearchFilters,
+  RunSearchResult,
+  RunSummary,
+} from "../types";
 
 export interface CreateJobRequest {
   readonly jobType: string;
@@ -34,6 +42,18 @@ function isRunFile(value: unknown): value is RunFile {
 
 function isProviderHealthDetail(value: unknown): value is ProviderHealthDetail {
   return isRecord(value);
+}
+
+function isRunSearchResult(value: unknown): value is RunSearchResult {
+  return (
+    isRecord(value) &&
+    isRunSummary(value.run) &&
+    typeof value.section === "string" &&
+    typeof value.label === "string" &&
+    typeof value.snippet === "string" &&
+    Array.isArray(value.sourceIds) &&
+    value.sourceIds.every((sourceId) => typeof sourceId === "string")
+  );
 }
 
 function isConsoleJob(value: unknown): value is ConsoleJob {
@@ -105,6 +125,24 @@ export async function fetchProviderHealth(): Promise<ProviderHealthDetail> {
   }
 
   return payload;
+}
+
+export async function fetchRunSearch(
+  filters: RunSearchFilters,
+): Promise<readonly RunSearchResult[]> {
+  const params = new URLSearchParams({ query: filters.query });
+  for (const [key, value] of Object.entries(filters)) {
+    if (key !== "query" && typeof value === "string" && value.trim() !== "") {
+      params.set(key, value);
+    }
+  }
+
+  const payload = await fetchJson(`/api/search?${params.toString()}`);
+  if (!isRecord(payload) || !Array.isArray(payload.results)) {
+    throw new Error("Search response is invalid");
+  }
+
+  return payload.results.filter(isRunSearchResult);
 }
 
 export async function fetchJobs(): Promise<readonly ConsoleJob[]> {

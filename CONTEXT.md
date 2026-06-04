@@ -6,7 +6,7 @@
 
 A sourced research artifact that summarizes evidence, uncertainty, scenarios, risks, and gaps without recommending trades or portfolio actions.
 
-## Research Console
+## Research Console App
 
 A local research-only user interface for browsing run history, Research Views, Sources, Source Gaps, Evidence Quality, analytics, and provider health without changing the research-only boundary.
 

@@ -1,4 +1,4 @@
-import type { RunSummary } from "../types";
+import type { RunSearchResult, RunSummary } from "../types";
 
 export interface TextWithSources {
   readonly text: string;
@@ -26,6 +26,11 @@ export interface SourceView {
   readonly kind?: string;
   readonly provider?: string;
   readonly url?: string;
+}
+
+export interface SearchResultGroup {
+  readonly run: RunSummary;
+  readonly results: readonly RunSearchResult[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -191,4 +196,22 @@ export function matchesQuery(run: RunSummary, text: string): boolean {
     .toLowerCase();
 
   return haystack.includes(text.trim().toLowerCase());
+}
+
+export function groupedSearchResults(
+  results: readonly RunSearchResult[],
+): readonly SearchResultGroup[] {
+  const groups = new Map<string, { run: RunSummary; results: RunSearchResult[] }>();
+
+  for (const result of results) {
+    const group = groups.get(result.run.runId);
+    if (group === undefined) {
+      groups.set(result.run.runId, { run: result.run, results: [result] });
+      continue;
+    }
+
+    group.results.push(result);
+  }
+
+  return [...groups.values()];
 }

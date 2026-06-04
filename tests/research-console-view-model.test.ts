@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { matchesQuery, predictions, runLabel, sources, textItems } from "../app/client/view-model";
+import {
+  groupedSearchResults,
+  matchesQuery,
+  predictions,
+  runLabel,
+  sources,
+  textItems,
+} from "../app/client/view-model";
 
-describe("research console view model", () => {
+describe("research console app view model", () => {
   test("matches run summaries by searchable fields", () => {
     const run = {
       runId: "run-1",
@@ -70,6 +77,65 @@ describe("research console view model", () => {
         url: "https://example.test/source",
       },
       { id: "s2", title: "Blocked" },
+    ]);
+  });
+
+  test("groups structured search results by run", () => {
+    const firstRun = {
+      runId: "run-1",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    };
+    const secondRun = { ...firstRun, runId: "run-2" };
+
+    expect(
+      groupedSearchResults([
+        { run: firstRun, section: "summary", label: "Summary", snippet: "one", sourceIds: [] },
+        {
+          run: firstRun,
+          section: "sources",
+          label: "Source s1",
+          snippet: "two",
+          sourceIds: ["s1"],
+        },
+        {
+          run: secondRun,
+          section: "dataGaps",
+          label: "Data gap 1",
+          snippet: "three",
+          sourceIds: [],
+        },
+      ]),
+    ).toEqual([
+      {
+        run: firstRun,
+        results: [
+          { run: firstRun, section: "summary", label: "Summary", snippet: "one", sourceIds: [] },
+          {
+            run: firstRun,
+            section: "sources",
+            label: "Source s1",
+            snippet: "two",
+            sourceIds: ["s1"],
+          },
+        ],
+      },
+      {
+        run: secondRun,
+        results: [
+          {
+            run: secondRun,
+            section: "dataGaps",
+            label: "Data gap 1",
+            snippet: "three",
+            sourceIds: [],
+          },
+        ],
+      },
     ]);
   });
 });

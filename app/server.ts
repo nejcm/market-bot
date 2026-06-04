@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { resolveResearchConsoleConfig } from "../src/config";
-import { listRunSummaries, readProviderHealth, readRunDetail, readRunFile } from "./artifacts";
+import {
+  listRunSummaries,
+  readProviderHealth,
+  readRunDetail,
+  readRunFile,
+  searchRunReports,
+} from "./artifacts";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
@@ -45,6 +51,11 @@ function decodePathname(pathname: string): string | undefined {
   }
 }
 
+function optionalSearchParam(url: URL, key: string): string | undefined {
+  const value = url.searchParams.get(key)?.trim();
+  return value === undefined || value === "" ? undefined : value;
+}
+
 function hasParentSegment(pathname: string): boolean {
   return pathname.split(/[\\/]/u).includes("..");
 }
@@ -76,6 +87,30 @@ export function researchConsoleStaticPath(
 async function handleApiRequest(url: URL, dataDir: string): Promise<Response | undefined> {
   if (url.pathname === "/api/runs") {
     return jsonResponse({ runs: await listRunSummaries(dataDir) });
+  }
+
+  if (url.pathname === "/api/search") {
+    const query = url.searchParams.get("query")?.trim() ?? "";
+    if (query === "") {
+      return jsonResponse({ error: "Search query is required" }, 400);
+    }
+
+    const symbol = optionalSearchParam(url, "symbol");
+    const assetClass = optionalSearchParam(url, "assetClass");
+    const jobType = optionalSearchParam(url, "jobType");
+    const from = optionalSearchParam(url, "from");
+    const to = optionalSearchParam(url, "to");
+
+    return jsonResponse({
+      results: await searchRunReports(dataDir, {
+        query,
+        ...(symbol !== undefined ? { symbol } : {}),
+        ...(assetClass !== undefined ? { assetClass } : {}),
+        ...(jobType !== undefined ? { jobType } : {}),
+        ...(from !== undefined ? { from } : {}),
+        ...(to !== undefined ? { to } : {}),
+      }),
+    });
   }
 
   if (url.pathname === "/api/provider-health") {
@@ -190,7 +225,7 @@ export async function handleResearchConsoleRequest(
   const path = researchConsoleStaticPath(url.pathname);
 
   if (path === undefined) {
-    return new Response("Research Console assets not built. Run bun run console:build.\n", {
+    return new Response("Research Console App assets not built. Run bun run console:build.\n", {
       status: 503,
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
@@ -210,5 +245,5 @@ if (import.meta.main) {
     fetch: (request) => handleResearchConsoleRequest(request),
   });
 
-  process.stdout.write(`Research Console listening at http://${config.host}:${config.port}\n`);
+  process.stdout.write(`Research Console App listening at http://${config.host}:${config.port}\n`);
 }

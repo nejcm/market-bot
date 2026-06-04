@@ -49,14 +49,10 @@ section tracks remaining expansion work.
 - **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
   keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
 
-## Research Console
+## Research Console App
 
-- **Run history and artifact browser** - Svelte + Bun localhost UI over existing run
-  artifacts, reports, logs, analytics, and provider health.
-- **Branded structured report rendering** - research-desk presentation of `report.json`
-  with source-first navigation and markdown fallback.
-- **Typed job controls** - allowlisted CLI jobs with basic queued/running/succeeded/failed
-  status and captured output.
+- **Structured run search** - search prior `report.json` artifacts by summary, findings,
+  forecasts, sources, gaps, symbol, asset class, job type, and date range.
 
 ## Monitoring
 

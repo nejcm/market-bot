@@ -4,10 +4,16 @@ export { predictions, scenarios, sources, stringArray, textItems } from "../repo
 
 const RUN_PATH_PREFIX = "/runs/";
 const RECENT_RUN_LIMIT = 5;
+const RUN_TYPE_ORDER = ["daily", "weekly", "ticker"];
 
 export interface SearchResultGroup {
   readonly run: RunSummary;
   readonly results: readonly RunSearchResult[];
+}
+
+export interface RunTypeGroup {
+  readonly type: string;
+  readonly runs: readonly RunSummary[];
 }
 
 export interface DashboardMetrics {
@@ -47,6 +53,20 @@ export function formatDate(value: string | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+export function formatDateMinute(value: string | undefined): string {
+  if (value === undefined) {
+    return "unknown time";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+}
+
 export function runPath(runId: string): string {
   return `${RUN_PATH_PREFIX}${encodeURIComponent(runId)}`;
 }
@@ -83,6 +103,27 @@ export function matchesQuery(run: RunSummary, text: string): boolean {
     .toLowerCase();
 
   return haystack.includes(text.trim().toLowerCase());
+}
+
+export function groupedRunsByType(runs: readonly RunSummary[]): readonly RunTypeGroup[] {
+  const groups = new Map<string, RunSummary[]>();
+
+  for (const run of runs) {
+    const type = run.jobType ?? "run";
+    groups.set(type, [...(groups.get(type) ?? []), run]);
+  }
+
+  return [...groups.entries()]
+    .toSorted(([left], [right]) => runTypeRank(left) - runTypeRank(right))
+    .map(([type, groupedRuns]) => ({
+      type,
+      runs: groupedRuns,
+    }));
+}
+
+function runTypeRank(type: string): number {
+  const index = RUN_TYPE_ORDER.indexOf(type);
+  return index === -1 ? RUN_TYPE_ORDER.length : index;
 }
 
 export function dashboardMetrics(runs: readonly RunSummary[]): DashboardMetrics {

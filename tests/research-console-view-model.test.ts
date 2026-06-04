@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   dashboardMetrics,
+  groupedRunsByType,
   groupedSearchResults,
   matchesQuery,
   predictions,
@@ -70,6 +71,48 @@ describe("research console app view model", () => {
       "run-5",
     ]);
     expect(recentRunSummaries(runs, 2).map((run) => run.runId)).toEqual(["run-1", "run-2"]);
+  });
+
+  test("groups run summaries by preferred job type order", () => {
+    const baseRun = {
+      runId: "run-1",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    };
+
+    expect(
+      groupedRunsByType([
+        { ...baseRun, runId: "ticker-1", jobType: "ticker" },
+        { ...baseRun, runId: "daily-1", jobType: "daily" },
+        { ...baseRun, runId: "weekly-1", jobType: "weekly" },
+        { ...baseRun, runId: "ticker-2", jobType: "ticker" },
+        { ...baseRun, runId: "unknown-1" },
+      ]),
+    ).toEqual([
+      {
+        type: "daily",
+        runs: [{ ...baseRun, runId: "daily-1", jobType: "daily" }],
+      },
+      {
+        type: "weekly",
+        runs: [{ ...baseRun, runId: "weekly-1", jobType: "weekly" }],
+      },
+      {
+        type: "ticker",
+        runs: [
+          { ...baseRun, runId: "ticker-1", jobType: "ticker" },
+          { ...baseRun, runId: "ticker-2", jobType: "ticker" },
+        ],
+      },
+      {
+        type: "run",
+        runs: [{ ...baseRun, runId: "unknown-1" }],
+      },
+    ]);
   });
 
   test("narrows report sections without throwing on malformed entries", () => {

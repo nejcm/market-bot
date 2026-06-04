@@ -7,9 +7,9 @@
   },
   "type": "module",
   "scripts": {
-    "app": "bun run app/server.ts",
-    "app:build": "vite build --config app/vite.config.ts",
+    "app": "bun run app:build && bun run app:dev",
     "app:dev": "bun run app/server.ts",
+    "app:build": "vite build --config app/vite.config.ts",
     "test": "bun test",
     "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit",

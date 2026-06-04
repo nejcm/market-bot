@@ -142,10 +142,18 @@
     </Card.Card>
 
     <Tabs.Tabs value={activeTab}>
-      <Tabs.TabsList class="w-full flex-wrap justify-start bg-cyan-50/60">
+      <Tabs.TabsList
+        class="h-auto w-full flex-wrap justify-start gap-1 rounded-full border border-cyan-900/10 bg-cyan-50/70 p-1 shadow-inner shadow-cyan-900/5"
+      >
         {#each TABS as tab}
           {@const Icon = tabIcons[tab]}
-          <Tabs.TabsTrigger value={tab} onclick={() => onTabChange(tab)} class="capitalize">
+          <Tabs.TabsTrigger
+            value={tab}
+            onclick={() => onTabChange(tab)}
+            class="flex-none rounded-full px-3 py-1.5 capitalize {activeTab === tab
+              ? 'bg-white text-foreground shadow-sm'
+              : ''}"
+          >
             <Icon class="size-3.5" />
             {tab}
           </Tabs.TabsTrigger>

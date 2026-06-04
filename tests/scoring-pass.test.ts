@@ -23,6 +23,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   rmSync(join(tmpDir, "..", "alpha-validation"), { recursive: true, force: true });
   rmSync(join(tmpDir, "..", "alpha-search"), { recursive: true, force: true });
+  rmSync(join(tmpDir, "..", "provider-health"), { recursive: true, force: true });
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -58,6 +59,16 @@ async function readAlphaValidationSummary(): Promise<AlphaValidationSummary> {
 async function readAlphaWatchlist(): Promise<AlphaCandidateWatchlist> {
   const raw = await readFile(join(tmpDir, "..", "alpha-search", "watchlist.json"), "utf8");
   return JSON.parse(raw) as AlphaCandidateWatchlist;
+}
+
+async function writeProviderHealthSummary(validation: Record<string, unknown>): Promise<void> {
+  const dir = join(tmpDir, "..", "provider-health");
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, "summary.json"),
+    `${JSON.stringify({ version: 2, validation }, undefined, 2)}\n`,
+    "utf8",
+  );
 }
 
 async function noObservation(): Promise<Observation | undefined> {
@@ -629,6 +640,68 @@ describe("runScorePass Alpha validation", () => {
     });
     expect(secondResult).toEqual({ scored: 0, skipped: 1 });
     await expect(readFile(profilesPath, "utf8")).resolves.toBe(profilesRaw);
+  });
+
+  test("blocks source promotion criteria from failing provider-health summary", async () => {
+    await writeProviderHealthSummary({
+      status: "fail",
+      blockingIssueCount: 1,
+      requiredCoverage: [{ key: "daily-equity", label: "Daily equity", met: false, runIds: [] }],
+    });
+    await writeRun(
+      "alpha-run-1",
+      report([], {
+        runId: "alpha-run-1",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 1,
+          secCandidateCount: 0,
+          researchLeads: [
+            {
+              symbol: "ALFA",
+              name: "Alpha Co.",
+              exchange: "NMS",
+              price: 10,
+              volume: 1_000_000,
+              marketCap: 500_000_000,
+              discoverySources: ["apewisdom"],
+              socialRank: 1,
+              socialMomentumScore: 75,
+              sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+            },
+          ],
+          rejectedCandidates: [],
+        },
+      }),
+    );
+
+    await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      observationRepository: {
+        point: noObservation,
+        window: async (subject) => {
+          const values =
+            subject === "ALFA" ? [10, 10, 10, 10, 10, 12] : [100, 100, 100, 100, 100, 105];
+          return values.map((value, index) => ({
+            subject,
+            date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+            value,
+          }));
+        },
+      },
+    });
+
+    const summary = await readAlphaValidationSummary();
+    expect(summary.sourcePromotionCriteria.prerequisites).toMatchObject({
+      status: "blocked",
+      providerHealthStatus: "fail",
+      blockingIssueCount: 1,
+      unmetRequiredCoverage: ["daily-equity"],
+    });
+    expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom-only"]?.["5"]).toMatchObject({
+      status: "blocked-prerequisite",
+    });
   });
 
   test("does not write alpha validation for non-alpha reports", async () => {

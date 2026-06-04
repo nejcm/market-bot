@@ -6,19 +6,34 @@ Implemented alpha-search discovery, validation, and deterministic candidate stat
 `docs/how-it-works.md`, `docs/architecture.md`, and `docs/configuration.md`. This
 section tracks remaining promotion and expansion work.
 
-- **Prerequisite validation** - keep reviewing provider-health summaries and recent artifacts
-  for unresolved source gaps, Evidence Quality caps, repeat-news suppression, and prediction
-  calibration before promoting alpha search to a first-class workflow.
-- **Alpha signal discovery** - identify early, higher-risk research signals from market
-  data, news, filings, social sources, and other public evidence. Treat social sentiment as
-  high-noise input until validation shows it adds signal beyond existing sources.
+### Next
+
+- **Source promotion criteria** - report-only labels in the Alpha validation summary that
+  interpret source-group outcomes. Defaults: 30 resolved leads per source group/horizon,
+  `promising` at hit rate >= 55% with positive average excess return, `weak` at hit rate
+  <= 45% with negative average excess return, otherwise `mixed` or `insufficient-sample`.
+  Provider-health validation failures block labels without hiding metrics. Do not promote
+  individual Research Leads.
+- **Feature attribution** - bucket deterministic candidate features against Alpha
+  validation outcomes before changing ranking weights.
+
+### Add after validation
+
+- **Fundamentals enrichment** - attach existing SEC Fundamental Evidence metrics to Alpha
+  candidate profiles/watchlist for attribution first. Do not use fundamentals in ranking
+  until validation supports it.
 - **Expanded signal ranking** based on explainable features beyond the current
   discovery/ranking inputs. Keep signal strength separate from Evidence Quality.
+
+### Defer or skip
+
 - **Narrative candidate report type** with thesis, why-now catalyst, evidence, bear case,
-  risks, invalidation criteria, and source IDs. Keep this separate from the implemented
-  deterministic candidate profile/watchlist artifacts.
-- **Promotion criteria** - define what validation-summary sample size, hit rate, and
-  excess-return thresholds justify promoting or changing discovery sources.
+  risks, invalidation criteria, and source IDs. Defer until source criteria and attribution
+  show Alpha leads are worth model-written reports.
+- **New social/news providers** for alpha-search discovery. Defer until fundamentals
+  attribution is available.
+- **Automatic source changes** such as changing source weights, candidate budgets, or
+  inclusion from criteria labels. Keep V1 criteria report-only.
 
 ## Cross-run intelligence
 

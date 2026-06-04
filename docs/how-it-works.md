@@ -339,7 +339,7 @@ The Alpha candidate watchlist is rebuilt from per-run candidate profiles and val
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
 
-Alpha validation sidecars and candidate watchlists are historical Research Lead checks, not report predictions. They do not feed calibration.
+Alpha validation sidecars and candidate watchlists are historical Research Lead checks, not report predictions. They do not feed calibration. The Alpha validation summary also includes report-only Source Promotion Criteria for discovery source groups; these labels do not promote individual Research Leads or automatically change ranking behavior.
 
 ## Calibration
 

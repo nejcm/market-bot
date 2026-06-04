@@ -12,9 +12,11 @@ import {
   isAlphaValidationComplete,
   renderAlphaValidationSummaryMarkdown,
   validateAlphaSearchReport,
+  type AlphaValidationPrerequisiteInput,
   type AlphaValidationFile,
 } from "../alpha-search/validation";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
+import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
@@ -156,6 +158,38 @@ async function loadAlphaCandidateProfiles(
   } catch {
     return [];
   }
+}
+
+async function loadAlphaValidationPrerequisites(
+  dataDir: string,
+): Promise<AlphaValidationPrerequisiteInput | undefined> {
+  try {
+    const raw = await readFile(join(dataDir, "../provider-health", "summary.json"), "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed) || !isRecord(parsed.validation)) {
+      return;
+    }
+    const { validation } = parsed;
+    const status = readString(validation, "status");
+    const blockingIssueCount = readNumber(validation, "blockingIssueCount");
+    const { requiredCoverage } = validation;
+    const unmetRequiredCoverage = Array.isArray(requiredCoverage)
+      ? requiredCoverage.flatMap((item) => {
+          if (!isRecord(item) || item.met === true) {
+            return [];
+          }
+          const key = readString(item, "key");
+          return key === undefined ? [] : [key];
+        })
+      : [];
+    return {
+      ...(status === "pass" || status === "warn" || status === "fail"
+        ? { providerHealthStatus: status }
+        : {}),
+      ...(blockingIssueCount !== undefined ? { blockingIssueCount } : {}),
+      unmetRequiredCoverage,
+    };
+  } catch {}
 }
 
 async function loadReport(runDir: string): Promise<ResearchReport | undefined> {
@@ -359,13 +393,16 @@ export async function buildAndWriteAlphaValidationSummary(
   now: Date = new Date(),
 ): Promise<boolean> {
   const runDirs = await listRunDirs(dataDir);
-  const maybeFiles = await Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir)));
+  const [maybeFiles, prerequisites] = await Promise.all([
+    Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir))),
+    loadAlphaValidationPrerequisites(dataDir),
+  ]);
   const files = maybeFiles.filter((file): file is AlphaValidationFile => file !== undefined);
   if (files.length === 0) {
     return false;
   }
 
-  const summary = buildAlphaValidationSummary(files, now);
+  const summary = buildAlphaValidationSummary(files, now, prerequisites);
   const summaryDir = join(dataDir, "../alpha-validation");
   await mkdir(summaryDir, { recursive: true });
   await writeFile(

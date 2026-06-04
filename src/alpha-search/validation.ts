@@ -9,6 +9,43 @@ export const ALPHA_VALIDATION_HORIZONS = [5, 20] as const;
 export type AlphaValidationOutcome = "outperformed" | "did-not-outperform";
 export type AlphaValidationUnresolvedReason = "horizon-not-elapsed" | "observation-unavailable";
 export type AlphaValidationSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
+export type AlphaSourcePromotionStatus =
+  | "blocked-prerequisite"
+  | "insufficient-sample"
+  | "promising"
+  | "mixed"
+  | "weak";
+
+export interface AlphaSourcePromotionThresholds {
+  readonly minimumResolvedCount: number;
+  readonly promisingHitRate: number;
+  readonly weakHitRate: number;
+}
+
+export interface AlphaSourcePromotionPrerequisites {
+  readonly status: "met" | "blocked";
+  readonly providerHealthStatus?: "pass" | "warn" | "fail";
+  readonly blockingIssueCount?: number;
+  readonly unmetRequiredCoverage: readonly string[];
+}
+
+export interface AlphaSourcePromotionCriterion {
+  readonly status: AlphaSourcePromotionStatus;
+  readonly reason: string;
+  readonly resolvedCount: number;
+  readonly hitRate?: number;
+  readonly averageExcessReturn?: number;
+}
+
+export interface AlphaSourcePromotionCriteria {
+  readonly thresholds: AlphaSourcePromotionThresholds;
+  readonly prerequisites: AlphaSourcePromotionPrerequisites;
+  readonly bySourceGroup: Partial<
+    Readonly<
+      Record<AlphaValidationSourceGroup, Readonly<Record<string, AlphaSourcePromotionCriterion>>>
+    >
+  >;
+}
 
 export interface AlphaValidationLeadSnapshot {
   readonly symbol: string;
@@ -82,6 +119,13 @@ export interface AlphaValidationSummary {
   readonly bySourceGroup: Partial<
     Readonly<Record<AlphaValidationSourceGroup, Readonly<Record<string, AlphaValidationMetrics>>>>
   >;
+  readonly sourcePromotionCriteria: AlphaSourcePromotionCriteria;
+}
+
+export interface AlphaValidationPrerequisiteInput {
+  readonly providerHealthStatus?: "pass" | "warn" | "fail";
+  readonly blockingIssueCount?: number;
+  readonly unmetRequiredCoverage?: readonly string[];
 }
 
 export interface AlphaValidationOptions {
@@ -107,6 +151,12 @@ interface MetricAccumulator {
   outperformedCount: number;
   excessReturnTotal: number;
 }
+
+const SOURCE_PROMOTION_THRESHOLDS: AlphaSourcePromotionThresholds = {
+  minimumResolvedCount: 30,
+  promisingHitRate: 0.55,
+  weakHitRate: 0.45,
+};
 
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 86_400_000);
@@ -487,9 +537,108 @@ function metricsByHorizon(
   );
 }
 
+function sourcePromotionPrerequisites(
+  input: AlphaValidationPrerequisiteInput | undefined,
+): AlphaSourcePromotionPrerequisites {
+  const unmetRequiredCoverage = input?.unmetRequiredCoverage ?? [];
+  const blockingIssueCount = input?.blockingIssueCount ?? 0;
+  const blocked =
+    input?.providerHealthStatus === "fail" ||
+    blockingIssueCount > 0 ||
+    unmetRequiredCoverage.length > 0;
+  return {
+    status: blocked ? "blocked" : "met",
+    ...(input?.providerHealthStatus !== undefined
+      ? { providerHealthStatus: input.providerHealthStatus }
+      : {}),
+    ...(input?.blockingIssueCount !== undefined ? { blockingIssueCount } : {}),
+    unmetRequiredCoverage,
+  };
+}
+
+function sourcePromotionCriterion(
+  metric: AlphaValidationMetrics,
+  prerequisites: AlphaSourcePromotionPrerequisites,
+): AlphaSourcePromotionCriterion {
+  const base = {
+    resolvedCount: metric.resolvedCount,
+    ...(metric.hitRate !== undefined ? { hitRate: metric.hitRate } : {}),
+    ...(metric.averageExcessReturn !== undefined
+      ? { averageExcessReturn: metric.averageExcessReturn }
+      : {}),
+  };
+
+  if (prerequisites.status === "blocked") {
+    return {
+      ...base,
+      status: "blocked-prerequisite",
+      reason: "Prerequisite validation is failing.",
+    };
+  }
+  if (metric.resolvedCount < SOURCE_PROMOTION_THRESHOLDS.minimumResolvedCount) {
+    return {
+      ...base,
+      status: "insufficient-sample",
+      reason: "Resolved sample is below the source-promotion threshold.",
+    };
+  }
+  if (
+    (metric.hitRate ?? 0) >= SOURCE_PROMOTION_THRESHOLDS.promisingHitRate &&
+    (metric.averageExcessReturn ?? 0) > 0
+  ) {
+    return {
+      ...base,
+      status: "promising",
+      reason: "Hit rate and average excess return meet source-promotion thresholds.",
+    };
+  }
+  if (
+    (metric.hitRate ?? 0) <= SOURCE_PROMOTION_THRESHOLDS.weakHitRate &&
+    (metric.averageExcessReturn ?? 0) < 0
+  ) {
+    return {
+      ...base,
+      status: "weak",
+      reason: "Hit rate and average excess return are below source-promotion thresholds.",
+    };
+  }
+  return {
+    ...base,
+    status: "mixed",
+    reason: "Resolved outcomes do not meet promising or weak thresholds.",
+  };
+}
+
+function buildSourcePromotionCriteria(
+  bySourceGroup: AlphaValidationSummary["bySourceGroup"],
+  prerequisiteInput: AlphaValidationPrerequisiteInput | undefined,
+): AlphaSourcePromotionCriteria {
+  const prerequisites = sourcePromotionPrerequisites(prerequisiteInput);
+  return {
+    thresholds: SOURCE_PROMOTION_THRESHOLDS,
+    prerequisites,
+    bySourceGroup: Object.fromEntries(
+      Object.entries(bySourceGroup)
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(([group, metrics]) => [
+          group,
+          Object.fromEntries(
+            Object.entries(metrics)
+              .toSorted(([left], [right]) => Number(left) - Number(right))
+              .map(([horizon, metric]) => [
+                horizon,
+                sourcePromotionCriterion(metric, prerequisites),
+              ]),
+          ),
+        ]),
+    ),
+  };
+}
+
 export function buildAlphaValidationSummary(
   files: readonly AlphaValidationFile[],
   now: Date = new Date(),
+  prerequisites?: AlphaValidationPrerequisiteInput,
 ): AlphaValidationSummary {
   const overall = new Map<number, MetricAccumulator>();
   const bySourceGroup = new Map<AlphaValidationSourceGroup, Map<number, MetricAccumulator>>();
@@ -513,6 +662,12 @@ export function buildAlphaValidationSummary(
     }
   }
 
+  const metricsBySourceGroup = Object.fromEntries(
+    [...bySourceGroup.entries()]
+      .toSorted(([left], [right]) => left.localeCompare(right))
+      .map(([group, metrics]) => [group, metricsByHorizon(metrics)]),
+  );
+
   return {
     generatedAt: now.toISOString(),
     benchmarkSymbol,
@@ -520,11 +675,8 @@ export function buildAlphaValidationSummary(
     runCount: files.length,
     leadCount: files.reduce((total, file) => total + file.leads.length, 0),
     overall: metricsByHorizon(overall),
-    bySourceGroup: Object.fromEntries(
-      [...bySourceGroup.entries()]
-        .toSorted(([left], [right]) => left.localeCompare(right))
-        .map(([group, metrics]) => [group, metricsByHorizon(metrics)]),
-    ),
+    bySourceGroup: metricsBySourceGroup,
+    sourcePromotionCriteria: buildSourcePromotionCriteria(metricsBySourceGroup, prerequisites),
   };
 }
 
@@ -556,6 +708,51 @@ function renderMetricTable(metrics: Readonly<Record<string, AlphaValidationMetri
   ].join("\n");
 }
 
+function criteriaRows(criteria: AlphaSourcePromotionCriteria["bySourceGroup"]): readonly string[] {
+  return Object.entries(criteria)
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .flatMap(([group, metrics]) =>
+      Object.entries(metrics)
+        .toSorted(([left], [right]) => Number(left) - Number(right))
+        .map(([horizon, criterion]) =>
+          [
+            group,
+            horizon,
+            criterion.status,
+            String(criterion.resolvedCount),
+            formatRate(criterion.hitRate),
+            formatReturn(criterion.averageExcessReturn),
+            criterion.reason,
+          ].join(" | "),
+        ),
+    );
+}
+
+function renderSourcePromotionCriteria(criteria: AlphaSourcePromotionCriteria): string {
+  const rows = criteriaRows(criteria.bySourceGroup);
+  const prereq = criteria.prerequisites;
+  return [
+    `Prerequisites: ${prereq.status}`,
+    ...(prereq.providerHealthStatus !== undefined
+      ? [`Provider health: ${prereq.providerHealthStatus}`]
+      : []),
+    ...(prereq.unmetRequiredCoverage.length > 0
+      ? [`Unmet required coverage: ${prereq.unmetRequiredCoverage.join(", ")}`]
+      : []),
+    `Minimum resolved leads: ${String(criteria.thresholds.minimumResolvedCount)}`,
+    `Promising threshold: hit rate >= ${formatRate(criteria.thresholds.promisingHitRate)} and avg excess return > 0%`,
+    `Weak threshold: hit rate <= ${formatRate(criteria.thresholds.weakHitRate)} and avg excess return < 0%`,
+    "",
+    ...(rows.length === 0
+      ? ["_No source-promotion criteria yet._"]
+      : [
+          "Source group | Horizon | Status | Resolved | Hit rate | Avg excess return | Reason",
+          "--- | ---: | --- | ---: | ---: | ---: | ---",
+          ...rows,
+        ]),
+  ].join("\n");
+}
+
 export function renderAlphaValidationSummaryMarkdown(summary: AlphaValidationSummary): string {
   const sourceGroups = Object.entries(summary.bySourceGroup).toSorted(([left], [right]) =>
     left.localeCompare(right),
@@ -582,6 +779,10 @@ export function renderAlphaValidationSummaryMarkdown(summary: AlphaValidationSum
           renderMetricTable(metrics),
           "",
         ])),
+    "## Source Promotion Criteria",
+    "",
+    renderSourcePromotionCriteria(summary.sourcePromotionCriteria),
+    "",
     "",
   ].join("\n");
 }

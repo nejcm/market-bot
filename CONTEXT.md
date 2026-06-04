@@ -72,6 +72,10 @@ A disclosed absence, weakness, failure, or staleness in Source Provider evidence
 
 An equity candidate surfaced for further research by alpha-search. It is not a recommendation, trade signal, expected return, or portfolio action.
 
+## Source Promotion Criteria
+
+Historical validation thresholds used to decide whether an alpha-search discovery source or source group should receive more workflow budget, weighting, or continued inclusion. They do not promote individual Research Leads.
+
 ## Social Momentum Score
 
 A deterministic alpha-search ranking score derived only from ApeWisdom aggregate social-momentum features before market-data validation.

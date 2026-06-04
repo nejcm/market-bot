@@ -265,6 +265,115 @@ describe("buildAlphaValidationSummary", () => {
     });
   });
 
+  test("labels source promotion criteria from conservative thresholds", () => {
+    const leads = [
+      ...Array.from({ length: 17 }, (_, index) =>
+        validationLead({
+          symbol: `WIN${String(index)}`,
+          horizons: [resolvedHorizon(5, 0.04, "outperformed")],
+        }),
+      ),
+      ...Array.from({ length: 13 }, (_, index) =>
+        validationLead({
+          symbol: `MIX${String(index)}`,
+          horizons: [resolvedHorizon(5, -0.01, "did-not-outperform")],
+        }),
+      ),
+      ...Array.from({ length: 20 }, (_, index) =>
+        validationLead({
+          symbol: `BAD${String(index)}`,
+          sourceGroup: "sec-only",
+          discoverySources: ["sec-filings"],
+          horizons: [resolvedHorizon(5, -0.02, "did-not-outperform")],
+        }),
+      ),
+      ...Array.from({ length: 10 }, (_, index) =>
+        validationLead({
+          symbol: `SEC${String(index)}`,
+          sourceGroup: "sec-only",
+          discoverySources: ["sec-filings"],
+          horizons: [resolvedHorizon(5, 0.01, "outperformed")],
+        }),
+      ),
+      validationLead({
+        symbol: "SMALL",
+        sourceGroup: "apewisdom+sec",
+        discoverySources: ["apewisdom", "sec-filings"],
+        horizons: [resolvedHorizon(5, 0.1, "outperformed")],
+      }),
+    ];
+
+    const summary = buildAlphaValidationSummary(
+      [validationFile({ leads })],
+      new Date("2026-06-02T00:00:00.000Z"),
+    );
+
+    expect(summary.sourcePromotionCriteria.thresholds).toEqual({
+      minimumResolvedCount: 30,
+      promisingHitRate: 0.55,
+      weakHitRate: 0.45,
+    });
+    expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom-only"]?.["5"]).toMatchObject({
+      status: "promising",
+      resolvedCount: 30,
+      hitRate: 0.566_667,
+      averageExcessReturn: 0.018_333,
+    });
+    expect(summary.sourcePromotionCriteria.bySourceGroup["sec-only"]?.["5"]).toMatchObject({
+      status: "weak",
+      resolvedCount: 30,
+      hitRate: 0.333_333,
+      averageExcessReturn: -0.01,
+    });
+    expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom+sec"]?.["5"]).toMatchObject({
+      status: "insufficient-sample",
+      resolvedCount: 1,
+    });
+  });
+
+  test("blocks source promotion criteria when prerequisite validation fails", () => {
+    const summary = buildAlphaValidationSummary(
+      [
+        validationFile({
+          leads: Array.from({ length: 30 }, (_, index) =>
+            validationLead({
+              symbol: `WIN${String(index)}`,
+              horizons: [resolvedHorizon(5, 0.04, "outperformed")],
+            }),
+          ),
+        }),
+      ],
+      new Date("2026-06-02T00:00:00.000Z"),
+      {
+        providerHealthStatus: "fail",
+        blockingIssueCount: 2,
+        unmetRequiredCoverage: ["daily-equity"],
+      },
+    );
+
+    expect(summary.sourcePromotionCriteria.prerequisites).toEqual({
+      status: "blocked",
+      providerHealthStatus: "fail",
+      blockingIssueCount: 2,
+      unmetRequiredCoverage: ["daily-equity"],
+    });
+    expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom-only"]?.["5"]).toMatchObject({
+      status: "blocked-prerequisite",
+      resolvedCount: 30,
+    });
+
+    const malformedStatusSummary = buildAlphaValidationSummary(
+      [
+        validationFile({
+          leads: [validationLead({ horizons: [resolvedHorizon(5, 0.04, "outperformed")] })],
+        }),
+      ],
+      new Date("2026-06-02T00:00:00.000Z"),
+      { blockingIssueCount: 1 },
+    );
+    expect(malformedStatusSummary.sourcePromotionCriteria.prerequisites.status).toBe("blocked");
+  });
+
   test("renders alpha validation summary markdown", () => {
     const markdown = renderAlphaValidationSummaryMarkdown(
       buildAlphaValidationSummary(
@@ -284,6 +393,8 @@ describe("buildAlphaValidationSummary", () => {
     expect(markdown).toContain("# Alpha Validation Summary");
     expect(markdown).toContain("Benchmark: IWM");
     expect(markdown).toContain("apewisdom-only");
+    expect(markdown).toContain("## Source Promotion Criteria");
+    expect(markdown).toContain("insufficient-sample");
   });
 });
 

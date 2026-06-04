@@ -9,6 +9,7 @@ import {
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { KeyFinding, ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
+import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
@@ -149,7 +150,7 @@ function dataGaps(input: {
   readonly validLeads: readonly YahooValidatedLead[];
 }): readonly string[] {
   return [
-    ...input.sourceGaps.map((gap) => gap.message),
+    ...dedupeSourceGaps(input.sourceGaps).map((gap) => sourceGapReportText(gap)),
     ...(input.rankedCandidates.length === 0
       ? ["No ApeWisdom-ranked equity candidates were found"]
       : []),
@@ -229,7 +230,7 @@ function buildTrace(input: {
     synthesisModel: input.config.synthesisModel,
     startedAt: input.startedAt,
     completedAt: input.completedAt,
-    sourceGaps: input.sourceGaps.map((gap) => gap.message),
+    sourceGaps: dedupeSourceGaps(input.sourceGaps).map((gap) => sourceGapReportText(gap)),
     stages: [
       "apewisdom-discovery",
       "social-momentum-ranking",

@@ -5,7 +5,7 @@ import { resolveRunParams, type ResolvedRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { type EvidenceRequestToolName, type MarketRegimeSummary } from "../domain/types";
-import { sourceGapReportText } from "../domain/source-gaps";
+import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { isRecord } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
@@ -72,7 +72,7 @@ export function deterministicSourceGaps(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly string[] {
-  const gaps = collectedSources.sourceGaps.map(sourceGapReportText);
+  const gaps = dedupeSourceGaps(collectedSources.sourceGaps).map((gap) => sourceGapReportText(gap));
   const marketGaps =
     collectedSources.marketSnapshots.length === 0
       ? ["No usable market data snapshots were collected"]

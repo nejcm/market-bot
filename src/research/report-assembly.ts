@@ -250,6 +250,22 @@ function spotlightsExtra(selection: SpotlightSelectionResult | undefined): unkno
   };
 }
 
+function dataGapKey(value: string): string {
+  return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
+}
+
+function uniqueDataGaps(gaps: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  return gaps.filter((gap) => {
+    const key = dataGapKey(gap);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Report assembly — combine parsed payload + context into a validated report
 // ---------------------------------------------------------------------------
@@ -282,12 +298,10 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     sources,
   } = input;
 
-  const dataGapsRaw = [
-    ...new Set([
-      ...nonEmptyStringArrayValue(payload.dataGaps),
-      ...deterministicSourceGaps(command, collectedSources),
-    ]),
-  ];
+  const dataGapsRaw = uniqueDataGaps([
+    ...nonEmptyStringArrayValue(payload.dataGaps),
+    ...deterministicSourceGaps(command, collectedSources),
+  ]);
   const shortfall = predResult.predictions.length < depthProfile.minimumPredictions;
   const dataGaps = shortfall
     ? [

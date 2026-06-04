@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { MarketSnapshot, ResearchReport } from "../src/domain/types";
+import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { validateResearchReport } from "../src/report/schema";
-import { buildSourceList } from "../src/research/report-assembly";
+import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
+import type { DepthProfile, ResearchContext } from "../src/research/research-context";
 import { collectedSources } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -71,6 +73,92 @@ describe("report schema and rendering", () => {
     );
 
     expect(sources[0]?.identity).toEqual(snapshot.identity);
+  });
+
+  test("dedupes model and deterministic data gaps by normalized text", () => {
+    const command = {
+      jobType: "daily" as const,
+      assetClass: "equity" as const,
+      depth: "brief" as const,
+    };
+    const depthProfile: DepthProfile = {
+      depth: "brief",
+      analystStyle: "concise brief",
+      minimumKeyFindings: 0,
+      minimumScenarios: 0,
+      minimumPredictions: 0,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: ["SPY"],
+      focus: ["source gaps"],
+    };
+    const context: ResearchContext = {
+      depthProfile,
+      runParams: {
+        quickModel: "quick",
+        synthesisModel: "synthesis",
+        modelParams: undefined,
+        minimumKeyFindings: 0,
+        minimumScenarios: 0,
+        minimumPredictions: 0,
+        defaultPredictionHorizon: 5,
+        predictionSubjects: ["SPY"],
+        focus: ["source gaps"],
+        analystStyle: "concise brief",
+      },
+      marketRegime: {
+        assetClass: "equity",
+        label: "insufficient-data",
+        proxyCount: 0,
+        drivers: [],
+        sourceIds: [],
+      },
+      calibrationContext: undefined,
+    };
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "low",
+        dataGaps: ["massive-news: source request failed with status 403"],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [
+          {
+            sourceId: "market-yahoo-equity-spy",
+            assetClass: "equity",
+            symbol: "SPY",
+            price: 500,
+            changePercent24h: 0.2,
+            volume: 1_000_000,
+            observedAt: "2026-06-01T00:00:00.000Z",
+          },
+        ],
+        newsSources: [
+          {
+            id: "news-1",
+            title: "Market update",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+        sourceGaps: [
+          sourceGap({
+            source: "massive-news",
+            message: " source request failed   with status 403 ",
+            cause: "fetch-failed",
+          }),
+        ],
+      }),
+      depthProfile,
+      context,
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual(["massive-news: source request failed with status 403"]);
   });
 
   test("adds historical report sources to report source lists", () => {

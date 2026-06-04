@@ -34,6 +34,26 @@ export function sourceGapReportText(gap: SourceGap): string {
   return `${gap.source}: ${gap.message}`;
 }
 
+function normalizeGapText(value: string): string {
+  return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
+}
+
+export function sourceGapReportTextKey(gap: SourceGap): string {
+  return normalizeGapText(sourceGapReportText(gap));
+}
+
+export function dedupeSourceGaps(gaps: readonly SourceGap[]): readonly SourceGap[] {
+  const seen = new Set<string>();
+  return gaps.filter((gap) => {
+    const key = sourceGapReportTextKey(gap);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 export function sourceGapStatusCode(message: string): string | undefined {
   return message.match(/status\s+(\d{3})/iu)?.[1];
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  dedupeSourceGaps,
   fetchFailureSourceGap,
   isCoreEvidenceQualityGap,
   isExtendedEvidenceQualityGap,
@@ -42,6 +43,25 @@ describe("source gaps", () => {
 
     expect(isRepeatFallbackGap(gap)).toBe(true);
     expect(sourceGapReportText(gap)).toBe("news-seen: dedupe kept fallback");
+  });
+
+  test("dedupes repeated source gaps by normalized report text", () => {
+    const gap = sourceGap({
+      source: "massive-news",
+      message: "source request failed with status 403",
+      cause: "fetch-failed",
+    });
+
+    expect(
+      dedupeSourceGaps([
+        gap,
+        sourceGap({
+          source: "massive-news",
+          message: " source request failed   with status 403 ",
+          cause: "fetch-failed",
+        }),
+      ]),
+    ).toEqual([gap]);
   });
 
   test("separates Market Context and Extended Evidence quality impact", () => {

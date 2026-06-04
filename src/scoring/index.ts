@@ -175,6 +175,7 @@ async function writeAlphaValidationRunDir(
 ): Promise<boolean> {
   const existing = await loadAlphaValidationFile(runDir);
   if (isAlphaValidationComplete({ report, validation: existing })) {
+    // Completed Alpha validations are unchanged historical artifacts, so this run is skipped.
     return false;
   }
 

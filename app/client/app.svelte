@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchRunDetail, fetchRuns } from "./api";
-  import type { RunDetail, RunSummary } from "../types";
+  import { fetchProviderHealth, fetchRunDetail, fetchRunFile, fetchRuns } from "./api";
+  import type { ProviderHealthDetail, RunDetail, RunSummary } from "../types";
 
   interface TextWithSources {
     readonly text: string;
@@ -23,6 +23,14 @@
     readonly sourceIds: readonly string[];
   }
 
+  interface SourceView {
+    readonly id: string;
+    readonly title: string;
+    readonly kind?: string;
+    readonly provider?: string;
+    readonly url?: string;
+  }
+
   const SECTION_KEYS = [
     ["keyFindings", "Key findings"],
     ["bullCase", "Bull case"],
@@ -30,6 +38,10 @@
     ["risks", "Risks"],
     ["catalysts", "Catalysts"],
   ] as const;
+
+  const TABS = ["report", "sources", "analytics", "trace", "files", "score", "health"] as const;
+
+  type Tab = (typeof TABS)[number];
 
   let runs = $state<readonly RunSummary[]>([]);
   let selectedRunId = $state("");
@@ -39,6 +51,10 @@
   let error = $state("");
   let loadingRuns = $state(true);
   let loadingDetail = $state(false);
+  let activeTab = $state<Tab>("report");
+  let fileContent = $state("");
+  let selectedFile = $state("");
+  let providerHealth = $state<ProviderHealthDetail>({});
 
   function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -121,6 +137,39 @@
     });
   }
 
+  function sources(report: Record<string, unknown> | undefined): readonly SourceView[] {
+    const value = report?.sources;
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((item) => isRecord(item)).flatMap((item) => {
+      const id = readString(item, "id");
+      const title = readString(item, "title");
+      return id === undefined || title === undefined
+        ? []
+        : [
+            {
+              id,
+              title,
+              ...(readString(item, "kind") !== undefined
+                ? { kind: readString(item, "kind") as string }
+                : {}),
+              ...(readString(item, "provider") !== undefined
+                ? { provider: readString(item, "provider") as string }
+                : {}),
+              ...(readString(item, "url") !== undefined
+                ? { url: readString(item, "url") as string }
+                : {}),
+            },
+          ];
+    });
+  }
+
+  function jsonBlock(value: Record<string, unknown> | undefined): string {
+    return value === undefined ? "Not available" : JSON.stringify(value, null, 2);
+  }
+
   function stringArray(report: Record<string, unknown> | undefined, key: string): readonly string[] {
     const value = report?.[key];
     return Array.isArray(value)
@@ -162,6 +211,9 @@
     selectedRunId = runId;
     loadingDetail = true;
     error = "";
+    activeTab = "report";
+    selectedFile = "";
+    fileContent = "";
 
     try {
       detail = await fetchRunDetail(runId);
@@ -173,10 +225,29 @@
     }
   }
 
+  async function loadFile(path: string): Promise<void> {
+    if (detail === null) {
+      return;
+    }
+
+    selectedFile = path;
+    fileContent = "Loading file...";
+    error = "";
+
+    try {
+      const file = await fetchRunFile(detail.summary.runId, path);
+      fileContent = file.content;
+    } catch (caughtError: unknown) {
+      fileContent = "";
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+    }
+  }
+
   onMount(() => {
     void (async () => {
       try {
         runs = await fetchRuns();
+        providerHealth = await fetchProviderHealth();
         if (runs[0] !== undefined) {
           await selectRun(runs[0].runId);
         }
@@ -195,6 +266,7 @@
   const reportSummary = $derived(readString(report ?? {}, "summary") ?? "No summary is available.");
   const scenarioItems = $derived(scenarios(report));
   const forecastItems = $derived(predictions(report));
+  const sourceItems = $derived(sources(report));
   const gaps = $derived(stringArray(report, "dataGaps"));
 </script>
 
@@ -265,91 +337,158 @@
         </dl>
       </header>
 
-      <article class="report">
-        <section class="panel lead">
-          <h3>Summary</h3>
-          <p>{reportSummary}</p>
-        </section>
+      <nav class="tabs" aria-label="Run artifact views">
+        {#each TABS as tab}
+          <button class:active={activeTab === tab} type="button" onclick={() => (activeTab = tab)}>
+            {tab}
+          </button>
+        {/each}
+      </nav>
 
-        {#each SECTION_KEYS as [key, label]}
-          {@const items = textItems(report, key)}
-          {#if items.length > 0}
+      {#if activeTab === "report"}
+        <article class="report">
+          <section class="panel lead">
+            <h3>Summary</h3>
+            <p>{reportSummary}</p>
+          </section>
+
+          {#each SECTION_KEYS as [key, label]}
+            {@const items = textItems(report, key)}
+            {#if items.length > 0}
+              <section class="panel">
+                <h3>{label}</h3>
+                <ul>
+                  {#each items as item}
+                    <li>
+                      <span>{item.text}</span>
+                      {#if item.sourceIds.length > 0}
+                        <small>{item.sourceIds.join(", ")}</small>
+                      {/if}
+                    </li>
+                  {/each}
+                </ul>
+              </section>
+            {/if}
+          {/each}
+
+          {#if scenarioItems.length > 0}
             <section class="panel">
-              <h3>{label}</h3>
-              <ul>
-                {#each items as item}
-                  <li>
-                    <span>{item.text}</span>
-                    {#if item.sourceIds.length > 0}
-                      <small>{item.sourceIds.join(", ")}</small>
+              <h3>Scenarios</h3>
+              <div class="stack">
+                {#each scenarioItems as scenario}
+                  <div>
+                    <strong>{scenario.name}</strong>
+                    <p>{scenario.description}</p>
+                    {#if scenario.sourceIds.length > 0}
+                      <small>{scenario.sourceIds.join(", ")}</small>
                     {/if}
-                  </li>
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+
+          {#if forecastItems.length > 0}
+            <section class="panel">
+              <h3>Observable forecasts</h3>
+              <div class="stack">
+                {#each forecastItems as prediction}
+                  <div>
+                    <strong>{prediction.claim}</strong>
+                    <p>
+                      {prediction.kind ?? "forecast"}
+                      {#if prediction.probability !== undefined}
+                        / {Math.round(prediction.probability * 100)}%
+                      {/if}
+                      {#if prediction.horizonTradingDays !== undefined}
+                        / {prediction.horizonTradingDays} trading days
+                      {/if}
+                    </p>
+                    {#if prediction.sourceIds.length > 0}
+                      <small>{prediction.sourceIds.join(", ")}</small>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+
+          {#if gaps.length > 0}
+            <section class="panel">
+              <h3>Data gaps</h3>
+              <ul>
+                {#each gaps as gap}
+                  <li>{gap}</li>
                 {/each}
               </ul>
             </section>
           {/if}
-        {/each}
 
-        {#if scenarioItems.length > 0}
-          <section class="panel">
-            <h3>Scenarios</h3>
-            <div class="stack">
-              {#each scenarioItems as scenario}
-                <div>
-                  <strong>{scenario.name}</strong>
-                  <p>{scenario.description}</p>
-                  {#if scenario.sourceIds.length > 0}
-                    <small>{scenario.sourceIds.join(", ")}</small>
-                  {/if}
-                </div>
+          {#if detail.markdown !== undefined}
+            <section class="panel raw">
+              <h3>Markdown fallback</h3>
+              <pre>{detail.markdown}</pre>
+            </section>
+          {/if}
+        </article>
+      {:else if activeTab === "sources"}
+        <section class="panel wide">
+          <h3>Sources</h3>
+          <div class="table">
+            {#each sourceItems as source}
+              <div class="row">
+                <strong>{source.id}</strong>
+                <span>{source.title}</span>
+                <small>{source.kind ?? "source"} {source.provider ?? ""}</small>
+                {#if source.url !== undefined}
+                  <a href={source.url} target="_blank" rel="noreferrer">Open</a>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </section>
+      {:else if activeTab === "analytics"}
+        <section class="panel wide raw">
+          <h3>Analytics</h3>
+          <pre>{jsonBlock(detail.analytics)}</pre>
+        </section>
+      {:else if activeTab === "trace"}
+        <section class="panel wide raw">
+          <h3>Trace / logs</h3>
+          <pre>{jsonBlock(detail.trace)}</pre>
+        </section>
+      {:else if activeTab === "files"}
+        <section class="panel wide">
+          <h3>Files</h3>
+          <div class="file-grid">
+            <div class="file-list">
+              {#each detail.summary.availableFiles as file}
+                <button
+                  class:active={selectedFile === file}
+                  type="button"
+                  onclick={() => void loadFile(file)}
+                >
+                  {file}
+                </button>
               {/each}
             </div>
-          </section>
-        {/if}
-
-        {#if forecastItems.length > 0}
-          <section class="panel">
-            <h3>Observable forecasts</h3>
-            <div class="stack">
-              {#each forecastItems as prediction}
-                <div>
-                  <strong>{prediction.claim}</strong>
-                  <p>
-                    {prediction.kind ?? "forecast"}
-                    {#if prediction.probability !== undefined}
-                      / {Math.round(prediction.probability * 100)}%
-                    {/if}
-                    {#if prediction.horizonTradingDays !== undefined}
-                      / {prediction.horizonTradingDays} trading days
-                    {/if}
-                  </p>
-                  {#if prediction.sourceIds.length > 0}
-                    <small>{prediction.sourceIds.join(", ")}</small>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </section>
-        {/if}
-
-        {#if gaps.length > 0}
-          <section class="panel">
-            <h3>Data gaps</h3>
-            <ul>
-              {#each gaps as gap}
-                <li>{gap}</li>
-              {/each}
-            </ul>
-          </section>
-        {/if}
-
-        {#if detail.markdown !== undefined}
-          <section class="panel raw">
-            <h3>Markdown fallback</h3>
-            <pre>{detail.markdown}</pre>
-          </section>
-        {/if}
-      </article>
+            <pre>{fileContent === "" ? "Select a file." : fileContent}</pre>
+          </div>
+        </section>
+      {:else if activeTab === "score"}
+        <section class="panel wide raw">
+          <h3>Score</h3>
+          <pre>{jsonBlock(detail.score)}</pre>
+        </section>
+      {:else if activeTab === "health"}
+        <section class="panel wide raw">
+          <h3>Provider Health</h3>
+          <pre>{jsonBlock(providerHealth.summary)}</pre>
+          {#if providerHealth.markdown !== undefined}
+            <pre>{providerHealth.markdown}</pre>
+          {/if}
+        </section>
+      {/if}
     {/if}
   </section>
 </main>
@@ -549,6 +688,35 @@
     margin-top: 20px;
   }
 
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .tabs button,
+  .file-list button {
+    border: 1px solid rgba(29, 37, 34, 0.16);
+    border-radius: 4px;
+    background: #fffdf8;
+    color: #344640;
+    padding: 8px 10px;
+    cursor: pointer;
+    text-transform: capitalize;
+  }
+
+  .tabs button:hover,
+  .tabs button:focus-visible,
+  .tabs button.active,
+  .file-list button:hover,
+  .file-list button:focus-visible,
+  .file-list button.active {
+    border-color: #b45f3a;
+    color: #111715;
+    outline: none;
+  }
+
   .panel {
     border: 1px solid rgba(29, 37, 34, 0.15);
     border-radius: 6px;
@@ -557,7 +725,8 @@
   }
 
   .lead,
-  .raw {
+  .raw,
+  .wide {
     grid-column: 1 / -1;
   }
 
@@ -590,6 +759,43 @@
 
   .stack p {
     margin-top: 4px;
+  }
+
+  .table {
+    display: grid;
+    gap: 8px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 2fr) minmax(120px, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    border-bottom: 1px solid rgba(29, 37, 34, 0.1);
+    padding: 10px 0;
+  }
+
+  a {
+    color: #8f4b2d;
+    font-weight: 700;
+  }
+
+  .file-grid {
+    display: grid;
+    grid-template-columns: minmax(200px, 280px) 1fr;
+    gap: 14px;
+  }
+
+  .file-list {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+  }
+
+  .file-list button {
+    overflow-wrap: anywhere;
+    text-align: left;
+    text-transform: none;
   }
 
   pre {
@@ -634,6 +840,11 @@
 
     dl,
     .report {
+      grid-template-columns: 1fr;
+    }
+
+    .row,
+    .file-grid {
       grid-template-columns: 1fr;
     }
   }

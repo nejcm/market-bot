@@ -83,4 +83,57 @@ describe("research console API", () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "Run not found" });
   });
+
+  test("serves provider health", async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const healthDir = join(rootDir, "provider-health");
+    mkdirSync(dataDir);
+    mkdirSync(healthDir);
+    writeJson(join(healthDir, "summary.json"), { verdict: "warn" });
+    writeFileSync(join(healthDir, "summary.md"), "# Health\n", "utf8");
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/provider-health"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      summary: { verdict: "warn" },
+      markdown: "# Health\n",
+    });
+  });
+
+  test("serves run files by safe relative path", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-3");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    writeFileSync(join(runDir, "normalized", "source-gaps.json"), "[]\n", "utf8");
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/runs/run-3/files?path=normalized%2Fsource-gaps.json"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      path: "normalized/source-gaps.json",
+      content: "[]\n",
+    });
+  });
+
+  test("rejects unsafe run file paths", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-4");
+    mkdirSync(runDir);
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/runs/run-4/files?path=..%2Fsecret.txt"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "File not found" });
+  });
 });

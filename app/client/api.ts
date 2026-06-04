@@ -1,4 +1,4 @@
-import type { RunDetail, RunSummary } from "../types";
+import type { ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "../types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -19,6 +19,14 @@ function isRunSummary(value: unknown): value is RunSummary {
 
 function isRunDetail(value: unknown): value is RunDetail {
   return isRecord(value) && isRunSummary(value.summary);
+}
+
+function isRunFile(value: unknown): value is RunFile {
+  return isRecord(value) && typeof value.path === "string" && typeof value.content === "string";
+}
+
+function isProviderHealthDetail(value: unknown): value is ProviderHealthDetail {
+  return isRecord(value);
 }
 
 async function fetchJson(path: string): Promise<unknown> {
@@ -42,6 +50,26 @@ export async function fetchRunDetail(runId: string): Promise<RunDetail> {
   const payload = await fetchJson(`/api/runs/${encodeURIComponent(runId)}`);
   if (!isRunDetail(payload)) {
     throw new Error("Run detail response is invalid");
+  }
+
+  return payload;
+}
+
+export async function fetchRunFile(runId: string, path: string): Promise<RunFile> {
+  const payload = await fetchJson(
+    `/api/runs/${encodeURIComponent(runId)}/files?path=${encodeURIComponent(path)}`,
+  );
+  if (!isRunFile(payload)) {
+    throw new Error("Run file response is invalid");
+  }
+
+  return payload;
+}
+
+export async function fetchProviderHealth(): Promise<ProviderHealthDetail> {
+  const payload = await fetchJson("/api/provider-health");
+  if (!isProviderHealthDetail(payload)) {
+    throw new Error("Provider health response is invalid");
   }
 
   return payload;

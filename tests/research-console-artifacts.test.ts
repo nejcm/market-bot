@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listRunSummaries, readRunDetail } from "../app/artifacts";
+import { listRunSummaries, readProviderHealth, readRunDetail, readRunFile } from "../app/artifacts";
 import { researchReport } from "./support/fixtures";
 
 function writeJson(path: string, value: unknown): void {
@@ -87,18 +87,55 @@ describe("research console artifacts", () => {
     mkdirSync(runDir, { recursive: true });
     writeJson(join(runDir, "report.json"), researchReport({ runId: "run-c", summary: "Summary" }));
     writeFileSync(join(runDir, "report.md"), "# Markdown\n", "utf8");
+    writeJson(join(runDir, "analytics.json"), { version: 1 });
+    writeJson(join(runDir, "trace.json"), { stages: ["source-collection"] });
+    writeJson(join(runDir, "score.json"), { scores: [] });
 
     const detail = await readRunDetail(dataDir, "run-c");
 
     expect(detail?.summary.runId).toBe("run-c");
     expect(detail?.report?.summary).toBe("Summary");
     expect(detail?.markdown).toBe("# Markdown\n");
+    expect(detail?.analytics).toEqual({ version: 1 });
+    expect(detail?.trace).toEqual({ stages: ["source-collection"] });
+    expect(detail?.score).toEqual({ scores: [] });
   });
 
-  test("rejects unsafe run ids", async () => {
+  test("reads run files inside the run directory", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-d");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    writeFileSync(join(runDir, "normalized", "source-gaps.json"), "[]\n", "utf8");
+
+    await expect(readRunFile(dataDir, "run-d", "normalized/source-gaps.json")).resolves.toEqual({
+      path: "normalized/source-gaps.json",
+      content: "[]\n",
+    });
+  });
+
+  test("rejects unsafe run ids and file paths", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-e");
+    mkdirSync(runDir, { recursive: true });
 
     await expect(readRunDetail(dataDir, "../secret")).resolves.toBeUndefined();
     await expect(readRunDetail(dataDir, ".")).resolves.toBeUndefined();
+    await expect(readRunFile(dataDir, "run-e", "../secret.txt")).resolves.toBeUndefined();
+    await expect(readRunFile(dataDir, "run-e", "")).resolves.toBeUndefined();
+  });
+
+  test("reads provider health sibling artifacts", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const healthDir = join(rootDir, "provider-health");
+    mkdirSync(dataDir);
+    mkdirSync(healthDir);
+    writeJson(join(healthDir, "summary.json"), { verdict: "pass" });
+    writeFileSync(join(healthDir, "summary.md"), "# Provider Health\n", "utf8");
+
+    await expect(readProviderHealth(dataDir)).resolves.toEqual({
+      summary: { verdict: "pass" },
+      markdown: "# Provider Health\n",
+    });
   });
 });

@@ -1,11 +1,16 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
-import type { RunDetail, RunSummary } from "./types";
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import type { ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "./types";
 
 const REPORT_FILE = "report.json";
 const MARKDOWN_FILE = "report.md";
+const ANALYTICS_FILE = "analytics.json";
+const TRACE_FILE = "trace.json";
 const SCORE_FILE = "score.json";
+const PROVIDER_HEALTH_DIR = "provider-health";
+const SUMMARY_FILE = "summary.json";
+const SUMMARY_MARKDOWN_FILE = "summary.md";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,6 +48,10 @@ function isWithinDirectory(root: string, path: string): boolean {
   return childPath === "" || (!childPath.startsWith("..") && !isAbsolute(childPath));
 }
 
+function dataRootFromRunsDir(dataDir: string): string {
+  return basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
+}
+
 function safeRunDir(dataDir: string, runId: string): string | undefined {
   if (
     runId === "" ||
@@ -57,6 +66,27 @@ function safeRunDir(dataDir: string, runId: string): string | undefined {
   const root = resolve(dataDir);
   const candidate = resolve(root, runId);
   return isWithinDirectory(root, candidate) ? candidate : undefined;
+}
+
+function safeRunFilePath(
+  dataDir: string,
+  runId: string,
+  requestedPath: string,
+): { readonly filePath: string; readonly relativePath: string } | undefined {
+  const runDir = safeRunDir(dataDir, runId);
+  if (runDir === undefined || !existsSync(runDir) || requestedPath.trim() === "") {
+    return undefined;
+  }
+
+  const normalizedPath = normalize(requestedPath).replace(/^([/\\])+/u, "");
+  if (normalizedPath === "." || normalizedPath.split(/[\\/]/u).includes("..")) {
+    return undefined;
+  }
+
+  const filePath = resolve(runDir, normalizedPath);
+  return isWithinDirectory(runDir, filePath)
+    ? { filePath, relativePath: normalizedPath.replaceAll("\\", "/") }
+    : undefined;
 }
 
 async function listArtifactFiles(runDir: string): Promise<readonly string[]> {
@@ -159,15 +189,48 @@ export async function readRunDetail(
     return undefined;
   }
 
-  const [report, markdown, availableFiles] = await Promise.all([
+  const [report, markdown, analytics, trace, score, availableFiles] = await Promise.all([
     readJsonRecord(join(runDir, REPORT_FILE)),
     readOptionalText(join(runDir, MARKDOWN_FILE)),
+    readJsonRecord(join(runDir, ANALYTICS_FILE)),
+    readJsonRecord(join(runDir, TRACE_FILE)),
+    readJsonRecord(join(runDir, SCORE_FILE)),
     listArtifactFiles(runDir),
   ]);
 
   return {
     summary: runSummary(runId, report, availableFiles),
     ...(report !== undefined ? { report } : {}),
+    ...(markdown !== undefined ? { markdown } : {}),
+    ...(analytics !== undefined ? { analytics } : {}),
+    ...(trace !== undefined ? { trace } : {}),
+    ...(score !== undefined ? { score } : {}),
+  };
+}
+
+export async function readRunFile(
+  dataDir: string,
+  runId: string,
+  requestedPath: string,
+): Promise<RunFile | undefined> {
+  const safePath = safeRunFilePath(dataDir, runId, requestedPath);
+  if (safePath === undefined || !existsSync(safePath.filePath)) {
+    return undefined;
+  }
+
+  const content = await readOptionalText(safePath.filePath);
+  return content === undefined ? undefined : { path: safePath.relativePath, content };
+}
+
+export async function readProviderHealth(dataDir: string): Promise<ProviderHealthDetail> {
+  const healthDir = join(dataRootFromRunsDir(dataDir), PROVIDER_HEALTH_DIR);
+  const [summary, markdown] = await Promise.all([
+    readJsonRecord(join(healthDir, SUMMARY_FILE)),
+    readOptionalText(join(healthDir, SUMMARY_MARKDOWN_FILE)),
+  ]);
+
+  return {
+    ...(summary !== undefined ? { summary } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
   };
 }

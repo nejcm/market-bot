@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { resolveResearchConsoleConfig } from "../src/config";
-import { listRunSummaries, readRunDetail } from "./artifacts";
+import { listRunSummaries, readProviderHealth, readRunDetail, readRunFile } from "./artifacts";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
 
@@ -72,6 +72,22 @@ export function researchConsoleStaticPath(
 async function handleApiRequest(url: URL, dataDir: string): Promise<Response | undefined> {
   if (url.pathname === "/api/runs") {
     return jsonResponse({ runs: await listRunSummaries(dataDir) });
+  }
+
+  if (url.pathname === "/api/provider-health") {
+    return jsonResponse(await readProviderHealth(dataDir));
+  }
+
+  const fileMatch = /^\/api\/runs\/([^/]+)\/files$/u.exec(url.pathname);
+  if (fileMatch !== null) {
+    const runId = decodePathname(fileMatch[1] ?? "");
+    const requestedPath = url.searchParams.get("path");
+    if (runId === undefined || requestedPath === null) {
+      return jsonResponse({ error: "Invalid file request" }, 400);
+    }
+
+    const file = await readRunFile(dataDir, runId, requestedPath);
+    return file === undefined ? jsonResponse({ error: "File not found" }, 404) : jsonResponse(file);
   }
 
   const runMatch = /^\/api\/runs\/([^/]+)$/u.exec(url.pathname);

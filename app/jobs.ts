@@ -10,9 +10,18 @@ export interface JobRunResult {
 
 export type JobRunner = (argv: readonly string[]) => Promise<JobRunResult>;
 
+export interface ResearchConsoleJobQueueOptions {
+  readonly maxRetainedJobs?: number;
+  readonly maxOutputChars?: number;
+}
+
 type MutableConsoleJob = {
   -readonly [Key in keyof ConsoleJob]: ConsoleJob[Key];
 };
+
+const DEFAULT_MAX_RETAINED_JOBS = 50;
+const DEFAULT_MAX_JOB_OUTPUT_CHARS = 20_000;
+const TRUNCATION_NOTICE = "\n[truncated]";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -102,6 +111,18 @@ function snapshot(job: MutableConsoleJob): ConsoleJob {
   return { ...job };
 }
 
+function positiveLimit(value: number | undefined, fallback: number, name: string): number {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+
+  return value;
+}
+
 function outputRunPath(stdout: string): string | undefined {
   const lastLine = stdout
     .split(/\r?\n/u)
@@ -119,16 +140,33 @@ function outputRunPath(stdout: string): string | undefined {
 
 export class ResearchConsoleJobQueue {
   readonly #jobs: MutableConsoleJob[] = [];
+  readonly #maxOutputChars: number;
+  readonly #maxRetainedJobs: number;
   readonly #runner: JobRunner;
   #draining = false;
 
-  constructor(runner: JobRunner = runCliJob) {
+  constructor(runner: JobRunner = runCliJob, options: ResearchConsoleJobQueueOptions = {}) {
     this.#runner = runner;
+    this.#maxRetainedJobs = positiveLimit(
+      options.maxRetainedJobs,
+      DEFAULT_MAX_RETAINED_JOBS,
+      "maxRetainedJobs",
+    );
+    this.#maxOutputChars = positiveLimit(
+      options.maxOutputChars,
+      DEFAULT_MAX_JOB_OUTPUT_CHARS,
+      "maxOutputChars",
+    );
   }
 
   enqueue(request: unknown): ConsoleJob {
     const argv = jobRequestArgv(request);
     const command = parseArgs(argv);
+    this.#trimRetainedJobs(this.#maxRetainedJobs - 1);
+    if (this.#jobs.length >= this.#maxRetainedJobs) {
+      throw new Error("Job queue limit reached");
+    }
+
     const job: MutableConsoleJob = {
       id: crypto.randomUUID(),
       status: "queued",
@@ -151,6 +189,25 @@ export class ResearchConsoleJobQueue {
   get(id: string): ConsoleJob | undefined {
     const job = this.#jobs.find((candidate) => candidate.id === id);
     return job === undefined ? undefined : snapshot(job);
+  }
+
+  #trimOutput(value: string): string {
+    return value.length <= this.#maxOutputChars
+      ? value
+      : `${value.slice(0, this.#maxOutputChars)}${TRUNCATION_NOTICE}`;
+  }
+
+  #trimRetainedJobs(maxJobs = this.#maxRetainedJobs): void {
+    while (this.#jobs.length > maxJobs) {
+      const completedIndex = this.#jobs.findIndex(
+        (job) => job.status === "succeeded" || job.status === "failed",
+      );
+      if (completedIndex === -1) {
+        return;
+      }
+
+      this.#jobs.splice(completedIndex, 1);
+    }
   }
 
   async #drain(): Promise<void> {
@@ -182,8 +239,8 @@ export class ResearchConsoleJobQueue {
 
     try {
       const result = await this.#runner(job.argv);
-      job.stdout = result.stdout;
-      job.stderr = result.stderr;
+      job.stdout = this.#trimOutput(result.stdout);
+      job.stderr = this.#trimOutput(result.stderr);
       job.exitCode = result.exitCode;
       const path = outputRunPath(result.stdout);
       if (path !== undefined) {
@@ -195,6 +252,7 @@ export class ResearchConsoleJobQueue {
       job.stderr = error instanceof Error ? error.message : String(error);
     } finally {
       job.completedAt = nowIso();
+      this.#trimRetainedJobs();
     }
   }
 }
@@ -218,6 +276,9 @@ export async function runCliJob(argv: readonly string[]): Promise<JobRunResult> 
   return { stdout, stderr, exitCode };
 }
 
-export function createJobQueue(runner?: JobRunner): ResearchConsoleJobQueue {
-  return new ResearchConsoleJobQueue(runner);
+export function createJobQueue(
+  runner?: JobRunner,
+  options?: ResearchConsoleJobQueueOptions,
+): ResearchConsoleJobQueue {
+  return new ResearchConsoleJobQueue(runner, options);
 }

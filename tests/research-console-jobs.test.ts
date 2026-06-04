@@ -74,6 +74,25 @@ describe("research console jobs", () => {
     expect(queue.get(secondJob.id)?.stderr).toBe("failed\n");
   });
 
+  test("caps retained jobs and captured output", async () => {
+    const queue = createJobQueue(
+      async () => ({ exitCode: 0, stdout: "1234567890", stderr: "abcdefghij" }),
+      { maxOutputChars: 4, maxRetainedJobs: 2 },
+    );
+
+    const firstJob = queue.enqueue({ jobType: "score" });
+    await waitFor(() => queue.get(firstJob.id)?.status === "succeeded");
+    const secondJob = queue.enqueue({ jobType: "calibration" });
+    await waitFor(() => queue.get(secondJob.id)?.status === "succeeded");
+    const thirdJob = queue.enqueue({ jobType: "provider-health" });
+    await waitFor(() => queue.get(thirdJob.id)?.status === "succeeded");
+
+    expect(queue.get(firstJob.id)).toBeUndefined();
+    expect(queue.list().map((job) => job.id)).toEqual([thirdJob.id, secondJob.id]);
+    expect(queue.get(thirdJob.id)?.stdout).toBe("1234\n[truncated]");
+    expect(queue.get(thirdJob.id)?.stderr).toBe("abcd\n[truncated]");
+  });
+
   test("serves job API with injected queue", async () => {
     const queue = createJobQueue(async () => ({
       exitCode: 0,
@@ -117,6 +136,25 @@ describe("research console jobs", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "Unsupported job type" });
+    expect(queue.list()).toEqual([]);
+  });
+
+  test("rejects cross-origin job POSTs", async () => {
+    const queue = createJobQueue(async () => ({ exitCode: 0, stdout: "", stderr: "" }));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/jobs", {
+        method: "POST",
+        headers: { origin: "https://example.test" },
+        body: JSON.stringify({ jobType: "provider-health" }),
+      }),
+      { jobQueue: queue },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "Job request origin is not allowed",
+    });
     expect(queue.list()).toEqual([]);
   });
 });

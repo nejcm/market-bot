@@ -124,6 +124,15 @@ describe("research console artifacts", () => {
     await expect(readRunFile(dataDir, "run-e", "")).resolves.toBeUndefined();
   });
 
+  test("rejects oversized run files", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-f");
+    mkdirSync(runDir);
+    writeFileSync(join(runDir, "large.txt"), "x".repeat(5_000_001), "utf8");
+
+    await expect(readRunFile(dataDir, "run-f", "large.txt")).resolves.toBeUndefined();
+  });
+
   test("reads provider health sibling artifacts", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
     const dataDir = join(rootDir, "runs");

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import type { ProviderHealthDetail, RunDetail, RunFile, RunSummary } from "./types";
 
@@ -11,6 +11,7 @@ const SCORE_FILE = "score.json";
 const PROVIDER_HEALTH_DIR = "provider-health";
 const SUMMARY_FILE = "summary.json";
 const SUMMARY_MARKDOWN_FILE = "summary.md";
+const MAX_RUN_FILE_BYTES = 5_000_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -38,6 +39,17 @@ async function readJsonRecord(path: string): Promise<Record<string, unknown> | u
 async function readOptionalText(path: string): Promise<string | undefined> {
   try {
     return await readFile(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+async function readLimitedText(path: string, maxBytes: number): Promise<string | undefined> {
+  try {
+    const metadata = await stat(path);
+    return metadata.isFile() && metadata.size <= maxBytes
+      ? await readFile(path, "utf8")
+      : undefined;
   } catch {
     return undefined;
   }
@@ -218,7 +230,7 @@ export async function readRunFile(
     return undefined;
   }
 
-  const content = await readOptionalText(safePath.filePath);
+  const content = await readLimitedText(safePath.filePath, MAX_RUN_FILE_BYTES);
   return content === undefined ? undefined : { path: safePath.relativePath, content };
 }
 

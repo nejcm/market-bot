@@ -132,6 +132,10 @@ async function handleJobRequest(
   }
 
   if (url.pathname === "/api/jobs" && request.method === "POST") {
+    if (!isAllowedJobPost(request, url)) {
+      return jsonResponse({ error: "Job request origin is not allowed" }, 403);
+    }
+
     try {
       const job = queue.enqueue(await readRequestJson(request));
       return jsonResponse(job, 202);
@@ -147,6 +151,24 @@ async function handleJobRequest(
   }
 
   return undefined;
+}
+
+function isAllowedJobPost(request: Request, url: URL): boolean {
+  if (request.headers.get("sec-fetch-site") === "cross-site") {
+    return false;
+  }
+
+  const origin = request.headers.get("origin");
+  if (origin === null) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    return originUrl.protocol === url.protocol && originUrl.host === url.host;
+  } catch {
+    return false;
+  }
 }
 
 export async function handleResearchConsoleRequest(

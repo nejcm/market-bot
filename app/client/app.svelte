@@ -120,7 +120,9 @@
 
   onMount(() => {
     const interval = setInterval(() => {
-      void refreshJobs().catch(() => {});
+      if (activeTab === "jobs") {
+        void refreshJobs().catch(() => {});
+      }
     }, 2000);
 
     void (async () => {

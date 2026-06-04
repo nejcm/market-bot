@@ -37,6 +37,20 @@ function readString(record: Record<string, unknown>, key: string): string | unde
   return typeof value === "string" ? value : undefined;
 }
 
+function readHttpUrl(record: Record<string, unknown>, key: string): string | undefined {
+  const value = readString(record, key);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readNumber(record: Record<string, unknown>, key: string): number | undefined {
   const value = record[key];
   return typeof value === "number" ? value : undefined;
@@ -127,7 +141,7 @@ export function sources(report: Record<string, unknown> | undefined): readonly S
       const title = readString(item, "title");
       const kind = readString(item, "kind");
       const provider = readString(item, "provider");
-      const url = readString(item, "url");
+      const url = readHttpUrl(item, "url");
       return id === undefined || title === undefined
         ? []
         : [

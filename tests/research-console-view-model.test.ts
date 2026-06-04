@@ -24,6 +24,7 @@ describe("research console view model", () => {
   });
 
   test("narrows report sections without throwing on malformed entries", () => {
+    const blockedScheme = "javascript";
     const report = {
       keyFindings: [{ text: "Finding", sourceIds: ["s1", 7] }, { text: 4 }],
       predictions: [
@@ -36,7 +37,17 @@ describe("research console view model", () => {
           sourceIds: ["s1"],
         },
       ],
-      sources: [{ id: "s1", title: "Source", kind: "news", provider: "yahoo" }, { id: "bad" }],
+      sources: [
+        {
+          id: "s1",
+          title: "Source",
+          kind: "news",
+          provider: "yahoo",
+          url: "https://example.test/source",
+        },
+        { id: "s2", title: "Blocked", url: `${blockedScheme}:alert(1)` },
+        { id: "bad" },
+      ],
     };
 
     expect(textItems(report, "keyFindings")).toEqual([{ text: "Finding", sourceIds: ["s1"] }]);
@@ -51,7 +62,14 @@ describe("research console view model", () => {
       },
     ]);
     expect(sources(report)).toEqual([
-      { id: "s1", title: "Source", kind: "news", provider: "yahoo" },
+      {
+        id: "s1",
+        title: "Source",
+        kind: "news",
+        provider: "yahoo",
+        url: "https://example.test/source",
+      },
+      { id: "s2", title: "Blocked" },
     ]);
   });
 });

@@ -117,8 +117,21 @@ export function buildSourceList(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): readonly Source[] {
-  const marketSources = collectedSources.marketSnapshots.map(
-    (snapshot): Source => ({
+  const benchmarkSourcesById = new Map<string, Source>();
+  const marketSources = collectedSources.marketSnapshots.map((snapshot): Source => {
+    if (snapshot.benchmark !== undefined) {
+      benchmarkSourcesById.set(snapshot.benchmark.sourceId, {
+        id: snapshot.benchmark.sourceId,
+        title: `${snapshot.benchmark.symbol} benchmark snapshot`,
+        fetchedAt: snapshot.benchmark.observedAt,
+        kind: "market-data",
+        assetClass: snapshot.assetClass,
+        symbol: snapshot.benchmark.symbol,
+        provider: "yahoo",
+      });
+    }
+
+    return {
       id: snapshot.sourceId,
       title: `${snapshot.symbol} market snapshot`,
       fetchedAt: snapshot.observedAt,
@@ -126,8 +139,8 @@ export function buildSourceList(
       assetClass: snapshot.assetClass,
       symbol: snapshot.symbol,
       ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
-    }),
-  );
+    };
+  });
   const supplementalMarketSources = collectedSources.supplementalMarketSnapshots.map(
     (snapshot): Source => ({
       id: snapshot.sourceId,
@@ -142,9 +155,14 @@ export function buildSourceList(
       ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
     }),
   );
+  const marketSourceIds = new Set(marketSources.map((source) => source.id));
+  const benchmarkSources = [...benchmarkSourcesById.values()].filter(
+    (source) => !marketSourceIds.has(source.id),
+  );
 
   return [
     ...marketSources,
+    ...benchmarkSources,
     ...supplementalMarketSources,
     ...collectedSources.newsSources,
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),

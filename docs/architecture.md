@@ -36,6 +36,7 @@ External fetching only. Retry, backoff, per-host rate limiting, and circuit brea
 
 Notable inputs:
 - Equity movers: Yahoo `day_gainers`
+- Equity mover benchmark context: Yahoo sector ETF quotes, falling back to `SPY`, attached as citeable context without changing mover ranking
 - Crypto movers: CoinGecko 24h change
 - Supplemental equity market evidence: Massive stock snapshots for already-selected Yahoo symbols when `MARKET_BOT_MASSIVE_API_KEY` is set
 - Market Context: FRED macro series for daily and weekly market updates

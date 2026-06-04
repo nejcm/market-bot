@@ -193,6 +193,7 @@ The ranker:
 
 - drops snapshots with invalid price, invalid percent change, or volume below `10_000`;
 - computes a baseline score as `abs(changePercent24h) * log10(volume)`;
+- adds Benchmark-Relative Mover Context for daily and weekly equity movers when Yahoo benchmark quotes are available. The context compares each Yahoo-selected mover against a sector ETF, or `SPY` when sector metadata is unavailable, and is citeable evidence rather than a ranking input;
 - adds neutral-if-missing Mover Feature boosts for unusual volume and opening gap size when the source payload includes usable fields;
 - caps unusual-volume boost at `0.25` and gap boost at `0.20`, then scores as `baseScore * (1 + unusualVolumeBoost + gapBoost)`;
 - sorts by score descending, then symbol ascending;

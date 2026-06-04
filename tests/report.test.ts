@@ -72,6 +72,110 @@ describe("report schema and rendering", () => {
     expect(sources[0]?.identity).toEqual(snapshot.identity);
   });
 
+  test("adds de-duped benchmark market sources from market snapshots", () => {
+    const snapshots: readonly MarketSnapshot[] = [
+      {
+        sourceId: "market-yahoo-equity-aapl",
+        assetClass: "equity",
+        symbol: "AAPL",
+        price: 190,
+        changePercent24h: 2,
+        volume: 80_000_000,
+        observedAt: "2026-05-19T00:00:00.000Z",
+        benchmark: {
+          sourceId: "market-yahoo-equity-xlk",
+          symbol: "XLK",
+          basis: "sector-etf",
+          sector: "Technology",
+          changePercent24h: -1,
+          observedAt: "2026-05-19T00:00:00.000Z",
+        },
+      },
+      {
+        sourceId: "market-yahoo-equity-msft",
+        assetClass: "equity",
+        symbol: "MSFT",
+        price: 420,
+        changePercent24h: 3,
+        volume: 50_000_000,
+        observedAt: "2026-05-19T00:00:00.000Z",
+        benchmark: {
+          sourceId: "market-yahoo-equity-xlk",
+          symbol: "XLK",
+          basis: "sector-etf",
+          sector: "Technology",
+          changePercent24h: -1,
+          observedAt: "2026-05-19T00:00:00.000Z",
+        },
+      },
+    ];
+
+    const sources = buildSourceList(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: snapshots,
+        newsSources: [],
+      }),
+    );
+
+    expect(sources.filter((source) => source.id === "market-yahoo-equity-xlk")).toEqual([
+      expect.objectContaining({
+        title: "XLK benchmark snapshot",
+        kind: "market-data",
+        assetClass: "equity",
+        symbol: "XLK",
+        provider: "yahoo",
+      }),
+    ]);
+  });
+
+  test("does not duplicate a benchmark source already present as a market snapshot", () => {
+    const snapshots: readonly MarketSnapshot[] = [
+      {
+        sourceId: "market-yahoo-equity-aapl",
+        assetClass: "equity",
+        symbol: "AAPL",
+        price: 190,
+        changePercent24h: 2,
+        volume: 80_000_000,
+        observedAt: "2026-05-19T00:00:00.000Z",
+        benchmark: {
+          sourceId: "market-yahoo-equity-spy",
+          symbol: "SPY",
+          basis: "broad-index",
+          changePercent24h: 0.4,
+          observedAt: "2026-05-19T00:00:00.000Z",
+        },
+      },
+      {
+        sourceId: "market-yahoo-equity-spy",
+        assetClass: "equity",
+        symbol: "SPY",
+        price: 510,
+        changePercent24h: 0.4,
+        volume: 70_000_000,
+        observedAt: "2026-05-19T00:00:00.000Z",
+      },
+    ];
+
+    const sources = buildSourceList(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: snapshots,
+        newsSources: [],
+      }),
+    );
+
+    expect(sources.filter((source) => source.id === "market-yahoo-equity-spy")).toEqual([
+      expect.objectContaining({
+        title: "SPY market snapshot",
+        symbol: "SPY",
+      }),
+    ]);
+  });
+
   test("rejects missing source references", () => {
     expect(() =>
       validateResearchReport({

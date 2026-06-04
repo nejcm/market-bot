@@ -24,8 +24,9 @@ promotion and expansion work after real-run validation.
 
 ## Research quality of regime / movers
 
-- **Benchmark-relative mover analysis** so a stock is compared against its sector/index
-  instead of only absolute movement.
+- **Benchmark-relative ranking or universe expansion** - daily and weekly equity movers include
+  citeable benchmark-relative context in V1. Future work can decide whether relative movement
+  should affect ranking or whether mover collection should include a broader universe.
 
 ## Cross-run intelligence
 

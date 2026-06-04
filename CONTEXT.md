@@ -44,6 +44,10 @@ A liquid instrument ranked deterministically by price movement magnitude, liquid
 
 A deterministic, explainable input to Mover ranking. It can change rank when present, but missing coverage is neutral and is not investment conviction, expected return, or a trade signal.
 
+## Benchmark-Relative Mover Context
+
+Benchmark evidence that compares a Mover against a sector ETF or broad index without changing rank, implying advice, or expressing investment conviction.
+
 ## Evidence Quality
 
 A label for how complete, recent, corroborated, and traceable the fetched evidence is. It is not investment conviction or expected return.

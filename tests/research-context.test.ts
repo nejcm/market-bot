@@ -8,6 +8,8 @@ import {
   buildStagePrompt,
 } from "../src/research/research-context";
 import { buildSpotlightCandidates } from "../src/research/spotlights";
+import { buildCalibrationSummary, type ResolvedPair } from "../src/scoring/calibration";
+import type { Prediction } from "../src/domain/types";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -43,6 +45,38 @@ const config: AppConfig = {
     maxMarketCap: 10_000_000_000,
   },
 };
+
+function directionPrediction(id: string, probability: number): Prediction {
+  return {
+    id,
+    claim: "SPY closes higher",
+    kind: "direction",
+    subject: "SPY",
+    measurableAs: "close(SPY, +5) > close(SPY, 0)",
+    horizonTradingDays: 5,
+    probability,
+    sourceIds: [],
+  };
+}
+
+function resolvedPair(id: string, probability: number, outcome: "hit" | "miss"): ResolvedPair {
+  return {
+    prediction: directionPrediction(id, probability),
+    score: {
+      predictionId: id,
+      runId: "run-1",
+      resolved: true,
+      outcome,
+      observedAt: "2026-06-01T00:00:00.000Z",
+      attemptCount: 1,
+      evidence: {},
+    },
+    assetClass: "equity",
+    jobType: "daily",
+    marketUpdateCadence: "daily",
+    runId: "run-1",
+  };
+}
 
 describe("buildStagePrompt", () => {
   test("includes mover feature breakdown in evidence payload", () => {
@@ -218,6 +252,64 @@ describe("buildStagePrompt", () => {
       instruction:
         "Return a complete final report with exactly 2 valid predictions. Do not omit the predictions array, and do not return a partial patch.",
     });
+  });
+
+  test("renders prior calibration from real CalibrationSummary JSON without undefined", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const summary = buildCalibrationSummary([
+      resolvedPair("pred-1", 0.65, "hit"),
+      resolvedPair("pred-2", 0.65, "miss"),
+    ]);
+    // StructuredClone strips type identity to mimic a CalibrationSummary loaded from summary.json.
+    const calibrationContext = structuredClone(summary) as never;
+
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: { readonly priorCalibration?: string };
+    };
+    const block = parsed.evidence?.priorCalibration;
+
+    expect(block).toBeDefined();
+    expect(block).not.toContain("undefined");
+    expect(block).not.toContain("NaN");
+    // Renders the real bin label, hit rate, and sample count from CalibrationSummary.
+    expect(block).toContain("0.6-0.7");
+    expect(block).toContain("0.50");
+    expect(block).toContain("n=2");
   });
 
   test("injects domain playbooks as a separate prompt field", () => {

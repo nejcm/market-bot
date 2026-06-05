@@ -7,8 +7,9 @@ import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { type EvidenceRequestToolName, type MarketRegimeSummary } from "../domain/types";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
-import { isRecord } from "../sources/guards";
+import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import type { CalibrationBin, CalibrationMetric, CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
@@ -28,18 +29,9 @@ export interface DepthProfile {
   readonly focus: readonly string[];
 }
 
-interface CalibrationBinSummary {
-  readonly kind: string;
-  readonly pBin: string;
-  readonly hitRate: number;
-  readonly sampleCount: number;
-}
-
-export interface CalibrationContext {
-  readonly brierScore?: number;
-  readonly resolvedCount?: number;
-  readonly bins?: readonly CalibrationBinSummary[];
-}
+// Loaded from data/calibration/summary.json, which is written as a CalibrationSummary.
+// All fields optional because the file is read from disk and may be absent or partial.
+export type CalibrationContext = Partial<CalibrationSummary>;
 
 export interface ResearchContext {
   readonly depthProfile: DepthProfile;
@@ -105,14 +97,90 @@ export async function loadCalibrationContext(
 ): Promise<CalibrationContext | undefined> {
   try {
     const raw = await readFile(join(dataDir, "../calibration/summary.json"), "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) {
-      return undefined;
-    }
-    return parsed as CalibrationContext;
+    return parseCalibrationContext(JSON.parse(raw));
   } catch {
     return undefined;
   }
+}
+
+// Runtime schema validation at the disk boundary: summary.json is untrusted on read.
+// Malformed or schema-drifted fields are dropped rather than cast through with `as`.
+// Mirrors the custom-validation pattern in src/report/schema.ts (no Zod, per ADR 0003).
+export function parseCalibrationContext(value: unknown): CalibrationContext | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const generatedAt = readString(value, "generatedAt");
+  const resolvedCount = readNumber(value, "resolvedCount");
+  const brierScore = readNumber(value, "brierScore");
+  const bins = Array.isArray(value.bins)
+    ? value.bins.flatMap((bin) => {
+        const parsed = parseCalibrationBin(bin);
+        return parsed === undefined ? [] : [parsed];
+      })
+    : undefined;
+  const byKind = parseMetricMap(value.byKind);
+  const byAssetClass = parseMetricMap(value.byAssetClass);
+  const byJobType = parseMetricMap(value.byJobType);
+  const byMarketUpdateCadence = parseMetricMap(value.byMarketUpdateCadence);
+  const byHorizonBucket = parseMetricMap(value.byHorizonBucket);
+  return {
+    ...(generatedAt !== undefined ? { generatedAt } : {}),
+    ...(resolvedCount !== undefined ? { resolvedCount } : {}),
+    ...(brierScore !== undefined ? { brierScore } : {}),
+    ...(bins !== undefined ? { bins } : {}),
+    ...(byKind !== undefined ? { byKind } : {}),
+    ...(byAssetClass !== undefined ? { byAssetClass } : {}),
+    ...(byJobType !== undefined ? { byJobType } : {}),
+    ...(byMarketUpdateCadence !== undefined ? { byMarketUpdateCadence } : {}),
+    ...(byHorizonBucket !== undefined ? { byHorizonBucket } : {}),
+  };
+}
+
+function parseCalibrationBin(value: unknown): CalibrationBin | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const pLow = readNumber(value, "pLow");
+  const pHigh = readNumber(value, "pHigh");
+  const label = readString(value, "label");
+  const hitCount = readNumber(value, "hitCount");
+  const totalCount = readNumber(value, "totalCount");
+  const hitRate = readNumber(value, "hitRate");
+  if (
+    pLow === undefined ||
+    pHigh === undefined ||
+    label === undefined ||
+    hitCount === undefined ||
+    totalCount === undefined ||
+    hitRate === undefined
+  ) {
+    return undefined;
+  }
+  return { pLow, pHigh, label, hitCount, totalCount, hitRate };
+}
+
+function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const brierScore = readNumber(value, "brierScore");
+  const count = readNumber(value, "count");
+  if (brierScore === undefined || count === undefined) {
+    return undefined;
+  }
+  return { brierScore, count };
+}
+
+function parseMetricMap(value: unknown): Record<string, CalibrationMetric> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const entries = Object.entries(value).flatMap(([key, raw]) => {
+    const metric = parseCalibrationMetric(raw);
+    return metric === undefined ? [] : [[key, metric] as const];
+  });
+  return Object.fromEntries(entries);
 }
 
 function buildCalibrationBlock(calibration: CalibrationContext | undefined): string | undefined {
@@ -127,11 +195,12 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
     lines.push(`Resolved predictions: ${calibration.resolvedCount}`);
   }
   if (Array.isArray(calibration.bins) && calibration.bins.length > 0) {
-    lines.push("Bin summary (past hit rates vs stated probability):");
+    lines.push("Bin summary (stated probability band vs actual hit rate):");
     for (const bin of calibration.bins) {
-      if (isRecord(bin)) {
+      const validBin = parseCalibrationBin(bin);
+      if (validBin !== undefined) {
         lines.push(
-          `  ${String(bin.kind)} p${String(bin.pBin)}: stated=${String(bin.pBin)} actual=${Number(bin.hitRate).toFixed(2)} (n=${String(bin.sampleCount)})`,
+          `  ${validBin.label}: actual hit ${validBin.hitRate.toFixed(2)} (n=${String(validBin.totalCount)})`,
         );
       }
     }

@@ -10,272 +10,171 @@ Two layers:
 All items are research-only ([ADR 0001](./adr/0001-research-only-boundary.md)): no trade actions,
 sizing, or execution language.
 
+Each open item carries explicit **Acceptance** gates so it can be picked up and QA'd without
+re-deriving scope.
+
 ---
 
 # Audit findings (prioritized)
 
-## Recommended order
+## Recommended order (open items)
 
-1. ✅ Fix calibration context shape (#1) + validate `summary.json` at the boundary (#2).
-2. ✅ Surface `byKind` and `byHorizonBucket` slices (#3); report Brier **and** Brier skill vs the 0.25 baseline (#4).
-3. ✅ Add probability-setting discipline to `synthesis-discipline.md` (#8).
-4. ✅ Strengthen `critique-discipline.md` around disconfirmation of the final predictions (#9).
-5. ✅ Scoring calendar correctness (holiday handling).
-6. ✅ Mover fan-in (`day_losers` / `most_actives`) — see also Operational → *Expand sources*.
-7. Richer regime signal.
-8. Calibration/reliability dashboard in the console — see also Operational → *health dashboard*.
-9. Wire prior-thesis resolved outcomes into the history prompt as error correction.
+1. **#7 Regime v2** — deterministic trend + term-structure + breadth drivers with citeable source IDs.
+2. **#12 Calibration dashboard** — the single console surface for trust (also absorbs the deferred
+   "provider health dashboard" idea as the first dashboard).
+3. **#13 Run economics** — surface cost/latency as a decision-grade "is `--deep` worth it?" view.
+4. **#11 Prior-thesis error correction** — frame resolved prior outcomes on the current instrument as
+   an explicit "we were wrong because…" block.
+5. **#14 Daily auto-delta** — promote a compact automatic delta into the daily report.
+6. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
+7. **#15 Doc drift fix** — sync mover-source wording across docs and the weekly-gap string.
 
-## 🔴 Critical — the self-calibration loop feeds the model malformed data
+## Completed (changelog)
 
-The headline differentiator ("the bot grades itself and learns") is broken at the
-producer/consumer seam. Confirmed by review.
+Detailed evidence/test notes removed; these shipped and are validated by their tests.
 
-### 1. Calibration bin shape mismatch
+1. ✅ **#1 Calibration bin shape mismatch** — `CalibrationContext` reuses `Partial<CalibrationSummary>`;
+   `priorCalibration` renders real bin label/hitRate/count via shared `parseCalibrationBin`.
+2. ✅ **#2 Calibration boundary validation** — `parseCalibrationContext()` validates every field +
+   domain invariants and drops malformed pieces (no Zod / new dependency).
+3. ✅ **#3 Actionable calibration slices surfaced** — `byKind` / `byHorizonBucket` skill + base-rate
+   directive now render into the prompt.
+4. ✅ **#4 Brier skill vs baseline** — `brierSkillScore` (`1 - brier/0.25`) written to summary and
+   surfaced in markdown + prompt; boundary validates the `[-3, 1]` range.
+5. ✅ **#5 Scoring calendar correctness** — `src/scoring/exchange-calendar.ts` derives NYSE closures
+   deterministically; `resolutionDate()` advances over trading days in UTC, shared with alpha
+   validation. *(Open follow-up below.)*
+6. ✅ **#6 Mover fan-in** — `collectEquity` fans in `day_losers` + `most_actives` alongside
+   `day_gainers`, deduped by symbol (`src/sources/yahoo.ts`).
+7. ✅ **#8 Calibrated-probability discipline in prompts** — `synthesis-discipline.md` teaches
+   base-rate anchoring, widen-on-thin-evidence, Brier cost, and per-slice skill shading.
+8. ✅ **#9 Prediction-specific disconfirmation in critique** — `critique-discipline.md` mandates the
+   strongest observable disconfirming case + probability/evidence mismatch flagging. *(Open follow-up
+   below.)*
 
-- **Status:** ✅ Fixed. `CalibrationContext` now reuses `Partial<CalibrationSummary>`; the
-  `priorCalibration` block renders `label` / `hitRate` / `totalCount` from real summary bins behind
-  the shared `parseCalibrationBin` validator (also used by the disk boundary in #2). Regression
-  test in `tests/research-context.test.ts` asserts no `undefined`/`NaN` and that the real bin
-  label, hit rate, and sample count render.
-- **Evidence:**
-  - Producer writes bins as `{ pLow, pHigh, label, hitCount, totalCount, hitRate }`
-    ([../src/scoring/calibration.ts:42-67](../src/scoring/calibration.ts)).
-  - Consumer renders `bin.kind`, `bin.pBin`, `bin.sampleCount`
-    ([../src/research/research-context.ts:31-36,134](../src/research/research-context.ts)).
-  - Only `hitRate` overlaps, so the prompt block emits
-    `undefined pundefined: stated=undefined actual=0.45 (n=undefined)` for every bin.
-- **Impact:** The per-bin calibration signal the model sees is noise. The "self-calibrating"
-  claim is not currently real in the prompt path.
-- **Fix:** Align `CalibrationBinSummary` with the real `CalibrationBin` shape (or add a
-  deterministic transform), so `label`/counts/hit rate render from actual `CalibrationSummary`
-  JSON.
-- **Test (required):** A regression test around `buildStagePrompt()` / the `priorCalibration`
-  block that asserts (a) the rendered string contains no `undefined`, and (b) labels and counts
-  render from real `CalibrationSummary` JSON. Test the renderer, not just the type.
-- **Effort:** XS.
+### Open follow-ups from completed work
 
-### 2. Calibration boundary is unvalidated
-
-- **Status:** ✅ Fixed. `loadCalibrationContext()` now delegates to a new exported
-  `parseCalibrationContext(value: unknown)` that validates every field of the `CalibrationSummary`
-  shape against the repo's existing guards (`readNumber`/`readString`/`isRecord`) and drops
-  malformed pieces instead of casting through with `as`
-  ([../src/research/research-context.ts](../src/research/research-context.ts)). Bins and
-  per-slice metric maps are validated element-by-element via shared `parseCalibrationBin` /
-  `parseCalibrationMetric` helpers (the bin validator is also reused by the prompt renderer, so
-  #1's render guard and this boundary share one definition). Validation enforces the producer's
-  **domain invariants** — probabilities in [0,1], non-negative/positive integer counts,
-  `pLow < pHigh`, `hitCount <= totalCount` — so a finite-but-impossible value (e.g. `hitRate 1.5`)
-  is dropped rather than rendered into the prompt. No Zod / new dependency
-  ([ADR 0003](./adr/0003-oxc-toolchain.md)).
-- **Evidence (original):** `loadCalibrationContext()` parsed JSON and cast `as CalibrationContext`
-  with no runtime checks. This is exactly why #1 failed silently.
-- **Tests:** `tests/calibration-context.test.ts` covers non-record inputs, wrong-primitive and
-  non-finite fields, malformed bins / metric-map entries, missing file, invalid JSON on disk, and a
-  disk round-trip that asserts poisoned fields (`brierScore: "..."`, partial bins) are stripped while
-  valid fields survive.
-- **Effort:** XS.
-
-### 3. Actionable calibration slices are never surfaced to the model
-
-- **Status:** ✅ Fixed. `buildCalibrationBlock()` now renders `byKind` and `byHorizonBucket` slices
-  into the `priorCalibration` prompt block, each showing its Brier skill vs the always-0.5 baseline,
-  followed by a directive: *"In any slice with negative skill, shade probabilities toward base
-  rates."* ([../src/research/research-context.ts](../src/research/research-context.ts)). Slice skill
-  is derived from the validated per-slice `brierScore` via the shared `brierSkillScore()` helper
-  (#4), so the prompt's slice math and the producer's overall math share one definition.
-- **Evidence (original):** `byKind`, `byHorizonBucket`, `byAssetClass`, `byMarketUpdateCadence` were
-  computed and written to `summary.json` / `summary.md`
-  ([../src/scoring/calibration.ts](../src/scoring/calibration.ts)), but `priorCalibration` in the
-  prompt only included overall Brier, count, and bins.
-- **Test:** `tests/research-context.test.ts` asserts the rendered block surfaces overall skill, the
-  per-kind (`direction`) and per-horizon (`1-5d`) slices, the base-rate directive, and no
-  `undefined`/`NaN`.
-- **Effort:** S.
-
-### 4. No Brier skill vs baseline
-
-- **Status:** ✅ Fixed. `buildCalibrationSummary()` now writes `brierSkillScore` (=
-  `1 - brier / 0.25`) into `summary.json` alongside raw Brier, and `renderCalibrationMarkdown()`
-  surfaces it in `summary.md`; the prompt block reports overall skill plus per-slice skill (#3)
-  ([../src/scoring/calibration.ts](../src/scoring/calibration.ts),
-  [../src/scoring/calibration-markdown.ts](../src/scoring/calibration-markdown.ts)). The disk
-  boundary validates `brierSkillScore` against its achievable `[-3, 1]` range.
-- **Evidence (original):** `brierScore()` returned raw Brier only; no baseline comparison.
-- **Impact:** Raw Brier alone can't tell the model — or the operator — whether the bot has any
-  edge. A model that learns nothing scores ~0.25 on coin-flip `direction` calls and looks "fine";
-  skill 0 now makes that explicit.
-- **Test:** `tests/scoring.test.ts` asserts skill 1 / 0 / -3 for Brier 0 / 0.25 / 1 and the markdown
-  line; `tests/calibration-context.test.ts` asserts out-of-range skill is dropped at the boundary.
-- **Effort:** S.
-
-## Data Pipeline
-
-Keep as-is (mature): cache canonicalization, stale-fallback-with-`SourceGap`, per-host
-retry/backoff/circuit-breaker at the collector seam, seen-news index.
-
-### 5. Scoring calendar correctness (holiday handling) — ✅ Fixed
-
-- **Status:** ✅ Fixed. A new `src/scoring/exchange-calendar.ts` derives the US exchange (NYSE)
-  closure set deterministically from the published holiday rules — federal holidays with
-  Saturday→Friday / Sunday→Monday observation, Juneteenth from 2022, and Good Friday via the
-  Easter computus — with no hard-coded year tables and no new dependency
-  ([ADR 0003](./adr/0003-oxc-toolchain.md)). `resolutionDate()` now advances over
-  `isExchangeTradingDay()` (a weekday the market is open) instead of every weekday, and all date
-  math moved to UTC to match the `YYYY-MM-DD` instants used elsewhere in scoring
-  ([../src/scoring/resolver.ts](../src/scoring/resolver.ts)). Holidays are treated as non-trading
-  days for every asset class: for the close-window kinds this only gates *when* resolution is
-  attempted (the resolved price still comes from provider-returned sessions), and for the point
-  kinds (`macro`/`iv`) it keeps the target date off a closed market.
-- **Evidence (original):** `resolutionDate()` walked calendar weekdays and treated every weekday as
-  a trading day.
-  - **Close-window forecasts** (`direction`, `range`, `volatility`) resolved against
-    provider-returned sessions *after* the due-date check, so a holiday did **not** corrupt the
-    resolved price; the risk was a **premature `unresolved` attempt** when the weekday-derived due
-    date arrived before the Nth real session.
-  - **Point forecasts** (`macro`/`iv`) used the weekday-derived date directly and **could target the
-    wrong date** across a holiday.
-- **Tests:** `tests/exchange-calendar.test.ts` covers the 2026 NYSE slate, weekend-observation
-  shifts (Saturday→Friday, Sunday→Monday), the Saturday-New-Year no-closure rule, the 2022
-  Juneteenth start, and Good Friday across years; `tests/scoring.test.ts` asserts a `macro` point
-  forecast targets the holiday-adjusted session (`2026-07-06`, not the closed `2026-07-03`) and that
-  a close-window forecast defers rather than attempting resolution before the Nth real session.
-  Alpha validation now shares the same `resolutionDate()` (was a duplicated weekday-only counter
-  carrying the local-timezone bug), with a `tests/alpha-validation.test.ts` regression asserting it
-  defers across the same holiday ([../src/alpha-search/validation.ts](../src/alpha-search/validation.ts)).
-- **Effort:** S.
-- **Follow-up (open, design):** The exchange calendar is applied to every asset class. This is
-  correct-by-accident for crypto today — crypto has no point forecasts (`iv` is equity-gated, `macro`
-  is FRED) and its close-window value comes from the provider window slice, so the calendar only
-  gates *timing*, never the resolved value, and the prior code already weekday-gated crypto. A
-  proper asset-class-aware calendar (crypto on a 7-day cadence, which would also align the crypto
-  gate with its calendar-day value semantics) is a deliberate behavior change worth doing
+- **Asset-class-aware calendar (from #5).** The NYSE calendar is applied to every asset class. This is
+  correct-by-accident for crypto today (no crypto point forecasts; close-window value comes from the
+  provider slice, so the calendar only gates timing). A proper crypto 7-day cadence — aligning the
+  crypto gate with calendar-day value semantics — is a deliberate behavior change worth doing
   separately. **Effort:** S.
+- **Post-synthesis critique pass (from #9).** Critique runs *before* `final-synthesis` emits formal
+  `predictions[]` ([../src/research/orchestrator.ts:422](../src/research/orchestrator.ts)), so the
+  directives prepare synthesis rather than auditing emitted predictions. A post-synthesis critique (or
+  re-ordering) would let critique challenge the actual stated probabilities and feed a correction
+  loop. **Effort:** M.
 
-### 6. Mover selection bias — ✅ Fixed
+## #7 Regime signal is thin for the weight it carries
 
-- **Status:** ✅ Fixed. `collectEquity` now fans in `day_losers` and `most_actives` alongside
-  `day_gainers` before mover ranking. A `dedupeMoversBySymbol` step keeps the first occurrence per
-  symbol when the same name appears in multiple screener lists, so `enrichMoverBenchmarks` and
-  `rankMovers` each see a clean, de-duplicated set
-  ([../src/sources/yahoo.ts](../src/sources/yahoo.ts)).
-- **Evidence (original):** Equity movers came only from Yahoo `day_gainers`
-  ([../src/sources/yahoo.ts:132](../src/sources/yahoo.ts)). The bot structurally never saw losers,
-  gap-downs, or unusual-volume-without-price-move names.
-- **Tests:** `tests/movers.test.ts` asserts `dedupeMoversBySymbol` keeps first occurrence per symbol
-  and passes through distinct symbols unchanged. Existing collector and sources integration tests
-  updated to reflect 3 screener requests per daily/weekly run.
-- **Effort:** S.
-
-### 7. Regime signal is thin for the weight it carries
-
-- **Status:** Confirmed.
-- **Evidence:** `summarizeMarketRegime()` counts green/red across 4 ETFs (SPY/QQQ/IWM/DIA) plus a
-  single binary `^VIX >= 25` override
-  ([../src/research/regime.ts:65-90](../src/research/regime.ts)). The proxies are genuinely fetched
-  ([../src/sources/yahoo.ts:134,391,431](../src/sources/yahoo.ts)), so the classifier has real
-  input — it's just a one-day, 4-name signal feeding every downstream stage.
-- **Fix (incremental):** add (a) VIX term structure (VIX vs VIX3M; backwardation > level threshold
-  as a risk-off signal), (b) a trend component (proxy vs its own 20/50-day MA), and (c) broader
-  breadth (% above MA / advance-decline) where feasible.
+- **Status:** Open. Confirmed.
+- **Evidence:** `summarizeMarketRegime()` classifies on green/red breadth across 4 ETFs
+  (SPY/QQQ/IWM/DIA) plus a single binary `^VIX >= 25` override
+  ([../src/research/regime.ts:65-90](../src/research/regime.ts)). The proxies are genuinely fetched,
+  so the classifier has real input — it's just a one-day, 4-name signal feeding every downstream stage.
+- **Fix (incremental):** add (a) VIX term structure (VIX vs VIX3M; backwardation as a risk-off
+  signal), (b) a trend component (proxy vs its own 20/50-day MA), and (c) broader breadth
+  (% above MA / advance-decline) where feasible.
+- **Acceptance:**
+  - Deterministic classifier adds trend / term-structure / breadth drivers, each tied to a citeable
+    source ID.
+  - Explicit fallback behavior when any input is missing (no silent default to risk-on).
+  - Unit tests cover risk-on, risk-off, mixed, and insufficient-data cases.
 - **Effort:** M.
 
-## Reasoning
+## #10 Economically thin prediction kinds (re-scoped: emission policy, not measurement)
 
-### 8. Prompts don't teach calibrated-probability discipline
-
-- **Status:** ✅ Fixed. `prompts/playbooks/synthesis-discipline.md` now teaches four calibration
-  directives inside its `## instruction` (so they reach the model): base-rate anchoring,
-  widen-on-thin-evidence, the Brier cost of overconfidence (the penalty grows with the square of the
-  stated probability), and using the `priorCalibration` block's per-slice skill (#3/#4) to shade
-  toward base rates where past confidence has not paid off. Registry summary updated to match.
-- **Evidence (original):** Base stage prompts are minimal
-  ([../prompts/specialist-analysis/base.md](../prompts/specialist-analysis/base.md),
-  [../prompts/final-synthesis/base.md](../prompts/final-synthesis/base.md)); the output **schema**
-  is injected structurally via `finalReportShape()`
-  ([../src/research/research-context.ts](../src/research/research-context.ts)), which is fine.
-  Playbooks existed and were injected, but `synthesis-discipline.md` did not teach probability
-  setting / base rates / Brier discipline.
-- **Test:** `tests/playbooks.test.ts` asserts the loaded synthesis-discipline instruction teaches
-  base-rate anchoring, widening, and the Brier cost.
-- **Effort:** S.
-
-### 9. Critique lacks prediction-specific disconfirmation — ✅ Fixed
-
-- **Status:** ✅ Fixed.
-- **Evidence:** The critique playbook challenged weak claims generally but did not mandate the
-  strongest bear case **against the final predictions**, nor flag probability/evidence-strength
-  mismatch
-  ([../prompts/playbooks/critique-discipline.md](../prompts/playbooks/critique-discipline.md)).
-- **Fix:** Added two directives to `critique-discipline.md`'s `## instruction`, plus a research-only
-  guard: (a) construct the strongest observable disconfirming case for each forecast claim from
-  supplied evidence, and (b) flag claims where the stated probability diverges from cited evidence
-  strength, naming the direction it should move. Worded against the *forecast claims in prior
-  findings that synthesis will formalize*, because critique runs before `final-synthesis` emits
-  formal `predictions[]` (see the follow-up note below). Registry summary and `## goal` updated to
-  match. Free — the critique stage already runs.
-- **Test:** `tests/playbooks.test.ts` asserts the loaded critique-discipline instruction teaches
-  prediction-specific disconfirmation (`prediction`/`disconfirm`/`observable`) and
-  probability/evidence-strength mismatch flagging (`probability`/`evidence`/`direction`).
-- **Effort:** S.
-- **Follow-up (open, architectural):** The critique stage runs *before* `final-synthesis` emits
-  formal `predictions[]` with probabilities ([../src/research/orchestrator.ts:422](../src/research/orchestrator.ts)),
-  so the directives prepare synthesis rather than auditing the emitted predictions. A
-  post-synthesis critique pass (or re-ordering) would let critique challenge the actual stated
-  probabilities and feed a correction loop. Larger scope than #9; track separately. **Effort:** M.
-
-### 10. Economically thin prediction kinds
-
-- **Status:** Open (design consideration).
+- **Status:** Open (design). Per-kind skill measurement already exists (#3/#4); the remaining gap is
+  the prediction **emission policy**, not measurement.
 - **Evidence:** Five of six kinds reduce to "will close be higher / outside a band"
-  ([../src/forecast/observable.ts:196-507](../src/forecast/observable.ts)); `direction` at 1-20d
-  has a ~50% base rate.
-- **Fix:** Favor `relative`/pairs defaults (more research edge, more informative Brier) and report
-  per-kind skill separately so `direction` noise doesn't mask signal elsewhere. Depends on #4.
+  ([../src/forecast/observable.ts:196-507](../src/forecast/observable.ts)); `direction` at 1-20d has a
+  ~50% base rate, so it can mask signal in more informative kinds.
+- **Fix:** Define a target forecast-kind mix per run type that favors `relative`/pairs (more research
+  edge, more informative Brier) over bare `direction`.
+- **Acceptance:**
+  - Documented target forecast-kind mix per run type.
+  - Test asserts that eligible reports emit more informative non-direction predictions where the
+    evidence supports them.
 - **Effort:** M.
 
-### 11. History is retrieval, not error correction — *re-scoped per review*
+## #11 History is retrieval, not error correction
 
-- **Status:** Partially present; framing gap is real. (Extends Cross-run intelligence below.)
-- **Evidence:** Historical context **already includes** prediction score status/outcomes for
-  selected runs ([../src/research/historical-context.ts](../src/research/historical-context.ts));
-  the gap is that it is not framed as *"this prior thesis on this instrument resolved `miss` — here
-  is what was wrong."*
-- **Fix:** Inject resolved-outcome deltas of prior theses on the **current instrument** as an
-  explicit error-correction block, not just a citation pool.
+- **Status:** Open (framing gap). Partially present. (Extends Cross-run intelligence below.)
+- **Evidence:** Historical context **already includes** prediction score status/outcomes for selected
+  runs ([../src/research/historical-context.ts](../src/research/historical-context.ts)); the gap is
+  that it is not framed as *"this prior thesis on this instrument resolved `miss` — here is what was
+  wrong."*
+- **Fix:** Inject resolved-outcome deltas of prior theses on the **current instrument** as an explicit
+  error-correction block, not just a citation pool.
+- **Acceptance:**
+  - Ticker prompts include capped prior-miss bullets, each with run ID, claim, stated probability,
+    outcome, and source citation.
+  - Empty/insufficient-history state renders cleanly (no placeholder noise).
 - **Effort:** M.
 
-## User Experience
+## #12 Calibration track record is buried (the dashboard)
 
-### 12. Calibration track record is buried
-
-- **Status:** Confirmed. (Concrete first target for the deferred dashboards below.)
+- **Status:** Open. Confirmed. This is the **single** dashboard surface — it absorbs the deferred
+  "provider health dashboard" idea (see Operational) as the first console dashboard.
 - **Evidence:** Calibration is exposed via CLI/markdown/provider-health presence, not as a console
   centerpiece. The numbers for a reliability diagram (stated prob vs actual hit rate per bin),
   Brier-vs-baseline trend, and per-kind/per-horizon skill are all already computed
   ([../src/scoring/calibration.ts](../src/scoring/calibration.ts)).
-- **Fix:** Promote a reliability dashboard to the console as the product's proof of
-  trustworthiness.
+- **Fix:** Promote a reliability dashboard to the console as the product's proof of trustworthiness.
+- **Acceptance:**
+  - Console shows overall Brier, Brier skill, resolved count, reliability bins, per-kind skill, and
+    per-horizon skill.
+  - Small-sample empty state when resolved count is below threshold.
 - **Effort:** M.
 
-### 13. Run cost/latency captured but not decision-surfaced
+## #13 Run cost/latency captured but not decision-surfaced
 
-- **Status:** Confirmed.
-- **Evidence:** `trace` carries `tokenEstimate` and `costEstimateUsd`
-  ([../src/research/orchestrator.ts:480-481](../src/research/orchestrator.ts)) but is only exposed
-  as raw trace JSON in the console.
-- **Fix:** Surface running cost-per-run and cost-per-resolved-prediction so the `--deep` vs
-  standard tradeoff is visible.
+- **Status:** Open. Confirmed.
+- **Evidence:** Token and cost estimates are captured in
+  [../src/research/run-analytics.ts](../src/research/run-analytics.ts) (and carried on the trace), but
+  only exposed as raw trace JSON in the console — not as decision-grade "is `--deep` worth it?"
+  analytics.
+- **Fix:** Surface running cost-per-run and cost-per-resolved-prediction so the `--deep` vs standard
+  tradeoff is visible.
+- **Acceptance:**
+  - Console shows last-run cost, rolling median cost, token estimate, cost per prediction, and a
+    deep-vs-standard comparison by job type.
 - **Effort:** S.
 
-### 14. No "what changed since yesterday" in the daily flow
+## #14 No "what changed since yesterday" in the daily flow
 
 - **Status:** Open.
-- **Evidence:** `history thesis-delta` exists but is a separate manual verb.
-- **Fix:** Promote a compact auto-delta into the daily report — regime change, new/dropped movers,
-  predictions resolved since the last run.
+- **Evidence:** `history thesis-delta` exists but is a separate manual verb, and it is
+  instrument-oriented rather than an automatic daily market-flow delta.
+- **Fix:** Promote a compact auto-delta into the daily report.
+- **Acceptance:**
+  - Daily report includes regime change, mover-set diff, and predictions resolved since the last
+    same-cadence run.
+  - Deterministic output, no manual CLI step.
 - **Effort:** M.
+
+## #15 Documentation drift on mover sources
+
+- **Status:** Open. Confirmed against the repo.
+- **Evidence:** `src/sources/yahoo.ts` now fans in `day_gainers`, `day_losers`, and `most_actives`
+  (#6), but several surfaces still describe equity movers as `day_gainers` only:
+  - [../README.md:9](../README.md), [../CONTEXT.md:29](../CONTEXT.md),
+    [../docs/architecture.md:40](./architecture.md), [../docs/how-it-works.md:165](./how-it-works.md).
+  - The weekly mover **source-gap string** at
+    [../src/research/research-context.ts:84](../src/research/research-context.ts) still says "seeded
+    from Yahoo `day_gainers`" — the accurate remaining gap is that it is a single-day multi-screener
+    set, not a true trailing 5-session screener.
+- **Fix:** Update the doc wording to the three-screener fan-in and re-word the gap string to describe
+  the real remaining limitation. Keep crypto wording unchanged.
+- **Acceptance:**
+  - No doc or runtime gap string describes equity movers as `day_gainers`-only.
+  - The weekly gap string still discloses the single-day-vs-trailing-window limitation.
+- **Effort:** XS.
+
+## Data Pipeline — keep as-is (mature)
+
+Cache canonicalization, stale-fallback-with-`SourceGap`, per-host retry/backoff/circuit-breaker at the
+collector seam, seen-news index.
 
 ---
 
@@ -283,32 +182,39 @@ retry/backoff/circuit-breaker at the collector seam, seen-news index.
 
 ## Alpha search
 
-Implemented alpha-search discovery, validation, deterministic candidate state, Source
-Promotion Criteria, feature attribution, and SEC fundamentals enrichment are documented in
-`docs/how-it-works.md`, `docs/architecture.md`, and `docs/configuration.md`. This
-section tracks remaining expansion work.
+Implemented alpha-search discovery, validation, deterministic candidate state, Source Promotion
+Criteria, feature attribution, and SEC fundamentals enrichment are documented in
+`docs/how-it-works.md`, `docs/architecture.md`, and `docs/configuration.md`. This section tracks
+remaining expansion work.
 
 ### Next
 
-- **Validation-data review loop** - once source groups and feature buckets have enough
-  resolved Alpha validation outcomes, review which inputs actually explain excess return.
-  Keep this artifact-led: propose ranking changes only from observed source criteria and
-  attribution, not from intuition.
-- **Expanded signal ranking experiments** based on validated deterministic features beyond
-  the current discovery/ranking inputs. Keep signal strength separate from Evidence Quality,
-  keep V1 rankings stable until an experiment is explicitly accepted, and document any
-  ranking-policy change before implementation.
+- **Validation-data review loop** *(data-gated)* — once source groups and feature buckets have enough
+  resolved Alpha validation outcomes, review which inputs actually explain excess return. Keep this
+  artifact-led: propose ranking changes only from observed source criteria and attribution, not from
+  intuition.
+  - **Gate:** define a minimum resolved-outcome threshold per source group / feature bucket before any
+    ranking change is allowed. No ranking changes below threshold.
+- **Expanded signal ranking experiments** based on validated deterministic features beyond the current
+  discovery/ranking inputs. Keep signal strength separate from Evidence Quality, keep V1 rankings
+  stable until an experiment is explicitly accepted, and document any ranking-policy change before
+  implementation.
 
 ## Cross-run intelligence
 
-First vertical slice implemented under Historical Research Context (see also audit finding #11,
-which targets framing prior outcomes as instrument-level error correction):
+First vertical slice implemented under Historical Research Context (see also audit finding #11, which
+targets framing prior outcomes as instrument-level error correction):
 
 - **Artifact-backed history indexes** from canonical `data/runs/<run-id>/` artifacts via `history rebuild`.
-- **Session/run search** over prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts via `history search`.
-- **Research Thesis delta tracking** — "what changed in the AAPL thesis since last Tuesday" — via deterministic `history thesis-delta`, with optional persisted `--narrative` summaries. (Audit finding #14 proposes auto-surfacing a compact delta in the daily flow.)
-- **Per-Instrument timelines** keyed by `assetClass:symbol`, preserving Instrument Identity metadata when available.
-- **Historical Research Lead state** remains framed through alpha-search validation, candidate profiles, watchlists, and Fundamental Evidence trends, not a recommendation or confirmed alpha label.
+- **Session/run search** over prior reports, Sources, Predictions, Research Thesis components, open
+  questions, fundamentals, and validation artifacts via `history search`.
+- **Research Thesis delta tracking** — "what changed in the AAPL thesis since last Tuesday" — via
+  deterministic `history thesis-delta`, with optional persisted `--narrative` summaries. (Audit
+  finding #14 proposes auto-surfacing a compact delta in the daily flow.)
+- **Per-Instrument timelines** keyed by `assetClass:symbol`, preserving Instrument Identity metadata
+  when available.
+- **Historical Research Lead state** remains framed through alpha-search validation, candidate
+  profiles, watchlists, and Fundamental Evidence trends, not a recommendation or confirmed alpha label.
 
 Still deferred:
 
@@ -319,24 +225,26 @@ Still deferred:
 
 ## Operational
 
-- **Expand sources** - Include more sources than just Yahoo for daily and weekly runs. Concrete
-  near-term step tracked as audit finding #6 (`day_losers` / `most_actives` fan-in); broader
-  regime inputs tracked as #7.
-- **Source provider health dashboard** - artifact-backed CLI validation exists via
-  `provider-health` v2. Future work: turn this into a dashboard once the run history is large
-  enough to need browsing/filtering. Audit finding #12 proposes the calibration/reliability view
-  as the first dashboard surface.
+- **Expand sources** — Include more sources than just Yahoo for daily and weekly runs. The near-term
+  mover fan-in shipped as audit finding #6; broader regime inputs are tracked as #7.
+- **Source provider health dashboard** — artifact-backed CLI validation exists via `provider-health`
+  v2. A browsable dashboard is **not** a separate workstream: the calibration/reliability view (#12)
+  is the first console dashboard surface, and provider health folds into it once run history is large
+  enough to need browsing/filtering.
 
 ## Monitoring
 
-- Reliability SLAs, monitoring, alerting.
+- **Reliability SLAs, monitoring, alerting** — *not backlog-ready.* Before this can be picked up it
+  needs: concrete metrics, thresholds per metric, alert channels, an owner, and runbook expectations.
+  Park here until those are specified.
 
 ## Other (deferred)
 
 - based on real runs implement improvements
 - <https://github.com/defeat-beta/defeatbeta-api>
-- **Database-backed persistence** once local files become hard to query. SQLite is the likely first step;
-  keep raw artifacts on disk if useful. If optimal use db only for metadata and references to files (artifacts of runs) on disk.
+- **Database-backed persistence** once local files become hard to query. SQLite is the likely first
+  step; keep raw artifacts on disk if useful. If optimal use db only for metadata and references to
+  files (artifacts of runs) on disk.
 - improvements based on other projects
   - <https://github.com/TauricResearch/TradingAgents>
   - <https://github.com/HKUDS/Vibe-Trading>

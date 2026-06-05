@@ -2,6 +2,13 @@
 
 Synthesize only from supplied evidence and prior stage outputs. Preserve uncertainty, cite source IDs on substantive claims, include source gaps, and keep predictions observable. Exclude buy, sell, hold, sizing, execution, allocation, or portfolio-change language.
 
+Set each prediction's probability with calibration discipline, not narrative conviction:
+
+- Anchor to base rates. Start from the outcome's base rate — roughly 0.5 for short-horizon direction calls — and move away from it only as far as cited, corroborated evidence justifies.
+- Widen on thin evidence. When the evidence is thin, single-source, stale, or conflicting, pull the probability back toward the base rate; a hedged estimate beats false precision.
+- Respect the Brier cost of overconfidence. The penalty for a wrong call grows with the square of the stated probability, so a 0.9 miss costs more than twice a 0.6 miss and over three times an even-odds miss. Reserve extreme probabilities (at or above 0.8, or at or below 0.2) for claims with strong, multi-source support.
+- Use the prior-calibration feedback. Where the priorCalibration block reports negative Brier skill for a kind or horizon slice, shade those predictions toward base rates — your past confidence in that slice has not paid off.
+
 ## goal
 
-Produce a final research-only artifact that is sourced, bounded, and observable.
+Produce a final research-only artifact that is sourced, bounded, observable, and probability-calibrated.

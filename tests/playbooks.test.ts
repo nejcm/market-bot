@@ -134,6 +134,19 @@ describe("loadPlaybookRegistry", () => {
       result.flatMap((stage) => stage.playbooks).every((item) => item.instruction.length > 0),
     ).toBe(true);
   });
+
+  test("synthesis-discipline teaches calibrated-probability discipline", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const [stage] = await loadPlaybooksByStage("prompts", realRegistry, [
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+    ]);
+    const instruction = (stage?.playbooks[0]?.instruction ?? "").toLowerCase();
+
+    // Base-rate anchoring, widen-on-thin-evidence, and the Brier cost of overconfidence.
+    expect(instruction).toContain("base rate");
+    expect(instruction).toContain("widen");
+    expect(instruction).toContain("brier");
+  });
 });
 
 describe("eligiblePlaybookCandidates", () => {

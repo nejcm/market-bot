@@ -64,7 +64,7 @@
     {
       "id": "synthesis-discipline",
       "title": "Synthesis Discipline",
-      "summary": "Synthesize only from supplied evidence and prior stages into research-only output.",
+      "summary": "Synthesize evidence into research-only output and set calibrated, base-rate-anchored prediction probabilities.",
       "file": "synthesis-discipline.md",
       "jobTypes": ["daily", "weekly", "ticker"],
       "assetClasses": ["equity", "crypto"],

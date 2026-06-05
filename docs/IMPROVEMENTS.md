@@ -18,7 +18,7 @@ sizing, or execution language.
 
 1. ✅ Fix calibration context shape (#1) + validate `summary.json` at the boundary (#2).
 2. ✅ Surface `byKind` and `byHorizonBucket` slices (#3); report Brier **and** Brier skill vs the 0.25 baseline (#4).
-3. Add probability-setting discipline to `synthesis-discipline.md`.
+3. ✅ Add probability-setting discipline to `synthesis-discipline.md` (#8).
 4. Strengthen `critique-discipline.md` around disconfirmation of the final predictions.
 5. Scoring calendar correctness (holiday handling).
 6. Mover fan-in (`day_losers` / `most_actives`) — see also Operational → *Expand sources*.
@@ -157,18 +157,20 @@ retry/backoff/circuit-breaker at the collector seam, seen-news index.
 
 ### 8. Prompts don't teach calibrated-probability discipline
 
-- **Status:** Confirmed, with nuance.
-- **Evidence:** Base stage prompts are minimal
+- **Status:** ✅ Fixed. `prompts/playbooks/synthesis-discipline.md` now teaches four calibration
+  directives inside its `## instruction` (so they reach the model): base-rate anchoring,
+  widen-on-thin-evidence, the Brier cost of overconfidence (the penalty grows with the square of the
+  stated probability), and using the `priorCalibration` block's per-slice skill (#3/#4) to shade
+  toward base rates where past confidence has not paid off. Registry summary updated to match.
+- **Evidence (original):** Base stage prompts are minimal
   ([../prompts/specialist-analysis/base.md](../prompts/specialist-analysis/base.md),
   [../prompts/final-synthesis/base.md](../prompts/final-synthesis/base.md)); the output **schema**
   is injected structurally via `finalReportShape()`
-  ([../src/research/research-context.ts:243-277](../src/research/research-context.ts)), which is
-  fine. Playbooks exist and are injected, but `synthesis-discipline.md` does not teach probability
+  ([../src/research/research-context.ts](../src/research/research-context.ts)), which is fine.
+  Playbooks existed and were injected, but `synthesis-discipline.md` did not teach probability
   setting / base rates / Brier discipline.
-- **Correction:** It is **not** true that there is "no instruction anywhere" — playbooks are
-  present. The specific gap is calibrated-probability guidance.
-- **Fix:** Add base-rate anchoring, widen-on-thin-evidence, and the Brier cost of overconfidence to
-  `prompts/playbooks/synthesis-discipline.md`. Pairs with #3.
+- **Test:** `tests/playbooks.test.ts` asserts the loaded synthesis-discipline instruction teaches
+  base-rate anchoring, widening, and the Brier cost.
 - **Effort:** S.
 
 ### 9. Critique lacks prediction-specific disconfirmation

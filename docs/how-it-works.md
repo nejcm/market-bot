@@ -377,7 +377,7 @@ Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src
 
 1. Load `report.json`.
 2. For prediction reports, skip predictions that are already resolved or have reached the max attempt count.
-3. Check whether the prediction horizon has elapsed in trading days.
+3. Check whether the prediction horizon has elapsed in trading days, counted against the US exchange calendar (`src/scoring/exchange-calendar.ts`) so weekends and market holidays are skipped.
 4. Fetch point or window Observations from Yahoo, CoinGecko, FRED, or Tradier.
 5. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
 6. Resolve each observable forecast as `hit`, `miss`, or unresolved.

@@ -269,6 +269,66 @@ describe("resolveOutcome", () => {
   });
 });
 
+describe("resolveOutcome trading-day calendar", () => {
+  // 2026-07-03 is the observed Independence Day closure (Jul 4 is a Saturday).
+  // From Wed 2026-07-01 two trading days land on Mon 2026-07-06, not Fri 2026-07-03.
+  const holidayReport = researchReport({ generatedAt: "2026-07-01T00:00:00.000Z" });
+
+  const macroAcrossHoliday: Prediction = {
+    ...basePrediction,
+    id: "pred-macro-holiday",
+    kind: "macro",
+    subject: "DGS10",
+    measurableAs: "fred(DGS10, +2) > fred(DGS10, 0)",
+    horizonTradingDays: 2,
+    claim: "DGS10 rises over 2 trading days.",
+  };
+
+  test("targets point forecasts at the holiday-adjusted session, not the closed market", async () => {
+    const result = await resolveOutcome(
+      macroAcrossHoliday,
+      holidayReport,
+      observationRepository([
+        { subject: "FRED:DGS10", date: "2026-07-01", value: 4.1 },
+        // No data on 2026-07-03 (market closed); the horizon must land on 2026-07-06.
+        { subject: "FRED:DGS10", date: "2026-07-06", value: 4.3 },
+      ]),
+      new Date("2026-07-20T00:00:00.000Z"),
+    );
+
+    expect(result.status).toBe("resolved");
+    expect(result).toMatchObject({
+      outcome: "hit",
+      evidence: { date0: "2026-07-01", dateN: "2026-07-06" },
+    });
+  });
+
+  test("does not attempt close-window resolution before the Nth real session", async () => {
+    const throwingRepo: ObservationRepository = {
+      point: async () => {
+        throw new Error("unexpected point observation request");
+      },
+      window: async () => {
+        throw new Error("unexpected window observation request");
+      },
+    };
+
+    // The supplied `now` sits after the weekday-derived date (Fri 2026-07-03) but before the
+    // Monday 2026-07-06 session, so resolution must defer rather than fire early.
+    const result = await resolveOutcome(
+      { ...basePrediction, horizonTradingDays: 2, measurableAs: "close(SPY, +2) > close(SPY, 0)" },
+      holidayReport,
+      throwingRepo,
+      new Date("2026-07-04T00:00:00.000Z"),
+    );
+
+    expect(result).toMatchObject({
+      status: "unresolved",
+      reason: "horizon-not-elapsed",
+    });
+  });
+});
+
 const makeScore = predictionScore;
 
 describe("buildCalibrationSummary", () => {

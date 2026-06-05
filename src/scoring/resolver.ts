@@ -7,6 +7,7 @@ import {
   observationStrategyForForecast,
   resolveObservableForecast,
 } from "../forecast/observable";
+import { isExchangeTradingDay } from "./exchange-calendar";
 import type { ObservationRepository } from "./observations";
 import type { ScoreOutcome } from "./types";
 
@@ -30,17 +31,16 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 86_400_000);
 }
 
-function isWeekday(date: Date): boolean {
-  const dow = date.getDay();
-  return dow !== 0 && dow !== 6;
-}
-
+// Walk forward over exchange trading days so the horizon counts real sessions, not raw weekdays.
+// Holidays are non-trading days for every asset class.
+// Close-window kinds only use this to gate when resolution is attempted; the price comes from provider sessions.
+// Point kinds (`macro`/`iv`) use it to keep the target date off a closed market.
 function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
   let count = 0;
   let cursor = new Date(generatedAt);
   while (count < horizonTradingDays) {
     cursor = addDays(cursor, 1);
-    if (isWeekday(cursor)) {
+    if (isExchangeTradingDay(cursor)) {
       count += 1;
     }
   }

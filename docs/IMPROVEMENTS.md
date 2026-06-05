@@ -20,7 +20,7 @@ sizing, or execution language.
 2. ✅ Surface `byKind` and `byHorizonBucket` slices (#3); report Brier **and** Brier skill vs the 0.25 baseline (#4).
 3. ✅ Add probability-setting discipline to `synthesis-discipline.md` (#8).
 4. ✅ Strengthen `critique-discipline.md` around disconfirmation of the final predictions (#9).
-5. Scoring calendar correctness (holiday handling).
+5. ✅ Scoring calendar correctness (holiday handling).
 6. Mover fan-in (`day_losers` / `most_actives`) — see also Operational → *Expand sources*.
 7. Richer regime signal.
 8. Calibration/reliability dashboard in the console — see also Operational → *health dashboard*.
@@ -115,20 +115,32 @@ producer/consumer seam. Confirmed by review.
 Keep as-is (mature): cache canonicalization, stale-fallback-with-`SourceGap`, per-host
 retry/backoff/circuit-breaker at the collector seam, seen-news index.
 
-### 5. Scoring calendar correctness (holiday handling) — *re-scoped per review*
+### 5. Scoring calendar correctness (holiday handling) — ✅ Fixed
 
-- **Status:** Valid but narrower than first stated.
-- **Evidence:** `resolutionDate()` walks calendar weekdays and treats every weekday as a trading
-  day ([../src/scoring/resolver.ts:38-48](../src/scoring/resolver.ts)).
-- **Precise impact (corrected):**
-  - **Close-window forecasts** (`direction`, `range`, `volatility`) resolve against
-    provider-returned sessions *after* the due-date check, so a holiday does **not** corrupt the
-    resolved price. The risk is a **premature `unresolved` attempt** when the weekday-derived due
-    date arrives before the Nth real session.
-  - **Point forecasts** (`fred`, `iv`) use the weekday-derived date directly and **can target the
+- **Status:** ✅ Fixed. A new `src/scoring/exchange-calendar.ts` derives the US exchange (NYSE)
+  closure set deterministically from the published holiday rules — federal holidays with
+  Saturday→Friday / Sunday→Monday observation, Juneteenth from 2022, and Good Friday via the
+  Easter computus — with no hard-coded year tables and no new dependency
+  ([ADR 0003](./adr/0003-oxc-toolchain.md)). `resolutionDate()` now advances over
+  `isExchangeTradingDay()` (a weekday the market is open) instead of every weekday, and all date
+  math moved to UTC to match the `YYYY-MM-DD` instants used elsewhere in scoring
+  ([../src/scoring/resolver.ts](../src/scoring/resolver.ts)). Holidays are treated as non-trading
+  days for every asset class: for the close-window kinds this only gates *when* resolution is
+  attempted (the resolved price still comes from provider-returned sessions), and for the point
+  kinds (`macro`/`iv`) it keeps the target date off a closed market.
+- **Evidence (original):** `resolutionDate()` walked calendar weekdays and treated every weekday as
+  a trading day.
+  - **Close-window forecasts** (`direction`, `range`, `volatility`) resolved against
+    provider-returned sessions *after* the due-date check, so a holiday did **not** corrupt the
+    resolved price; the risk was a **premature `unresolved` attempt** when the weekday-derived due
+    date arrived before the Nth real session.
+  - **Point forecasts** (`macro`/`iv`) used the weekday-derived date directly and **could target the
     wrong date** across a holiday.
-- **Fix:** Use an exchange calendar for the due-date check and for point-forecast target dates, or
-  derive both from provider-returned sessions end-to-end (as close-window resolution already does).
+- **Tests:** `tests/exchange-calendar.test.ts` covers the 2026 NYSE slate, weekend-observation
+  shifts (Saturday→Friday, Sunday→Monday), the Saturday-New-Year no-closure rule, the 2022
+  Juneteenth start, and Good Friday across years; `tests/scoring.test.ts` asserts a `macro` point
+  forecast targets the holiday-adjusted session (`2026-07-06`, not the closed `2026-07-03`) and that
+  a close-window forecast defers rather than attempting resolution before the Nth real session.
 - **Effort:** S.
 
 ### 6. Mover selection bias

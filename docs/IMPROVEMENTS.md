@@ -21,7 +21,7 @@ sizing, or execution language.
 3. ✅ Add probability-setting discipline to `synthesis-discipline.md` (#8).
 4. ✅ Strengthen `critique-discipline.md` around disconfirmation of the final predictions (#9).
 5. ✅ Scoring calendar correctness (holiday handling).
-6. Mover fan-in (`day_losers` / `most_actives`) — see also Operational → *Expand sources*.
+6. ✅ Mover fan-in (`day_losers` / `most_actives`) — see also Operational → *Expand sources*.
 7. Richer regime signal.
 8. Calibration/reliability dashboard in the console — see also Operational → *health dashboard*.
 9. Wire prior-thesis resolved outcomes into the history prompt as error correction.
@@ -153,13 +153,19 @@ retry/backoff/circuit-breaker at the collector seam, seen-news index.
   gate with its calendar-day value semantics) is a deliberate behavior change worth doing
   separately. **Effort:** S.
 
-### 6. Mover selection bias
+### 6. Mover selection bias — ✅ Fixed
 
-- **Status:** Confirmed. (Expands Operational → *Expand sources* with a specific, low-effort step.)
-- **Evidence:** Equity movers come only from Yahoo `day_gainers`
-  ([../src/sources/yahoo.ts:132](../src/sources/yahoo.ts)). Disclosed as a `SourceGap`, but the bot
-  structurally never sees losers, gap-downs, or unusual-volume-without-price-move names.
-- **Fix:** Fan in `day_losers` + `most_actives` (existing fetch plumbing) before mover ranking.
+- **Status:** ✅ Fixed. `collectEquity` now fans in `day_losers` and `most_actives` alongside
+  `day_gainers` before mover ranking. A `dedupeMoversBySymbol` step keeps the first occurrence per
+  symbol when the same name appears in multiple screener lists, so `enrichMoverBenchmarks` and
+  `rankMovers` each see a clean, de-duplicated set
+  ([../src/sources/yahoo.ts](../src/sources/yahoo.ts)).
+- **Evidence (original):** Equity movers came only from Yahoo `day_gainers`
+  ([../src/sources/yahoo.ts:132](../src/sources/yahoo.ts)). The bot structurally never saw losers,
+  gap-downs, or unusual-volume-without-price-move names.
+- **Tests:** `tests/movers.test.ts` asserts `dedupeMoversBySymbol` keeps first occurrence per symbol
+  and passes through distinct symbols unchanged. Existing collector and sources integration tests
+  updated to reflect 3 screener requests per daily/weekly run.
 - **Effort:** S.
 
 ### 7. Regime signal is thin for the weight it carries

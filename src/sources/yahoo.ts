@@ -94,9 +94,23 @@ function normalizeYahooQuote(
   };
 }
 
-interface EquityMoverSnapshot {
+export interface EquityMoverSnapshot {
   readonly snapshot: MarketSnapshot;
   readonly sector?: string;
+}
+
+export function dedupeMoversBySymbol(
+  movers: readonly EquityMoverSnapshot[],
+): readonly EquityMoverSnapshot[] {
+  const seen = new Set<string>();
+  return movers.filter((mover) => {
+    const { symbol } = mover.snapshot;
+    if (seen.has(symbol)) {
+      return false;
+    }
+    seen.add(symbol);
+    return true;
+  });
 }
 
 export function normalizeYahooQuotePayload(
@@ -130,6 +144,10 @@ function normalizeYahooMoverQuoteValues(
 
 const EQUITY_DAILY_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=50";
+const EQUITY_DAILY_LOSERS_URL =
+  "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_losers&count=50";
+const EQUITY_MOST_ACTIVES_URL =
+  "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
 const BROAD_EQUITY_BENCHMARK = "SPY";
@@ -388,6 +406,8 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
       ? [{ role: "regime", url: yahooQuoteUrl(command.symbol ?? "") }]
       : [
           { role: "movers", url: EQUITY_DAILY_URL },
+          { role: "movers", url: EQUITY_DAILY_LOSERS_URL },
+          { role: "movers", url: EQUITY_MOST_ACTIVES_URL },
           { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
         ];
 
@@ -416,10 +436,12 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
       ? []
       : normalizeYahooQuotePayload(e.result.payload, "equity", e.result.rawSnapshot.fetchedAt),
   );
-  const moverSnapshots = moverResults.flatMap((e) =>
-    normalizeYahooMoverQuoteValues(
-      readYahooScreenerQuoteValues(e.result.payload),
-      e.result.rawSnapshot.fetchedAt,
+  const moverSnapshots = dedupeMoversBySymbol(
+    moverResults.flatMap((e) =>
+      normalizeYahooMoverQuoteValues(
+        readYahooScreenerQuoteValues(e.result.payload),
+        e.result.rawSnapshot.fetchedAt,
+      ),
     ),
   );
   const benchmarkResult = isMarketUpdate

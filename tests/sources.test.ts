@@ -591,6 +591,8 @@ describe("news provider collection", () => {
     expect(requestShapes).toEqual([
       ["adapter", "fetch", "url"],
       ["adapter", "fetch", "url"],
+      ["adapter", "fetch", "url"],
+      ["adapter", "fetch", "url"],
     ]);
   });
 

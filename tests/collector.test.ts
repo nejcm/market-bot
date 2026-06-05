@@ -153,7 +153,7 @@ describe("collectSources", () => {
       fetchImpl,
     );
 
-    expect(result.rawSnapshots).toHaveLength(4);
+    expect(result.rawSnapshots).toHaveLength(6);
     expect(result.marketSnapshots[0]?.symbol).toBe("AAPL");
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toContain("SPY");
     expect(result.newsSources[0]?.id).toBe("news-equity-1");
@@ -225,7 +225,7 @@ describe("collectSources", () => {
       fetchImpl,
     );
 
-    expect(result.rawSnapshots).toHaveLength(4);
+    expect(result.rawSnapshots).toHaveLength(6);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
   });
 
@@ -752,7 +752,7 @@ describe("collectSources", () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
       if (url.includes("screener")) {
-        return new Response("bad gateway", { status: 502 });
+        return new Response("not found", { status: 404 });
       }
 
       if (url.includes("quote")) {

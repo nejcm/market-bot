@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { MarketSnapshot } from "../src/domain/types";
 import { rankMovers } from "../src/movers/ranking";
+import { dedupeMoversBySymbol } from "../src/sources/yahoo";
 
 function snapshot(
   symbol: string,
@@ -129,6 +130,12 @@ describe("rankMovers", () => {
     expect(ranked?.features.finalMultiplier).toBe(1.45);
   });
 
+  test("excludes sub-minimum-volume snapshots from the ranked set", () => {
+    const ranked = rankMovers([snapshot("THIN", 20, 9999)], 10);
+
+    expect(ranked).toEqual([]);
+  });
+
   test("ignores invalid optional mover feature fields", () => {
     const [ranked] = rankMovers(
       [
@@ -145,5 +152,38 @@ describe("rankMovers", () => {
     expect(ranked?.features.gapPercent).toBeUndefined();
     expect(ranked?.features.unusualVolumeBoost).toBe(0);
     expect(ranked?.features.gapBoost).toBe(0);
+  });
+});
+
+describe("dedupeMoversBySymbol", () => {
+  function mover(symbol: string, sector?: string) {
+    return {
+      snapshot: snapshot(symbol, 5, 1_000_000),
+      ...(sector !== undefined ? { sector } : {}),
+    };
+  }
+
+  test("passes through a list with no duplicate symbols unchanged", () => {
+    const input = [mover("AAPL"), mover("TSLA"), mover("NVDA")];
+
+    expect(dedupeMoversBySymbol(input).map((m) => m.snapshot.symbol)).toEqual([
+      "AAPL",
+      "TSLA",
+      "NVDA",
+    ]);
+  });
+
+  test("keeps first occurrence when the same symbol appears in multiple screener lists", () => {
+    const first = mover("AAPL", "Technology");
+    const duplicate = mover("AAPL");
+
+    const result = dedupeMoversBySymbol([first, mover("TSLA"), duplicate]);
+
+    expect(result.map((m) => m.snapshot.symbol)).toEqual(["AAPL", "TSLA"]);
+    expect(result[0]).toBe(first);
+  });
+
+  test("returns an empty array for empty input", () => {
+    expect(dedupeMoversBySymbol([])).toEqual([]);
   });
 });

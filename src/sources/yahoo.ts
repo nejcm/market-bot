@@ -5,6 +5,7 @@ import type {
   MarketSnapshot,
   SourceGap,
 } from "../domain/types";
+import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
 import {
@@ -151,7 +152,6 @@ const EQUITY_DAILY_LOSERS_URL =
 const EQUITY_MOST_ACTIVES_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
-const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX,^VIX3M";
 const BROAD_EQUITY_BENCHMARK = "SPY";
 const SECTOR_BENCHMARKS: Readonly<Record<string, string>> = {
   "Basic Materials": "XLB",
@@ -414,7 +414,7 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
           { role: "gainers", url: EQUITY_DAILY_URL },
           { role: "losers", url: EQUITY_DAILY_LOSERS_URL },
           { role: "actives", url: EQUITY_MOST_ACTIVES_URL },
-          { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
+          { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
         ];
 
   const results = await Promise.all(
@@ -447,31 +447,16 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
       normalizeYahooMoverQuoteValues(
         readYahooScreenerQuoteValues(e.result.payload),
         e.result.rawSnapshot.fetchedAt,
-      ),
+      ).filter((mover) => !isEquityRegimeSymbol(mover.snapshot.symbol)),
     ),
   );
   const benchmarkResult = isMarketUpdate
     ? await enrichMoverBenchmarks(ctx, moverSnapshots)
     : { marketSnapshots: [], rawSnapshots: [], sourceGaps: [] };
 
-  // First occurrence (mover/benchmark) wins for identity.
-  // Backfill the regime quote's 50-day average so a mover-shadowed proxy keeps its trend input.
-  const bySymbol = new Map<string, MarketSnapshot>();
-  for (const snapshot of [...benchmarkResult.marketSnapshots, ...regimeSnapshots]) {
-    const existing = bySymbol.get(snapshot.symbol);
-    if (existing === undefined) {
-      bySymbol.set(snapshot.symbol, snapshot);
-      continue;
-    }
-    if (existing.fiftyDayAverage === undefined && snapshot.fiftyDayAverage !== undefined) {
-      bySymbol.set(snapshot.symbol, { ...existing, fiftyDayAverage: snapshot.fiftyDayAverage });
-    }
-  }
-  const marketSnapshots = [...bySymbol.values()];
-
   return {
     rawSnapshots: [...fetched.map((e) => e.result.rawSnapshot), ...benchmarkResult.rawSnapshots],
-    marketSnapshots,
+    marketSnapshots: [...benchmarkResult.marketSnapshots, ...regimeSnapshots],
     sourceGaps: [...sourceGaps, ...benchmarkResult.sourceGaps],
   };
 }

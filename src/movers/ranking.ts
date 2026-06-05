@@ -1,4 +1,5 @@
 import type { MarketSnapshot, Mover } from "../domain/types";
+import { isEquityRegimeSymbol } from "../domain/regime-symbols";
 
 const MINIMUM_VOLUME = 10_000;
 const UNUSUAL_VOLUME_THRESHOLD = 1.5;
@@ -121,7 +122,8 @@ export function rankMovers(snapshots: readonly MarketSnapshot[], limit: number):
         Number.isFinite(snapshot.price) &&
         Number.isFinite(snapshot.changePercent24h) &&
         Number.isFinite(snapshot.volume) &&
-        snapshot.volume >= MINIMUM_VOLUME,
+        snapshot.volume >= MINIMUM_VOLUME &&
+        (snapshot.assetClass !== "equity" || !isEquityRegimeSymbol(snapshot.symbol)),
     )
     .map((snapshot) => ({ ...buildMover(snapshot), rank: 0 }))
     .toSorted((left, right) => {

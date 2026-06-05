@@ -5,15 +5,13 @@ import type {
   MarketRegimeSummary,
   MarketSnapshot,
 } from "../domain/types";
+import { isEquityBreadthProxySymbol, isEquityVolatilitySymbol } from "../domain/regime-symbols";
 import { isFredBaseMetricKey } from "../sources/fred";
 
-const EQUITY_BREADTH_PROXIES = new Set(["SPY", "QQQ", "IWM", "DIA"]);
 const CRYPTO_MAJOR_PROXIES = new Set(["BTC", "ETH"]);
 const VIX_SYMBOL = "^VIX";
 const VIX_TERM_SYMBOL = "^VIX3M";
 const VIX_ELEVATED_THRESHOLD = 25;
-
-const VOLATILITY_SYMBOLS = new Set([VIX_SYMBOL, VIX_TERM_SYMBOL]);
 
 // One regime driver's directional read; `undefined` means missing inputs, so it casts no vote.
 type RegimeVote = "risk-on" | "risk-off" | "neutral";
@@ -25,8 +23,8 @@ interface RegimeSignal {
 
 function isEquityRegimeSnapshot(snapshot: MarketSnapshot): boolean {
   return (
-    (snapshot.assetClass === "equity" && EQUITY_BREADTH_PROXIES.has(snapshot.symbol)) ||
-    VOLATILITY_SYMBOLS.has(snapshot.symbol)
+    (snapshot.assetClass === "equity" && isEquityBreadthProxySymbol(snapshot.symbol)) ||
+    isEquityVolatilitySymbol(snapshot.symbol)
   );
 }
 
@@ -163,7 +161,7 @@ export function summarizeMarketRegime(
     assetClass === "equity"
       ? snapshots.filter((snapshot) => isEquityRegimeSnapshot(snapshot))
       : snapshots.filter((snapshot) => isCryptoRegimeSnapshot(snapshot));
-  const breadth = selected.filter((snapshot) => !VOLATILITY_SYMBOLS.has(snapshot.symbol));
+  const breadth = selected.filter((snapshot) => !isEquityVolatilitySymbol(snapshot.symbol));
   const positive = breadth.filter((snapshot) => snapshot.changePercent24h > 0).length;
   const negative = breadth.filter((snapshot) => snapshot.changePercent24h < 0).length;
   const vix = selected.find((snapshot) => snapshot.symbol === VIX_SYMBOL);

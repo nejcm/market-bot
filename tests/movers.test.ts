@@ -136,6 +136,15 @@ describe("rankMovers", () => {
     expect(ranked).toEqual([]);
   });
 
+  test("excludes equity regime proxies from the ranked mover set", () => {
+    const ranked = rankMovers(
+      [snapshot("SPY", 20, 200_000_000), snapshot("TSLA", 6, 120_000_000)],
+      10,
+    );
+
+    expect(ranked.map((mover) => mover.snapshot.symbol)).toEqual(["TSLA"]);
+  });
+
   test("ignores invalid optional mover feature fields", () => {
     const [ranked] = rankMovers(
       [

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { rankMovers } from "../src/movers/ranking";
+import { summarizeMarketRegime } from "../src/research/regime";
 import {
   collectSources,
   createCollectContext,
@@ -229,7 +230,7 @@ describe("collectSources", () => {
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
   });
 
-  test("deduplicates regime symbols that also appear in a mover screener", async () => {
+  test("keeps regime proxies authoritative when they also appear in a mover screener", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
       if (url.includes("most_actives")) {
@@ -243,6 +244,12 @@ describe("collectSources", () => {
                     regularMarketPrice: 510,
                     regularMarketChangePercent: 0.8,
                     regularMarketVolume: 200_000_000,
+                  },
+                  {
+                    symbol: "TSLA",
+                    regularMarketPrice: 180,
+                    regularMarketChangePercent: 6,
+                    regularMarketVolume: 120_000_000,
                   },
                 ],
               },
@@ -264,6 +271,7 @@ describe("collectSources", () => {
                 regularMarketPrice: 510,
                 regularMarketChangePercent: 0.4,
                 regularMarketVolume: 70_000_000,
+                fiftyDayAverage: 500,
               },
             ],
           },
@@ -280,8 +288,23 @@ describe("collectSources", () => {
       fetchImpl,
     );
 
-    const symbols = result.marketSnapshots.map((snapshot) => snapshot.symbol);
-    expect(symbols.filter((s) => s === "SPY")).toHaveLength(1);
+    const spySnapshots = result.marketSnapshots.filter((snapshot) => snapshot.symbol === "SPY");
+    expect(spySnapshots).toHaveLength(1);
+    expect(spySnapshots[0]).toMatchObject({
+      sourceId: "market-yahoo-equity-spy",
+      changePercent24h: 0.4,
+      volume: 70_000_000,
+      fiftyDayAverage: 500,
+    });
+
+    const rankedSymbols = rankMovers(result.marketSnapshots, 5).map(
+      (mover) => mover.snapshot.symbol,
+    );
+    expect(rankedSymbols).toContain("TSLA");
+    expect(rankedSymbols).not.toContain("SPY");
+
+    const regime = summarizeMarketRegime("equity", result.marketSnapshots);
+    expect(regime.drivers).toContain("trend positive: 1/1 proxies above 50-day average");
   });
 
   test("adds sector benchmark context to equity movers without standalone snapshots", async () => {
@@ -963,7 +986,6 @@ describe("collectSources", () => {
     ]);
     expect(rankMovers(result.marketSnapshots, 2).map((mover) => mover.snapshot.sourceId)).toEqual([
       "market-yahoo-equity-aapl",
-      "market-yahoo-equity-spy",
     ]);
     expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
       "massive-supplemental-market",

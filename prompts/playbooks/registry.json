@@ -54,7 +54,7 @@
     {
       "id": "critique-discipline",
       "title": "Critique Discipline",
-      "summary": "Stress-test weak claims, missing evidence, alternative explanations, and the disconfirming case against each prediction.",
+      "summary": "Stress-test weak claims, missing evidence, and alternative explanations, and flag forecast claims whose stated probability outruns its evidence strength.",
       "file": "critique-discipline.md",
       "jobTypes": ["daily", "weekly", "ticker"],
       "assetClasses": ["equity", "crypto"],

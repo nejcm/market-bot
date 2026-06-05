@@ -180,14 +180,22 @@ retry/backoff/circuit-breaker at the collector seam, seen-news index.
   strongest bear case **against the final predictions**, nor flag probability/evidence-strength
   mismatch
   ([../prompts/playbooks/critique-discipline.md](../prompts/playbooks/critique-discipline.md)).
-- **Fix:** Added two directives to `critique-discipline.md`'s `## instruction`: (a) construct the
-  strongest observable disconfirming case for each prediction from supplied evidence, and (b) flag
-  predictions where the stated probability diverges from cited evidence strength, naming the
-  direction it should move. Kept research-only (no buy/sell/hold/sizing). Registry summary and
-  `## goal` updated to match. Free — the critique stage already runs.
+- **Fix:** Added two directives to `critique-discipline.md`'s `## instruction`, plus a research-only
+  guard: (a) construct the strongest observable disconfirming case for each forecast claim from
+  supplied evidence, and (b) flag claims where the stated probability diverges from cited evidence
+  strength, naming the direction it should move. Worded against the *forecast claims in prior
+  findings that synthesis will formalize*, because critique runs before `final-synthesis` emits
+  formal `predictions[]` (see the follow-up note below). Registry summary and `## goal` updated to
+  match. Free — the critique stage already runs.
 - **Test:** `tests/playbooks.test.ts` asserts the loaded critique-discipline instruction teaches
-  prediction-specific disconfirmation and probability/evidence-strength mismatch flagging.
+  prediction-specific disconfirmation (`prediction`/`disconfirm`/`observable`) and
+  probability/evidence-strength mismatch flagging (`probability`/`evidence`/`direction`).
 - **Effort:** S.
+- **Follow-up (open, architectural):** The critique stage runs *before* `final-synthesis` emits
+  formal `predictions[]` with probabilities ([../src/research/orchestrator.ts:422](../src/research/orchestrator.ts)),
+  so the directives prepare synthesis rather than auditing the emitted predictions. A
+  post-synthesis critique pass (or re-ordering) would let critique challenge the actual stated
+  probabilities and feed a correction loop. Larger scope than #9; track separately. **Effort:** M.
 
 ### 10. Economically thin prediction kinds
 

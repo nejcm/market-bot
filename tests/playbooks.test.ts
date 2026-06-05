@@ -158,7 +158,11 @@ describe("loadPlaybookRegistry", () => {
     // Strongest disconfirming case per prediction, plus probability/evidence-strength mismatch.
     expect(instruction).toContain("prediction");
     expect(instruction).toContain("disconfirm");
+    expect(instruction).toContain("observable");
+    // Evidence-strength mismatch flagging and the direction the probability should move.
     expect(instruction).toContain("probability");
+    expect(instruction).toContain("evidence");
+    expect(instruction).toContain("direction");
   });
 });
 

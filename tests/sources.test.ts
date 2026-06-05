@@ -612,9 +612,9 @@ describe("news provider collection", () => {
                       quotes: [
                         {
                           symbol: "SPY",
-                          regularMarketPrice: 510,
-                          regularMarketChangePercent: 0.4,
-                          regularMarketVolume: 90_000_000,
+                          regularMarketPrice: 530,
+                          regularMarketChangePercent: 8,
+                          regularMarketVolume: 200_000_000,
                         },
                       ],
                     },
@@ -646,7 +646,12 @@ describe("news provider collection", () => {
 
     const spy = result.marketSnapshots.filter((snapshot) => snapshot.symbol === "SPY");
     expect(spy).toHaveLength(1);
-    expect(spy[0]?.fiftyDayAverage).toBe(500);
+    expect(spy[0]).toMatchObject({
+      price: 510,
+      changePercent24h: 0.4,
+      volume: 90_000_000,
+      fiftyDayAverage: 500,
+    });
   });
 
   test("caps Finnhub normalized sources after provider fetch", async () => {

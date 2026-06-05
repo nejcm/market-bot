@@ -123,7 +123,7 @@ export function rankMovers(snapshots: readonly MarketSnapshot[], limit: number):
         Number.isFinite(snapshot.changePercent24h) &&
         Number.isFinite(snapshot.volume) &&
         snapshot.volume >= MINIMUM_VOLUME &&
-        (snapshot.assetClass !== "equity" || !isEquityRegimeSymbol(snapshot.symbol)),
+        !isEquityRegimeSymbol(snapshot.symbol),
     )
     .map((snapshot) => ({ ...buildMover(snapshot), rank: 0 }))
     .toSorted((left, right) => {

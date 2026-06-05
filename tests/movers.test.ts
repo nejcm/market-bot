@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MarketSnapshot } from "../src/domain/types";
+import { EQUITY_REGIME_SYMBOLS } from "../src/domain/regime-symbols";
 import { dedupeMoversBySymbol } from "../src/movers/dedupe";
 import { rankMovers } from "../src/movers/ranking";
 
@@ -138,7 +139,12 @@ describe("rankMovers", () => {
 
   test("excludes equity regime proxies from the ranked mover set", () => {
     const ranked = rankMovers(
-      [snapshot("SPY", 20, 200_000_000), snapshot("TSLA", 6, 120_000_000)],
+      [
+        ...EQUITY_REGIME_SYMBOLS.map((symbol) =>
+          snapshot(symbol, 20, 200_000_000, { assetClass: "crypto" }),
+        ),
+        snapshot("TSLA", 6, 120_000_000),
+      ],
       10,
     );
 

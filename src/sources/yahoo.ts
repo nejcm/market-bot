@@ -187,7 +187,11 @@ export function yahooQuoteSourceRequest(
   };
 }
 
-type EquityRole = "movers" | "regime";
+type EquityRole = "gainers" | "losers" | "actives" | "regime";
+
+function isMoverRole(role: EquityRole): boolean {
+  return role === "gainers" || role === "losers" || role === "actives";
+}
 
 interface BenchmarkSelection {
   readonly symbol: string;
@@ -405,9 +409,9 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     command.jobType === "ticker"
       ? [{ role: "regime", url: yahooQuoteUrl(command.symbol ?? "") }]
       : [
-          { role: "movers", url: EQUITY_DAILY_URL },
-          { role: "movers", url: EQUITY_DAILY_LOSERS_URL },
-          { role: "movers", url: EQUITY_MOST_ACTIVES_URL },
+          { role: "gainers", url: EQUITY_DAILY_URL },
+          { role: "losers", url: EQUITY_DAILY_LOSERS_URL },
+          { role: "actives", url: EQUITY_MOST_ACTIVES_URL },
           { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS) },
         ];
 
@@ -416,7 +420,7 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
       role: req.role,
       result: await ctx.request.json({
         url: req.url,
-        adapter: `yahoo-${req.role}`,
+        adapter: req.role === "regime" ? "yahoo-regime" : `yahoo-${req.role}`,
         fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
       }),
     })),
@@ -430,9 +434,9 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     .filter((r): r is SourceGap => !isFetchJsonResult(r));
 
   const isMarketUpdate = command.jobType === "daily" || command.jobType === "weekly";
-  const moverResults = fetched.filter((e) => isMarketUpdate && e.role === "movers");
+  const moverResults = fetched.filter((e) => isMarketUpdate && isMoverRole(e.role));
   const regimeSnapshots = fetched.flatMap((e) =>
-    isMarketUpdate && e.role === "movers"
+    isMarketUpdate && isMoverRole(e.role)
       ? []
       : normalizeYahooQuotePayload(e.result.payload, "equity", e.result.rawSnapshot.fetchedAt),
   );
@@ -448,9 +452,20 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     ? await enrichMoverBenchmarks(ctx, moverSnapshots)
     : { marketSnapshots: [], rawSnapshots: [], sourceGaps: [] };
 
+  const seenSymbols = new Set<string>();
+  const marketSnapshots = [...benchmarkResult.marketSnapshots, ...regimeSnapshots].filter(
+    (snapshot) => {
+      if (seenSymbols.has(snapshot.symbol)) {
+        return false;
+      }
+      seenSymbols.add(snapshot.symbol);
+      return true;
+    },
+  );
+
   return {
     rawSnapshots: [...fetched.map((e) => e.result.rawSnapshot), ...benchmarkResult.rawSnapshots],
-    marketSnapshots: [...benchmarkResult.marketSnapshots, ...regimeSnapshots],
+    marketSnapshots,
     sourceGaps: [...sourceGaps, ...benchmarkResult.sourceGaps],
   };
 }

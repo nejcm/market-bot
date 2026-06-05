@@ -229,6 +229,61 @@ describe("collectSources", () => {
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
   });
 
+  test("deduplicates regime symbols that also appear in a mover screener", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("most_actives")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "SPY",
+                    regularMarketPrice: 510,
+                    regularMarketChangePercent: 0.8,
+                    regularMarketVolume: 200_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("screener")) {
+        return jsonResponse({ finance: { result: [{ quotes: [] }] } });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    const symbols = result.marketSnapshots.map((snapshot) => snapshot.symbol);
+    expect(symbols.filter((s) => s === "SPY")).toHaveLength(1);
+  });
+
   test("adds sector benchmark context to equity movers without standalone snapshots", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -782,7 +837,7 @@ describe("collectSources", () => {
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["SPY"]);
-    expect(result.sourceGaps[0]?.source).toBe("yahoo-movers");
+    expect(result.sourceGaps[0]?.source).toBe("yahoo-gainers");
   });
 
   test("does not call Massive or emit a gap when key is missing", async () => {

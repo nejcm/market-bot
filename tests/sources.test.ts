@@ -570,29 +570,30 @@ describe("news provider collection", () => {
   });
 
   test("passes Yahoo credential retry as a request-specific fetch override", async () => {
-    const requestShapes: string[][] = [];
+    const requestedAdaptersAndUrls: { adapter: string; scrId: string | null }[] = [];
 
     await yahooMarketDataAdapter.collect(
       collectContext({
         request: requestExecutor({
           json: async (request) => {
-            requestShapes.push(Object.keys(request).toSorted());
             expect(typeof request.fetch).toBe("function");
-            const payload =
-              request.adapter === "yahoo-movers"
-                ? { finance: { result: [{ quotes: [] }] } }
-                : { quoteResponse: { result: [] } };
+            const scrId = new URL(request.url).searchParams.get("scrIds");
+            requestedAdaptersAndUrls.push({ adapter: request.adapter, scrId });
+            const isScreener = scrId !== null;
+            const payload = isScreener
+              ? { finance: { result: [{ quotes: [] }] } }
+              : { quoteResponse: { result: [] } };
             return rawJson(request.adapter, payload);
           },
         }),
       }),
     );
 
-    expect(requestShapes).toEqual([
-      ["adapter", "fetch", "url"],
-      ["adapter", "fetch", "url"],
-      ["adapter", "fetch", "url"],
-      ["adapter", "fetch", "url"],
+    expect(requestedAdaptersAndUrls).toEqual([
+      { adapter: "yahoo-gainers", scrId: "day_gainers" },
+      { adapter: "yahoo-losers", scrId: "day_losers" },
+      { adapter: "yahoo-actives", scrId: "most_actives" },
+      { adapter: "yahoo-regime", scrId: null },
     ]);
   });
 

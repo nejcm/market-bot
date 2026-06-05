@@ -15,6 +15,8 @@ export interface ResolvedPair {
   readonly runId: string;
 }
 
+// Brier score of the naive always-predict-0.5 forecaster on binary outcomes: (0.5 - {0,1})^2.
+const BASELINE_BRIER = 0.25;
 const BIN_EDGES = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
 const HORIZON_BUCKETS = [
   { max: 5, label: "1-5d" },
@@ -37,6 +39,12 @@ function brierScore(pairs: readonly ResolvedPair[]): number {
     return total + diff * diff;
   }, 0);
   return sum / pairs.length;
+}
+
+// Brier skill score vs the always-0.5 baseline. Positive beats a coin flip, negative trails it.
+// For binary Brier in [0, 1] the skill lands in [-3, 1].
+export function brierSkillScore(brier: number): number {
+  return 1 - brier / BASELINE_BRIER;
 }
 
 function buildBins(pairs: readonly ResolvedPair[]): readonly CalibrationBin[] {
@@ -101,10 +109,12 @@ export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
 ): CalibrationSummary {
+  const overallBrier = brierScore(pairs);
   return {
     generatedAt: now.toISOString(),
     resolvedCount: pairs.length,
-    brierScore: brierScore(pairs),
+    brierScore: overallBrier,
+    brierSkillScore: brierSkillScore(overallBrier),
     bins: buildBins(pairs),
     byKind: groupMetrics(pairs, ({ prediction }) => prediction.kind),
     byAssetClass: groupMetrics(pairs, ({ assetClass }) => assetClass),

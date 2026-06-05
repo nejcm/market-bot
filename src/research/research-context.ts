@@ -9,6 +9,7 @@ import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric, CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
@@ -118,6 +119,12 @@ function isPositiveCount(value: number): boolean {
   return Number.isInteger(value) && value >= 1;
 }
 
+// Brier skill vs the always-0.5 baseline. Binary Brier in [0, 1] bounds the skill to [-3, 1].
+// Values outside that range are impossible and dropped.
+function isBrierSkill(value: number): boolean {
+  return value >= -3 && value <= 1;
+}
+
 function readNumberWhere(
   record: Record<string, unknown>,
   key: string,
@@ -137,6 +144,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   const generatedAt = readString(value, "generatedAt");
   const resolvedCount = readNumberWhere(value, "resolvedCount", isCount);
   const brierScore = readNumberWhere(value, "brierScore", isProbability);
+  const brierSkill = readNumberWhere(value, "brierSkillScore", isBrierSkill);
   const bins = Array.isArray(value.bins)
     ? value.bins.flatMap((bin) => {
         const parsed = parseCalibrationBin(bin);
@@ -152,6 +160,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     ...(resolvedCount !== undefined ? { resolvedCount } : {}),
     ...(brierScore !== undefined ? { brierScore } : {}),
+    ...(brierSkill !== undefined ? { brierSkillScore: brierSkill } : {}),
     ...(bins !== undefined ? { bins } : {}),
     ...(byKind !== undefined ? { byKind } : {}),
     ...(byAssetClass !== undefined ? { byAssetClass } : {}),
@@ -209,6 +218,29 @@ function parseMetricMap(value: unknown): Record<string, CalibrationMetric> | und
   return Object.fromEntries(entries);
 }
 
+function formatSkill(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+}
+
+// Render a per-slice calibration section (by kind / by horizon) as a directive. Each slice shows
+// Brier skill vs the always-0.5 baseline so the model sees where it currently has no edge.
+function renderMetricSlice(
+  lines: string[],
+  title: string,
+  metricsByKey: Record<string, CalibrationMetric> | undefined,
+): void {
+  const entries = metricsByKey === undefined ? [] : Object.entries(metricsByKey);
+  if (entries.length === 0) {
+    return;
+  }
+  lines.push(`${title} (Brier skill vs always-0.5; negative means worse than a coin flip):`);
+  for (const [key, metric] of entries) {
+    lines.push(
+      `  ${key}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)})`,
+    );
+  }
+}
+
 function buildCalibrationBlock(calibration: CalibrationContext | undefined): string | undefined {
   if (calibration === undefined) {
     return undefined;
@@ -216,6 +248,9 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
   const lines: string[] = [];
   if (typeof calibration.brierScore === "number") {
     lines.push(`Overall Brier score: ${calibration.brierScore.toFixed(3)} (lower is better)`);
+    lines.push(
+      `Brier skill vs always-0.5 baseline: ${formatSkill(brierSkillScore(calibration.brierScore))} (>0 beats always-stating-0.5, <0 is worse)`,
+    );
   }
   if (typeof calibration.resolvedCount === "number") {
     lines.push(`Resolved predictions: ${calibration.resolvedCount}`);
@@ -230,6 +265,14 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
         );
       }
     }
+  }
+  const beforeSlices = lines.length;
+  renderMetricSlice(lines, "Per-kind calibration", calibration.byKind);
+  renderMetricSlice(lines, "Per-horizon calibration", calibration.byHorizonBucket);
+  if (lines.length > beforeSlices) {
+    lines.push(
+      "In any slice with negative skill, shade probabilities toward base rates: there you are currently worse than always stating 0.5.",
+    );
   }
   return lines.length > 0 ? lines.join("\n") : undefined;
 }

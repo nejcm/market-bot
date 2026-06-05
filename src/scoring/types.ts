@@ -30,6 +30,8 @@ export interface CalibrationSummary {
   readonly generatedAt: string;
   readonly resolvedCount: number;
   readonly brierScore: number;
+  /** Brier skill vs the always-0.5 baseline (Brier 0.25). 0 = no edge, 1 = perfect, <0 = worse. */
+  readonly brierSkillScore: number;
   readonly bins: readonly CalibrationBin[];
   readonly byKind: Record<string, CalibrationMetric>;
   readonly byAssetClass: Record<string, CalibrationMetric>;

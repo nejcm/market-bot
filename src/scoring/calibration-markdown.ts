@@ -4,6 +4,10 @@ function formatBrier(value: number): string {
   return value.toFixed(4);
 }
 
+function formatSkill(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(4)}`;
+}
+
 function formatRate(value: number): string {
   return (value * 100).toFixed(1);
 }
@@ -39,6 +43,8 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     `Resolved predictions: ${String(summary.resolvedCount)}`,
     "",
     `Overall Brier score: ${formatBrier(summary.brierScore)}`,
+    "",
+    `Brier skill vs always-0.5 baseline: ${formatSkill(summary.brierSkillScore)} (0 = no edge, 1 = perfect, <0 = worse than a coin flip)`,
     "",
     "## Reliability bins",
     "",

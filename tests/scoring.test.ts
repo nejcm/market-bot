@@ -321,6 +321,64 @@ describe("buildCalibrationSummary", () => {
     expect(summary.bins).toHaveLength(0);
   });
 
+  test("reports Brier skill relative to the always-0.5 baseline", () => {
+    const at = new Date("2026-05-19T00:00:00.000Z");
+    const perfect = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, probability: 1 },
+          score: makeScore("hit"),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+        },
+      ],
+      at,
+    );
+    // Brier 0 => skill 1 (perfect).
+    expect(perfect.brierScore).toBe(0);
+    expect(perfect.brierSkillScore).toBe(1);
+
+    const baseline = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, probability: 0.5 },
+          score: makeScore("hit"),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+        },
+        {
+          prediction: { ...basePrediction, probability: 0.5 },
+          score: makeScore("miss"),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r2",
+        },
+      ],
+      at,
+    );
+    // Always-0.5 => Brier 0.25 => skill 0 (no edge).
+    expect(baseline.brierScore).toBe(0.25);
+    expect(baseline.brierSkillScore).toBe(0);
+
+    const worst = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, probability: 1 },
+          score: makeScore("miss"),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+        },
+      ],
+      at,
+    );
+    // Brier 1 => skill -3 (worst-case binary score).
+    expect(worst.brierScore).toBe(1);
+    expect(worst.brierSkillScore).toBe(-3);
+  });
+
   test("groups results by kind and assetClass", () => {
     const pairs = [
       {
@@ -401,6 +459,26 @@ describe("buildCalibrationSummary", () => {
     expect(renderCalibrationMarkdown(summary)).toContain(
       "_No resolved market-update predictions yet._",
     );
+  });
+
+  test("renders Brier skill versus the baseline in the markdown summary", () => {
+    const summary = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, probability: 1 },
+          score: makeScore("hit"),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+        },
+      ],
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
+
+    const markdown = renderCalibrationMarkdown(summary);
+
+    expect(markdown).toContain("Brier skill");
+    expect(markdown).toContain("+1.0000");
   });
 
   test("includes probability=1 in the top bin", () => {

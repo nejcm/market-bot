@@ -312,6 +312,65 @@ describe("buildStagePrompt", () => {
     expect(block).toContain("n=2");
   });
 
+  test("surfaces overall skill and per-kind / per-horizon calibration slices", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const summary = buildCalibrationSummary([
+      resolvedPair("pred-1", 0.65, "hit"),
+      resolvedPair("pred-2", 0.65, "miss"),
+    ]);
+    const calibrationContext = structuredClone(summary) as never;
+
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: { readonly priorCalibration?: string };
+    };
+    const block = parsed.evidence?.priorCalibration;
+
+    expect(block).toBeDefined();
+    expect(block).not.toContain("undefined");
+    expect(block).not.toContain("NaN");
+    // Overall Brier skill vs the 0.5 baseline is surfaced alongside raw Brier.
+    expect(block).toContain("Brier skill");
+    // Per-kind slice (direction) and per-horizon bucket (1-5d) are surfaced as directives.
+    expect(block).toContain("direction");
+    expect(block).toContain("1-5d");
+    expect(block).toContain("base rates");
+  });
+
   test("injects domain playbooks as a separate prompt field", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
     const prompt = buildStagePrompt(

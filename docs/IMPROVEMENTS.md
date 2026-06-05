@@ -17,7 +17,7 @@ sizing, or execution language.
 ## Recommended order
 
 1. ✅ Fix calibration context shape (#1) + validate `summary.json` at the boundary (#2).
-2. Surface `byKind` and `byHorizonBucket` slices; report Brier **and** Brier skill vs the 0.25 baseline.
+2. ✅ Surface `byKind` and `byHorizonBucket` slices (#3); report Brier **and** Brier skill vs the 0.25 baseline (#4).
 3. Add probability-setting discipline to `synthesis-discipline.md`.
 4. Strengthen `critique-discipline.md` around disconfirmation of the final predictions.
 5. Scoring calendar correctness (holiday handling).
@@ -79,26 +79,35 @@ producer/consumer seam. Confirmed by review.
 
 ### 3. Actionable calibration slices are never surfaced to the model
 
-- **Status:** Confirmed.
-- **Evidence:** `byKind`, `byHorizonBucket`, `byAssetClass`, `byMarketUpdateCadence` are computed
-  and written to `summary.json` and rendered in `summary.md`
-  ([../src/scoring/calibration.ts:109-116](../src/scoring/calibration.ts)), but `priorCalibration`
-  in the prompt only includes overall Brier, count, and bins
-  ([../src/research/research-context.ts:118-139](../src/research/research-context.ts)).
-- **Fix:** Surface `byKind` + `byHorizonBucket` into the prompt block as a directive, e.g.
-  *"On `direction`/6-10d you stated avg 0.68 but hit 0.52 — shade probabilities toward base
-  rates in this slice."*
+- **Status:** ✅ Fixed. `buildCalibrationBlock()` now renders `byKind` and `byHorizonBucket` slices
+  into the `priorCalibration` prompt block, each showing its Brier skill vs the always-0.5 baseline,
+  followed by a directive: *"In any slice with negative skill, shade probabilities toward base
+  rates."* ([../src/research/research-context.ts](../src/research/research-context.ts)). Slice skill
+  is derived from the validated per-slice `brierScore` via the shared `brierSkillScore()` helper
+  (#4), so the prompt's slice math and the producer's overall math share one definition.
+- **Evidence (original):** `byKind`, `byHorizonBucket`, `byAssetClass`, `byMarketUpdateCadence` were
+  computed and written to `summary.json` / `summary.md`
+  ([../src/scoring/calibration.ts](../src/scoring/calibration.ts)), but `priorCalibration` in the
+  prompt only included overall Brier, count, and bins.
+- **Test:** `tests/research-context.test.ts` asserts the rendered block surfaces overall skill, the
+  per-kind (`direction`) and per-horizon (`1-5d`) slices, the base-rate directive, and no
+  `undefined`/`NaN`.
 - **Effort:** S.
 
 ### 4. No Brier skill vs baseline
 
-- **Status:** Confirmed (code reports raw Brier only).
-- **Evidence:** `brierScore()` returns raw Brier
-  ([../src/scoring/calibration.ts:30-40](../src/scoring/calibration.ts)); no baseline comparison.
+- **Status:** ✅ Fixed. `buildCalibrationSummary()` now writes `brierSkillScore` (=
+  `1 - brier / 0.25`) into `summary.json` alongside raw Brier, and `renderCalibrationMarkdown()`
+  surfaces it in `summary.md`; the prompt block reports overall skill plus per-slice skill (#3)
+  ([../src/scoring/calibration.ts](../src/scoring/calibration.ts),
+  [../src/scoring/calibration-markdown.ts](../src/scoring/calibration-markdown.ts)). The disk
+  boundary validates `brierSkillScore` against its achievable `[-3, 1]` range.
+- **Evidence (original):** `brierScore()` returned raw Brier only; no baseline comparison.
 - **Impact:** Raw Brier alone can't tell the model — or the operator — whether the bot has any
-  edge. A model that learns nothing scores ~0.25 on coin-flip `direction` calls and looks "fine."
-- **Fix:** Report Brier skill relative to the naive 0.25 baseline (always-predict-0.5), alongside
-  raw Brier, in both `summary.json` and the prompt block.
+  edge. A model that learns nothing scores ~0.25 on coin-flip `direction` calls and looks "fine";
+  skill 0 now makes that explicit.
+- **Test:** `tests/scoring.test.ts` asserts skill 1 / 0 / -3 for Brier 0 / 0.25 / 1 and the markdown
+  line; `tests/calibration-context.test.ts` asserts out-of-range skill is dropped at the boundary.
 - **Effort:** S.
 
 ## Data Pipeline

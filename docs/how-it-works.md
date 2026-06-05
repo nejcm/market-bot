@@ -416,6 +416,7 @@ The summary includes:
 
 - resolved prediction count;
 - overall Brier score;
+- overall Brier skill vs the always-0.5 baseline (`1 - brier / 0.25`; 0 = no edge, 1 = perfect);
 - reliability bins by stated probability;
 - metrics by prediction kind;
 - metrics by asset class;

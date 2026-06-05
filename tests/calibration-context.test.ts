@@ -23,6 +23,7 @@ function validSummary(): CalibrationSummary {
     generatedAt: "2026-06-01T00:00:00.000Z",
     resolvedCount: 2,
     brierScore: 0.25,
+    brierSkillScore: 0,
     bins: [{ pLow: 0.6, pHigh: 0.7, label: "0.6-0.7", hitCount: 1, totalCount: 2, hitRate: 0.5 }],
     byKind: { direction: { brierScore: 0.25, count: 2 } },
     byAssetClass: { equity: { brierScore: 0.25, count: 2 } },
@@ -106,6 +107,15 @@ describe("parseCalibrationContext", () => {
     });
 
     expect(parsed).toEqual({});
+  });
+
+  test("rejects a Brier skill score outside the achievable [-3, 1] range", () => {
+    expect(parseCalibrationContext({ brierScore: 0.25, brierSkillScore: 5 })).toEqual({
+      brierScore: 0.25,
+    });
+    expect(parseCalibrationContext({ brierScore: 0.25, brierSkillScore: -10 })).toEqual({
+      brierScore: 0.25,
+    });
   });
 
   test("rejects bins with out-of-range probabilities or impossible counts", () => {

@@ -597,6 +597,58 @@ describe("news provider collection", () => {
     ]);
   });
 
+  test("backfills regime 50-day average onto a proxy that also appears as a mover", async () => {
+    const result = await yahooMarketDataAdapter.collect(
+      collectContext({
+        request: requestExecutor({
+          json: async (request) => {
+            const scrId = new URL(request.url).searchParams.get("scrIds");
+            if (scrId === "most_actives") {
+              // SPY tops most_actives by volume, but the screener quote omits the average.
+              return rawJson(request.adapter, {
+                finance: {
+                  result: [
+                    {
+                      quotes: [
+                        {
+                          symbol: "SPY",
+                          regularMarketPrice: 510,
+                          regularMarketChangePercent: 0.4,
+                          regularMarketVolume: 90_000_000,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              });
+            }
+            if (scrId !== null) {
+              return rawJson(request.adapter, { finance: { result: [{ quotes: [] }] } });
+            }
+            // Regime quote carries the 50-day average for the same symbol.
+            return rawJson(request.adapter, {
+              quoteResponse: {
+                result: [
+                  {
+                    symbol: "SPY",
+                    regularMarketPrice: 510,
+                    regularMarketChangePercent: 0.4,
+                    regularMarketVolume: 90_000_000,
+                    fiftyDayAverage: 500,
+                  },
+                ],
+              },
+            });
+          },
+        }),
+      }),
+    );
+
+    const spy = result.marketSnapshots.filter((snapshot) => snapshot.symbol === "SPY");
+    expect(spy).toHaveLength(1);
+    expect(spy[0]?.fiftyDayAverage).toBe(500);
+  });
+
   test("caps Finnhub normalized sources after provider fetch", async () => {
     const result = await finnhubNewsAdapter.collect(
       collectContext({

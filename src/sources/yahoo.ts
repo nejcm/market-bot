@@ -454,16 +454,20 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     ? await enrichMoverBenchmarks(ctx, moverSnapshots)
     : { marketSnapshots: [], rawSnapshots: [], sourceGaps: [] };
 
-  const seenSymbols = new Set<string>();
-  const marketSnapshots = [...benchmarkResult.marketSnapshots, ...regimeSnapshots].filter(
-    (snapshot) => {
-      if (seenSymbols.has(snapshot.symbol)) {
-        return false;
-      }
-      seenSymbols.add(snapshot.symbol);
-      return true;
-    },
-  );
+  // First occurrence (mover/benchmark) wins for identity.
+  // Backfill the regime quote's 50-day average so a mover-shadowed proxy keeps its trend input.
+  const bySymbol = new Map<string, MarketSnapshot>();
+  for (const snapshot of [...benchmarkResult.marketSnapshots, ...regimeSnapshots]) {
+    const existing = bySymbol.get(snapshot.symbol);
+    if (existing === undefined) {
+      bySymbol.set(snapshot.symbol, snapshot);
+      continue;
+    }
+    if (existing.fiftyDayAverage === undefined && snapshot.fiftyDayAverage !== undefined) {
+      bySymbol.set(snapshot.symbol, { ...existing, fiftyDayAverage: snapshot.fiftyDayAverage });
+    }
+  }
+  const marketSnapshots = [...bySymbol.values()];
 
   return {
     rawSnapshots: [...fetched.map((e) => e.result.rawSnapshot), ...benchmarkResult.rawSnapshots],

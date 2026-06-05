@@ -141,7 +141,17 @@ retry/backoff/circuit-breaker at the collector seam, seen-news index.
   Juneteenth start, and Good Friday across years; `tests/scoring.test.ts` asserts a `macro` point
   forecast targets the holiday-adjusted session (`2026-07-06`, not the closed `2026-07-03`) and that
   a close-window forecast defers rather than attempting resolution before the Nth real session.
+  Alpha validation now shares the same `resolutionDate()` (was a duplicated weekday-only counter
+  carrying the local-timezone bug), with a `tests/alpha-validation.test.ts` regression asserting it
+  defers across the same holiday ([../src/alpha-search/validation.ts](../src/alpha-search/validation.ts)).
 - **Effort:** S.
+- **Follow-up (open, design):** The exchange calendar is applied to every asset class. This is
+  correct-by-accident for crypto today — crypto has no point forecasts (`iv` is equity-gated, `macro`
+  is FRED) and its close-window value comes from the provider window slice, so the calendar only
+  gates *timing*, never the resolved value, and the prior code already weekday-gated crypto. A
+  proper asset-class-aware calendar (crypto on a 7-day cadence, which would also align the crypto
+  gate with its calendar-day value semantics) is a deliberate behavior change worth doing
+  separately. **Effort:** S.
 
 ### 6. Mover selection bias
 

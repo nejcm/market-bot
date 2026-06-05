@@ -116,6 +116,9 @@ function holidaysFor(year: number): ReadonlySet<string> {
   return computed;
 }
 
+// True only for full-day closures, not early-close (half) sessions.
+// A half session (e.g. the day after Thanksgiving) still prints a daily close.
+// The resolver therefore treats those days as trading days.
 export function isExchangeHoliday(date: Date): boolean {
   return holidaysFor(date.getUTCFullYear()).has(ymd(date));
 }
@@ -123,4 +126,19 @@ export function isExchangeHoliday(date: Date): boolean {
 export function isExchangeTradingDay(date: Date): boolean {
   const dow = date.getUTCDay();
   return dow !== 0 && dow !== 6 && !isExchangeHoliday(date);
+}
+
+// Advance from an ISO instant by N exchange trading days (open weekdays).
+// Shared by close-window scoring and alpha validation so both count real sessions.
+// All date math is UTC, so results stay deterministic across time zones.
+export function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
+  let count = 0;
+  let cursor = new Date(generatedAt);
+  while (count < horizonTradingDays) {
+    cursor = shiftDays(cursor, 1);
+    if (isExchangeTradingDay(cursor)) {
+      count += 1;
+    }
+  }
+  return cursor;
 }

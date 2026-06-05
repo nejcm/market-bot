@@ -1,4 +1,5 @@
 import type { ResearchReport } from "../domain/types";
+import { resolutionDate } from "../scoring/exchange-calendar";
 import type { Observation, ObservationRepository } from "../scoring/observations";
 import type { AlphaSearchDiscoverySource } from "./candidates";
 import { readAlphaSearchLeads, type AlphaSearchLead } from "./report-extras";
@@ -157,28 +158,6 @@ const SOURCE_PROMOTION_THRESHOLDS: AlphaSourcePromotionThresholds = {
   promisingHitRate: 0.55,
   weakHitRate: 0.45,
 };
-
-function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 86_400_000);
-}
-
-function isWeekday(date: Date): boolean {
-  const dow = date.getDay();
-  return dow !== 0 && dow !== 6;
-}
-
-function resolutionDate(generatedAt: string, horizonTradingDays: number): Date {
-  let count = 0;
-  let cursor = new Date(generatedAt);
-  // Weekday-only gate; observation counts remain the source of truth for holidays and missing sessions.
-  while (count < horizonTradingDays) {
-    cursor = addDays(cursor, 1);
-    if (isWeekday(cursor)) {
-      count += 1;
-    }
-  }
-  return cursor;
-}
 
 function roundMetric(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;

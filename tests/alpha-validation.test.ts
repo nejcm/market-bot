@@ -211,6 +211,33 @@ describe("validateAlphaSearchReport", () => {
       benchmarkReturn: 0.05,
     });
   });
+
+  test("defers horizon resolution across an exchange holiday instead of firing early", async () => {
+    const repository: ObservationRepository = {
+      async point() {
+        throw new Error("unexpected point observation request");
+      },
+      async window() {
+        throw new Error("unexpected window observation request");
+      },
+    };
+
+    // From Wed 2026-07-01, two trading days land on Mon 2026-07-06.
+    // Fri 2026-07-03 is the observed Independence Day closure and not a session.
+    // The supplied `now` (Sat 2026-07-04) sits before that second session, so resolution defers.
+    const result = await validateAlphaSearchReport({
+      report: alphaReport({ generatedAt: "2026-07-01T00:00:00.000Z" }),
+      now: new Date("2026-07-04T00:00:00.000Z"),
+      repository,
+      horizons: [2],
+    });
+
+    expect(result?.leads[0]?.horizons[0]).toMatchObject({
+      status: "unresolved",
+      horizonTradingDays: 2,
+      reason: "horizon-not-elapsed",
+    });
+  });
 });
 
 describe("buildAlphaValidationSummary", () => {

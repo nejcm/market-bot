@@ -8,6 +8,7 @@ import type {
 import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
+import { dedupeMoversBySymbol } from "../movers/dedupe";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -97,23 +98,9 @@ function normalizeYahooQuote(
   };
 }
 
-export interface EquityMoverSnapshot {
+interface EquityMoverSnapshot {
   readonly snapshot: MarketSnapshot;
   readonly sector?: string;
-}
-
-export function dedupeMoversBySymbol(
-  movers: readonly EquityMoverSnapshot[],
-): readonly EquityMoverSnapshot[] {
-  const seen = new Set<string>();
-  return movers.filter((mover) => {
-    const { symbol } = mover.snapshot;
-    if (seen.has(symbol)) {
-      return false;
-    }
-    seen.add(symbol);
-    return true;
-  });
 }
 
 export function normalizeYahooQuotePayload(

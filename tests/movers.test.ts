@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { MarketSnapshot } from "../src/domain/types";
+import { dedupeMoversBySymbol } from "../src/movers/dedupe";
 import { rankMovers } from "../src/movers/ranking";
-import { dedupeMoversBySymbol } from "../src/sources/yahoo";
 
 function snapshot(
   symbol: string,

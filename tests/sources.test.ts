@@ -597,14 +597,14 @@ describe("news provider collection", () => {
     ]);
   });
 
-  test("backfills regime 50-day average onto a proxy that also appears as a mover", async () => {
+  test("keeps regime quote fields when a proxy also appears as a mover", async () => {
     const result = await yahooMarketDataAdapter.collect(
       collectContext({
         request: requestExecutor({
           json: async (request) => {
             const scrId = new URL(request.url).searchParams.get("scrIds");
             if (scrId === "most_actives") {
-              // SPY tops most_actives by volume, but the screener quote omits the average.
+              // SPY tops most_actives by volume, but the screener quote is not the regime source.
               return rawJson(request.adapter, {
                 finance: {
                   result: [
@@ -625,7 +625,7 @@ describe("news provider collection", () => {
             if (scrId !== null) {
               return rawJson(request.adapter, { finance: { result: [{ quotes: [] }] } });
             }
-            // Regime quote carries the 50-day average for the same symbol.
+            // Regime quote carries the authoritative fields for the same symbol.
             return rawJson(request.adapter, {
               quoteResponse: {
                 result: [

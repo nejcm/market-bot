@@ -35,8 +35,9 @@ producer/consumer seam. Confirmed by review.
 
 - **Status:** ✅ Fixed. `CalibrationContext` now reuses `Partial<CalibrationSummary>`; the
   `priorCalibration` block renders `label` / `hitRate` / `totalCount` from real summary bins behind
-  an `isCalibrationBin` guard. Regression test in `tests/research-context.test.ts` asserts no
-  `undefined`/`NaN` and that the real bin label, hit rate, and sample count render.
+  the shared `parseCalibrationBin` validator (also used by the disk boundary in #2). Regression
+  test in `tests/research-context.test.ts` asserts no `undefined`/`NaN` and that the real bin
+  label, hit rate, and sample count render.
 - **Evidence:**
   - Producer writes bins as `{ pLow, pHigh, label, hitCount, totalCount, hitRate }`
     ([../src/scoring/calibration.ts:42-67](../src/scoring/calibration.ts)).
@@ -63,7 +64,10 @@ producer/consumer seam. Confirmed by review.
   ([../src/research/research-context.ts](../src/research/research-context.ts)). Bins and
   per-slice metric maps are validated element-by-element via shared `parseCalibrationBin` /
   `parseCalibrationMetric` helpers (the bin validator is also reused by the prompt renderer, so
-  #1's render guard and this boundary share one definition). No Zod / new dependency
+  #1's render guard and this boundary share one definition). Validation enforces the producer's
+  **domain invariants** — probabilities in [0,1], non-negative/positive integer counts,
+  `pLow < pHigh`, `hitCount <= totalCount` — so a finite-but-impossible value (e.g. `hitRate 1.5`)
+  is dropped rather than rendered into the prompt. No Zod / new dependency
   ([ADR 0003](./adr/0003-oxc-toolchain.md)).
 - **Evidence (original):** `loadCalibrationContext()` parsed JSON and cast `as CalibrationContext`
   with no runtime checks. This is exactly why #1 failed silently.

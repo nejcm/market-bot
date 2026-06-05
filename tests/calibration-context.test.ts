@@ -98,6 +98,52 @@ describe("parseCalibrationContext", () => {
 
     expect(parsed).toEqual({ brierScore: 0.25 });
   });
+
+  test("rejects domain-invalid top-level fields", () => {
+    const parsed = parseCalibrationContext({
+      resolvedCount: 2.5,
+      brierScore: 1.5,
+    });
+
+    expect(parsed).toEqual({});
+  });
+
+  test("rejects bins with out-of-range probabilities or impossible counts", () => {
+    const valid = {
+      pLow: 0.6,
+      pHigh: 0.7,
+      label: "0.6-0.7",
+      hitCount: 1,
+      totalCount: 2,
+      hitRate: 0.5,
+    };
+    const parsed = parseCalibrationContext({
+      bins: [
+        valid,
+        { pLow: 0.6, pHigh: 0.7, label: "bad-rate", hitCount: 1, totalCount: 2, hitRate: 1.5 },
+        { pLow: -0.1, pHigh: 0.2, label: "bad-low", hitCount: 1, totalCount: 2, hitRate: 0.5 },
+        { pLow: 0.7, pHigh: 0.6, label: "inverted", hitCount: 1, totalCount: 2, hitRate: 0.5 },
+        { pLow: 0.6, pHigh: 0.7, label: "hits>total", hitCount: 3, totalCount: 2, hitRate: 0.5 },
+        { pLow: 0.6, pHigh: 0.7, label: "frac-count", hitCount: 1.5, totalCount: 2, hitRate: 0.5 },
+        { pLow: 0.6, pHigh: 0.7, label: "empty-bin", hitCount: 0, totalCount: 0, hitRate: 0 },
+      ],
+    });
+
+    expect(parsed?.bins).toEqual([valid]);
+  });
+
+  test("rejects metric entries with out-of-range brier or non-positive counts", () => {
+    const parsed = parseCalibrationContext({
+      byKind: {
+        direction: { brierScore: 0.25, count: 2 },
+        overUnit: { brierScore: 1.4, count: 2 },
+        zeroCount: { brierScore: 0.25, count: 0 },
+        fracCount: { brierScore: 0.25, count: 1.5 },
+      },
+    });
+
+    expect(parsed?.byKind).toEqual({ direction: { brierScore: 0.25, count: 2 } });
+  });
 });
 
 describe("loadCalibrationContext", () => {

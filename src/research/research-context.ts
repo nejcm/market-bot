@@ -103,6 +103,30 @@ export async function loadCalibrationContext(
   }
 }
 
+// Domain invariants the producer guarantees (see src/scoring/calibration.ts).
+// These are enforced at the untrusted disk boundary, not assumed.
+// Finite-but-impossible values like hitRate 1.5 or negative counts are dropped.
+function isProbability(value: number): boolean {
+  return value >= 0 && value <= 1;
+}
+
+function isCount(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function isPositiveCount(value: number): boolean {
+  return Number.isInteger(value) && value >= 1;
+}
+
+function readNumberWhere(
+  record: Record<string, unknown>,
+  key: string,
+  predicate: (value: number) => boolean,
+): number | undefined {
+  const value = readNumber(record, key);
+  return value !== undefined && predicate(value) ? value : undefined;
+}
+
 // Runtime schema validation at the disk boundary: summary.json is untrusted on read.
 // Malformed or schema-drifted fields are dropped rather than cast through with `as`.
 // Mirrors the custom-validation pattern in src/report/schema.ts (no Zod, per ADR 0003).
@@ -111,8 +135,8 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     return undefined;
   }
   const generatedAt = readString(value, "generatedAt");
-  const resolvedCount = readNumber(value, "resolvedCount");
-  const brierScore = readNumber(value, "brierScore");
+  const resolvedCount = readNumberWhere(value, "resolvedCount", isCount);
+  const brierScore = readNumberWhere(value, "brierScore", isProbability);
   const bins = Array.isArray(value.bins)
     ? value.bins.flatMap((bin) => {
         const parsed = parseCalibrationBin(bin);
@@ -141,19 +165,21 @@ function parseCalibrationBin(value: unknown): CalibrationBin | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
-  const pLow = readNumber(value, "pLow");
-  const pHigh = readNumber(value, "pHigh");
+  const pLow = readNumberWhere(value, "pLow", isProbability);
+  const pHigh = readNumberWhere(value, "pHigh", isProbability);
   const label = readString(value, "label");
-  const hitCount = readNumber(value, "hitCount");
-  const totalCount = readNumber(value, "totalCount");
-  const hitRate = readNumber(value, "hitRate");
+  const hitCount = readNumberWhere(value, "hitCount", isCount);
+  const totalCount = readNumberWhere(value, "totalCount", isPositiveCount);
+  const hitRate = readNumberWhere(value, "hitRate", isProbability);
   if (
     pLow === undefined ||
     pHigh === undefined ||
     label === undefined ||
     hitCount === undefined ||
     totalCount === undefined ||
-    hitRate === undefined
+    hitRate === undefined ||
+    pLow >= pHigh ||
+    hitCount > totalCount
   ) {
     return undefined;
   }
@@ -164,8 +190,8 @@ function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
-  const brierScore = readNumber(value, "brierScore");
-  const count = readNumber(value, "count");
+  const brierScore = readNumberWhere(value, "brierScore", isProbability);
+  const count = readNumberWhere(value, "count", isPositiveCount);
   if (brierScore === undefined || count === undefined) {
     return undefined;
   }

@@ -37,7 +37,7 @@ Keep files cohesive — soft target 200–400 lines, hard limit 800.
 External fetching only. Retry, backoff, per-host rate limiting, and circuit breaking live at the collector/cache seam. Respect `MARKET_BOT_SOURCE_TIMEOUT_MS`. Mock at this seam in tests, not at `fetch`.
 
 Notable inputs:
-- Equity movers: Yahoo `day_gainers`
+- Equity movers: Yahoo `day_gainers`, `day_losers`, and `most_actives` (deduped by symbol)
 - Equity mover benchmark context: Yahoo sector ETF quotes, falling back to `SPY`, attached as citeable context without changing mover ranking
 - Crypto movers: CoinGecko 24h change
 - Supplemental equity market evidence: Massive stock snapshots for already-selected Yahoo symbols when `MARKET_BOT_MASSIVE_API_KEY` is set

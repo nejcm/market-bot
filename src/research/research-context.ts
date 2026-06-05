@@ -81,7 +81,7 @@ export function deterministicSourceGaps(
     command.jobType === "weekly"
       ? [
           command.assetClass === "equity"
-            ? "Weekly equity mover universe is seeded from Yahoo day_gainers, not a true trailing 5-session mover screener"
+            ? "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener"
             : "Weekly crypto mover data uses CoinGecko 24h change fields; trailing 7-day mover changes are not available in the current source payload",
         ]
       : [];

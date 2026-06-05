@@ -10,28 +10,23 @@ import { isFredBaseMetricKey } from "../sources/fred";
 const EQUITY_BREADTH_PROXIES = new Set(["SPY", "QQQ", "IWM", "DIA"]);
 const CRYPTO_MAJOR_PROXIES = new Set(["BTC", "ETH"]);
 const VIX_SYMBOL = "^VIX";
+const VIX_TERM_SYMBOL = "^VIX3M";
 const VIX_ELEVATED_THRESHOLD = 25;
 
-function classifyByBreadth(positive: number, negative: number, total: number): MarketRegimeLabel {
-  if (total === 0) {
-    return "insufficient-data";
-  }
+const VOLATILITY_SYMBOLS = new Set([VIX_SYMBOL, VIX_TERM_SYMBOL]);
 
-  if (positive > negative) {
-    return "risk-on";
-  }
+// One regime driver's directional read; `undefined` means missing inputs, so it casts no vote.
+type RegimeVote = "risk-on" | "risk-off" | "neutral";
 
-  if (negative > positive) {
-    return "risk-off";
-  }
-
-  return "mixed";
+interface RegimeSignal {
+  readonly vote: RegimeVote | undefined;
+  readonly driver?: string;
 }
 
 function isEquityRegimeSnapshot(snapshot: MarketSnapshot): boolean {
   return (
     (snapshot.assetClass === "equity" && EQUITY_BREADTH_PROXIES.has(snapshot.symbol)) ||
-    snapshot.symbol === VIX_SYMBOL
+    VOLATILITY_SYMBOLS.has(snapshot.symbol)
   );
 }
 
@@ -62,6 +57,104 @@ function buildBreadthDriver(
   return `${prefix} ${direction}: ${directionalCount}/${total}`;
 }
 
+function breadthSignal(
+  assetClass: AssetClass,
+  positive: number,
+  negative: number,
+  total: number,
+): RegimeSignal {
+  const driver = buildBreadthDriver(assetClass, positive, negative, total);
+  if (total === 0) {
+    return { vote: undefined, driver };
+  }
+  if (positive > negative) {
+    return { vote: "risk-on", driver };
+  }
+  if (negative > positive) {
+    return { vote: "risk-off", driver };
+  }
+  return { vote: "neutral", driver };
+}
+
+// Trend driver: each proxy's price vs its own 50-day average.
+// Net above is risk-on, net below is risk-off; proxies without an average are excluded.
+function trendSignal(breadth: readonly MarketSnapshot[]): RegimeSignal {
+  const directions = breadth.flatMap((snapshot) => {
+    const average = snapshot.fiftyDayAverage;
+    if (average === undefined) {
+      return [];
+    }
+    if (snapshot.price > average) {
+      return ["above" as const];
+    }
+    if (snapshot.price < average) {
+      return ["below" as const];
+    }
+    return ["flat" as const];
+  });
+  if (directions.length === 0) {
+    return { vote: undefined };
+  }
+  const above = directions.filter((direction) => direction === "above").length;
+  const below = directions.filter((direction) => direction === "below").length;
+  const total = directions.length;
+  if (above > below) {
+    return {
+      vote: "risk-on",
+      driver: `trend positive: ${above}/${total} proxies above 50-day average`,
+    };
+  }
+  if (below > above) {
+    return {
+      vote: "risk-off",
+      driver: `trend negative: ${below}/${total} proxies below 50-day average`,
+    };
+  }
+  return { vote: "neutral", driver: `trend mixed: ${above}/${total} proxies above 50-day average` };
+}
+
+// Term structure: front-month VIX above 3-month VIX (backwardation) is a risk-off stress signal.
+// Normal contango carries no directional vote and must not nudge the regime toward risk-on.
+function termStructureSignal(
+  vix: MarketSnapshot | undefined,
+  vix3m: MarketSnapshot | undefined,
+): RegimeSignal {
+  if (vix === undefined || vix3m === undefined) {
+    return { vote: undefined };
+  }
+  const front = vix.price.toFixed(2);
+  const back = vix3m.price.toFixed(2);
+  if (vix.price > vix3m.price) {
+    return {
+      vote: "risk-off",
+      driver: `VIX term structure backwardation: VIX ${front} vs VIX3M ${back}`,
+    };
+  }
+  return {
+    vote: "neutral",
+    driver: `VIX term structure contango: VIX ${front} vs VIX3M ${back}`,
+  };
+}
+
+function resolveLabel(signals: readonly RegimeSignal[], isVixElevated: boolean): MarketRegimeLabel {
+  if (isVixElevated) {
+    return "risk-off";
+  }
+  const votes = signals.flatMap((signal) => (signal.vote === undefined ? [] : [signal.vote]));
+  if (votes.length === 0) {
+    return "insufficient-data";
+  }
+  const riskOn = votes.filter((vote) => vote === "risk-on").length;
+  const riskOff = votes.filter((vote) => vote === "risk-off").length;
+  if (riskOn > riskOff) {
+    return "risk-on";
+  }
+  if (riskOff > riskOn) {
+    return "risk-off";
+  }
+  return "mixed";
+}
+
 export function summarizeMarketRegime(
   assetClass: AssetClass,
   snapshots: readonly MarketSnapshot[],
@@ -70,15 +163,21 @@ export function summarizeMarketRegime(
     assetClass === "equity"
       ? snapshots.filter((snapshot) => isEquityRegimeSnapshot(snapshot))
       : snapshots.filter((snapshot) => isCryptoRegimeSnapshot(snapshot));
-  const breadth = selected.filter((snapshot) => snapshot.symbol !== VIX_SYMBOL);
+  const breadth = selected.filter((snapshot) => !VOLATILITY_SYMBOLS.has(snapshot.symbol));
   const positive = breadth.filter((snapshot) => snapshot.changePercent24h > 0).length;
   const negative = breadth.filter((snapshot) => snapshot.changePercent24h < 0).length;
   const vix = selected.find((snapshot) => snapshot.symbol === VIX_SYMBOL);
-  const breadthLabel = classifyByBreadth(positive, negative, breadth.length);
+  const vix3m = selected.find((snapshot) => snapshot.symbol === VIX_TERM_SYMBOL);
+
+  const signals: RegimeSignal[] = [breadthSignal(assetClass, positive, negative, breadth.length)];
+  if (assetClass === "equity") {
+    signals.push(trendSignal(breadth), termStructureSignal(vix, vix3m));
+  }
+
   const isVixElevated =
     assetClass === "equity" && vix !== undefined && vix.price >= VIX_ELEVATED_THRESHOLD;
-  const label = isVixElevated ? "risk-off" : breadthLabel;
-  const drivers = [buildBreadthDriver(assetClass, positive, negative, breadth.length)];
+  const label = resolveLabel(signals, isVixElevated);
+  const drivers = signals.flatMap((signal) => (signal.driver === undefined ? [] : [signal.driver]));
 
   return {
     assetClass,

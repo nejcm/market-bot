@@ -1524,7 +1524,7 @@ describe("runResearchJob", () => {
     expect(result.markdown).toContain("# equity Weekly Market Update");
     expect(result.report.predictions[0]?.horizonTradingDays).toBe(15);
     expect(result.report.dataGaps).toContain(
-      "Weekly equity mover universe is seeded from Yahoo day_gainers, not a true trailing 5-session mover screener",
+      "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener",
     );
     expect(finalPrompt.depthProfile?.defaultPredictionHorizon).toBe(15);
     expect(finalPrompt.depthProfile?.minimumPredictions).toBe(2);

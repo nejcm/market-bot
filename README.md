@@ -6,7 +6,7 @@ Reports are **research views**, not trading advice — no buy/sell calls, no pos
 
 ## What it does
 
-- **Daily and weekly market updates** — equity or crypto regime, FRED Market Context, top movers, themes, risks, and source gaps. Weekly is a cadence and horizon change, not a separate data product; mover inputs still come from Yahoo `day_gainers` and CoinGecko 24h change, and reports disclose this as a source gap. Optional Massive equity snapshots and news add supplemental cited evidence without changing mover ranking or scoring.
+- **Daily and weekly market updates** — equity or crypto regime, FRED Market Context, top movers, themes, risks, and source gaps. Weekly is a cadence and horizon change, not a separate data product; mover inputs still come from Yahoo `day_gainers`, `day_losers`, and `most_actives` plus CoinGecko 24h change, and reports disclose this as a source gap. Optional Massive equity snapshots and news add supplemental cited evidence without changing mover ranking or scoring.
 - **Ticker briefs** — deeper, single-instrument research views with optional Extended Evidence from SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode.
 - **Alpha search** — ApeWisdom social-momentum discovery for equity Research Leads, validated against Yahoo eligibility criteria.
 - **Measurable predictions** — each report emits typed predictions (price targets, directional moves) parsed by a small DSL and validated against the report schema.

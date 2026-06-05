@@ -142,6 +142,7 @@ export interface MarketSnapshot {
   readonly open?: number;
   readonly previousClose?: number;
   readonly averageVolume?: number;
+  readonly fiftyDayAverage?: number;
   readonly observedAt: string;
 }
 

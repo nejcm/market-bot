@@ -26,7 +26,7 @@ A public market quantity value used to resolve a Prediction. An Observation can 
 
 A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.
 
-Weekly market updates are a cadence and horizon change in V1, not a separate trailing-window data product. Equity mover inputs still come from Yahoo `day_gainers`, and crypto mover inputs still use CoinGecko 24h change fields; reports must disclose this as a source gap.
+Weekly market updates are a cadence and horizon change in V1, not a separate trailing-window data product. Equity mover inputs still come from Yahoo `day_gainers`, `day_losers`, and `most_actives` (a single-day multi-screener set), and crypto mover inputs still use CoinGecko 24h change fields; reports must disclose this as a source gap.
 
 ## Historical Research Context
 

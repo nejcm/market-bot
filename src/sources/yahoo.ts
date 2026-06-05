@@ -68,6 +68,7 @@ function normalizeYahooQuote(
     readNumber(value, "averageDailyVolume10Day") ??
     readNumber(value, "averageDailyVolume3Month") ??
     readNumber(value, "averageVolume");
+  const fiftyDayAverage = readNumber(value, "fiftyDayAverage");
   const exchange = optionalString(value, "fullExchangeName") ?? optionalString(value, "exchange");
   const quoteCurrency = optionalString(value, "currency");
   const identity: InstrumentIdentity = {
@@ -90,6 +91,7 @@ function normalizeYahooQuote(
     ...(open !== undefined ? { open } : {}),
     ...(previousClose !== undefined ? { previousClose } : {}),
     ...(averageVolume !== undefined ? { averageVolume } : {}),
+    ...(fiftyDayAverage !== undefined ? { fiftyDayAverage } : {}),
     observedAt: fetchedAt,
   };
 }
@@ -149,7 +151,7 @@ const EQUITY_DAILY_LOSERS_URL =
 const EQUITY_MOST_ACTIVES_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&count=50";
 const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
-const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX";
+const EQUITY_REGIME_SYMBOLS = "SPY,QQQ,IWM,DIA,^VIX,^VIX3M";
 const BROAD_EQUITY_BENCHMARK = "SPY";
 const SECTOR_BENCHMARKS: Readonly<Record<string, string>> = {
   "Basic Materials": "XLB",

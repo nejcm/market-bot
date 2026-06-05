@@ -162,10 +162,10 @@ The collector fetches market data and news in parallel:
 
 | Asset class | Market data | News |
 | --- | --- | --- |
-| `equity` | Yahoo Finance predefined `day_gainers` screener for market updates; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
+| `equity` | Yahoo Finance predefined `day_gainers`, `day_losers`, and `most_actives` screeners (deduped by symbol) for market updates; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
 | `crypto` | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol. | MarketAux, Finnhub crypto market news, and Yahoo Finance search. |
 
-Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, and `^VIX`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
+Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, `^VIX`, and `^VIX3M`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
 Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s and do not abort research, but provider-health v2 treats them as validation failures because FRED is baseline-required.
 
@@ -253,7 +253,7 @@ Weekly reports currently reuse the same underlying mover inputs as daily reports
 
 The deterministic regime summary lives in `src/research/regime.ts`.
 
-For equities, the app checks breadth across `SPY`, `QQQ`, `IWM`, and `DIA`, then forces `risk-off` when `^VIX` is at or above the elevated threshold. For crypto, it checks breadth across major crypto proxies. FRED Market Context can add macro drivers and source IDs, but it does not change the deterministic `risk-on` / `risk-off` / `mixed` label. The output includes:
+For equities, the classifier aggregates three deterministic drivers across the `SPY`, `QQQ`, `IWM`, and `DIA` proxies: same-day **breadth** (advancers vs decliners), **trend** (each proxy's price vs its own 50-day average), and **VIX term structure** (`^VIX` vs `^VIX3M`, where front-month backwardation is a risk-off stress signal). Each driver casts a `risk-on` / `risk-off` / `neutral` vote and the majority wins; an elevated `^VIX` (at or above the threshold) still forces `risk-off` as an override. When no driver has inputs the label falls back to `insufficient-data` rather than defaulting to `risk-on`. For crypto, it checks breadth across major crypto proxies. FRED Market Context can add macro drivers and source IDs, but it does not change the deterministic `risk-on` / `risk-off` / `mixed` label. The output includes:
 
 - `label`: `risk-on`, `risk-off`, `mixed`, or `insufficient-data`;
 - `proxyCount`;

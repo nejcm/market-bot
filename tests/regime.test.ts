@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import type { MarketContext, MarketRegimeSummary, MarketSnapshot } from "../src/domain/types";
 import { addMarketContextToRegime, summarizeMarketRegime } from "../src/research/regime";
 
-function snapshot(symbol: string, changePercent24h: number, price = 100): MarketSnapshot {
+function snapshot(
+  symbol: string,
+  changePercent24h: number,
+  price = 100,
+  fiftyDayAverage?: number,
+): MarketSnapshot {
   return {
     sourceId: `market-${symbol.toLowerCase()}`,
     assetClass: symbol === "BTC" || symbol === "ETH" ? "crypto" : "equity",
@@ -10,6 +15,7 @@ function snapshot(symbol: string, changePercent24h: number, price = 100): Market
     price,
     changePercent24h,
     volume: 1_000_000,
+    ...(fiftyDayAverage !== undefined ? { fiftyDayAverage } : {}),
     observedAt: "2026-05-19T00:00:00.000Z",
   };
 }
@@ -84,6 +90,60 @@ describe("summarizeMarketRegime", () => {
     });
     expect(summary.sourceIds).toEqual(["market-btc"]);
     expect(summary.drivers).toEqual(["major crypto proxies positive: 1/1"]);
+  });
+
+  test("classifies risk-on from agreeing breadth and trend with calm term structure", () => {
+    const summary = summarizeMarketRegime("equity", [
+      snapshot("SPY", 0.8, 105, 100),
+      snapshot("QQQ", 1.1, 210, 200),
+      snapshot("IWM", 0.5, 102, 100),
+      snapshot("DIA", 0.3, 101, 100),
+      snapshot("^VIX", -3, 16),
+      snapshot("^VIX3M", -1, 18),
+    ]);
+
+    expect(summary).toMatchObject({ assetClass: "equity", label: "risk-on", proxyCount: 6 });
+    expect(summary.drivers).toContain("equity breadth proxies positive: 4/4");
+    expect(summary.drivers).toContain("trend positive: 4/4 proxies above 50-day average");
+    expect(summary.drivers).toContain("VIX term structure contango: VIX 16.00 vs VIX3M 18.00");
+    expect(summary.sourceIds).toContain("market-^vix3m");
+  });
+
+  test("treats VIX backwardation as risk-off without the elevated-VIX override", () => {
+    const summary = summarizeMarketRegime("equity", [
+      snapshot("SPY", 1, 101, 100),
+      snapshot("QQQ", -1, 99, 100),
+      snapshot("^VIX", 5, 22),
+      snapshot("^VIX3M", 1, 20),
+    ]);
+
+    expect(summary.label).toBe("risk-off");
+    expect(summary.drivers).toContain("VIX term structure backwardation: VIX 22.00 vs VIX3M 20.00");
+    expect(summary.drivers).not.toContain("VIX elevated at 22");
+  });
+
+  test("reports mixed when breadth and trend drivers disagree", () => {
+    const summary = summarizeMarketRegime("equity", [
+      snapshot("SPY", 0.9, 95, 100),
+      snapshot("QQQ", 1.2, 190, 200),
+      snapshot("IWM", 0.4, 96, 100),
+      snapshot("DIA", 0.6, 97, 100),
+      snapshot("^VIX", -2, 15),
+      snapshot("^VIX3M", -1, 17),
+    ]);
+
+    expect(summary.label).toBe("mixed");
+    expect(summary.drivers).toContain("equity breadth proxies positive: 4/4");
+    expect(summary.drivers).toContain("trend negative: 4/4 proxies below 50-day average");
+  });
+
+  test("falls back to insufficient-data when no driver has inputs", () => {
+    const summary = summarizeMarketRegime("equity", [snapshot("AAPL", 1.5)]);
+
+    expect(summary.label).toBe("insufficient-data");
+    expect(summary.label).not.toBe("risk-on");
+    expect(summary.drivers).toEqual(["equity breadth proxies unavailable"]);
+    expect(summary.proxyCount).toBe(0);
   });
 });
 

@@ -19,15 +19,13 @@ re-deriving scope.
 
 ## Recommended order (open items)
 
-1. **#7 Regime v2** — deterministic trend + term-structure + breadth drivers with citeable source IDs.
-2. **#12 Calibration dashboard** — the single console surface for trust (also absorbs the deferred
+1. **#12 Calibration dashboard** — the single console surface for trust (also absorbs the deferred
    "provider health dashboard" idea as the first dashboard).
-3. **#13 Run economics** — surface cost/latency as a decision-grade "is `--deep` worth it?" view.
-4. **#11 Prior-thesis error correction** — frame resolved prior outcomes on the current instrument as
+2. **#13 Run economics** — surface cost/latency as a decision-grade "is `--deep` worth it?" view.
+3. **#11 Prior-thesis error correction** — frame resolved prior outcomes on the current instrument as
    an explicit "we were wrong because…" block.
-5. **#14 Daily auto-delta** — promote a compact automatic delta into the daily report.
-6. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
-7. **#15 Doc drift fix** — sync mover-source wording across docs and the weekly-gap string.
+4. **#14 Daily auto-delta** — promote a compact automatic delta into the daily report.
+5. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
 
 ## Completed (changelog)
 
@@ -51,6 +49,14 @@ Detailed evidence/test notes removed; these shipped and are validated by their t
 8. ✅ **#9 Prediction-specific disconfirmation in critique** — `critique-discipline.md` mandates the
    strongest observable disconfirming case + probability/evidence mismatch flagging. *(Open follow-up
    below.)*
+9. ✅ **#7 Regime v2** — `summarizeMarketRegime` aggregates three deterministic equity drivers —
+   breadth, trend (`fiftyDayAverage` from the Yahoo regime quote), and VIX term structure
+   (`^VIX` vs `^VIX3M`) — by majority vote, keeps the elevated-VIX risk-off override, and falls back
+   to `insufficient-data` rather than silently defaulting to risk-on. Each driver is tied to its proxy
+   source IDs (`src/research/regime.ts`).
+10. ✅ **#15 Doc drift on mover sources** — README, CONTEXT, architecture, how-it-works, and the weekly
+    gap string now describe the three-screener fan-in (`day_gainers` + `day_losers` + `most_actives`);
+    the weekly gap string still discloses the single-day-vs-trailing-window limitation.
 
 ### Open follow-ups from completed work
 
@@ -64,23 +70,6 @@ Detailed evidence/test notes removed; these shipped and are validated by their t
   directives prepare synthesis rather than auditing emitted predictions. A post-synthesis critique (or
   re-ordering) would let critique challenge the actual stated probabilities and feed a correction
   loop. **Effort:** M.
-
-## #7 Regime signal is thin for the weight it carries
-
-- **Status:** Open. Confirmed.
-- **Evidence:** `summarizeMarketRegime()` classifies on green/red breadth across 4 ETFs
-  (SPY/QQQ/IWM/DIA) plus a single binary `^VIX >= 25` override
-  ([../src/research/regime.ts:65-90](../src/research/regime.ts)). The proxies are genuinely fetched,
-  so the classifier has real input — it's just a one-day, 4-name signal feeding every downstream stage.
-- **Fix (incremental):** add (a) VIX term structure (VIX vs VIX3M; backwardation as a risk-off
-  signal), (b) a trend component (proxy vs its own 20/50-day MA), and (c) broader breadth
-  (% above MA / advance-decline) where feasible.
-- **Acceptance:**
-  - Deterministic classifier adds trend / term-structure / breadth drivers, each tied to a citeable
-    source ID.
-  - Explicit fallback behavior when any input is missing (no silent default to risk-on).
-  - Unit tests cover risk-on, risk-off, mixed, and insufficient-data cases.
-- **Effort:** M.
 
 ## #10 Economically thin prediction kinds (re-scoped: emission policy, not measurement)
 
@@ -152,24 +141,6 @@ Detailed evidence/test notes removed; these shipped and are validated by their t
     same-cadence run.
   - Deterministic output, no manual CLI step.
 - **Effort:** M.
-
-## #15 Documentation drift on mover sources
-
-- **Status:** Open. Confirmed against the repo.
-- **Evidence:** `src/sources/yahoo.ts` now fans in `day_gainers`, `day_losers`, and `most_actives`
-  (#6), but several surfaces still describe equity movers as `day_gainers` only:
-  - [../README.md:9](../README.md), [../CONTEXT.md:29](../CONTEXT.md),
-    [../docs/architecture.md:40](./architecture.md), [../docs/how-it-works.md:165](./how-it-works.md).
-  - The weekly mover **source-gap string** at
-    [../src/research/research-context.ts:84](../src/research/research-context.ts) still says "seeded
-    from Yahoo `day_gainers`" — the accurate remaining gap is that it is a single-day multi-screener
-    set, not a true trailing 5-session screener.
-- **Fix:** Update the doc wording to the three-screener fan-in and re-word the gap string to describe
-  the real remaining limitation. Keep crypto wording unchanged.
-- **Acceptance:**
-  - No doc or runtime gap string describes equity movers as `day_gainers`-only.
-  - The weekly gap string still discloses the single-day-vs-trailing-window limitation.
-- **Effort:** XS.
 
 ## Data Pipeline — keep as-is (mature)
 

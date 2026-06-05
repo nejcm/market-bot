@@ -19,7 +19,7 @@ sizing, or execution language.
 1. ✅ Fix calibration context shape (#1) + validate `summary.json` at the boundary (#2).
 2. ✅ Surface `byKind` and `byHorizonBucket` slices (#3); report Brier **and** Brier skill vs the 0.25 baseline (#4).
 3. ✅ Add probability-setting discipline to `synthesis-discipline.md` (#8).
-4. Strengthen `critique-discipline.md` around disconfirmation of the final predictions.
+4. ✅ Strengthen `critique-discipline.md` around disconfirmation of the final predictions (#9).
 5. Scoring calendar correctness (holiday handling).
 6. Mover fan-in (`day_losers` / `most_actives`) — see also Operational → *Expand sources*.
 7. Richer regime signal.
@@ -173,16 +173,20 @@ retry/backoff/circuit-breaker at the collector seam, seen-news index.
   base-rate anchoring, widening, and the Brier cost.
 - **Effort:** S.
 
-### 9. Critique lacks prediction-specific disconfirmation
+### 9. Critique lacks prediction-specific disconfirmation — ✅ Fixed
 
-- **Status:** Confirmed.
-- **Evidence:** The critique playbook challenges weak claims generally but does not mandate the
+- **Status:** ✅ Fixed.
+- **Evidence:** The critique playbook challenged weak claims generally but did not mandate the
   strongest bear case **against the final predictions**, nor flag probability/evidence-strength
   mismatch
   ([../prompts/playbooks/critique-discipline.md](../prompts/playbooks/critique-discipline.md)).
-- **Fix:** Add a directive to (a) construct the strongest disconfirming case for each emitted
-  prediction and (b) flag predictions where stated probability diverges from cited evidence
-  strength. Free — the stage already runs.
+- **Fix:** Added two directives to `critique-discipline.md`'s `## instruction`: (a) construct the
+  strongest observable disconfirming case for each prediction from supplied evidence, and (b) flag
+  predictions where the stated probability diverges from cited evidence strength, naming the
+  direction it should move. Kept research-only (no buy/sell/hold/sizing). Registry summary and
+  `## goal` updated to match. Free — the critique stage already runs.
+- **Test:** `tests/playbooks.test.ts` asserts the loaded critique-discipline instruction teaches
+  prediction-specific disconfirmation and probability/evidence-strength mismatch flagging.
 - **Effort:** S.
 
 ### 10. Economically thin prediction kinds

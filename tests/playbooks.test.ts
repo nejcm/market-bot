@@ -147,6 +147,19 @@ describe("loadPlaybookRegistry", () => {
     expect(instruction).toContain("widen");
     expect(instruction).toContain("brier");
   });
+
+  test("critique-discipline demands prediction-specific disconfirmation", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const [stage] = await loadPlaybooksByStage("prompts", realRegistry, [
+      { stage: "critique", playbookIds: ["critique-discipline"] },
+    ]);
+    const instruction = (stage?.playbooks[0]?.instruction ?? "").toLowerCase();
+
+    // Strongest disconfirming case per prediction, plus probability/evidence-strength mismatch.
+    expect(instruction).toContain("prediction");
+    expect(instruction).toContain("disconfirm");
+    expect(instruction).toContain("probability");
+  });
 });
 
 describe("eligiblePlaybookCandidates", () => {

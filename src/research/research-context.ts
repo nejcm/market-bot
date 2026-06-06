@@ -356,7 +356,7 @@ function formatObservedEvidence(evidence: Record<string, number | string> | unde
   const parts = Object.entries(evidence).map(([key, value]) => {
     const rendered =
       typeof value === "number" ? String(Math.round(value * 10_000) / 10_000) : singleLine(value);
-    return `${key}=${rendered}`;
+    return `${singleLine(key)}=${rendered}`;
   });
   return parts.length === 0 ? "" : ` (observed ${parts.join(" ")})`;
 }

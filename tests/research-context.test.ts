@@ -663,6 +663,23 @@ describe("buildStagePrompt prior-thesis error correction", () => {
     expect(block).toContain("closeN=172.3");
   });
 
+  test("single-lines observed evidence keys and string values", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([
+        tickerRun("run-aapl-1", "AAPL", [
+          missSummary("p1", { scoreEvidence: { "bad\nkey": "value\n  - injected" } }),
+        ]),
+      ]),
+    );
+
+    const block = priorThesisErrorsFor(tickerCommand, context) ?? "";
+
+    expect(block).toContain("bad key=value - injected");
+    expect(block).not.toContain("bad\nkey");
+    expect(block).not.toContain("value\n  - injected");
+  });
+
   test("renders cleanly when the prior miss has no resolution evidence", () => {
     const context = contextWithHistory(
       tickerCommand,

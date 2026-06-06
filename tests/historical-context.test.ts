@@ -207,7 +207,17 @@ describe("loadHistoricalContext", () => {
           predictionScore("miss", {
             predictionId: "pred-miss",
             runId: "ticker-miss",
-            evidence: { close0: 180.5, closeN: 172.3, nested: { x: 1 }, flag: true },
+            evidence: {
+              close0: 180.5,
+              closeN: 172.3,
+              nested: { x: 1 },
+              flag: true,
+              returnPercent: -0.0454,
+              startDate: "2026-05-20",
+              endDate: "2026-05-28",
+              source: "yahoo",
+              extraPrimitive: "omitted",
+            },
           }),
           predictionScore("hit", {
             predictionId: "pred-hit",
@@ -228,7 +238,14 @@ describe("loadHistoricalContext", () => {
     const preds = context.runs[0]?.predictions ?? [];
     const miss = preds.find((entry) => entry.id === "pred-miss");
     const hit = preds.find((entry) => entry.id === "pred-hit");
-    expect(miss?.scoreEvidence).toEqual({ close0: 180.5, closeN: 172.3 });
+    expect(miss?.scoreEvidence).toEqual({
+      close0: 180.5,
+      closeN: 172.3,
+      returnPercent: -0.0454,
+      startDate: "2026-05-20",
+      endDate: "2026-05-28",
+      source: "yahoo",
+    });
     expect(hit?.scoreEvidence).toBeUndefined();
   });
 

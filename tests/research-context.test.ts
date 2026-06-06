@@ -645,6 +645,37 @@ describe("buildStagePrompt prior-thesis error correction", () => {
 
     expect(priorThesisErrorsFor(dailyCommand, context)).toBeUndefined();
   });
+
+  test("surfaces observed resolution evidence for the prior miss", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([
+        tickerRun("run-aapl-1", "AAPL", [
+          missSummary("p1", { scoreEvidence: { close0: 180.5, closeN: 172.3 } }),
+        ]),
+      ]),
+    );
+
+    const block = priorThesisErrorsFor(tickerCommand, context) ?? "";
+
+    expect(block).toContain("observed");
+    expect(block).toContain("close0=180.5");
+    expect(block).toContain("closeN=172.3");
+  });
+
+  test("renders cleanly when the prior miss has no resolution evidence", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([tickerRun("run-aapl-1", "AAPL", [missSummary("p1")])]),
+    );
+
+    const block = priorThesisErrorsFor(tickerCommand, context) ?? "";
+
+    expect(block).toContain("resolved MISS");
+    expect(block).not.toContain("observed");
+    expect(block).not.toContain("undefined");
+    expect(block).not.toContain("()");
+  });
 });
 
 describe("buildPlaybookSelectionPrompt", () => {

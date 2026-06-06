@@ -296,6 +296,7 @@ interface PriorMiss {
   readonly claim: string;
   readonly probability: number;
   readonly sourceId: string;
+  readonly evidence?: Record<string, number | string>;
 }
 
 function collectPriorMisses(
@@ -321,6 +322,7 @@ function collectPriorMisses(
         claim: prediction.claim,
         probability: prediction.probability,
         sourceId: run.sourceId,
+        ...(prediction.scoreEvidence !== undefined ? { evidence: prediction.scoreEvidence } : {}),
       });
     }
   }
@@ -344,6 +346,21 @@ function singleLine(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
 }
 
+// Render compacted resolution evidence as a single ` (observed k=v …)` segment, so the model sees
+// How wrong a prior thesis was, not just that it missed. Numbers get bounded precision; strings are
+// Single-lined against bullet injection. Returns "" when there is nothing to show.
+function formatObservedEvidence(evidence: Record<string, number | string> | undefined): string {
+  if (evidence === undefined) {
+    return "";
+  }
+  const parts = Object.entries(evidence).map(([key, value]) => {
+    const rendered =
+      typeof value === "number" ? String(Math.round(value * 10_000) / 10_000) : singleLine(value);
+    return `${key}=${rendered}`;
+  });
+  return parts.length === 0 ? "" : ` (observed ${parts.join(" ")})`;
+}
+
 function buildPriorThesisErrorBlock(
   command: ResearchCommand,
   historicalContext: HistoricalResearchContext | undefined,
@@ -362,7 +379,7 @@ function buildPriorThesisErrorBlock(
   for (const miss of misses) {
     const date = miss.generatedAt.slice(0, 10);
     lines.push(
-      `  - run ${miss.runId} (${date}): claimed "${singleLine(miss.claim)}" at stated p=${miss.probability.toFixed(2)}, resolved MISS — cite ${miss.sourceId}`,
+      `  - run ${miss.runId} (${date}): claimed "${singleLine(miss.claim)}" at stated p=${miss.probability.toFixed(2)}, resolved MISS${formatObservedEvidence(miss.evidence)} — cite ${miss.sourceId}`,
     );
   }
   return lines.join("\n");

@@ -29,7 +29,7 @@ import {
   type ObservationRepository,
   type FetchCloseFn,
 } from "./observations";
-import type { PredictionScore } from "./types";
+import type { CalibrationSummary, PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
 const SCORE_FILE = "score.json";
@@ -486,13 +486,13 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
 export async function buildAndWriteCalibration(
   dataDir: string,
   now: Date = new Date(),
-): Promise<boolean> {
+): Promise<CalibrationSummary | null> {
   const runDirs = await listRunDirs(dataDir);
   const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
   const pairs = pairsPerRun.flat();
 
   if (pairs.length === 0) {
-    return false;
+    return null;
   }
 
   const summary = buildCalibrationSummary(pairs, now);
@@ -504,5 +504,5 @@ export async function buildAndWriteCalibration(
     "utf8",
   );
   await writeFile(join(calibrationDir, "summary.md"), renderCalibrationMarkdown(summary), "utf8");
-  return true;
+  return summary;
 }

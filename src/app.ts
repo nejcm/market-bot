@@ -10,6 +10,7 @@ import { persistResearchJob } from "./research/orchestrator";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
+import { renderCalibrationConsole } from "./scoring/calibration-console";
 import {
   buildThesisDelta,
   rebuildHistoryArtifacts,
@@ -76,9 +77,9 @@ export async function runCli(
   }
 
   if (command.jobType === "calibration") {
-    const written = await writeCalibration(config.dataDir);
-    return written
-      ? "Calibration summary written to data/calibration/summary.json"
+    const summary = await writeCalibration(config.dataDir);
+    return summary !== null
+      ? renderCalibrationConsole(summary)
       : "Calibration summary not written: no resolved predictions found";
   }
 

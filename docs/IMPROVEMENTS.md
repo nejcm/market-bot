@@ -19,9 +19,7 @@ re-deriving scope.
 
 ## Recommended order (open items)
 
-1. **#11 Prior-thesis error correction** — frame resolved prior outcomes on the current instrument as
-   an explicit "we were wrong because…" block.
-2. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
+1. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
 
 
 ### Open follow-ups from completed work
@@ -52,20 +50,21 @@ re-deriving scope.
     evidence supports them.
 - **Effort:** M.
 
-## #11 History is retrieval, not error correction
+## #11 History is retrieval, not error correction — SHIPPED
 
-- **Status:** Open (framing gap). Partially present. (Extends Cross-run intelligence below.)
-- **Evidence:** Historical context **already includes** prediction score status/outcomes for selected
-  runs ([../src/research/historical-context.ts](../src/research/historical-context.ts)); the gap is
-  that it is not framed as *"this prior thesis on this instrument resolved `miss` — here is what was
-  wrong."*
-- **Fix:** Inject resolved-outcome deltas of prior theses on the **current instrument** as an explicit
-  error-correction block, not just a citation pool.
-- **Acceptance:**
-  - Ticker prompts include capped prior-miss bullets, each with run ID, claim, stated probability,
-    outcome, and source citation.
-  - Empty/insufficient-history state renders cleanly (no placeholder noise).
-- **Effort:** M.
+- **Status:** Done. Prior theses on the current instrument that resolved `miss` are injected as an
+  explicit error-correction block (`buildPriorThesisErrorBlock`,
+  [../src/research/research-context.ts](../src/research/research-context.ts)), wired into the evidence
+  payload as `priorThesisErrors`. Capped prior-miss bullets carry run ID, claim, stated probability,
+  outcome, and source citation; empty/insufficient history omits the block. Tests in
+  [../tests/research-context.test.ts](../tests/research-context.test.ts).
+- **Enrichment (shipped):** Each bullet now also surfaces the **observed resolution values** (e.g.
+  `close0`/`closeN`) compacted from `score.json` via `HistoricalPredictionSummary.scoreEvidence`, so
+  "diagnose why the prior thesis was wrong" has the actual outcome data, not just the verdict.
+- **Scope boundary (deliberate):** Fires for **ticker runs only**. Market-update predictions are
+  index/macro by design ([../src/config/runs.ts](../src/config/runs.ts)), so a spotlighted instrument
+  has no same-instrument scored prediction to correct. See
+  [../docs/adr/0015-instrument-error-correction-ticker-only.md](./adr/0015-instrument-error-correction-ticker-only.md).
 
 ## Data Pipeline — keep as-is (mature)
 

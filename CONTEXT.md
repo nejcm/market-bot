@@ -36,6 +36,10 @@ Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run a
 
 The research-only narrative state of a Research View, assembled from sourced summary, key findings, bull and bear cases, risks, catalysts, data gaps, and observable Predictions. A Research Thesis is not an investment thesis, recommendation, trade signal, or portfolio action.
 
+## Prior-Thesis Error Correction
+
+A ticker-run prompt block that surfaces prior Predictions on the current Instrument that resolved as misses — each with run ID, claim, stated probability, observed resolution values, and a source citation — framed as explicit error-correction signal rather than a passive citation pool. It steers research wording and probability calibration; it is not a recommendation, trade signal, or portfolio action. It fires for ticker runs only.
+
 ## Market Update Delta
 
 A compact, deterministic "what changed since the last same-cadence run" summary auto-promoted into a daily or weekly Market Update report, directly after the summary. It carries the regime label change (prior → current, naming flipped breadth/trend/VIX-term-structure drivers), the ranked Mover membership diff (symbols entered vs exited), and Predictions from prior same-asset-class Market Update runs that resolved since the baseline was generated. The baseline is the single most-recent prior run with the same asset class and cadence. It is computed with no model call and is descriptive only — distinct from the instrument-scoped, manual Research Thesis Delta (`history thesis-delta`), and never a trade signal or portfolio action.

@@ -21,11 +21,10 @@ re-deriving scope.
 
 1. **#12 Calibration dashboard** — the single console surface for trust (also absorbs the deferred
    "provider health dashboard" idea as the first dashboard).
-2. **#13 Run economics** — surface cost/latency as a decision-grade "is `--deep` worth it?" view.
-3. **#11 Prior-thesis error correction** — frame resolved prior outcomes on the current instrument as
+2. **#11 Prior-thesis error correction** — frame resolved prior outcomes on the current instrument as
    an explicit "we were wrong because…" block.
-4. **#14 Daily auto-delta** — promote a compact automatic delta into the daily report.
-5. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
+3. **#14 Daily auto-delta** — promote a compact automatic delta into the daily report.
+4. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
 
 ## Completed (changelog)
 
@@ -115,20 +114,6 @@ Detailed evidence/test notes removed; these shipped and are validated by their t
     per-horizon skill.
   - Small-sample empty state when resolved count is below threshold.
 - **Effort:** M.
-
-## #13 Run cost/latency captured but not decision-surfaced
-
-- **Status:** Open. Confirmed.
-- **Evidence:** Token and cost estimates are captured in
-  [../src/research/run-analytics.ts](../src/research/run-analytics.ts) (and carried on the trace), but
-  only exposed as raw trace JSON in the console — not as decision-grade "is `--deep` worth it?"
-  analytics.
-- **Fix:** Surface running cost-per-run and cost-per-resolved-prediction so the `--deep` vs standard
-  tradeoff is visible.
-- **Acceptance:**
-  - Console shows last-run cost, rolling median cost, token estimate, cost per prediction, and a
-    deep-vs-standard comparison by job type.
-- **Effort:** S.
 
 ## #14 No "what changed since yesterday" in the daily flow
 

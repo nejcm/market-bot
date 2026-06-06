@@ -6,9 +6,15 @@ import {
   buildPlaybookSelectionPrompt,
   buildSpotlightSelectionPrompt,
   buildStagePrompt,
+  type ResearchContext,
 } from "../src/research/research-context";
 import { buildSpotlightCandidates } from "../src/research/spotlights";
 import { buildCalibrationSummary, type ResolvedPair } from "../src/scoring/calibration";
+import type {
+  HistoricalPredictionSummary,
+  HistoricalResearchContext,
+  HistoricalRunContext,
+} from "../src/research/historical-context";
 import type { Prediction } from "../src/domain/types";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
@@ -433,6 +439,211 @@ describe("buildStagePrompt", () => {
 
     expect(parsed.instruction).toBe("Analyze.");
     expect(parsed.domainPlaybooks?.[0]?.instruction).toBe("Challenge weak claims.");
+  });
+});
+
+function missSummary(
+  id: string,
+  overrides: Partial<HistoricalPredictionSummary> = {},
+): HistoricalPredictionSummary {
+  return {
+    id,
+    claim: "AAPL closes higher",
+    subject: "AAPL",
+    horizonTradingDays: 5,
+    probability: 0.72,
+    scoreStatus: "resolved",
+    scoreOutcome: "miss",
+    ...overrides,
+  };
+}
+
+function tickerRun(
+  runId: string,
+  symbol: string,
+  predictions: readonly HistoricalPredictionSummary[],
+  generatedAt = "2026-05-20T00:00:00.000Z",
+): HistoricalRunContext {
+  return {
+    runId,
+    sourceId: `history-report-${runId}`,
+    jobType: "ticker",
+    assetClass: "equity",
+    symbol,
+    generatedAt,
+    selectionReasons: ["recent"],
+    summary: "",
+    confidence: "medium",
+    keyFindings: [],
+    risks: [],
+    catalysts: [],
+    dataGaps: [],
+    predictions,
+    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    marketSnapshots: [],
+  };
+}
+
+function historicalContextWith(runs: readonly HistoricalRunContext[]): HistoricalResearchContext {
+  return {
+    generatedAt: "2026-06-01T00:00:00.000Z",
+    recentDays: 14,
+    anchorMonths: [],
+    runs,
+    sources: [],
+    gaps: [],
+    audit: {
+      scannedRunCount: runs.length,
+      malformedRunCount: 0,
+      malformedScoreCount: 0,
+      candidateRunCount: runs.length,
+      selectedRunCount: runs.length,
+      recentSelectedCount: runs.length,
+      anchorSelectedCount: 0,
+    },
+    artifactDeltas: [],
+  };
+}
+
+function contextWithHistory(
+  command: ResearchCommand,
+  historicalContext?: HistoricalResearchContext,
+): ResearchContext {
+  return {
+    depthProfile: buildDepthProfile(command, config),
+    runParams: {
+      quickModel: "quick-test",
+      synthesisModel: "synthesis-test",
+      analystStyle: "concise brief",
+      minimumKeyFindings: 3,
+      minimumScenarios: 2,
+      minimumPredictions: 2,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: ["AAPL"],
+      focus: ["instrument"],
+      modelParams: undefined,
+    },
+    marketRegime: {
+      assetClass: "equity",
+      label: "mixed",
+      proxyCount: 1,
+      drivers: [],
+      sourceIds: [],
+    },
+    calibrationContext: undefined,
+    ...(historicalContext !== undefined ? { historicalContext } : {}),
+  };
+}
+
+function priorThesisErrorsFor(
+  command: ResearchCommand,
+  context: ResearchContext,
+): string | undefined {
+  const prompt = buildStagePrompt(
+    "specialist-analysis",
+    command,
+    collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot()],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    }),
+    config,
+    context,
+    { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+  );
+  const parsed = JSON.parse(prompt) as {
+    readonly evidence?: { readonly priorThesisErrors?: string };
+  };
+  return parsed.evidence?.priorThesisErrors;
+}
+
+describe("buildStagePrompt prior-thesis error correction", () => {
+  const tickerCommand: ResearchCommand = {
+    jobType: "ticker",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "brief",
+  };
+
+  test("surfaces prior-miss bullets with run id, claim, probability, outcome, and citation", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([tickerRun("run-aapl-1", "AAPL", [missSummary("p1")])]),
+    );
+
+    const block = priorThesisErrorsFor(tickerCommand, context);
+
+    expect(block).toBeDefined();
+    expect(block).not.toContain("undefined");
+    expect(block).toContain("AAPL");
+    expect(block).toContain("run-aapl-1");
+    expect(block).toContain("AAPL closes higher");
+    expect(block).toContain("p=0.72");
+    expect(block).toContain("MISS");
+    expect(block).toContain("history-report-run-aapl-1");
+  });
+
+  test("caps the number of prior-miss bullets and keeps the most recent", () => {
+    const olderMisses = Array.from({ length: 6 }, (_, idx) =>
+      missSummary(`old-${String(idx)}`, { claim: `older claim ${String(idx)}` }),
+    );
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([
+        tickerRun(
+          "run-recent",
+          "AAPL",
+          [missSummary("recent", { claim: "recent claim" })],
+          "2026-05-25T00:00:00.000Z",
+        ),
+        tickerRun("run-old", "AAPL", olderMisses, "2026-04-01T00:00:00.000Z"),
+      ]),
+    );
+
+    const block = priorThesisErrorsFor(tickerCommand, context) ?? "";
+    const bulletCount = block.split("\n").filter((line) => line.trim().startsWith("- run")).length;
+
+    expect(bulletCount).toBe(5);
+    expect(block).toContain("recent claim");
+  });
+
+  test("omits the block when no prior predictions on the instrument resolved as misses", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([
+        tickerRun("run-aapl-1", "AAPL", [missSummary("p1", { scoreOutcome: "hit" })]),
+      ]),
+    );
+
+    expect(priorThesisErrorsFor(tickerCommand, context)).toBeUndefined();
+  });
+
+  test("excludes misses from a different instrument", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([
+        tickerRun("run-msft", "MSFT", [
+          missSummary("p-msft", { claim: "MSFT closes higher", subject: "MSFT" }),
+        ]),
+      ]),
+    );
+
+    expect(priorThesisErrorsFor(tickerCommand, context)).toBeUndefined();
+  });
+
+  test("does not surface an instrument error block for market-update (daily) runs", () => {
+    const dailyCommand: ResearchCommand = {
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "brief",
+    };
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([tickerRun("run-aapl-1", "AAPL", [missSummary("p1")])]),
+    );
+
+    expect(priorThesisErrorsFor(dailyCommand, context)).toBeUndefined();
   });
 });
 

@@ -9,7 +9,14 @@ import {
   writeJson,
   writeRunOutputs,
 } from "../artifacts";
-import { isMarketUpdateJobType, type ResearchReport, type RunTrace } from "../domain/types";
+import {
+  isMarketUpdateJobType,
+  type Mover,
+  type ResearchReport,
+  type RunTrace,
+} from "../domain/types";
+import { rankMovers } from "../movers/ranking";
+import { buildMarketUpdateDelta } from "./market-update-delta";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
@@ -41,6 +48,7 @@ import {
   buildSpotlightSelectionPrompt,
   buildStagePrompt,
   loadCalibrationContext,
+  moverLimitFor,
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
@@ -73,6 +81,7 @@ export interface RunResearchJobResult {
   readonly historicalContext: HistoricalResearchContext;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
+  readonly marketUpdateMovers?: readonly Mover[];
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
@@ -335,6 +344,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;
   let spotlightSelection: SpotlightSelectionResult | undefined = undefined;
   let spotlightOutput: StageOutput | undefined = undefined;
+  let marketUpdateMovers: readonly Mover[] | undefined = undefined;
   if (isMarketUpdateJobType(input.command.jobType)) {
     const marketOnlyHistoricalContext = historicalContext;
     const currentMarketSymbols = [
@@ -389,11 +399,26 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     } else {
       historicalContext = marketOnlyHistoricalContext;
     }
+    marketUpdateMovers = rankMovers(
+      collectedSources.marketSnapshots.filter(
+        (snapshot) => snapshot.assetClass === input.command.assetClass,
+      ),
+      moverLimitFor(input.command, input.config),
+    );
+    const marketUpdateDelta = await buildMarketUpdateDelta({
+      dataDir: input.config.dataDir,
+      command: input.command,
+      now,
+      currentMovers: marketUpdateMovers,
+      currentRegime: context.marketRegime,
+      moverLimit: moverLimitFor(input.command, input.config),
+    });
     context = {
       ...context,
       historicalContext,
       spotlightCandidates: spotlightSelection.selected.map((item) => item.candidate),
       spotlightSelection,
+      marketUpdateDelta,
     };
   }
   const plannedStages = plannedResearchStages(input.command);
@@ -505,6 +530,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     historicalContext,
     ...(spotlightCandidates !== undefined ? { spotlightCandidates } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
+    ...(marketUpdateMovers !== undefined ? { marketUpdateMovers } : {}),
   };
 }
 
@@ -557,6 +583,7 @@ export async function persistResearchJob(
       result.spotlightSelection ??
         emptySpotlightSelection(spotlightCap(input.command, input.config), 0),
     );
+    await writeJson(join(artifacts.normalizedDir, "movers.json"), result.marketUpdateMovers ?? []);
   }
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeJson(join(artifacts.runDir, "analytics.json"), result.analytics);

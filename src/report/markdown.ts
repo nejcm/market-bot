@@ -146,6 +146,73 @@ function renderSpotlights(report: ResearchReport): string {
   return rows.length === 0 ? "" : `## Market Spotlights\n\n${rows.join("\n")}\n`;
 }
 
+function readNumberField(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function deltaRegimeLine(delta: Record<string, unknown>): string {
+  const current =
+    typeof delta.currentRegime === "string" ? delta.currentRegime : "insufficient-data";
+  const prior = typeof delta.priorRegime === "string" ? delta.priorRegime : undefined;
+  if (delta.regimeChanged === true && prior !== undefined) {
+    const flipped = readStringArray(delta.flippedDrivers);
+    const suffix = flipped.length === 0 ? "" : ` (flipped drivers: ${flipped.join(", ")})`;
+    return `Regime: ${markdownText(prior)} → ${markdownText(current)}${suffix}.`;
+  }
+  return `Regime: ${markdownText(current)} (unchanged since last run).`;
+}
+
+function deltaMoverLine(delta: Record<string, unknown>): string {
+  const entered = readStringArray(delta.moversEntered).map((symbol) => markdownText(symbol));
+  const exited = readStringArray(delta.moversExited).map((symbol) => markdownText(symbol));
+  if (entered.length === 0 && exited.length === 0) {
+    return "Ranked mover set unchanged since last run.";
+  }
+  return `Movers entered: ${entered.length === 0 ? "none" : entered.join(", ")}; exited: ${exited.length === 0 ? "none" : exited.join(", ")}.`;
+}
+
+function deltaResolvedLines(delta: Record<string, unknown>): readonly string[] {
+  const resolved = Array.isArray(delta.resolvedSince) ? delta.resolvedSince : [];
+  const rows = resolved.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const { claim, runId, outcome } = item;
+    const probability = readNumberField(item, "probability");
+    if (
+      typeof claim !== "string" ||
+      typeof runId !== "string" ||
+      (outcome !== "hit" && outcome !== "miss") ||
+      probability === undefined
+    ) {
+      return [];
+    }
+    const pct = String(Math.round(probability * 100));
+    return [`- [${outcome}] p=${pct}% ${markdownText(claim)} (run ${markdownText(runId)})`];
+  });
+  return rows.length === 0 ? [] : ["", "Predictions resolved since last run:", ...rows];
+}
+
+// Market Update Delta — deterministic "what changed since the last same-cadence run".
+// Pure render of report.extras.marketUpdateDelta; market-update jobs only. Research-only.
+function renderMarketUpdateDelta(report: ResearchReport): string {
+  if (report.jobType !== "daily" && report.jobType !== "weekly") {
+    return "";
+  }
+  const delta = report.extras?.marketUpdateDelta;
+  if (!isRecord(delta)) {
+    return "";
+  }
+  const cadence = report.jobType === "weekly" ? "Weekly" : "Daily";
+  const heading = `## What Changed Since Last ${cadence}`;
+  if (delta.hasBaseline !== true) {
+    return `${heading}\n\nNo prior ${cadence.toLowerCase()} run to compare — this is the first.\n`;
+  }
+  const lines = [deltaRegimeLine(delta), deltaMoverLine(delta), ...deltaResolvedLines(delta)];
+  return `${heading}\n\n${lines.join("\n")}\n`;
+}
+
 function renderAlphaSearchReport(report: ResearchReport): string {
   const gaps =
     report.dataGaps.length === 0
@@ -246,6 +313,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     "",
     report.summary,
     "",
+    renderMarketUpdateDelta(report),
     renderFindings("Key Findings", report.keyFindings),
     renderFindings("Bull Case", report.bullCase),
     renderFindings("Bear Case", report.bearCase),

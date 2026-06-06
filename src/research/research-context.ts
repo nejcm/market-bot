@@ -12,6 +12,7 @@ import type { CollectedSources } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric, CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
+import type { MarketUpdateDelta } from "./market-update-delta";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
@@ -44,6 +45,8 @@ export interface ResearchContext {
   readonly historicalContext?: HistoricalResearchContext;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
+  // Carrier only — deterministic post-hoc delta, not added to the model evidence payload.
+  readonly marketUpdateDelta?: MarketUpdateDelta;
 }
 
 export interface EvidenceRequestContext {
@@ -278,6 +281,94 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
 }
 
 // ---------------------------------------------------------------------------
+// Prior-thesis error correction (audit finding #11)
+//
+// For ticker runs, surfaces prior predictions on the current instrument that resolved as misses, framed as explicit error-correction signal rather than a passive citation pool.
+// The model is told to diagnose why each prior thesis failed before restating a similar view.
+// The block is omitted entirely when no prior prediction on the instrument resolved as a miss, so empty history renders cleanly with no placeholder noise.
+// ---------------------------------------------------------------------------
+
+const MAX_PRIOR_MISS_BULLETS = 5;
+
+interface PriorMiss {
+  readonly runId: string;
+  readonly generatedAt: string;
+  readonly claim: string;
+  readonly probability: number;
+  readonly sourceId: string;
+}
+
+function collectPriorMisses(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+): readonly PriorMiss[] {
+  if (command.jobType !== "ticker" || historicalContext === undefined) {
+    return [];
+  }
+  const symbol = command.symbol.toUpperCase();
+  const misses: PriorMiss[] = [];
+  for (const run of historicalContext.runs) {
+    if (run.symbol?.toUpperCase() !== symbol) {
+      continue;
+    }
+    for (const prediction of run.predictions) {
+      if (prediction.scoreOutcome !== "miss") {
+        continue;
+      }
+      misses.push({
+        runId: run.runId,
+        generatedAt: run.generatedAt,
+        claim: prediction.claim,
+        probability: prediction.probability,
+        sourceId: run.sourceId,
+      });
+    }
+  }
+  return misses
+    .toSorted(
+      (left, right) => generatedAtValue(right.generatedAt) - generatedAtValue(left.generatedAt),
+    )
+    .slice(0, MAX_PRIOR_MISS_BULLETS);
+}
+
+// Parse an ISO timestamp to epoch ms for ordering, tolerating malformed values (generatedAt is read
+// From disk without format validation). Non-parseable timestamps sort oldest rather than crashing.
+function generatedAtValue(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// Collapse any newlines/tabs in free-form prior claim text so a single bullet stays a single line
+// And cannot inject extra apparent bullets into the prompt block.
+function singleLine(value: string): string {
+  return value.replaceAll(/\s+/g, " ").trim();
+}
+
+function buildPriorThesisErrorBlock(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+): string | undefined {
+  const misses = collectPriorMisses(command, historicalContext);
+  // Second jobType narrowing is deliberate, not a duplicate of collectPriorMisses: it lets TS prove
+  // Command.symbol exists below, and guards command.symbol access if collectPriorMisses is ever
+  // Relaxed to non-ticker runs. Do not remove.
+  if (misses.length === 0 || command.jobType !== "ticker") {
+    return undefined;
+  }
+  const symbol = command.symbol.toUpperCase();
+  const lines = [
+    `Prior predictions on ${symbol} that resolved MISS. Treat each as error-correction signal: diagnose why the prior thesis was wrong before restating a similar view, and widen probabilities where the same setup recurs.`,
+  ];
+  for (const miss of misses) {
+    const date = miss.generatedAt.slice(0, 10);
+    lines.push(
+      `  - run ${miss.runId} (${date}): claimed "${singleLine(miss.claim)}" at stated p=${miss.probability.toFixed(2)}, resolved MISS — cite ${miss.sourceId}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
 // Depth profile
 // ---------------------------------------------------------------------------
 
@@ -305,23 +396,28 @@ export function buildDepthProfile(command: ResearchCommand, appConfig: AppConfig
 // Evidence payload — the JSON blob handed to each model stage
 // ---------------------------------------------------------------------------
 
+// Config-driven mover cap for the command's asset class. Shared so the orchestrator's
+// Market-update mover set matches the ranked movers handed to the model.
+export function moverLimitFor(command: ResearchCommand, config: AppConfig): number {
+  return command.assetClass === "equity"
+    ? config.sourceOptions.equityMoverLimit
+    : config.sourceOptions.cryptoMoverLimit;
+}
+
 function buildEvidencePayload(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   config: AppConfig,
   context: ResearchContext,
 ): Record<string, unknown> {
-  const limit =
-    command.assetClass === "equity"
-      ? config.sourceOptions.equityMoverLimit
-      : config.sourceOptions.cryptoMoverLimit;
   const movers = rankMovers(
     collectedSources.marketSnapshots.filter(
       (snapshot) => snapshot.assetClass === command.assetClass,
     ),
-    limit,
+    moverLimitFor(command, config),
   );
   const calibrationBlock = buildCalibrationBlock(context.calibrationContext);
+  const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
 
   return {
     command,
@@ -348,6 +444,7 @@ function buildEvidencePayload(
     ...(context.evidenceRequest !== undefined ? { evidenceRequest: context.evidenceRequest } : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
+    ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
   };
 }
 

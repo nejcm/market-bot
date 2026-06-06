@@ -337,6 +337,8 @@ Accepted predictions are canonicalized so the stored `measurableAs` matches the 
 
 Historical Context and Market Spotlights render from `report.extras.historicalContext` and `report.extras.spotlights`. The renderer parses them defensively, escapes markdown text, and only includes item-level source references that exist in the final source list.
 
+For daily and weekly market updates, a `## What Changed Since Last Daily|Weekly` section renders directly after the summary from `report.extras.marketUpdateDelta` (the Market Update Delta). It is a deterministic, no-model-call diff against the most-recent prior same-cadence run: regime label change with flipped drivers, the ranked Mover membership diff, and Predictions from prior same-asset-class market-update runs that resolved since the baseline. When there is no prior same-cadence run it renders a single empty-state line.
+
 ## Artifacts
 
 Artifacts are written under `MARKET_BOT_DATA_DIR`, default `data/runs`.
@@ -351,6 +353,7 @@ data/runs/<run-id>/
   normalized/historical-context.json
   normalized/spotlight-candidates.json  # market updates only
   normalized/spotlight-selection.json  # market updates only
+  normalized/movers.json  # market updates only — ranked mover set, baseline for the next Market Update Delta
   normalized/news-sources.json
   normalized/source-gaps.json
   normalized/sec-fundamentals.json  # alpha-search only

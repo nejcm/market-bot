@@ -20,6 +20,7 @@ re-deriving scope.
 ## Recommended order (open items)
 
 1. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
+2. **#13 Run cost/latency** — surface trace cost estimates in the console/CLI.
 
 
 ### Open follow-ups from completed work
@@ -30,7 +31,7 @@ re-deriving scope.
   crypto gate with calendar-day value semantics — is a deliberate behavior change worth doing
   separately. **Effort:** S.
 - **Post-synthesis critique pass (from #9).** Critique runs *before* `final-synthesis` emits formal
-  `predictions[]` ([../src/research/orchestrator.ts:422](../src/research/orchestrator.ts)), so the
+  `predictions[]` ([../src/research/orchestrator.ts](../src/research/orchestrator.ts)), so the
   directives prepare synthesis rather than auditing emitted predictions. A post-synthesis critique (or
   re-ordering) would let critique challenge the actual stated probabilities and feed a correction
   loop. **Effort:** M.
@@ -50,6 +51,18 @@ re-deriving scope.
     evidence supports them.
 - **Effort:** M.
 
+## #7 Regime signal is thin for the weight it carries — SHIPPED
+
+- **Status:** Done. Equity regime classification now aggregates three deterministic drivers across
+  `SPY`/`QQQ`/`IWM`/`DIA`: same-day **breadth**, **trend** (price vs 50-day average), and **VIX term
+  structure** (`^VIX` vs `^VIX3M`; backwardation is risk-off). Majority vote sets the label; elevated
+  `^VIX` still forces `risk-off`. Regime proxy symbols are partitioned out of mover ranking so a name
+  can supply regime inputs without polluting the mover set
+  ([../src/research/regime.ts](../src/research/regime.ts),
+  [../src/domain/regime-symbols.ts](../src/domain/regime-symbols.ts)). Tests in
+  [../tests/regime.test.ts](../tests/regime.test.ts) and
+  [../tests/collector.test.ts](../tests/collector.test.ts).
+
 ## #11 History is retrieval, not error correction — SHIPPED
 
 - **Status:** Done. Prior theses on the current instrument that resolved `miss` are injected as an
@@ -65,6 +78,27 @@ re-deriving scope.
   index/macro by design ([../src/config/runs.ts](../src/config/runs.ts)), so a spotlighted instrument
   has no same-instrument scored prediction to correct. See
   [../docs/adr/0015-instrument-error-correction-ticker-only.md](./adr/0015-instrument-error-correction-ticker-only.md).
+
+## #12 Calibration track record is buried — SHIPPED
+
+- **Status:** Done. The `calibration` CLI command rebuilds `data/calibration/summary.json` and
+  `summary.md`, then renders a reliability dashboard to stdout via `renderCalibrationConsole`
+  ([../src/scoring/calibration-console.ts](../src/scoring/calibration-console.ts)): resolved count,
+  overall Brier and Brier skill, reliability bins (stated probability vs hit rate), and per-kind /
+  per-horizon skill slices. Samples below `MIN_CALIBRATION_SAMPLE` (5) show a small-sample warning
+  instead of slice tables. Tests in [../tests/scoring.test.ts](../tests/scoring.test.ts).
+
+## #13 Run cost/latency captured but not decision-surfaced
+
+- **Status:** Open.
+- **Evidence:** `trace.json` carries `tokenEstimate` and `costEstimateUsd` per run but the Research
+  Console App and CLI only expose raw trace JSON.
+- **Fix:** Surface running cost-per-run and cost-per-resolved-prediction so the `--deep` vs standard
+  tradeoff is visible.
+- **Acceptance:**
+  - Operator can see per-run and aggregate cost from existing artifacts without opening raw trace JSON.
+  - Research-only wording; no execution or sizing language.
+- **Effort:** S.
 
 ## Data Pipeline — keep as-is (mature)
 
@@ -94,12 +128,12 @@ targets framing prior outcomes as instrument-level error correction):
 
 ## Operational & Monitoring 
 
-- **Expand sources** — Include more sources than just Yahoo for daily and weekly runs. The near-term
-  mover fan-in shipped as audit finding #6; broader regime inputs are tracked as #7.
+- **Expand sources** — Include more sources than just Yahoo for daily and weekly runs. Near-term mover
+  fan-in (#6) and richer regime drivers (#7) are shipped; further source expansion remains open.
 - **Source provider health dashboard** — artifact-backed CLI validation exists via `provider-health`
-  v2. A browsable dashboard is **not** a separate workstream: the calibration/reliability view (#12)
-  is the first console dashboard surface, and provider health folds into it once run history is large
-  enough to need browsing/filtering.
+  v2. The calibration CLI dashboard (#12) is the first stdout reliability surface. The Research
+  Console App (`app/`) browses run history and aggregate metrics; folding provider-health browsing
+  into it remains deferred until run history is large enough to need filtering.
 - **Reliability SLAs, monitoring, alerting** — *not backlog-ready.* Before this can be picked up it
   needs: concrete metrics, thresholds per metric, alert channels, an owner, and runbook expectations.
   Park here until those are specified.

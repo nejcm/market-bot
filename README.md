@@ -11,7 +11,7 @@ Reports are **research views**, not trading advice — no buy/sell calls, no pos
 - **Alpha search** — ApeWisdom social-momentum discovery for equity Research Leads, validated against Yahoo eligibility criteria.
 - **Measurable predictions** — each report emits typed predictions (price targets, directional moves) parsed by a small DSL and validated against the report schema.
 - **Scoring pass** — resolves due predictions against point or window Observations from historical closes, FRED, and Tradier IV where applicable, then writes `score.json` per run.
-- **Calibration aggregator** — rolls up scored predictions, sliced by cadence (daily / weekly / ticker), into `data/calibration/summary.json` and a markdown summary.
+- **Calibration aggregator** — rolls up scored predictions, sliced by cadence (daily / weekly / ticker), into `data/calibration/summary.json` and a markdown summary. The `calibration` command also prints a reliability dashboard to stdout.
 
 ## Setup
 
@@ -113,7 +113,7 @@ Equity-only ApeWisdom discovery workflow. Ranks social-momentum candidates, vali
 
 ```sh
 bun run src/cli.ts score          # resolve due predictions across all prior runs; refresh calibration
-bun run src/cli.ts calibration    # rebuild calibration summary without running a new score pass
+bun run src/cli.ts calibration    # rebuild calibration summary and print reliability dashboard
 ```
 
 ### Cache management

@@ -88,7 +88,7 @@ Command behavior:
 | `alpha-search --asset equity` | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
 | `--deep` | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass. |
 | `score` | Resolves due predictions in previous runs and writes `score.json` files. |
-| `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores. |
+| `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores and prints a reliability dashboard to stdout (Brier skill, reliability bins, per-kind and per-horizon slices; small-sample warning below 5 resolved predictions). |
 | `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
 | `provider-health` | Reads persisted run artifacts and writes provider-health contract v2 to `data/provider-health/summary.json` plus `summary.md`, including a `pass`/`warn`/`fail` validation verdict, required coverage checklist, and provider gap classifications by route. |
 | `history rebuild` | Rebuilds derived Historical Research Context indexes and per-Instrument timelines under `data/history/` from existing run artifacts. |
@@ -428,6 +428,11 @@ The summary includes:
 - metrics by horizon bucket.
 
 When no resolved pairs exist, calibration does not write a new summary.
+
+Running `calibration` (or the non-blocking side effect after research/score) also prints a stdout
+dashboard via `renderCalibrationConsole` in `src/scoring/calibration-console.ts`. Below five resolved
+predictions it shows counts and overall Brier metrics with a small-sample warning; at or above the
+threshold it adds reliability bins and per-kind / per-horizon Brier skill slices.
 
 ## Adding or changing behavior
 

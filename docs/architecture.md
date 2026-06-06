@@ -13,7 +13,7 @@ src/
   domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
   forecast/           Observable forecast contract: parser, expression shape, resolver
   model/              OpenAI / OpenAI-compatible / Codex providers
-  movers/             Deterministic mover ranking
+  movers/             Deterministic mover ranking and screener dedupe
   report/             Report schema (zod) + markdown renderer
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
   research/           Orchestrator, prompt loader, history, Market Spotlights, Domain Playbooks, regime summary
@@ -87,7 +87,7 @@ Deep runs use a fixed Coverage Panel after `specialist-analysis` and before `cri
 - `src/scoring/resolver.ts` — resolves a due prediction against Observations
 - `src/scoring/index.ts` — `runScorePass` writes `score.json` per prediction run, Alpha validation sidecars/summaries, and Alpha candidate watchlist artifacts
 - `src/scoring/close-cache.ts` — caches successful historical-close fetches under `data/cache/closes/`
-- `src/scoring/calibration.ts` + `calibration-markdown.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`
+- `src/scoring/calibration.ts` + `calibration-markdown.ts` + `calibration-console.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`; the `calibration` CLI prints a stdout reliability dashboard
 
 Close-based predictions use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin. Volatility predictions evaluate the full close window. Macro and IV predictions remain point-based.
 

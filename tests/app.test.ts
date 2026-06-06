@@ -124,7 +124,7 @@ describe("runCli", () => {
       buildAndWriteCalibration: async (receivedDataDir) => {
         calls.push("calibration");
         expect(receivedDataDir).toBe(dataDir);
-        return true;
+        return null;
       },
       now: () => new Date("2026-06-01T00:00:00.000Z"),
     });

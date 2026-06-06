@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { resolveOutcome, type Observation } from "../src/scoring/resolver";
 import { buildCalibrationSummary } from "../src/scoring/calibration";
 import { renderCalibrationMarkdown } from "../src/scoring/calibration-markdown";
+import {
+  renderCalibrationConsole,
+  MIN_CALIBRATION_SAMPLE,
+} from "../src/scoring/calibration-console";
 import type { Prediction } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
@@ -576,5 +580,115 @@ describe("buildCalibrationSummary", () => {
     const bin = summary.bins.find((b) => b.pLow === 0.6);
     expect(bin).toBeDefined();
     expect(bin?.hitRate).toBeCloseTo(0.7, 2);
+  });
+});
+
+describe("renderCalibrationConsole", () => {
+  const at = new Date("2026-05-19T00:00:00.000Z");
+
+  function makePairs(count: number) {
+    return Array.from({ length: count }, (_, idx) => ({
+      prediction: {
+        ...basePrediction,
+        id: `p${String(idx)}`,
+        probability: 0.7,
+        horizonTradingDays: 5,
+      },
+      score: makeScore(idx % 2 === 0 ? "hit" : "miss"),
+      assetClass: "equity" as const,
+      jobType: "daily" as const,
+      marketUpdateCadence: "daily" as const,
+      runId: `r${String(idx)}`,
+    }));
+  }
+
+  test("shows small-sample warning below minimum threshold", () => {
+    const summary = buildCalibrationSummary(makePairs(MIN_CALIBRATION_SAMPLE - 1), at);
+    const output = renderCalibrationConsole(summary);
+    expect(output).toContain("Small sample");
+    expect(output).toContain(String(MIN_CALIBRATION_SAMPLE - 1));
+    expect(output).not.toContain("Reliability");
+    expect(output).not.toContain("By kind");
+    expect(output).not.toContain("By horizon");
+  });
+
+  test("shows full dashboard at or above minimum threshold", () => {
+    const summary = buildCalibrationSummary(makePairs(MIN_CALIBRATION_SAMPLE), at);
+    const output = renderCalibrationConsole(summary);
+    expect(output).not.toContain("Small sample");
+    expect(output).toContain("Reliability");
+    expect(output).toContain("By kind");
+    expect(output).toContain("By horizon");
+  });
+
+  test("renders overall Brier score and skill", () => {
+    const summary = buildCalibrationSummary(makePairs(MIN_CALIBRATION_SAMPLE), at);
+    const output = renderCalibrationConsole(summary);
+    expect(output).toContain("Brier score:");
+    expect(output).toContain("Brier skill:");
+    expect(output).toContain("Resolved:");
+  });
+
+  test("renders reliability bins with hit rates", () => {
+    const pairs = Array.from({ length: 10 }, (_, idx) => ({
+      prediction: {
+        ...basePrediction,
+        id: `p${String(idx)}`,
+        probability: 0.65,
+        horizonTradingDays: 5,
+      },
+      score: makeScore(idx < 7 ? "hit" : "miss"),
+      assetClass: "equity" as const,
+      jobType: "daily" as const,
+      runId: `r${String(idx)}`,
+    }));
+    const summary = buildCalibrationSummary(pairs, at);
+    const output = renderCalibrationConsole(summary);
+    expect(output).toContain("0.6-0.7");
+    expect(output).toContain("n=  10");
+  });
+
+  test("renders per-kind and per-horizon skill scores with correct values", () => {
+    // Direction hits at probability=1 → Brier=0 → skill=+1.00
+    // Volatility misses at probability=0 → Brier=0 → skill=+1.00
+    const pairs = [
+      ...Array.from({ length: 3 }, (_, i) => ({
+        prediction: {
+          ...basePrediction,
+          id: `dir-${String(i)}`,
+          kind: "direction" as const,
+          probability: 1,
+          horizonTradingDays: 5,
+        },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: `r${String(i)}`,
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        prediction: {
+          ...basePrediction,
+          id: `vol-${String(i)}`,
+          kind: "volatility" as const,
+          probability: 0,
+          horizonTradingDays: 12,
+        },
+        score: makeScore("miss"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: `rv${String(i)}`,
+      })),
+    ];
+    const summary = buildCalibrationSummary(pairs, at);
+    const output = renderCalibrationConsole(summary);
+    expect(output).toContain("direction");
+    expect(output).toContain("volatility");
+    expect(output).toContain("1-5d");
+    expect(output).toContain("11-15d");
+    // Both groups: Brier=0 → skill=+1.00
+    const kindSection = output.slice(output.indexOf("By kind"));
+    expect(kindSection).toContain("+1.00");
+    const horizonSection = output.slice(output.indexOf("By horizon"));
+    expect(horizonSection).toContain("+1.00");
   });
 });

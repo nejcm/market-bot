@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { MarketSnapshot, ResearchReport } from "../src/domain/types";
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { violatesResearchOnly } from "../src/domain/research-language";
 import { validateResearchReport } from "../src/report/schema";
 import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
@@ -583,5 +584,110 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("Name &lt;b&gt;Buy&lt;/b&gt;");
     expect(markdown).toContain(String.raw`Provider \[title\]\(https://bad.example\)`);
     expect(markdown).toContain(String.raw`Provider says \[buy\]\(https://bad.example\)`);
+  });
+});
+
+function marketUpdateReport(delta: Record<string, unknown>): ResearchReport {
+  return {
+    runId: "run-2",
+    jobType: "daily",
+    assetClass: "equity",
+    generatedAt: "2026-06-01T00:00:00.000Z",
+    summary: "Equity tape was steady.",
+    keyFindings: [{ text: "Breadth firmed.", sourceIds: ["s1"] }],
+    bullCase: [],
+    bearCase: [],
+    risks: [],
+    catalysts: [],
+    scenarios: [],
+    confidence: "medium",
+    dataGaps: [],
+    predictions: [],
+    sources: [
+      { id: "s1", title: "snapshot", fetchedAt: "2026-06-01T00:00:00.000Z", kind: "market-data" },
+    ],
+    notFinancialAdvice: true,
+    extras: { marketUpdateDelta: delta },
+  };
+}
+
+describe("market update delta rendering", () => {
+  test("renders the What Changed section after Summary and before Key Findings", () => {
+    const markdown = renderMarkdownReport(
+      marketUpdateReport({
+        hasBaseline: true,
+        currentRegime: "risk-on",
+        priorRegime: "risk-off",
+        regimeChanged: true,
+        flippedDrivers: ["breadth", "trend"],
+        moversEntered: ["NVDA"],
+        moversExited: ["TSLA"],
+        resolvedSince: [
+          {
+            runId: "run-1",
+            predictionId: "p1",
+            claim: "SPY closes higher.",
+            probability: 0.65,
+            outcome: "hit",
+            observedAt: "2026-05-31T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    const summaryAt = markdown.indexOf("## Summary");
+    const deltaAt = markdown.indexOf("## What Changed Since Last Daily");
+    const findingsAt = markdown.indexOf("## Key Findings");
+    expect(summaryAt).toBeGreaterThanOrEqual(0);
+    expect(deltaAt).toBeGreaterThan(summaryAt);
+    expect(findingsAt).toBeGreaterThan(deltaAt);
+    expect(markdown).toContain("Regime: risk-off → risk-on (flipped drivers: breadth, trend).");
+    expect(markdown).toContain("Movers entered: NVDA; exited: TSLA.");
+    expect(markdown).toContain("- [hit] p=65% SPY closes higher. (run run-1)");
+  });
+
+  test("renders a single empty-state line when there is no baseline", () => {
+    const markdown = renderMarkdownReport(
+      marketUpdateReport({
+        hasBaseline: false,
+        currentRegime: "risk-on",
+        regimeChanged: false,
+        flippedDrivers: [],
+        moversEntered: [],
+        moversExited: [],
+        resolvedSince: [],
+      }),
+    );
+    expect(markdown).toContain(
+      "## What Changed Since Last Daily\n\nNo prior daily run to compare — this is the first.",
+    );
+    expect(markdown).not.toContain("Regime:");
+  });
+
+  test("delta section carries no trade-action language", () => {
+    const markdown = renderMarkdownReport(
+      marketUpdateReport({
+        hasBaseline: true,
+        currentRegime: "risk-on",
+        priorRegime: "risk-off",
+        regimeChanged: true,
+        flippedDrivers: ["breadth"],
+        moversEntered: ["NVDA"],
+        moversExited: ["TSLA"],
+        resolvedSince: [
+          {
+            runId: "run-1",
+            predictionId: "p1",
+            claim: "SPY closes higher.",
+            probability: 0.65,
+            outcome: "hit",
+            observedAt: "2026-05-31T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    const start = markdown.indexOf("## What Changed Since Last Daily");
+    const section = markdown.slice(start, markdown.indexOf("## Key Findings"));
+    expect(section).toContain("Regime:");
+    expect(violatesResearchOnly(section)).toBeNull();
   });
 });

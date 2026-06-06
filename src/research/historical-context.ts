@@ -32,6 +32,9 @@ export interface HistoricalPredictionSummary {
   readonly probability: number;
   readonly scoreStatus: "not-scored" | "unresolved" | "resolved";
   readonly scoreOutcome?: "hit" | "miss";
+  // Observed resolution values for misses only (e.g. { close0, closeN }). Kept lean so the prior-
+  // Thesis error-correction block can show how wrong a prior thesis was, not just that it missed.
+  readonly scoreEvidence?: Record<string, number | string>;
 }
 
 export interface HistoricalNumericSnapshot {
@@ -510,6 +513,28 @@ function scoreSummary(scores: readonly PredictionScore[]): HistoricalRunContext[
   };
 }
 
+// Resolution evidence is read from disk as Record<string, unknown> and varies by forecast kind.
+// Keep only primitive number/string fields, capped, so the prior-miss block stays decoupled from
+// Per-kind evidence schemas. Returns undefined when nothing usable survives.
+const SCORE_EVIDENCE_KEY_LIMIT = 6;
+
+function compactScoreEvidence(
+  evidence: Record<string, unknown>,
+): Record<string, number | string> | undefined {
+  const result: Record<string, number | string> = {};
+  for (const [key, value] of Object.entries(evidence)) {
+    if (Object.keys(result).length >= SCORE_EVIDENCE_KEY_LIMIT) {
+      break;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      result[key] = value;
+    } else if (typeof value === "string") {
+      result[key] = value;
+    }
+  }
+  return Object.keys(result).length === 0 ? undefined : result;
+}
+
 function predictionSummaries(
   report: ResearchReport,
   scores: readonly PredictionScore[],
@@ -521,6 +546,8 @@ function predictionSummaries(
     if (score !== undefined) {
       scoreStatus = score.resolved ? "resolved" : "unresolved";
     }
+    const scoreEvidence =
+      score?.outcome === "miss" ? compactScoreEvidence(score.evidence) : undefined;
     return {
       id: prediction.id,
       claim: prediction.claim,
@@ -529,6 +556,7 @@ function predictionSummaries(
       probability: prediction.probability,
       scoreStatus,
       ...(score?.outcome !== undefined ? { scoreOutcome: score.outcome } : {}),
+      ...(scoreEvidence !== undefined ? { scoreEvidence } : {}),
     };
   });
 }

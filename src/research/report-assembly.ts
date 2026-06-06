@@ -353,6 +353,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       depth: command.depth,
       depthProfile,
       ...(isMarketUpdateJobType(command.jobType) ? { marketUpdateCadence: command.jobType } : {}),
+      ...(isMarketUpdateJobType(command.jobType) && context.marketUpdateDelta !== undefined
+        ? { marketUpdateDelta: context.marketUpdateDelta }
+        : {}),
       marketRegime: context.marketRegime,
       ...(isMarketUpdateJobType(command.jobType) && collectedSources.marketContext !== undefined
         ? { marketContext: collectedSources.marketContext }

@@ -184,6 +184,71 @@ describe("loadHistoricalContext", () => {
     expect(context.runs.map((run) => run.runId)).not.toContain("cache-run");
   });
 
+  test("carries compacted resolution evidence for misses only, whitelisting primitives", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "ticker-miss",
+      report: researchReport({
+        runId: "ticker-miss",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        predictions: [
+          prediction({ id: "pred-miss", subject: "AAPL" }),
+          prediction({ id: "pred-hit", subject: "AAPL" }),
+        ],
+      }),
+      score: {
+        scoredAt: "2026-05-28T00:00:00.000Z",
+        scores: [
+          predictionScore("miss", {
+            predictionId: "pred-miss",
+            runId: "ticker-miss",
+            evidence: {
+              close0: 180.5,
+              closeN: 172.3,
+              nested: { x: 1 },
+              flag: true,
+              returnPercent: -0.0454,
+              startDate: "2026-05-20",
+              endDate: "2026-05-28",
+              source: "yahoo",
+              extraPrimitive: "omitted",
+            },
+          }),
+          predictionScore("hit", {
+            predictionId: "pred-hit",
+            runId: "ticker-miss",
+            evidence: { close0: 1, closeN: 2 },
+          }),
+        ],
+      },
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: { historyOptions: options() },
+      now,
+    });
+
+    const preds = context.runs[0]?.predictions ?? [];
+    const miss = preds.find((entry) => entry.id === "pred-miss");
+    const hit = preds.find((entry) => entry.id === "pred-hit");
+    expect(miss?.scoreEvidence).toEqual({
+      close0: 180.5,
+      closeN: 172.3,
+      returnPercent: -0.0454,
+      startDate: "2026-05-20",
+      endDate: "2026-05-28",
+      source: "yahoo",
+    });
+    expect(hit?.scoreEvidence).toBeUndefined();
+  });
+
   test("softly reports no-history gaps without source gaps", async () => {
     const context = await loadHistoricalContext({
       dataDir: tempRunsDir(),

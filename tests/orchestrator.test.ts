@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AppConfig } from "../src/config";
@@ -1613,6 +1613,9 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "spotlight-selection.json"), "utf8"),
     ).resolves.toContain("malformed");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "movers.json"), "utf8"),
+    ).resolves.toContain("market-aapl");
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "Equity market breadth",
     );
@@ -1625,6 +1628,32 @@ describe("runResearchJob", () => {
     await expect(readFile(join(result.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain(
       "spotlight-selection",
     );
+  });
+
+  test("does not persist movers.json for ticker runs", async () => {
+    const dataDir = join(tmpdir(), `market-bot-ticker-movers-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const result = await persistResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir },
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "AAPL evidence is mixed.",
+          keyFindings: [{ text: "AAPL is liquid.", sourceIds: ["market-aapl"] }],
+          bullCase: [],
+          bearCase: [],
+          risks: [],
+          catalysts: [],
+          scenarios: [],
+          confidence: "medium",
+          dataGaps: [],
+        }),
+      ),
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources, sourceGaps: [] }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    await expect(access(join(result.artifacts.normalizedDir, "movers.json"))).rejects.toThrow();
   });
 
   test("caps Evidence Quality and adds deterministic gaps for sparse sources", async () => {

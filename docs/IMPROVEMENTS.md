@@ -19,8 +19,7 @@ re-deriving scope.
 
 ## Recommended order (open items)
 
-1. **#10 Prediction mix policy** — shift from measurement (done) to emission policy for thin kinds.
-2. **#13 Run cost/latency** — surface trace cost estimates in the console/CLI.
+1. **#13 Run cost/latency** — surface trace cost estimates in the console/CLI.
 
 
 ### Open follow-ups from completed work
@@ -36,20 +35,29 @@ re-deriving scope.
   re-ordering) would let critique challenge the actual stated probabilities and feed a correction
   loop. **Effort:** M.
 
-## #10 Economically thin prediction kinds (re-scoped: emission policy, not measurement)
+## #10 Prediction mix policy (emission) — SHIPPED
 
-- **Status:** Open (design). Per-kind skill measurement already exists (#3/#4); the remaining gap is
-  the prediction **emission policy**, not measurement.
-- **Evidence:** Five of six kinds reduce to "will close be higher / outside a band"
-  ([../src/forecast/observable.ts:196-507](../src/forecast/observable.ts)); `direction` at 1-20d has a
-  ~50% base rate, so it can mask signal in more informative kinds.
-- **Fix:** Define a target forecast-kind mix per run type that favors `relative`/pairs (more research
-  edge, more informative Brier) over bare `direction`.
+- **Status:** Done. Per-kind skill *measurement* already existed (#3/#4; `byKind` calibration); the
+  shipped piece is the prediction **emission policy** — a per-run-type target forecast-kind mix that
+  favors `relative`/pairs, `macro`, `range`, and `volatility` (more research edge, more informative
+  Brier) over bare `direction`, whose 1-20d base rate sits near 50% and can mask signal in more
+  informative kinds ([../src/forecast/observable.ts:196-507](../src/forecast/observable.ts)).
+- **Implementation:** `ForecastKindMix` is seeded per `RunKey` in
+  [../src/config/runs.ts](../src/config/runs.ts) (`runConfig.*.targetKindMix`, with `deep` overrides),
+  threaded through `ResolvedRunParams` → `DepthProfile`, and surfaced as soft guidance appended to the
+  `final-synthesis` prediction instruction via `buildKindMixGuidance`
+  ([../src/research/research-context.ts](../src/research/research-context.ts)). Mirrored in
+  [../prompts/playbooks/synthesis-discipline.md](../prompts/playbooks/synthesis-discipline.md).
+  Enforcement is **soft** (prompt guidance, not a validation gate) — deliberate, to avoid a new
+  reprompt branch and its budget cost.
 - **Acceptance:**
-  - Documented target forecast-kind mix per run type.
+  - Documented target forecast-kind mix per run type — see the `targetKindMix` table comment above
+    `runConfig` in `src/config/runs.ts`.
   - Test asserts that eligible reports emit more informative non-direction predictions where the
-    evidence supports them.
-- **Effort:** M.
+    evidence supports them — see the "prediction kind-mix guidance (#10)" describe block in
+    [../tests/research-context.test.ts](../tests/research-context.test.ts), which asserts the
+    favored-kind priority order, the non-direction floor, and that crypto guidance never advertises
+    equity-only `macro`/`iv` kinds it cannot fulfill.
 
 ## #7 Regime signal is thin for the weight it carries — SHIPPED
 

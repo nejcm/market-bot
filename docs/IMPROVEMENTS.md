@@ -53,8 +53,9 @@ re-deriving scope.
 - **Acceptance:**
   - Documented target forecast-kind mix per run type — see the `targetKindMix` table comment above
     `runConfig` in `src/config/runs.ts`.
-  - Test asserts that eligible reports emit more informative non-direction predictions where the
-    evidence supports them — see the "prediction kind-mix guidance (#10)" describe block in
+  - Tests assert that the `final-synthesis` prompt guidance steers toward more informative
+    non-direction predictions where the evidence supports them — see the "prediction kind-mix
+    guidance (#10)" describe block in
     [../tests/research-context.test.ts](../tests/research-context.test.ts), which asserts the
     favored-kind priority order, the non-direction floor, and that crypto guidance never advertises
     equity-only `macro`/`iv` kinds it cannot fulfill.

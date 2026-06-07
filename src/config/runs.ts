@@ -83,11 +83,13 @@ const CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS = ["BTC", "ETH"] as const;
 // ---------------------------------------------------------------------------
 // Target forecast-kind mixes (audit finding #10 — emission policy)
 //
-// | Run key                      | Favored (priority order)         | minNonDirection |
-// |------------------------------|----------------------------------|-----------------|
-// | daily-equity / weekly-equity | relative, macro, volatility      | minimumPredictions - 1 |
-// | daily-crypto / weekly-crypto | relative, range                  | 1 (macro/iv are equity-only — see src/scoring/observations.ts) |
-// | ticker                       | relative, range                  | 1               |
+// | Run key                      | Favored (priority order)    | minNonDirection (brief → deep) |
+// |------------------------------|-----------------------------|--------------------------------|
+// | daily-equity / weekly-equity | relative, macro, volatility | 1 → 2 |
+// | daily-crypto / weekly-crypto | relative, range             | 1 → 2 (macro/iv are equity-only — see src/scoring/observations.ts) |
+// | ticker                       | relative, range             | 1 → 2 |
+//
+// The `deep` override raises every floor to 2; brief profiles use 1.
 //
 // `direction` at short horizons sits near a 50% base rate.
 //

@@ -89,10 +89,12 @@ const CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS = ["BTC", "ETH"] as const;
 // | daily-crypto / weekly-crypto | relative, range                  | 1 (macro/iv are equity-only — see src/scoring/observations.ts) |
 // | ticker                       | relative, range                  | 1               |
 //
-// Rationale: `direction` at 1-20d sits near a ~50% base rate, masking signal
-// From kinds with more research edge and a more informative Brier
-// (relative/pairs, macro, range/volatility bands). This mix is *guidance*,
-// Surfaced in the final-synthesis instruction — not a hard validation gate.
+// `direction` at 1-20d sits near a ~50% base rate and can mask signal from
+// Kinds with more research edge and a more informative Brier (relative/pairs,
+// Macro, range/volatility bands).
+//
+// This mix is *guidance* surfaced in the final-synthesis instruction. It is
+// Not a hard validation gate.
 // ---------------------------------------------------------------------------
 
 const EQUITY_MARKET_UPDATE_KIND_MIX: ForecastKindMix = {

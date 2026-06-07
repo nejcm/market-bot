@@ -565,6 +565,111 @@ function priorThesisErrorsFor(
   return parsed.evidence?.priorThesisErrors;
 }
 
+describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
+  function finalSynthesisInstruction(command: ResearchCommand): string {
+    const depthProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile,
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: depthProfile.minimumPredictions,
+          defaultPredictionHorizon: depthProfile.defaultPredictionHorizon,
+          predictionSubjects: depthProfile.predictionSubjects,
+          focus: depthProfile.focus,
+          targetKindMix: depthProfile.targetKindMix,
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: command.assetClass,
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    return parsed.instruction ?? "";
+  }
+
+  test("daily-equity (market-update) instruction favors relative/macro/volatility over bare direction", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).toContain(
+      "Favor more informative forecast kinds in this priority order where the evidence supports them: relative, macro, volatility.",
+    );
+    expect(instruction).toContain("Use bare `direction` only when no better-measured kind fits");
+    expect(instruction).toContain(
+      "Aim for at least 1 prediction(s) using a kind other than `direction`",
+    );
+  });
+
+  test("ticker instruction favors its own mix (relative, range)", () => {
+    const command: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).toContain(
+      "Favor more informative forecast kinds in this priority order where the evidence supports them: relative, range.",
+    );
+  });
+
+  test("daily-crypto instruction favors relative/range and never advertises macro or iv", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "crypto", depth: "brief" };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).toContain(
+      "Favor more informative forecast kinds in this priority order where the evidence supports them: relative, range.",
+    );
+    // Crypto has no point forecasts (macro/iv are equity-only — see src/scoring/observations.ts),
+    // So the favored-kind guidance must not steer the model toward kinds it cannot fulfill.
+    const guidanceStart = instruction.indexOf("Favor more informative forecast kinds");
+    const favoredClause = instruction.slice(guidanceStart, instruction.indexOf(".", guidanceStart));
+    const favoredKinds = favoredClause
+      .slice(favoredClause.indexOf(":") + 1)
+      .split(",")
+      .map((kind) => kind.trim());
+    expect(favoredKinds).not.toContain("macro");
+    expect(favoredKinds).not.toContain("iv");
+  });
+
+  test("deep daily-equity raises the non-direction floor over the brief profile", () => {
+    const briefCommand: ResearchCommand = {
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "brief",
+    };
+    const deepCommand: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "deep" };
+
+    const briefInstruction = finalSynthesisInstruction(briefCommand);
+    const deepInstruction = finalSynthesisInstruction(deepCommand);
+
+    expect(briefInstruction).toContain("Aim for at least 1 prediction(s)");
+    expect(deepInstruction).toContain("Aim for at least 2 prediction(s)");
+  });
+});
+
 describe("buildStagePrompt prior-thesis error correction", () => {
   const tickerCommand: ResearchCommand = {
     jobType: "ticker",

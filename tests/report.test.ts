@@ -82,6 +82,7 @@ describe("report schema and rendering", () => {
       assetClass: "equity" as const,
       depth: "brief" as const,
     };
+    const targetKindMix = { favored: ["relative", "range"] as const, minNonDirection: 1 };
     const depthProfile: DepthProfile = {
       depth: "brief",
       analystStyle: "concise brief",
@@ -91,6 +92,7 @@ describe("report schema and rendering", () => {
       defaultPredictionHorizon: 5,
       predictionSubjects: ["SPY"],
       focus: ["source gaps"],
+      targetKindMix,
     };
     const context: ResearchContext = {
       depthProfile,
@@ -105,6 +107,7 @@ describe("report schema and rendering", () => {
         predictionSubjects: ["SPY"],
         focus: ["source gaps"],
         analystStyle: "concise brief",
+        targetKindMix,
       },
       marketRegime: {
         assetClass: "equity",

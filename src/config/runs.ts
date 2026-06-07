@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import type { ResearchCommand } from "../cli/args";
+import type { PredictionKind } from "../domain/types";
 import type { ModelParams } from "../model/types";
 
 // ---------------------------------------------------------------------------
@@ -7,6 +8,23 @@ import type { ModelParams } from "../model/types";
 // ---------------------------------------------------------------------------
 
 export type RunKey = "daily-equity" | "daily-crypto" | "weekly-equity" | "weekly-crypto" | "ticker";
+
+/**
+ * Audit finding #10 (prediction mix policy / emission policy): per-kind skill
+ * *measurement* already exists (`byKind` calibration). This is the missing
+ * *emission* half — a per-run-type target mix that steers `final-synthesis`
+ * toward more informative kinds (`relative`, `macro`, `range`, `volatility`)
+ * and away from leaning on bare `direction`, whose 1-20d base rate is ~50%
+ * (see prompts/playbooks/synthesis-discipline.md base-rate guidance).
+ *
+ * Soft enforcement only: this shapes prompt guidance, not a validation gate.
+ */
+export interface ForecastKindMix {
+  /** Kinds to favor, in priority order, when the evidence supports them. */
+  readonly favored: readonly PredictionKind[];
+  /** Soft floor: how many of the emitted predictions should avoid bare `direction`. */
+  readonly minNonDirection?: number;
+}
 
 export interface RunBaseParams {
   readonly quickModel?: string;
@@ -19,6 +37,7 @@ export interface RunBaseParams {
   readonly predictionSubjects?: readonly string[];
   readonly focus?: readonly string[];
   readonly analystStyle?: "concise brief" | "fuller analyst-style";
+  readonly targetKindMix?: ForecastKindMix;
 }
 
 export interface RunParams extends RunBaseParams {
@@ -38,6 +57,7 @@ export interface ResolvedRunParams {
   readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];
   readonly analystStyle: "concise brief" | "fuller analyst-style";
+  readonly targetKindMix: ForecastKindMix;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +80,36 @@ const EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS = [
 
 const CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS = ["BTC", "ETH"] as const;
 
+// ---------------------------------------------------------------------------
+// Target forecast-kind mixes (audit finding #10 — emission policy)
+//
+// | Run key                      | Favored (priority order)         | minNonDirection |
+// |------------------------------|----------------------------------|-----------------|
+// | daily-equity / weekly-equity | relative, macro, volatility      | minimumPredictions - 1 |
+// | daily-crypto / weekly-crypto | relative, range                  | 1 (macro/iv are equity-only — see src/scoring/observations.ts) |
+// | ticker                       | relative, range                  | 1               |
+//
+// Rationale: `direction` at 1-20d sits near a ~50% base rate and can mask
+// Signal from kinds with more research edge and a more informative Brier
+// (relative/pairs, macro, range/volatility bands). This mix is *guidance*
+// Surfaced in the final-synthesis instruction, not a hard validation gate.
+// ---------------------------------------------------------------------------
+
+const EQUITY_MARKET_UPDATE_KIND_MIX: ForecastKindMix = {
+  favored: ["relative", "macro", "volatility"],
+  minNonDirection: 1,
+};
+
+const CRYPTO_MARKET_UPDATE_KIND_MIX: ForecastKindMix = {
+  favored: ["relative", "range"],
+  minNonDirection: 1,
+};
+
+const TICKER_KIND_MIX: ForecastKindMix = {
+  favored: ["relative", "range"],
+  minNonDirection: 1,
+};
+
 const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "modelParams"> = {
   minimumKeyFindings: 3,
   minimumScenarios: 1,
@@ -68,6 +118,7 @@ const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "
   predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
   focus: ["market regime", "movers", "risks", "source gaps"],
   analystStyle: "concise brief",
+  targetKindMix: EQUITY_MARKET_UPDATE_KIND_MIX,
 };
 
 // ---------------------------------------------------------------------------
@@ -84,12 +135,14 @@ export const runConfig: RunConfig = {
     predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["market regime", "movers", "risks", "source gaps"],
+    targetKindMix: EQUITY_MARKET_UPDATE_KIND_MIX,
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
       minimumPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
+      targetKindMix: { ...EQUITY_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
     },
   },
   "daily-crypto": {
@@ -100,12 +153,14 @@ export const runConfig: RunConfig = {
     predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["market regime", "movers", "risks", "source gaps"],
+    targetKindMix: CRYPTO_MARKET_UPDATE_KIND_MIX,
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
       minimumPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
+      targetKindMix: { ...CRYPTO_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
     },
   },
   "weekly-equity": {
@@ -116,6 +171,7 @@ export const runConfig: RunConfig = {
     predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["weekly market regime", "5-session movers", "risks", "source gaps"],
+    targetKindMix: EQUITY_MARKET_UPDATE_KIND_MIX,
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
@@ -128,6 +184,7 @@ export const runConfig: RunConfig = {
         "risks",
         "source gaps",
       ],
+      targetKindMix: { ...EQUITY_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
     },
   },
   "weekly-crypto": {
@@ -138,6 +195,7 @@ export const runConfig: RunConfig = {
     predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
     focus: ["weekly market regime", "5-session movers", "risks", "source gaps"],
+    targetKindMix: CRYPTO_MARKET_UPDATE_KIND_MIX,
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
@@ -150,6 +208,7 @@ export const runConfig: RunConfig = {
         "risks",
         "source gaps",
       ],
+      targetKindMix: { ...CRYPTO_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
     },
   },
   ticker: {
@@ -159,6 +218,7 @@ export const runConfig: RunConfig = {
     defaultPredictionHorizon: 5,
     analystStyle: "concise brief",
     focus: ["thesis", "evidence", "risks", "data gaps"],
+    targetKindMix: TICKER_KIND_MIX,
     deep: {
       minimumKeyFindings: 6,
       minimumScenarios: 3,
@@ -173,6 +233,7 @@ export const runConfig: RunConfig = {
         "scenarios",
         "data gaps",
       ],
+      targetKindMix: { ...TICKER_KIND_MIX, minNonDirection: 2 },
     },
   },
 };
@@ -239,5 +300,6 @@ export function resolveRunParams(
     predictionSubjects,
     focus: merged.focus ?? CODE_DEFAULTS.focus,
     analystStyle: merged.analystStyle ?? CODE_DEFAULTS.analystStyle,
+    targetKindMix: merged.targetKindMix ?? CODE_DEFAULTS.targetKindMix,
   };
 }

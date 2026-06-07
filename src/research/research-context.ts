@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppConfig } from "../config";
-import { resolveRunParams, type ResolvedRunParams } from "../config/runs";
+import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { type EvidenceRequestToolName, type MarketRegimeSummary } from "../domain/types";
@@ -29,6 +29,7 @@ export interface DepthProfile {
   readonly defaultPredictionHorizon: number;
   readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];
+  readonly targetKindMix: ForecastKindMix;
 }
 
 // Loaded from data/calibration/summary.json, which is written as a CalibrationSummary.
@@ -402,6 +403,7 @@ export function buildDepthProfileFromParams(
     defaultPredictionHorizon: params.defaultPredictionHorizon,
     predictionSubjects: params.predictionSubjects,
     focus: params.focus,
+    targetKindMix: params.targetKindMix,
   };
 }
 
@@ -661,6 +663,24 @@ export function buildSpotlightSelectionPrompt(
 // Stage prompt
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Prediction-kind mix guidance (audit finding #10 — emission policy)
+//
+// Soft guidance only: steers `final-synthesis` toward the run type's favored,
+// More-informative kinds (e.g. `relative`, `macro`, `range`) instead of
+// Leaning on bare `direction`, whose short-horizon base rate sits near 0.5.
+// Not a validation gate — no reprompt branch reads this.
+// ---------------------------------------------------------------------------
+
+function buildKindMixGuidance(mix: ForecastKindMix): string {
+  const favored = mix.favored.join(", ");
+  const floor =
+    mix.minNonDirection !== undefined && mix.minNonDirection > 0
+      ? ` Aim for at least ${String(mix.minNonDirection)} prediction(s) using a kind other than \`direction\` where the evidence supports it.`
+      : "";
+  return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip.${floor}`;
+}
+
 export function buildStagePrompt(
   stage: StageLabel,
   command: ResearchCommand,
@@ -675,7 +695,7 @@ export function buildStagePrompt(
 ): string {
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.`
+      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0

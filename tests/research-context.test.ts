@@ -118,6 +118,7 @@ describe("buildStagePrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -175,6 +176,7 @@ describe("buildStagePrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -227,6 +229,7 @@ describe("buildStagePrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -291,6 +294,7 @@ describe("buildStagePrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -348,6 +352,7 @@ describe("buildStagePrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -401,6 +406,7 @@ describe("buildStagePrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -521,6 +527,7 @@ function contextWithHistory(
       defaultPredictionHorizon: 5,
       predictionSubjects: ["AAPL"],
       focus: ["instrument"],
+      targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
       modelParams: undefined,
     },
     marketRegime: {
@@ -718,6 +725,7 @@ describe("buildPlaybookSelectionPrompt", () => {
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
           modelParams: undefined,
         },
         marketRegime: {
@@ -783,6 +791,7 @@ describe("buildSpotlightSelectionPrompt", () => {
         defaultPredictionHorizon: 5,
         predictionSubjects: ["SPY"],
         focus: ["market regime", "movers"],
+        targetKindMix: { favored: ["relative", "range"] as const, minNonDirection: 1 },
         modelParams: undefined,
       },
       marketRegime: {

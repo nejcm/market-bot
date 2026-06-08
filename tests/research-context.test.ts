@@ -813,6 +813,148 @@ describe("buildStagePrompt prior-thesis error correction", () => {
   });
 });
 
+function marketRun(
+  runId: string,
+  jobType: "daily" | "weekly",
+  predictions: readonly HistoricalPredictionSummary[],
+  generatedAt = "2026-05-20T00:00:00.000Z",
+  assetClass: "equity" | "crypto" = "equity",
+): HistoricalRunContext {
+  return {
+    runId,
+    sourceId: `history-report-${runId}`,
+    jobType,
+    assetClass,
+    generatedAt,
+    selectionReasons: ["recent"],
+    summary: "",
+    confidence: "medium",
+    keyFindings: [],
+    risks: [],
+    catalysts: [],
+    dataGaps: [],
+    predictions,
+    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    marketSnapshots: [],
+  };
+}
+
+function marketMiss(
+  id: string,
+  subject: string,
+  overrides: Partial<HistoricalPredictionSummary> = {},
+): HistoricalPredictionSummary {
+  return missSummary(id, { subject, claim: `${subject} forecast`, ...overrides });
+}
+
+function priorMarketForecastErrorsFor(
+  command: ResearchCommand,
+  context: ResearchContext,
+): string | undefined {
+  const prompt = buildStagePrompt(
+    "specialist-analysis",
+    command,
+    collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot()],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    }),
+    config,
+    context,
+    { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+  );
+  const parsed = JSON.parse(prompt) as {
+    readonly evidence?: { readonly priorMarketForecastErrors?: string };
+  };
+  return parsed.evidence?.priorMarketForecastErrors;
+}
+
+describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", () => {
+  const dailyCommand: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+
+  test("surfaces prior same-cadence market misses on configured subjects", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([marketRun("run-daily-1", "daily", [marketMiss("p1", "SPY")])]),
+    );
+
+    const block = priorMarketForecastErrorsFor(dailyCommand, context);
+
+    expect(block).toBeDefined();
+    expect(block).not.toContain("undefined");
+    expect(block).toContain("daily");
+    expect(block).toContain("run-daily-1");
+    expect(block).toContain("SPY forecast");
+    expect(block).toContain("MISS");
+    expect(block).toContain("history-report-run-daily-1");
+  });
+
+  test("includes FRED macro subjects, normalizing the subject token before the colon", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([
+        marketRun("run-macro", "daily", [marketMiss("p-macro", "DGS10:level")]),
+      ]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toContain("DGS10:level forecast");
+  });
+
+  test("does not fire for ticker commands", () => {
+    const tickerCommand: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    };
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([marketRun("run-daily-1", "daily", [marketMiss("p1", "SPY")])]),
+    );
+
+    expect(priorMarketForecastErrorsFor(tickerCommand, context)).toBeUndefined();
+  });
+
+  test("excludes spotlight ticker misses even on a configured subject", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([tickerRun("run-spy-ticker", "SPY", [marketMiss("p-spy", "SPY")])]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+
+  test("excludes misses on non-configured subjects", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([marketRun("run-daily-1", "daily", [marketMiss("p-aapl", "AAPL")])]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+
+  test("excludes the other cadence (weekly misses for a daily command)", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([marketRun("run-weekly-1", "weekly", [marketMiss("p1", "SPY")])]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+
+  test("omits the block when the configured-subject prediction resolved as a hit", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([
+        marketRun("run-daily-1", "daily", [marketMiss("p1", "SPY", { scoreOutcome: "hit" })]),
+      ]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+});
+
 describe("buildPlaybookSelectionPrompt", () => {
   test("uses slim selector context", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };

@@ -11,7 +11,11 @@ import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric, CalibrationSummary } from "../scoring/types";
-import type { HistoricalResearchContext } from "./historical-context";
+import type {
+  HistoricalPredictionSummary,
+  HistoricalResearchContext,
+  HistoricalRunContext,
+} from "./historical-context";
 import type { MarketUpdateDelta } from "./market-update-delta";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage, StagePlaybooks } from "./playbooks";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
@@ -300,6 +304,25 @@ interface PriorMiss {
   readonly evidence?: Record<string, number | string>;
 }
 
+function missFrom(run: HistoricalRunContext, prediction: HistoricalPredictionSummary): PriorMiss {
+  return {
+    runId: run.runId,
+    generatedAt: run.generatedAt,
+    claim: prediction.claim,
+    probability: prediction.probability,
+    sourceId: run.sourceId,
+    ...(prediction.scoreEvidence !== undefined ? { evidence: prediction.scoreEvidence } : {}),
+  };
+}
+
+function sortedRecentMisses(misses: readonly PriorMiss[]): readonly PriorMiss[] {
+  return misses
+    .toSorted(
+      (left, right) => generatedAtValue(right.generatedAt) - generatedAtValue(left.generatedAt),
+    )
+    .slice(0, MAX_PRIOR_MISS_BULLETS);
+}
+
 function collectPriorMisses(
   command: ResearchCommand,
   historicalContext: HistoricalResearchContext | undefined,
@@ -314,24 +337,53 @@ function collectPriorMisses(
       continue;
     }
     for (const prediction of run.predictions) {
-      if (prediction.scoreOutcome !== "miss") {
-        continue;
+      if (prediction.scoreOutcome === "miss") {
+        misses.push(missFrom(run, prediction));
       }
-      misses.push({
-        runId: run.runId,
-        generatedAt: run.generatedAt,
-        claim: prediction.claim,
-        probability: prediction.probability,
-        sourceId: run.sourceId,
-        ...(prediction.scoreEvidence !== undefined ? { evidence: prediction.scoreEvidence } : {}),
-      });
     }
   }
-  return misses
-    .toSorted(
-      (left, right) => generatedAtValue(right.generatedAt) - generatedAtValue(left.generatedAt),
-    )
-    .slice(0, MAX_PRIOR_MISS_BULLETS);
+  return sortedRecentMisses(misses);
+}
+
+// Normalize a forecast subject to its primary token (before any `:` qualifier),
+// Uppercased, so configured subjects (SPY, ^VIX, DGS10, T10Y2Y) and prior-run
+// Prediction subjects compare on the same key regardless of measurement suffix.
+function normalizeSubject(subject: string): string {
+  return (subject.split(":")[0] ?? subject).trim().toUpperCase();
+}
+
+// Market-scoped sibling of collectPriorMisses (ADR 0015): for daily/weekly runs,
+// Gathers resolved misses from prior same-cadence, same-asset market-update runs
+// Whose prediction subject is one of the command's configured market subjects
+// (index/macro), so the forecast can learn from prior market-scoped errors. The
+// JobType filter alone already excludes spotlight ticker misses (jobType "ticker").
+function collectMarketForecastMisses(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+  predictionSubjects: readonly string[],
+): readonly PriorMiss[] {
+  if (
+    (command.jobType !== "daily" && command.jobType !== "weekly") ||
+    historicalContext === undefined
+  ) {
+    return [];
+  }
+  const subjectKeys = new Set(predictionSubjects.map((subject) => normalizeSubject(subject)));
+  const misses: PriorMiss[] = [];
+  for (const run of historicalContext.runs) {
+    if (run.jobType !== command.jobType || run.assetClass !== command.assetClass) {
+      continue;
+    }
+    for (const prediction of run.predictions) {
+      if (
+        prediction.scoreOutcome === "miss" &&
+        subjectKeys.has(normalizeSubject(prediction.subject))
+      ) {
+        misses.push(missFrom(run, prediction));
+      }
+    }
+  }
+  return sortedRecentMisses(misses);
 }
 
 // Parse an ISO timestamp to epoch ms for ordering, tolerating malformed values (generatedAt is read
@@ -362,6 +414,11 @@ function formatObservedEvidence(evidence: Record<string, number | string> | unde
   return parts.length === 0 ? "" : ` (observed ${parts.join(" ")})`;
 }
 
+function renderMissBullet(miss: PriorMiss): string {
+  const date = miss.generatedAt.slice(0, 10);
+  return `  - run ${miss.runId} (${date}): claimed "${singleLine(miss.claim)}" at stated p=${miss.probability.toFixed(2)}, resolved MISS${formatObservedEvidence(miss.evidence)} — cite ${miss.sourceId}`;
+}
+
 function buildPriorThesisErrorBlock(
   command: ResearchCommand,
   historicalContext: HistoricalResearchContext | undefined,
@@ -374,16 +431,33 @@ function buildPriorThesisErrorBlock(
     return undefined;
   }
   const symbol = command.symbol.toUpperCase();
-  const lines = [
+  return [
     `Prior predictions on ${symbol} that resolved MISS. Treat each as error-correction signal: diagnose why the prior thesis was wrong before restating a similar view, and widen probabilities where the same setup recurs.`,
-  ];
-  for (const miss of misses) {
-    const date = miss.generatedAt.slice(0, 10);
-    lines.push(
-      `  - run ${miss.runId} (${date}): claimed "${singleLine(miss.claim)}" at stated p=${miss.probability.toFixed(2)}, resolved MISS${formatObservedEvidence(miss.evidence)} — cite ${miss.sourceId}`,
-    );
+    ...misses.map((miss) => renderMissBullet(miss)),
+  ].join("\n");
+}
+
+// Market-scoped counterpart of the ticker instrument block (ADR 0015): for
+// Daily/weekly runs, surfaces prior MISS forecasts on the command's configured
+// Market subjects (index/macro) so the model corrects market-scoped errors. The
+// Ticker instrument block stays untouched; spotlight ticker misses are excluded
+// By the same-cadence jobType filter in collectMarketForecastMisses.
+function buildMarketForecastErrorBlock(
+  command: ResearchCommand,
+  context: ResearchContext,
+): string | undefined {
+  const misses = collectMarketForecastMisses(
+    command,
+    context.historicalContext,
+    context.depthProfile.predictionSubjects,
+  );
+  if (misses.length === 0) {
+    return undefined;
   }
-  return lines.join("\n");
+  return [
+    `Prior ${command.jobType} forecasts on configured market subjects that resolved MISS. Treat each as error-correction signal: diagnose why the prior market read was wrong before restating a similar view, and widen probabilities where the same regime setup recurs.`,
+    ...misses.map((miss) => renderMissBullet(miss)),
+  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +511,7 @@ function buildEvidencePayload(
   );
   const calibrationBlock = buildCalibrationBlock(context.calibrationContext);
   const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
+  const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
 
   return {
     command,
@@ -464,6 +539,7 @@ function buildEvidencePayload(
     sourceGaps: deterministicSourceGaps(command, collectedSources),
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
+    ...(priorMarketForecastErrors !== undefined ? { priorMarketForecastErrors } : {}),
   };
 }
 

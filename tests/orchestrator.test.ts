@@ -8,6 +8,7 @@ import { marketContextGap, sourceGap } from "../src/domain/source-gaps";
 import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
+import { isRecord } from "../src/sources/guards";
 import { readNewsSeenEntries } from "../src/sources/news-seen";
 import {
   collectedSources as collectedSourceBundle,
@@ -183,6 +184,27 @@ function modelReport(subject = "AAPL", sourceId = "market-aapl"): string {
     dataGaps: [],
     predictions: mockPredictions(6, subject),
   });
+}
+
+// Returns an empty-selection payload for the gating stages (spotlight/playbook) and a
+// Full report otherwise, so a market-update run completes without selecting any spotlight.
+function emptySelectionStageReport(stage: unknown): string {
+  if (stage === "spotlight-selection") {
+    return JSON.stringify({ rationale: "no movers", selections: [] });
+  }
+  if (stage === "playbook-selection") {
+    return JSON.stringify({ selections: [] });
+  }
+  return modelReport("AAPL");
+}
+
+function historicalContextGaps(
+  result: Awaited<ReturnType<typeof runResearchJob>>,
+): readonly string[] {
+  const extra = result.report.extras?.historicalContext;
+  return isRecord(extra) && Array.isArray(extra.gaps)
+    ? extra.gaps.filter((gap): gap is string => typeof gap === "string")
+    : [];
 }
 
 function priorStageNames(prompt: Record<string, unknown>): readonly string[] {
@@ -585,6 +607,51 @@ describe("runResearchJob", () => {
     );
     expect(result.report.extras?.historicalContext).toBeDefined();
     expect(result.trace.historicalContext?.selectedRunCount).toBe(2);
+  });
+
+  test("surfaces an unreadable alpha-watchlist gap for market-update runs but not ticker runs", async () => {
+    const dataDir = tempDataDir("market-bot-alpha-gap");
+    // Present-but-unreadable watchlist → loadAlphaWatchlistForSpotlights returns a gap.
+    await mkdir(join(dataDir, "alpha-search"), { recursive: true });
+    await writeFile(join(dataDir, "alpha-search", "watchlist.json"), "{not-json", "utf8");
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        return {
+          content: emptySelectionStageReport(prompt.stage),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+    const collected = collectedSourceBundle({
+      rawSnapshots: [],
+      marketSnapshots,
+      newsSources,
+      sourceGaps: [],
+    });
+    const ALPHA_GAP = "Unable to read alpha-search watchlist for spotlight enrichment";
+
+    const ticker = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collected,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const daily = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collected,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    // The watchlist is only consumed for market-update spotlight enrichment, so its load
+    // Failure is a meaningful gap only for daily/weekly runs — never ticker runs.
+    expect(historicalContextGaps(ticker)).not.toContain(ALPHA_GAP);
+    expect(historicalContextGaps(daily)).toContain(ALPHA_GAP);
   });
 
   test("runs market spotlight selection before playbooks and exposes selected extras", async () => {

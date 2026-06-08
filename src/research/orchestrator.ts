@@ -316,11 +316,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const historicalContextReader = await createHistoricalContextReader(input.config.dataDir);
   // Read before the first historical-context load so an unreadable watchlist is
   // Surfaced as a cross-run gap (LoadHistoricalContextInput.extraGaps) on every
-  // Load in this run, not dropped silently. Cheap (single-file read) and
-  // Independent of command type — the watchlist itself is only consumed for
-  // Market-update spotlight enrichment below.
+  // Load in this run, not dropped silently. Cheap (single-file read).
   const alpha = await loadAlphaWatchlistForSpotlights(input.config.dataDir);
-  const alphaGaps = alpha.gap === undefined ? [] : [alpha.gap];
+  // The watchlist is only consumed for market-update spotlight enrichment, so its
+  // Load failure is only a meaningful gap for daily/weekly runs. Scoping it here
+  // Keeps the signal out of ticker/alpha-search reports, which never enrich.
+  const alphaGaps =
+    isMarketUpdateJobType(input.command.jobType) && alpha.gap !== undefined ? [alpha.gap] : [];
   let historicalContext = await historicalContextReader.load({
     command: input.command,
     config: input.config,

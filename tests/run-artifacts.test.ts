@@ -123,6 +123,79 @@ describe("loadRunArtifact", () => {
     expect(malformed.artifact?.scores).toEqual([]);
   });
 
+  test("carries scoringVersion through the seam when present", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "versioned");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "versioned" }));
+    await writeJson(join(runDir, "score.json"), {
+      runId: "versioned",
+      scores: [
+        predictionScore("hit", { predictionId: "p-1", runId: "versioned", scoringVersion: 3 }),
+      ],
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.scores[0]?.scoringVersion).toBe(3);
+  });
+
+  test("round-trips a legacy score entry without scoringVersion, leaving it undefined", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "legacy");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "legacy" }));
+    // A pre-versioning score file: every required field present, scoringVersion absent.
+    await writeJson(join(runDir, "score.json"), {
+      runId: "legacy",
+      scores: [
+        {
+          predictionId: "p-legacy",
+          runId: "legacy",
+          resolved: true,
+          outcome: "miss",
+          observedAt: "2026-05-28T00:00:00.000Z",
+          attemptCount: 2,
+          evidence: { close0: 100, closeN: 90 },
+        },
+      ],
+    });
+
+    const { artifact, status } = await loadRunArtifact(runDir);
+
+    expect(status.score).toBe("ok");
+    expect(artifact?.scores).toEqual([
+      {
+        predictionId: "p-legacy",
+        runId: "legacy",
+        resolved: true,
+        outcome: "miss",
+        observedAt: "2026-05-28T00:00:00.000Z",
+        attemptCount: 2,
+        evidence: { close0: 100, closeN: 90 },
+      },
+    ]);
+    expect(artifact?.scores[0]?.scoringVersion).toBeUndefined();
+  });
+
+  test("drops only the unusable score entries while keeping a valid sibling (file stays ok)", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "mixed-scores");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "mixed-scores" }));
+    // One entry is missing required fields (no numeric attemptCount, no record evidence) and is
+    // Dropped; the file itself is well-formed so status stays "ok" and the valid sibling survives.
+    await writeJson(join(runDir, "score.json"), {
+      runId: "mixed-scores",
+      scores: [
+        { predictionId: "p-broken", runId: "mixed-scores", resolved: true },
+        predictionScore("hit", { predictionId: "p-good", runId: "mixed-scores" }),
+      ],
+    });
+
+    const { artifact, status } = await loadRunArtifact(runDir);
+
+    expect(status.score).toBe("ok");
+    expect(artifact?.scores.map((score) => score.predictionId)).toEqual(["p-good"]);
+  });
+
   test("returns no snapshots when the snapshot file is absent", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "no-snapshots");

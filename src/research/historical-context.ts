@@ -588,6 +588,12 @@ function buildHistoricalContext(
     ),
   );
 
+  // The spotlightSymbols input carries the spotlight candidate set during the
+  // Pre-selection pass and the actually-selected spotlights afterward. The
+  // `spotlight-symbol` reason therefore means "ticker history for a spotlight-
+  // Candidate symbol"; only the post-selection context (or a market-only context
+  // With no such reasons) reaches synthesis, so the persisted/trace label
+  // Reflects selected spotlights.
   for (const symbol of spotlightSymbols) {
     const sameTickerRuns = scan.artifacts.filter(
       (artifact) =>

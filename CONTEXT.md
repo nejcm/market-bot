@@ -28,9 +28,13 @@ A daily or weekly research run for an asset class that summarizes market regime,
 
 Weekly market updates are a cadence and horizon change in V1, not a separate trailing-window data product. Equity mover inputs still come from Yahoo `day_gainers`, `day_losers`, and `most_actives` (a single-day multi-screener set), and crypto mover inputs still use CoinGecko 24h change fields; reports must disclose this as a source gap.
 
+## Cross-run Intelligence
+
+The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, derived history, the alpha-search watchlist — never raw `data/cache`, embeddings, or a database. Historical Research Context is its prompt-time surface (below).
+
 ## Historical Research Context
 
-Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts. In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
+Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts; the prompt-time surface of Cross-run Intelligence (above). In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
 
 ## Run Artifact
 

@@ -57,6 +57,19 @@ The existing write-side dir-paths type `RunArtifacts` was renamed `RunArtifactPa
 - Migration is staged: this change builds the reader and migrates `market-update-delta` and
   `historical-context`; `history/artifacts` and `scoring/index` follow in separate changes.
 
+### Migration complete
+
+The staged migration is finished. All four consumers now read through the seam — `market-update-delta`
+and `historical-context` (this change), then `scoring/index` and `history/artifacts` (follow-ups). No
+raw `JSON.parse(...) as T` report/score casts remain. Two notes on the completed state:
+
+- `readScores` carries `scoringVersion` through at full fidelity (optional, `undefined` for legacy
+  files) so score-writing consumers preserve the version stamped on already-resolved scores — the
+  seam principle "a reader can carry more than a caller needs, never less."
+- `history/artifacts` takes report + scores from the seam but keeps its single-caller sidecars
+  (supplemental snapshots, `sec-fundamentals.json`, `alpha-validation.json`) local, and adopts the
+  stricter `malformedRunCount` definition above.
+
 ## Rejected alternatives
 
 - **Per-caller lenient parsers (status quo)** — rejected; four parsing strategies for one on-disk

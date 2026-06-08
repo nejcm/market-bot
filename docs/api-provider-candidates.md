@@ -15,8 +15,8 @@ This note evaluates APIs that could add useful evidence to `market-bot` while pr
 
 - **Use for:** US equity, ETF, options, indices, forex, and crypto market data.
 - **Useful evidence:** historical closes, intraday bars, snapshots, options data, indices, validation for Yahoo-sourced prices.
-- **Current status:** supplemental equity snapshots and news are implemented through `MARKET_BOT_MASSIVE_API_KEY`.
-- **Fit:** strong promotion candidate if budget and validation allow; best for improving price/scoring reliability.
+- **Current status:** supplemental equity snapshots and news are implemented through `MARKET_BOT_MASSIVE_API_KEY`. When configured, Massive also opportunistically backs up Yahoo quote, benchmark, alpha-search validation, and scoring close routes after Yahoo retries are exhausted; movers remain Yahoo-only.
+- **Fit:** strong promotion candidate if budget and validation allow; best for improving price/scoring reliability without replacing Yahoo as the registered primary adapter.
 - **Caveat:** paid tiers may be needed for the useful coverage.
 - **Docs:** <https://massive.com/docs/>
 - **Legacy name:** formerly Polygon.io.

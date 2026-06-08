@@ -16,6 +16,7 @@ import type {
   SourceRequestExecutor,
 } from "./types";
 import { createSourceRegistry } from "./registry";
+import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
 
 interface HostState {
   queue: Promise<void>;
@@ -254,27 +255,6 @@ async function fetchText(
   );
 }
 
-function isTransientError(error: unknown): boolean {
-  if (error instanceof Error) {
-    if (error.name === "AbortError" || error.name === "TimeoutError") {
-      return true;
-    }
-    const code = statusCode(error);
-    if (code !== undefined) {
-      return code >= 500 && code < 600;
-    }
-    if (
-      error.message.includes("fetch failed") ||
-      error.message.includes("network") ||
-      error.message.includes("ECONNRESET") ||
-      error.message.includes("ETIMEDOUT")
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
 export function resetSourceResilienceForTests(): void {
   hostStates.clear();
 }
@@ -286,13 +266,7 @@ export function setSourceHostMinDelayMsForTests(ms: number): void {
   hostMinDelayMs = ms;
 }
 
-export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];
-
-function sleep(ms: number): Promise<void> {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
+export { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 
 async function fetchJsonWithRetry(
   url: string,

@@ -19,6 +19,12 @@ import {
   type SourceRequest,
 } from "./types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
+import { fetchMassiveCloseWindow, fetchMassiveQuoteFallback } from "./massive-fallback";
+import {
+  fetchYahooJsonWithResilience,
+  YAHOO_QUOTE_URL,
+  yahooCredentialFetch,
+} from "./yahoo-resilience";
 
 function readYahooResults(payload: unknown): readonly unknown[] {
   if (!isRecord(payload) || !isRecord(payload.quoteResponse)) {
@@ -138,7 +144,6 @@ const EQUITY_DAILY_LOSERS_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_losers&count=50";
 const EQUITY_MOST_ACTIVES_URL =
   "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&count=50";
-const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 const BROAD_EQUITY_BENCHMARK = "SPY";
 const SECTOR_BENCHMARKS: Readonly<Record<string, string>> = {
   "Basic Materials": "XLB",
@@ -165,6 +170,10 @@ function yahooQuoteUrl(symbols: string): string {
   return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
 }
 
+function yahooResilientFetchWrapper(baseFetch: FetchLike): FetchLike {
+  return (request, init) => yahooCredentialFetch(request, init, baseFetch);
+}
+
 export function yahooQuoteSourceRequest(
   symbols: readonly string[],
   adapter: string,
@@ -172,7 +181,7 @@ export function yahooQuoteSourceRequest(
   return {
     url: yahooQuoteUrl(symbols.join(",")),
     adapter,
-    fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
+    fetch: yahooResilientFetchWrapper,
   };
 }
 
@@ -216,6 +225,59 @@ function benchmarkFromSnapshot(
   };
 }
 
+function symbolsFromQuoteUrl(url: string): readonly string[] {
+  try {
+    const symbols = new URL(url).searchParams.get("symbols");
+    if (symbols === null || symbols.trim() === "") {
+      return [];
+    }
+    return symbols
+      .split(",")
+      .map((symbol) => symbol.trim().toUpperCase())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function requestJsonWithQuoteFallback(
+  ctx: CollectContext,
+  request: SourceRequest,
+): Promise<FetchJsonResult | SourceGap> {
+  const result = await ctx.request.json({
+    ...request,
+    fetch: request.fetch ?? yahooResilientFetchWrapper,
+  });
+  if (isFetchJsonResult(result)) {
+    return result;
+  }
+
+  const symbols = symbolsFromQuoteUrl(request.url);
+  if (symbols.length === 0) {
+    return result;
+  }
+
+  const fallback = await fetchMassiveQuoteFallback(
+    symbols,
+    ctx.massiveApiKey,
+    fetch,
+    ctx.fetchedAt,
+  );
+  if (fallback === undefined) {
+    return result;
+  }
+
+  return {
+    rawSnapshot: {
+      id: `raw-${request.adapter}-massive-fallback-${ctx.fetchedAt}`,
+      adapter: request.adapter,
+      fetchedAt: ctx.fetchedAt,
+      payload: fallback.payload,
+    },
+    payload: fallback.payload,
+  };
+}
+
 async function enrichMoverBenchmarks(
   ctx: CollectContext,
   movers: readonly EquityMoverSnapshot[],
@@ -242,10 +304,11 @@ async function enrichMoverBenchmarks(
       sourceGaps: [],
     };
   }
-  const fetched = await ctx.request.json({
+
+  const fetched = await requestJsonWithQuoteFallback(ctx, {
     url: yahooQuoteUrl(benchmarkSymbols.join(",")),
     adapter: "yahoo-benchmarks",
-    fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
+    fetch: yahooResilientFetchWrapper,
   });
 
   if (!isFetchJsonResult(fetched)) {
@@ -293,104 +356,6 @@ async function enrichMoverBenchmarks(
   };
 }
 
-interface YahooCredentials {
-  readonly cookie: string;
-  readonly crumb: string;
-}
-
-let yahooCredentialsPromise: Promise<YahooCredentials> | null = null;
-
-function cookiePairs(headers: Headers): readonly string[] {
-  const headersWithSetCookie = headers as Headers & { getSetCookie?: () => string[] };
-  const values = headersWithSetCookie.getSetCookie?.() ?? [];
-  const fallback = headers.get("set-cookie");
-  const setCookies = values.length > 0 ? values : [];
-  const rawCookies = setCookies.length > 0 || fallback === null ? setCookies : [fallback];
-  return rawCookies
-    .map((value) => value.split(";")[0])
-    .filter((value): value is string => value !== undefined && value.includes("="));
-}
-
-function headersWith(init: RequestInit | undefined, extra: Record<string, string>): Headers {
-  const headers = new Headers(init?.headers);
-  for (const [key, value] of Object.entries(extra)) {
-    headers.set(key, value);
-  }
-  return headers;
-}
-
-async function yahooCredentials(
-  fetchImpl: FetchLike,
-  init: RequestInit | undefined,
-): Promise<YahooCredentials> {
-  if (yahooCredentialsPromise !== null) {
-    return yahooCredentialsPromise;
-  }
-
-  yahooCredentialsPromise = (async () => {
-    const credentialInit = {
-      ...(init?.signal !== undefined ? { signal: init.signal } : {}),
-      headers: headersWith(undefined, { "user-agent": "Mozilla/5.0 market-bot" }),
-    };
-    const cookieResponse = await fetchImpl("https://fc.yahoo.com", {
-      ...credentialInit,
-    });
-    const cookie = cookiePairs(cookieResponse.headers).join("; ");
-    const crumbInit = {
-      ...(init?.signal !== undefined ? { signal: init.signal } : {}),
-      headers: headersWith(
-        undefined,
-        cookie !== ""
-          ? { cookie, "user-agent": "Mozilla/5.0 market-bot" }
-          : { "user-agent": "Mozilla/5.0 market-bot" },
-      ),
-    };
-    const crumbResponse = await fetchImpl("https://query1.finance.yahoo.com/v1/test/getcrumb", {
-      ...crumbInit,
-    });
-    if (!crumbResponse.ok) {
-      throw new Error(`Yahoo crumb request failed with status ${crumbResponse.status}`);
-    }
-    const crumb = await crumbResponse.text();
-    return { cookie, crumb: crumb.trim() };
-  })();
-
-  return yahooCredentialsPromise;
-}
-
-function quoteUrlWithCrumb(url: string, crumb: string): string {
-  const parsed = new URL(url);
-  parsed.searchParams.set("crumb", crumb);
-  return parsed.toString();
-}
-
-async function yahooCredentialFetch(
-  input: string | URL | Request,
-  init?: RequestInit,
-  fetchImpl: FetchLike = fetch,
-): Promise<Response> {
-  const url = String(input);
-  const response = await fetchImpl(input, init);
-  if (!url.startsWith(YAHOO_QUOTE_URL) || response.status !== 401) {
-    return response;
-  }
-
-  try {
-    const credentials = await yahooCredentials(fetchImpl, init);
-    const retry = await fetchImpl(quoteUrlWithCrumb(url, credentials.crumb), {
-      ...init,
-      headers: headersWith(init, credentials.cookie !== "" ? { cookie: credentials.cookie } : {}),
-    });
-    if (retry.status === 401) {
-      yahooCredentialsPromise = null;
-    }
-    return retry;
-  } catch {
-    yahooCredentialsPromise = null;
-    return response;
-  }
-}
-
 async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResult> {
   const { command } = ctx;
 
@@ -405,14 +370,19 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
         ];
 
   const results = await Promise.all(
-    requests.map(async (req) => ({
-      role: req.role,
-      result: await ctx.request.json({
+    requests.map(async (req) => {
+      const adapter = req.role === "regime" ? "yahoo-regime" : `yahoo-${req.role}`;
+      const request: SourceRequest = {
         url: req.url,
-        adapter: req.role === "regime" ? "yahoo-regime" : `yahoo-${req.role}`,
-        fetch: (baseFetch) => (request, init) => yahooCredentialFetch(request, init, baseFetch),
-      }),
-    })),
+        adapter,
+        fetch: yahooResilientFetchWrapper,
+      };
+      const result =
+        req.role === "regime"
+          ? await requestJsonWithQuoteFallback(ctx, request)
+          : await ctx.request.json(request);
+      return { role: req.role, result };
+    }),
   );
 
   const fetched = results.filter((e): e is { role: EquityRole; result: FetchJsonResult } =>
@@ -474,38 +444,56 @@ function dateFromUnixSeconds(value: unknown): string | undefined {
   return typeof value === "number" ? new Date(value * 1000).toISOString().slice(0, 10) : undefined;
 }
 
+function observationsFromYahooChartPayload(
+  symbol: string,
+  payload: unknown,
+): readonly Observation[] {
+  if (!isRecord(payload) || !isRecord(payload.chart)) {
+    return [];
+  }
+  const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
+  if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
+    return [];
+  }
+  const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
+  const closes = isRecord(quote) && Array.isArray(quote.close) ? quote.close : [];
+  return result.timestamp.flatMap((timestamp, index) => {
+    const date = dateFromUnixSeconds(timestamp);
+    const value = closes[index];
+    return date !== undefined && typeof value === "number"
+      ? [{ subject: symbol, date, value }]
+      : [];
+  });
+}
+
 export async function fetchYahooCloseWindow(
   symbol: string,
   from: Date,
   to: Date,
-  fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = fetch,
+  fetchImpl: FetchLike = fetch,
+  massiveApiKey?: string,
 ): Promise<readonly Observation[]> {
-  try {
-    const response = await fetchImpl(yahooChartWindowUrl(symbol, from, to), {
-      signal: AbortSignal.timeout(10_000),
-      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
-    });
-    if (!response.ok) {
-      return [];
+  const url = yahooChartWindowUrl(symbol, from, to);
+  const fetched = await fetchYahooJsonWithResilience(url, fetchImpl, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+  });
+
+  if (fetched.ok) {
+    const observations = observationsFromYahooChartPayload(symbol, fetched.payload);
+    if (observations.length > 0) {
+      return observations;
     }
-    const payload = (await response.json()) as unknown;
-    if (!isRecord(payload) || !isRecord(payload.chart)) {
-      return [];
-    }
-    const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
-    if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
-      return [];
-    }
-    const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
-    const closes = isRecord(quote) && Array.isArray(quote.close) ? quote.close : [];
-    return result.timestamp.flatMap((timestamp, index) => {
-      const date = dateFromUnixSeconds(timestamp);
-      const value = closes[index];
-      return date !== undefined && typeof value === "number"
-        ? [{ subject: symbol, date, value }]
-        : [];
-    });
-  } catch {
-    return [];
   }
+
+  const massiveObservations = await fetchMassiveCloseWindow(
+    symbol,
+    from,
+    to,
+    massiveApiKey,
+    fetchImpl,
+  );
+  return massiveObservations ?? [];
 }
+
+export { yahooCredentialFetch, createYahooResilientFetch } from "./yahoo-resilience";

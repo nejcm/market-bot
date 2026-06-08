@@ -4,7 +4,9 @@ import {
   validateYahooCandidateQuotes,
 } from "../src/alpha-search/yahoo-validation";
 import type { AlphaSearchCandidate } from "../src/alpha-search/candidates";
-import type { FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
+import type { FetchJsonResult, FetchLike, SourceRequestExecutor } from "../src/sources/types";
+
+const FETCHED_AT = "2026-06-01T00:00:00.000Z";
 
 function candidate(symbol: string, rank = 1): AlphaSearchCandidate {
   return {
@@ -63,6 +65,32 @@ function requestExecutor(
     },
   };
 }
+
+const massiveFallbackFetchImpl: FetchLike = async (input) => {
+  const url = String(input);
+  if (url.includes("/v2/snapshot/")) {
+    return Response.json({
+      tickers: [
+        {
+          ticker: "AAPL",
+          todaysChangePerc: 1.2,
+          day: { c: 190, v: 80_000_000 },
+          lastTrade: { p: 190 },
+        },
+      ],
+    });
+  }
+  if (url.includes("/v3/reference/tickers/AAPL")) {
+    return Response.json({
+      results: {
+        name: "Apple Inc.",
+        primary_exchange: "NMS",
+        market_cap: 2_900_000_000,
+      },
+    });
+  }
+  return new Response("not found", { status: 404 });
+};
 
 describe("Yahoo alpha-search validation", () => {
   test("accepts Yahoo-validated listed stocks with basic market info", () => {
@@ -190,6 +218,7 @@ describe("Yahoo alpha-search validation", () => {
     const result = await crossCheckAlphaSearchCandidatesWithYahoo({
       candidates: [candidate("AAPL"), candidate("MSFT", 2), candidate("TSLA", 3)],
       candidateLimit: 2,
+      fetchedAt: FETCHED_AT,
       request: requestExecutor(
         (url) => requestedUrls.push(url),
         payload([quote({ symbol: "AAPL" }), quote({ symbol: "MSFT" })]),
@@ -208,6 +237,7 @@ describe("Yahoo alpha-search validation", () => {
       const result = await crossCheckAlphaSearchCandidatesWithYahoo({
         candidates: [candidate("AAPL")],
         candidateLimit,
+        fetchedAt: FETCHED_AT,
         request: {
           json: async () => {
             throw new Error("unexpected json fetch");
@@ -231,6 +261,7 @@ describe("Yahoo alpha-search validation", () => {
     const result = await crossCheckAlphaSearchCandidatesWithYahoo({
       candidates: [candidate("AAPL"), candidate("MSFT", 2)],
       candidateLimit: 15,
+      fetchedAt: FETCHED_AT,
       request: {
         json: async () => ({
           source: "yahoo-alpha-search",
@@ -264,5 +295,40 @@ describe("Yahoo alpha-search validation", () => {
         },
       ],
     });
+  });
+
+  test("falls back to Massive quote payload when Yahoo request fails", async () => {
+    globalThis.fetch = massiveFallbackFetchImpl as typeof fetch;
+
+    const result = await crossCheckAlphaSearchCandidatesWithYahoo({
+      candidates: [candidate("AAPL")],
+      candidateLimit: 1,
+      fetchedAt: FETCHED_AT,
+      massiveApiKey: "massive-key",
+      request: {
+        json: async () => ({
+          source: "yahoo-alpha-search",
+          message: "source request failed with status 401",
+          cause: "fetch-failed",
+        }),
+        text: async () => {
+          throw new Error("unexpected text fetch");
+        },
+      },
+    });
+
+    expect(result.sourceGaps).toEqual([]);
+    expect(result.validLeads).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        price: 190,
+        volume: 80_000_000,
+        marketCap: 2_900_000_000,
+      }),
+    ]);
+    expect(result.rawSnapshots[0]?.adapter).toBe("yahoo-alpha-search");
+    expect(result.rawSnapshots[0]?.id).toBe(
+      `raw-yahoo-alpha-search-massive-fallback-${FETCHED_AT}`,
+    );
   });
 });

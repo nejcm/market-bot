@@ -34,6 +34,7 @@ export interface ObservationRepositoryOptions {
   readonly fetchWindow?: FetchWindowFn;
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
+  readonly massiveApiKey?: string;
   readonly now?: Date;
 }
 
@@ -90,10 +91,10 @@ async function pointValue(
   return exhaustive;
 }
 
-function routeWindowFetch(report: ResearchReport): FetchWindowFn {
+function routeWindowFetch(report: ResearchReport, massiveApiKey?: string): FetchWindowFn {
   return async (subject, assetClass, from, to) => {
     if (assetClass === "equity") {
-      return fetchYahooCloseWindow(subject, from, to);
+      return fetchYahooCloseWindow(subject, from, to, fetch, massiveApiKey);
     }
 
     const id = coinGeckoId(report, subject);
@@ -104,7 +105,8 @@ function routeWindowFetch(report: ResearchReport): FetchWindowFn {
 export function createObservationRepository(
   options: ObservationRepositoryOptions,
 ): ObservationRepository {
-  const fetchWindow = options.fetchWindow ?? routeWindowFetch(options.report);
+  const fetchWindow =
+    options.fetchWindow ?? routeWindowFetch(options.report, options.massiveApiKey);
   const now = options.now ?? new Date();
 
   return {

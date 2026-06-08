@@ -1,5 +1,6 @@
 import type { SourceGap } from "../domain/types";
 import { isRecord, optionalString, readNumber, readString } from "../sources/guards";
+import { fetchMassiveQuoteFallback } from "../sources/massive-fallback";
 import { yahooQuoteSourceRequest } from "../sources/yahoo";
 import {
   isFetchJsonResult,
@@ -273,34 +274,58 @@ export async function crossCheckAlphaSearchCandidatesWithYahoo(input: {
   readonly candidateLimit: number;
   readonly request: SourceRequestExecutor;
   readonly eligibility?: AlphaSearchEligibilityOptions;
+  readonly massiveApiKey?: string;
+  readonly fetchedAt: string;
 }): Promise<YahooCandidateValidationResult> {
   const candidates = input.candidates.slice(0, Math.max(0, input.candidateLimit));
   if (candidates.length === 0) {
     return { rawSnapshots: [], validLeads: [], rejectedCandidates: [], sourceGaps: [] };
   }
 
-  const fetched = await input.request.json(
-    yahooQuoteSourceRequest(
-      candidates.map((candidate) => candidate.symbol),
-      "yahoo-alpha-search",
-    ),
-  );
-  if (!isFetchJsonResult(fetched)) {
+  const symbols = candidates.map((candidate) => candidate.symbol);
+  const fetched = await input.request.json(yahooQuoteSourceRequest(symbols, "yahoo-alpha-search"));
+  if (isFetchJsonResult(fetched)) {
     return {
-      rawSnapshots: [],
-      validLeads: [],
-      rejectedCandidates: candidates.map((candidate) => validationUnavailableCandidate(candidate)),
-      sourceGaps: [fetched],
+      rawSnapshots: [fetched.rawSnapshot],
+      sourceGaps: [],
+      ...validateYahooCandidateQuotes(
+        candidates,
+        fetched.payload,
+        input.eligibility ?? DEFAULT_ALPHA_SEARCH_ELIGIBILITY,
+      ),
+    };
+  }
+
+  const fallback = await fetchMassiveQuoteFallback(
+    symbols,
+    input.massiveApiKey,
+    fetch,
+    input.fetchedAt,
+    { enrichTickerDetails: true },
+  );
+  if (fallback !== undefined) {
+    return {
+      rawSnapshots: [
+        {
+          id: `raw-yahoo-alpha-search-massive-fallback-${input.fetchedAt}`,
+          adapter: "yahoo-alpha-search",
+          fetchedAt: input.fetchedAt,
+          payload: fallback.payload,
+        },
+      ],
+      sourceGaps: [],
+      ...validateYahooCandidateQuotes(
+        candidates,
+        fallback.payload,
+        input.eligibility ?? DEFAULT_ALPHA_SEARCH_ELIGIBILITY,
+      ),
     };
   }
 
   return {
-    rawSnapshots: [fetched.rawSnapshot],
-    sourceGaps: [],
-    ...validateYahooCandidateQuotes(
-      candidates,
-      fetched.payload,
-      input.eligibility ?? DEFAULT_ALPHA_SEARCH_ELIGIBILITY,
-    ),
+    rawSnapshots: [],
+    validLeads: [],
+    rejectedCandidates: candidates.map((candidate) => validationUnavailableCandidate(candidate)),
+    sourceGaps: [fetched],
   };
 }

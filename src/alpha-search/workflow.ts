@@ -429,6 +429,10 @@ export async function runAlphaSearchWorkflow(input: {
     candidateLimit: listed.eligibleCandidates.length,
     request,
     eligibility: alphaSearchOptions,
+    fetchedAt: startedAt,
+    ...(input.config.sourceOptions.massiveApiKey !== undefined
+      ? { massiveApiKey: input.config.sourceOptions.massiveApiKey }
+      : {}),
   });
   const sourceGaps = [
     ...apeWisdom.sourceGaps,

@@ -49,6 +49,7 @@ export interface ScorePassOptions {
   readonly fetchClose?: FetchCloseFn;
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
+  readonly massiveApiKey?: string;
 }
 
 function unresolvedScore(
@@ -84,6 +85,7 @@ function observationRepositoryFor(
       ...(options.tradierApiToken !== undefined
         ? { tradierApiToken: options.tradierApiToken }
         : {}),
+      ...(options.massiveApiKey !== undefined ? { massiveApiKey: options.massiveApiKey } : {}),
       now,
     })
   );

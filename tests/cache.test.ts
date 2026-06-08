@@ -213,6 +213,27 @@ describe("withCache", () => {
     expect(opts.staleFallbackGaps).toHaveLength(0);
   });
 
+  test("uses shorter stale fallback window for Yahoo market-data adapters", async () => {
+    const stalePayload = { stale: true };
+    const fourDaysAgo = "2026-05-16";
+    const yahooUrl = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=ZZZZ";
+
+    await withCache(
+      async () => makeFetchResult(stalePayload, "yahoo-regime"),
+      makeOptions(tmpDir, { now: makeNow(fourDaysAgo) }),
+    )(request(yahooUrl, "yahoo-regime"));
+
+    const gap = { source: "yahoo-regime", message: "timeout" };
+    const opts = makeOptions(tmpDir);
+    const result = await withCache(async () => gap, opts)(request(yahooUrl, "yahoo-regime"));
+
+    expect("source" in result).toBe(true);
+    if ("source" in result) {
+      expect(result.source).toBe("yahoo-regime");
+    }
+    expect(opts.staleFallbackGaps).toHaveLength(0);
+  });
+
   test("disabled cache bypasses read and write", async () => {
     let calls = 0;
     const inner = async () => {

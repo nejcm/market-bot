@@ -37,6 +37,9 @@ export function scorePassOptions(sourceOptions: SourceOptions): ScorePassOptions
     ...(sourceOptions.tradierApiToken !== undefined
       ? { tradierApiToken: sourceOptions.tradierApiToken }
       : {}),
+    ...(sourceOptions.massiveApiKey !== undefined
+      ? { massiveApiKey: sourceOptions.massiveApiKey }
+      : {}),
   };
 
   if (sourceOptions.cacheDisabled === true || sourceOptions.cacheDir === undefined) {

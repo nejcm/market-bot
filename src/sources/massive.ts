@@ -23,6 +23,18 @@ const MASSIVE_PROVIDER = "massive";
 const MASSIVE_STOCK_SNAPSHOT_URL =
   "https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers";
 const MASSIVE_NEWS_URL = "https://api.massive.com/v2/reference/news";
+const MASSIVE_TICKER_DETAILS_URL = "https://api.massive.com/v3/reference/tickers";
+const MASSIVE_AGGREGATES_URL = "https://api.massive.com/v2/aggs/ticker";
+
+export interface MassiveQuoteDetails {
+  readonly symbol: string;
+  readonly price: number;
+  readonly changePercent24h: number;
+  readonly volume: number;
+  readonly marketCap?: number;
+  readonly exchange?: string;
+  readonly name?: string;
+}
 
 function readResults(payload: unknown): readonly unknown[] {
   if (!isRecord(payload)) {
@@ -110,6 +122,21 @@ function uniqueEquitySymbols(snapshots: readonly MarketSnapshot[]): string {
 function buildMassiveSnapshotUrl(symbols: string, apiKey: string): string {
   return `${MASSIVE_STOCK_SNAPSHOT_URL}?${encodeQuery({ tickers: symbols, apiKey })}`;
 }
+
+export function buildMassiveTickerDetailsUrl(symbol: string, apiKey: string): string {
+  return `${MASSIVE_TICKER_DETAILS_URL}/${encodeURIComponent(symbol)}?${encodeQuery({ apiKey })}`;
+}
+
+export function buildMassiveAggregatesUrl(
+  symbol: string,
+  from: string,
+  to: string,
+  apiKey: string,
+): string {
+  return `${MASSIVE_AGGREGATES_URL}/${encodeURIComponent(symbol)}/range/1/day/${from}/${to}?${encodeQuery({ adjusted: "true", sort: "asc", apiKey })}`;
+}
+
+export { buildMassiveSnapshotUrl };
 
 function massiveGap(gap: SourceGap, capability: SourceGapCapability): SourceGap {
   return sourceGapWithContext(gap, {

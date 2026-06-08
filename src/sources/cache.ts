@@ -3,6 +3,7 @@ import { rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
+import { isYahooMarketDataAdapter, yahooCacheFallbackDays } from "./yahoo-resilience";
 import type { FetchSourceResult, RawSourceSnapshot, SourceRequest } from "./types";
 
 type CacheableFetchFn<TPayload = unknown> = (
@@ -220,7 +221,10 @@ export function withCache<TPayload = unknown>(
       return result;
     }
 
-    const stale = await findStaleFallback(options.dir, sha, today, options.fallbackDays);
+    const effectiveFallbackDays = isYahooMarketDataAdapter(adapter)
+      ? yahooCacheFallbackDays(options.fallbackDays)
+      : options.fallbackDays;
+    const stale = await findStaleFallback(options.dir, sha, today, effectiveFallbackDays);
     if (stale !== undefined) {
       const ageDays = dateDiffDays(today, stale.cachedDate);
       options.onStaleFallback(

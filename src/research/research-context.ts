@@ -345,11 +345,16 @@ function collectPriorMisses(
   return sortedRecentMisses(misses);
 }
 
-// Normalize a forecast subject to its primary token (before any `:` qualifier),
-// Uppercased, so configured subjects (SPY, ^VIX, DGS10, T10Y2Y) and prior-run
-// Prediction subjects compare on the same key regardless of measurement suffix.
-function normalizeSubject(subject: string): string {
-  return (subject.split(":")[0] ?? subject).trim().toUpperCase();
+// Market subjects can be single series (SPY, ^VIX, DGS10) or relative pairs
+// (QQQ:SPY). A prior forecast is eligible only when every subject leg is one of
+// The configured market subjects; this avoids pulling ticker-specific pairs
+// Like SPY:AAPL into market-update correction.
+function isConfiguredMarketSubject(subject: string, subjectKeys: ReadonlySet<string>): boolean {
+  const subjectParts = subject
+    .split(":")
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => part.length > 0);
+  return subjectParts.length > 0 && subjectParts.every((part) => subjectKeys.has(part));
 }
 
 // Market-scoped sibling of collectPriorMisses (ADR 0015): for daily/weekly runs,
@@ -368,7 +373,7 @@ function collectMarketForecastMisses(
   ) {
     return [];
   }
-  const subjectKeys = new Set(predictionSubjects.map((subject) => normalizeSubject(subject)));
+  const subjectKeys = new Set(predictionSubjects.map((subject) => subject.trim().toUpperCase()));
   const misses: PriorMiss[] = [];
   for (const run of historicalContext.runs) {
     if (run.jobType !== command.jobType || run.assetClass !== command.assetClass) {
@@ -377,7 +382,7 @@ function collectMarketForecastMisses(
     for (const prediction of run.predictions) {
       if (
         prediction.scoreOutcome === "miss" &&
-        subjectKeys.has(normalizeSubject(prediction.subject))
+        isConfiguredMarketSubject(prediction.subject, subjectKeys)
       ) {
         misses.push(missFrom(run, prediction));
       }
@@ -396,7 +401,7 @@ function generatedAtValue(value: string): number {
 // Collapse any newlines/tabs in free-form prior claim text so a single bullet stays a single line
 // And cannot inject extra apparent bullets into the prompt block.
 function singleLine(value: string): string {
-  return value.replaceAll(/\s+/g, " ").trim();
+  return value.replaceAll(/\s+/gu, " ").trim();
 }
 
 // Render compacted resolution evidence as a single ` (observed k=v …)` segment, so the model sees

@@ -890,15 +890,35 @@ describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", 
     expect(block).toContain("history-report-run-daily-1");
   });
 
-  test("includes FRED macro subjects, normalizing the subject token before the colon", () => {
+  test("includes FRED macro subjects", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([marketRun("run-macro", "daily", [marketMiss("p-macro", "DGS10")])]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toContain("DGS10 forecast");
+  });
+
+  test("includes relative misses when every subject leg is configured", () => {
     const context = contextWithHistory(
       dailyCommand,
       historicalContextWith([
-        marketRun("run-macro", "daily", [marketMiss("p-macro", "DGS10:level")]),
+        marketRun("run-relative", "daily", [marketMiss("p-relative", "QQQ:SPY")]),
       ]),
     );
 
-    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toContain("DGS10:level forecast");
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toContain("QQQ:SPY forecast");
+  });
+
+  test("excludes relative misses with a non-configured ticker leg", () => {
+    const context = contextWithHistory(
+      dailyCommand,
+      historicalContextWith([
+        marketRun("run-relative", "daily", [marketMiss("p-relative", "SPY:AAPL")]),
+      ]),
+    );
+
+    expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
   });
 
   test("does not fire for ticker commands", () => {

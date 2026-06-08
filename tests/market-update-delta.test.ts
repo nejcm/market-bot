@@ -67,7 +67,18 @@ function writeRun(dataDir: string, spec: RunSpec): void {
     scenarios: [],
     confidence: "medium",
     dataGaps: [],
-    predictions: spec.predictions ?? [],
+    // Persisted reports always carry the full observable Prediction shape; expand
+    // The test's id/claim/probability shorthand so the Run Artifact reader keeps them.
+    predictions: (spec.predictions ?? []).map((p) => ({
+      id: p.id,
+      claim: p.claim,
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +5) > close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: p.probability,
+      sourceIds: [],
+    })),
     sources: [],
     notFinancialAdvice: true,
     extras: spec.regime === undefined ? {} : { marketRegime: spec.regime },

@@ -4,7 +4,7 @@ import {
   prepareRunArtifacts,
   writeJson,
   writeRunOutputs,
-  type RunArtifacts,
+  type RunArtifactPaths,
 } from "../artifacts";
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
@@ -50,7 +50,7 @@ export interface AlphaSearchWorkflowResult {
   readonly markdown: string;
   readonly trace: RunTrace;
   readonly analytics: AlphaSearchRunAnalytics;
-  readonly artifacts: RunArtifacts;
+  readonly artifacts: RunArtifactPaths;
 }
 
 export interface AlphaSearchRunAnalytics {

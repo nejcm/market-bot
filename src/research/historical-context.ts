@@ -1,6 +1,3 @@
-import type { Dirent } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
 import type {
@@ -8,19 +5,14 @@ import type {
   EvidenceQuality,
   JobType,
   KeyFinding,
+  MarketSnapshot,
   MarketUpdateJobType,
-  Prediction,
   ResearchReport,
   Source,
 } from "../domain/types";
+import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { PredictionScore } from "../scoring/types";
-import {
-  isRecord,
-  nonEmptyStringArrayValue,
-  readNumber,
-  readString,
-  stringArrayValue,
-} from "../sources/guards";
+import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
 
 export type HistoricalSelectionReason = "recent" | `anchor-${number}m`;
 
@@ -140,283 +132,46 @@ export interface HistoricalContextReader {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 8;
 
-function isAssetClass(value: unknown): value is AssetClass {
-  return value === "equity" || value === "crypto";
-}
-
-function isJobType(value: unknown): value is JobType {
-  return value === "daily" || value === "weekly" || value === "ticker" || value === "alpha-search";
-}
-
-function isEvidenceQuality(value: unknown): value is EvidenceQuality {
-  return value === "high" || value === "medium" || value === "low";
-}
-
 function isMarketUpdateJobType(value: JobType): value is MarketUpdateJobType {
   return value === "daily" || value === "weekly";
 }
 
-function readFindings(value: unknown): readonly KeyFinding[] {
-  return Array.isArray(value)
-    ? value
-        .map((item): KeyFinding | undefined => {
-          if (!isRecord(item) || typeof item.text !== "string") {
-            return undefined;
-          }
-          return {
-            text: item.text,
-            sourceIds: nonEmptyStringArrayValue(item.sourceIds),
-          };
-        })
-        .filter((item): item is KeyFinding => item !== undefined)
-    : [];
-}
-
-function readPredictions(value: unknown): readonly Prediction[] {
-  return Array.isArray(value)
-    ? value
-        .map((item): Prediction | undefined => {
-          if (
-            !isRecord(item) ||
-            typeof item.id !== "string" ||
-            typeof item.claim !== "string" ||
-            typeof item.subject !== "string" ||
-            typeof item.measurableAs !== "string" ||
-            typeof item.horizonTradingDays !== "number" ||
-            typeof item.probability !== "number"
-          ) {
-            return undefined;
-          }
-          return {
-            id: item.id,
-            claim: item.claim,
-            kind: item.kind === "relative" ? "relative" : "direction",
-            subject: item.subject,
-            measurableAs: item.measurableAs,
-            horizonTradingDays: item.horizonTradingDays,
-            probability: item.probability,
-            sourceIds: nonEmptyStringArrayValue(item.sourceIds),
-          };
-        })
-        .filter((item): item is Prediction => item !== undefined)
-    : [];
-}
-
-function readReport(value: unknown): ResearchReport | undefined {
-  if (!isRecord(value) || !isJobType(value.jobType) || !isAssetClass(value.assetClass)) {
-    return;
-  }
-
-  const runId = readString(value, "runId");
-  const generatedAt = readString(value, "generatedAt");
-  if (runId === undefined || generatedAt === undefined) {
-    return;
-  }
-
+// Project the reader's full MarketSnapshot down to the compact numeric shape the
+// Historical context exposes, keeping only the benchmark fields it surfaces.
+function toHistoricalSnapshot(snapshot: MarketSnapshot): HistoricalNumericSnapshot {
+  const benchmarkSymbol = snapshot.benchmark?.symbol;
+  const benchmarkChange = snapshot.benchmark?.changePercent24h;
   return {
-    runId,
-    jobType: value.jobType,
-    assetClass: value.assetClass,
-    ...(typeof value.symbol === "string" ? { symbol: value.symbol.toUpperCase() } : {}),
-    generatedAt,
-    summary: readString(value, "summary") ?? "",
-    keyFindings: readFindings(value.keyFindings),
-    bullCase: readFindings(value.bullCase),
-    bearCase: readFindings(value.bearCase),
-    risks: readFindings(value.risks),
-    catalysts: readFindings(value.catalysts),
-    scenarios: [],
-    confidence: isEvidenceQuality(value.confidence) ? value.confidence : "low",
-    dataGaps: stringArrayValue(value.dataGaps),
-    predictions: readPredictions(value.predictions),
-    sources: [],
-    notFinancialAdvice: true,
-    ...(isRecord(value.extras) ? { extras: value.extras } : {}),
+    symbol: snapshot.symbol.toUpperCase(),
+    price: snapshot.price,
+    changePercent24h: snapshot.changePercent24h,
+    volume: snapshot.volume,
+    observedAt: snapshot.observedAt,
+    ...(typeof benchmarkSymbol === "string" && benchmarkSymbol.trim() !== ""
+      ? { benchmarkSymbol }
+      : {}),
+    ...(typeof benchmarkChange === "number" && Number.isFinite(benchmarkChange)
+      ? { benchmarkChangePercent24h: benchmarkChange }
+      : {}),
   };
 }
 
-function readScores(value: unknown): readonly PredictionScore[] | undefined {
-  if (!isRecord(value) || !Array.isArray(value.scores)) {
-    return;
-  }
-
-  return value.scores
-    .map((item): PredictionScore | undefined => {
-      if (
-        !isRecord(item) ||
-        typeof item.predictionId !== "string" ||
-        typeof item.runId !== "string" ||
-        typeof item.resolved !== "boolean" ||
-        typeof item.attemptCount !== "number" ||
-        !isRecord(item.evidence)
-      ) {
-        return undefined;
-      }
-      return {
-        predictionId: item.predictionId,
-        runId: item.runId,
-        resolved: item.resolved,
-        outcome: item.outcome === "hit" || item.outcome === "miss" ? item.outcome : undefined,
-        observedAt: typeof item.observedAt === "string" ? item.observedAt : undefined,
-        attemptCount: item.attemptCount,
-        evidence: item.evidence,
-      };
-    })
-    .filter((item): item is PredictionScore => item !== undefined);
-}
-
-function readSnapshots(value: unknown): readonly HistoricalNumericSnapshot[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item): HistoricalNumericSnapshot | undefined => {
-      if (!isRecord(item)) {
-        return undefined;
-      }
-      const symbol = readString(item, "symbol");
-      const price = readNumber(item, "price");
-      const changePercent24h = readNumber(item, "changePercent24h");
-      const volume = readNumber(item, "volume");
-      const observedAt = readString(item, "observedAt");
-      if (
-        symbol === undefined ||
-        price === undefined ||
-        changePercent24h === undefined ||
-        volume === undefined ||
-        observedAt === undefined
-      ) {
-        return undefined;
-      }
-      const benchmark = isRecord(item.benchmark) ? item.benchmark : undefined;
-      const benchmarkSymbol = benchmark === undefined ? undefined : readString(benchmark, "symbol");
-      const benchmarkChangePercent24h =
-        benchmark === undefined ? undefined : readNumber(benchmark, "changePercent24h");
-      return {
-        symbol: symbol.toUpperCase(),
-        price,
-        changePercent24h,
-        volume,
-        observedAt,
-        ...(benchmarkSymbol !== undefined ? { benchmarkSymbol } : {}),
-        ...(benchmarkChangePercent24h !== undefined ? { benchmarkChangePercent24h } : {}),
-      };
-    })
-    .filter((item): item is HistoricalNumericSnapshot => item !== undefined);
-}
-
-async function readJson(path: string): Promise<unknown | undefined> {
-  try {
-    return JSON.parse(await readFile(path, "utf8")) as unknown;
-  } catch (error) {
-    if (isRecord(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-    throw error;
-  }
-}
-
-async function readArtifact(
-  dataDir: string,
-  runDirName: string,
-): Promise<{
-  readonly artifact?: HistoricalArtifact;
-  readonly scannedRunCount: number;
-  readonly malformedRunCount: number;
-  readonly malformedScoreCount: number;
-}> {
-  const runDir = join(dataDir, runDirName);
-  let reportRaw: unknown | undefined = undefined;
-  try {
-    reportRaw = await readJson(join(runDir, "report.json"));
-  } catch {
-    return {
-      scannedRunCount: 1,
-      malformedRunCount: 1,
-      malformedScoreCount: 0,
-    };
-  }
-  if (reportRaw === undefined) {
-    return {
-      scannedRunCount: 0,
-      malformedRunCount: 0,
-      malformedScoreCount: 0,
-    };
-  }
-
-  const report = readReport(reportRaw);
-  if (report === undefined) {
-    return {
-      scannedRunCount: 1,
-      malformedRunCount: 1,
-      malformedScoreCount: 0,
-    };
-  }
-
-  let snapshotRaw: unknown | undefined = undefined;
-  try {
-    snapshotRaw = await readJson(join(runDir, "normalized", "market-snapshots.json"));
-  } catch {
-    snapshotRaw = undefined;
-  }
-
-  let scoreRaw: unknown | undefined = undefined;
-  let malformedScoreCount = 0;
-  try {
-    scoreRaw = await readJson(join(runDir, "score.json"));
-  } catch (error) {
-    if (!(isRecord(error) && error.code === "ENOENT")) {
-      malformedScoreCount = 1;
-    }
-  }
-  const scores = scoreRaw === undefined ? [] : readScores(scoreRaw);
-  if (scores === undefined) {
-    malformedScoreCount = 1;
-  }
-
+// Adapt the shared Run Artifact scan into this module's selection inputs. Audit
+// Counts are derived from per-run statuses to preserve prior behavior exactly:
+// Report-absent dirs are not "scanned"; malformed score is counted only for
+// Runs whose report loaded.
+function toScanResult(scan: RunArtifactScan): ScanResult {
   return {
-    artifact: {
-      runDirName,
-      report,
-      snapshots: readSnapshots(snapshotRaw),
-      scores: scores ?? [],
-    },
-    scannedRunCount: 1,
-    malformedRunCount: 0,
-    malformedScoreCount,
-  };
-}
-
-async function scanRunArtifacts(dataDir: string): Promise<ScanResult> {
-  let entries: Dirent[] = [];
-  try {
-    entries = await readdir(dataDir, { withFileTypes: true });
-  } catch (error) {
-    if (isRecord(error) && error.code === "ENOENT") {
-      return {
-        artifacts: [],
-        scannedRunCount: 0,
-        malformedRunCount: 0,
-        malformedScoreCount: 0,
-      };
-    }
-    throw error;
-  }
-
-  const results = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => readArtifact(dataDir, entry.name)),
-  );
-
-  return {
-    artifacts: results.flatMap((result) =>
-      result.artifact === undefined ? [] : [result.artifact],
-    ),
-    scannedRunCount: results.reduce((total, result) => total + result.scannedRunCount, 0),
-    malformedRunCount: results.reduce((total, result) => total + result.malformedRunCount, 0),
-    malformedScoreCount: results.reduce((total, result) => total + result.malformedScoreCount, 0),
+    artifacts: scan.artifacts.map((artifact) => ({
+      runDirName: artifact.runDirName,
+      report: artifact.report,
+      snapshots: artifact.marketSnapshots.map(toHistoricalSnapshot),
+      scores: artifact.scores,
+    })),
+    scannedRunCount: scan.entries.filter((entry) => entry.status.report !== "absent").length,
+    malformedRunCount: scan.entries.filter((entry) => entry.status.report === "malformed").length,
+    malformedScoreCount: scan.artifacts.filter((artifact) => artifact.status.score === "malformed")
+      .length,
   };
 }
 
@@ -823,7 +578,7 @@ function buildHistoricalContext(
 export async function createHistoricalContextReader(
   dataDir: string,
 ): Promise<HistoricalContextReader> {
-  const scan = await scanRunArtifacts(dataDir);
+  const scan = toScanResult(await scanRunArtifacts(dataDir));
   return {
     load: async (input) => buildHistoricalContext({ ...input, dataDir }, scan),
   };
@@ -832,6 +587,6 @@ export async function createHistoricalContextReader(
 export async function loadHistoricalContext(
   input: LoadHistoricalContextInput,
 ): Promise<HistoricalResearchContext> {
-  const scan = await scanRunArtifacts(input.dataDir);
+  const scan = toScanResult(await scanRunArtifacts(input.dataDir));
   return buildHistoricalContext(input, scan);
 }

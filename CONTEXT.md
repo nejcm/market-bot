@@ -32,6 +32,10 @@ Weekly market updates are a cadence and horizon change in V1, not a separate tra
 
 Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts. In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
 
+## Run Artifact
+
+The persisted output of a single research run under `MARKET_BOT_DATA_DIR/<run-id>/`: its Research View report, scored predictions, and normalized snapshots. Read back by later runs and history tooling to assemble Historical Research Context; never refetched from a Source Provider.
+
 ## Research Thesis
 
 The research-only narrative state of a Research View, assembled from sourced summary, key findings, bull and bear cases, risks, catalysts, data gaps, and observable Predictions. A Research Thesis is not an investment thesis, recommendation, trade signal, or portfolio action.

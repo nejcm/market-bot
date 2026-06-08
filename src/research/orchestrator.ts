@@ -5,7 +5,7 @@ import { join } from "node:path";
 import {
   createRunId,
   prepareRunArtifacts,
-  type RunArtifacts,
+  type RunArtifactPaths,
   writeJson,
   writeRunOutputs,
 } from "../artifacts";
@@ -85,7 +85,7 @@ export interface RunResearchJobResult {
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
-  readonly artifacts: RunArtifacts;
+  readonly artifacts: RunArtifactPaths;
 }
 
 const MAX_PREDICTION_REPROMPTS = 2;

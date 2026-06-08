@@ -1,17 +1,16 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import {
   isMarketUpdateJobType,
   type AssetClass,
-  type JobType,
   type MarketRegimeLabel,
   type MarketRegimeSummary,
-  type MarketSnapshot,
   type Mover,
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
-import { isRecord, readNumber, readString } from "../sources/guards";
+import { scanRunArtifacts, type RunArtifact } from "../run-artifacts";
+import { isRecord, readString } from "../sources/guards";
 import type { ScoreOutcome } from "../scoring/types";
 
 // ---------------------------------------------------------------------------
@@ -57,28 +56,7 @@ export interface BuildMarketUpdateDeltaInput {
   readonly moverLimit: number;
 }
 
-// A run directory's report.json reduced to the fields the delta needs.
-interface ScannedRun {
-  readonly dir: string;
-  readonly runId: string;
-  readonly generatedAt: string;
-  readonly jobType: JobType;
-  readonly assetClass: AssetClass;
-  readonly extras: Record<string, unknown> | undefined;
-  readonly predictions: ReadonlyMap<
-    string,
-    { readonly claim: string; readonly probability: number }
-  >;
-}
-
-function isAssetClass(value: unknown): value is AssetClass {
-  return value === "equity" || value === "crypto";
-}
-
-function isJobType(value: unknown): value is JobType {
-  return value === "daily" || value === "weekly" || value === "ticker" || value === "alpha-search";
-}
-
+// Reads movers.json, which is not part of the shared core Run Artifact bundle.
 async function readJson(path: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(path, "utf8")) as unknown;
@@ -94,62 +72,16 @@ function timeValue(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function readPredictionMap(
-  value: unknown,
+// Maps predictionId → claim/probability from the run's parsed report predictions.
+function predictionClaims(
+  artifact: RunArtifact,
 ): ReadonlyMap<string, { readonly claim: string; readonly probability: number }> {
-  const map = new Map<string, { readonly claim: string; readonly probability: number }>();
-  if (!Array.isArray(value)) {
-    return map;
-  }
-  for (const item of value) {
-    if (!isRecord(item)) {
-      continue;
-    }
-    const id = readString(item, "id");
-    const claim = readString(item, "claim");
-    const probability = readNumber(item, "probability");
-    if (id === undefined || claim === undefined || probability === undefined) {
-      continue;
-    }
-    map.set(id, { claim, probability });
-  }
-  return map;
-}
-
-async function loadScannedRun(dir: string): Promise<ScannedRun | undefined> {
-  const report = await readJson(join(dir, "report.json"));
-  if (!isRecord(report)) {
-    return undefined;
-  }
-  const runId = readString(report, "runId");
-  const generatedAt = readString(report, "generatedAt");
-  if (
-    runId === undefined ||
-    generatedAt === undefined ||
-    !isJobType(report.jobType) ||
-    !isAssetClass(report.assetClass)
-  ) {
-    return undefined;
-  }
-  return {
-    dir,
-    runId,
-    generatedAt,
-    jobType: report.jobType,
-    assetClass: report.assetClass,
-    extras: isRecord(report.extras) ? report.extras : undefined,
-    predictions: readPredictionMap(report.predictions),
-  };
-}
-
-async function scanRuns(dataDir: string): Promise<readonly ScannedRun[]> {
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  const loaded = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => loadScannedRun(join(dataDir, entry.name))),
+  return new Map(
+    artifact.report.predictions.map((prediction) => [
+      prediction.id,
+      { claim: prediction.claim, probability: prediction.probability },
+    ]),
   );
-  return loaded.filter((run): run is ScannedRun => run !== undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -260,11 +192,12 @@ function moverSymbols(movers: readonly Mover[]): readonly string[] {
 }
 
 async function baselineMoverSymbols(
-  baseline: ScannedRun,
+  baseline: RunArtifact,
+  dataDir: string,
   assetClass: AssetClass,
   moverLimit: number,
 ): Promise<readonly string[]> {
-  const persisted = await readJson(join(baseline.dir, "normalized", "movers.json"));
+  const persisted = await readJson(join(dataDir, baseline.runDirName, "normalized", "movers.json"));
   if (Array.isArray(persisted) && persisted.length > 0) {
     // Persisted movers.json holds full Mover objects: snapshot.symbol.
     return [
@@ -279,16 +212,11 @@ async function baselineMoverSymbols(
       ),
     ];
   }
-  // Fallback for older runs lacking movers.json: re-rank persisted snapshots.
-  const snapshots = await readJson(join(baseline.dir, "normalized", "market-snapshots.json"));
-  if (!Array.isArray(snapshots)) {
-    return [];
-  }
-  const typed = snapshots.filter(
-    (snapshot): snapshot is MarketSnapshot =>
-      isRecord(snapshot) && snapshot.assetClass === assetClass,
+  // Fallback for older runs lacking movers.json: re-rank the run's snapshots.
+  const snapshots = baseline.marketSnapshots.filter(
+    (snapshot) => snapshot.assetClass === assetClass,
   );
-  return moverSymbols(rankMovers(typed, moverLimit));
+  return moverSymbols(rankMovers(snapshots, moverLimit));
 }
 
 function membershipDiff(
@@ -307,57 +235,48 @@ function membershipDiff(
 // ---------------------------------------------------------------------------
 
 function resolvedSince(
-  runs: readonly ScannedRun[],
+  runs: readonly RunArtifact[],
   assetClass: AssetClass,
   baselineGeneratedAt: string,
-): Promise<readonly MarketUpdateDeltaResolvedPrediction[]> {
+): readonly MarketUpdateDeltaResolvedPrediction[] {
   const baselineTime = timeValue(baselineGeneratedAt);
-  return Promise.all(
-    runs
-      .filter((run) => run.assetClass === assetClass && isMarketUpdateJobType(run.jobType))
-      .map(async (run): Promise<readonly MarketUpdateDeltaResolvedPrediction[]> => {
-        const scoreFile = await readJson(join(run.dir, "score.json"));
-        if (!isRecord(scoreFile) || !Array.isArray(scoreFile.scores)) {
+  return runs
+    .filter(
+      (run) => run.report.assetClass === assetClass && isMarketUpdateJobType(run.report.jobType),
+    )
+    .flatMap((run): readonly MarketUpdateDeltaResolvedPrediction[] => {
+      const claims = predictionClaims(run);
+      return run.scores.flatMap((score): MarketUpdateDeltaResolvedPrediction[] => {
+        if (!score.resolved) {
           return [];
         }
-        return scoreFile.scores.flatMap((score): MarketUpdateDeltaResolvedPrediction[] => {
-          if (!isRecord(score) || score.resolved !== true) {
-            return [];
-          }
-          const observedAt = readString(score, "observedAt");
-          const predictionId = readString(score, "predictionId");
-          const { outcome } = score;
-          // Legacy scores without observedAt are excluded from the window.
-          if (
-            observedAt === undefined ||
-            predictionId === undefined ||
-            (outcome !== "hit" && outcome !== "miss") ||
-            timeValue(observedAt) <= baselineTime
-          ) {
-            return [];
-          }
-          const prediction = run.predictions.get(predictionId);
-          if (prediction === undefined) {
-            return [];
-          }
-          return [
-            {
-              runId: run.runId,
-              predictionId,
-              claim: prediction.claim,
-              probability: prediction.probability,
-              outcome,
-              observedAt,
-            },
-          ];
-        });
-      }),
-  ).then((nested) =>
-    nested
-      .flat()
-      .toSorted((left, right) => timeValue(right.observedAt) - timeValue(left.observedAt))
-      .slice(0, MAX_RESOLVED_SINCE),
-  );
+        const { observedAt, predictionId, outcome } = score;
+        // Legacy scores without observedAt are excluded from the window.
+        if (
+          observedAt === undefined ||
+          (outcome !== "hit" && outcome !== "miss") ||
+          timeValue(observedAt) <= baselineTime
+        ) {
+          return [];
+        }
+        const prediction = claims.get(predictionId);
+        if (prediction === undefined) {
+          return [];
+        }
+        return [
+          {
+            runId: run.report.runId,
+            predictionId,
+            claim: prediction.claim,
+            probability: prediction.probability,
+            outcome,
+            observedAt,
+          },
+        ];
+      });
+    })
+    .toSorted((left, right) => timeValue(right.observedAt) - timeValue(left.observedAt))
+    .slice(0, MAX_RESOLVED_SINCE);
 }
 
 // ---------------------------------------------------------------------------
@@ -368,16 +287,18 @@ export async function buildMarketUpdateDelta(
   input: BuildMarketUpdateDeltaInput,
 ): Promise<MarketUpdateDelta> {
   const { command, currentRegime } = input;
-  const runs = await scanRuns(input.dataDir);
+  const { artifacts: runs } = await scanRunArtifacts(input.dataDir);
   const nowTime = input.now.getTime();
   const [baseline] = runs
     .filter(
       (run) =>
-        run.assetClass === command.assetClass &&
-        run.jobType === command.jobType &&
-        timeValue(run.generatedAt) < nowTime,
+        run.report.assetClass === command.assetClass &&
+        run.report.jobType === command.jobType &&
+        timeValue(run.report.generatedAt) < nowTime,
     )
-    .toSorted((left, right) => timeValue(right.generatedAt) - timeValue(left.generatedAt));
+    .toSorted(
+      (left, right) => timeValue(right.report.generatedAt) - timeValue(left.report.generatedAt),
+    );
 
   if (baseline === undefined) {
     return {
@@ -391,20 +312,25 @@ export async function buildMarketUpdateDelta(
     };
   }
 
-  const priorRegime = regimeFromExtras(baseline.extras);
+  const priorRegime = regimeFromExtras(baseline.report.extras);
   const regimeChanged =
     priorRegime.label !== undefined && priorRegime.label !== currentRegime.label;
 
-  const priorMovers = await baselineMoverSymbols(baseline, command.assetClass, input.moverLimit);
+  const priorMovers = await baselineMoverSymbols(
+    baseline,
+    input.dataDir,
+    command.assetClass,
+    input.moverLimit,
+  );
   const { entered, exited } = membershipDiff(priorMovers, moverSymbols(input.currentMovers));
 
-  const resolved = await resolvedSince(runs, command.assetClass, baseline.generatedAt);
+  const resolved = resolvedSince(runs, command.assetClass, baseline.report.generatedAt);
 
   return {
     hasBaseline: true,
     currentRegime: currentRegime.label,
-    baselineRunId: baseline.runId,
-    baselineGeneratedAt: baseline.generatedAt,
+    baselineRunId: baseline.report.runId,
+    baselineGeneratedAt: baseline.report.generatedAt,
     ...(priorRegime.label !== undefined ? { priorRegime: priorRegime.label } : {}),
     regimeChanged,
     flippedDrivers: flippedDrivers(priorRegime.drivers, currentRegime.drivers),

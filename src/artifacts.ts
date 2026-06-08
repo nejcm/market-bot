@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchReport, RunTrace } from "./domain/types";
 
-export interface RunArtifacts {
+export interface RunArtifactPaths {
   readonly runDir: string;
   readonly rawDir: string;
   readonly normalizedDir: string;
@@ -12,7 +12,10 @@ export function createRunId(now: Date = new Date()): string {
   return `${now.toISOString().replaceAll(":", "-").replaceAll(".", "-")}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-export async function prepareRunArtifacts(dataDir: string, runId: string): Promise<RunArtifacts> {
+export async function prepareRunArtifacts(
+  dataDir: string,
+  runId: string,
+): Promise<RunArtifactPaths> {
   const runDir = join(dataDir, runId);
   const rawDir = join(runDir, "raw");
   const normalizedDir = join(runDir, "normalized");
@@ -32,7 +35,7 @@ export async function writeJson(path: string, value: unknown): Promise<void> {
 }
 
 export async function writeRunOutputs(
-  artifacts: RunArtifacts,
+  artifacts: RunArtifactPaths,
   report: ResearchReport,
   markdown: string,
   trace: RunTrace,

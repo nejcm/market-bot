@@ -506,6 +506,12 @@ function historicalContextWith(runs: readonly HistoricalRunContext[]): Historica
       selectedRunCount: runs.length,
       recentSelectedCount: runs.length,
       anchorSelectedCount: 0,
+      sameSymbolSelectedCount: 0,
+      spotlightSymbolSelectedCount: 0,
+      sameCadenceSelectedCount: 0,
+      crossCadenceSelectedCount: 0,
+      resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
+      gapCount: 0,
     },
     artifactDeltas: [],
   };

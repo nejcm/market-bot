@@ -20,6 +20,7 @@ import {
   type AlphaValidationFile,
 } from "../alpha-search/validation";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
+import { loadRunArtifact } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
@@ -136,15 +137,6 @@ async function scoreOnePrediction(
   };
 }
 
-async function loadScoreFile(runDir: string): Promise<ScoreFile | undefined> {
-  try {
-    const raw = await readFile(join(runDir, SCORE_FILE), "utf8");
-    return JSON.parse(raw) as ScoreFile;
-  } catch {
-    return undefined;
-  }
-}
-
 async function loadAlphaValidationFile(runDir: string): Promise<AlphaValidationFile | undefined> {
   try {
     const raw = await readFile(join(runDir, ALPHA_VALIDATION_FILE), "utf8");
@@ -196,15 +188,6 @@ async function loadAlphaValidationPrerequisites(
       unmetRequiredCoverage,
     };
   } catch {}
-}
-
-async function loadReport(runDir: string): Promise<ResearchReport | undefined> {
-  try {
-    const raw = await readFile(join(runDir, "report.json"), "utf8");
-    return JSON.parse(raw) as ResearchReport;
-  } catch {
-    return undefined;
-  }
 }
 
 async function writeAlphaValidationRunDir(
@@ -263,13 +246,13 @@ async function writeAlphaCandidateProfilesRunDir(
 async function scoreRunDir(
   runDir: string,
   report: ResearchReport,
+  priorScores: readonly PredictionScore[],
   now: Date,
   options: ScorePassOptions,
 ): Promise<boolean> {
   let wroteScore = false;
   if (report.predictions.length > 0) {
-    const existing = await loadScoreFile(runDir);
-    const existingScores = new Map(existing?.scores.map((score) => [score.predictionId, score]));
+    const existingScores = new Map(priorScores.map((score) => [score.predictionId, score]));
 
     const pendingPredictions = report.predictions.filter((prediction) => {
       const prev = existingScores.get(prediction.id);
@@ -344,12 +327,17 @@ export async function runScorePass(
 
   const results = await Promise.all(
     runDirs.map(async (runDir) => {
-      const report = await loadReport(runDir);
-      if (report === undefined) {
+      // Single guarded read of report + existing scores via the canonical seam (ADR 0016),
+      // Replacing the prior raw `as ResearchReport`/`as ScoreFile` casts. score.json is parsed
+      // Leniently; malformed score files degrade to no prior scores rather than throwing.
+      const { artifact } = await loadRunArtifact(runDir);
+      if (artifact === undefined) {
         return "skipped" as const;
       }
-      const wrote = await scoreRunDir(runDir, report, now, options);
-      return report.predictions.length > 0 || wrote ? ("scored" as const) : ("skipped" as const);
+      const wrote = await scoreRunDir(runDir, artifact.report, artifact.scores, now, options);
+      return artifact.report.predictions.length > 0 || wrote
+        ? ("scored" as const)
+        : ("skipped" as const);
     }),
   );
   await buildAndWriteAlphaValidationSummary(dataDir, now);
@@ -459,16 +447,13 @@ export async function buildAndWriteAlphaValidationSummary(
 }
 
 async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
-  const report = await loadReport(runDir);
-  if (report === undefined || report.predictions.length === 0) {
+  const { artifact } = await loadRunArtifact(runDir);
+  if (artifact === undefined || artifact.report.predictions.length === 0) {
     return [];
   }
-  const scoreFile = await loadScoreFile(runDir);
-  if (scoreFile === undefined) {
-    return [];
-  }
+  const { report, scores } = artifact;
   return report.predictions.flatMap((prediction) => {
-    const score = scoreFile.scores.find((sc) => sc.predictionId === prediction.id);
+    const score = scores.find((sc) => sc.predictionId === prediction.id);
     if (score === undefined || !score.resolved || score.outcome === undefined) {
       return [];
     }

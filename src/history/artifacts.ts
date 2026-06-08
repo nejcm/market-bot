@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type {
   AssetClass,
@@ -11,6 +11,7 @@ import type {
 } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { violatesResearchOnly } from "../domain/research-language";
+import { scanRunArtifacts } from "../run-artifacts";
 import type { PredictionScore } from "../scoring/types";
 
 export const HISTORY_SECTIONS = [
@@ -178,119 +179,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isAssetClass(value: unknown): value is AssetClass {
-  return value === "equity" || value === "crypto";
-}
-
-function isJobType(value: unknown): value is JobType {
-  return value === "daily" || value === "weekly" || value === "ticker" || value === "alpha-search";
-}
-
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
-}
-
-function readStringArray(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-function readFindings(value: unknown): readonly KeyFinding[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.flatMap((item): readonly KeyFinding[] => {
-    if (!isRecord(item) || typeof item.text !== "string") {
-      return [];
-    }
-    return [{ text: item.text, sourceIds: readStringArray(item.sourceIds) }];
-  });
-}
-
-function readPredictions(value: unknown): readonly Prediction[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.flatMap((item): readonly Prediction[] => {
-    if (
-      !isRecord(item) ||
-      typeof item.id !== "string" ||
-      typeof item.claim !== "string" ||
-      typeof item.kind !== "string" ||
-      typeof item.subject !== "string" ||
-      typeof item.measurableAs !== "string" ||
-      typeof item.horizonTradingDays !== "number" ||
-      typeof item.probability !== "number"
-    ) {
-      return [];
-    }
-    return [
-      {
-        id: item.id,
-        claim: item.claim,
-        kind: item.kind as Prediction["kind"],
-        subject: item.subject,
-        measurableAs: item.measurableAs,
-        horizonTradingDays: item.horizonTradingDays,
-        probability: item.probability,
-        sourceIds: readStringArray(item.sourceIds),
-      },
-    ];
-  });
-}
-
-function readSources(value: unknown): readonly Source[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.flatMap((item): readonly Source[] => {
-    if (
-      !isRecord(item) ||
-      typeof item.id !== "string" ||
-      typeof item.title !== "string" ||
-      typeof item.fetchedAt !== "string" ||
-      typeof item.kind !== "string"
-    ) {
-      return [];
-    }
-    return [item as unknown as Source];
-  });
-}
-
-function readReport(value: unknown): ResearchReport | undefined {
-  if (!isRecord(value) || !isJobType(value.jobType) || !isAssetClass(value.assetClass)) {
-    return;
-  }
-  const runId = readString(value, "runId");
-  const generatedAt = readString(value, "generatedAt");
-  if (runId === undefined || generatedAt === undefined) {
-    return;
-  }
-  return {
-    runId,
-    jobType: value.jobType,
-    assetClass: value.assetClass,
-    ...(typeof value.symbol === "string" ? { symbol: value.symbol.toUpperCase() } : {}),
-    generatedAt,
-    summary: readString(value, "summary") ?? "",
-    keyFindings: readFindings(value.keyFindings),
-    bullCase: readFindings(value.bullCase),
-    bearCase: readFindings(value.bearCase),
-    risks: readFindings(value.risks),
-    catalysts: readFindings(value.catalysts),
-    scenarios: [],
-    confidence:
-      value.confidence === "high" || value.confidence === "medium" || value.confidence === "low"
-        ? value.confidence
-        : "low",
-    dataGaps: readStringArray(value.dataGaps),
-    predictions: readPredictions(value.predictions),
-    sources: readSources(value.sources),
-    notFinancialAdvice: true,
-    ...(isRecord(value.extras) ? { extras: value.extras } : {}),
-  };
 }
 
 async function readJson(path: string): Promise<unknown | undefined> {
@@ -305,13 +196,6 @@ function recordArray(value: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter((item): item is Record<string, unknown> => isRecord(item))
     : [];
-}
-
-function scoresFrom(value: unknown): readonly PredictionScore[] {
-  if (!isRecord(value) || !Array.isArray(value.scores)) {
-    return [];
-  }
-  return value.scores.filter((score): score is PredictionScore => isRecord(score));
 }
 
 function openQuestions(
@@ -481,21 +365,21 @@ function searchEntriesFor(
   return entries;
 }
 
-async function loadRun(runDir: string): Promise<
-  | {
-      readonly report: ResearchReport;
-      readonly scores: readonly PredictionScore[];
-      readonly snapshots: readonly Record<string, unknown>[];
-      readonly fundamentals: readonly Record<string, unknown>[];
-      readonly validation: readonly Record<string, unknown>[];
-    }
-  | undefined
-> {
-  const report = readReport(await readJson(join(runDir, "report.json")));
-  if (report === undefined) {
-    return;
-  }
-  const scores = scoresFrom(await readJson(join(runDir, "score.json")));
+interface LoadedHistoryRun {
+  readonly report: ResearchReport;
+  readonly scores: readonly PredictionScore[];
+  readonly snapshots: readonly Record<string, unknown>[];
+  readonly fundamentals: readonly Record<string, unknown>[];
+  readonly validation: readonly Record<string, unknown>[];
+}
+
+// Report and score come from the canonical Run Artifact seam (ADR 0016). The history-only
+// Sidecars below — raw snapshot records (kept as Record so unknown provider fields survive
+// Into timelines), SEC fundamentals, and alpha validation — have a single caller and are
+// Read here, not folded into the shared bundle.
+async function loadRunSidecars(
+  runDir: string,
+): Promise<Omit<LoadedHistoryRun, "report" | "scores">> {
   const marketSnapshots = recordArray(
     await readJson(join(runDir, "normalized", "market-snapshots.json")),
   );
@@ -508,8 +392,6 @@ async function loadRun(runDir: string): Promise<
   const validationFile = await readJson(join(runDir, "alpha-validation.json"));
   const validation = isRecord(validationFile) ? [validationFile] : recordArray(validationFile);
   return {
-    report,
-    scores,
     snapshots: [...marketSnapshots, ...supplementalSnapshots],
     fundamentals,
     validation,
@@ -520,23 +402,26 @@ export async function rebuildHistoryArtifacts(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<HistoryRebuildResult> {
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  const runs = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => ({ name: entry.name, run: await loadRun(join(dataDir, entry.name)) })),
+  const scan = await scanRunArtifacts(dataDir);
+  const loaded: readonly LoadedHistoryRun[] = await Promise.all(
+    scan.artifacts.map(async (artifact) => ({
+      report: artifact.report,
+      scores: artifact.scores,
+      ...(await loadRunSidecars(join(dataDir, artifact.runDirName))),
+    })),
   );
-  const loaded = runs.filter(
-    (item): item is { name: string; run: NonNullable<(typeof item)["run"]> } =>
-      item.run !== undefined,
-  );
+  // Stricter ADR 0016 counting: only report-present-but-broken dirs are "malformed";
+  // Report-absent dirs are not counted (the prior local reader conflated the two).
+  const malformedRunCount = scan.entries.filter(
+    (entry) => entry.status.report === "malformed",
+  ).length;
   const generatedAt = now.toISOString();
-  const indexEntries = loaded.flatMap((item) =>
-    searchEntriesFor(item.run.report, item.run.scores, item.run.fundamentals, item.run.validation),
+  const indexEntries = loaded.flatMap((run) =>
+    searchEntriesFor(run.report, run.scores, run.fundamentals, run.validation),
   );
   const timelines = new Map<string, InstrumentTimelineEntry[]>();
 
-  for (const { run } of loaded) {
+  for (const run of loaded) {
     for (const { key, symbol } of reportInstrumentKeys(run.report)) {
       const current = timelines.get(key) ?? [];
       const identity = firstIdentity(run.report, symbol);
@@ -577,7 +462,7 @@ export async function rebuildHistoryArtifacts(
     version: 1,
     generatedAt,
     sourceRunCount: loaded.length,
-    malformedRunCount: runs.length - loaded.length,
+    malformedRunCount,
     entries: indexEntries.toSorted((left, right) =>
       right.generatedAt.localeCompare(left.generatedAt),
     ),
@@ -613,7 +498,7 @@ export async function rebuildHistoryArtifacts(
     indexPath,
     instrumentCount: timelines.size,
     sourceRunCount: loaded.length,
-    malformedRunCount: runs.length - loaded.length,
+    malformedRunCount,
   };
 }
 

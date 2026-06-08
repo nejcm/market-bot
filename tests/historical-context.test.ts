@@ -349,4 +349,134 @@ describe("loadHistoricalContext", () => {
       selectedRunCount: 1,
     });
   });
+
+  test("tags same-cadence, cross-cadence, and spotlight-symbol relevance reasons for market-update commands", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "daily-market",
+      report: researchReport({
+        runId: "daily-market",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "weekly-market",
+      report: researchReport({
+        runId: "weekly-market",
+        jobType: "weekly",
+        assetClass: "equity",
+        generatedAt: "2026-05-15T00:00:00.000Z",
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "spotlight-aapl",
+      report: researchReport({
+        runId: "spotlight-aapl",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-22T00:00:00.000Z",
+      }),
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config: { historyOptions: options({ marketRecentLimit: 2, tickerRecentLimit: 1 }) },
+      now,
+      spotlightSymbols: ["AAPL"],
+    });
+
+    const byId = new Map(context.runs.map((run) => [run.runId, run]));
+    expect(byId.get("daily-market")?.selectionReasons).toContain("same-cadence");
+    expect(byId.get("weekly-market")?.selectionReasons).toContain("cross-cadence");
+    expect(byId.get("spotlight-aapl")?.selectionReasons).toContain("spotlight-symbol");
+    expect(context.audit).toMatchObject({
+      sameSymbolSelectedCount: 0,
+      spotlightSymbolSelectedCount: 1,
+      sameCadenceSelectedCount: 1,
+      crossCadenceSelectedCount: 1,
+    });
+  });
+
+  test("tags same-symbol relevance reason for ticker commands", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "ticker-aapl",
+      report: researchReport({
+        runId: "ticker-aapl",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+      }),
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { historyOptions: options() },
+      now,
+    });
+
+    expect(context.runs[0]?.selectionReasons).toContain("same-symbol");
+    expect(context.audit).toMatchObject({
+      sameSymbolSelectedCount: 1,
+      spotlightSymbolSelectedCount: 0,
+    });
+  });
+
+  test("counts selected runs carrying a resolved miss towards resolvedMissRunCount", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "ticker-miss-run",
+      report: researchReport({
+        runId: "ticker-miss-run",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        predictions: [prediction({ id: "pred-miss", subject: "AAPL" })],
+      }),
+      score: {
+        scoredAt: "2026-05-28T00:00:00.000Z",
+        scores: [predictionScore("miss", { predictionId: "pred-miss", runId: "ticker-miss-run" })],
+      },
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { historyOptions: options() },
+      now,
+    });
+
+    expect(context.audit.resolvedMissRunCount).toBe(1);
+  });
+
+  test("appends extraGaps to gaps and reflects their count in audit.gapCount", async () => {
+    const context = await loadHistoricalContext({
+      dataDir: tempRunsDir(),
+      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      config: { historyOptions: options() },
+      now: new Date("2026-06-04T00:00:00.000Z"),
+      extraGaps: ["Unable to read alpha-search watchlist for spotlight enrichment"],
+    });
+
+    expect(context.gaps).toEqual([
+      "No prior crypto market-update runs found",
+      "Unable to read alpha-search watchlist for spotlight enrichment",
+    ]);
+    expect(context.audit.gapCount).toBe(context.gaps.length);
+  });
 });

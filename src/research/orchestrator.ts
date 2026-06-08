@@ -314,10 +314,18 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     calibrationContext,
   };
   const historicalContextReader = await createHistoricalContextReader(input.config.dataDir);
+  // Read before the first historical-context load so an unreadable watchlist is
+  // Surfaced as a cross-run gap (LoadHistoricalContextInput.extraGaps) on every
+  // Load in this run, not dropped silently. Cheap (single-file read) and
+  // Independent of command type — the watchlist itself is only consumed for
+  // Market-update spotlight enrichment below.
+  const alpha = await loadAlphaWatchlistForSpotlights(input.config.dataDir);
+  const alphaGaps = alpha.gap === undefined ? [] : [alpha.gap];
   let historicalContext = await historicalContextReader.load({
     command: input.command,
     config: input.config,
     now,
+    extraGaps: alphaGaps,
   });
   context = { ...context, historicalContext };
   const evidenceLoop = await runEvidenceRequestLoop({
@@ -360,10 +368,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         config: input.config,
         now,
         spotlightSymbols: currentMarketSymbols,
+        extraGaps: alphaGaps,
       });
       context = { ...context, historicalContext };
     }
-    const alpha = await loadAlphaWatchlistForSpotlights(input.config.dataDir);
     const cap = spotlightCap(input.command, input.config);
     spotlightCandidates = buildSpotlightCandidates({
       marketSnapshots: collectedSources.marketSnapshots.filter(
@@ -387,6 +395,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         config: input.config,
         now,
         spotlightSymbols: spotlightSelection.selected.map((item) => item.symbol),
+        extraGaps: alphaGaps,
       });
       spotlightCandidates = buildSpotlightCandidates({
         marketSnapshots: collectedSources.marketSnapshots.filter(

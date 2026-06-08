@@ -191,6 +191,12 @@ describe("report schema and rendering", () => {
         selectedRunCount: 1,
         recentSelectedCount: 1,
         anchorSelectedCount: 0,
+        sameSymbolSelectedCount: 0,
+        spotlightSymbolSelectedCount: 0,
+        sameCadenceSelectedCount: 0,
+        crossCadenceSelectedCount: 0,
+        resolvedMissRunCount: 0,
+        gapCount: 0,
       },
       artifactDeltas: [],
     };

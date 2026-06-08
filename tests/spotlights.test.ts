@@ -77,6 +77,12 @@ function historyContext(): HistoricalResearchContext {
       selectedRunCount: 2,
       recentSelectedCount: 2,
       anchorSelectedCount: 0,
+      sameSymbolSelectedCount: 0,
+      spotlightSymbolSelectedCount: 0,
+      sameCadenceSelectedCount: 0,
+      crossCadenceSelectedCount: 0,
+      resolvedMissRunCount: 0,
+      gapCount: 0,
     },
     artifactDeltas: [],
   };

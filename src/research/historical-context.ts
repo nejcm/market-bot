@@ -14,7 +14,18 @@ import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { PredictionScore } from "../scoring/types";
 import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
 
-export type HistoricalSelectionReason = "recent" | `anchor-${number}m`;
+// Recency reasons answer "why was this run in the time window" (sliding-recent vs point anchor).
+// Relevance reasons answer "why is this run topically on-point for the current command": ticker
+// History for the command's own instrument ("same-symbol") or a selected market-update spotlight
+// ("spotlight-symbol"), and market-update history matching the command's daily/weekly cadence
+// ("same-cadence") or the other cadence for the same asset ("cross-cadence").
+export type HistoricalRecencyReason = "recent" | `anchor-${number}m`;
+export type HistoricalRelevanceReason =
+  | "same-symbol"
+  | "spotlight-symbol"
+  | "same-cadence"
+  | "cross-cadence";
+export type HistoricalSelectionReason = HistoricalRecencyReason | HistoricalRelevanceReason;
 
 export interface HistoricalPredictionSummary {
   readonly id: string;
@@ -84,6 +95,18 @@ export interface HistoricalContextAudit {
   readonly selectedRunCount: number;
   readonly recentSelectedCount: number;
   readonly anchorSelectedCount: number;
+  // Relevance-lane and correction-input visibility (Cross-run Intelligence hardening). These make
+  // The deterministic prior-state selection auditable from the trace without re-deriving it.
+  readonly sameSymbolSelectedCount: number;
+  readonly spotlightSymbolSelectedCount: number;
+  readonly sameCadenceSelectedCount: number;
+  readonly crossCadenceSelectedCount: number;
+  // Selected runs carrying at least one resolved miss — the population the prior-miss correction
+  // Blocks draw from (ticker instrument errors / market-scoped forecast errors).
+  readonly resolvedMissRunCount: number;
+  // Total disclosed historical/cross-run gaps, including non-data gaps such as an unreadable
+  // Alpha-search watchlist surfaced here rather than as a live SourceGap.
+  readonly gapCount: number;
 }
 
 export interface HistoricalArtifactDelta {
@@ -121,6 +144,9 @@ export interface LoadHistoricalContextInput {
   readonly config: Pick<AppConfig, "historyOptions">;
   readonly now?: Date;
   readonly spotlightSymbols?: readonly string[];
+  // Non-data gaps owned by the cross-run/historical channel (e.g. an unreadable alpha-search
+  // Watchlist). Surfaced through historicalContext.gaps instead of the live SourceGap stream.
+  readonly extraGaps?: readonly string[];
 }
 
 export interface HistoricalContextReader {
@@ -411,6 +437,38 @@ function addSelections(
   }
 }
 
+// Layers a topical relevance reason onto each selection's recency reasons
+// (`recent`/`anchor-Nm`), without changing which runs were selected. `reasonFor`
+// May return undefined to leave a selection's reasons untouched (e.g. market
+// History pulled into a ticker/alpha-search command has no command cadence to
+// Compare against).
+function withRelevanceReasons(
+  selections: readonly SelectedArtifact[],
+  reasonFor: (artifact: HistoricalArtifact) => HistoricalRelevanceReason | undefined,
+): readonly SelectedArtifact[] {
+  return selections.map((selection) => {
+    const reason = reasonFor(selection.artifact);
+    return reason === undefined
+      ? selection
+      : { artifact: selection.artifact, reasons: [...new Set([...selection.reasons, reason])] };
+  });
+}
+
+// `same-cadence` / `cross-cadence` only describe relevance to a daily/weekly
+// Command — a command cadence is the basis for the comparison. Ticker and
+// Alpha-search commands pull in market-update history for general regime
+// Context, not cadence-matched forecasting context, so they get no cadence
+// Relevance reason here (recency reasons still apply).
+function marketCadenceReason(
+  artifactJobType: JobType,
+  commandJobType: JobType,
+): HistoricalRelevanceReason | undefined {
+  if (commandJobType !== "daily" && commandJobType !== "weekly") {
+    return undefined;
+  }
+  return artifactJobType === commandJobType ? "same-cadence" : "cross-cadence";
+}
+
 function normalizedSymbols(symbols: readonly string[] | undefined): Set<string> {
   return new Set((symbols ?? []).map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
 }
@@ -492,12 +550,15 @@ function buildHistoricalContext(
     }
     addSelections(
       selected,
-      selectArtifacts({
-        candidates: sameTickerRuns,
-        limit: options.tickerRecentLimit,
-        options,
-        now,
-      }),
+      withRelevanceReasons(
+        selectArtifacts({
+          candidates: sameTickerRuns,
+          limit: options.tickerRecentLimit,
+          options,
+          now,
+        }),
+        () => "same-symbol",
+      ),
     );
   }
 
@@ -506,21 +567,24 @@ function buildHistoricalContext(
   }
   addSelections(
     selected,
-    selectArtifacts(
-      input.command.jobType === "daily" || input.command.jobType === "weekly"
-        ? {
-            candidates: sameAssetMarketRuns,
-            limit: options.marketRecentLimit,
-            options,
-            now,
-            preferredCadence: input.command.jobType,
-          }
-        : {
-            candidates: sameAssetMarketRuns,
-            limit: options.marketRecentLimit,
-            options,
-            now,
-          },
+    withRelevanceReasons(
+      selectArtifacts(
+        input.command.jobType === "daily" || input.command.jobType === "weekly"
+          ? {
+              candidates: sameAssetMarketRuns,
+              limit: options.marketRecentLimit,
+              options,
+              now,
+              preferredCadence: input.command.jobType,
+            }
+          : {
+              candidates: sameAssetMarketRuns,
+              limit: options.marketRecentLimit,
+              options,
+              now,
+            },
+      ),
+      (artifact) => marketCadenceReason(artifact.report.jobType, input.command.jobType),
     ),
   );
 
@@ -536,18 +600,24 @@ function buildHistoricalContext(
     }
     addSelections(
       selected,
-      selectArtifacts({
-        candidates: sameTickerRuns,
-        limit: options.tickerRecentLimit,
-        options,
-        now,
-      }),
+      withRelevanceReasons(
+        selectArtifacts({
+          candidates: sameTickerRuns,
+          limit: options.tickerRecentLimit,
+          options,
+          now,
+        }),
+        () => "spotlight-symbol",
+      ),
     );
   }
 
   if (scan.malformedRunCount > 0) {
     gaps.push(`Skipped ${String(scan.malformedRunCount)} malformed historical report artifact(s)`);
   }
+  // Non-data gaps owned by this channel (e.g. an unreadable alpha-search watchlist),
+  // Surfaced here rather than as a live SourceGap — see LoadHistoricalContextInput.extraGaps.
+  gaps.push(...(input.extraGaps ?? []));
 
   const runs = [...selected.values()]
     .map((selection) => toRunContext(selection, focusSymbols))
@@ -570,6 +640,18 @@ function buildHistoricalContext(
       anchorSelectedCount: runs.filter((run) =>
         run.selectionReasons.some((reason) => reason.startsWith("anchor-")),
       ).length,
+      sameSymbolSelectedCount: runs.filter((run) => run.selectionReasons.includes("same-symbol"))
+        .length,
+      spotlightSymbolSelectedCount: runs.filter((run) =>
+        run.selectionReasons.includes("spotlight-symbol"),
+      ).length,
+      sameCadenceSelectedCount: runs.filter((run) => run.selectionReasons.includes("same-cadence"))
+        .length,
+      crossCadenceSelectedCount: runs.filter((run) =>
+        run.selectionReasons.includes("cross-cadence"),
+      ).length,
+      resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
+      gapCount: gaps.length,
     },
     artifactDeltas: computeArtifactDeltas(runs),
   };

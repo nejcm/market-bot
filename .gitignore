@@ -7,5 +7,6 @@ app/dist/
 .env.*
 !.env.example
 .lefthook-local.yml
+.firecrawl
 
 TODO.md

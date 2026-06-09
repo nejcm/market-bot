@@ -337,16 +337,15 @@ export async function readRunDetail(
     return undefined;
   }
 
-  const [report, markdown, analytics, trace, score, indexedSummary, availableFiles] =
-    await Promise.all([
-      readJsonRecord(join(runDir, REPORT_FILE)),
-      readOptionalText(join(runDir, MARKDOWN_FILE)),
-      readJsonRecord(join(runDir, ANALYTICS_FILE)),
-      readJsonRecord(join(runDir, TRACE_FILE)),
-      readJsonRecord(join(runDir, SCORE_FILE)),
-      readRunSummaryFromIndex(dataDir, runId),
-      listArtifactFiles(runDir),
-    ]);
+  const [report, markdown, analytics, trace, score, indexedSummary] = await Promise.all([
+    readJsonRecord(join(runDir, REPORT_FILE)),
+    readOptionalText(join(runDir, MARKDOWN_FILE)),
+    readJsonRecord(join(runDir, ANALYTICS_FILE)),
+    readJsonRecord(join(runDir, TRACE_FILE)),
+    readJsonRecord(join(runDir, SCORE_FILE)),
+    readRunSummaryFromIndex(dataDir, runId),
+  ]);
+  const availableFiles = indexedSummary?.availableFiles ?? (await listArtifactFiles(runDir));
 
   return {
     summary: indexedSummary ?? runSummary(runId, report, availableFiles),

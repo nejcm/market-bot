@@ -42,7 +42,7 @@ The persisted output of a single research run under `MARKET_BOT_DATA_DIR/<run-id
 
 ## Run Artifact Index
 
-A derived, rebuildable query index over Run Artifacts. It may speed up search, filtering, calibration, and prompt-time Cross-run Intelligence, but it is an access path only; Run Artifacts on disk remain the source of truth.
+A derived, rebuildable SQLite query index over Run Artifacts (`data/index.sqlite` by default). It speeds up console list/search, `history search`, and calibration resolved-pair loading when fresh. Run `index rebuild` to bootstrap or repair it; research jobs, `alpha-search`, and `score` write through affected runs incrementally. Stale, missing, or unsupported indexes warn and fall back to disk scans (`MARKET_BOT_INDEX_DISABLE` forces disk-only). Run Artifacts on disk remain the source of truth.
 
 ## Research Thesis
 

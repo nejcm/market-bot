@@ -33,7 +33,9 @@ run actually forecasts:
   `src/config/runs.ts`), sharpening the next same-subject market forecast
   (`buildMarketForecastErrorBlock`, `priorMarketForecastErrors`). It draws only from
   prior same-cadence (`jobType === command.jobType`), same-asset market-update runs,
-  filtered to predictions whose normalized subject is a configured market subject.
+  filtered to predictions whose subject is a configured market subject. A relative
+  pair (e.g. `QQQ:SPY`) qualifies only when **every** leg is a configured market
+  subject, so a ticker-relative pair like `SPY:AAPL` is excluded.
 
 The two never overlap: the market block's `jobType === command.jobType` filter excludes
 spotlight ticker misses (those runs are `jobType: "ticker"`) by construction, and the

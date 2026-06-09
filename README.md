@@ -12,6 +12,7 @@ Reports are **research views**, not trading advice — no buy/sell calls, no pos
 - **Measurable predictions** — each report emits typed predictions (price targets, directional moves) parsed by a small DSL and validated against the report schema.
 - **Scoring pass** — resolves due predictions against point or window Observations from historical closes, FRED, and Tradier IV where applicable, then writes `score.json` per run.
 - **Calibration aggregator** — rolls up scored predictions, sliced by cadence (daily / weekly / ticker), into `data/calibration/summary.json` and a markdown summary. The `calibration` command also prints a reliability dashboard to stdout.
+- **Cross-run intelligence** — each run reads curated prior state back in from run artifacts: compact Historical Research Context with auditable per-run selection reasons, prior-miss error-correction blocks (instrument-scoped for tickers, market-scoped for daily/weekly), and the `history` CLI family (`rebuild` / `search` / `thesis-delta`) for searchable prior reports and per-Instrument timelines. Artifact-only — it never refetches sources.
 
 ## Setup
 
@@ -116,6 +117,16 @@ bun run src/cli.ts score          # resolve due predictions across all prior run
 bun run src/cli.ts calibration    # rebuild calibration summary and print reliability dashboard
 ```
 
+### History (Cross-run intelligence)
+
+Artifact-only — these read existing `data/runs/<id>/` artifacts and never fetch fresh sources.
+
+```sh
+bun run src/cli.ts history rebuild                      # rebuild derived indexes + per-Instrument timelines under data/history/
+bun run src/cli.ts history search --query "<text>"      # structured text search over prior reports, sources, predictions, theses
+bun run src/cli.ts history thesis-delta <SYMBOL>        # compare two prior Research Thesis states; --narrative adds a persisted model summary
+```
+
 ### Cache management
 
 ```sh
@@ -212,6 +223,10 @@ data/
   calibration/
     summary.json        Rolled-up calibration across all scored runs
     summary.md          Markdown calibration summary
+  history/              Derived cross-run indexes + per-Instrument timelines (history rebuild)
+    index.json          Searchable index over prior reports, sources, predictions, theses
+    instruments/        Per-Instrument timelines keyed by assetClass:symbol
+    deltas/             Persisted --narrative thesis-delta outputs
   cache/
     <YYYY-MM-DD>/       Per-day raw source cache entries (sha256-keyed)
     closes/             Scorer close-cache entries
@@ -243,11 +258,13 @@ src/
   config/runs.ts     Typed per-run config
   domain/            Instrument, asset class, depth, prediction types
   forecast/          Observable forecast contract and resolver helpers
+  run-artifacts.ts   Single read seam for persisted run artifacts (ADR 0016)
   model/             OpenAI / OpenAI-compatible / Codex / Anthropic providers
   movers/            Mover ranking
   report/            Report schema + markdown renderer
   alpha-search/      ApeWisdom discovery, ranking, validation
-  research/          Orchestrator, regime summarization, Domain Playbooks
+  research/          Orchestrator, regime summarization, historical context, error correction, Domain Playbooks
+  history/           Derived cross-run indexes, search, and thesis deltas
   scoring/           Prediction DSL, resolver, scoring, calibration
   sources/           Provider modules, normalized adapters, collector, retry/backoff/cache
 prompts/             Stage prompt files and checked-in Domain Playbooks

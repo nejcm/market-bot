@@ -1,5 +1,5 @@
 import type { Tooltip } from "layerchart";
-import { getContext, setContext, type Component, type Snippet } from "svelte";
+import { getContext, setContext, type Component } from "svelte";
 
 export const THEMES = { light: "", dark: ".dark" } as const;
 
@@ -13,8 +13,6 @@ export type ChartConfig = Record<
     | { color?: never; theme: Record<keyof typeof THEMES, string> }
   )
 >;
-
-export type ExtractSnippetParams<T> = T extends Snippet<[infer P]> ? P : never;
 
 export type TooltipPayload = Tooltip.TooltipSeries;
 

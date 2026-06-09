@@ -328,7 +328,7 @@ export async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArti
   };
 }
 
+// Full artifact scans always read from disk until the index can hydrate RunArtifact payloads.
 export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan> {
-  const { scanRunArtifactsFromIndex } = await import("./run-artifact-index");
-  return (await scanRunArtifactsFromIndex(dataDir)) ?? (await scanRunArtifactsFromDisk(dataDir));
+  return await scanRunArtifactsFromDisk(dataDir);
 }

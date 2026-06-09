@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
-import { Database } from "bun:sqlite";
+import { Database, type Statement } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
 import {
   isMarketUpdateJobType,
@@ -15,7 +15,7 @@ import {
   type Source,
 } from "./domain/types";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";
-import { loadRunArtifact, scanRunArtifactsFromDisk, type RunArtifactScan } from "./run-artifacts";
+import { loadRunArtifact, type RunArtifactScan } from "./run-artifacts";
 import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
@@ -297,6 +297,8 @@ function addSearchEntry(
   section: string,
   label: string,
   text: string,
+  keySuffix: string,
+  sequence: number,
   sourceIds: readonly string[] = [],
   extras: Partial<
     Pick<SearchEntryRow, "provider" | "source_kind" | "prediction_id" | "symbol">
@@ -305,7 +307,7 @@ function addSearchEntry(
   if (text.trim() === "") {
     return;
   }
-  const id = `${report.runId}:${scope}:${section}:${String(rows.length)}`;
+  const id = `${report.runId}:${scope}:${section}:${keySuffix}`;
   const symbol = extras.symbol ?? report.symbol?.toUpperCase() ?? null;
   rows.push({
     entry_key: `${scope}:${id}`,
@@ -323,7 +325,7 @@ function addSearchEntry(
     provider: extras.provider ?? null,
     source_kind: extras.source_kind ?? null,
     prediction_id: extras.prediction_id ?? null,
-    sequence: rows.length,
+    sequence,
   });
 }
 
@@ -343,6 +345,8 @@ function addFindingEntries(
       section,
       `${label} ${String(index + 1)}`,
       finding.text,
+      String(index),
+      index,
       finding.sourceIds,
     );
   }
@@ -369,15 +373,26 @@ function addPredictionEntries(
   report: ResearchReport,
   predictions: readonly Prediction[],
 ): void {
-  for (const prediction of predictions) {
+  for (const [index, prediction] of predictions.entries()) {
     const label = scope === "console" ? `Observable forecast ${prediction.id}` : prediction.id;
     const text =
       scope === "console"
         ? [prediction.claim, prediction.measurableAs].join(" ")
         : prediction.claim;
-    addSearchEntry(rows, scope, report, "predictions", label, text, prediction.sourceIds, {
-      prediction_id: prediction.id,
-    });
+    addSearchEntry(
+      rows,
+      scope,
+      report,
+      "predictions",
+      label,
+      text,
+      prediction.id,
+      index,
+      prediction.sourceIds,
+      {
+        prediction_id: prediction.id,
+      },
+    );
   }
 }
 
@@ -387,7 +402,7 @@ function addSourceEntries(
   report: ResearchReport,
   sources: readonly Source[],
 ): void {
-  for (const source of sources) {
+  for (const [index, source] of sources.entries()) {
     const label = scope === "console" ? `Source ${source.id}` : source.id;
     const text =
       scope === "console"
@@ -402,7 +417,7 @@ function addSourceEntries(
             .filter((part): part is string => part !== undefined)
             .join(" ")
         : [source.title, source.summary, source.snippet].join(" ");
-    addSearchEntry(rows, scope, report, "sources", label, text, [source.id], {
+    addSearchEntry(rows, scope, report, "sources", label, text, source.id, index, [source.id], {
       provider: source.provider ?? null,
       source_kind: source.kind,
       symbol: source.symbol?.toUpperCase() ?? report.symbol?.toUpperCase() ?? null,
@@ -416,7 +431,7 @@ function searchEntriesForReport(
   scope: SearchScope,
 ): readonly SearchEntryRow[] {
   const rows: SearchEntryRow[] = [];
-  addSearchEntry(rows, scope, report, "summary", "Summary", report.summary);
+  addSearchEntry(rows, scope, report, "summary", "Summary", report.summary, "summary", 0);
   addFindingEntries(
     rows,
     scope,
@@ -459,14 +474,32 @@ function searchEntriesForReport(
   );
   if (scope === "history") {
     for (const [index, gap] of report.dataGaps.entries()) {
-      addSearchEntry(rows, scope, report, "dataGaps", `Data gap ${String(index + 1)}`, gap);
+      addSearchEntry(
+        rows,
+        scope,
+        report,
+        "dataGaps",
+        `Data gap ${String(index + 1)}`,
+        gap,
+        String(index),
+        index,
+      );
     }
   }
   addPredictionEntries(rows, scope, report, report.predictions);
   addSourceEntries(rows, scope, report, report.sources);
   if (scope === "console") {
     for (const [index, gap] of report.dataGaps.entries()) {
-      addSearchEntry(rows, scope, report, "dataGaps", `Data gap ${String(index + 1)}`, gap);
+      addSearchEntry(
+        rows,
+        scope,
+        report,
+        "dataGaps",
+        `Data gap ${String(index + 1)}`,
+        gap,
+        String(index),
+        index,
+      );
     }
   }
   if (scope === "history") {
@@ -478,6 +511,8 @@ function searchEntriesForReport(
         "openQuestions",
         `Open question ${String(index + 1)}`,
         question,
+        String(index),
+        index,
       );
     }
   }
@@ -662,7 +697,6 @@ export async function rebuildRunArtifactIndex(
 ): Promise<RebuildRunArtifactIndexResult> {
   const dbPath = options.dbPath ?? configuredRunArtifactIndexPath(dataDir);
   await mkdir(dirname(dbPath), { recursive: true });
-  const scan = await scanRunArtifactsFromDisk(dataDir);
   const runDirs = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
   const dirNames = runDirs
     .filter((entry) => entry.isDirectory())
@@ -752,14 +786,14 @@ export async function rebuildRunArtifactIndex(
       throw error;
     }
   } finally {
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    db.exec("PRAGMA wal_checkpoint(PASSIVE)");
     db.close();
   }
 
   return {
     dbPath,
-    sourceRunCount: scan.artifacts.length,
-    malformedRunCount: scan.entries.filter((entry) => entry.status.report === "malformed").length,
+    sourceRunCount: runRows.filter((row) => row.report_status === "ok").length,
+    malformedRunCount: runRows.filter((row) => row.report_status === "malformed").length,
     artifactFileCount: fileRows.length,
     searchEntryCount: searchEntryRows.length,
   };
@@ -890,20 +924,13 @@ export async function writeThroughRunArtifactIndex(
       throw error;
     }
   } finally {
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    db.exec("PRAGMA wal_checkpoint(PASSIVE)");
     db.close();
   }
 }
 
-function finalizeStatement(statement: unknown): void {
-  if (
-    typeof statement === "object" &&
-    statement !== null &&
-    "finalize" in statement &&
-    typeof statement.finalize === "function"
-  ) {
-    statement.finalize();
-  }
+function finalizeStatement(statement: Statement): void {
+  statement.finalize();
 }
 
 function ftsQuery(query: string): string | undefined {
@@ -1043,6 +1070,39 @@ function availableFilesFor(db: Database, runId: string): readonly string[] {
       readonly path: string;
     }[]
   ).map((row) => row.path);
+}
+
+function runsById(db: Database, runIds: readonly string[]): Map<string, RunRow> {
+  if (runIds.length === 0) {
+    return new Map();
+  }
+  const placeholders = runIds.map(() => "?").join(", ");
+  const rows = db
+    .query(`SELECT * FROM runs WHERE run_id IN (${placeholders})`)
+    .all(...runIds) as readonly RunRow[];
+  return new Map(rows.map((row) => [row.run_id, row]));
+}
+
+function availableFilesByRunId(
+  db: Database,
+  runIds: readonly string[],
+): Map<string, readonly string[]> {
+  if (runIds.length === 0) {
+    return new Map();
+  }
+  const placeholders = runIds.map(() => "?").join(", ");
+  const rows = db
+    .query(
+      `SELECT run_id, path FROM artifact_files WHERE run_id IN (${placeholders}) ORDER BY run_id, path`,
+    )
+    .all(...runIds) as readonly { readonly run_id: string; readonly path: string }[];
+  const grouped = new Map<string, string[]>();
+  for (const row of rows) {
+    const paths = grouped.get(row.run_id) ?? [];
+    paths.push(row.path);
+    grouped.set(row.run_id, paths);
+  }
+  return new Map([...grouped.entries()].map(([runId, paths]) => [runId, paths] as const));
 }
 
 export async function scanRunArtifactsFromIndex(
@@ -1189,10 +1249,16 @@ export async function searchRunReportsFromIndex(
 ): Promise<readonly RunSearchResult[] | undefined> {
   return await withFreshIndex(dataDir, async (db) => {
     const rows = searchRows(db, "console", filters.query, filters, limit);
+    const runIds = [...new Set(rows.map((row) => row.run_id))];
+    const runById = runsById(db, runIds);
+    const filesByRunId = availableFilesByRunId(db, runIds);
     return rows.map((row) => {
-      const run = db.query("SELECT * FROM runs WHERE run_id = ?").get(row.run_id) as RunRow;
+      const run = runById.get(row.run_id);
+      if (run === undefined) {
+        throw new Error(`Missing indexed run row for ${row.run_id}`);
+      }
       return {
-        run: rowToSummary(run, availableFilesFor(db, run.run_id)),
+        run: rowToSummary(run, filesByRunId.get(run.run_id) ?? []),
         section: row.section as RunSearchResult["section"],
         label: row.label,
         snippet: textSnippet(row.text, filters.query),

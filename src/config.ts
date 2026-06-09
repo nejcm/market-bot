@@ -1,4 +1,5 @@
 import { basename, dirname, join } from "node:path";
+import { defaultRunArtifactIndexPath } from "./run-artifact-index";
 import type { ModelParams } from "./model/types";
 
 export type ProviderName = "openai" | "openai-compatible" | "codex" | "anthropic";
@@ -243,11 +244,6 @@ function readReasoningEffort(
 function deriveNewsSeenPath(dataDir: string): string {
   const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
   return join(dataRoot, "news-seen.json");
-}
-
-function deriveIndexDbPath(dataDir: string): string {
-  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
-  return join(dataRoot, "index.sqlite");
 }
 
 function readApeWisdomFilter(value: string | undefined): string {
@@ -521,10 +517,14 @@ export function resolveConfig(
         : resolveAlphaSearchOptions(env),
     marketSpotlightOptions: resolveMarketSpotlightOptions(env),
     historyOptions: resolveHistoryOptions(env),
-    indexOptions: {
-      dbPath: readOptionalString(env.MARKET_BOT_INDEX_DB_PATH) ?? deriveIndexDbPath(dataDir),
-      disabled: readBoolean(env.MARKET_BOT_INDEX_DISABLE),
-    },
+    indexOptions: readBoolean(env.MARKET_BOT_INDEX_DISABLE)
+      ? { disabled: true }
+      : {
+          dbPath:
+            readOptionalString(env.MARKET_BOT_INDEX_DB_PATH) ??
+            defaultRunArtifactIndexPath(dataDir),
+          disabled: false,
+        },
   };
 }
 

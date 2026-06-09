@@ -67,13 +67,16 @@ function createProvider(config: AppConfig): ModelProvider {
 
 async function updateRunArtifactIndex(
   dataDir: string,
-  runDirs: readonly string[],
+  runDirNames: readonly string[],
   dependencies: Pick<RunCliDependencies, "writeThroughRunArtifactIndex">,
   dbPath: string | undefined,
 ): Promise<void> {
+  const normalizedRunDirs = [
+    ...new Set(runDirNames.map((runDir) => basename(runDir)).filter((name) => name !== "")),
+  ];
   await (dependencies.writeThroughRunArtifactIndex ?? writeThroughRunArtifactIndex)(
     dataDir,
-    runDirs,
+    normalizedRunDirs,
     dbPath === undefined ? {} : { dbPath },
   ).catch((error: unknown) => {
     process.stderr.write(
@@ -220,10 +223,7 @@ export async function runCli(
   }
   await updateRunArtifactIndex(
     config.dataDir,
-    [
-      basename(result.artifacts.runDir),
-      ...(scoreResult?.touchedRunDirs.map((runDir) => basename(runDir)) ?? []),
-    ],
+    [result.artifacts.runDir, ...(scoreResult?.touchedRunDirs ?? [])],
     dependencies,
     config.indexOptions?.dbPath,
   );

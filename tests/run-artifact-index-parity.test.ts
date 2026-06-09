@@ -133,6 +133,23 @@ describe("run artifact index parity", () => {
     );
   });
 
+  test("console search matches disk fallback for multi-word and partial queries", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    for (const query of ["needle source", "needl", "NEEDLE"]) {
+      const indexedSearch = await searchRunReports(dataDir, { query });
+      process.env.MARKET_BOT_INDEX_DISABLE = "1";
+      const diskSearch = await searchRunReports(dataDir, { query });
+      delete process.env.MARKET_BOT_INDEX_DISABLE;
+
+      expect(indexedSearch.map((entry) => searchResultKey(entry)).toSorted()).toEqual(
+        diskSearch.map((entry) => searchResultKey(entry)).toSorted(),
+      );
+    }
+  });
+
   test("history search matches JSON index fallback", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeFixtureRun(dataDir, "run-a");

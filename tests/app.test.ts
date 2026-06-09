@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
 import { runCli, scorePassOptions } from "../src/app";
 import type { ModelProvider } from "../src/model/types";
 import type { PersistedResearchJobResult } from "../src/research/orchestrator";
@@ -183,6 +184,42 @@ describe("runCli", () => {
     await expect(runCli(["alpha-search", "--asset", "equity"])).rejects.toThrow(
       "Invalid ApeWisdom filter",
     );
+  });
+
+  test("updates the run artifact index after alpha-search", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-alpha-index-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+    const runDir = join(dataDir, "alpha-run");
+
+    const result = await runCli(["alpha-search", "--asset", "equity"], {
+      runAlphaSearchWorkflow: async () => {
+        calls.push("alpha-search");
+        return {
+          report: researchReport({ runId: "alpha-run", jobType: "alpha-search" }),
+          markdown: "",
+          trace: {},
+          analytics: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as unknown as AlphaSearchWorkflowResult;
+      },
+      writeThroughRunArtifactIndex: async (receivedDataDir, runDirs) => {
+        calls.push("index");
+        expect(receivedDataDir).toBe(dataDir);
+        expect(runDirs).toEqual(["alpha-run"]);
+      },
+    });
+
+    expect(result).toBe(runDir);
+    expect(calls).toEqual(["alpha-search", "index"]);
   });
 
   test("cache prune reports cache pruning without raw snapshot redaction", async () => {

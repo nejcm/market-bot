@@ -60,14 +60,6 @@ A compact, deterministic "what changed since the last same-cadence run" summary 
 
 A soft absence, parse failure, or mismatch in prior run artifacts. It is disclosed in historical context, but it is not a provider `SourceGap` and does not mean live source collection failed.
 
-## History Embedding Index
-
-A derived, rebuildable semantic layer over `HistorySearchEntry` rows in `data/history/`, produced by `history rebuild` from the same run artifacts as the structured history index. Each index entry maps to one embedding vector keyed by entry `id`. It powers semantic recall for CLI search and, when enabled, prompt-time Cross-run Intelligence. It is not a source of truth and never replaces canonical run artifacts on disk.
-
-## Current Evidence Brief
-
-A deterministic, logged text snapshot of the current run's research intent at historical-context load time: command, regime label and drivers, top mover symbols, capped news titles or snippets, and (for market updates on the final load) selected spotlight symbols. The brief is embedded once and compared against the History Embedding Index to rank prior entries for semantic recall. It is not model-generated and is not a prediction or trade signal.
-
 ## Market Spotlight
 
 An optional daily or weekly Market Update focus selected from the current collected market snapshot universe. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.

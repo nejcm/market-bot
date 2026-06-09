@@ -23,6 +23,7 @@ import { rebuildRunArtifactIndex, writeThroughRunArtifactIndex } from "./run-art
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
+  readonly runAlphaSearchWorkflow?: typeof runAlphaSearchWorkflow;
   readonly collectSources?: typeof collectSources;
   readonly persistResearchJob?: typeof persistResearchJob;
   readonly runScorePass?: typeof runScorePass;
@@ -186,7 +187,16 @@ export async function runCli(
   }
 
   if (command.jobType === "alpha-search") {
-    const result = await runAlphaSearchWorkflow({ command, config });
+    const result = await (dependencies.runAlphaSearchWorkflow ?? runAlphaSearchWorkflow)({
+      command,
+      config,
+    });
+    await updateRunArtifactIndex(
+      config.dataDir,
+      [result.artifacts.runDir],
+      dependencies,
+      config.indexOptions?.dbPath,
+    );
     return result.artifacts.runDir;
   }
 

@@ -15,12 +15,12 @@ import {
   type Source,
 } from "./domain/types";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";
-import { loadRunArtifact, type RunArtifactScan } from "./run-artifacts";
+import { loadRunArtifact } from "./run-artifacts";
 import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 
-const INDEX_SCHEMA_VERSION = 2;
+const INDEX_SCHEMA_VERSION = 3;
 const DEFAULT_INDEX_FILE = "index.sqlite";
 const BUSY_TIMEOUT_MS = 1000;
 const MAX_HISTORY_SEARCH_RESULTS = 100;
@@ -241,22 +241,12 @@ function schemaSql(): string {
     );
 
     CREATE INDEX scores_resolved_idx ON scores(resolved, outcome);
-
-    CREATE TABLE embeddings (
-      run_id TEXT NOT NULL,
-      entry_key TEXT NOT NULL,
-      model TEXT NOT NULL,
-      vector BLOB NOT NULL,
-      PRIMARY KEY (run_id, entry_key, model),
-      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
-    );
   `;
 }
 
 function resetSchema(db: Database): void {
   db.exec(`
     DROP TABLE IF EXISTS search_fts;
-    DROP TABLE IF EXISTS embeddings;
     DROP TABLE IF EXISTS scores;
     DROP TABLE IF EXISTS predictions;
     DROP TABLE IF EXISTS search_entries;
@@ -809,6 +799,7 @@ export async function writeThroughRunArtifactIndex(
   }
   const dbPath = options.dbPath ?? configuredRunArtifactIndexPath(dataDir);
   if (!existsSync(dbPath)) {
+    warnIndexFallback("index database missing, skipping write-through");
     return;
   }
 
@@ -822,6 +813,9 @@ export async function writeThroughRunArtifactIndex(
       readonly user_version: number;
     } | null;
     if (version?.user_version !== INDEX_SCHEMA_VERSION) {
+      warnIndexFallback(
+        `unsupported schema version ${String(version?.user_version ?? "unknown")}, skipping write-through`,
+      );
       return;
     }
 
@@ -933,15 +927,13 @@ function finalizeStatement(statement: Statement): void {
   statement.finalize();
 }
 
-function ftsQuery(query: string): string | undefined {
-  const terms = query
-    .trim()
-    .split(/\s+/u)
-    .filter((term) => term !== "");
-  if (terms.length === 0) {
-    return;
-  }
-  return terms.map((term) => `"${term.replaceAll('"', '""')}"`).join(" AND ");
+function warnIndexFallback(message: string): void {
+  process.stderr.write(`Run artifact index: ${message}\n`);
+}
+
+function normalizeSearchQuery(query: string): string | undefined {
+  const normalized = query.trim().toLowerCase();
+  return normalized === "" ? undefined : normalized;
 }
 
 function openReadableIndex(dataDir: string): Database | undefined {
@@ -984,6 +976,9 @@ async function mutableSidecarMatches(
 async function indexIsFresh(dataDir: string, db: Database): Promise<boolean> {
   const version = db.query("PRAGMA user_version").get() as { readonly user_version: number } | null;
   if (version?.user_version !== INDEX_SCHEMA_VERSION) {
+    warnIndexFallback(
+      `unsupported schema version ${String(version?.user_version ?? "unknown")}, falling back to disk scan`,
+    );
     return false;
   }
 
@@ -994,6 +989,7 @@ async function indexIsFresh(dataDir: string, db: Database): Promise<boolean> {
     }[]
   ).map((row) => row.run_dir_name);
   if (JSON.stringify(diskDirs) !== JSON.stringify(indexedDirs)) {
+    warnIndexFallback("index stale (run directory set mismatch), falling back to disk scan");
     return false;
   }
 
@@ -1024,7 +1020,11 @@ async function indexIsFresh(dataDir: string, db: Database): Promise<boolean> {
   );
 
   const results = await Promise.all(checks);
-  return results.every(Boolean);
+  if (!results.every(Boolean)) {
+    warnIndexFallback("index stale (mutable sidecar mismatch), falling back to disk scan");
+    return false;
+  }
+  return true;
 }
 
 async function withFreshIndex<T>(
@@ -1037,7 +1037,10 @@ async function withFreshIndex<T>(
   }
   try {
     return (await indexIsFresh(dataDir, db)) ? await read(db) : undefined;
-  } catch {
+  } catch (error: unknown) {
+    warnIndexFallback(
+      `index read failed (${error instanceof Error ? error.message : String(error)}), falling back to disk scan`,
+    );
     return undefined;
   } finally {
     db.close();
@@ -1103,29 +1106,6 @@ function availableFilesByRunId(
     grouped.set(row.run_id, paths);
   }
   return new Map([...grouped.entries()].map(([runId, paths]) => [runId, paths] as const));
-}
-
-export async function scanRunArtifactsFromIndex(
-  dataDir: string,
-): Promise<RunArtifactScan | undefined> {
-  return await withFreshIndex(dataDir, async (db) => {
-    const rows = db.query("SELECT * FROM runs ORDER BY run_dir_name").all() as readonly RunRow[];
-    const loaded = await Promise.all(
-      rows
-        .filter((row) => row.report_status === "ok")
-        .map((row) => loadRunArtifact(join(dataDir, row.run_dir_name))),
-    );
-    return {
-      artifacts: loaded.flatMap((item) => (item.artifact === undefined ? [] : [item.artifact])),
-      entries: rows.map((row) => ({
-        runDirName: row.run_dir_name,
-        status: {
-          report: row.report_status as RunArtifactScan["entries"][number]["status"]["report"],
-          score: row.score_status as RunArtifactScan["entries"][number]["status"]["score"],
-        },
-      })),
-    };
-  });
 }
 
 export async function listRunSummariesFromIndex(
@@ -1195,13 +1175,21 @@ function searchRows(
     readonly provider?: string;
   },
   limit: number,
+  matchLabel = false,
 ): readonly SearchEntryRow[] {
-  const match = ftsQuery(query);
-  if (match === undefined || limit <= 0) {
+  const normalizedQuery = normalizeSearchQuery(query);
+  if (normalizedQuery === undefined || limit <= 0) {
     return [];
   }
-  const clauses = ["search_fts MATCH ?", "e.scope = ?"];
-  const params: SqlParam[] = [match, scope];
+  const clauses = ["e.scope = ?"];
+  const params: SqlParam[] = [scope];
+  if (matchLabel) {
+    clauses.push("(instr(lower(e.text), ?) > 0 OR instr(lower(e.label), ?) > 0)");
+    params.push(normalizedQuery, normalizedQuery);
+  } else {
+    clauses.push("instr(lower(e.text), ?) > 0");
+    params.push(normalizedQuery);
+  }
   appendOptionalFilter(clauses, params, "e.symbol", filters.symbol, (value) => value.toUpperCase());
   appendOptionalFilter(clauses, params, "e.asset_class", filters.assetClass);
   appendOptionalFilter(clauses, params, "e.job_type", filters.jobType);
@@ -1213,8 +1201,7 @@ function searchRows(
   return db
     .query(
       `SELECT e.*
-       FROM search_fts
-       JOIN search_entries e ON e.rowid = search_fts.rowid
+       FROM search_entries e
        WHERE ${clauses.join(" AND ")}
        ORDER BY e.generated_at DESC, e.run_id DESC, e.sequence ASC
        LIMIT ?`,
@@ -1287,6 +1274,7 @@ export async function searchHistoryEntriesFromIndex(
         ...(filters.provider !== undefined ? { provider: filters.provider } : {}),
       },
       filters.limit ?? MAX_HISTORY_SEARCH_RESULTS,
+      true,
     );
     return rows.map((row) => ({
       id: row.id,

@@ -59,6 +59,15 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function captureStderr(): string[] {
+  const chunks: string[] = [];
+  process.stderr.write = ((chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+  return chunks;
+}
+
 async function tempDataDir(): Promise<{
   readonly rootDir: string;
   readonly dataDir: string;
@@ -177,8 +186,10 @@ describe("run artifact index", () => {
     writeRun(dataDir, "run-a");
     await rebuildRunArtifactIndex(dataDir, { dbPath });
     mkdirSync(join(dataDir, "run-new"));
+    const stderr = captureStderr();
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
+    expect(stderr.join("")).toContain("run directory set mismatch");
   });
 
   test("returns undefined when a mutable sidecar is added after rebuild", async () => {
@@ -186,8 +197,21 @@ describe("run artifact index", () => {
     writeRun(dataDir, "run-a", { writeScore: false });
     await rebuildRunArtifactIndex(dataDir, { dbPath });
     writeJson(join(dataDir, "run-a", "score.json"), { runId: "run-a", scores: [] });
+    const stderr = captureStderr();
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
+    expect(stderr.join("")).toContain("mutable sidecar mismatch");
+  });
+
+  test("warns when write-through is skipped because the index database is missing", async () => {
+    const { dataDir } = await tempDataDir();
+    const stderr = captureStderr();
+
+    await writeThroughRunArtifactIndex(dataDir, ["run-a"], {
+      dbPath: join(dataDir, "missing.sqlite"),
+    });
+
+    expect(stderr.join("")).toContain("index database missing");
   });
 
   test("write-through updates a mutable sidecar row in an existing index", async () => {

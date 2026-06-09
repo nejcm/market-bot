@@ -11,6 +11,8 @@ const dataDirs: string[] = [];
 const originalDataDir = process.env.MARKET_BOT_DATA_DIR;
 const originalCacheDir = process.env.MARKET_BOT_CACHE_DIR;
 const originalApeWisdomFilter = process.env.MARKET_BOT_APEWISDOM_FILTER;
+const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
+const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
 
 afterEach(async () => {
   if (originalDataDir === undefined) {
@@ -27,6 +29,16 @@ afterEach(async () => {
     delete process.env.MARKET_BOT_APEWISDOM_FILTER;
   } else {
     process.env.MARKET_BOT_APEWISDOM_FILTER = originalApeWisdomFilter;
+  }
+  if (originalIndexDbPath === undefined) {
+    delete process.env.MARKET_BOT_INDEX_DB_PATH;
+  } else {
+    process.env.MARKET_BOT_INDEX_DB_PATH = originalIndexDbPath;
+  }
+  if (originalIndexDisable === undefined) {
+    delete process.env.MARKET_BOT_INDEX_DISABLE;
+  } else {
+    process.env.MARKET_BOT_INDEX_DISABLE = originalIndexDisable;
   }
 
   await Promise.all(
@@ -204,5 +216,30 @@ describe("runCli", () => {
         },
       }),
     ).resolves.toBe("History rebuilt: 2 run(s), 1 instrument timeline(s), 0 malformed");
+  });
+
+  test("runs index rebuild through CLI dispatch", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-index-rebuild-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+
+    await expect(
+      runCli(["index", "rebuild"], {
+        rebuildRunArtifactIndex: async (receivedDataDir, options) => {
+          expect(receivedDataDir).toBe(dataDir);
+          expect(options?.dbPath).toBe(join(dataDir, "index.sqlite"));
+          return {
+            dbPath: join(dataDir, "index.sqlite"),
+            sourceRunCount: 2,
+            malformedRunCount: 1,
+            artifactFileCount: 6,
+            searchEntryCount: 10,
+          };
+        },
+      }),
+    ).resolves.toBe("Index rebuilt: 2 run(s), 1 malformed, 6 file(s), 10 search entries");
   });
 });

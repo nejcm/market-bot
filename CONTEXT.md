@@ -30,7 +30,7 @@ Weekly market updates are a cadence and horizon change in V1, not a separate tra
 
 ## Cross-run Intelligence
 
-The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, derived history, the alpha-search watchlist — never raw `data/cache`, embeddings, or a database. Historical Research Context is its prompt-time surface (below).
+The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).
 
 ## Historical Research Context
 
@@ -39,6 +39,10 @@ Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run a
 ## Run Artifact
 
 The persisted output of a single research run under `MARKET_BOT_DATA_DIR/<run-id>/`: its Research View report, scored predictions, and normalized snapshots. Read back by later runs and history tooling to assemble Historical Research Context; never refetched from a Source Provider.
+
+## Run Artifact Index
+
+A derived, rebuildable query index over Run Artifacts. It may speed up search, filtering, calibration, and prompt-time Cross-run Intelligence, but it is an access path only; Run Artifacts on disk remain the source of truth.
 
 ## Research Thesis
 
@@ -55,6 +59,14 @@ A compact, deterministic "what changed since the last same-cadence run" summary 
 ## Historical Context Gap
 
 A soft absence, parse failure, or mismatch in prior run artifacts. It is disclosed in historical context, but it is not a provider `SourceGap` and does not mean live source collection failed.
+
+## History Embedding Index
+
+A derived, rebuildable semantic layer over `HistorySearchEntry` rows in `data/history/`, produced by `history rebuild` from the same run artifacts as the structured history index. Each index entry maps to one embedding vector keyed by entry `id`. It powers semantic recall for CLI search and, when enabled, prompt-time Cross-run Intelligence. It is not a source of truth and never replaces canonical run artifacts on disk.
+
+## Current Evidence Brief
+
+A deterministic, logged text snapshot of the current run's research intent at historical-context load time: command, regime label and drivers, top mover symbols, capped news titles or snippets, and (for market updates on the final load) selected spotlight symbols. The brief is embedded once and compared against the History Embedding Index to rank prior entries for semantic recall. It is not model-generated and is not a prediction or trade signal.
 
 ## Market Spotlight
 

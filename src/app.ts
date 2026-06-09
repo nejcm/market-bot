@@ -18,6 +18,7 @@ import {
   renderThesisDelta,
   searchHistoryIndex,
 } from "./history/artifacts";
+import { rebuildRunArtifactIndex } from "./run-artifact-index";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -26,6 +27,7 @@ export interface RunCliDependencies {
   readonly runScorePass?: typeof runScorePass;
   readonly buildAndWriteCalibration?: typeof buildAndWriteCalibration;
   readonly rebuildHistoryArtifacts?: typeof rebuildHistoryArtifacts;
+  readonly rebuildRunArtifactIndex?: typeof rebuildRunArtifactIndex;
   readonly searchHistoryIndex?: typeof searchHistoryIndex;
   readonly buildThesisDelta?: typeof buildThesisDelta;
   readonly now?: () => Date;
@@ -109,6 +111,18 @@ export async function runCli(
     return `History rebuilt: ${String(result.sourceRunCount)} run(s), ${String(
       result.instrumentCount,
     )} instrument timeline(s), ${String(result.malformedRunCount)} malformed`;
+  }
+
+  if (command.jobType === "index-rebuild") {
+    const result = await (dependencies.rebuildRunArtifactIndex ?? rebuildRunArtifactIndex)(
+      config.dataDir,
+      config.indexOptions?.dbPath === undefined ? {} : { dbPath: config.indexOptions.dbPath },
+    );
+    return `Index rebuilt: ${String(result.sourceRunCount)} run(s), ${String(
+      result.malformedRunCount,
+    )} malformed, ${String(result.artifactFileCount)} file(s), ${String(
+      result.searchEntryCount,
+    )} search entries`;
   }
 
   if (command.jobType === "history-search") {

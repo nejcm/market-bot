@@ -8,6 +8,7 @@ import {
   type HistoryRebuildCommand,
   type HistorySearchCommand,
   type HistoryThesisDeltaCommand,
+  type IndexRebuildCommand,
 } from "./job-registry";
 
 export { commandLabel };
@@ -20,6 +21,7 @@ export type {
   HistoryRebuildCommand,
   HistorySearchCommand,
   HistoryThesisDeltaCommand,
+  IndexRebuildCommand,
   ProviderHealthCommand,
   ResearchCommand,
   ScoreCommand,
@@ -183,6 +185,10 @@ export function parseArgs(args: readonly string[]): CliCommand {
 
   if (command === "provider-health" && args.length === 1) {
     return { jobType: "provider-health" };
+  }
+
+  if (command === "index" && maybeSymbol === "rebuild" && args.length === 2) {
+    return { jobType: "index-rebuild" } satisfies IndexRebuildCommand;
   }
 
   if (command === "history" && maybeSymbol === "rebuild" && args.length === 2) {

@@ -55,6 +55,11 @@ export interface HistoryOptions {
   readonly anchorMonths: readonly number[];
 }
 
+export interface RunArtifactIndexOptions {
+  readonly dbPath?: string;
+  readonly disabled: boolean;
+}
+
 export interface AppConfig {
   readonly provider: ProviderName;
   readonly baseUrl?: string;
@@ -72,6 +77,7 @@ export interface AppConfig {
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
   readonly historyOptions?: HistoryOptions;
+  readonly indexOptions?: RunArtifactIndexOptions;
 }
 
 export interface ResearchConsoleConfig {
@@ -237,6 +243,11 @@ function readReasoningEffort(
 function deriveNewsSeenPath(dataDir: string): string {
   const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
   return join(dataRoot, "news-seen.json");
+}
+
+function deriveIndexDbPath(dataDir: string): string {
+  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
+  return join(dataRoot, "index.sqlite");
 }
 
 function readApeWisdomFilter(value: string | undefined): string {
@@ -510,6 +521,10 @@ export function resolveConfig(
         : resolveAlphaSearchOptions(env),
     marketSpotlightOptions: resolveMarketSpotlightOptions(env),
     historyOptions: resolveHistoryOptions(env),
+    indexOptions: {
+      dbPath: readOptionalString(env.MARKET_BOT_INDEX_DB_PATH) ?? deriveIndexDbPath(dataDir),
+      disabled: readBoolean(env.MARKET_BOT_INDEX_DISABLE),
+    },
   };
 }
 

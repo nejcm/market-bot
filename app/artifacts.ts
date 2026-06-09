@@ -10,6 +10,11 @@ import type {
   RunSummary,
 } from "./types";
 import { reportSearchCandidates } from "./report-artifact-view";
+import {
+  listRunSummariesFromIndex,
+  readRunSummaryFromIndex,
+  searchRunReportsFromIndex,
+} from "../src/run-artifact-index";
 
 const REPORT_FILE = "report.json";
 const MARKDOWN_FILE = "report.md";
@@ -272,6 +277,11 @@ async function runSummaryFromDir(dataDir: string, runId: string): Promise<RunSum
 }
 
 export async function listRunSummaries(dataDir: string): Promise<readonly RunSummary[]> {
+  const indexed = await listRunSummariesFromIndex(dataDir);
+  if (indexed !== undefined) {
+    return indexed;
+  }
+
   const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
   const summaries = await Promise.all(
     entries
@@ -294,6 +304,11 @@ export async function searchRunReports(
   const query = filters.query.trim();
   if (query === "" || limit <= 0) {
     return [];
+  }
+
+  const indexed = await searchRunReportsFromIndex(dataDir, { ...filters, query }, limit);
+  if (indexed !== undefined) {
+    return indexed;
   }
 
   const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
@@ -322,17 +337,19 @@ export async function readRunDetail(
     return undefined;
   }
 
-  const [report, markdown, analytics, trace, score, availableFiles] = await Promise.all([
-    readJsonRecord(join(runDir, REPORT_FILE)),
-    readOptionalText(join(runDir, MARKDOWN_FILE)),
-    readJsonRecord(join(runDir, ANALYTICS_FILE)),
-    readJsonRecord(join(runDir, TRACE_FILE)),
-    readJsonRecord(join(runDir, SCORE_FILE)),
-    listArtifactFiles(runDir),
-  ]);
+  const [report, markdown, analytics, trace, score, indexedSummary, availableFiles] =
+    await Promise.all([
+      readJsonRecord(join(runDir, REPORT_FILE)),
+      readOptionalText(join(runDir, MARKDOWN_FILE)),
+      readJsonRecord(join(runDir, ANALYTICS_FILE)),
+      readJsonRecord(join(runDir, TRACE_FILE)),
+      readJsonRecord(join(runDir, SCORE_FILE)),
+      readRunSummaryFromIndex(dataDir, runId),
+      listArtifactFiles(runDir),
+    ]);
 
   return {
-    summary: runSummary(runId, report, availableFiles),
+    summary: indexedSummary ?? runSummary(runId, report, availableFiles),
     ...(report !== undefined ? { report } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
     ...(analytics !== undefined ? { analytics } : {}),

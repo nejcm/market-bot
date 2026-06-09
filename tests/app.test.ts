@@ -131,18 +131,23 @@ describe("runCli", () => {
       runScorePass: async (receivedDataDir) => {
         calls.push("score");
         expect(receivedDataDir).toBe(dataDir);
-        return { scored: 1, skipped: 0 };
+        return { scored: 1, skipped: 0, touchedRunDirs: [] };
       },
       buildAndWriteCalibration: async (receivedDataDir) => {
         calls.push("calibration");
         expect(receivedDataDir).toBe(dataDir);
         return null;
       },
+      writeThroughRunArtifactIndex: async (receivedDataDir, runDirs) => {
+        calls.push("index");
+        expect(receivedDataDir).toBe(dataDir);
+        expect(runDirs).toEqual(["run-1"]);
+      },
       now: () => new Date("2026-06-01T00:00:00.000Z"),
     });
 
     expect(result).toBe(runDir);
-    expect(calls).toEqual(["persist", "score", "calibration"]);
+    expect(calls).toEqual(["persist", "score", "calibration", "index"]);
   });
 
   test("reports when calibration has no resolved predictions to write", async () => {

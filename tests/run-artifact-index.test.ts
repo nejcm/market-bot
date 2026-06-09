@@ -8,6 +8,7 @@ import {
   rebuildRunArtifactIndex,
   searchHistoryEntriesFromIndex,
   searchRunReportsFromIndex,
+  writeThroughRunArtifactIndex,
 } from "../src/run-artifact-index";
 import { prediction, researchReport } from "./support/fixtures";
 
@@ -185,6 +186,19 @@ describe("run artifact index", () => {
     writeJson(join(dataDir, "run-a", "score.json"), { runId: "run-a", scores: [] });
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
+  });
+
+  test("write-through updates a mutable sidecar row in an existing index", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    writeJson(join(dataDir, "run-a", "score.json"), { runId: "run-a", scores: [] });
+
+    await writeThroughRunArtifactIndex(dataDir, [join(dataDir, "run-a")], { dbPath });
+
+    const [summary] = (await listRunSummariesFromIndex(dataDir)) ?? [];
+    expect(summary?.hasScore).toBe(true);
+    expect(summary?.availableFiles).toContain("score.json");
   });
 
   test("returns undefined when the index is disabled", async () => {

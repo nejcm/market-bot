@@ -90,6 +90,12 @@ interface RebuildOptions {
   readonly dbPath?: string;
 }
 
+interface RunIndexRows {
+  readonly run: RunRow;
+  readonly files: readonly ArtifactFileRow[];
+  readonly searchEntries: readonly SearchEntryRow[];
+}
+
 function dataRootFromRunsDir(dataDir: string): string {
   return basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
 }
@@ -493,6 +499,24 @@ function runRowFor(
   };
 }
 
+async function indexRowsForRun(dataDir: string, runDirName: string): Promise<RunIndexRows> {
+  const runDir = join(dataDir, runDirName);
+  const loaded = await loadRunArtifact(runDir);
+  const runId = loaded.artifact?.report.runId ?? runDirName;
+  const files = await listArtifactFiles(runDir, runId);
+  return {
+    run: runRowFor(runDirName, loaded, files),
+    files,
+    searchEntries:
+      loaded.artifact === undefined
+        ? []
+        : [
+            ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "console"),
+            ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "history"),
+          ],
+  };
+}
+
 export async function rebuildRunArtifactIndex(
   dataDir: string,
   options: RebuildOptions = {},
@@ -506,45 +530,12 @@ export async function rebuildRunArtifactIndex(
     .map((entry) => entry.name)
     .toSorted();
 
-  const loadedByDir = new Map(
-    await Promise.all(
-      dirNames.map(
-        async (runDirName) =>
-          [runDirName, await loadRunArtifact(join(dataDir, runDirName))] as const,
-      ),
-    ),
+  const indexedRuns = await Promise.all(
+    dirNames.map((runDirName) => indexRowsForRun(dataDir, runDirName)),
   );
-  const fileRows = (
-    await Promise.all(
-      dirNames.map((runDirName) => {
-        const loaded = loadedByDir.get(runDirName);
-        const runId = loaded?.artifact?.report.runId ?? runDirName;
-        return listArtifactFiles(join(dataDir, runDirName), runId);
-      }),
-    )
-  ).flat();
-  const filesByRun = new Map<string, ArtifactFileRow[]>();
-  for (const file of fileRows) {
-    const current = filesByRun.get(file.run_id) ?? [];
-    current.push(file);
-    filesByRun.set(file.run_id, current);
-  }
-
-  const runRows = dirNames.map((runDirName) =>
-    runRowFor(
-      runDirName,
-      loadedByDir.get(runDirName) ?? { status: { report: "absent", score: "absent" } },
-      filesByRun.get(runDirName) ?? [],
-    ),
-  );
-  const searchEntryRows = [...loadedByDir.values()].flatMap((loaded) =>
-    loaded.artifact === undefined
-      ? []
-      : [
-          ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "console"),
-          ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "history"),
-        ],
-  );
+  const runRows = indexedRuns.map((run) => run.run);
+  const fileRows = indexedRuns.flatMap((run) => run.files);
+  const searchEntryRows = indexedRuns.flatMap((run) => run.searchEntries);
 
   const db = openDatabase(dbPath, false);
   try {
@@ -634,6 +625,129 @@ export async function rebuildRunArtifactIndex(
   };
 }
 
+export async function writeThroughRunArtifactIndex(
+  dataDir: string,
+  runDirs: readonly string[],
+  options: RebuildOptions = {},
+): Promise<void> {
+  if (isRunArtifactIndexDisabled() || runDirs.length === 0) {
+    return;
+  }
+  const dbPath = options.dbPath ?? configuredRunArtifactIndexPath(dataDir);
+  if (!existsSync(dbPath)) {
+    return;
+  }
+
+  const runDirNames = [...new Set(runDirs.map((runDir) => basename(runDir)))];
+  const indexedRuns = await Promise.all(
+    runDirNames.map((runDirName) => indexRowsForRun(dataDir, runDirName)),
+  );
+  const db = openDatabase(dbPath, false);
+  try {
+    const version = db.query("PRAGMA user_version").get() as {
+      readonly user_version: number;
+    } | null;
+    if (version?.user_version !== INDEX_SCHEMA_VERSION) {
+      return;
+    }
+
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const existingRun = db.prepare("SELECT run_id FROM runs WHERE run_dir_name = ?");
+      const deleteFiles = db.prepare("DELETE FROM artifact_files WHERE run_id = ?");
+      const deleteSearch = db.prepare("DELETE FROM search_entries WHERE run_id = ?");
+      const deleteRun = db.prepare("DELETE FROM runs WHERE run_id = ?");
+      const insertRun = db.prepare(`
+        INSERT INTO runs (
+          run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
+          finding_count, prediction_count, source_count, data_gap_count, has_score,
+          report_status, score_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const insertFile = db.prepare(`
+        INSERT INTO artifact_files (run_id, path, size, modified_at, content_hash)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      const insertSearch = db.prepare(`
+        INSERT INTO search_entries (
+          entry_key, scope, id, run_id, generated_at, job_type, asset_class, symbol, section, label,
+          text, source_ids_json, provider, source_kind, prediction_id, sequence
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const indexed of indexedRuns) {
+        const previous = existingRun.get(indexed.run.run_dir_name) as {
+          readonly run_id: string;
+        } | null;
+        const runIdsToReplace = new Set([indexed.run.run_id]);
+        if (previous !== null) {
+          runIdsToReplace.add(previous.run_id);
+        }
+        for (const runId of runIdsToReplace) {
+          deleteFiles.run(runId);
+          deleteSearch.run(runId);
+          deleteRun.run(runId);
+        }
+        insertRun.run(
+          indexed.run.run_id,
+          indexed.run.run_dir_name,
+          indexed.run.generated_at,
+          indexed.run.job_type,
+          indexed.run.asset_class,
+          indexed.run.symbol,
+          indexed.run.confidence,
+          indexed.run.depth,
+          indexed.run.finding_count,
+          indexed.run.prediction_count,
+          indexed.run.source_count,
+          indexed.run.data_gap_count,
+          indexed.run.has_score,
+          indexed.run.report_status,
+          indexed.run.score_status,
+        );
+        for (const row of indexed.files) {
+          insertFile.run(row.run_id, row.path, row.size, row.modified_at, row.content_hash);
+        }
+        for (const row of indexed.searchEntries) {
+          insertSearch.run(
+            row.entry_key,
+            row.scope,
+            row.id,
+            row.run_id,
+            row.generated_at,
+            row.job_type,
+            row.asset_class,
+            row.symbol,
+            row.section,
+            row.label,
+            row.text,
+            row.source_ids_json,
+            row.provider,
+            row.source_kind,
+            row.prediction_id,
+            row.sequence,
+          );
+        }
+      }
+      finalizeStatement(existingRun);
+      finalizeStatement(deleteFiles);
+      finalizeStatement(deleteSearch);
+      finalizeStatement(deleteRun);
+      finalizeStatement(insertRun);
+      finalizeStatement(insertFile);
+      finalizeStatement(insertSearch);
+      db.exec("INSERT INTO search_fts(search_fts) VALUES ('rebuild')");
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  } finally {
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    db.close();
+  }
+}
+
 function finalizeStatement(statement: unknown): void {
   if (
     typeof statement === "object" &&
@@ -667,7 +781,7 @@ function openReadableIndex(dataDir: string): Database | undefined {
   try {
     return openDatabase(dbPath, true);
   } catch {
-    return;
+    return undefined;
   }
 }
 
@@ -735,7 +849,8 @@ async function indexIsFresh(dataDir: string, db: Database): Promise<boolean> {
     }),
   );
 
-  return (await Promise.all(checks)).every(Boolean);
+  const results = await Promise.all(checks);
+  return results.every(Boolean);
 }
 
 async function withFreshIndex<T>(

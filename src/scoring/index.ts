@@ -316,6 +316,7 @@ async function listRunDirs(dataDir: string): Promise<readonly string[]> {
 export interface ScorePassResult {
   readonly scored: number;
   readonly skipped: number;
+  readonly touchedRunDirs: readonly string[];
 }
 
 export async function runScorePass(
@@ -332,12 +333,14 @@ export async function runScorePass(
       // Leniently; malformed score files degrade to no prior scores rather than throwing.
       const { artifact } = await loadRunArtifact(runDir);
       if (artifact === undefined) {
-        return "skipped" as const;
+        return { status: "skipped" as const };
       }
       const wrote = await scoreRunDir(runDir, artifact.report, artifact.scores, now, options);
-      return artifact.report.predictions.length > 0 || wrote
-        ? ("scored" as const)
-        : ("skipped" as const);
+      const status = artifact.report.predictions.length > 0 || wrote ? "scored" : "skipped";
+      return {
+        status,
+        ...(wrote ? { touchedRunDir: runDir } : {}),
+      };
     }),
   );
   await buildAndWriteAlphaValidationSummary(dataDir, now);
@@ -345,8 +348,11 @@ export async function runScorePass(
   await buildAndWriteAlphaCandidateWatchlist(dataDir, now);
 
   return {
-    scored: results.filter((result) => result === "scored").length,
-    skipped: results.filter((result) => result === "skipped").length,
+    scored: results.filter((result) => result.status === "scored").length,
+    skipped: results.filter((result) => result.status === "skipped").length,
+    touchedRunDirs: results.flatMap((result) =>
+      result.touchedRunDir === undefined ? [] : [result.touchedRunDir],
+    ),
   };
 }
 

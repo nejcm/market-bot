@@ -4,20 +4,23 @@ import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
-import type {
-  AssetClass,
-  JobType,
-  KeyFinding,
-  Prediction,
-  ResearchReport,
-  Source,
+import {
+  isMarketUpdateJobType,
+  type AssetClass,
+  type JobType,
+  type KeyFinding,
+  type Prediction,
+  type PredictionKind,
+  type ResearchReport,
+  type Source,
 } from "./domain/types";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";
 import { loadRunArtifact, scanRunArtifactsFromDisk, type RunArtifactScan } from "./run-artifacts";
+import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 
-const INDEX_SCHEMA_VERSION = 1;
+const INDEX_SCHEMA_VERSION = 2;
 const DEFAULT_INDEX_FILE = "index.sqlite";
 const BUSY_TIMEOUT_MS = 1000;
 const MAX_HISTORY_SEARCH_RESULTS = 100;
@@ -59,6 +62,27 @@ interface RunRow {
   readonly score_status: string;
 }
 
+interface PredictionRow {
+  readonly id: string;
+  readonly run_id: string;
+  readonly kind: string;
+  readonly subject: string;
+  readonly claim: string;
+  readonly probability: number;
+  readonly horizon_trading_days: number;
+  readonly measurable_as: string;
+  readonly source_ids_json: string;
+}
+
+interface ScoreRow {
+  readonly prediction_id: string;
+  readonly run_id: string;
+  readonly resolved: number;
+  readonly outcome: string | null;
+  readonly observed_at: string | null;
+  readonly scoring_version: number | null;
+}
+
 interface SearchEntryRow {
   readonly entry_key: string;
   readonly scope: SearchScope;
@@ -94,6 +118,8 @@ interface RunIndexRows {
   readonly run: RunRow;
   readonly files: readonly ArtifactFileRow[];
   readonly searchEntries: readonly SearchEntryRow[];
+  readonly predictions: readonly PredictionRow[];
+  readonly scores: readonly ScoreRow[];
 }
 
 function dataRootFromRunsDir(dataDir: string): string {
@@ -188,12 +214,51 @@ function schemaSql(): string {
 
     CREATE INDEX search_entries_scope_run_idx ON search_entries(scope, run_id);
     CREATE INDEX search_entries_filters_idx ON search_entries(scope, symbol, asset_class, job_type, section, provider);
+
+    CREATE TABLE predictions (
+      id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      claim TEXT NOT NULL,
+      probability REAL NOT NULL,
+      horizon_trading_days INTEGER NOT NULL,
+      measurable_as TEXT NOT NULL,
+      source_ids_json TEXT NOT NULL,
+      PRIMARY KEY (run_id, id),
+      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE scores (
+      prediction_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      resolved INTEGER NOT NULL,
+      outcome TEXT,
+      observed_at TEXT,
+      scoring_version INTEGER,
+      PRIMARY KEY (run_id, prediction_id),
+      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX scores_resolved_idx ON scores(resolved, outcome);
+
+    CREATE TABLE embeddings (
+      run_id TEXT NOT NULL,
+      entry_key TEXT NOT NULL,
+      model TEXT NOT NULL,
+      vector BLOB NOT NULL,
+      PRIMARY KEY (run_id, entry_key, model),
+      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+    );
   `;
 }
 
 function resetSchema(db: Database): void {
   db.exec(`
     DROP TABLE IF EXISTS search_fts;
+    DROP TABLE IF EXISTS embeddings;
+    DROP TABLE IF EXISTS scores;
+    DROP TABLE IF EXISTS predictions;
     DROP TABLE IF EXISTS search_entries;
     DROP TABLE IF EXISTS artifact_files;
     DROP TABLE IF EXISTS runs;
@@ -499,6 +564,34 @@ function runRowFor(
   };
 }
 
+function predictionRowsFor(
+  runId: string,
+  predictions: readonly Prediction[],
+): readonly PredictionRow[] {
+  return predictions.map((prediction) => ({
+    id: prediction.id,
+    run_id: runId,
+    kind: prediction.kind,
+    subject: prediction.subject,
+    claim: prediction.claim,
+    probability: prediction.probability,
+    horizon_trading_days: prediction.horizonTradingDays,
+    measurable_as: prediction.measurableAs,
+    source_ids_json: sourceIdsJson(prediction.sourceIds),
+  }));
+}
+
+function scoreRowsFor(runId: string, scores: readonly PredictionScore[]): readonly ScoreRow[] {
+  return scores.map((score) => ({
+    prediction_id: score.predictionId,
+    run_id: runId,
+    resolved: score.resolved ? 1 : 0,
+    outcome: score.outcome ?? null,
+    observed_at: score.observedAt ?? null,
+    scoring_version: score.scoringVersion ?? null,
+  }));
+}
+
 async function indexRowsForRun(dataDir: string, runDirName: string): Promise<RunIndexRows> {
   const runDir = join(dataDir, runDirName);
   const loaded = await loadRunArtifact(runDir);
@@ -514,7 +607,53 @@ async function indexRowsForRun(dataDir: string, runDirName: string): Promise<Run
             ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "console"),
             ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "history"),
           ],
+    predictions:
+      loaded.artifact === undefined
+        ? []
+        : predictionRowsFor(runId, loaded.artifact.report.predictions),
+    scores: loaded.artifact === undefined ? [] : scoreRowsFor(runId, loaded.artifact.scores),
   };
+}
+
+function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): void {
+  const insertPrediction = db.prepare(`
+    INSERT INTO predictions (
+      id, run_id, kind, subject, claim, probability, horizon_trading_days, measurable_as,
+      source_ids_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertScore = db.prepare(`
+    INSERT INTO scores (
+      prediction_id, run_id, resolved, outcome, observed_at, scoring_version
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const indexed of indexedRuns) {
+    for (const row of indexed.predictions) {
+      insertPrediction.run(
+        row.id,
+        row.run_id,
+        row.kind,
+        row.subject,
+        row.claim,
+        row.probability,
+        row.horizon_trading_days,
+        row.measurable_as,
+        row.source_ids_json,
+      );
+    }
+    for (const row of indexed.scores) {
+      insertScore.run(
+        row.prediction_id,
+        row.run_id,
+        row.resolved,
+        row.outcome,
+        row.observed_at,
+        row.scoring_version,
+      );
+    }
+  }
+  finalizeStatement(insertPrediction);
+  finalizeStatement(insertScore);
 }
 
 export async function rebuildRunArtifactIndex(
@@ -601,6 +740,7 @@ export async function rebuildRunArtifactIndex(
           row.sequence,
         );
       }
+      insertDomainRows(db, indexedRuns);
       finalizeStatement(insertRun);
       finalizeStatement(insertFile);
       finalizeStatement(insertSearch);
@@ -656,6 +796,8 @@ export async function writeThroughRunArtifactIndex(
       const existingRun = db.prepare("SELECT run_id FROM runs WHERE run_dir_name = ?");
       const deleteFiles = db.prepare("DELETE FROM artifact_files WHERE run_id = ?");
       const deleteSearch = db.prepare("DELETE FROM search_entries WHERE run_id = ?");
+      const deletePredictions = db.prepare("DELETE FROM predictions WHERE run_id = ?");
+      const deleteScores = db.prepare("DELETE FROM scores WHERE run_id = ?");
       const deleteRun = db.prepare("DELETE FROM runs WHERE run_id = ?");
       const insertRun = db.prepare(`
         INSERT INTO runs (
@@ -686,6 +828,8 @@ export async function writeThroughRunArtifactIndex(
         for (const runId of runIdsToReplace) {
           deleteFiles.run(runId);
           deleteSearch.run(runId);
+          deletePredictions.run(runId);
+          deleteScores.run(runId);
           deleteRun.run(runId);
         }
         insertRun.run(
@@ -729,9 +873,12 @@ export async function writeThroughRunArtifactIndex(
           );
         }
       }
+      insertDomainRows(db, indexedRuns);
       finalizeStatement(existingRun);
       finalizeStatement(deleteFiles);
       finalizeStatement(deleteSearch);
+      finalizeStatement(deletePredictions);
+      finalizeStatement(deleteScores);
       finalizeStatement(deleteRun);
       finalizeStatement(insertRun);
       finalizeStatement(insertFile);
@@ -1092,5 +1239,73 @@ export async function searchHistoryEntriesFromIndex(
       ...(row.source_kind !== null ? { sourceKind: row.source_kind } : {}),
       ...(row.prediction_id !== null ? { predictionId: row.prediction_id } : {}),
     }));
+  });
+}
+
+interface ResolvedPairQueryRow {
+  readonly id: string;
+  readonly run_id: string;
+  readonly kind: string;
+  readonly subject: string;
+  readonly claim: string;
+  readonly probability: number;
+  readonly horizon_trading_days: number;
+  readonly measurable_as: string;
+  readonly source_ids_json: string;
+  readonly prediction_id: string;
+  readonly outcome: string;
+  readonly observed_at: string | null;
+  readonly scoring_version: number | null;
+  readonly job_type: string;
+  readonly asset_class: string;
+}
+
+export async function loadResolvedPairsFromIndex(
+  dataDir: string,
+): Promise<readonly ResolvedPair[] | undefined> {
+  return await withFreshIndex(dataDir, async (db) => {
+    const rows = db
+      .query(
+        `SELECT
+          p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
+          p.measurable_as, p.source_ids_json,
+          s.prediction_id, s.outcome, s.observed_at, s.scoring_version,
+          r.job_type, r.asset_class
+        FROM predictions p
+        JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
+        JOIN runs r ON r.run_id = p.run_id
+        WHERE s.resolved = 1 AND s.outcome IS NOT NULL`,
+      )
+      .all() as readonly ResolvedPairQueryRow[];
+
+    return rows.map((row) => {
+      const jobType = row.job_type as JobType;
+      return {
+        prediction: {
+          id: row.id,
+          claim: row.claim,
+          kind: row.kind as PredictionKind,
+          subject: row.subject,
+          measurableAs: row.measurable_as,
+          horizonTradingDays: row.horizon_trading_days,
+          probability: row.probability,
+          sourceIds: parseSourceIds(row.source_ids_json),
+        },
+        score: {
+          predictionId: row.prediction_id,
+          runId: row.run_id,
+          resolved: true,
+          outcome: row.outcome as PredictionScore["outcome"],
+          observedAt: row.observed_at ?? undefined,
+          ...(row.scoring_version !== null ? { scoringVersion: row.scoring_version } : {}),
+          attemptCount: 0,
+          evidence: {},
+        },
+        assetClass: row.asset_class as AssetClass,
+        jobType,
+        runId: row.run_id,
+        ...(isMarketUpdateJobType(jobType) ? { marketUpdateCadence: jobType } : {}),
+      };
+    });
   });
 }

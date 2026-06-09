@@ -1,16 +1,18 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   listRunSummariesFromIndex,
+  loadResolvedPairsFromIndex,
   rebuildRunArtifactIndex,
   searchHistoryEntriesFromIndex,
   searchRunReportsFromIndex,
   writeThroughRunArtifactIndex,
 } from "../src/run-artifact-index";
-import { prediction, researchReport } from "./support/fixtures";
+import { buildAndWriteCalibration } from "../src/scoring/index";
+import { prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
@@ -199,6 +201,60 @@ describe("run artifact index", () => {
     const [summary] = (await listRunSummariesFromIndex(dataDir)) ?? [];
     expect(summary?.hasScore).toBe(true);
     expect(summary?.availableFiles).toContain("score.json");
+  });
+
+  test("serves resolved prediction pairs for calibration", async () => {
+    const { dataDir, dbPath, rootDir } = await tempDataDir();
+    const runDir = join(dataDir, "run-cal");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-cal",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        predictions: [
+          prediction({
+            id: "p-cal",
+            probability: 0.7,
+            horizonTradingDays: 5,
+          }),
+        ],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      runId: "run-cal",
+      scores: [
+        predictionScore("hit", {
+          predictionId: "p-cal",
+          runId: "run-cal",
+          observedAt: "2026-06-02T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    expect(pairs).toHaveLength(1);
+    expect(pairs?.[0]?.prediction.id).toBe("p-cal");
+    expect(pairs?.[0]?.score.outcome).toBe("hit");
+
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+    expect(summary?.resolvedCount).toBe(1);
+    expect(summary?.brierScore).toBeCloseTo(0.09, 2);
+    delete process.env.MARKET_BOT_INDEX_DISABLE;
+
+    const indexedSummary = await buildAndWriteCalibration(
+      dataDir,
+      new Date("2026-06-03T00:00:00.000Z"),
+    );
+    expect(indexedSummary?.resolvedCount).toBe(summary?.resolvedCount);
+    expect(indexedSummary?.brierScore).toBe(summary?.brierScore);
+
+    const calibrationPath = join(rootDir, "calibration", "summary.json");
+    expect(existsSync(calibrationPath)).toBe(true);
   });
 
   test("returns undefined when the index is disabled", async () => {

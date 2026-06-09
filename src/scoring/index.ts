@@ -23,6 +23,7 @@ import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../
 import { loadRunArtifact } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
+import { loadResolvedPairsFromIndex } from "../run-artifact-index";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import {
@@ -476,13 +477,18 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
   });
 }
 
+async function loadResolvedPairsFromDisk(dataDir: string): Promise<readonly ResolvedPair[]> {
+  const runDirs = await listRunDirs(dataDir);
+  const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
+  return pairsPerRun.flat();
+}
+
 export async function buildAndWriteCalibration(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<CalibrationSummary | null> {
-  const runDirs = await listRunDirs(dataDir);
-  const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
-  const pairs = pairsPerRun.flat();
+  const pairs =
+    (await loadResolvedPairsFromIndex(dataDir)) ?? (await loadResolvedPairsFromDisk(dataDir));
 
   if (pairs.length === 0) {
     return null;

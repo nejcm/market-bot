@@ -88,3 +88,4 @@ raw `JSON.parse(...) as T` report/score casts remain. Two notes on the completed
 
 - [ADR 0009 — Source provider modules](./0009-source-provider-modules.md)
 - [ADR 0014 — Artifact-backed Historical Context and Market Spotlights](./0014-artifact-backed-history-and-market-spotlights.md)
+- [ADR 0018 — Run Artifact Index as a derived SQLite query layer](./0018-run-artifact-index.md)

@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { parseArgs } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
@@ -18,14 +19,18 @@ import {
   renderThesisDelta,
   searchHistoryIndex,
 } from "./history/artifacts";
+import { rebuildRunArtifactIndex, writeThroughRunArtifactIndex } from "./run-artifact-index";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
+  readonly runAlphaSearchWorkflow?: typeof runAlphaSearchWorkflow;
   readonly collectSources?: typeof collectSources;
   readonly persistResearchJob?: typeof persistResearchJob;
   readonly runScorePass?: typeof runScorePass;
   readonly buildAndWriteCalibration?: typeof buildAndWriteCalibration;
   readonly rebuildHistoryArtifacts?: typeof rebuildHistoryArtifacts;
+  readonly rebuildRunArtifactIndex?: typeof rebuildRunArtifactIndex;
+  readonly writeThroughRunArtifactIndex?: typeof writeThroughRunArtifactIndex;
   readonly searchHistoryIndex?: typeof searchHistoryIndex;
   readonly buildThesisDelta?: typeof buildThesisDelta;
   readonly now?: () => Date;
@@ -61,6 +66,26 @@ function createProvider(config: AppConfig): ModelProvider {
   return createOpenAIProvider(config);
 }
 
+async function updateRunArtifactIndex(
+  dataDir: string,
+  runDirNames: readonly string[],
+  dependencies: Pick<RunCliDependencies, "writeThroughRunArtifactIndex">,
+  dbPath: string | undefined,
+): Promise<void> {
+  const normalizedRunDirs = [
+    ...new Set(runDirNames.map((runDir) => basename(runDir)).filter((name) => name !== "")),
+  ];
+  await (dependencies.writeThroughRunArtifactIndex ?? writeThroughRunArtifactIndex)(
+    dataDir,
+    normalizedRunDirs,
+    dbPath === undefined ? {} : { dbPath },
+  ).catch((error: unknown) => {
+    process.stderr.write(
+      `Run artifact index update failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  });
+}
+
 export async function runCli(
   argv: readonly string[],
   dependencies: RunCliDependencies = {},
@@ -76,6 +101,12 @@ export async function runCli(
   if (command.jobType === "score") {
     const result = await runScore(config.dataDir, now(), scorePassOptions(config.sourceOptions));
     await writeCalibration(config.dataDir);
+    await updateRunArtifactIndex(
+      config.dataDir,
+      result.touchedRunDirs,
+      dependencies,
+      config.indexOptions?.dbPath,
+    );
     return `Score pass complete: ${String(result.scored)} run(s) scored, ${String(result.skipped)} skipped`;
   }
 
@@ -111,6 +142,18 @@ export async function runCli(
     )} instrument timeline(s), ${String(result.malformedRunCount)} malformed`;
   }
 
+  if (command.jobType === "index-rebuild") {
+    const result = await (dependencies.rebuildRunArtifactIndex ?? rebuildRunArtifactIndex)(
+      config.dataDir,
+      config.indexOptions?.dbPath === undefined ? {} : { dbPath: config.indexOptions.dbPath },
+    );
+    return `Index rebuilt: ${String(result.sourceRunCount)} run(s), ${String(
+      result.malformedRunCount,
+    )} malformed, ${String(result.artifactFileCount)} file(s), ${String(
+      result.searchEntryCount,
+    )} search entries`;
+  }
+
   if (command.jobType === "history-search") {
     const results = await (dependencies.searchHistoryIndex ?? searchHistoryIndex)(config.dataDir, {
       query: command.query,
@@ -144,7 +187,16 @@ export async function runCli(
   }
 
   if (command.jobType === "alpha-search") {
-    const result = await runAlphaSearchWorkflow({ command, config });
+    const result = await (dependencies.runAlphaSearchWorkflow ?? runAlphaSearchWorkflow)({
+      command,
+      config,
+    });
+    await updateRunArtifactIndex(
+      config.dataDir,
+      [result.artifacts.runDir],
+      dependencies,
+      config.indexOptions?.dbPath,
+    );
     return result.artifacts.runDir;
   }
 
@@ -179,6 +231,12 @@ export async function runCli(
       );
     });
   }
+  await updateRunArtifactIndex(
+    config.dataDir,
+    [result.artifacts.runDir, ...(scoreResult?.touchedRunDirs ?? [])],
+    dependencies,
+    config.indexOptions?.dbPath,
+  );
 
   return result.artifacts.runDir;
 }

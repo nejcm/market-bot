@@ -91,6 +91,10 @@ describe("parseArgs", () => {
     expect(parseArgs(["history", "rebuild"])).toEqual({ jobType: "history-rebuild" });
   });
 
+  test("parses index rebuild command", () => {
+    expect(parseArgs(["index", "rebuild"])).toEqual({ jobType: "index-rebuild" });
+  });
+
   test("parses history search command with filters", () => {
     expect(
       parseArgs([
@@ -156,6 +160,7 @@ describe("parseArgs", () => {
     expect(commandLabel({ jobType: "cache-prune" })).toBe("cache-prune");
     expect(commandLabel({ jobType: "provider-health" })).toBe("provider-health");
     expect(commandLabel({ jobType: "history-rebuild" })).toBe("history-rebuild");
+    expect(commandLabel({ jobType: "index-rebuild" })).toBe("index-rebuild");
     expect(commandLabel({ jobType: "history-search", query: "margin" })).toBe(
       "history search margin",
     );

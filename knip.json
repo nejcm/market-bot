@@ -1,7 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "entry": ["scripts/**/*.ts", "tests/**/*.ts"],
-  "project": ["src/**/*.ts", "scripts/**/*.ts"],
+  "project": ["src/**/*.ts", "scripts/**/*.ts", "app/**/*.ts", "app/client/**/*.{ts,svelte}"],
+  "vite": {
+    "config": ["app/vite.config.ts"],
+    "entry": ["app/index.html"]
+  },
   "ignoreExportsUsedInFile": true,
-  "ignoreDependencies": ["bun-types"]
+  "ignoreDependencies": ["bun-types", "shadcn-svelte", "tw-animate-css"]
 }

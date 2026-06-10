@@ -304,7 +304,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
 
 // Scans every run directory under dataDir in one pass. A missing dataDir yields
 // An empty scan.
-export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan> {
+export async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArtifactScan> {
   const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
     if (isRecord(error) && error.code === "ENOENT") {
       return [] as Dirent[];
@@ -326,4 +326,9 @@ export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan
     ),
     entries: loaded.map((item) => ({ runDirName: item.name, status: item.result.status })),
   };
+}
+
+// Full artifact scans always read from disk until the index can hydrate RunArtifact payloads.
+export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan> {
+  return await scanRunArtifactsFromDisk(dataDir);
 }

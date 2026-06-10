@@ -18,6 +18,7 @@ src/
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
   research/           Orchestrator, prompt loader, history, Market Spotlights, Domain Playbooks, regime summary
   history/            Derived Historical Research Context indexes, search, and thesis deltas
+  run-artifact-index.ts Derived SQLite Run Artifact Index (query layer over disk artifacts)
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
 prompts/              Stage prompt files and checked-in Domain Playbooks
@@ -70,7 +71,9 @@ The orchestrator coordinates: collect sources → load Historical Research Conte
 
 The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. Malformed JSON emits a `SourceGap`, stops the loop, and continues to `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
 
-All persisted-run reads go through one seam, `src/run-artifacts.ts` ([ADR 0016](./adr/0016-run-artifact-reader.md)): `loadRunArtifact`/`scanRunArtifacts` parse `report.json`, `score.json`, and normalized snapshots once, leniently, at full fidelity, and callers project down to what they need. Every consumer (`historical-context`, `market-update-delta`, `scoring/index`, `history/artifacts`) reads through it — no raw `JSON.parse(...) as T` casts remain. Single-caller sidecars (supplemental snapshots, SEC fundamentals, alpha validation) stay with their one caller by design. The reader carries `scoringVersion` through so score-writing consumers preserve the version stamped on already-resolved scores.
+All persisted-run reads go through one seam, `src/run-artifacts.ts` ([ADR 0016](./adr/0016-run-artifact-reader.md)): `loadRunArtifact`/`scanRunArtifacts` parse `report.json`, `score.json`, and normalized snapshots once, leniently, at full fidelity, and callers project down to what they need. Every consumer (`historical-context`, `market-update-delta`, `scoring/index`, `history/artifacts`) reads through it — no raw `JSON.parse(...) as T` casts remain. Single-caller sidecars (supplemental snapshots, SEC fundamentals, alpha validation) stay with their one caller by design. The reader carries `scoringVersion` through so score-writing consumers preserve the version stamped on already-resolved scores. `scanRunArtifacts` stays disk-only; the derived SQLite index does not yet hydrate full `RunArtifact` payloads.
+
+`src/run-artifact-index.ts` ([ADR 0018](./adr/0018-run-artifact-index.md)) is a rebuildable query layer over the same on-disk tree. `index rebuild` populates `data/index.sqlite` (or `MARKET_BOT_INDEX_DB_PATH`). Console list/search, history search, and calibration resolved-pair loading read the index when fresh and fall back to disk scans with a `stderr` warning when the DB is absent, stale, or on an unsupported schema version. Research jobs, `alpha-search`, and `score` write through affected runs after mutable sidecars change; failures are non-fatal. `MARKET_BOT_INDEX_DISABLE=1` is the permanent escape hatch.
 
 Historical Research Context is the prompt-time surface of **Cross-run Intelligence** (see [CONTEXT.md](../CONTEXT.md)). It scans `MARKET_BOT_DATA_DIR` run artifacts only; it never reads `data/cache`. It loads compact prior report summaries, findings, risks, catalysts, data gaps, scored prediction status, selected extras, and normalized snapshots. Prior reports are added as citeable internal `model` Sources with IDs like `history-report-<runId>`. Each selected run carries structured relevance reasons (`same-symbol`, `spotlight-symbol`, `same-cadence`, `cross-cadence`) alongside its recency reasons, and the context exposes an audit block (selection counts, `resolvedMissRunCount`, `gapCount`) so the trace shows *why* each prior run was pulled in. Missing or malformed history — including an unreadable alpha-search watchlist, surfaced for market-update runs only — is recorded as a soft historical-context gap, not a provider `SourceGap`.
 
@@ -89,13 +92,13 @@ Deep runs use a fixed Coverage Panel after `specialist-analysis` and before `cri
 - `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against Observations. Adding a new prediction shape starts here.
 - `src/scoring/observations.ts` — report-scoped Observation repository for point and window reads. Crypto scoring resolves CoinGecko IDs from Instrument Identity when present, with BTC/ETH fallback.
 - `src/scoring/resolver.ts` — resolves a due prediction against Observations
-- `src/scoring/index.ts` — `runScorePass` reads prior report + scores through the Run Artifact seam ([ADR 0016](./adr/0016-run-artifact-reader.md)) and writes `score.json` per prediction run, Alpha validation sidecars/summaries, and Alpha candidate watchlist artifacts; calibration pairing reads through the same seam
+- `src/scoring/index.ts` — `runScorePass` reads prior report + scores through the Run Artifact seam ([ADR 0016](./adr/0016-run-artifact-reader.md)) and writes `score.json` per prediction run, Alpha validation sidecars/summaries, and Alpha candidate watchlist artifacts; calibration pairing reads resolved pairs from the Run Artifact Index when fresh, otherwise through the disk seam
 - `src/scoring/close-cache.ts` — caches successful historical-close fetches under `data/cache/closes/`
 - `src/scoring/calibration.ts` + `calibration-markdown.ts` + `calibration-console.ts` — aggregate scored predictions sliced by cadence (daily / weekly / ticker) into `data/calibration/`; the `calibration` CLI prints a stdout reliability dashboard
 
 Close-based predictions use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin. Volatility predictions evaluate the full close window. Macro and IV predictions remain point-based.
 
-Every research run triggers a score pass and calibration refresh as a **non-blocking** side effect. Failures there log to stderr; they must not abort the research job.
+Every research run triggers a score pass, calibration refresh, and Run Artifact Index write-through as **non-blocking** side effects. Failures there log to stderr; they must not abort the research job.
 
 Adding a new prediction shape means updating: the parser in `forecast/observable.ts`, resolver, report schema, markdown renderer, and tests. All four.
 
@@ -120,8 +123,8 @@ CLI args → AppConfig → collect sources → orchestrator
                                               ↓
                                   artifacts written to data/runs/<id>/
                                               ↓
-                              score pass + calibration (side effect)
+                              score pass + calibration + index write-through (side effects)
 ```
 
-`score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `cache prune` removes raw cache entries older than 30 days and scorer close-cache entries older than 365 days.
+`score` and `calibration` CLI verbs invoke the last stage directly without a new research run. `index rebuild` fully repopulates the derived SQLite index from disk. `cache prune` removes raw cache entries older than 30 days and scorer close-cache entries older than 365 days.
 `history rebuild`, `history search`, and `history thesis-delta` operate on existing artifacts only; they do not fetch fresh Source Provider data.

@@ -30,7 +30,7 @@ Weekly market updates are a cadence and horizon change in V1, not a separate tra
 
 ## Cross-run Intelligence
 
-The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, derived history, the alpha-search watchlist — never raw `data/cache`, embeddings, or a database. Historical Research Context is its prompt-time surface (below).
+The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).
 
 ## Historical Research Context
 
@@ -39,6 +39,10 @@ Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run a
 ## Run Artifact
 
 The persisted output of a single research run under `MARKET_BOT_DATA_DIR/<run-id>/`: its Research View report, scored predictions, and normalized snapshots. Read back by later runs and history tooling to assemble Historical Research Context; never refetched from a Source Provider.
+
+## Run Artifact Index
+
+A derived, rebuildable SQLite query index over Run Artifacts (`data/index.sqlite` by default). It speeds up console list/search, `history search`, and calibration resolved-pair loading when fresh. Run `index rebuild` to bootstrap or repair it; research jobs, `alpha-search`, and `score` write through affected runs incrementally. Stale, missing, or unsupported indexes warn and fall back to disk scans (`MARKET_BOT_INDEX_DISABLE` forces disk-only). Run Artifacts on disk remain the source of truth.
 
 ## Research Thesis
 

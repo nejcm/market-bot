@@ -46,6 +46,10 @@ export interface HistoryRebuildCommand {
   readonly jobType: "history-rebuild";
 }
 
+export interface IndexRebuildCommand {
+  readonly jobType: "index-rebuild";
+}
+
 export interface HistorySearchCommand {
   readonly jobType: "history-search";
   readonly query: string;
@@ -77,6 +81,7 @@ export type CliCommand =
   | CachePruneCommand
   | ProviderHealthCommand
   | HistoryRebuildCommand
+  | IndexRebuildCommand
   | HistorySearchCommand
   | HistoryThesisDeltaCommand;
 
@@ -93,7 +98,7 @@ export const CONSOLE_JOB_TYPES = [
 export const SEARCH_JOB_TYPE_OPTIONS = ["", "daily", "weekly", "ticker", "alpha-search"] as const;
 
 export const USAGE =
-  "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
+  "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -147,7 +152,8 @@ export function commandLabel(command: CliCommand): string {
     command.jobType === "calibration" ||
     command.jobType === "cache-prune" ||
     command.jobType === "provider-health" ||
-    command.jobType === "history-rebuild"
+    command.jobType === "history-rebuild" ||
+    command.jobType === "index-rebuild"
   ) {
     return command.jobType;
   }

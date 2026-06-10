@@ -1,4 +1,5 @@
 import { basename, dirname, join } from "node:path";
+import { defaultRunArtifactIndexPath } from "./run-artifact-index";
 import type { ModelParams } from "./model/types";
 
 export type ProviderName = "openai" | "openai-compatible" | "codex" | "anthropic";
@@ -55,6 +56,11 @@ export interface HistoryOptions {
   readonly anchorMonths: readonly number[];
 }
 
+export interface RunArtifactIndexOptions {
+  readonly dbPath?: string;
+  readonly disabled: boolean;
+}
+
 export interface AppConfig {
   readonly provider: ProviderName;
   readonly baseUrl?: string;
@@ -72,6 +78,7 @@ export interface AppConfig {
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
   readonly historyOptions?: HistoryOptions;
+  readonly indexOptions?: RunArtifactIndexOptions;
 }
 
 export interface ResearchConsoleConfig {
@@ -510,6 +517,14 @@ export function resolveConfig(
         : resolveAlphaSearchOptions(env),
     marketSpotlightOptions: resolveMarketSpotlightOptions(env),
     historyOptions: resolveHistoryOptions(env),
+    indexOptions: readBoolean(env.MARKET_BOT_INDEX_DISABLE)
+      ? { disabled: true }
+      : {
+          dbPath:
+            readOptionalString(env.MARKET_BOT_INDEX_DB_PATH) ??
+            defaultRunArtifactIndexPath(dataDir),
+          disabled: false,
+        },
   };
 }
 

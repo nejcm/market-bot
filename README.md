@@ -98,7 +98,7 @@ bun run src/cli.ts ticker BTC  --asset crypto --deep
 bun run src/cli.ts alpha-search --asset equity [--deep]
 ```
 
-Equity-only ApeWisdom discovery workflow. Ranks social-momentum candidates, validates the top N against Yahoo eligibility criteria, and emits Research Leads. Does not emit predictions or trigger score/calibration side effects.
+Equity-only ApeWisdom discovery workflow. Ranks social-momentum candidates, validates the top N against Yahoo eligibility criteria, and emits Research Leads. Does not emit predictions or trigger score/calibration side effects. Writes through to the Run Artifact Index when enabled.
 
 **Default eligibility screen** (all overridable via env vars):
 
@@ -116,6 +116,16 @@ Equity-only ApeWisdom discovery workflow. Ranks social-momentum candidates, vali
 bun run src/cli.ts score          # resolve due predictions across all prior runs; refresh calibration
 bun run src/cli.ts calibration    # rebuild calibration summary and print reliability dashboard
 ```
+
+### Run Artifact Index
+
+Derived SQLite query layer over run artifacts. Disk remains canonical; rebuild or disable when stale.
+
+```sh
+bun run src/cli.ts index rebuild    # bootstrap or fully rebuild data/index.sqlite from disk
+```
+
+Research jobs, `alpha-search`, and `score` write through affected runs incrementally when the index exists. Set `MARKET_BOT_INDEX_DISABLE=1` to force disk-scan fallbacks. See [docs/configuration.md](./docs/configuration.md) and [ADR 0018](./docs/adr/0018-run-artifact-index.md).
 
 ### History (Cross-run intelligence)
 
@@ -163,6 +173,8 @@ All configuration is via environment variables. Copy `.env.example` and fill in 
 | `MARKET_BOT_SYNTHESIS_MODEL` | `gpt-5.5` / `claude-opus-4-8` | Model for `--deep` runs. |
 | `MARKET_BOT_REASONING_EFFORT` | — | `low`, `medium`, or `high`. Unset omits provider effort params. |
 | `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. |
+| `MARKET_BOT_INDEX_DB_PATH` | `data/index.sqlite` | Derived SQLite Run Artifact Index (when `MARKET_BOT_DATA_DIR` is `data/runs`). |
+| `MARKET_BOT_INDEX_DISABLE` | `false` | Set to `1` to force disk-scan fallbacks. |
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers shown per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers shown per crypto update. |
 | `MARKET_BOT_NEWS_LIMIT` | `8` | Combined news cap per run. |
@@ -223,8 +235,9 @@ data/
   calibration/
     summary.json        Rolled-up calibration across all scored runs
     summary.md          Markdown calibration summary
+  index.sqlite          Derived SQLite Run Artifact Index (`index rebuild`; optional, rebuildable)
   history/              Derived cross-run indexes + per-Instrument timelines (history rebuild)
-    index.json          Searchable index over prior reports, sources, predictions, theses
+    index.json          JSON history index over prior reports, sources, predictions, theses
     instruments/        Per-Instrument timelines keyed by assetClass:symbol
     deltas/             Persisted --narrative thesis-delta outputs
   cache/
@@ -258,7 +271,8 @@ src/
   config/runs.ts     Typed per-run config
   domain/            Instrument, asset class, depth, prediction types
   forecast/          Observable forecast contract and resolver helpers
-  run-artifacts.ts   Single read seam for persisted run artifacts (ADR 0016)
+  run-artifacts.ts      Single read seam for persisted run artifacts (ADR 0016)
+  run-artifact-index.ts Derived SQLite query index over run artifacts (ADR 0018)
   model/             OpenAI / OpenAI-compatible / Codex / Anthropic providers
   movers/            Mover ranking
   report/            Report schema + markdown renderer

@@ -23,6 +23,7 @@ import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../
 import { loadRunArtifact } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
+import { loadResolvedPairsFromIndex } from "../run-artifact-index";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import {
@@ -316,6 +317,7 @@ async function listRunDirs(dataDir: string): Promise<readonly string[]> {
 export interface ScorePassResult {
   readonly scored: number;
   readonly skipped: number;
+  readonly touchedRunDirs: readonly string[];
 }
 
 export async function runScorePass(
@@ -332,12 +334,14 @@ export async function runScorePass(
       // Leniently; malformed score files degrade to no prior scores rather than throwing.
       const { artifact } = await loadRunArtifact(runDir);
       if (artifact === undefined) {
-        return "skipped" as const;
+        return { status: "skipped" as const };
       }
       const wrote = await scoreRunDir(runDir, artifact.report, artifact.scores, now, options);
-      return artifact.report.predictions.length > 0 || wrote
-        ? ("scored" as const)
-        : ("skipped" as const);
+      const status = artifact.report.predictions.length > 0 || wrote ? "scored" : "skipped";
+      return {
+        status,
+        ...(wrote ? { touchedRunDir: runDir } : {}),
+      };
     }),
   );
   await buildAndWriteAlphaValidationSummary(dataDir, now);
@@ -345,8 +349,11 @@ export async function runScorePass(
   await buildAndWriteAlphaCandidateWatchlist(dataDir, now);
 
   return {
-    scored: results.filter((result) => result === "scored").length,
-    skipped: results.filter((result) => result === "skipped").length,
+    scored: results.filter((result) => result.status === "scored").length,
+    skipped: results.filter((result) => result.status === "skipped").length,
+    touchedRunDirs: results.flatMap((result) =>
+      result.touchedRunDir === undefined ? [] : [result.touchedRunDir],
+    ),
   };
 }
 
@@ -470,13 +477,18 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
   });
 }
 
+async function loadResolvedPairsFromDisk(dataDir: string): Promise<readonly ResolvedPair[]> {
+  const runDirs = await listRunDirs(dataDir);
+  const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
+  return pairsPerRun.flat();
+}
+
 export async function buildAndWriteCalibration(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<CalibrationSummary | null> {
-  const runDirs = await listRunDirs(dataDir);
-  const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
-  const pairs = pairsPerRun.flat();
+  const pairs =
+    (await loadResolvedPairsFromIndex(dataDir)) ?? (await loadResolvedPairsFromDisk(dataDir));
 
   if (pairs.length === 0) {
     return null;

@@ -10,6 +10,11 @@ import type {
   RunSummary,
 } from "./types";
 import { reportSearchCandidates } from "./report-artifact-view";
+import {
+  listRunSummariesFromIndex,
+  readRunSummaryFromIndex,
+  searchRunReportsFromIndex,
+} from "../src/run-artifact-index";
 
 const REPORT_FILE = "report.json";
 const MARKDOWN_FILE = "report.md";
@@ -272,6 +277,11 @@ async function runSummaryFromDir(dataDir: string, runId: string): Promise<RunSum
 }
 
 export async function listRunSummaries(dataDir: string): Promise<readonly RunSummary[]> {
+  const indexed = await listRunSummariesFromIndex(dataDir);
+  if (indexed !== undefined) {
+    return indexed;
+  }
+
   const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
   const summaries = await Promise.all(
     entries
@@ -281,8 +291,10 @@ export async function listRunSummaries(dataDir: string): Promise<readonly RunSum
 
   return summaries
     .filter((summary): summary is RunSummary => summary !== undefined)
-    .toSorted((left, right) =>
-      (right.generatedAt ?? right.runId).localeCompare(left.generatedAt ?? left.runId),
+    .toSorted(
+      (left, right) =>
+        (right.generatedAt ?? right.runId).localeCompare(left.generatedAt ?? left.runId) ||
+        right.runId.localeCompare(left.runId),
     );
 }
 
@@ -296,6 +308,11 @@ export async function searchRunReports(
     return [];
   }
 
+  const indexed = await searchRunReportsFromIndex(dataDir, { ...filters, query }, limit);
+  if (indexed !== undefined) {
+    return indexed;
+  }
+
   const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
   const runResults = await Promise.all(
     entries
@@ -305,10 +322,11 @@ export async function searchRunReports(
   const results = runResults.flat();
 
   return results
-    .toSorted((left, right) =>
-      (right.run.generatedAt ?? right.run.runId).localeCompare(
-        left.run.generatedAt ?? left.run.runId,
-      ),
+    .toSorted(
+      (left, right) =>
+        (right.run.generatedAt ?? right.run.runId).localeCompare(
+          left.run.generatedAt ?? left.run.runId,
+        ) || right.run.runId.localeCompare(left.run.runId),
     )
     .slice(0, limit);
 }
@@ -322,17 +340,18 @@ export async function readRunDetail(
     return undefined;
   }
 
-  const [report, markdown, analytics, trace, score, availableFiles] = await Promise.all([
+  const [report, markdown, analytics, trace, score, indexedSummary] = await Promise.all([
     readJsonRecord(join(runDir, REPORT_FILE)),
     readOptionalText(join(runDir, MARKDOWN_FILE)),
     readJsonRecord(join(runDir, ANALYTICS_FILE)),
     readJsonRecord(join(runDir, TRACE_FILE)),
     readJsonRecord(join(runDir, SCORE_FILE)),
-    listArtifactFiles(runDir),
+    readRunSummaryFromIndex(dataDir, runId),
   ]);
+  const availableFiles = indexedSummary?.availableFiles ?? (await listArtifactFiles(runDir));
 
   return {
-    summary: runSummary(runId, report, availableFiles),
+    summary: indexedSummary ?? runSummary(runId, report, availableFiles),
     ...(report !== undefined ? { report } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
     ...(analytics !== undefined ? { analytics } : {}),

@@ -337,7 +337,8 @@ describe("runScorePass Alpha validation", () => {
       await readFile(join(runDir, "normalized", "candidate-profiles.json"), "utf8"),
     ) as readonly unknown[];
     const watchlist = await readAlphaWatchlist();
-    expect(result).toEqual({ scored: 1, skipped: 0 });
+    expect(result).toMatchObject({ scored: 1, skipped: 0 });
+    expect(result.touchedRunDirs).toEqual([runDir]);
     expect(profiles).toEqual([
       expect.objectContaining({
         symbol: "ALFA",
@@ -540,7 +541,7 @@ describe("runScorePass Alpha validation", () => {
     });
 
     const watchlist = await readAlphaWatchlist();
-    expect(result).toEqual({ scored: 1, skipped: 1 });
+    expect(result).toMatchObject({ scored: 1, skipped: 1 });
     expect(watchlist.candidates).toHaveLength(1);
     expect(watchlist.candidates[0]?.symbol).toBe("ALFA");
   });
@@ -645,7 +646,7 @@ describe("runScorePass Alpha validation", () => {
 
     const validation = await readAlphaValidation(runDir);
     const summary = await readAlphaValidationSummary();
-    expect(result).toEqual({ scored: 1, skipped: 0 });
+    expect(result).toMatchObject({ scored: 1, skipped: 0 });
     expect(validation.validatedAt).toBe("2026-05-31T00:00:00.000Z");
     expect(summary.overall["20"]).toMatchObject({ resolvedCount: 1, hitRate: 1 });
 
@@ -659,7 +660,7 @@ describe("runScorePass Alpha validation", () => {
         },
       },
     });
-    expect(secondResult).toEqual({ scored: 0, skipped: 1 });
+    expect(secondResult).toMatchObject({ scored: 0, skipped: 1 });
     await expect(readFile(profilesPath, "utf8")).resolves.toBe(profilesRaw);
   });
 
@@ -739,7 +740,7 @@ describe("runScorePass Alpha validation", () => {
     await expect(
       readFile(join(runDir, "normalized", "candidate-profiles.json"), "utf8"),
     ).rejects.toThrow();
-    expect(result).toEqual({ scored: 0, skipped: 1 });
+    expect(result).toMatchObject({ scored: 0, skipped: 1 });
   });
 
   test("skips alpha-search reports without research leads", async () => {
@@ -770,6 +771,6 @@ describe("runScorePass Alpha validation", () => {
     await expect(
       readFile(join(runDir, "normalized", "candidate-profiles.json"), "utf8"),
     ).rejects.toThrow();
-    expect(result).toEqual({ scored: 0, skipped: 1 });
+    expect(result).toMatchObject({ scored: 0, skipped: 1 });
   });
 });

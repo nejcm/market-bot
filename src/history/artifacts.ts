@@ -12,6 +12,7 @@ import type {
 import type { ModelProvider } from "../model/types";
 import { violatesResearchOnly } from "../domain/research-language";
 import { scanRunArtifacts } from "../run-artifacts";
+import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
 import type { PredictionScore } from "../scoring/types";
 
 export const HISTORY_SECTIONS = [
@@ -513,6 +514,11 @@ export async function searchHistoryIndex(
   dataDir: string,
   filters: HistorySearchFilters,
 ): Promise<readonly HistorySearchEntry[]> {
+  const indexed = await searchHistoryEntriesFromIndex(dataDir, filters);
+  if (indexed !== undefined) {
+    return indexed;
+  }
+
   const index = await readIndex(dataDir);
   if (index === undefined || filters.query.trim() === "") {
     return [];

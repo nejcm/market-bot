@@ -39,6 +39,7 @@ import {
   rankSocialMomentumCandidates,
   type SocialMomentumRankedCandidate,
 } from "./social-momentum-ranking";
+import { socialMomentumReportSourceId } from "./source-ids";
 import {
   crossCheckAlphaSearchCandidatesWithYahoo,
   type YahooRejectedCandidate,
@@ -111,15 +112,20 @@ function socialCandidateSource(
   candidate: SocialMomentumRankedCandidate,
   fetchedAt: string,
 ): Source {
+  const [canonicalSourceId] = candidate.sourceIds;
   return {
-    id: candidate.sourceIds[0] ?? `apewisdom-${candidate.symbol}`,
+    id: socialMomentumReportSourceId({
+      symbol: candidate.symbol,
+      socialRank: candidate.socialRank,
+      sourceIds: candidate.sourceIds,
+    }),
     title: `ApeWisdom ${candidate.symbol} social momentum rank ${String(candidate.socialRank)}`,
     publisher: "apewisdom",
     fetchedAt,
     kind: "discussion",
     assetClass: "equity",
     provider: "apewisdom",
-    ...(candidate.sourceIds[0] !== undefined ? { rawRef: candidate.sourceIds[0] } : {}),
+    ...(canonicalSourceId !== undefined ? { rawRef: canonicalSourceId } : {}),
   };
 }
 

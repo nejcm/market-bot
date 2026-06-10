@@ -1,6 +1,7 @@
 import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validation";
 import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
+import { socialMomentumReportSourceId } from "./source-ids";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
@@ -42,9 +43,17 @@ export function leadSourceIds(
   lead: YahooValidatedLead,
   yahooSourceId: string | undefined,
 ): readonly string[] {
-  return yahooSourceId === undefined
-    ? lead.candidate.sourceIds
-    : [...lead.candidate.sourceIds, yahooSourceId];
+  const socialSourceIds =
+    lead.candidate.socialRank === undefined
+      ? lead.candidate.sourceIds
+      : [
+          socialMomentumReportSourceId({
+            symbol: lead.symbol,
+            socialRank: lead.candidate.socialRank,
+            sourceIds: lead.candidate.sourceIds,
+          }),
+        ];
+  return yahooSourceId === undefined ? socialSourceIds : [...socialSourceIds, yahooSourceId];
 }
 
 export function alphaSearchLead(

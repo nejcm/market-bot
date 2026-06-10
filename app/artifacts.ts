@@ -291,8 +291,10 @@ export async function listRunSummaries(dataDir: string): Promise<readonly RunSum
 
   return summaries
     .filter((summary): summary is RunSummary => summary !== undefined)
-    .toSorted((left, right) =>
-      (right.generatedAt ?? right.runId).localeCompare(left.generatedAt ?? left.runId),
+    .toSorted(
+      (left, right) =>
+        (right.generatedAt ?? right.runId).localeCompare(left.generatedAt ?? left.runId) ||
+        right.runId.localeCompare(left.runId),
     );
 }
 
@@ -320,10 +322,11 @@ export async function searchRunReports(
   const results = runResults.flat();
 
   return results
-    .toSorted((left, right) =>
-      (right.run.generatedAt ?? right.run.runId).localeCompare(
-        left.run.generatedAt ?? left.run.runId,
-      ),
+    .toSorted(
+      (left, right) =>
+        (right.run.generatedAt ?? right.run.runId).localeCompare(
+          left.run.generatedAt ?? left.run.runId,
+        ) || right.run.runId.localeCompare(left.run.runId),
     )
     .slice(0, limit);
 }

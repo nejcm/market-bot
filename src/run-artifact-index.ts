@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { Database, type Statement } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
@@ -20,7 +19,7 @@ import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 
-const INDEX_SCHEMA_VERSION = 3;
+const INDEX_SCHEMA_VERSION = 4;
 const DEFAULT_INDEX_FILE = "index.sqlite";
 const BUSY_TIMEOUT_MS = 1000;
 const MAX_HISTORY_SEARCH_RESULTS = 100;
@@ -41,7 +40,6 @@ interface ArtifactFileRow {
   readonly path: string;
   readonly size: number;
   readonly modified_at: number;
-  readonly content_hash: string;
 }
 
 interface RunRow {
@@ -180,7 +178,6 @@ function schemaSql(): string {
       path TEXT NOT NULL,
       size INTEGER NOT NULL,
       modified_at REAL NOT NULL,
-      content_hash TEXT NOT NULL,
       PRIMARY KEY (run_id, path),
       FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
     );
@@ -267,6 +264,10 @@ function readDepth(report: ResearchReport): string | undefined {
 
 function sourceIdsJson(sourceIds: readonly string[]): string {
   return JSON.stringify(sourceIds);
+}
+
+function indexedSearchKeySuffix(key: string, index: number): string {
+  return `${key}:${String(index)}`;
 }
 
 function parseSourceIds(value: string): readonly string[] {
@@ -376,7 +377,7 @@ function addPredictionEntries(
       "predictions",
       label,
       text,
-      prediction.id,
+      indexedSearchKeySuffix(prediction.id, index),
       index,
       prediction.sourceIds,
       {
@@ -407,11 +408,22 @@ function addSourceEntries(
             .filter((part): part is string => part !== undefined)
             .join(" ")
         : [source.title, source.summary, source.snippet].join(" ");
-    addSearchEntry(rows, scope, report, "sources", label, text, source.id, index, [source.id], {
-      provider: source.provider ?? null,
-      source_kind: source.kind,
-      symbol: source.symbol?.toUpperCase() ?? report.symbol?.toUpperCase() ?? null,
-    });
+    addSearchEntry(
+      rows,
+      scope,
+      report,
+      "sources",
+      label,
+      text,
+      indexedSearchKeySuffix(source.id, index),
+      index,
+      [source.id],
+      {
+        provider: source.provider ?? null,
+        source_kind: source.kind,
+        symbol: source.symbol?.toUpperCase() ?? report.symbol?.toUpperCase() ?? null,
+      },
+    );
   }
 }
 
@@ -528,13 +540,11 @@ async function listArtifactFiles(
           return;
         }
         const metadata = await stat(fullPath);
-        const content = await readFile(fullPath);
         rows.push({
           run_id: runId,
           path: relative(runDir, fullPath).replaceAll("\\", "/"),
           size: metadata.size,
           modified_at: metadata.mtimeMs,
-          content_hash: createHash("sha256").update(content).digest("hex"),
         });
       }),
     );
@@ -593,17 +603,24 @@ function predictionRowsFor(
   runId: string,
   predictions: readonly Prediction[],
 ): readonly PredictionRow[] {
-  return predictions.map((prediction) => ({
-    id: prediction.id,
-    run_id: runId,
-    kind: prediction.kind,
-    subject: prediction.subject,
-    claim: prediction.claim,
-    probability: prediction.probability,
-    horizon_trading_days: prediction.horizonTradingDays,
-    measurable_as: prediction.measurableAs,
-    source_ids_json: sourceIdsJson(prediction.sourceIds),
-  }));
+  const seenIds = new Set<string>();
+  return predictions.map((prediction, index) => {
+    const id = seenIds.has(prediction.id)
+      ? indexedSearchKeySuffix(prediction.id, index)
+      : prediction.id;
+    seenIds.add(prediction.id);
+    return {
+      id,
+      run_id: runId,
+      kind: prediction.kind,
+      subject: prediction.subject,
+      claim: prediction.claim,
+      probability: prediction.probability,
+      horizon_trading_days: prediction.horizonTradingDays,
+      measurable_as: prediction.measurableAs,
+      source_ids_json: sourceIdsJson(prediction.sourceIds),
+    };
+  });
 }
 
 function scoreRowsFor(runId: string, scores: readonly PredictionScore[]): readonly ScoreRow[] {
@@ -713,8 +730,8 @@ export async function rebuildRunArtifactIndex(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertFile = db.prepare(`
-        INSERT INTO artifact_files (run_id, path, size, modified_at, content_hash)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO artifact_files (run_id, path, size, modified_at)
+        VALUES (?, ?, ?, ?)
       `);
       const insertSearch = db.prepare(`
         INSERT INTO search_entries (
@@ -742,7 +759,7 @@ export async function rebuildRunArtifactIndex(
         );
       }
       for (const row of fileRows) {
-        insertFile.run(row.run_id, row.path, row.size, row.modified_at, row.content_hash);
+        insertFile.run(row.run_id, row.path, row.size, row.modified_at);
       }
       for (const row of searchEntryRows) {
         insertSearch.run(
@@ -835,8 +852,8 @@ export async function writeThroughRunArtifactIndex(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertFile = db.prepare(`
-        INSERT INTO artifact_files (run_id, path, size, modified_at, content_hash)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO artifact_files (run_id, path, size, modified_at)
+        VALUES (?, ?, ?, ?)
       `);
       const insertSearch = db.prepare(`
         INSERT INTO search_entries (
@@ -878,7 +895,7 @@ export async function writeThroughRunArtifactIndex(
           indexed.run.score_status,
         );
         for (const row of indexed.files) {
-          insertFile.run(row.run_id, row.path, row.size, row.modified_at, row.content_hash);
+          insertFile.run(row.run_id, row.path, row.size, row.modified_at);
         }
         for (const row of indexed.searchEntries) {
           insertSearch.run(
@@ -911,7 +928,11 @@ export async function writeThroughRunArtifactIndex(
       finalizeStatement(insertRun);
       finalizeStatement(insertFile);
       finalizeStatement(insertSearch);
-      db.exec("INSERT INTO search_fts(search_fts) VALUES ('rebuild')");
+      /*
+       * FTS is contentless over search_entries and repopulated only by `index rebuild`.
+       * Write-through deliberately leaves it stale because substring `instr` is the search
+       * parity path; rebuilding FTS per run would cost O(corpus) work for no current reader.
+       */
       db.exec("COMMIT");
     } catch (error) {
       db.exec("ROLLBACK");
@@ -996,7 +1017,7 @@ async function indexIsFresh(dataDir: string, db: Database): Promise<boolean> {
   const runs = db.query("SELECT * FROM runs ORDER BY run_dir_name").all() as readonly RunRow[];
   const sidecars = db
     .query(
-      `SELECT run_id, path, size, modified_at, content_hash
+      `SELECT run_id, path, size, modified_at
        FROM artifact_files
        WHERE path IN ('score.json', 'alpha-validation.json', 'normalized/candidate-profiles.json')`,
     )
@@ -1113,9 +1134,13 @@ export async function listRunSummariesFromIndex(
 ): Promise<readonly RunSummary[] | undefined> {
   return await withFreshIndex(dataDir, async (db) => {
     const rows = db
-      .query("SELECT * FROM runs ORDER BY COALESCE(generated_at, run_id) DESC")
+      .query("SELECT * FROM runs ORDER BY COALESCE(generated_at, run_id) DESC, run_dir_name DESC")
       .all() as readonly RunRow[];
-    return rows.map((row) => rowToSummary(row, availableFilesFor(db, row.run_id)));
+    const filesByRunId = availableFilesByRunId(
+      db,
+      rows.map((row) => row.run_id),
+    );
+    return rows.map((row) => rowToSummary(row, filesByRunId.get(row.run_id) ?? []));
   });
 }
 

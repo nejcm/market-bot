@@ -12,13 +12,15 @@ import {
   writeThroughRunArtifactIndex,
 } from "../src/run-artifact-index";
 import { buildAndWriteCalibration } from "../src/scoring/index";
-import { prediction, predictionScore, researchReport } from "./support/fixtures";
+import { prediction, predictionScore, researchReport, newsSource } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
 const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
 afterEach(async () => {
+  process.stderr.write = originalStderrWrite;
   if (originalIndexDbPath === undefined) {
     delete process.env.MARKET_BOT_INDEX_DB_PATH;
   } else {
@@ -288,5 +290,71 @@ describe("run artifact index", () => {
     process.env.MARKET_BOT_INDEX_DISABLE = "1";
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
+  });
+
+  test("rebuilds when duplicate source ids appear in one report", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "run-dup-sources");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-dup-sources",
+        jobType: "alpha-search",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        sources: [
+          newsSource({
+            id: "apewisdom-all-stocks-CTS",
+            title: "ApeWisdom CTS social momentum rank 21",
+            provider: "apewisdom",
+            kind: "discussion",
+          }),
+          newsSource({
+            id: "apewisdom-all-stocks-CTS",
+            title: "ApeWisdom CTS social momentum rank 22",
+            provider: "apewisdom",
+            kind: "discussion",
+          }),
+        ],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), { runId: "run-dup-sources", scores: [] });
+
+    const result = await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    expect(result.sourceRunCount).toBe(1);
+    expect(result.malformedRunCount).toBe(0);
+    await expect(listRunSummariesFromIndex(dataDir)).resolves.toEqual([
+      expect.objectContaining({ runId: "run-dup-sources", sourceCount: 2 }),
+    ]);
+  });
+
+  test("rebuilds when duplicate prediction ids appear in one report", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "run-dup-predictions");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-dup-predictions",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        predictions: [
+          prediction({ id: "p-dup", claim: "first forecast" }),
+          prediction({ id: "p-dup", claim: "second forecast" }),
+        ],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), { runId: "run-dup-predictions", scores: [] });
+
+    const result = await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    expect(result.sourceRunCount).toBe(1);
+    expect(result.malformedRunCount).toBe(0);
+    const historyResults = await searchHistoryEntriesFromIndex(dataDir, {
+      query: "second forecast",
+      section: "predictions",
+    });
+    expect(historyResults?.some((entry) => entry.text.includes("second forecast"))).toBe(true);
   });
 });

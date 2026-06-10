@@ -478,10 +478,11 @@ describe("alpha-search workflow", () => {
     expect(result.report.extras?.rejectedCandidates).toHaveLength(2);
     expect(result.markdown).toContain("## Research Leads");
     expect(result.markdown).toContain("## Rejected Candidates");
-    expect(result.markdown).toContain("[apewisdom-all-stocks-AAPL]");
+    expect(result.markdown).toContain("[apewisdom-all-stocks-AAPL@rank-1]");
     expect(result.markdown).not.toMatch(/\bbuy\b/iu);
     expect(
-      result.report.sources.find((source) => source.id === "apewisdom-all-stocks-AAPL")?.title,
+      result.report.sources.find((source) => source.id === "apewisdom-all-stocks-AAPL@rank-1")
+        ?.title,
     ).toBe("ApeWisdom AAPL social momentum rank 1");
     expect(result.markdown).not.toContain("## Predictions");
     expect(result.markdown).toContain("Research-only note");
@@ -500,7 +501,7 @@ describe("alpha-search workflow", () => {
         socialMomentumScore: 100,
         mentions: 40,
         upvotes: 120,
-        sourceIds: ["apewisdom-all-stocks-AAPL", "market-yahoo-alpha-search"],
+        sourceIds: ["apewisdom-all-stocks-AAPL@rank-1", "market-yahoo-alpha-search"],
       },
     ]);
 

@@ -16,7 +16,7 @@ import { buildSourceList, readPredictions } from "../src/research/report-assembl
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { CollectedSources } from "../src/sources/types";
-import type { InstrumentIdentity, VerifiedMarketSnapshot } from "../src/domain/types";
+import type { IndicatorMap, InstrumentIdentity, VerifiedMarketSnapshot } from "../src/domain/types";
 import {
   collectSources,
   createCollectContext,
@@ -74,7 +74,7 @@ function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
 }
 
-const NULL_INDICATORS = {
+const NULL_INDICATORS: Record<keyof IndicatorMap, null> = {
   ema10: null,
   sma50: null,
   sma200: null,
@@ -110,6 +110,15 @@ describe("verified-snapshot contract", () => {
     // `satisfies` proves the keys are valid; this proves the enumeration is complete
     const keys: string[] = [...INDICATOR_KEYS];
     expect(keys.toSorted()).toEqual(Object.keys(NULL_INDICATORS).toSorted());
+  });
+
+  test("citation rule pins the locked source-ID and no-fabrication clauses", () => {
+    const rule = verifiedSnapshotCitationRule("AAPL");
+    expect(rule).toContain(`MUST cite source ID "${verifiedSnapshotSourceId("AAPL")}"`);
+    expect(rule).toContain(
+      "Do not state indicator values that are not present in verifiedMarketSnapshot",
+    );
+    expect(rule).toContain("Never mix bar-close indicators with live quote price");
   });
 });
 

@@ -41,7 +41,7 @@ function emaFromCloses(closes: readonly number[], period: number): number | null
   return emaSeriesFromCloses(closes, period)?.at(-1) ?? null;
 }
 
-// Return a full EMA series (length = closes.length - period + 1) for MACD use.
+// Return a full EMA series (length = closes.length - period + 1). Backs emaFromCloses and MACD.
 function emaSeriesFromCloses(closes: readonly number[], period: number): readonly number[] | null {
   if (closes.length < period) {
     return null;

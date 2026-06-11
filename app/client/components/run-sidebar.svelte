@@ -119,7 +119,7 @@
       </Badge>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto p-1">
+    <div class="min-h-0 flex-1 overflow-y-auto p-1 -mx-1">
       {#if loadingRuns}
         <div class="space-y-2">
           {#each Array.from({ length: 6 }) as _}
@@ -183,7 +183,7 @@
     </Sheet.SheetTrigger>
     <Sheet.SheetContent
       side="left"
-      class="w-[310px] border-sidebar-border bg-sidebar p-0"
+      class="w-77.5 border-sidebar-border bg-sidebar p-0"
     >
       {@render content()}
     </Sheet.SheetContent>

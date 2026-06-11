@@ -229,16 +229,33 @@ export interface OhlcvBar {
   readonly volume: number;
 }
 
+/** Canonical indicator key schema, locked in ADR 0019. Phase A.2 matches these keys. */
+export interface IndicatorMap {
+  readonly ema10: number | null;
+  readonly sma50: number | null;
+  readonly sma200: number | null;
+  readonly rsi14: number | null;
+  readonly macd: number | null;
+  readonly macdSignal: number | null;
+  readonly macdHistogram: number | null;
+  readonly bollUpper: number | null;
+  readonly bollMiddle: number | null;
+  readonly bollLower: number | null;
+  readonly atr14: number | null;
+}
+
 export interface VerifiedMarketSnapshot {
   readonly symbol: string;
   readonly assetClass: "equity";
   /** YYYY-MM-DD — run/report date (UTC of fetchedAt) */
   readonly analysisDate: string;
+  /** ISO timestamp of the collecting fetch (provenance for the report Source) */
+  readonly fetchedAt: string;
   /** Date of last bar used */
   readonly latestSessionDate: string;
   /** Latest session bar */
   readonly ohlcv: OhlcvBar;
-  readonly indicators: Readonly<Record<string, number | null>>;
+  readonly indicators: IndicatorMap;
   /** Last ~30 sessions */
   readonly recentCloses: readonly { readonly date: string; readonly close: number }[];
 }

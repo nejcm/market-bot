@@ -584,15 +584,17 @@ export async function persistResearchJob(
     join(artifacts.normalizedDir, "historical-context.json"),
     result.historicalContext,
   );
-  // Verified Market Snapshot + Instrument Identity sidecars (ADR 0019)
-  await writeJson(
-    join(artifacts.normalizedDir, "verified-market-snapshot.json"),
-    result.collectedSources.verifiedMarketSnapshot ?? null,
-  );
-  await writeJson(
-    join(artifacts.normalizedDir, "instrument-identity.json"),
-    result.collectedSources.resolvedInstrumentIdentity ?? null,
-  );
+  // Verified Market Snapshot + Instrument Identity sidecars: ticker runs only (ADR 0019)
+  if (input.command.jobType === "ticker") {
+    await writeJson(
+      join(artifacts.normalizedDir, "verified-market-snapshot.json"),
+      result.collectedSources.verifiedMarketSnapshot ?? null,
+    );
+    await writeJson(
+      join(artifacts.normalizedDir, "instrument-identity.json"),
+      result.collectedSources.resolvedInstrumentIdentity ?? null,
+    );
+  }
   if (isMarketUpdateJobType(input.command.jobType)) {
     await writeJson(
       join(artifacts.normalizedDir, "spotlight-candidates.json"),

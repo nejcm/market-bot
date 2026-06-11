@@ -59,3 +59,7 @@ Evidence Request tools are Source Provider consumers, not model-provider native 
 - emit normal `Source`, `ExtendedEvidence`, raw snapshots, and `SourceGap`s.
 
 V1 tools are `sec_latest_filing` (3 units) and `tradier_iv_term_structure` (5 units), scoped to deep equity ticker research.
+
+## Verified Market Snapshot
+
+The Verified Market Snapshot ([ADR 0019](./adr/0019-verified-market-snapshot.md)) is a supplemental normalized shape for equity ticker runs, not a provider capability. It is collected by `src/sources/verified-market-snapshot.ts` through the shared `ctx.request.json` path (adapter `yahoo-verified-chart`) and must never use `fetchYahooCloseWindow` or the Massive closes-only fallback — on failure it emits a core-cap `SourceGap` instead of a degraded snapshot. Its citeable report Source ID comes from `verifiedSnapshotSourceId(symbol)`.

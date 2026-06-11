@@ -455,13 +455,21 @@ export async function collectSources(
   const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
 
-  // Run market + news + extended + market-context in parallel, then supplemental
-  const [marketResult, newsResult, extendedResult, marketContextResult] = await Promise.all([
-    marketAdapter.collect(ctx),
-    newsAdapter.collect(ctx),
-    extendedEvidenceAdapter.collect(ctx),
-    marketContextAdapter.collect(ctx),
-  ]);
+  // Verified Market Snapshot: equity ticker only (ADR 0019); joins the parallel batch
+  const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
+
+  // Run market + news + extended + market-context + verified snapshot in parallel,
+  // Then supplemental (needs primary market snapshots)
+  const [marketResult, newsResult, extendedResult, marketContextResult, verifiedSnapshotResult] =
+    await Promise.all([
+      marketAdapter.collect(ctx),
+      newsAdapter.collect(ctx),
+      extendedEvidenceAdapter.collect(ctx),
+      marketContextAdapter.collect(ctx),
+      isEquityTicker
+        ? collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
+        : undefined,
+    ]);
   const supplementalMarketResults = await Promise.all(
     supplementalMarketAdapters.map((adapter) => adapter.collect(ctx, marketResult.marketSnapshots)),
   );
@@ -469,28 +477,10 @@ export async function collectSources(
     (result) => result.supplementalMarketSnapshots,
   );
 
-  // Verified Market Snapshot + Instrument Identity: equity ticker only (ADR 0019)
-  const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
-
-  const verifiedSnapshotResult = isEquityTicker
-    ? await collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
-    : undefined;
-
+  // Canonical identity is a pure selection from the already-fetched ticker quote
   const identityResult = isEquityTicker
     ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
     : undefined;
-
-  const verifiedRawSnapshots: RawSourceSnapshot[] =
-    verifiedSnapshotResult?.rawPayload !== undefined
-      ? [
-          {
-            id: `raw-yahoo-verified-chart-${ctx.fetchedAt}`,
-            adapter: "yahoo-verified-chart",
-            fetchedAt: ctx.fetchedAt,
-            payload: verifiedSnapshotResult.rawPayload,
-          },
-        ]
-      : [];
 
   return {
     rawSnapshots: [
@@ -499,7 +489,9 @@ export async function collectSources(
       ...extendedResult.rawSnapshots,
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
-      ...verifiedRawSnapshots,
+      ...(verifiedSnapshotResult?.rawSnapshot !== undefined
+        ? [verifiedSnapshotResult.rawSnapshot]
+        : []),
     ],
     marketSnapshots: marketResult.marketSnapshots,
     supplementalMarketSnapshots,
@@ -526,6 +518,7 @@ export async function collectSources(
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),
+      ...(identityResult?.gap !== undefined ? [identityResult.gap] : []),
       ...staleFallbackGaps,
     ],
   };

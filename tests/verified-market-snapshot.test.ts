@@ -1,12 +1,26 @@
 import { describe, expect, test } from "bun:test";
 import { parseYahooChartOhlcv } from "../src/sources/yahoo";
-import { collectVerifiedMarketSnapshot } from "../src/sources/verified-market-snapshot";
+import {
+  collectVerifiedMarketSnapshot,
+  verifiedSnapshotSourceId,
+} from "../src/sources/verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "../src/sources/instrument-identity";
-import { deterministicSourceGaps } from "../src/research/research-context";
-import { buildSourceList } from "../src/research/report-assembly";
+import {
+  buildDepthProfile,
+  buildStagePrompt,
+  deterministicSourceGaps,
+} from "../src/research/research-context";
+import { buildSourceList, readPredictions } from "../src/research/report-assembly";
+import type { AppConfig } from "../src/config";
+import type { ResearchCommand } from "../src/cli/args";
 import type { CollectedSources } from "../src/sources/types";
 import type { InstrumentIdentity, VerifiedMarketSnapshot } from "../src/domain/types";
-import { createCollectContext, resetSourceResilienceForTests } from "../src/sources/collector";
+import {
+  collectSources,
+  createCollectContext,
+  resetSourceResilienceForTests,
+  setSourceHostMinDelayMsForTests,
+} from "../src/sources/collector";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +70,33 @@ function tsRange(count: number): number[] {
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
+}
+
+const NULL_INDICATORS = {
+  ema10: null,
+  sma50: null,
+  sma200: null,
+  rsi14: null,
+  macd: null,
+  macdSignal: null,
+  macdHistogram: null,
+  bollUpper: null,
+  bollMiddle: null,
+  bollLower: null,
+  atr14: null,
+};
+
+function verifiedSnapshotFixture(): VerifiedMarketSnapshot {
+  return {
+    symbol: "AAPL",
+    assetClass: "equity",
+    analysisDate: "2026-01-01",
+    fetchedAt: "2026-01-01T00:00:00.000Z",
+    latestSessionDate: "2025-12-31",
+    ohlcv: { date: "2025-12-31", open: 100, high: 105, low: 99, close: 103, volume: 1_000_000 },
+    indicators: NULL_INDICATORS,
+    recentCloses: [],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +253,24 @@ describe("collectVerifiedMarketSnapshot", () => {
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
     expect(result.snapshot?.analysisDate).toBe(analysisDate);
   });
+
+  test("empty symbol skips without fetching and without a gap", async () => {
+    let fetchCount = 0;
+    const ctx = makeCtx(async () => {
+      fetchCount += 1;
+      return jsonResponse(chartPayloadWith80Bars());
+    });
+    const result = await collectVerifiedMarketSnapshot(ctx, "", analysisDate);
+    expect(result.snapshot).toBeUndefined();
+    expect(result.sourceGaps).toHaveLength(0);
+    expect(fetchCount).toBe(0);
+  });
+
+  test("snapshot carries ISO fetchedAt from the collect context", async () => {
+    const ctx = makeCtx(async () => jsonResponse(chartPayloadWith80Bars()));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
+    expect(result.snapshot?.fetchedAt).toBe(ctx.fetchedAt);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -232,15 +291,28 @@ describe("deriveCanonicalInstrumentIdentity", () => {
     expect(result.identity).toEqual(identity);
   });
 
-  test("returns empty result when no matching snapshot", () => {
+  test("emits a no-cap gap when no matching snapshot", () => {
     const result = deriveCanonicalInstrumentIdentity([], "AAPL");
     expect(result.identity).toBeUndefined();
+    expect(result.gap).toMatchObject({
+      source: "instrument-identity",
+      capability: "market-data",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "no-cap",
+    });
   });
 
-  test("returns empty result when snapshot has no identity", () => {
+  test("emits a no-cap gap when snapshot has no identity", () => {
     const snapshots = [marketSnapshot({ symbol: "AAPL" })];
     const result = deriveCanonicalInstrumentIdentity(snapshots, "AAPL");
     expect(result.identity).toBeUndefined();
+    expect(result.gap?.message).toContain("AAPL");
+  });
+
+  test("no gap when identity is derived", () => {
+    const snapshots = [marketSnapshot({ symbol: "AAPL", identity })];
+    const result = deriveCanonicalInstrumentIdentity(snapshots, "AAPL");
+    expect(result.gap).toBeUndefined();
   });
 
   test("matches by exact symbol", () => {
@@ -272,15 +344,7 @@ describe("deterministicSourceGaps — verified snapshot gap", () => {
   });
 
   test("no missing-snapshot gap when snapshot is present", () => {
-    const snapshot: VerifiedMarketSnapshot = {
-      symbol: "AAPL",
-      assetClass: "equity",
-      analysisDate: "2026-01-01",
-      latestSessionDate: "2025-12-31",
-      ohlcv: { date: "2025-12-31", open: 100, high: 105, low: 99, close: 103, volume: 1_000_000 },
-      indicators: {},
-      recentCloses: [],
-    };
+    const snapshot = verifiedSnapshotFixture();
     const gaps = deterministicSourceGaps(
       { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       collectedSources({
@@ -309,15 +373,7 @@ describe("deterministicSourceGaps — verified snapshot gap", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSourceList — verified snapshot source", () => {
-  const snapshot: VerifiedMarketSnapshot = {
-    symbol: "AAPL",
-    assetClass: "equity",
-    analysisDate: "2026-01-01",
-    latestSessionDate: "2025-12-31",
-    ohlcv: { date: "2025-12-31", open: 100, high: 105, low: 99, close: 103, volume: 1_000_000 },
-    indicators: {},
-    recentCloses: [],
-  };
+  const snapshot = verifiedSnapshotFixture();
 
   const sources: CollectedSources = collectedSources({
     marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
@@ -344,12 +400,288 @@ describe("buildSourceList — verified snapshot source", () => {
     expect(list.find((s) => s.id.startsWith("verified-snapshot-"))).toBeUndefined();
   });
 
-  test("snapshot source ID passes allowedSourceIds validation", () => {
+  test("snapshot source ID matches the shared helper and carries ISO fetchedAt", () => {
     const list = buildSourceList(
       { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sources,
     );
-    const allowed = new Set(list.map((s) => s.id));
-    expect(allowed.has("verified-snapshot-AAPL")).toBe(true);
+    const snapshotSource = list.find((s) => s.id === verifiedSnapshotSourceId("AAPL"));
+    expect(snapshotSource).toBeDefined();
+    expect(snapshotSource?.fetchedAt).toBe("2026-01-01T00:00:00.000Z");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Prediction validation against allowedSourceIds (final-synthesis seam)
+// ---------------------------------------------------------------------------
+
+function rawPrediction(sourceIds: readonly string[]): unknown {
+  return {
+    id: "pred-1",
+    claim: "AAPL closes higher over 5 trading days",
+    kind: "direction",
+    subject: "AAPL",
+    measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+    horizonTradingDays: 5,
+    probability: 0.6,
+    sourceIds,
+  };
+}
+
+describe("readPredictions — verified snapshot citations", () => {
+  const knownIds = new Set([verifiedSnapshotSourceId("AAPL"), "market-aapl"]);
+
+  test("prediction citing the snapshot source ID passes validation", () => {
+    const result = readPredictions([rawPrediction([verifiedSnapshotSourceId("AAPL")])], knownIds);
+    expect(result.predictions).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("prediction citing an unknown snapshot ID fails validation", () => {
+    const result = readPredictions([rawPrediction(["verified-snapshot-UNKNOWN"])], knownIds);
+    expect(result.predictions).toHaveLength(0);
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Evidence payload injection (via buildStagePrompt)
+// ---------------------------------------------------------------------------
+
+describe("buildStagePrompt — verified snapshot + identity injection", () => {
+  const config: AppConfig = {
+    provider: "openai",
+    quickModel: "quick-test",
+    synthesisModel: "synthesis-test",
+    modelTimeoutMs: 120_000,
+    dataDir: "data/runs",
+    promptDir: "prompts",
+    sourceOptions: {
+      equityMoverLimit: 2,
+      cryptoMoverLimit: 2,
+      newsLimit: 2,
+      sourceTimeoutMs: 1000,
+    },
+    evidenceRequestOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
+    alphaSearchOptions: {
+      apeWisdomFilter: "all-stocks",
+      apeWisdomBriefPageLimit: 5,
+      apeWisdomDeepPageLimit: 10,
+      validationCandidateLimit: 25,
+      leadLimit: 15,
+      topCandidateLimit: 15,
+      secDiscoveryLimit: 25,
+      secFormTypes: ["S-1", "F-1", "8-K", "6-K"],
+      minPrice: 0.5,
+      minVolume: 100_000,
+      minMarketCap: 50_000_000,
+      maxMarketCap: 10_000_000_000,
+    },
+  };
+
+  const command: ResearchCommand = {
+    jobType: "ticker",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "brief",
+  };
+
+  const identity: InstrumentIdentity = { displayName: "Apple Inc.", exchange: "NASDAQ" };
+
+  function buildPrompt(sources: CollectedSources): string {
+    return buildStagePrompt(
+      "specialist-analysis",
+      command,
+      sources,
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["AAPL"],
+          focus: ["instrument"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "insufficient-data",
+          proxyCount: 0,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+  }
+
+  test("snapshot, source ID, citation rule, and identity appear in the evidence payload", () => {
+    const prompt = buildPrompt(
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        verifiedMarketSnapshot: verifiedSnapshotFixture(),
+        resolvedInstrumentIdentity: identity,
+      }),
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: {
+        readonly verifiedMarketSnapshot?: { readonly symbol?: string };
+        readonly verifiedMarketSnapshotSourceId?: string;
+        readonly verifiedMarketSnapshotCitationRule?: string;
+        readonly resolvedInstrumentIdentity?: { readonly displayName?: string };
+        readonly resolvedIdentityInstruction?: string;
+      };
+    };
+
+    expect(parsed.evidence?.verifiedMarketSnapshot?.symbol).toBe("AAPL");
+    expect(parsed.evidence?.verifiedMarketSnapshotSourceId).toBe(verifiedSnapshotSourceId("AAPL"));
+    expect(parsed.evidence?.verifiedMarketSnapshotCitationRule).toContain(
+      verifiedSnapshotSourceId("AAPL"),
+    );
+    expect(parsed.evidence?.verifiedMarketSnapshotCitationRule).toContain(
+      "Do not state indicator values that are not present",
+    );
+    expect(parsed.evidence?.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
+    expect(parsed.evidence?.resolvedIdentityInstruction).toContain(
+      "do not substitute a different company",
+    );
+  });
+
+  test("snapshot and identity blocks absent when not collected; gap line present instead", () => {
+    const prompt = buildPrompt(
+      collectedSources({ marketSnapshots: [marketSnapshot({ symbol: "AAPL" })] }),
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: {
+        readonly verifiedMarketSnapshot?: unknown;
+        readonly resolvedInstrumentIdentity?: unknown;
+        readonly sourceGaps?: readonly string[];
+      };
+    };
+
+    expect(parsed.evidence?.verifiedMarketSnapshot).toBeUndefined();
+    expect(parsed.evidence?.resolvedInstrumentIdentity).toBeUndefined();
+    expect(parsed.evidence?.sourceGaps?.some((g) => g.includes("Verified Market Snapshot"))).toBe(
+      true,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CollectSources wiring (equity ticker gate)
+// ---------------------------------------------------------------------------
+
+function wiringChartPayload(): unknown {
+  const timestamps = Array.from({ length: 80 }, (_, i) => {
+    const d = new Date("2026-01-01T00:00:00.000Z");
+    d.setUTCDate(d.getUTCDate() + i);
+    return Math.floor(d.getTime() / 1000);
+  });
+  return yahooChartPayload(timestamps, {});
+}
+
+function wiringQuotePayload(): unknown {
+  return {
+    quoteResponse: {
+      result: [
+        {
+          symbol: "AAPL",
+          regularMarketPrice: 190,
+          regularMarketChangePercent: 2,
+          regularMarketVolume: 80_000_000,
+          fullExchangeName: "NasdaqGS",
+          currency: "USD",
+          shortName: "Apple Inc.",
+        },
+      ],
+    },
+  };
+}
+
+function tickerFetch(input: string | URL | Request): Promise<Response> {
+  const url = String(input);
+  if (url.includes("/v8/finance/chart/")) {
+    return Promise.resolve(jsonResponse(wiringChartPayload()));
+  }
+  if (url.includes("quote")) {
+    return Promise.resolve(jsonResponse(wiringQuotePayload()));
+  }
+  return Promise.resolve(jsonResponse({}));
+}
+
+describe("collectSources — verified snapshot wiring", () => {
+  const sourceOptions = {
+    equityMoverLimit: 5,
+    cryptoMoverLimit: 5,
+    newsLimit: 5,
+    sourceTimeoutMs: 5000,
+  };
+
+  test("equity ticker run collects snapshot, identity, and raw chart payload", async () => {
+    resetSourceResilienceForTests();
+    setSourceHostMinDelayMsForTests(0);
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      sourceOptions,
+      new Date("2026-05-20T00:00:00.000Z"),
+      tickerFetch,
+      [],
+    );
+
+    expect(result.verifiedMarketSnapshot?.symbol).toBe("AAPL");
+    expect(result.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
+    expect(
+      result.rawSnapshots.some((snapshot) => snapshot.adapter === "yahoo-verified-chart"),
+    ).toBe(true);
+  });
+
+  test("daily equity run skips snapshot and identity entirely", async () => {
+    resetSourceResilienceForTests();
+    setSourceHostMinDelayMsForTests(0);
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      sourceOptions,
+      new Date("2026-05-20T00:00:00.000Z"),
+      tickerFetch,
+      [],
+    );
+
+    expect(result.verifiedMarketSnapshot).toBeUndefined();
+    expect(result.resolvedInstrumentIdentity).toBeUndefined();
+    expect(
+      result.rawSnapshots.some((snapshot) => snapshot.adapter === "yahoo-verified-chart"),
+    ).toBe(false);
+  });
+
+  test("ticker run with failing chart fetch merges the core-cap gap into sourceGaps", async () => {
+    resetSourceResilienceForTests();
+    setSourceHostMinDelayMsForTests(0);
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      sourceOptions,
+      new Date("2026-05-20T00:00:00.000Z"),
+      (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/v8/finance/chart/")) {
+          return Promise.reject(new Error("chart unavailable"));
+        }
+        return tickerFetch(input);
+      },
+      [],
+    );
+
+    expect(result.verifiedMarketSnapshot).toBeUndefined();
+    expect(
+      result.sourceGaps.some(
+        (gap) => gap.source === "yahoo-verified-chart" && gap.evidenceQualityImpact === "core-cap",
+      ),
+    ).toBe(true);
   });
 });

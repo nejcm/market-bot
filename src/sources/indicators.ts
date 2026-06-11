@@ -11,21 +11,9 @@
  * Policy: per-indicator failure → null for that key, never a dropped snapshot.
  */
 
-import type { OhlcvBar } from "../domain/types";
+import type { IndicatorMap, OhlcvBar } from "../domain/types";
 
-export interface IndicatorMap {
-  readonly ema10: number | null;
-  readonly sma50: number | null;
-  readonly sma200: number | null;
-  readonly rsi14: number | null;
-  readonly macd: number | null;
-  readonly macdSignal: number | null;
-  readonly macdHistogram: number | null;
-  readonly bollUpper: number | null;
-  readonly bollMiddle: number | null;
-  readonly bollLower: number | null;
-  readonly atr14: number | null;
-}
+export type { IndicatorMap } from "../domain/types";
 
 // ---------------------------------------------------------------------------
 // SMA — Simple Moving Average over the last N closes
@@ -96,6 +84,7 @@ function rsi14(closes: readonly number[]): number | null {
     avgLoss = (avgLoss * (period - 1) + loss) / period;
   }
   if (avgLoss === 0) {
+    // Wilder convention: no losses (including a perfectly flat series) → RSI 100
     return 100;
   }
   const rs = avgGain / avgLoss;
@@ -224,7 +213,7 @@ export function computeIndicators(bars: readonly OhlcvBar[]): IndicatorMap {
   return {
     ema10: tryCompute(() => emaFromCloses(closes, 10)),
     sma50: tryCompute(() => sma(closes, 50)),
-    sma200: tryCompute(() => sma(closes, 200)),
+    sma200: tryCompute(() => sma(closes, MIN_BARS_FOR_SMA200)),
     rsi14: tryCompute(() => rsi14(closes)),
     macd: macdResult?.macd ?? null,
     macdSignal: macdResult?.signal ?? null,

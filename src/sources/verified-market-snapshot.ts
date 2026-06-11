@@ -13,8 +13,8 @@
  */
 
 import type { OhlcvBar, SourceGap, VerifiedMarketSnapshot } from "../domain/types";
-import { sourceGap } from "../domain/source-gaps";
-import { isFetchJsonResult, type CollectContext } from "./types";
+import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
+import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "./types";
 import { parseYahooChartOhlcv, yahooChartWindowUrl, yahooResilientFetchWrapper } from "./yahoo";
 import { computeIndicators, MIN_BARS_FOR_SNAPSHOT } from "./indicators";
 
@@ -27,9 +27,15 @@ const ADAPTER_ID = "yahoo-verified-chart";
 /** Number of recent closes to include in the compact prompt payload. */
 const RECENT_CLOSES_COUNT = 30;
 
+// Single construction point for the citeable report Source ID. Used by the
+// Report source list, the evidence payload, and (later) Phase A.2 verification.
+export function verifiedSnapshotSourceId(symbol: string): string {
+  return `verified-snapshot-${symbol}`;
+}
+
 export interface VerifiedSnapshotResult {
   readonly snapshot?: VerifiedMarketSnapshot;
-  readonly rawPayload?: unknown;
+  readonly rawSnapshot?: RawSourceSnapshot;
   readonly sourceGaps: readonly SourceGap[];
 }
 
@@ -42,6 +48,11 @@ export async function collectVerifiedMarketSnapshot(
   symbol: string,
   analysisDate: string,
 ): Promise<VerifiedSnapshotResult> {
+  if (symbol === "") {
+    // Never fetch a chart for an empty symbol; no gap — nothing to ground
+    return { sourceGaps: [] };
+  }
+
   const to = new Date(analysisDate);
   const from = new Date(to);
   from.setDate(from.getDate() - CHART_LOOKBACK_CALENDAR_DAYS);
@@ -55,14 +66,12 @@ export async function collectVerifiedMarketSnapshot(
   });
 
   if (!isFetchJsonResult(fetched)) {
+    // Preserve the executor's gap cause (fetch-failed / circuit-open / ...) for analytics
     return {
       sourceGaps: [
-        sourceGap({
-          source: ADAPTER_ID,
-          message: `chart fetch failed for ${symbol}: ${fetched.message}`,
+        sourceGapWithContext(fetched, {
           provider: "yahoo",
           capability: "market-data",
-          cause: "fetch-failed",
           evidenceQualityImpact: "core-cap",
         }),
       ],
@@ -73,7 +82,7 @@ export async function collectVerifiedMarketSnapshot(
 
   if (bars.length < MIN_BARS_FOR_SNAPSHOT) {
     return {
-      rawPayload: fetched.rawSnapshot.payload,
+      rawSnapshot: fetched.rawSnapshot,
       sourceGaps: [
         sourceGap({
           source: ADAPTER_ID,
@@ -87,7 +96,7 @@ export async function collectVerifiedMarketSnapshot(
     };
   }
 
-  const indicators = computeIndicators(bars) as unknown as Readonly<Record<string, number | null>>;
+  const indicators = computeIndicators(bars);
   const latestBar = bars.at(-1) as OhlcvBar;
   const recentCloses = buildRecentCloses(bars, RECENT_CLOSES_COUNT);
 
@@ -95,6 +104,7 @@ export async function collectVerifiedMarketSnapshot(
     symbol,
     assetClass: "equity",
     analysisDate,
+    fetchedAt: ctx.fetchedAt,
     latestSessionDate: latestBar.date,
     ohlcv: latestBar,
     indicators,
@@ -103,7 +113,7 @@ export async function collectVerifiedMarketSnapshot(
 
   return {
     snapshot,
-    rawPayload: fetched.rawSnapshot.payload,
+    rawSnapshot: fetched.rawSnapshot,
     sourceGaps: [],
   };
 }

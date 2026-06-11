@@ -115,6 +115,8 @@ On chart failure → `SourceGap`, never a degraded snapshot.
 
 `deriveCanonicalInstrumentIdentity(marketSnapshots, symbol)` is a pure selection from the quote already fetched by `collectEquity`. A separate fetch would bypass the cache, lose the Massive quote-fallback resilience, and can drift from the MarketSnapshot when one call hits Yahoo and the other lands on the fallback.
 
+When no identity is derivable (quote missing or carries no identity block), a `SourceGap` with `evidenceQualityImpact: "no-cap"` is emitted instead of a fallback quote fetch. The planned fallback fetch was deliberately narrowed away: a missing ticker quote already produces its own core-cap market-data gap, and a second fetch could return a payload that disagrees with the (failed) primary path. The no-cap gap discloses that the run's do-not-substitute identity guard is absent without double-capping evidence quality.
+
 This is run-scoped orchestration-time canonicalization, not a global Instrument resolver catalog (ADR 0008 boundary preserved).
 
 ---

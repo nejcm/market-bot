@@ -12,6 +12,7 @@ import { isCoreEvidenceQualityGap, isExtendedEvidenceQualityGap } from "../domai
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { isRecord, nonEmptyStringArrayValue } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import { verifiedSnapshotSourceId } from "../sources/verified-market-snapshot";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
   deterministicSourceGaps,
@@ -168,9 +169,9 @@ export function buildSourceList(
     command.jobType === "ticker" && collectedSources.verifiedMarketSnapshot !== undefined
       ? [
           {
-            id: `verified-snapshot-${collectedSources.verifiedMarketSnapshot.symbol}`,
+            id: verifiedSnapshotSourceId(collectedSources.verifiedMarketSnapshot.symbol),
             title: `${collectedSources.verifiedMarketSnapshot.symbol} verified market snapshot (OHLCV + indicators, ${collectedSources.verifiedMarketSnapshot.latestSessionDate})`,
-            fetchedAt: collectedSources.verifiedMarketSnapshot.analysisDate,
+            fetchedAt: collectedSources.verifiedMarketSnapshot.fetchedAt,
             kind: "market-data",
             assetClass: "equity",
             symbol: collectedSources.verifiedMarketSnapshot.symbol,

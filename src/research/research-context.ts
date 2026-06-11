@@ -9,6 +9,7 @@ import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import { verifiedSnapshotSourceId } from "../sources/verified-market-snapshot";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric, CalibrationSummary } from "../scoring/types";
 import type {
@@ -540,8 +541,10 @@ function buildEvidencePayload(
     collectedSources.verifiedMarketSnapshot !== undefined
       ? {
           verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
-          verifiedMarketSnapshotCitationRule:
-            "Exact indicator values (ema10, sma50, sma200, rsi14, macd, bollUpper, bollLower, atr14, etc.) MUST cite the verified-snapshot source. Current-session price values cite the market-data source. Never mix bar-close indicators with live quote price in one claim — they legitimately disagree intraday.",
+          verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(
+            collectedSources.verifiedMarketSnapshot.symbol,
+          ),
+          verifiedMarketSnapshotCitationRule: `Exact indicator values (ema10, sma50, sma200, rsi14, macd, bollUpper, bollLower, atr14, etc.) MUST cite source ID "${verifiedSnapshotSourceId(collectedSources.verifiedMarketSnapshot.symbol)}". Do not state indicator values that are not present in verifiedMarketSnapshot. Current-session price values cite the market-data source. Never mix bar-close indicators with live quote price in one claim — they legitimately disagree intraday.`,
         }
       : {};
 

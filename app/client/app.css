@@ -135,4 +135,13 @@
   textarea {
     font: inherit;
   }
+
+  /* Tailwind v4 preflight no longer sets pointer on buttons; restore it. */
+  button:not(:disabled),
+  select:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(> input[type="checkbox"]:not(:disabled)),
+  label:has(> input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
 }

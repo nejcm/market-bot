@@ -379,7 +379,7 @@
               </label>
               <SelectField label="Asset" value={searchForm.assetClass} options={["", ...ASSET_CLASS_OPTIONS]} onChange={(value) => onSearchFormChange("assetClass", value)} />
               <SelectField label="Job" value={searchForm.jobType} options={SEARCH_JOB_TYPE_OPTIONS} onChange={(value) => onSearchFormChange("jobType", value)} />
-              <Button class="mt-5" type="submit">
+              <Button class="mt-5" type="submit" disabled={searchLoading}>
                 <Search class="size-4" />
                 Search
               </Button>

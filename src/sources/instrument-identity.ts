@@ -30,10 +30,10 @@ export function deriveCanonicalInstrumentIdentity(
     return { identity: tickerSnapshot.identity };
   }
   return {
+    // No provider attribution: the ticker quote may arrive via the Massive fallback
     gap: sourceGap({
       source: "instrument-identity",
       message: `No canonical instrument identity derivable for ${symbol}: ticker quote snapshot missing or carries no identity`,
-      provider: "yahoo",
       capability: "market-data",
       cause: "provider-data-missing",
       evidenceQualityImpact: "no-cap",

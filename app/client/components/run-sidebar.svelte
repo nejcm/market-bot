@@ -6,7 +6,6 @@
   import { Input } from "$lib/components/ui/input";
   import * as Sheet from "$lib/components/ui/sheet";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import * as Tabs from "$lib/components/ui/tabs";
   import { formatDateMinute, groupedRunsByType, runLabel } from "../view-model";
   import type { RunSummary } from "../../types";
 
@@ -31,6 +30,9 @@
   let mobileOpen = $state(false);
   let activeRunType = $state("");
   const runGroups = $derived(groupedRunsByType(runs));
+  const activeRunGroup = $derived(
+    runGroups.find((group) => group.type === activeRunType),
+  );
   const searchActive = $derived(queryText.trim() !== "");
 
   $effect(() => {
@@ -117,7 +119,7 @@
       </Badge>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+    <div class="min-h-0 flex-1 overflow-y-auto p-1">
       {#if loadingRuns}
         <div class="space-y-2">
           {#each Array.from({ length: 6 }) as _}
@@ -131,44 +133,29 @@
           No matching runs.
         </p>
       {:else}
-        <div class="space-y-2">
+        <div class="space-y-3">
           {#if searchActive}
             {#each runs as run}
               {@render runButton(run)}
             {/each}
           {:else}
-            <Tabs.Tabs value={activeRunType} class="gap-3">
-              <Tabs.TabsList
-                class="h-auto w-full gap-1 rounded-full border border-sidebar-border bg-sidebar-accent p-1"
-              >
-                {#each runGroups as group}
-                  <Tabs.TabsTrigger
-                    value={group.type}
-                    onclick={() => (activeRunType = group.type)}
-                    class="flex-1 rounded-full px-2.5 py-1 text-xs capitalize hover:text-sidebar-foreground/80 {activeRunType ===
-                    group.type
-                      ? 'bg-white text-foreground shadow-sm'
-                      : 'text-sidebar-foreground'}"
-                  >
-                    {group.type}
-                    <span
-                      class={activeRunType === group.type
-                        ? "text-foreground/80"
-                        : "text-sidebar-foreground/45"}
-                      >{group.runs.length}</span
-                    >
-                  </Tabs.TabsTrigger>
-                {/each}
-              </Tabs.TabsList>
-
+            <select
+              class="h-9 w-full rounded-md border border-sidebar-border bg-sidebar-accent px-2.5 text-sm capitalize text-sidebar-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              value={activeRunType}
+              onchange={(event) => (activeRunType = event.currentTarget.value)}
+            >
               {#each runGroups as group}
-                <Tabs.TabsContent value={group.type} class="mt-0 space-y-2">
-                  {#each group.runs as run}
-                    {@render runButton(run)}
-                  {/each}
-                </Tabs.TabsContent>
+                <option value={group.type}>
+                  {group.type} ({group.runs.length})
+                </option>
               {/each}
-            </Tabs.Tabs>
+            </select>
+
+            <div class="space-y-2">
+              {#each activeRunGroup?.runs ?? [] as run}
+                {@render runButton(run)}
+              {/each}
+            </div>
           {/if}
         </div>
       {/if}

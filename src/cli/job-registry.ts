@@ -85,6 +85,9 @@ export type CliCommand =
   | HistorySearchCommand
   | HistoryThesisDeltaCommand;
 
+export const ASSET_CLASS_OPTIONS = ["equity", "crypto"] as const;
+export const DEPTH_OPTIONS = ["brief", "deep"] as const;
+
 export const CONSOLE_JOB_TYPES = [
   "daily",
   "weekly",

@@ -163,10 +163,27 @@ export function buildSourceList(
     (source) => !marketSourceIds.has(source.id),
   );
 
+  // Verified Market Snapshot — citeable Source for exact numeric technical claims (ADR 0019)
+  const verifiedSnapshotSources: Source[] =
+    command.jobType === "ticker" && collectedSources.verifiedMarketSnapshot !== undefined
+      ? [
+          {
+            id: `verified-snapshot-${collectedSources.verifiedMarketSnapshot.symbol}`,
+            title: `${collectedSources.verifiedMarketSnapshot.symbol} verified market snapshot (OHLCV + indicators, ${collectedSources.verifiedMarketSnapshot.latestSessionDate})`,
+            fetchedAt: collectedSources.verifiedMarketSnapshot.analysisDate,
+            kind: "market-data",
+            assetClass: "equity",
+            symbol: collectedSources.verifiedMarketSnapshot.symbol,
+            provider: "yahoo",
+          },
+        ]
+      : [];
+
   return [
     ...marketSources,
     ...benchmarkSources,
     ...supplementalMarketSources,
+    ...verifiedSnapshotSources,
     ...collectedSources.newsSources,
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
     ...(command.jobType === "ticker" ? collectedSources.extendedSources : []),

@@ -12,7 +12,7 @@ src/
   config/runs.ts      Typed per-run-type config (model, sampling knobs, depth profile)
   domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
   forecast/           Observable forecast contract: parser, expression shape, resolver
-  model/              OpenAI / OpenAI-compatible / Codex providers
+  model/              OpenAI / OpenAI-compatible / Codex / Anthropic providers
   movers/             Deterministic mover ranking and screener dedupe
   report/             Report schema (zod) + markdown renderer
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
@@ -52,6 +52,8 @@ A file-based cache (`data/cache/<YYYY-MM-DD>/<sha256-of-v2-canonical-request>.js
 Source providers are listed in `src/sources/providers.ts`. Each provider module exposes optional capabilities for primary market data, supplemental market data, news, Extended Evidence, Market Context, and future scoring Observation inputs. The registry composes those capabilities by asset class instead of hard-coding provider logic into one collector.
 
 New Source Provider work should follow the [Source Provider Contract](./source-provider-contract.md).
+
+**Verified Market Snapshot** ([ADR 0019](./adr/0019-verified-market-snapshot.md)): for every `equity ticker` run, `collectVerifiedMarketSnapshot` (`src/sources/verified-market-snapshot.ts`) fetches ≥400 calendar days of daily OHLCV bars from the Yahoo chart API via `ctx.request.json` (adapter `yahoo-verified-chart`), computes deterministic canonical indicators (EMA10, SMA50/200, RSI14, MACD 12/26/9, Bollinger 20/2, ATR14), and returns a compact snapshot injected into every stage prompt via `buildEvidencePayload`. The full bar series is retained in `rawSnapshots` and the structured result is persisted to `normalized/verified-market-snapshot.json`. On failure a `SourceGap` with `evidenceQualityImpact: "core-cap"` is emitted and the run continues. `fetchYahooCloseWindow` and the Massive closes-only fallback are forbidden for this path. Canonical `InstrumentIdentity` is derived in parallel from the already-collected ticker `MarketSnapshot` (no second fetch) and persisted to `normalized/instrument-identity.json`.
 
 News collection fans out to enabled providers, skips missing MarketAux/Finnhub tokens with `SourceGap`s, silently skips missing Massive keys, always includes Yahoo, canonicalizes URLs, collapses exact canonical-URL duplicates into one `Source`, and preserves provider aliases on the normalized source. A persistent seen-news index (`data/news-seen.json` by default, overridable with `MARKET_BOT_NEWS_SEEN_PATH`) suppresses exact canonical-URL repeats within the same research lane for 30 days. The index is updated only after a report is successfully persisted; if every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
 

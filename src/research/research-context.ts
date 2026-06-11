@@ -94,7 +94,23 @@ export function deterministicSourceGaps(
         ]
       : [];
 
-  return [...gaps, ...marketGaps, ...newsGaps, ...tickerGaps, ...weeklyMoverGaps];
+  const verifiedSnapshotGaps =
+    command.jobType === "ticker" &&
+    command.assetClass === "equity" &&
+    collectedSources.verifiedMarketSnapshot === undefined
+      ? [
+          `No Verified Market Snapshot for ${command.symbol}: exact numeric technical-indicator claims are ungrounded for this run`,
+        ]
+      : [];
+
+  return [
+    ...gaps,
+    ...marketGaps,
+    ...newsGaps,
+    ...tickerGaps,
+    ...weeklyMoverGaps,
+    ...verifiedSnapshotGaps,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -518,6 +534,26 @@ function buildEvidencePayload(
   const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
 
+  // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
+  // The full bar series stays on disk (rawSnapshots / normalized sidecar).
+  const verifiedMarketSnapshotBlock =
+    collectedSources.verifiedMarketSnapshot !== undefined
+      ? {
+          verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
+          verifiedMarketSnapshotCitationRule:
+            "Exact indicator values (ema10, sma50, sma200, rsi14, macd, bollUpper, bollLower, atr14, etc.) MUST cite the verified-snapshot source. Current-session price values cite the market-data source. Never mix bar-close indicators with live quote price in one claim — they legitimately disagree intraday.",
+        }
+      : {};
+
+  const resolvedIdentityBlock =
+    collectedSources.resolvedInstrumentIdentity !== undefined
+      ? {
+          resolvedInstrumentIdentity: collectedSources.resolvedInstrumentIdentity,
+          resolvedIdentityInstruction:
+            "This is the canonical instrument identity for this run. Use this identity; do not substitute a different company.",
+        }
+      : {};
+
   return {
     command,
     movers,
@@ -545,6 +581,8 @@ function buildEvidencePayload(
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
     ...(priorMarketForecastErrors !== undefined ? { priorMarketForecastErrors } : {}),
+    ...verifiedMarketSnapshotBlock,
+    ...resolvedIdentityBlock,
   };
 }
 

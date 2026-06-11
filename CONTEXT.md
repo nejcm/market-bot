@@ -56,6 +56,10 @@ A ticker-run prompt block that surfaces prior Predictions on the current Instrum
 
 A compact, deterministic "what changed since the last same-cadence run" summary auto-promoted into a daily or weekly Market Update report, directly after the summary. It carries the regime label change (prior → current, naming flipped breadth/trend/VIX-term-structure drivers), the ranked Mover membership diff (symbols entered vs exited), and Predictions from prior same-asset-class Market Update runs that resolved since the baseline was generated. The baseline is the single most-recent prior run with the same asset class and cadence. It is computed with no model call and is descriptive only — distinct from the instrument-scoped, manual Research Thesis Delta (`history thesis-delta`), and never a trade signal or portfolio action.
 
+## Verified Market Snapshot
+
+A deterministic, analysis-date-anchored OHLCV and technical-indicator ground-truth block for a single Instrument. It is citeable supplemental evidence for exact numeric claims in a Research View. It is not investment conviction, a trade signal, or a scoring Observation unless explicitly promoted later. Equity ticker runs only; v1 uses Yahoo daily bars with a ≥400 calendar day lookback. See [ADR 0019](./docs/adr/0019-verified-market-snapshot.md).
+
 ## Historical Context Gap
 
 A soft absence, parse failure, or mismatch in prior run artifacts. It is disclosed in historical context, but it is not a provider `SourceGap` and does not mean live source collection failed.

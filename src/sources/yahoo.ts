@@ -3,6 +3,7 @@ import type {
   InstrumentIdentity,
   MarketBenchmark,
   MarketSnapshot,
+  OhlcvBar,
   SourceGap,
 } from "../domain/types";
 import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
@@ -170,7 +171,7 @@ function yahooQuoteUrl(symbols: string): string {
   return `${YAHOO_QUOTE_URL}?${encodeQuery({ symbols })}`;
 }
 
-function yahooResilientFetchWrapper(baseFetch: FetchLike): FetchLike {
+export function yahooResilientFetchWrapper(baseFetch: FetchLike): FetchLike {
   return (request, init) => yahooCredentialFetch(request, init, baseFetch);
 }
 
@@ -428,7 +429,7 @@ export const yahooMarketDataAdapter: MarketDataAdapter = {
 
 const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 
-function yahooChartWindowUrl(symbol: string, from: Date, to: Date): string {
+export function yahooChartWindowUrl(symbol: string, from: Date, to: Date): string {
   const start = Math.floor(from.getTime() / 1000);
   const end = Math.floor(to.getTime() / 1000) + 86_400;
   const params = new URLSearchParams({
@@ -464,6 +465,65 @@ function observationsFromYahooChartPayload(
       ? [{ subject: symbol, date, value }]
       : [];
   });
+}
+
+// Parse full OHLCV daily bars from a Yahoo chart API payload.
+// Skips bars with any null OHLCV slot (Yahoo halts / sparse names).
+// Filters to bars with date <= analysisDate when provided.
+// Returns bars sorted oldest -> newest.
+export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): readonly OhlcvBar[] {
+  if (!isRecord(payload) || !isRecord(payload.chart)) {
+    return [];
+  }
+  const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
+  if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
+    return [];
+  }
+  const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
+  if (!isRecord(quote)) {
+    return [];
+  }
+  const timestamps: unknown[] = result.timestamp;
+  const opens: unknown[] = Array.isArray(quote.open) ? quote.open : [];
+  const highs: unknown[] = Array.isArray(quote.high) ? quote.high : [];
+  const lows: unknown[] = Array.isArray(quote.low) ? quote.low : [];
+  const closes: unknown[] = Array.isArray(quote.close) ? quote.close : [];
+  const volumes: unknown[] = Array.isArray(quote.volume) ? quote.volume : [];
+
+  const bars: OhlcvBar[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const date = dateFromUnixSeconds(timestamps[i]);
+    if (date === undefined) {
+      continue;
+    }
+    if (analysisDate !== undefined && date > analysisDate) {
+      continue;
+    }
+    const rawOpen = opens[i];
+    const rawHigh = highs[i];
+    const rawLow = lows[i];
+    const rawClose = closes[i];
+    const rawVolume = volumes[i];
+    if (
+      typeof rawOpen !== "number" ||
+      typeof rawHigh !== "number" ||
+      typeof rawLow !== "number" ||
+      typeof rawClose !== "number" ||
+      typeof rawVolume !== "number"
+    ) {
+      // Yahoo emits null slots on halts; skip to keep arrays aligned
+      continue;
+    }
+    bars.push({
+      date,
+      open: rawOpen,
+      high: rawHigh,
+      low: rawLow,
+      close: rawClose,
+      volume: rawVolume,
+    });
+  }
+  return bars;
 }
 
 export async function fetchYahooCloseWindow(

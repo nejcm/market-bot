@@ -215,6 +215,34 @@ export interface MarketContextItem {
   readonly metrics?: Record<string, number | string>;
 }
 
+// ---------------------------------------------------------------------------
+// Verified Market Snapshot (ADR 0019)
+// ---------------------------------------------------------------------------
+
+export interface OhlcvBar {
+  /** YYYY-MM-DD (UTC calendar date) */
+  readonly date: string;
+  readonly open: number;
+  readonly high: number;
+  readonly low: number;
+  readonly close: number;
+  readonly volume: number;
+}
+
+export interface VerifiedMarketSnapshot {
+  readonly symbol: string;
+  readonly assetClass: "equity";
+  /** YYYY-MM-DD — run/report date (UTC of fetchedAt) */
+  readonly analysisDate: string;
+  /** Date of last bar used */
+  readonly latestSessionDate: string;
+  /** Latest session bar */
+  readonly ohlcv: OhlcvBar;
+  readonly indicators: Readonly<Record<string, number | null>>;
+  /** Last ~30 sessions */
+  readonly recentCloses: readonly { readonly date: string; readonly close: number }[];
+}
+
 export interface MarketContext {
   readonly assetClass: AssetClass;
   readonly items: readonly MarketContextItem[];

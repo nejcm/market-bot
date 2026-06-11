@@ -17,6 +17,8 @@ import type {
 } from "./types";
 import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
+import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
+import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 
 interface HostState {
   queue: Promise<void>;
@@ -453,6 +455,7 @@ export async function collectSources(
   const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
 
+  // Run market + news + extended + market-context in parallel, then supplemental
   const [marketResult, newsResult, extendedResult, marketContextResult] = await Promise.all([
     marketAdapter.collect(ctx),
     newsAdapter.collect(ctx),
@@ -466,6 +469,29 @@ export async function collectSources(
     (result) => result.supplementalMarketSnapshots,
   );
 
+  // Verified Market Snapshot + Instrument Identity: equity ticker only (ADR 0019)
+  const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
+
+  const verifiedSnapshotResult = isEquityTicker
+    ? await collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
+    : undefined;
+
+  const identityResult = isEquityTicker
+    ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
+    : undefined;
+
+  const verifiedRawSnapshots: RawSourceSnapshot[] =
+    verifiedSnapshotResult?.rawPayload !== undefined
+      ? [
+          {
+            id: `raw-yahoo-verified-chart-${ctx.fetchedAt}`,
+            adapter: "yahoo-verified-chart",
+            fetchedAt: ctx.fetchedAt,
+            payload: verifiedSnapshotResult.rawPayload,
+          },
+        ]
+      : [];
+
   return {
     rawSnapshots: [
       ...marketResult.rawSnapshots,
@@ -473,6 +499,7 @@ export async function collectSources(
       ...extendedResult.rawSnapshots,
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
+      ...verifiedRawSnapshots,
     ],
     marketSnapshots: marketResult.marketSnapshots,
     supplementalMarketSnapshots,
@@ -486,12 +513,19 @@ export async function collectSources(
       : {}),
     marketContextSources: marketContextResult.sources,
     ...(newsResult.newsAnalytics !== undefined ? { newsAnalytics: newsResult.newsAnalytics } : {}),
+    ...(verifiedSnapshotResult?.snapshot !== undefined
+      ? { verifiedMarketSnapshot: verifiedSnapshotResult.snapshot }
+      : {}),
+    ...(identityResult?.identity !== undefined
+      ? { resolvedInstrumentIdentity: identityResult.identity }
+      : {}),
     sourceGaps: [
       ...marketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
+      ...(verifiedSnapshotResult?.sourceGaps ?? []),
       ...staleFallbackGaps,
     ],
   };

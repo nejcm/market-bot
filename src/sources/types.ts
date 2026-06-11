@@ -2,10 +2,12 @@ import type { ResearchCommand } from "../cli/args";
 import type {
   AssetClass,
   ExtendedEvidence,
+  InstrumentIdentity,
   MarketContext,
   MarketSnapshot,
   Source,
   SourceGap,
+  VerifiedMarketSnapshot,
 } from "../domain/types";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -84,6 +86,8 @@ export interface CollectedSources {
   readonly marketContextSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
   readonly newsAnalytics?: NewsCollectionAnalytics;
+  readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly resolvedInstrumentIdentity?: InstrumentIdentity;
 }
 
 export interface ExtendedEvidenceCollectionResult {

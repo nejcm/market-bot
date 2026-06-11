@@ -91,7 +91,7 @@ export async function collectVerifiedMarketSnapshot(
   }
 
   const indicators = computeIndicators(bars);
-  const latestBar = bars.at(-1) as OhlcvBar;
+  const latestBar = bars.at(-1)!;
   const recentCloses = buildRecentCloses(bars, RECENT_CLOSES_COUNT);
 
   const snapshot: VerifiedMarketSnapshot = {

@@ -445,20 +445,37 @@ function dateFromUnixSeconds(value: unknown): string | undefined {
   return typeof value === "number" ? new Date(value * 1000).toISOString().slice(0, 10) : undefined;
 }
 
+interface YahooChartQuote {
+  readonly timestamps: readonly unknown[];
+  readonly quote: Record<string, unknown>;
+}
+
+// Unwrap chart.result[0].timestamp + indicators.quote[0] from a Yahoo chart payload.
+function readYahooChartQuote(payload: unknown): YahooChartQuote | undefined {
+  if (!isRecord(payload) || !isRecord(payload.chart)) {
+    return undefined;
+  }
+  const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
+  if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
+    return undefined;
+  }
+  const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
+  if (!isRecord(quote)) {
+    return undefined;
+  }
+  return { timestamps: result.timestamp, quote };
+}
+
 function observationsFromYahooChartPayload(
   symbol: string,
   payload: unknown,
 ): readonly Observation[] {
-  if (!isRecord(payload) || !isRecord(payload.chart)) {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
     return [];
   }
-  const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
-  if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
-    return [];
-  }
-  const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
-  const closes = isRecord(quote) && Array.isArray(quote.close) ? quote.close : [];
-  return result.timestamp.flatMap((timestamp, index) => {
+  const closes: readonly unknown[] = Array.isArray(chart.quote.close) ? chart.quote.close : [];
+  return chart.timestamps.flatMap((timestamp, index) => {
     const date = dateFromUnixSeconds(timestamp);
     const value = closes[index];
     return date !== undefined && typeof value === "number"
@@ -472,23 +489,16 @@ function observationsFromYahooChartPayload(
 // Filters to bars with date <= analysisDate when provided.
 // Returns bars sorted oldest -> newest.
 export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): readonly OhlcvBar[] {
-  if (!isRecord(payload) || !isRecord(payload.chart)) {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
     return [];
   }
-  const result = Array.isArray(payload.chart.result) ? payload.chart.result[0] : undefined;
-  if (!isRecord(result) || !Array.isArray(result.timestamp) || !isRecord(result.indicators)) {
-    return [];
-  }
-  const quote = Array.isArray(result.indicators.quote) ? result.indicators.quote[0] : undefined;
-  if (!isRecord(quote)) {
-    return [];
-  }
-  const timestamps: unknown[] = result.timestamp;
-  const opens: unknown[] = Array.isArray(quote.open) ? quote.open : [];
-  const highs: unknown[] = Array.isArray(quote.high) ? quote.high : [];
-  const lows: unknown[] = Array.isArray(quote.low) ? quote.low : [];
-  const closes: unknown[] = Array.isArray(quote.close) ? quote.close : [];
-  const volumes: unknown[] = Array.isArray(quote.volume) ? quote.volume : [];
+  const { timestamps, quote } = chart;
+  const opens: readonly unknown[] = Array.isArray(quote.open) ? quote.open : [];
+  const highs: readonly unknown[] = Array.isArray(quote.high) ? quote.high : [];
+  const lows: readonly unknown[] = Array.isArray(quote.low) ? quote.low : [];
+  const closes: readonly unknown[] = Array.isArray(quote.close) ? quote.close : [];
+  const volumes: readonly unknown[] = Array.isArray(quote.volume) ? quote.volume : [];
 
   const bars: OhlcvBar[] = [];
   for (let i = 0; i < timestamps.length; i++) {

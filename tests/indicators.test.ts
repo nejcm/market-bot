@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  computeIndicators,
-  MIN_BARS_FOR_SNAPSHOT,
-  MIN_BARS_FOR_SMA200,
-} from "../src/sources/indicators";
+import { computeIndicators, MIN_BARS_FOR_SNAPSHOT, SMA200_PERIOD } from "../src/sources/indicators";
 import type { OhlcvBar } from "../src/domain/types";
 
 function bar(date: string, close: number, opts?: Partial<OhlcvBar>): OhlcvBar {
@@ -72,12 +68,12 @@ describe("computeIndicators", () => {
     expect(result.sma200).toBeNull();
   });
 
-  test("threshold 199 bars: sma200 still null below MIN_BARS_FOR_SMA200", () => {
+  test("threshold 199 bars: sma200 still null below SMA200_PERIOD", () => {
     const result = computeIndicators(bars(199));
     expect(result.sma200).toBeNull();
   });
 
-  test("threshold 200 bars: sma200 non-null at MIN_BARS_FOR_SMA200", () => {
+  test("threshold 200 bars: sma200 non-null at SMA200_PERIOD", () => {
     const result = computeIndicators(bars(200));
     expect(result.sma200).not.toBeNull();
   });
@@ -167,7 +163,7 @@ describe("computeIndicators", () => {
     expect(MIN_BARS_FOR_SNAPSHOT).toBe(60);
   });
 
-  test("MIN_BARS_FOR_SMA200 is 200", () => {
-    expect(MIN_BARS_FOR_SMA200).toBe(200);
+  test("SMA200_PERIOD is 200", () => {
+    expect(SMA200_PERIOD).toBe(200);
   });
 });

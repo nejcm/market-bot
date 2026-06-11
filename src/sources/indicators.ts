@@ -15,6 +15,12 @@ import type { IndicatorMap, OhlcvBar } from "../domain/types";
 
 export type { IndicatorMap } from "../domain/types";
 
+/** Minimum bar count to emit a snapshot at all (core indicators). */
+export const MIN_BARS_FOR_SNAPSHOT = 60;
+
+/** SMA200 period — also the minimum bar count below which sma200 is always null. */
+export const SMA200_PERIOD = 200;
+
 // ---------------------------------------------------------------------------
 // SMA — Simple Moving Average over the last N closes
 // ---------------------------------------------------------------------------
@@ -32,15 +38,7 @@ function sma(closes: readonly number[], period: number): number | null {
 // ---------------------------------------------------------------------------
 
 function emaFromCloses(closes: readonly number[], period: number): number | null {
-  if (closes.length < period) {
-    return null;
-  }
-  const k = 2 / (period + 1);
-  let ema = closes.slice(0, period).reduce((sum, v) => sum + v, 0) / period;
-  for (let i = period; i < closes.length; i++) {
-    ema = closes[i]! * k + ema * (1 - k);
-  }
-  return ema;
+  return emaSeriesFromCloses(closes, period)?.at(-1) ?? null;
 }
 
 // Return a full EMA series (length = closes.length - period + 1) for MACD use.
@@ -126,8 +124,8 @@ function macd1226_9(closes: readonly number[]): MacdResult | null {
   if (signal === null) {
     return null;
   }
-  const latestMacd = macdLine.at(-1) as number;
-  const latestSignal = signal.at(-1) as number;
+  const latestMacd = macdLine.at(-1)!;
+  const latestSignal = signal.at(-1)!;
   return {
     macd: latestMacd,
     signal: latestSignal,
@@ -213,7 +211,7 @@ export function computeIndicators(bars: readonly OhlcvBar[]): IndicatorMap {
   return {
     ema10: tryCompute(() => emaFromCloses(closes, 10)),
     sma50: tryCompute(() => sma(closes, 50)),
-    sma200: tryCompute(() => sma(closes, MIN_BARS_FOR_SMA200)),
+    sma200: tryCompute(() => sma(closes, SMA200_PERIOD)),
     rsi14: tryCompute(() => rsi14(closes)),
     macd: macdResult?.macd ?? null,
     macdSignal: macdResult?.signal ?? null,
@@ -224,9 +222,3 @@ export function computeIndicators(bars: readonly OhlcvBar[]): IndicatorMap {
     atr14: tryCompute(() => atr14(bars)),
   };
 }
-
-/** Minimum bar count to emit a snapshot at all (core indicators). */
-export const MIN_BARS_FOR_SNAPSHOT = 60;
-
-/** Bar count below which sma200 is always null. */
-export const MIN_BARS_FOR_SMA200 = 200;

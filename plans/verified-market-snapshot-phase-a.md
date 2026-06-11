@@ -282,14 +282,14 @@ Run `bun run check` before merge.
 
 ## Implementation todos
 
-- [ ] Write ADR 0019 (Verified Market Snapshot + ticker canonical identity; includes indicator key schema, date semantics, raw-price + null-bar policy, quality-cap choice, Massive exclusion); update CONTEXT.md glossary
-- [ ] Add VerifiedMarketSnapshot type; extend CollectedSources + normalized artifact writers
-- [ ] Extend yahoo.ts chart parsing for full OHLCV bars (null-slot skip, analysis-date cutoff); fetch via `ctx.request.json` with adapter `yahoo-verified-chart`
-- [ ] Implement pure TS indicator compute module (canonical keys, per-indicator nulls) + golden fixture tests
-- [ ] Wire snapshot collection + identity derivation (from existing ticker quote) for equity ticker in collector.ts; extend `deterministicSourceGaps`
-- [ ] Inject snapshot/identity into `buildEvidencePayload`, `buildSourceList`, and stage prompts (incl. two-truths citation rule)
-- [ ] Persist normalized sidecars + raw chart payload; update architecture.md (Anthropic + new subsystem)
-- [ ] Collector + prompt + source list integration tests (incl. `allowedSourceIds` validation); run `bun run check`
+- [x] Write ADR 0019 (Verified Market Snapshot + ticker canonical identity; includes indicator key schema, date semantics, raw-price + null-bar policy, quality-cap choice, Massive exclusion); update CONTEXT.md glossary
+- [x] Add VerifiedMarketSnapshot type; extend CollectedSources + normalized artifact writers
+- [x] Extend yahoo.ts chart parsing for full OHLCV bars (null-slot skip, analysis-date cutoff); fetch via `ctx.request.json` with adapter `yahoo-verified-chart`
+- [x] Implement pure TS indicator compute module (canonical keys, per-indicator nulls) + golden fixture tests
+- [x] Wire snapshot collection + identity derivation (from existing ticker quote) for equity ticker in collector.ts; extend `deterministicSourceGaps`
+- [x] Inject snapshot/identity into `buildEvidencePayload`, `buildSourceList`, and stage prompts (incl. two-truths citation rule)
+- [x] Persist normalized sidecars + raw chart payload; update architecture.md (Anthropic + new subsystem)
+- [x] Collector + prompt + source list integration tests (incl. `allowedSourceIds` validation); run `bun run check`
 
 ## Explicitly out of Phase A
 

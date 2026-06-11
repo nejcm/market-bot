@@ -266,10 +266,33 @@ describe("collectVerifiedMarketSnapshot", () => {
     expect(fetchCount).toBe(0);
   });
 
-  test("snapshot carries ISO fetchedAt from the collect context", async () => {
+  test("snapshot carries ISO fetchedAt from the collect context on a fresh fetch", async () => {
     const ctx = makeCtx(async () => jsonResponse(chartPayloadWith80Bars()));
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
     expect(result.snapshot?.fetchedAt).toBe(ctx.fetchedAt);
+  });
+
+  test("snapshot preserves the raw snapshot fetchedAt when served from cache", async () => {
+    const cachedFetchedAt = "2024-06-14T08:00:00.000Z";
+    const base = makeCtx(async () => jsonResponse(chartPayloadWith80Bars()));
+    const ctx = {
+      ...base,
+      request: {
+        ...base.request,
+        json: async () => ({
+          rawSnapshot: {
+            id: `raw-yahoo-verified-chart-${cachedFetchedAt}`,
+            adapter: "yahoo-verified-chart",
+            fetchedAt: cachedFetchedAt,
+            payload: chartPayloadWith80Bars(),
+          },
+          payload: chartPayloadWith80Bars(),
+        }),
+      },
+    };
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
+    expect(result.snapshot?.fetchedAt).toBe(cachedFetchedAt);
+    expect(result.snapshot?.fetchedAt).not.toBe(base.fetchedAt);
   });
 });
 

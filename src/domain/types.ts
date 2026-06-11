@@ -247,9 +247,9 @@ export interface IndicatorMap {
 export interface VerifiedMarketSnapshot {
   readonly symbol: string;
   readonly assetClass: "equity";
-  /** YYYY-MM-DD — run/report date (UTC of fetchedAt) */
+  /** YYYY-MM-DD — run/report date (UTC date of the run) */
   readonly analysisDate: string;
-  /** ISO timestamp of the collecting fetch (provenance for the report Source) */
+  /** ISO timestamp of the underlying payload fetch — original fetch time when served from cache (provenance for the report Source) */
   readonly fetchedAt: string;
   /** Date of last bar used */
   readonly latestSessionDate: string;

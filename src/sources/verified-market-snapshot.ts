@@ -104,7 +104,7 @@ export async function collectVerifiedMarketSnapshot(
     symbol,
     assetClass: "equity",
     analysisDate,
-    fetchedAt: ctx.fetchedAt,
+    fetchedAt: fetched.rawSnapshot.fetchedAt,
     latestSessionDate: latestBar.date,
     ohlcv: latestBar,
     indicators,

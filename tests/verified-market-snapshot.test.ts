@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { parseYahooChartOhlcv } from "../src/sources/yahoo";
+import { collectVerifiedMarketSnapshot } from "../src/sources/verified-market-snapshot";
 import {
-  collectVerifiedMarketSnapshot,
+  INDICATOR_KEYS,
+  verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
-} from "../src/sources/verified-market-snapshot";
+} from "../src/research/verified-snapshot-contract";
 import { deriveCanonicalInstrumentIdentity } from "../src/sources/instrument-identity";
 import {
   buildDepthProfile,
@@ -98,6 +100,18 @@ function verifiedSnapshotFixture(): VerifiedMarketSnapshot {
     recentCloses: [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Contract — locked indicator key schema (ADR 0019)
+// ---------------------------------------------------------------------------
+
+describe("verified-snapshot contract", () => {
+  test("INDICATOR_KEYS covers every IndicatorMap key", () => {
+    // `satisfies` proves the keys are valid; this proves the enumeration is complete
+    const keys: string[] = [...INDICATOR_KEYS];
+    expect(keys.toSorted()).toEqual(Object.keys(NULL_INDICATORS).toSorted());
+  });
+});
 
 // ---------------------------------------------------------------------------
 // ParseYahooChartOhlcv
@@ -565,11 +579,8 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
 
     expect(parsed.evidence?.verifiedMarketSnapshot?.symbol).toBe("AAPL");
     expect(parsed.evidence?.verifiedMarketSnapshotSourceId).toBe(verifiedSnapshotSourceId("AAPL"));
-    expect(parsed.evidence?.verifiedMarketSnapshotCitationRule).toContain(
-      verifiedSnapshotSourceId("AAPL"),
-    );
-    expect(parsed.evidence?.verifiedMarketSnapshotCitationRule).toContain(
-      "Do not state indicator values that are not present",
+    expect(parsed.evidence?.verifiedMarketSnapshotCitationRule).toBe(
+      verifiedSnapshotCitationRule("AAPL"),
     );
     expect(parsed.evidence?.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
     expect(parsed.evidence?.resolvedIdentityInstruction).toContain(

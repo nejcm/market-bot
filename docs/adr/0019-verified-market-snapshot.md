@@ -84,9 +84,9 @@ Bars where any OHLCV slot is null (Yahoo emits null slots on trading halts and s
 
 ## Citation rule for prompts
 
-Injected into every stage prompt via `buildEvidencePayload`:
+Injected into every stage prompt via `buildEvidencePayload`. The key enumeration derives from the runtime `INDICATOR_KEYS` constant in `src/research/verified-snapshot-contract.ts`, so the rule text cannot drift from the locked schema:
 
-> Exact indicator values (ema10, sma50, sma200, rsi14, macd, bollUpper, bollLower, atr14, etc.) MUST cite the verified-snapshot source. Current-session price values cite the market-data source. Never mix bar-close indicators with live quote price in one claim — they legitimately disagree intraday.
+> Exact indicator values (ema10, sma50, sma200, rsi14, macd, macdSignal, macdHistogram, bollUpper, bollMiddle, bollLower, atr14) MUST cite the verified-snapshot source. Current-session price values cite the market-data source. Never mix bar-close indicators with live quote price in one claim — they legitimately disagree intraday.
 
 This rule exists because `VerifiedMarketSnapshot.ohlcv` is the last bar close (session-end) while `MarketSnapshot.price` is the live quote. They can differ by the full intraday move.
 

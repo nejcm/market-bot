@@ -27,12 +27,6 @@ const ADAPTER_ID = "yahoo-verified-chart";
 /** Number of recent closes to include in the compact prompt payload. */
 const RECENT_CLOSES_COUNT = 30;
 
-// Single construction point for the citeable report Source ID. Used by the
-// Report source list, the evidence payload, and (later) Phase A.2 verification.
-export function verifiedSnapshotSourceId(symbol: string): string {
-  return `verified-snapshot-${symbol}`;
-}
-
 export interface VerifiedSnapshotResult {
   readonly snapshot?: VerifiedMarketSnapshot;
   readonly rawSnapshot?: RawSourceSnapshot;

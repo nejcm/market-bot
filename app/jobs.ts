@@ -184,7 +184,11 @@ async function streamText(stream: ReadableStream<Uint8Array> | null): Promise<st
 }
 
 export async function runCliJob(argv: readonly string[]): Promise<JobRunResult> {
-  const process = Bun.spawn(["bun", "run", "src/cli.ts", ...argv], {
+  // Anchor the spawned CLI at the project root so Bun auto-loads the root `.env`
+  // (and resolves `src/cli.ts`) regardless of the cwd the console was launched from.
+  const projectRoot = join(import.meta.dir, "..");
+  const process = Bun.spawn(["bun", "run", join(projectRoot, "src/cli.ts"), ...argv], {
+    cwd: projectRoot,
     stdout: "pipe",
     stderr: "pipe",
   });

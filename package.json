@@ -15,6 +15,7 @@
     "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
+    "lint:ts": "bun run typecheck",
     "lint:fix": "oxlint --fix",
     "lint:staged": "oxlint --fix",
     "fmt": "oxfmt src tests scripts app/*.ts app/client",

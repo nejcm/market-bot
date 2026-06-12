@@ -6,6 +6,7 @@
     formatClose,
     formatDate,
     formatDateMinute,
+    horizonMarkers,
     jsonBlock,
     runLabel,
     scenarios,
@@ -13,12 +14,15 @@
     sources,
     stringArray,
     textItems,
+    type SnapshotView,
   } from "../view-model";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
+  import PriceSnapshotChart from "./price-snapshot-chart.svelte";
 
   interface Props {
     readonly activeTab: Tab;
     readonly detail: RunDetail | null;
+    readonly snapshot: SnapshotView | null;
     readonly loadingDetail: boolean;
     readonly selectedFile: string;
     readonly fileContent: string;
@@ -32,6 +36,7 @@
   let {
     activeTab,
     detail,
+    snapshot,
     loadingDetail,
     selectedFile,
     fileContent,
@@ -64,6 +69,7 @@
   const scenarioItems = $derived(scenarios(report));
   const forecastItems = $derived(scoredForecasts(report, detail?.score));
   const forecastStats = $derived(forecastRollup(forecastItems));
+  const forecastHorizons = $derived(horizonMarkers(forecastItems));
   const sourceItems = $derived(sources(report));
   const gapItems = $derived(stringArray(report, "dataGaps"));
 
@@ -86,6 +92,7 @@
       ["findings", "Key findings", findingItems.length > 0],
       ["cases", "Cases & risks", caseSections.length > 0],
       ["scenarios", "Scenarios", scenarioItems.length > 0],
+      ["snapshot", "Market snapshot", snapshot !== null],
       ["forecasts", "Forecasts", forecastItems.length > 0],
       ["gaps", "Data gaps", gapItems.length > 0],
     ] as const,
@@ -302,6 +309,24 @@
                   </div>
                 {/each}
               </div>
+            </section>
+          {/if}
+
+          {#if snapshot !== null}
+            <section {@attach bindSection("snapshot")} class="mt-8.5 scroll-mt-5">
+              <div class="flex items-baseline justify-between border-b border-border pb-2">
+                <span
+                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
+                >
+                  Market snapshot · {snapshot.symbol}
+                </span>
+                <span class="font-mono text-[10px] text-[#a8acb1]">
+                  recent closes{snapshot.latestSessionDate === undefined
+                    ? ""
+                    : ` · last session ${snapshot.latestSessionDate}`} · ticks mark forecast horizons
+                </span>
+              </div>
+              <PriceSnapshotChart {snapshot} horizons={forecastHorizons} />
             </section>
           {/if}
 

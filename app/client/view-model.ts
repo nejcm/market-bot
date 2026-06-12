@@ -164,6 +164,128 @@ function horizonBucketRank(bucket: string): number {
   return index === -1 ? HORIZON_BUCKET_ORDER.length : index;
 }
 
+export const VERIFIED_SNAPSHOT_PATH = "normalized/verified-market-snapshot.json";
+
+export interface SnapshotClose {
+  readonly date: string;
+  readonly close: number;
+}
+
+export interface SnapshotView {
+  readonly symbol: string;
+  readonly analysisDate?: string;
+  readonly latestSessionDate?: string;
+  readonly indicators: Readonly<Record<string, number>>;
+  readonly recentCloses: readonly SnapshotClose[];
+}
+
+export interface CloseLinePoint {
+  readonly x: number;
+  readonly y: number;
+  readonly date: string;
+  readonly close: number;
+}
+
+export function verifiedSnapshotView(content: string): SnapshotView | undefined {
+  const parsed = parseJson(content);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return undefined;
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const symbol = typeof record.symbol === "string" ? record.symbol : undefined;
+  const recentCloses = snapshotCloses(record.recentCloses);
+  if (symbol === undefined || recentCloses.length < 2) {
+    return undefined;
+  }
+
+  const analysisDate = typeof record.analysisDate === "string" ? record.analysisDate : undefined;
+  const latestSessionDate =
+    typeof record.latestSessionDate === "string" ? record.latestSessionDate : undefined;
+  return {
+    symbol,
+    ...(analysisDate !== undefined ? { analysisDate } : {}),
+    ...(latestSessionDate !== undefined ? { latestSessionDate } : {}),
+    indicators: snapshotIndicators(record.indicators),
+    recentCloses,
+  };
+}
+
+function parseJson(content: string): unknown {
+  try {
+    return JSON.parse(content) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function snapshotCloses(value: unknown): readonly SnapshotClose[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      return [];
+    }
+
+    const record = entry as Record<string, unknown>;
+    const close = readFiniteNumber(record.close);
+    return typeof record.date === "string" && close !== undefined
+      ? [{ date: record.date, close }]
+      : [];
+  });
+}
+
+function snapshotIndicators(value: unknown): Readonly<Record<string, number>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) => {
+      const indicator = readFiniteNumber(entry);
+      return indicator === undefined ? [] : [[key, indicator] as const];
+    }),
+  );
+}
+
+export function closeLinePoints(
+  closes: readonly SnapshotClose[],
+  plotLeft: number,
+  plotWidth: number,
+  plotTop: number,
+  plotHeight: number,
+): readonly CloseLinePoint[] {
+  if (closes.length === 0) {
+    return [];
+  }
+
+  const values = closes.map((entry) => entry.close);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min;
+  return closes.map((entry, index) => ({
+    x: plotLeft + (closes.length === 1 ? 0 : (index * plotWidth) / (closes.length - 1)),
+    y:
+      range === 0 ? plotTop + plotHeight / 2 : plotTop + ((max - entry.close) / range) * plotHeight,
+    date: entry.date,
+    close: entry.close,
+  }));
+}
+
+export function horizonMarkers(
+  forecasts: readonly { readonly horizonTradingDays?: number }[],
+): readonly number[] {
+  return [
+    ...new Set(
+      forecasts
+        .map((forecast) => forecast.horizonTradingDays)
+        .filter((horizon): horizon is number => horizon !== undefined && horizon > 0),
+    ),
+  ].toSorted((left, right) => left - right);
+}
+
 function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

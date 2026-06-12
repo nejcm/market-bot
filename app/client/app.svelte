@@ -39,12 +39,16 @@
     runIdFromPathname,
     runPath,
     runTrend,
+    VERIFIED_SNAPSHOT_PATH,
+    verifiedSnapshotView,
+    type SnapshotView,
   } from "./view-model";
 
   let view = $state<View>("dashboard");
   let runs = $state<readonly RunSummary[]>([]);
   let selectedRunId = $state("");
   let detail = $state<RunDetail | null>(null);
+  let snapshot = $state<SnapshotView | null>(null);
   const query = $state({ text: "" });
   let typeFilter = $state("all");
   let error = $state("");
@@ -91,6 +95,7 @@
   function clearSelectedRun(): void {
     selectedRunId = "";
     detail = null;
+    snapshot = null;
     loadingDetail = false;
     activeTab = "report";
     selectedFile = "";
@@ -121,6 +126,7 @@
       const nextDetail = await fetchRunDetail(runId);
       if (selectedRunId === runId) {
         detail = nextDetail;
+        void loadSnapshot(nextDetail);
       }
     } catch (caughtError: unknown) {
       if (selectedRunId === runId) {
@@ -135,6 +141,23 @@
       if (selectedRunId === runId) {
         loadingDetail = false;
       }
+    }
+  }
+
+  async function loadSnapshot(runDetail: RunDetail): Promise<void> {
+    const { runId, jobType, availableFiles } = runDetail.summary;
+    snapshot = null;
+    if (jobType !== "ticker" || !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)) {
+      return;
+    }
+
+    try {
+      const file = await fetchRunFile(runId, VERIFIED_SNAPSHOT_PATH);
+      if (selectedRunId === runId) {
+        snapshot = verifiedSnapshotView(file.content) ?? null;
+      }
+    } catch {
+      // The report stands on its own; a missing or malformed snapshot stays hidden.
     }
   }
 
@@ -370,6 +393,7 @@
         <RunWorkspace
           {activeTab}
           {detail}
+          {snapshot}
           {loadingDetail}
           {selectedFile}
           {fileContent}

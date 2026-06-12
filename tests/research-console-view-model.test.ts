@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 import {
   calibrationHeadline,
   calibrationSlices,
+  closeLinePoints,
   dashboardMetrics,
   filterRuns,
   forecastRollup,
   formatClose,
+  horizonMarkers,
   predictionScores,
   scoredForecasts,
   groupedRunsByType,
@@ -22,6 +24,7 @@ import {
   runTrend,
   sources,
   textItems,
+  verifiedSnapshotView,
 } from "../app/client/view-model";
 
 describe("research console app view model", () => {
@@ -486,6 +489,143 @@ describe("calibration view model", () => {
     ]);
     expect(calibrationSlices(detail, "byAssetClass")).toEqual([]);
     expect(calibrationSlices({}, "byKind")).toEqual([]);
+  });
+});
+
+describe("verified market snapshot view model", () => {
+  const snapshotJson = JSON.stringify({
+    symbol: "AAPL",
+    assetClass: "equity",
+    analysisDate: "2026-06-11",
+    fetchedAt: "2026-06-11T13:00:00Z",
+    latestSessionDate: "2026-06-10",
+    ohlcv: { date: "2026-06-10", open: 1, high: 2, low: 0.5, close: 1.5, volume: 100 },
+    indicators: {
+      ema10: 199.2,
+      sma50: 195.8,
+      sma200: null,
+      rsi14: 61.4,
+      macd: 1.2,
+      macdSignal: null,
+      macdHistogram: null,
+      bollUpper: 204.1,
+      bollMiddle: 198,
+      bollLower: 191.9,
+      atr14: 4.3,
+    },
+    recentCloses: [
+      { date: "2026-05-26", close: 196.1 },
+      { date: "2026-05-27", close: 197.4 },
+      { date: "2026-05-28", close: 200.3 },
+    ],
+  });
+
+  test("parses a valid snapshot and drops null indicators", () => {
+    expect(verifiedSnapshotView(snapshotJson)).toEqual({
+      symbol: "AAPL",
+      analysisDate: "2026-06-11",
+      latestSessionDate: "2026-06-10",
+      indicators: {
+        ema10: 199.2,
+        sma50: 195.8,
+        rsi14: 61.4,
+        macd: 1.2,
+        bollUpper: 204.1,
+        bollMiddle: 198,
+        bollLower: 191.9,
+        atr14: 4.3,
+      },
+      recentCloses: [
+        { date: "2026-05-26", close: 196.1 },
+        { date: "2026-05-27", close: 197.4 },
+        { date: "2026-05-28", close: 200.3 },
+      ],
+    });
+  });
+
+  test("rejects null, malformed, and close-poor payloads", () => {
+    expect(verifiedSnapshotView("null")).toBeUndefined();
+    expect(verifiedSnapshotView("not json")).toBeUndefined();
+    expect(verifiedSnapshotView(JSON.stringify({ symbol: "AAPL" }))).toBeUndefined();
+    expect(
+      verifiedSnapshotView(
+        JSON.stringify({ symbol: "AAPL", recentCloses: [{ date: "2026-05-26", close: 1 }] }),
+      ),
+    ).toBeUndefined();
+    expect(
+      verifiedSnapshotView(
+        JSON.stringify({
+          recentCloses: [
+            { date: "2026-05-26", close: 1 },
+            { date: "2026-05-27", close: 2 },
+          ],
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  test("ignores invalid close entries while keeping valid ones", () => {
+    const view = verifiedSnapshotView(
+      JSON.stringify({
+        symbol: "AAPL",
+        indicators: "broken",
+        recentCloses: [
+          { date: "2026-05-26", close: 1 },
+          { date: "2026-05-27", close: "broken" },
+          "broken",
+          { date: "2026-05-28", close: 2 },
+        ],
+      }),
+    );
+    expect(view?.indicators).toEqual({});
+    expect(view?.recentCloses).toEqual([
+      { date: "2026-05-26", close: 1 },
+      { date: "2026-05-28", close: 2 },
+    ]);
+  });
+
+  test("maps closes onto chart coordinates", () => {
+    const closes = [
+      { date: "2026-05-26", close: 10 },
+      { date: "2026-05-27", close: 20 },
+      { date: "2026-05-28", close: 15 },
+    ];
+    const points = closeLinePoints(closes, 50, 600, 20, 180);
+    expect(points.map((point) => point.x)).toEqual([50, 350, 650]);
+    expect(points[0]?.y).toBe(200);
+    expect(points[1]?.y).toBe(20);
+    expect(points[2]?.y).toBe(110);
+  });
+
+  test("centers a flat series and handles tiny inputs", () => {
+    const flat = closeLinePoints(
+      [
+        { date: "2026-05-26", close: 5 },
+        { date: "2026-05-27", close: 5 },
+      ],
+      50,
+      600,
+      20,
+      180,
+    );
+    expect(flat.every((point) => point.y === 110)).toBe(true);
+    expect(closeLinePoints([], 50, 600, 20, 180)).toEqual([]);
+    expect(closeLinePoints([{ date: "2026-05-26", close: 5 }], 50, 600, 20, 180)).toEqual([
+      { x: 50, y: 110, date: "2026-05-26", close: 5 },
+    ]);
+  });
+
+  test("dedupes and sorts forecast horizon markers", () => {
+    expect(
+      horizonMarkers([
+        { horizonTradingDays: 10 },
+        { horizonTradingDays: 5 },
+        {},
+        { horizonTradingDays: 10 },
+        { horizonTradingDays: 0 },
+      ]),
+    ).toEqual([5, 10]);
+    expect(horizonMarkers([])).toEqual([]);
   });
 });
 

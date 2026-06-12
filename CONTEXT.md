@@ -22,6 +22,10 @@ Provider-normalized metadata that helps relate Source Provider records to an Ins
 
 A public market quantity value used to resolve a Prediction. An Observation can be point-in-time or part of a window. It is not advice, conviction, or a trade signal.
 
+## Calibration
+
+An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. It describes forecast accuracy; it is not investment conviction, model endorsement, or a trade signal.
+
 ## Market Update
 
 A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.

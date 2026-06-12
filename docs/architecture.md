@@ -108,6 +108,14 @@ Adding a new prediction shape means updating: the parser in `forecast/observable
 
 Schema is the contract. Validation enforces the research-only boundary ([ADR 0001](./adr/0001-research-only-boundary.md)) and the observable-prediction rule ([ADR 0004](./adr/0004-predictions-as-observable-forecasts.md)).
 
+### Research Console App (`app/`)
+
+A local, research-only Svelte 5 SPA (`app/client/`) served by a Bun HTTP API (`app/server.ts`). The server reads run artifacts from `MARKET_BOT_DATA_DIR` (list/search via the Run Artifact Index with disk fallback) and exposes: `/api/runs`, `/api/runs/:id`, `/api/runs/:id/files`, `/api/search`, `/api/jobs` (same-origin POST queues whitelisted CLI jobs), `/api/provider-health`, and `/api/calibration` (both read data-root `summary.{json,md}` siblings).
+
+Views: dashboard (metrics, runs-per-day chart, recent runs), run workspace, search, jobs, calibration, and provider health. The run workspace joins each run's `score.json` to its observable forecasts — hit/miss/pending badges with resolution evidence in neutral observation language — and, for ticker runs that persisted `normalized/verified-market-snapshot.json` ([ADR 0019](./adr/0019-verified-market-snapshot.md)), renders a recent-closes chart with latest indicator values and forecast-horizon ticks. The calibration view shows the Brier/skill headline against the coin-flip baseline, a reliability chart over sparse bins, and slice tables; the quality-of-forecasts framing lives only there, never in per-run outcome badges.
+
+Client conventions: loose `Record<string, unknown>` payloads at the wire, validated by type guards in `app/client/api.ts`, parsed by pure functions in `app/client/view-model.ts` / `app/report-artifact-view.ts`; hand-rolled SVG charts (no chart dependency). The console stays read-only over artifacts and adds no trade-action surface.
+
 ## Data flow
 
 ```

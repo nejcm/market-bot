@@ -1,25 +1,8 @@
 <script lang="ts">
-  import {
-    Briefcase,
-    Database,
-    ExternalLink,
-    FileText,
-    HeartPulse,
-    Play,
-    Search,
-    ShieldCheck,
-  } from "@lucide/svelte";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import * as Card from "$lib/components/ui/card";
-  import { Input } from "$lib/components/ui/input";
-  import * as Table from "$lib/components/ui/table";
-  import * as Tabs from "$lib/components/ui/tabs";
-  import { ASSET_CLASS_OPTIONS, CONSOLE_JOB_TYPES, DEPTH_OPTIONS, SEARCH_JOB_TYPE_OPTIONS, jobSupportsAsset, jobSupportsDepth } from "../../../src/cli/job-registry";
-  import type { ConsoleJob, ProviderHealthDetail, RunDetail, RunSearchResult } from "../../types";
+  import { Skeleton } from "$lib/components/ui/skeleton";
+  import type { RunDetail } from "../../types";
   import {
     formatDate,
-    groupedSearchResults,
     jsonBlock,
     predictions,
     runLabel,
@@ -28,17 +11,7 @@
     stringArray,
     textItems,
   } from "../view-model";
-  import { TABS, type JobFormField, type JobFormState, type SearchFormField, type SearchFormState, type Tab } from "./console-types";
-  import RawBlock from "./raw-block.svelte";
-  import SelectField from "./select-field.svelte";
-
-  const SECTION_KEYS = [
-    ["keyFindings", "Key findings"],
-    ["bullCase", "Bull case"],
-    ["bearCase", "Bear case"],
-    ["risks", "Risks"],
-    ["catalysts", "Catalysts"],
-  ] as const;
+  import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
 
   interface Props {
     readonly activeTab: Tab;
@@ -46,20 +19,11 @@
     readonly loadingDetail: boolean;
     readonly selectedFile: string;
     readonly fileContent: string;
-    readonly providerHealth: ProviderHealthDetail;
-    readonly jobs: readonly ConsoleJob[];
-    readonly searchResults: readonly RunSearchResult[];
-    readonly searchLoading: boolean;
-    readonly searchNotice: string;
-    readonly searchForm: SearchFormState;
-    readonly jobForm: JobFormState;
+    readonly highlightSourceId: string;
     readonly onTabChange: (tab: Tab) => void;
     readonly onLoadFile: (path: string) => void;
-    readonly onRunSearch: () => void;
-    readonly onOpenSearchResult: (result: RunSearchResult) => void;
-    readonly onSearchFormChange: (field: SearchFormField, value: string) => void;
-    readonly onJobFormChange: (field: JobFormField, value: string) => void;
-    readonly onSubmitJob: () => void;
+    readonly onGoHome: () => void;
+    readonly onHighlightSource: (sourceId: string) => void;
   }
 
   let {
@@ -68,448 +32,521 @@
     loadingDetail,
     selectedFile,
     fileContent,
-    providerHealth,
-    jobs,
-    searchResults,
-    searchLoading,
-    searchNotice,
-    searchForm,
-    jobForm,
+    highlightSourceId,
     onTabChange,
     onLoadFile,
-    onRunSearch,
-    onOpenSearchResult,
-    onSearchFormChange,
-    onJobFormChange,
-    onSubmitJob,
+    onGoHome,
+    onHighlightSource,
   }: Props = $props();
 
+  interface CitePopover {
+    readonly id: string;
+    readonly title: string;
+    readonly kind: string;
+    readonly provider: string;
+    readonly x: number;
+    readonly y: number;
+  }
+
+  const POPOVER_WIDTH = 290;
+  const POPOVER_MARGIN = 150;
+
+  let dataSegment = $state<DataSegment>("analytics");
+  let cite = $state<CitePopover | null>(null);
+  const sectionEls: Partial<Record<string, HTMLElement>> = {};
+
   const report = $derived(detail?.report);
-  const reportSummary = $derived(
-    typeof report?.summary === "string" ? report.summary : "No summary is available.",
-  );
+  const reportSummary = $derived(typeof report?.summary === "string" ? report.summary : "");
+  const findingItems = $derived(textItems(report, "keyFindings"));
   const scenarioItems = $derived(scenarios(report));
   const forecastItems = $derived(predictions(report));
   const sourceItems = $derived(sources(report));
-  const gaps = $derived(stringArray(report, "dataGaps"));
-  const searchGroups = $derived(groupedSearchResults(searchResults));
+  const gapItems = $derived(stringArray(report, "dataGaps"));
 
-  const tabIcons = {
-    report: FileText,
-    sources: Database,
-    analytics: ShieldCheck,
-    trace: FileText,
-    files: FileText,
-    score: ShieldCheck,
-    search: Search,
-    health: HeartPulse,
-    jobs: Briefcase,
+  const CASE_STYLES = [
+    { key: "bullCase", title: "Bull case", edge: "#4ba3b2", fg: "#166e7d" },
+    { key: "bearCase", title: "Bear case", edge: "#8a8f96", fg: "#5c6066" },
+    { key: "risks", title: "Risks", edge: "#c4b389", fg: "#8a6116" },
+    { key: "catalysts", title: "Catalysts", edge: "#9fc2c8", fg: "#166e7d" },
+  ] as const;
+
+  const caseSections = $derived(
+    CASE_STYLES.map((style) => ({ ...style, items: textItems(report, style.key) })).filter(
+      (section) => section.items.length > 0,
+    ),
+  );
+
+  const tocEntries = $derived(
+    [
+      ["summary", "Summary", reportSummary !== ""],
+      ["findings", "Key findings", findingItems.length > 0],
+      ["cases", "Cases & risks", caseSections.length > 0],
+      ["scenarios", "Scenarios", scenarioItems.length > 0],
+      ["forecasts", "Forecasts", forecastItems.length > 0],
+      ["gaps", "Data gaps", gapItems.length > 0],
+    ] as const,
+  );
+
+  const TAB_LABELS: Record<Tab, string> = {
+    report: "Report",
+    sources: "Sources",
+    data: "Data",
+    files: "Files",
   };
+  const SEGMENT_LABELS: Record<DataSegment, string> = {
+    analytics: "Analytics",
+    trace: "Trace",
+    score: "Score",
+  };
+
+  const dataContent = $derived.by(() => {
+    if (detail === null) {
+      return "Not available";
+    }
+
+    return jsonBlock(detail[dataSegment]);
+  });
+
+  function bindSection(key: string): (el: HTMLElement) => void {
+    return (el) => {
+      sectionEls[key] = el;
+    };
+  }
+
+  function scrollToSection(key: string): void {
+    sectionEls[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function showCite(event: MouseEvent, sourceId: string): void {
+    const source = sourceItems.find((item) => item.id === sourceId);
+    cite = {
+      id: sourceId,
+      title: source?.title ?? "Unknown source",
+      kind: source?.kind ?? "?",
+      provider: source?.provider ?? "?",
+      x: Math.min(event.clientX + 14, globalThis.innerWidth - POPOVER_WIDTH - 20),
+      y: Math.min(event.clientY + 18, globalThis.innerHeight - POPOVER_MARGIN),
+    };
+  }
+
+  function openSource(sourceId: string): void {
+    cite = null;
+    onHighlightSource(sourceId);
+    onTabChange("sources");
+  }
 </script>
 
+{#snippet citeChips(sourceIds: readonly string[])}
+  {#each sourceIds as sourceId}
+    <button
+      class="mr-0.75 inline-block rounded border border-[#cfe0e3] bg-accent px-1.5 align-[2px] font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] hover:bg-[#dcebee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      type="button"
+      onmouseenter={(event) => showCite(event, sourceId)}
+      onmouseleave={() => (cite = null)}
+      onclick={() => openSource(sourceId)}
+    >
+      {sourceId}
+    </button>
+  {/each}
+{/snippet}
+
+{#snippet sectionHeading(label: string)}
+  <div
+    class="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
+  >
+    {label}
+  </div>
+{/snippet}
+
 {#if loadingDetail}
-  <Card.Card class="border-cyan-900/10 bg-card/90 p-8 text-center text-sm text-muted-foreground">
-    Loading selected run...
-  </Card.Card>
+  <div class="space-y-4" data-screen-label="Run loading">
+    <Skeleton class="h-8 w-72" />
+    <Skeleton class="h-5 w-96" />
+    <Skeleton class="h-40 w-full max-w-180" />
+    <Skeleton class="h-64 w-full max-w-180" />
+  </div>
 {:else if detail === null}
-  <Card.Card class="border-cyan-900/10 bg-card/90 p-8 text-center text-sm text-muted-foreground">
+  <div
+    class="rounded-lg border border-dashed border-input p-9 text-center text-sm text-muted-foreground"
+  >
     Select a run to inspect the research artifact.
-  </Card.Card>
+  </div>
 {:else}
-  <section class="space-y-3" aria-live="polite">
-    <Card.Card class="border-cyan-900/10 bg-card/90 shadow-sm">
-      <Card.CardHeader class="gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div class="min-w-0">
-          <Card.CardDescription class="truncate">{detail.summary.runId}</Card.CardDescription>
-          <Card.CardTitle class="text-xl">{runLabel(detail.summary)}</Card.CardTitle>
-          <p class="mt-1 text-sm text-muted-foreground">{formatDate(detail.summary.generatedAt)}</p>
-        </div>
-        <div class="grid grid-cols-3 gap-2 text-center">
-          <div class="rounded-md border bg-cyan-50/60 px-3 py-2">
-            <div class="text-xs text-muted-foreground">Confidence</div>
-            <div class="text-sm font-semibold">{detail.summary.confidence ?? "unknown"}</div>
-          </div>
-          <div class="rounded-md border bg-cyan-50/60 px-3 py-2">
-            <div class="text-xs text-muted-foreground">Sources</div>
-            <div class="text-sm font-semibold">{detail.summary.sourceCount}</div>
-          </div>
-          <div class="rounded-md border bg-cyan-50/60 px-3 py-2">
-            <div class="text-xs text-muted-foreground">Files</div>
-            <div class="text-sm font-semibold">{detail.summary.availableFiles.length}</div>
-          </div>
-        </div>
-      </Card.CardHeader>
-    </Card.Card>
-
-    <Tabs.Tabs value={activeTab}>
-      <Tabs.TabsList
-        class="h-auto w-full flex-wrap justify-start gap-1 rounded-full border border-cyan-900/10 bg-cyan-50/70 p-1 shadow-inner shadow-cyan-900/5"
+  <div data-screen-label="Run workspace">
+    <div class="font-mono text-[11px] text-muted-foreground">
+      <button
+        class="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        type="button"
+        onclick={onGoHome}
       >
-        {#each TABS as tab}
-          {@const Icon = tabIcons[tab]}
-          <Tabs.TabsTrigger
-            value={tab}
-            onclick={() => onTabChange(tab)}
-            class="flex-none rounded-full px-3 py-1.5 capitalize {activeTab === tab
-              ? 'bg-white text-foreground shadow-sm'
-              : ''}"
-          >
-            <Icon class="size-3.5" />
-            {tab}
-          </Tabs.TabsTrigger>
+        runs
+      </button>
+      / {detail.summary.runId}
+    </div>
+
+    <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-[21px] font-semibold tracking-tight">{runLabel(detail.summary)}</h1>
+        <div class="mt-1 text-xs text-[#5c6066]">{formatDate(detail.summary.generatedAt)}</div>
+      </div>
+      <div class="flex gap-5.5">
+        {#each [
+          { value: detail.summary.confidence ?? "—", label: "Confidence" },
+          { value: String(detail.summary.sourceCount), label: "Sources" },
+          { value: String(detail.summary.availableFiles.length), label: "Files" },
+        ] as stat}
+          <div class="text-right">
+            <div class="font-mono text-[17px] font-medium">{stat.value}</div>
+            <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+              {stat.label}
+            </div>
+          </div>
         {/each}
-      </Tabs.TabsList>
+      </div>
+    </div>
 
-      <Tabs.TabsContent value="report">
-        <article class="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card.Card class="border-cyan-900/10 bg-card/90 xl:col-span-2">
-            <Card.CardHeader>
-              <Card.CardTitle>Summary</Card.CardTitle>
-            </Card.CardHeader>
-            <Card.CardContent>
-              <p class="leading-7 text-foreground/85">{reportSummary}</p>
-            </Card.CardContent>
-          </Card.Card>
+    <div class="mt-5 flex gap-0.5 border-b border-border" role="tablist">
+      {#each TABS as tab}
+        <button
+          class="-mb-px border-b-2 px-3.5 pb-2.5 pt-2 text-[13px] transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
+          tab
+            ? 'border-primary font-semibold text-foreground'
+            : 'border-transparent font-normal text-muted-foreground'}"
+          type="button"
+          role="tab"
+          aria-selected={activeTab === tab}
+          onclick={() => onTabChange(tab)}
+        >
+          {TAB_LABELS[tab]}
+        </button>
+      {/each}
+    </div>
 
-          {#each SECTION_KEYS as [key, label]}
-            {@const items = textItems(report, key)}
-            {#if items.length > 0}
-              <Card.Card class="border-cyan-900/10 bg-card/90">
-                <Card.CardHeader>
-                  <Card.CardTitle>{label}</Card.CardTitle>
-                </Card.CardHeader>
-                <Card.CardContent>
-                  <ul class="space-y-3">
-                    {#each items as item}
-                      <li class="border-l-2 border-cyan-600/40 pl-3">
-                        <span class="block text-sm">{item.text}</span>
-                        {#if item.sourceIds.length > 0}
-                          <span class="mt-1 block text-xs text-muted-foreground">{item.sourceIds.join(", ")}</span>
-                        {/if}
-                      </li>
+    {#if activeTab === "report"}
+      <div class="mt-6 grid gap-11 xl:grid-cols-[minmax(0,720px)_200px]">
+        <article class="min-w-0">
+          {#if reportSummary !== ""}
+            <div
+              {@attach bindSection("summary")}
+              class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
+            >
+              {reportSummary}
+            </div>
+          {/if}
+
+          {#if findingItems.length > 0}
+            <section {@attach bindSection("findings")} class="mt-8.5 scroll-mt-5">
+              {@render sectionHeading("Key findings")}
+              {#each findingItems as item, index}
+                <div class="flex gap-3.5 border-b border-[#f0ede7] py-3.5">
+                  <span class="shrink-0 pt-0.75 font-mono text-xs text-[#a8acb1]">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div class="min-w-0">
+                    <span class="font-serif text-[15.5px] leading-[1.6] text-[#1f2225]">
+                      {item.text}
+                    </span>
+                    {@render citeChips(item.sourceIds)}
+                  </div>
+                </div>
+              {/each}
+            </section>
+          {/if}
+
+          {#if caseSections.length > 0}
+            <div
+              {@attach bindSection("cases")}
+              class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2"
+            >
+              {#each caseSections as section}
+                <div
+                  class="rounded-lg border border-border bg-card px-4.5 py-4"
+                  style="border-top: 2px solid {section.edge}"
+                >
+                  <div
+                    class="text-xs font-semibold uppercase tracking-wider"
+                    style="color: {section.fg}"
+                  >
+                    {section.title}
+                  </div>
+                  <div class="mt-3 flex flex-col gap-3">
+                    {#each section.items as item}
+                      <div class="min-w-0">
+                        <span class="font-serif text-sm leading-[1.55] text-[#2a2d30]">
+                          {item.text}
+                        </span>
+                        {@render citeChips(item.sourceIds)}
+                      </div>
                     {/each}
-                  </ul>
-                </Card.CardContent>
-              </Card.Card>
-            {/if}
-          {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
 
           {#if scenarioItems.length > 0}
-            <Card.Card class="border-cyan-900/10 bg-card/90">
-              <Card.CardHeader>
-                <Card.CardTitle>Scenarios</Card.CardTitle>
-              </Card.CardHeader>
-              <Card.CardContent class="space-y-3">
+            <section {@attach bindSection("scenarios")} class="mt-8.5 scroll-mt-5">
+              {@render sectionHeading("Scenarios")}
+              <div class="mt-3.5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {#each scenarioItems as scenario}
-                  <div class="rounded-md border bg-cyan-50/50 p-3">
-                    <strong>{scenario.name}</strong>
-                    <p class="mt-1 text-sm text-muted-foreground">{scenario.description}</p>
-                    {#if scenario.sourceIds.length > 0}
-                      <span class="mt-2 block text-xs text-muted-foreground">{scenario.sourceIds.join(", ")}</span>
-                    {/if}
+                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
+                    <div class="text-[12.5px] font-semibold text-foreground">{scenario.name}</div>
+                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
+                      {scenario.description}
+                    </div>
+                    {@render citeChips(scenario.sourceIds)}
                   </div>
                 {/each}
-              </Card.CardContent>
-            </Card.Card>
+              </div>
+            </section>
           {/if}
 
           {#if forecastItems.length > 0}
-            <Card.Card class="border-cyan-900/10 bg-card/90">
-              <Card.CardHeader>
-                <Card.CardTitle>Observable Forecasts</Card.CardTitle>
-              </Card.CardHeader>
-              <Card.CardContent class="space-y-3">
-                {#each forecastItems as prediction}
-                  <div class="rounded-md border bg-cyan-50/50 p-3">
-                    <strong class="text-sm">{prediction.claim}</strong>
-                    <p class="mt-1 text-xs text-muted-foreground">
-                      {prediction.kind ?? "forecast"}
-                      {#if prediction.probability !== undefined}
-                        / {Math.round(prediction.probability * 100)}%
-                      {/if}
-                      {#if prediction.horizonTradingDays !== undefined}
-                        / {prediction.horizonTradingDays} trading days
-                      {/if}
-                    </p>
-                    {#if prediction.sourceIds.length > 0}
-                      <span class="mt-2 block text-xs text-muted-foreground">{prediction.sourceIds.join(", ")}</span>
+            <section {@attach bindSection("forecasts")} class="mt-8.5 scroll-mt-5">
+              <div class="flex items-baseline justify-between border-b border-border pb-2">
+                <span
+                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
+                >
+                  Observable forecasts
+                </span>
+                <span class="font-mono text-[10px] text-[#a8acb1]">td = trading days</span>
+              </div>
+              {#each forecastItems as forecast}
+                <div
+                  class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px] sm:gap-4"
+                >
+                  <div class="font-serif text-sm leading-[1.5] text-[#1f2225]">
+                    {forecast.claim}
+                    {@render citeChips(forecast.sourceIds)}
+                  </div>
+                  <div>
+                    {#if forecast.kind !== undefined}
+                      <span
+                        class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
+                      >
+                        {forecast.kind}
+                      </span>
                     {/if}
                   </div>
-                {/each}
-              </Card.CardContent>
-            </Card.Card>
+                  <div class="flex items-center gap-2">
+                    {#if forecast.probability !== undefined}
+                      {@const pct = Math.round(forecast.probability * 100)}
+                      <div class="h-1 flex-1 rounded-sm bg-[#f0ede7]">
+                        <div class="h-1 rounded-sm bg-[#4ba3b2]" style="width: {pct}%"></div>
+                      </div>
+                      <span class="w-8.5 text-right font-mono text-xs font-medium">{pct}%</span>
+                    {/if}
+                  </div>
+                  <div class="text-left font-mono text-[11.5px] text-[#5c6066] sm:text-right">
+                    {forecast.horizonTradingDays === undefined
+                      ? ""
+                      : `${forecast.horizonTradingDays} td`}
+                  </div>
+                </div>
+              {/each}
+            </section>
           {/if}
 
-          {#if gaps.length > 0}
-            <Card.Card class="border-cyan-900/10 bg-card/90">
-              <Card.CardHeader>
-                <Card.CardTitle>Data Gaps</Card.CardTitle>
-              </Card.CardHeader>
-              <Card.CardContent>
-                <ul class="space-y-2">
-                  {#each gaps as gap}
-                    <li class="text-sm text-muted-foreground">{gap}</li>
-                  {/each}
-                </ul>
-              </Card.CardContent>
-            </Card.Card>
+          {#if gapItems.length > 0}
+            <section {@attach bindSection("gaps")} class="mt-8.5 scroll-mt-5">
+              <div
+                class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]"
+              >
+                Data gaps · what we could not verify
+              </div>
+              <div class="mt-3.5 flex flex-col gap-2.5">
+                {#each gapItems as gap}
+                  <div
+                    class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
+                  >
+                    <span
+                      class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+                    >
+                      GAP
+                    </span>
+                    <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
+                  </div>
+                {/each}
+              </div>
+            </section>
           {/if}
 
           {#if detail.markdown !== undefined}
-            <Card.Card class="border-cyan-900/10 bg-card/90 xl:col-span-2">
-              <Card.CardHeader>
-                <Card.CardTitle>Markdown Fallback</Card.CardTitle>
-              </Card.CardHeader>
-              <Card.CardContent>
-                <pre class="max-h-[520px] overflow-auto rounded-md bg-slate-950 p-4 text-xs text-cyan-50">{detail.markdown}</pre>
-              </Card.CardContent>
-            </Card.Card>
+            <section class="mt-8.5">
+              {@render sectionHeading("Raw markdown")}
+              <pre
+                class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{detail.markdown}</pre>
+            </section>
           {/if}
         </article>
-      </Tabs.TabsContent>
 
-      <Tabs.TabsContent value="sources">
-        <Card.Card class="border-cyan-900/10 bg-card/90">
-          <Card.CardHeader>
-            <Card.CardTitle>Sources</Card.CardTitle>
-            <Card.CardDescription>Normalized source metadata from the selected run.</Card.CardDescription>
-          </Card.CardHeader>
-          <Card.CardContent>
-            <div class="overflow-x-auto">
-              <Table.Table>
-                <Table.TableHeader>
-                  <Table.TableRow>
-                    <Table.TableHead>ID</Table.TableHead>
-                    <Table.TableHead>Title</Table.TableHead>
-                    <Table.TableHead>Kind</Table.TableHead>
-                    <Table.TableHead>Provider</Table.TableHead>
-                    <Table.TableHead>Link</Table.TableHead>
-                  </Table.TableRow>
-                </Table.TableHeader>
-                <Table.TableBody>
-                  {#each sourceItems as source}
-                    <Table.TableRow>
-                      <Table.TableCell class="font-mono text-xs">{source.id}</Table.TableCell>
-                      <Table.TableCell>{source.title}</Table.TableCell>
-                      <Table.TableCell>{source.kind ?? "source"}</Table.TableCell>
-                      <Table.TableCell>{source.provider ?? ""}</Table.TableCell>
-                      <Table.TableCell>
-                        {#if source.url !== undefined}
-                          <a class="inline-flex items-center gap-1 text-cyan-700 hover:underline" href={source.url} target="_blank" rel="noreferrer">
-                            Open
-                            <ExternalLink class="size-3" />
-                          </a>
-                        {/if}
-                      </Table.TableCell>
-                    </Table.TableRow>
-                  {/each}
-                </Table.TableBody>
-              </Table.Table>
+        <aside class="sticky top-6 hidden h-fit pt-1 xl:block">
+          <div class="font-mono text-[10px] tracking-[0.08em] text-[#a8acb1]">ON THIS PAGE</div>
+          <div class="mt-2.5 flex flex-col gap-0.5 border-l border-border">
+            {#each tocEntries as [key, label, available]}
+              {#if available}
+                <button
+                  class="-ml-px border-l-2 border-transparent py-1 pl-3 text-left text-xs text-[#5c6066] transition hover:border-[#9fc2c8] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  type="button"
+                  onclick={() => scrollToSection(key)}
+                >
+                  {label}
+                </button>
+              {/if}
+            {/each}
+          </div>
+          <div class="mt-5.5 border-t border-border pt-3.5 text-[11.5px] text-[#5c6066]">
+            Every claim carries its source IDs. Hover a chip to preview; click to open Sources.
+          </div>
+        </aside>
+      </div>
+    {:else if activeTab === "sources"}
+      <div class="mt-6 overflow-hidden rounded-lg border border-border bg-card">
+        <div class="overflow-x-auto">
+          <div class="min-w-160">
+            <div
+              class="grid grid-cols-[170px_minmax(0,1fr)_110px_130px_70px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
+            >
+              <div>ID</div>
+              <div>TITLE</div>
+              <div>KIND</div>
+              <div>PROVIDER</div>
+              <div>LINK</div>
             </div>
-          </Card.CardContent>
-        </Card.Card>
-      </Tabs.TabsContent>
-
-      <Tabs.TabsContent value="analytics">
-        <RawBlock title="Analytics" value={jsonBlock(detail.analytics)} />
-      </Tabs.TabsContent>
-
-      <Tabs.TabsContent value="trace">
-        <RawBlock title="Trace / Logs" value={jsonBlock(detail.trace)} />
-      </Tabs.TabsContent>
-
-      <Tabs.TabsContent value="files">
-        <Card.Card class="border-cyan-900/10 bg-card/90">
-          <Card.CardHeader>
-            <Card.CardTitle>Files</Card.CardTitle>
-          </Card.CardHeader>
-          <Card.CardContent>
-            <div class="grid gap-3 lg:grid-cols-[280px_1fr]">
-              <div class="space-y-2">
-                {#each detail.summary.availableFiles as file}
-                  <Button
-                    variant={selectedFile === file ? "secondary" : "outline"}
-                    class="w-full justify-start"
-                    type="button"
-                    onclick={() => onLoadFile(file)}
+            {#if sourceItems.length === 0}
+              <div class="px-4.5 py-6 text-sm text-muted-foreground">
+                This run cites no normalized sources.
+              </div>
+            {/if}
+            {#each sourceItems as source}
+              <div
+                {@attach (el) => {
+                  if (highlightSourceId === source.id) {
+                    el.scrollIntoView({ block: "center" });
+                  }
+                }}
+                class="grid grid-cols-[170px_minmax(0,1fr)_110px_130px_70px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-2.75 {highlightSourceId ===
+                source.id
+                  ? 'bg-accent'
+                  : 'bg-transparent'}"
+              >
+                <div
+                  class="truncate font-mono text-[11.5px] font-medium text-primary"
+                  title={source.id}
+                >
+                  {source.id}
+                </div>
+                <div class="truncate text-[12.5px] text-[#1f2225]" title={source.title}>
+                  {source.title}
+                </div>
+                <div>
+                  <span
+                    class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
                   >
-                    {file}
-                  </Button>
-                {/each}
+                    {source.kind ?? "source"}
+                  </span>
+                </div>
+                <div class="truncate text-xs text-[#5c6066]">{source.provider ?? ""}</div>
+                <div>
+                  {#if source.url !== undefined}
+                    <a
+                      class="font-mono text-[11px] text-primary hover:underline"
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      open ↗
+                    </a>
+                  {/if}
+                </div>
               </div>
-              <pre class="min-h-[360px] overflow-auto rounded-md bg-slate-950 p-4 text-xs text-cyan-50">{fileContent === "" ? "Select a file." : fileContent}</pre>
+            {/each}
+          </div>
+        </div>
+      </div>
+    {:else if activeTab === "data"}
+      <div class="mt-6">
+        <div class="inline-flex overflow-hidden rounded-md border border-border bg-card">
+          {#each DATA_SEGMENTS as segment}
+            <button
+              class="border-r border-[#f0ede7] px-4 py-1.5 text-xs font-medium transition last:border-r-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {dataSegment ===
+              segment
+                ? 'bg-sidebar text-white'
+                : 'bg-transparent text-[#5c6066]'}"
+              type="button"
+              onclick={() => (dataSegment = segment)}
+            >
+              {SEGMENT_LABELS[segment]}
+            </button>
+          {/each}
+        </div>
+        <div class="mt-3 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
+          <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{dataContent}</pre>
+        </div>
+      </div>
+    {:else}
+      <div class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <div class="overflow-hidden rounded-lg border border-border bg-card">
+          {#if detail.summary.availableFiles.length === 0}
+            <div class="px-3.5 py-5 text-sm text-muted-foreground">No files on disk.</div>
+          {/if}
+          {#each detail.summary.availableFiles as file}
+            <button
+              class="block w-full border-b border-[#f0ede7] px-3.5 py-2.25 text-left transition last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {selectedFile ===
+              file
+                ? 'bg-accent'
+                : 'bg-transparent'}"
+              type="button"
+              onclick={() => onLoadFile(file)}
+            >
+              <span
+                class="block truncate font-mono text-[11.5px] {selectedFile === file
+                  ? 'text-primary'
+                  : 'text-[#45494e]'}"
+              >
+                {file}
+              </span>
+            </button>
+          {/each}
+        </div>
+        {#if selectedFile === ""}
+          <div
+            class="flex min-h-80 items-center justify-center rounded-lg border border-dashed border-input text-[13px] text-muted-foreground"
+          >
+            Select a file to view its contents
+          </div>
+        {:else}
+          <div class="min-h-80 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
+            <div class="mb-3 font-mono text-[10.5px] text-[#6e757d]">
+              runs/{detail.summary.runId}/{selectedFile}
             </div>
-          </Card.CardContent>
-        </Card.Card>
-      </Tabs.TabsContent>
+            <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{fileContent}</pre>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
 
-      <Tabs.TabsContent value="score">
-        <RawBlock title="Score" value={jsonBlock(detail.score)} />
-      </Tabs.TabsContent>
-
-      <Tabs.TabsContent value="search">
-        <Card.Card class="border-cyan-900/10 bg-card/90">
-          <Card.CardHeader>
-            <Card.CardTitle>Search</Card.CardTitle>
-            <Card.CardDescription>Search structured report sections across stored runs.</Card.CardDescription>
-          </Card.CardHeader>
-          <Card.CardContent class="space-y-4">
-            <form
-              class="grid gap-3 md:grid-cols-6"
-              onsubmit={(event) => {
-                event.preventDefault();
-                onRunSearch();
-              }}
-            >
-              <label class="space-y-1 md:col-span-2">
-                <span class="text-xs font-medium text-muted-foreground">Query</span>
-                <Input
-                  value={searchForm.query}
-                  placeholder="source, forecast, gap"
-                  oninput={(event) => onSearchFormChange("query", event.currentTarget.value)}
-                />
-              </label>
-              <label class="space-y-1">
-                <span class="text-xs font-medium text-muted-foreground">Symbol</span>
-                <Input
-                  value={searchForm.symbol}
-                  placeholder="AAPL"
-                  oninput={(event) => onSearchFormChange("symbol", event.currentTarget.value)}
-                />
-              </label>
-              <SelectField label="Asset" value={searchForm.assetClass} options={["", ...ASSET_CLASS_OPTIONS]} onChange={(value) => onSearchFormChange("assetClass", value)} />
-              <SelectField label="Job" value={searchForm.jobType} options={SEARCH_JOB_TYPE_OPTIONS} onChange={(value) => onSearchFormChange("jobType", value)} />
-              <Button class="mt-5" type="submit" disabled={searchLoading}>
-                <Search class="size-4" />
-                Search
-              </Button>
-              <label class="space-y-1">
-                <span class="text-xs font-medium text-muted-foreground">From</span>
-                <Input type="date" value={searchForm.from} oninput={(event) => onSearchFormChange("from", event.currentTarget.value)} />
-              </label>
-              <label class="space-y-1">
-                <span class="text-xs font-medium text-muted-foreground">To</span>
-                <Input type="date" value={searchForm.to} oninput={(event) => onSearchFormChange("to", event.currentTarget.value)} />
-              </label>
-            </form>
-
-            {#if searchLoading}
-              <p class="text-sm text-muted-foreground">Searching reports...</p>
-            {:else if searchNotice !== ""}
-              <p class="text-sm text-muted-foreground">{searchNotice}</p>
-            {:else if searchGroups.length > 0}
-              <div class="space-y-3">
-                {#each searchGroups as group}
-                  <div class="rounded-md border bg-cyan-50/50 p-3">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                      <strong>{runLabel(group.run)}</strong>
-                      <span class="text-xs text-muted-foreground">{formatDate(group.run.generatedAt)}</span>
-                    </div>
-                    <div class="mt-3 space-y-2">
-                      {#each group.results as result}
-                        <button class="w-full rounded-md border bg-background p-3 text-left transition hover:border-cyan-500/50 hover:bg-cyan-50" type="button" onclick={() => onOpenSearchResult(result)}>
-                          <span class="text-sm font-medium">{result.label}</span>
-                          <Badge variant="outline" class="ml-2">{result.section}</Badge>
-                          <p class="mt-1 text-sm text-muted-foreground">{result.snippet}</p>
-                          {#if result.sourceIds.length > 0}
-                            <span class="mt-2 block text-xs text-muted-foreground">{result.sourceIds.join(", ")}</span>
-                          {/if}
-                        </button>
-                      {/each}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </Card.CardContent>
-        </Card.Card>
-      </Tabs.TabsContent>
-
-      <Tabs.TabsContent value="health">
-        <Card.Card class="border-cyan-900/10 bg-card/90">
-          <Card.CardHeader>
-            <Card.CardTitle>Provider Health</Card.CardTitle>
-          </Card.CardHeader>
-          <Card.CardContent class="space-y-3">
-            <pre class="overflow-auto rounded-md bg-slate-950 p-4 text-xs text-cyan-50">{jsonBlock(providerHealth.summary)}</pre>
-            {#if providerHealth.markdown !== undefined}
-              <pre class="overflow-auto rounded-md bg-slate-950 p-4 text-xs text-cyan-50">{providerHealth.markdown}</pre>
-            {/if}
-          </Card.CardContent>
-        </Card.Card>
-      </Tabs.TabsContent>
-
-      <Tabs.TabsContent value="jobs">
-        <Card.Card class="border-cyan-900/10 bg-card/90">
-          <Card.CardHeader>
-            <Card.CardTitle>Jobs</Card.CardTitle>
-            <Card.CardDescription>Queue local research-console jobs without changing API contracts.</Card.CardDescription>
-          </Card.CardHeader>
-          <Card.CardContent class="space-y-4">
-            <form
-              class="grid gap-3 md:grid-cols-5"
-              onsubmit={(event) => {
-                event.preventDefault();
-                onSubmitJob();
-              }}
-            >
-              <SelectField label="Job" value={jobForm.jobType} options={CONSOLE_JOB_TYPES} onChange={(value) => onJobFormChange("jobType", value)} />
-              {#if jobSupportsAsset(jobForm.jobType)}
-                <SelectField label="Asset" value={jobForm.assetClass} options={ASSET_CLASS_OPTIONS} onChange={(value) => onJobFormChange("assetClass", value)} />
-              {/if}
-              {#if jobForm.jobType === "ticker"}
-                <label class="space-y-1">
-                  <span class="text-xs font-medium text-muted-foreground">Symbol</span>
-                  <Input value={jobForm.symbol} placeholder="AAPL" oninput={(event) => onJobFormChange("symbol", event.currentTarget.value)} />
-                </label>
-              {/if}
-              {#if jobSupportsDepth(jobForm.jobType)}
-                <SelectField label="Depth" value={jobForm.depth} options={DEPTH_OPTIONS} onChange={(value) => onJobFormChange("depth", value)} />
-              {/if}
-              <Button class="mt-5" type="submit">
-                <Play class="size-4" />
-                Queue job
-              </Button>
-            </form>
-
-            {#if jobs.length === 0}
-              <p class="text-sm text-muted-foreground">No jobs queued yet.</p>
-            {:else}
-              <div class="overflow-x-auto">
-                <Table.Table>
-                  <Table.TableHeader>
-                    <Table.TableRow>
-                      <Table.TableHead>Job</Table.TableHead>
-                      <Table.TableHead>Status</Table.TableHead>
-                      <Table.TableHead>Created</Table.TableHead>
-                      <Table.TableHead>Output</Table.TableHead>
-                    </Table.TableRow>
-                  </Table.TableHeader>
-                  <Table.TableBody>
-                    {#each jobs as job}
-                      <Table.TableRow>
-                        <Table.TableCell class="font-medium">{job.label}</Table.TableCell>
-                        <Table.TableCell>
-                          <Badge variant={job.status === "running" ? "default" : "outline"}>{job.status}</Badge>
-                        </Table.TableCell>
-                        <Table.TableCell>{formatDate(job.createdAt)}</Table.TableCell>
-                        <Table.TableCell class="max-w-[420px]">
-                          {#if job.outputRunPath !== undefined}
-                            <span class="block truncate text-xs">{job.outputRunPath}</span>
-                          {/if}
-                          {#if job.stdout !== "" || job.stderr !== ""}
-                            <pre class="mt-2 max-h-28 overflow-auto rounded bg-slate-950 p-2 text-xs text-cyan-50">{job.stdout}{job.stderr}</pre>
-                          {/if}
-                        </Table.TableCell>
-                      </Table.TableRow>
-                    {/each}
-                  </Table.TableBody>
-                </Table.Table>
-              </div>
-            {/if}
-          </Card.CardContent>
-        </Card.Card>
-      </Tabs.TabsContent>
-    </Tabs.Tabs>
-  </section>
+  {#if cite !== null}
+    <div
+      class="pointer-events-none fixed z-50 w-72 rounded-lg border border-input bg-popover px-3.75 py-3 shadow-[0_6px_24px_rgba(26,28,30,0.14)]"
+      style="left: {cite.x}px; top: {cite.y}px"
+      role="tooltip"
+    >
+      <div class="flex items-center gap-2">
+        <span
+          class="rounded border border-[#cfe0e3] bg-accent px-1.5 font-mono text-[10px] text-primary"
+        >
+          {cite.id}
+        </span>
+        <span class="font-mono text-[10px] text-muted-foreground">
+          {cite.kind} · {cite.provider}
+        </span>
+      </div>
+      <div class="mt-2 text-[12.5px] font-medium leading-snug text-popover-foreground">
+        {cite.title}
+      </div>
+      <div class="mt-2 text-[11px] text-muted-foreground">Click chip to open in Sources</div>
+    </div>
+  {/if}
 {/if}

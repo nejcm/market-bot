@@ -5,6 +5,12 @@
 
 @source "./**/*.{svelte,ts}";
 
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -45,37 +51,39 @@
 
 :root {
   --radius: 0.45rem;
-  --background: oklch(0.985 0.012 205);
-  --foreground: oklch(0.19 0.04 232);
-  --card: oklch(0.997 0.006 205);
-  --card-foreground: oklch(0.19 0.04 232);
-  --popover: oklch(0.997 0.006 205);
-  --popover-foreground: oklch(0.19 0.04 232);
-  --primary: oklch(0.55 0.17 214);
-  --primary-foreground: oklch(0.985 0.012 205);
-  --secondary: oklch(0.93 0.04 210);
-  --secondary-foreground: oklch(0.24 0.065 229);
-  --muted: oklch(0.94 0.025 214);
-  --muted-foreground: oklch(0.49 0.055 225);
-  --accent: oklch(0.9 0.075 198);
-  --accent-foreground: oklch(0.22 0.075 230);
-  --destructive: oklch(0.62 0.22 26);
-  --border: oklch(0.86 0.036 214);
-  --input: oklch(0.86 0.036 214);
-  --ring: oklch(0.62 0.16 205);
-  --chart-1: oklch(0.62 0.18 207);
-  --chart-2: oklch(0.52 0.16 234);
-  --chart-3: oklch(0.67 0.14 174);
-  --chart-4: oklch(0.74 0.14 90);
-  --chart-5: oklch(0.62 0.18 24);
-  --sidebar: oklch(0.21 0.04 264);
-  --sidebar-foreground: oklch(0.91 0.012 255);
-  --sidebar-primary: oklch(0.72 0.04 257);
-  --sidebar-primary-foreground: oklch(0.18 0.04 264);
-  --sidebar-accent: oklch(0.29 0.04 260);
-  --sidebar-accent-foreground: oklch(0.95 0.01 255);
-  --sidebar-border: oklch(0.33 0.04 258);
-  --sidebar-ring: oklch(0.72 0.04 257);
+  /* "Calm research terminal": warm paper white, ink, one desaturated teal accent. */
+  --background: #faf9f7;
+  --foreground: #1a1c1e;
+  --card: #ffffff;
+  --card-foreground: #1a1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1f2225;
+  --primary: #166e7d;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f3ef;
+  --secondary-foreground: #5c6066;
+  --muted: #f5f3ef;
+  --muted-foreground: #8a8f96;
+  --accent: #eef5f6;
+  --accent-foreground: #166e7d;
+  /* Muted amber, never alarm-red: gaps and failures are prominent but calm. */
+  --destructive: #8a6116;
+  --border: #e5e2dc;
+  --input: #d9d5cd;
+  --ring: #166e7d;
+  --chart-1: #4ba3b2;
+  --chart-2: #166e7d;
+  --chart-3: #d7e6e8;
+  --chart-4: #c4942e;
+  --chart-5: #8a8f96;
+  --sidebar: #1e2226;
+  --sidebar-foreground: #b8bdc4;
+  --sidebar-primary: #4ba3b2;
+  --sidebar-primary-foreground: #14171a;
+  --sidebar-accent: #2b3137;
+  --sidebar-accent-foreground: #e8eaec;
+  --sidebar-border: #2b3137;
+  --sidebar-ring: #4ba3b2;
 }
 
 .dark {
@@ -118,15 +126,11 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family:
-      Inter,
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      sans-serif;
+    @apply bg-background font-sans text-foreground;
+  }
+
+  ::selection {
+    background: #cfe3e6;
   }
 
   button,

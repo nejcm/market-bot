@@ -1,5 +1,4 @@
 <script lang="ts">
-  import * as Chart from "$lib/components/ui/chart";
   import type { RunTrendPoint } from "../view-model";
 
   interface Props {
@@ -8,72 +7,94 @@
 
   let { points }: Props = $props();
 
-  const width = 720;
-  const height = 220;
-  const padding = 28;
-  const maxValue = $derived(
-    Math.max(1, ...points.map((point) => point.runs + point.forecasts + point.dataGaps)),
-  );
-  const chartPoints = $derived(
+  const WIDTH = 720;
+  const HEIGHT = 220;
+  const PADDING_X = 28;
+  const PADDING_TOP = 26;
+  const PADDING_BOTTOM = 28;
+  const BAR_GAP = 6;
+  const MAX_BAR_WIDTH = 48;
+
+  const plotWidth = WIDTH - PADDING_X * 2;
+  const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+  const baselineY = HEIGHT - PADDING_BOTTOM;
+
+  const maxRuns = $derived(Math.max(1, ...points.map((point) => point.runs)));
+  const bars = $derived(
     points.map((point, index) => {
-      const x =
-        points.length <= 1
-          ? width / 2
-          : padding + (index * (width - padding * 2)) / (points.length - 1);
-      const total = point.runs + point.forecasts + point.dataGaps;
-      const y = height - padding - (total / maxValue) * (height - padding * 2);
-      return { ...point, total, x, y };
+      const slot = plotWidth / Math.max(1, points.length);
+      const barWidth = Math.min(MAX_BAR_WIDTH, slot - BAR_GAP);
+      const barHeight = (point.runs / maxRuns) * plotHeight;
+      const x = PADDING_X + slot * index + (slot - barWidth) / 2;
+      return {
+        ...point,
+        x,
+        barWidth,
+        barHeight,
+        y: baselineY - barHeight,
+        centerX: x + barWidth / 2,
+        isLatest: index === points.length - 1,
+      };
     }),
-  );
-  const pathData = $derived(
-    chartPoints
-      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-      .join(" "),
   );
 </script>
 
-<Chart.Container
-  class="h-[220px] w-full overflow-hidden rounded-md border border-cyan-900/10 bg-cyan-50/40"
-  config={{
-    runs: { label: "Runs", color: "var(--chart-1)" },
-    forecasts: { label: "Forecasts", color: "var(--chart-2)" },
-  }}
->
-  {#if chartPoints.length === 0}
-    <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
-      No dated runs yet.
-    </div>
-  {:else}
-    <svg class="h-full w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Run trend">
-      <defs>
-        <linearGradient id="run-trend-fill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color="var(--chart-1)" stop-opacity="0.26" />
-          <stop offset="100%" stop-color="var(--chart-1)" stop-opacity="0.02" />
-        </linearGradient>
-      </defs>
-      <g stroke="currentColor" class="text-border">
-        <line x1={padding} x2={width - padding} y1={height - padding} y2={height - padding} />
-        <line x1={padding} x2={width - padding} y1={height / 2} y2={height / 2} opacity="0.55" />
-        <line x1={padding} x2={width - padding} y1={padding} y2={padding} opacity="0.35" />
-      </g>
-      {#if pathData !== ""}
-        <path
-          d={`${pathData} L ${chartPoints.at(-1)?.x ?? padding} ${height - padding} L ${chartPoints[0]?.x ?? padding} ${height - padding} Z`}
-          fill="url(#run-trend-fill)"
+{#if bars.length === 0}
+  <div class="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+    No dated runs yet.
+  </div>
+{:else}
+  <svg
+    class="mt-3 h-[220px] w-full"
+    viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+    role="img"
+    aria-label="Runs per day"
+  >
+    <g stroke="currentColor" class="text-border">
+      <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={baselineY} y2={baselineY} />
+      <line
+        x1={PADDING_X}
+        x2={WIDTH - PADDING_X}
+        y1={baselineY - plotHeight / 2}
+        y2={baselineY - plotHeight / 2}
+        opacity="0.55"
+      />
+      <line
+        x1={PADDING_X}
+        x2={WIDTH - PADDING_X}
+        y1={PADDING_TOP}
+        y2={PADDING_TOP}
+        opacity="0.35"
+      />
+    </g>
+    {#each bars as bar}
+      <g>
+        <title>{bar.runs} runs on {bar.date}</title>
+        <rect
+          x={bar.x}
+          y={bar.y}
+          width={bar.barWidth}
+          height={Math.max(1, bar.barHeight)}
+          rx="3"
+          fill={bar.isLatest ? "#4ba3b2" : "#d7e6e8"}
         />
-        <path d={pathData} fill="none" stroke="var(--chart-1)" stroke-width="3" stroke-linecap="round" />
-      {/if}
-      {#each chartPoints as point}
-        <g>
-          <circle cx={point.x} cy={point.y} r="4" fill="var(--chart-2)" />
-          <text x={point.x} y={height - 8} text-anchor="middle" class="fill-muted-foreground text-[10px]">
-            {point.date.slice(5)}
-          </text>
-          <text x={point.x} y={point.y - 10} text-anchor="middle" class="fill-foreground text-[11px]">
-            {point.total}
-          </text>
-        </g>
-      {/each}
-    </svg>
-  {/if}
-</Chart.Container>
+        <text
+          x={bar.centerX}
+          y={bar.y - 8}
+          text-anchor="middle"
+          class="fill-foreground text-[11px]"
+        >
+          {bar.runs}
+        </text>
+        <text
+          x={bar.centerX}
+          y={HEIGHT - 8}
+          text-anchor="middle"
+          class="fill-muted-foreground font-mono text-[10px]"
+        >
+          {bar.date.slice(5)}
+        </text>
+      </g>
+    {/each}
+  </svg>
+{/if}

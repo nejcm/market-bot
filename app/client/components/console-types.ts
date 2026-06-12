@@ -1,16 +1,14 @@
-export const TABS = [
-  "report",
-  "sources",
-  "analytics",
-  "trace",
-  "files",
-  "score",
-  "search",
-  "health",
-  "jobs",
-] as const;
+export const VIEWS = ["dashboard", "run", "search", "jobs", "health"] as const;
+
+export type View = (typeof VIEWS)[number];
+
+export const TABS = ["report", "sources", "data", "files"] as const;
 
 export type Tab = (typeof TABS)[number];
+
+export const DATA_SEGMENTS = ["analytics", "trace", "score"] as const;
+
+export type DataSegment = (typeof DATA_SEGMENTS)[number];
 
 export interface SearchFormState {
   readonly query: string;

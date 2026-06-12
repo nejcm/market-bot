@@ -1,10 +1,11 @@
-import type { RunSearchResult, RunSummary } from "../types";
+import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
 
 export { predictions, scenarios, sources, stringArray, textItems } from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
 const RECENT_RUN_LIMIT = 5;
 const RUN_TYPE_ORDER = ["daily", "weekly", "ticker"];
+const PROVIDER_GAP_KEYS = ["missingCredential", "fetchFailed", "yahooAuth", "other"];
 
 export interface SearchResultGroup {
   readonly run: RunSummary;
@@ -27,6 +28,15 @@ export interface DashboardMetrics {
   readonly averageConfidence: string;
 }
 
+export interface ProviderHealthRow {
+  readonly provider: string;
+  readonly route: string;
+  readonly degraded: boolean;
+  readonly total: number;
+  readonly gaps: number;
+  readonly note: string;
+}
+
 export interface RunTrendPoint {
   readonly date: string;
   readonly runs: number;
@@ -42,6 +52,10 @@ export function jsonBlock(value: Record<string, unknown> | undefined): string {
 export function runLabel(run: RunSummary): string {
   const subject = run.symbol ?? run.assetClass ?? "unknown";
   return `${run.jobType ?? "run"} / ${subject}`;
+}
+
+export function runCountsLabel(run: RunSummary): string {
+  return `${String(run.findingCount)} fnd · ${String(run.predictionCount)} fct · ${String(run.dataGapCount)} gap`;
 }
 
 export function formatDate(value: string | undefined): string {
@@ -94,6 +108,53 @@ export function recentRunSummaries(
   limit: number = RECENT_RUN_LIMIT,
 ): readonly RunSummary[] {
   return runs.slice(0, Math.max(0, limit));
+}
+
+export function filterRuns(
+  runs: readonly RunSummary[],
+  typeFilter: string,
+  queryText: string,
+): readonly RunSummary[] {
+  return runs.filter(
+    (run) =>
+      (typeFilter === "all" || (run.jobType ?? "run") === typeFilter) &&
+      (queryText.trim() === "" || matchesQuery(run, queryText)),
+  );
+}
+
+export function providerHealthRows(detail: ProviderHealthDetail): readonly ProviderHealthRow[] {
+  const routes = detail.summary?.routes;
+  if (!Array.isArray(routes)) {
+    return [];
+  }
+
+  return routes
+    .filter(
+      (route): route is Record<string, unknown> =>
+        typeof route === "object" && route !== null && !Array.isArray(route),
+    )
+    .map((route) => {
+      const gaps = PROVIDER_GAP_KEYS.reduce((sum, key) => sum + readCount(route, key), 0);
+      const { sampleMessages } = route;
+      const note =
+        Array.isArray(sampleMessages) && typeof sampleMessages[0] === "string"
+          ? sampleMessages[0]
+          : "";
+
+      return {
+        provider: typeof route.provider === "string" ? route.provider : "unknown",
+        route: typeof route.route === "string" ? route.route : "",
+        degraded: gaps > 0,
+        total: readCount(route, "total"),
+        gaps,
+        note,
+      };
+    });
+}
+
+function readCount(record: Record<string, unknown>, key: string): number {
+  const value = record[key];
+  return typeof value === "number" ? value : 0;
 }
 
 export function matchesQuery(run: RunSummary, text: string): boolean {

@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
   dashboardMetrics,
+  filterRuns,
   groupedRunsByType,
   groupedSearchResults,
   matchesQuery,
   predictions,
+  providerHealthRows,
   recentRunSummaries,
+  runCountsLabel,
   runIdFromPathname,
   runLabel,
   runPath,
@@ -34,6 +37,97 @@ describe("research console app view model", () => {
     expect(matchesQuery(run, "aapl")).toBe(true);
     expect(matchesQuery(run, "crypto")).toBe(false);
     expect(runLabel(run)).toBe("ticker / AAPL");
+  });
+
+  test("formats sidebar run counts as a compact mono label", () => {
+    expect(
+      runCountsLabel({
+        runId: "run-1",
+        findingCount: 5,
+        predictionCount: 4,
+        sourceCount: 9,
+        dataGapCount: 3,
+        hasScore: false,
+        availableFiles: [],
+      }),
+    ).toBe("5 fnd · 4 fct · 3 gap");
+  });
+
+  test("filters runs by job type and search query together", () => {
+    const baseRun = {
+      runId: "run-1",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    };
+    const runs = [
+      { ...baseRun, runId: "ticker-aapl", jobType: "ticker", symbol: "AAPL" },
+      { ...baseRun, runId: "ticker-msft", jobType: "ticker", symbol: "MSFT" },
+      { ...baseRun, runId: "daily-1", jobType: "daily" },
+      { ...baseRun, runId: "untyped-1" },
+    ];
+
+    expect(filterRuns(runs, "all", "")).toEqual(runs);
+    expect(filterRuns(runs, "ticker", "").map((run) => run.runId)).toEqual([
+      "ticker-aapl",
+      "ticker-msft",
+    ]);
+    expect(filterRuns(runs, "ticker", "aapl").map((run) => run.runId)).toEqual(["ticker-aapl"]);
+    expect(filterRuns(runs, "run", "").map((run) => run.runId)).toEqual(["untyped-1"]);
+    expect(filterRuns(runs, "daily", "aapl")).toEqual([]);
+  });
+
+  test("derives provider health rows from route gap counts", () => {
+    expect(providerHealthRows({})).toEqual([]);
+    expect(providerHealthRows({ summary: { routes: "broken" } })).toEqual([]);
+
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [
+            {
+              provider: "yahoo",
+              route: "quote/daily",
+              total: 12,
+              fetchFailed: 2,
+              yahooAuth: 1,
+              sampleMessages: ["auth expired"],
+            },
+            { provider: "stooq", route: "eod", total: 8 },
+            "malformed",
+            { route: 42, total: "many", sampleMessages: [7] },
+          ],
+        },
+      }),
+    ).toEqual([
+      {
+        provider: "yahoo",
+        route: "quote/daily",
+        degraded: true,
+        total: 12,
+        gaps: 3,
+        note: "auth expired",
+      },
+      {
+        provider: "stooq",
+        route: "eod",
+        degraded: false,
+        total: 8,
+        gaps: 0,
+        note: "",
+      },
+      {
+        provider: "unknown",
+        route: "",
+        degraded: false,
+        total: 0,
+        gaps: 0,
+        note: "",
+      },
+    ]);
   });
 
   test("parses selected run ids from client routes", () => {

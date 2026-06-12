@@ -10,7 +10,9 @@
 </script>
 
 <label class="space-y-1">
-  <span class="text-xs font-medium text-muted-foreground">{label}</span>
+  {#if label !== ""}
+    <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+  {/if}
   <select
     class="h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
     {value}

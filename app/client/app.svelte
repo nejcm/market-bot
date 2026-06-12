@@ -1,7 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { AlertCircle, Clock } from "@lucide/svelte";
-  import { Badge } from "$lib/components/ui/badge";
   import {
     createJob,
     fetchJobs,
@@ -12,9 +10,17 @@
     fetchRuns,
   } from "./api";
   import DashboardOverview from "./components/dashboard-overview.svelte";
-  import type { JobFormField, SearchFormField, Tab } from "./components/console-types";
+  import type {
+    JobFormField,
+    SearchFormField,
+    Tab,
+    View,
+  } from "./components/console-types";
+  import HealthView from "./components/health-view.svelte";
+  import JobsView from "./components/jobs-view.svelte";
   import RunSidebar from "./components/run-sidebar.svelte";
   import RunWorkspace from "./components/run-workspace.svelte";
+  import SearchView from "./components/search-view.svelte";
   import type {
     ConsoleJob,
     ProviderHealthDetail,
@@ -24,23 +30,25 @@
   } from "../types";
   import {
     dashboardMetrics,
-    formatDate,
-    matchesQuery,
+    filterRuns,
+    groupedRunsByType,
     recentRunSummaries,
     runIdFromPathname,
-    runLabel,
     runPath,
     runTrend,
   } from "./view-model";
 
+  let view = $state<View>("dashboard");
   let runs = $state<readonly RunSummary[]>([]);
   let selectedRunId = $state("");
   let detail = $state<RunDetail | null>(null);
   const query = $state({ text: "" });
+  let typeFilter = $state("all");
   let error = $state("");
   let loadingRuns = $state(true);
   let loadingDetail = $state(false);
   let activeTab = $state<Tab>("report");
+  let highlightSourceId = $state("");
   let fileContent = $state("");
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
@@ -48,6 +56,7 @@
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
   let searchNotice = $state("");
+  let hasSearched = $state(false);
   const searchForm = $state({
     query: "",
     symbol: "",
@@ -63,13 +72,17 @@
     depth: "brief",
   });
 
-  const filteredRuns = $derived(
-    query.text.trim() === "" ? runs : runs.filter((run) => matchesQuery(run, query.text)),
-  );
+  const JOBS_POLL_INTERVAL_MS = 2000;
+  const DASHBOARD_RECENT_RUN_LIMIT = 6;
+
+  const filteredRuns = $derived(filterRuns(runs, typeFilter, query.text));
+  const runTypes = $derived(groupedRunsByType(runs).map((group) => group.type));
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
-  const recentRuns = $derived(recentRunSummaries(runs));
-  const JOBS_POLL_INTERVAL_MS = 2000;
+  const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
+  const activeJobCount = $derived(
+    jobs.filter((job) => job.status === "running" || job.status === "queued").length,
+  );
 
   function clearSelectedRun(): void {
     selectedRunId = "";
@@ -78,15 +91,27 @@
     activeTab = "report";
     selectedFile = "";
     fileContent = "";
+    highlightSourceId = "";
+  }
+
+  function navigate(nextView: Exclude<View, "run">): void {
+    view = nextView;
+    clearSelectedRun();
+    error = "";
+    if (globalThis.location.pathname !== "/") {
+      globalThis.history.pushState({}, "", "/");
+    }
   }
 
   async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
+    view = "run";
     selectedRunId = runId;
     loadingDetail = true;
     error = "";
     activeTab = nextTab;
     selectedFile = "";
     fileContent = "";
+    highlightSourceId = "";
 
     try {
       const nextDetail = await fetchRunDetail(runId);
@@ -95,8 +120,12 @@
       }
     } catch (caughtError: unknown) {
       if (selectedRunId === runId) {
+        view = "dashboard";
         clearSelectedRun();
         error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+        if (globalThis.location.pathname !== "/") {
+          globalThis.history.replaceState({}, "", "/");
+        }
       }
     } finally {
       if (selectedRunId === runId) {
@@ -112,17 +141,58 @@
     }
 
     await selectRun(runId, nextTab);
+    globalThis.scrollTo({ top: 0 });
   }
 
   function handlePopState(): void {
     const runId = runIdFromPathname(globalThis.location.pathname);
     if (runId === undefined) {
+      view = "dashboard";
       clearSelectedRun();
       error = "";
       return;
     }
 
     void selectRun(runId);
+  }
+
+  function handleRunKeyNav(event: KeyboardEvent): void {
+    if (view !== "dashboard" && view !== "run") {
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    const { target } = event;
+    if (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+    ) {
+      return;
+    }
+
+    if (event.key !== "j" && event.key !== "k") {
+      return;
+    }
+
+    const list = filteredRuns;
+    if (list.length === 0) {
+      return;
+    }
+
+    const step = event.key === "j" ? 1 : -1;
+    const index = list.findIndex((run) => run.runId === selectedRunId);
+    let next = Math.min(list.length - 1, Math.max(0, index + step));
+    if (index === -1) {
+      next = step === 1 ? 0 : list.length - 1;
+    }
+
+    const run = list[next];
+    if (run !== undefined) {
+      void openRun(run.runId);
+    }
   }
 
   function tabForSearchResult(result: RunSearchResult): Tab {
@@ -137,6 +207,7 @@
     const searchQuery = searchForm.query.trim();
     searchNotice = "";
     error = "";
+    hasSearched = true;
 
     if (searchQuery === "") {
       searchResults = [];
@@ -154,7 +225,10 @@
         from: searchForm.from,
         to: searchForm.to,
       });
-      searchNotice = searchResults.length === 0 ? "No matching report sections." : "";
+      searchNotice =
+        searchResults.length === 0
+          ? `No sections match “${searchQuery}”. Search covers findings, cases, risks, catalysts, forecasts and gaps.`
+          : "";
     } catch (caughtError: unknown) {
       searchResults = [];
       error = caughtError instanceof Error ? caughtError.message : String(caughtError);
@@ -196,7 +270,6 @@
         depth: jobForm.depth,
       });
       await refreshJobs();
-      activeTab = "jobs";
     } catch (caughtError: unknown) {
       error = caughtError instanceof Error ? caughtError.message : String(caughtError);
     }
@@ -212,11 +285,12 @@
 
   onMount(() => {
     const interval = setInterval(() => {
-      if (activeTab === "jobs") {
+      if (view === "jobs" || activeJobCount > 0) {
         void refreshJobs().catch(() => {});
       }
     }, JOBS_POLL_INTERVAL_MS);
     globalThis.addEventListener("popstate", handlePopState);
+    globalThis.addEventListener("keydown", handleRunKeyNav);
 
     void (async () => {
       try {
@@ -242,122 +316,79 @@
     return () => {
       clearInterval(interval);
       globalThis.removeEventListener("popstate", handlePopState);
+      globalThis.removeEventListener("keydown", handleRunKeyNav);
     };
   });
 </script>
 
-<main class="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(8,145,178,0.16),transparent_32rem),linear-gradient(180deg,rgba(240,249,255,0.72),rgba(236,254,255,0.38))]">
-  <div class="flex min-h-screen">
-    <RunSidebar
-      runs={filteredRuns}
-      {selectedRunId}
-      {loadingRuns}
-      queryText={query.text}
-      onQueryChange={(value) => (query.text = value)}
-      onSelectRun={(runId) => void openRun(runId)}
-    />
+<div class="flex min-h-screen bg-background text-foreground">
+  <RunSidebar
+    runs={filteredRuns}
+    {runTypes}
+    {selectedRunId}
+    {loadingRuns}
+    {view}
+    {activeJobCount}
+    queryText={query.text}
+    {typeFilter}
+    onQueryChange={(value) => (query.text = value)}
+    onTypeFilterChange={(value) => (typeFilter = value)}
+    onSelectRun={(runId) => void openRun(runId)}
+    onNavigate={navigate}
+  />
 
-    <section class="min-w-0 flex-1">
-      <div class="mx-auto max-w-[1500px] px-3 py-4 lg:px-6 lg:py-6">
-        <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-cyan-800">
-              <span class="h-2 w-2 rounded-full bg-cyan-500"></span>
-              Research-only dashboard
-            </div>
-            <h2 class="mt-1 text-2xl font-semibold tracking-normal text-foreground">
-              Research Console App
-            </h2>
-          </div>
-          <Badge variant="outline" class="border-cyan-700/30 bg-cyan-100/70 text-cyan-900">
-            {runs.length} stored runs
-          </Badge>
-        </header>
+  <main class="min-w-0 flex-1">
+    <div class="mx-auto max-w-295 px-4 py-6 lg:px-10 lg:py-7">
+      {#if error !== ""}
+        <div
+          class="mb-4 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
+        >
+          <span
+            class="mt-px shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+          >
+            ERROR
+          </span>
+          <span class="text-[12.5px] leading-normal text-[#4a4334]">{error}</span>
+        </div>
+      {/if}
 
-        {#if error !== ""}
-          <div class="mb-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertCircle class="mt-0.5 size-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        {/if}
-
-        {#if selectedRunId === ""}
-          <DashboardOverview {metrics} {trend} />
-
-          <section class="mt-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h3 class="text-base font-semibold tracking-normal text-foreground">Recent runs</h3>
-              <Badge variant="outline" class="border-cyan-700/30 bg-cyan-100/70 text-cyan-900">
-                Last {recentRuns.length}
-              </Badge>
-            </div>
-
-            {#if loadingRuns}
-              <div class="rounded-md border border-cyan-900/10 bg-card/90 p-5 text-sm text-muted-foreground">
-                Loading recent runs...
-              </div>
-            {:else if recentRuns.length === 0}
-              <div class="rounded-md border border-cyan-900/10 bg-card/90 p-5 text-sm text-muted-foreground">
-                No stored runs yet.
-              </div>
-            {:else}
-              <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                {#each recentRuns as run}
-                  <button
-                    class="min-h-36 rounded-md border border-cyan-900/10 bg-card/90 p-4 text-left shadow-sm transition hover:border-cyan-500/45 hover:bg-cyan-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/35"
-                    type="button"
-                    onclick={() => void openRun(run.runId)}
-                  >
-                    <span class="block truncate text-sm font-semibold text-foreground">{runLabel(run)}</span>
-                    <span class="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock class="size-3" />
-                      {formatDate(run.generatedAt)}
-                    </span>
-                    <span class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                      <span class="rounded-md border bg-cyan-50/60 px-2 py-2">
-                        <span class="block font-semibold text-foreground">{run.sourceCount}</span>
-                        <span class="text-muted-foreground">sources</span>
-                      </span>
-                      <span class="rounded-md border bg-cyan-50/60 px-2 py-2">
-                        <span class="block font-semibold text-foreground">{run.predictionCount}</span>
-                        <span class="text-muted-foreground">forecasts</span>
-                      </span>
-                      <span class="rounded-md border bg-cyan-50/60 px-2 py-2">
-                        <span class="block font-semibold text-foreground">{run.dataGapCount}</span>
-                        <span class="text-muted-foreground">gaps</span>
-                      </span>
-                    </span>
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </section>
-        {:else}
-          <div class="mt-4">
-            <RunWorkspace
-              {activeTab}
-              {detail}
-              {loadingDetail}
-              {selectedFile}
-              {fileContent}
-              {providerHealth}
-              {jobs}
-              {searchResults}
-              {searchLoading}
-              {searchNotice}
-              {searchForm}
-              {jobForm}
-              onTabChange={(tab) => (activeTab = tab)}
-              onLoadFile={(path) => void loadFile(path)}
-              onRunSearch={() => void runSearch()}
-              onOpenSearchResult={(result) => void openSearchResult(result)}
-              onSearchFormChange={updateSearchForm}
-              onJobFormChange={updateJobForm}
-              onSubmitJob={() => void submitJob()}
-            />
-          </div>
-        {/if}
-      </div>
-    </section>
-  </div>
-</main>
+      {#if view === "dashboard"}
+        <DashboardOverview
+          {metrics}
+          {trend}
+          {recentRuns}
+          {loadingRuns}
+          onOpenRun={(runId) => void openRun(runId)}
+        />
+      {:else if view === "run"}
+        <RunWorkspace
+          {activeTab}
+          {detail}
+          {loadingDetail}
+          {selectedFile}
+          {fileContent}
+          {highlightSourceId}
+          onTabChange={(tab) => (activeTab = tab)}
+          onLoadFile={(path) => void loadFile(path)}
+          onGoHome={() => navigate("dashboard")}
+          onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
+        />
+      {:else if view === "search"}
+        <SearchView
+          {searchResults}
+          {searchLoading}
+          {searchNotice}
+          {searchForm}
+          {hasSearched}
+          onRunSearch={() => void runSearch()}
+          onOpenSearchResult={(result) => void openSearchResult(result)}
+          onSearchFormChange={updateSearchForm}
+        />
+      {:else if view === "jobs"}
+        <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
+      {:else}
+        <HealthView {providerHealth} />
+      {/if}
+    </div>
+  </main>
+</div>

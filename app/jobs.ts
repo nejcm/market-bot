@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { commandLabel, parseArgs } from "../src/cli/args";
 import { jobRequestArgv } from "../src/cli/job-registry";
 import type { ConsoleJob } from "./types";

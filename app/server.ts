@@ -3,6 +3,7 @@ import { extname, isAbsolute, join, normalize, relative, resolve } from "node:pa
 import { resolveResearchConsoleConfig } from "../src/config";
 import {
   listRunSummaries,
+  readCalibrationSummary,
   readProviderHealth,
   readRunDetail,
   readRunFile,
@@ -115,6 +116,10 @@ async function handleApiRequest(url: URL, dataDir: string): Promise<Response | u
 
   if (url.pathname === "/api/provider-health") {
     return jsonResponse(await readProviderHealth(dataDir));
+  }
+
+  if (url.pathname === "/api/calibration") {
+    return jsonResponse(await readCalibrationSummary(dataDir));
   }
 
   const fileMatch = /^\/api\/runs\/([^/]+)\/files$/u.exec(url.pathname);

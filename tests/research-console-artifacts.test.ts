@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   listRunSummaries,
+  readCalibrationSummary,
   readProviderHealth,
   readRunDetail,
   readRunFile,
@@ -152,6 +153,27 @@ describe("research console app artifacts", () => {
       summary: { verdict: "pass" },
       markdown: "# Provider Health\n",
     });
+  });
+
+  test("reads calibration sibling artifacts", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const calibrationDir = join(rootDir, "calibration");
+    mkdirSync(dataDir);
+    mkdirSync(calibrationDir);
+    writeJson(join(calibrationDir, "summary.json"), { resolvedCount: 13, brierScore: 0.2583 });
+    writeFileSync(join(calibrationDir, "summary.md"), "# Calibration\n", "utf8");
+
+    await expect(readCalibrationSummary(dataDir)).resolves.toEqual({
+      summary: { resolvedCount: 13, brierScore: 0.2583 },
+      markdown: "# Calibration\n",
+    });
+  });
+
+  test("returns empty calibration detail when artifacts are absent", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+
+    await expect(readCalibrationSummary(dataDir)).resolves.toEqual({});
   });
 
   test("searches structured report sections", async () => {

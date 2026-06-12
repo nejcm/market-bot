@@ -105,6 +105,39 @@ describe("research console app API", () => {
     });
   });
 
+  test("serves calibration summary", async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const calibrationDir = join(rootDir, "calibration");
+    mkdirSync(dataDir);
+    mkdirSync(calibrationDir);
+    writeJson(join(calibrationDir, "summary.json"), { resolvedCount: 13, brierScore: 0.2583 });
+    writeFileSync(join(calibrationDir, "summary.md"), "# Calibration\n", "utf8");
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/calibration"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      summary: { resolvedCount: 13, brierScore: 0.2583 },
+      markdown: "# Calibration\n",
+    });
+  });
+
+  test("serves empty calibration detail when artifacts are absent", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/calibration"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({});
+  });
+
   test("serves run files by safe relative path", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-3");

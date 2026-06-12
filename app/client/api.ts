@@ -1,4 +1,5 @@
 import type {
+  CalibrationDetail,
   ConsoleJob,
   ProviderHealthDetail,
   RunDetail,
@@ -41,6 +42,10 @@ function isRunFile(value: unknown): value is RunFile {
 }
 
 function isProviderHealthDetail(value: unknown): value is ProviderHealthDetail {
+  return isRecord(value);
+}
+
+function isCalibrationDetail(value: unknown): value is CalibrationDetail {
   return isRecord(value);
 }
 
@@ -122,6 +127,15 @@ export async function fetchProviderHealth(): Promise<ProviderHealthDetail> {
   const payload = await fetchJson("/api/provider-health");
   if (!isProviderHealthDetail(payload)) {
     throw new Error("Provider health response is invalid");
+  }
+
+  return payload;
+}
+
+export async function fetchCalibration(): Promise<CalibrationDetail> {
+  const payload = await fetchJson("/api/calibration");
+  if (!isCalibrationDetail(payload)) {
+    throw new Error("Calibration response is invalid");
   }
 
   return payload;

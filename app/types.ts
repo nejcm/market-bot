@@ -33,6 +33,11 @@ export interface ProviderHealthDetail {
   readonly markdown?: string;
 }
 
+export interface CalibrationDetail {
+  readonly summary?: Record<string, unknown>;
+  readonly markdown?: string;
+}
+
 export interface RunSearchFilters {
   readonly query: string;
   readonly symbol?: string;

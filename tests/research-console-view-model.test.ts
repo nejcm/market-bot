@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  calibrationHeadline,
+  calibrationSlices,
   dashboardMetrics,
   filterRuns,
   forecastRollup,
@@ -12,6 +14,7 @@ import {
   predictions,
   providerHealthRows,
   recentRunSummaries,
+  reliabilityBins,
   runCountsLabel,
   runIdFromPathname,
   runLabel,
@@ -419,6 +422,70 @@ describe("research console app view model", () => {
       { date: "2026-06-01", runs: 2, forecasts: 3, sources: 5, dataGaps: 1 },
       { date: "2026-06-02", runs: 1, forecasts: 4, sources: 7, dataGaps: 2 },
     ]);
+  });
+});
+
+describe("calibration view model", () => {
+  const detail = {
+    summary: {
+      generatedAt: "2026-06-10T05:53:20.310Z",
+      resolvedCount: 13,
+      brierScore: 0.2583,
+      brierSkillScore: -0.0332,
+      bins: [
+        { pLow: 0.6, pHigh: 0.7, label: "0.6-0.7", hitCount: 4, totalCount: 8, hitRate: 0.5 },
+        { pLow: 0.3, pHigh: 0.4, label: "0.3-0.4", hitCount: 1, totalCount: 1, hitRate: 1 },
+        { pLow: 0.5, pHigh: 0.6, label: "0.5-0.6", hitCount: 2, totalCount: 4, hitRate: 0.5 },
+        "broken",
+        { pLow: 0.7, label: "missing fields" },
+      ],
+      byKind: {
+        direction: { brierScore: 0.2374, count: 10 },
+        range: { brierScore: 0.3281, count: 3 },
+      },
+      byHorizonBucket: {
+        "6-10d": { brierScore: 0.31, count: 2 },
+        "1-5d": { brierScore: 0.2583, count: 11 },
+        custom: { brierScore: 0.5, count: 1 },
+      },
+    },
+  };
+
+  test("extracts the calibration headline", () => {
+    expect(calibrationHeadline(detail)).toEqual({
+      brierScore: 0.2583,
+      brierSkillScore: -0.0332,
+      resolvedCount: 13,
+      generatedAt: "2026-06-10T05:53:20.310Z",
+    });
+    expect(calibrationHeadline({})).toEqual({ resolvedCount: 0 });
+    expect(calibrationHeadline({ summary: { brierScore: Number.NaN } })).toEqual({
+      resolvedCount: 0,
+    });
+  });
+
+  test("filters and sorts sparse reliability bins", () => {
+    expect(reliabilityBins(detail).map((bin) => bin.label)).toEqual([
+      "0.3-0.4",
+      "0.5-0.6",
+      "0.6-0.7",
+    ]);
+    expect(reliabilityBins({})).toEqual([]);
+    expect(reliabilityBins({ summary: { bins: "broken" } })).toEqual([]);
+  });
+
+  test("sorts slices by count except horizon buckets in bucket order", () => {
+    expect(calibrationSlices(detail, "byKind")).toEqual([
+      { key: "direction", brierScore: 0.2374, count: 10 },
+      { key: "range", brierScore: 0.3281, count: 3 },
+    ]);
+    expect(calibrationSlices(detail, "byHorizonBucket").map((row) => row.key)).toEqual([
+      "1-5d",
+      "6-10d",
+      "custom",
+    ]);
+    expect(calibrationSlices(detail, "byAssetClass")).toEqual([]);
+    expect(calibrationSlices({}, "byKind")).toEqual([]);
   });
 });
 

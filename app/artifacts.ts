@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import type {
+  CalibrationDetail,
   ProviderHealthDetail,
   RunDetail,
   RunFile,
@@ -22,6 +23,7 @@ const ANALYTICS_FILE = "analytics.json";
 const TRACE_FILE = "trace.json";
 const SCORE_FILE = "score.json";
 const PROVIDER_HEALTH_DIR = "provider-health";
+const CALIBRATION_DIR = "calibration";
 const SUMMARY_FILE = "summary.json";
 const SUMMARY_MARKDOWN_FILE = "summary.md";
 const MAX_RUN_FILE_BYTES = 5_000_000;
@@ -375,10 +377,21 @@ export async function readRunFile(
 }
 
 export async function readProviderHealth(dataDir: string): Promise<ProviderHealthDetail> {
-  const healthDir = join(dataRootFromRunsDir(dataDir), PROVIDER_HEALTH_DIR);
+  return readSummaryArtifacts(dataDir, PROVIDER_HEALTH_DIR);
+}
+
+export async function readCalibrationSummary(dataDir: string): Promise<CalibrationDetail> {
+  return readSummaryArtifacts(dataDir, CALIBRATION_DIR);
+}
+
+async function readSummaryArtifacts(
+  dataDir: string,
+  artifactDir: string,
+): Promise<{ summary?: Record<string, unknown>; markdown?: string }> {
+  const summaryDir = join(dataRootFromRunsDir(dataDir), artifactDir);
   const [summary, markdown] = await Promise.all([
-    readJsonRecord(join(healthDir, SUMMARY_FILE)),
-    readOptionalText(join(healthDir, SUMMARY_MARKDOWN_FILE)),
+    readJsonRecord(join(summaryDir, SUMMARY_FILE)),
+    readOptionalText(join(summaryDir, SUMMARY_MARKDOWN_FILE)),
   ]);
 
   return {

@@ -1,4 +1,9 @@
-import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import type {
+  CalibrationDetail,
+  ProviderHealthDetail,
+  RunSearchResult,
+  RunSummary,
+} from "../types";
 
 export {
   forecastRollup,
@@ -53,6 +58,114 @@ export interface RunTrendPoint {
   readonly forecasts: number;
   readonly sources: number;
   readonly dataGaps: number;
+}
+
+export interface CalibrationHeadline {
+  readonly brierScore?: number;
+  readonly brierSkillScore?: number;
+  readonly resolvedCount: number;
+  readonly generatedAt?: string;
+}
+
+export interface ReliabilityBin {
+  readonly label: string;
+  readonly pLow: number;
+  readonly pHigh: number;
+  readonly hitRate: number;
+  readonly hitCount: number;
+  readonly totalCount: number;
+}
+
+export interface CalibrationSliceRow {
+  readonly key: string;
+  readonly brierScore: number;
+  readonly count: number;
+}
+
+export type CalibrationSliceGroup =
+  | "byKind"
+  | "byAssetClass"
+  | "byJobType"
+  | "byMarketUpdateCadence"
+  | "byHorizonBucket";
+
+const HORIZON_BUCKET_ORDER = ["1-5d", "6-10d", "11-15d", "16-20d"];
+
+export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadline {
+  const summary = detail.summary ?? {};
+  const brierScore = readFiniteNumber(summary.brierScore);
+  const brierSkillScore = readFiniteNumber(summary.brierSkillScore);
+  const generatedAt = typeof summary.generatedAt === "string" ? summary.generatedAt : undefined;
+  return {
+    ...(brierScore !== undefined ? { brierScore } : {}),
+    ...(brierSkillScore !== undefined ? { brierSkillScore } : {}),
+    resolvedCount: readFiniteNumber(summary.resolvedCount) ?? 0,
+    ...(generatedAt !== undefined ? { generatedAt } : {}),
+  };
+}
+
+export function reliabilityBins(detail: CalibrationDetail): readonly ReliabilityBin[] {
+  const bins = detail.summary?.bins;
+  if (!Array.isArray(bins)) {
+    return [];
+  }
+
+  return bins
+    .filter(
+      (bin): bin is Record<string, unknown> =>
+        typeof bin === "object" && bin !== null && !Array.isArray(bin),
+    )
+    .flatMap((bin) => {
+      const pLow = readFiniteNumber(bin.pLow);
+      const pHigh = readFiniteNumber(bin.pHigh);
+      const hitRate = readFiniteNumber(bin.hitRate);
+      const hitCount = readFiniteNumber(bin.hitCount);
+      const totalCount = readFiniteNumber(bin.totalCount);
+      const label = typeof bin.label === "string" ? bin.label : undefined;
+      return pLow === undefined ||
+        pHigh === undefined ||
+        hitRate === undefined ||
+        hitCount === undefined ||
+        totalCount === undefined ||
+        label === undefined
+        ? []
+        : [{ label, pLow, pHigh, hitRate, hitCount, totalCount }];
+    })
+    .toSorted((left, right) => left.pLow - right.pLow);
+}
+
+export function calibrationSlices(
+  detail: CalibrationDetail,
+  group: CalibrationSliceGroup,
+): readonly CalibrationSliceRow[] {
+  const slice = detail.summary?.[group];
+  if (typeof slice !== "object" || slice === null || Array.isArray(slice)) {
+    return [];
+  }
+
+  const rows = Object.entries(slice).flatMap(([key, metric]) => {
+    if (typeof metric !== "object" || metric === null || Array.isArray(metric)) {
+      return [];
+    }
+
+    const record = metric as Record<string, unknown>;
+    const brierScore = readFiniteNumber(record.brierScore);
+    const count = readFiniteNumber(record.count);
+    return brierScore === undefined || count === undefined ? [] : [{ key, brierScore, count }];
+  });
+
+  return group === "byHorizonBucket"
+    ? rows.toSorted((left, right) => horizonBucketRank(left.key) - horizonBucketRank(right.key))
+    : rows.toSorted((left, right) => right.count - left.count);
+}
+
+function horizonBucketRank(bucket: string): number {
+  const index = HORIZON_BUCKET_ORDER.indexOf(bucket);
+  return index === -1 ? HORIZON_BUCKET_ORDER.length : index;
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 export function formatClose(value: number): string {

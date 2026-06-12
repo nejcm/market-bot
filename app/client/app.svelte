@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import {
     createJob,
+    fetchCalibration,
     fetchJobs,
     fetchProviderHealth,
     fetchRunDetail,
@@ -16,12 +17,14 @@
     Tab,
     View,
   } from "./components/console-types";
+  import CalibrationView from "./components/calibration-view.svelte";
   import HealthView from "./components/health-view.svelte";
   import JobsView from "./components/jobs-view.svelte";
   import RunSidebar from "./components/run-sidebar.svelte";
   import RunWorkspace from "./components/run-workspace.svelte";
   import SearchView from "./components/search-view.svelte";
   import type {
+    CalibrationDetail,
     ConsoleJob,
     ProviderHealthDetail,
     RunDetail,
@@ -52,6 +55,7 @@
   let fileContent = $state("");
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
+  let calibration = $state<CalibrationDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
@@ -295,13 +299,15 @@
     void (async () => {
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
-        const [nextRuns, nextProviderHealth, nextJobs] = await Promise.all([
+        const [nextRuns, nextProviderHealth, nextCalibration, nextJobs] = await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
+          fetchCalibration(),
           fetchJobs(),
         ]);
         runs = nextRuns;
         providerHealth = nextProviderHealth;
+        calibration = nextCalibration;
         jobs = nextJobs;
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
@@ -386,6 +392,8 @@
         />
       {:else if view === "jobs"}
         <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
+      {:else if view === "calibration"}
+        <CalibrationView {calibration} onNavigate={navigate} />
       {:else}
         <HealthView {providerHealth} />
       {/if}

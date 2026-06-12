@@ -1,6 +1,16 @@
 import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
 
-export { predictions, scenarios, sources, stringArray, textItems } from "../report-artifact-view";
+export {
+  forecastRollup,
+  predictionScores,
+  predictions,
+  scenarios,
+  scoredForecasts,
+  sources,
+  stringArray,
+  textItems,
+} from "../report-artifact-view";
+export type { ForecastRollup, PredictionScoreView, ScoredForecast } from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
 const RECENT_RUN_LIMIT = 5;
@@ -43,6 +53,10 @@ export interface RunTrendPoint {
   readonly forecasts: number;
   readonly sources: number;
   readonly dataGaps: number;
+}
+
+export function formatClose(value: number): string {
+  return Math.abs(value) >= 1 ? value.toFixed(2) : value.toPrecision(4);
 }
 
 export function jsonBlock(value: Record<string, unknown> | undefined): string {

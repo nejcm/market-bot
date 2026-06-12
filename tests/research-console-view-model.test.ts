@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   dashboardMetrics,
   filterRuns,
+  forecastRollup,
+  formatClose,
+  predictionScores,
+  scoredForecasts,
   groupedRunsByType,
   groupedSearchResults,
   matchesQuery,
@@ -415,5 +419,125 @@ describe("research console app view model", () => {
       { date: "2026-06-01", runs: 2, forecasts: 3, sources: 5, dataGaps: 1 },
       { date: "2026-06-02", runs: 1, forecasts: 4, sources: 7, dataGaps: 2 },
     ]);
+  });
+});
+
+describe("forecast outcomes", () => {
+  const report = {
+    predictions: [
+      { id: "p1", claim: "SPY closes higher.", probability: 0.6, sourceIds: [] },
+      { id: "p2", claim: "VIX max above 20.", probability: 0.3, sourceIds: [] },
+      { id: "p3", claim: "BTC closes higher.", probability: 0.55, sourceIds: [] },
+    ],
+  };
+  const score = {
+    runId: "run-1",
+    scores: [
+      {
+        predictionId: "p1",
+        resolved: true,
+        outcome: "miss",
+        observedAt: "2026-06-10T05:46:56Z",
+        evidence: { close0: 742.74, closeN: 716.07 },
+      },
+      {
+        predictionId: "p2",
+        resolved: false,
+        evidence: { reason: "horizon not yet elapsed" },
+      },
+      {
+        predictionId: "orphan",
+        resolved: true,
+        outcome: "hit",
+        evidence: {},
+      },
+    ],
+  };
+
+  test("parses score entries defensively", () => {
+    expect(predictionScores(score)).toEqual([
+      {
+        predictionId: "p1",
+        resolved: true,
+        outcome: "miss",
+        observedAt: "2026-06-10T05:46:56Z",
+        close0: 742.74,
+        closeN: 716.07,
+        changePct: ((716.07 - 742.74) / 742.74) * 100,
+      },
+      {
+        predictionId: "p2",
+        resolved: false,
+        pendingReason: "horizon not yet elapsed",
+      },
+      { predictionId: "orphan", resolved: true, outcome: "hit" },
+    ]);
+  });
+
+  const missingScore: Record<string, unknown> | undefined = undefined;
+
+  test("ignores malformed score payloads and entries", () => {
+    expect(predictionScores(missingScore)).toEqual([]);
+    expect(predictionScores({ scores: "broken" })).toEqual([]);
+    expect(
+      predictionScores({
+        scores: [null, 7, { resolved: true }, { predictionId: "p1", outcome: "draw" }],
+      }),
+    ).toEqual([{ predictionId: "p1", resolved: false }]);
+  });
+
+  test("omits evidence closes unless both are numbers", () => {
+    const parsed = predictionScores({
+      scores: [{ predictionId: "p1", resolved: true, outcome: "hit", evidence: { close0: 10 } }],
+    });
+    expect(parsed).toEqual([{ predictionId: "p1", resolved: true, outcome: "hit" }]);
+  });
+
+  test("guards percent change against a zero origin close", () => {
+    const parsed = predictionScores({
+      scores: [
+        { predictionId: "p1", resolved: true, outcome: "hit", evidence: { close0: 0, closeN: 5 } },
+      ],
+    });
+    expect(parsed[0]?.changePct).toBeUndefined();
+    expect(parsed[0]?.close0).toBe(0);
+  });
+
+  test("joins forecasts with score entries and leaves unmatched ones pending", () => {
+    const joined = scoredForecasts(report, score);
+    expect(joined).toHaveLength(3);
+    expect(joined[0]?.score?.outcome).toBe("miss");
+    expect(joined[1]?.score?.resolved).toBe(false);
+    expect(joined[1]?.score?.pendingReason).toBe("horizon not yet elapsed");
+    expect(joined[2]?.score).toBeUndefined();
+  });
+
+  test("joins to empty scores when score artifact is missing", () => {
+    const joined = scoredForecasts(report, missingScore);
+    expect(joined).toHaveLength(3);
+    expect(joined.every((item) => item.score === undefined)).toBe(true);
+  });
+
+  test("formats closes with sensible precision", () => {
+    expect(formatClose(742.739_990_234_375)).toBe("742.74");
+    expect(formatClose(0.000_123_45)).toBe("0.0001234");
+    expect(formatClose(1)).toBe("1.00");
+  });
+
+  test("rolls up scored forecast counts", () => {
+    expect(forecastRollup(scoredForecasts(report, score))).toEqual({
+      total: 3,
+      resolved: 1,
+      hits: 0,
+      misses: 1,
+      pending: 2,
+    });
+    expect(forecastRollup([])).toEqual({
+      total: 0,
+      resolved: 0,
+      hits: 0,
+      misses: 0,
+      pending: 0,
+    });
   });
 });

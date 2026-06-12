@@ -2,11 +2,14 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
   import {
+    forecastRollup,
+    formatClose,
     formatDate,
+    formatDateMinute,
     jsonBlock,
-    predictions,
     runLabel,
     scenarios,
+    scoredForecasts,
     sources,
     stringArray,
     textItems,
@@ -59,7 +62,8 @@
   const reportSummary = $derived(typeof report?.summary === "string" ? report.summary : "");
   const findingItems = $derived(textItems(report, "keyFindings"));
   const scenarioItems = $derived(scenarios(report));
-  const forecastItems = $derived(predictions(report));
+  const forecastItems = $derived(scoredForecasts(report, detail?.score));
+  const forecastStats = $derived(forecastRollup(forecastItems));
   const sourceItems = $derived(sources(report));
   const gapItems = $derived(stringArray(report, "dataGaps"));
 
@@ -309,15 +313,34 @@
                 >
                   Observable forecasts
                 </span>
-                <span class="font-mono text-[10px] text-[#a8acb1]">td = trading days</span>
+                <span class="font-mono text-[10px] text-[#a8acb1]">
+                  {#if forecastStats.resolved > 0}
+                    scored {forecastStats.resolved}/{forecastStats.total} ·
+                    {forecastStats.hits} hit · {forecastStats.misses} miss ·
+                  {/if}
+                  td = trading days
+                </span>
               </div>
               {#each forecastItems as forecast}
                 <div
-                  class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px] sm:gap-4"
+                  class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_76px] sm:gap-4"
                 >
                   <div class="font-serif text-sm leading-[1.5] text-[#1f2225]">
                     {forecast.claim}
                     {@render citeChips(forecast.sourceIds)}
+                    {#if forecast.score?.resolved === true && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
+                      <span class="mt-1 block font-mono text-[10.5px] text-[#8a8f96]">
+                        close {formatClose(forecast.score.close0)} → {formatClose(
+                          forecast.score.closeN,
+                        )}
+                        {#if forecast.score.changePct !== undefined}
+                          ({forecast.score.changePct > 0 ? "+" : ""}{forecast.score.changePct.toFixed(1)}%)
+                        {/if}
+                        {#if forecast.score.observedAt !== undefined}
+                          · observed {formatDateMinute(forecast.score.observedAt)}
+                        {/if}
+                      </span>
+                    {/if}
                   </div>
                   <div>
                     {#if forecast.kind !== undefined}
@@ -341,6 +364,28 @@
                     {forecast.horizonTradingDays === undefined
                       ? ""
                       : `${forecast.horizonTradingDays} td`}
+                  </div>
+                  <div class="sm:text-right">
+                    {#if forecast.score?.outcome === "hit"}
+                      <span
+                        class="rounded border border-[#9fc2c8] bg-[#e7f1f3] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
+                      >
+                        HIT
+                      </span>
+                    {:else if forecast.score?.outcome === "miss"}
+                      <span
+                        class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
+                      >
+                        MISS
+                      </span>
+                    {:else}
+                      <span
+                        class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
+                        title={forecast.score?.pendingReason ?? "not yet scored"}
+                      >
+                        PENDING
+                      </span>
+                    {/if}
                   </div>
                 </div>
               {/each}

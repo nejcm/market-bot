@@ -20,6 +20,29 @@ export interface PredictionView {
   readonly sourceIds: readonly string[];
 }
 
+export interface PredictionScoreView {
+  readonly predictionId: string;
+  readonly resolved: boolean;
+  readonly outcome?: "hit" | "miss";
+  readonly observedAt?: string;
+  readonly close0?: number;
+  readonly closeN?: number;
+  readonly changePct?: number;
+  readonly pendingReason?: string;
+}
+
+export interface ScoredForecast extends PredictionView {
+  readonly score?: PredictionScoreView;
+}
+
+export interface ForecastRollup {
+  readonly total: number;
+  readonly resolved: number;
+  readonly hits: number;
+  readonly misses: number;
+  readonly pending: number;
+}
+
 export interface SourceView {
   readonly id: string;
   readonly title: string;
@@ -133,6 +156,72 @@ export function predictions(
             },
           ];
     });
+}
+
+export function predictionScores(
+  score: Record<string, unknown> | undefined,
+): readonly PredictionScoreView[] {
+  const value = score?.scores;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const predictionId = readString(item, "predictionId");
+      if (predictionId === undefined) {
+        return [];
+      }
+
+      const resolved = item.resolved === true;
+      const rawOutcome = readString(item, "outcome");
+      const outcome = rawOutcome === "hit" || rawOutcome === "miss" ? rawOutcome : undefined;
+      const observedAt = readString(item, "observedAt");
+      const evidence = isRecord(item.evidence) ? item.evidence : {};
+      const close0 = readNumber(evidence, "close0");
+      const closeN = readNumber(evidence, "closeN");
+      const hasCloses = close0 !== undefined && closeN !== undefined;
+      const changePct = hasCloses && close0 !== 0 ? ((closeN - close0) / close0) * 100 : undefined;
+      const pendingReason = readString(evidence, "reason");
+      return [
+        {
+          predictionId,
+          resolved,
+          ...(outcome !== undefined ? { outcome } : {}),
+          ...(observedAt !== undefined ? { observedAt } : {}),
+          ...(hasCloses ? { close0, closeN } : {}),
+          ...(changePct !== undefined ? { changePct } : {}),
+          ...(pendingReason !== undefined ? { pendingReason } : {}),
+        },
+      ];
+    });
+}
+
+export function scoredForecasts(
+  report: Record<string, unknown> | undefined,
+  score: Record<string, unknown> | undefined,
+): readonly ScoredForecast[] {
+  const scoresById = new Map(
+    predictionScores(score).map((item) => [item.predictionId, item] as const),
+  );
+  return predictions(report).map((prediction) => {
+    const predictionScore = scoresById.get(prediction.id);
+    return predictionScore === undefined ? prediction : { ...prediction, score: predictionScore };
+  });
+}
+
+export function forecastRollup(items: readonly ScoredForecast[]): ForecastRollup {
+  const resolvedItems = items.filter((item) => item.score?.resolved === true);
+  const hits = resolvedItems.filter((item) => item.score?.outcome === "hit").length;
+  const misses = resolvedItems.filter((item) => item.score?.outcome === "miss").length;
+  return {
+    total: items.length,
+    resolved: resolvedItems.length,
+    hits,
+    misses,
+    pending: items.length - resolvedItems.length,
+  };
 }
 
 export function sources(report: Record<string, unknown> | undefined): readonly SourceView[] {

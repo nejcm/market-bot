@@ -31,7 +31,7 @@ export function sourceGap(input: SourceGapInput): SourceGap {
 }
 
 export function sourceGapReportText(gap: SourceGap): string {
-  return `${gap.source}: ${gap.message}`;
+  return `${gap.source}: ${gap.message.replaceAll(/\s+/gu, " ").trim()}`;
 }
 
 function normalizeGapText(value: string): string {

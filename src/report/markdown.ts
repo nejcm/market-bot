@@ -35,6 +35,81 @@ function knownSourceIds(report: ResearchReport, sourceIds: unknown): readonly st
   return readStringArray(sourceIds).filter((sourceId) => known.has(sourceId));
 }
 
+function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
+  const ids = new Set<string>();
+  const add = (sourceIds: readonly string[]) => {
+    for (const sourceId of sourceIds) {
+      ids.add(sourceId);
+    }
+  };
+  [report.keyFindings, report.bullCase, report.bearCase, report.risks, report.catalysts].forEach(
+    (items) => items.forEach((item) => add(item.sourceIds)),
+  );
+  report.scenarios.forEach((scenario) => add(scenario.sourceIds));
+  report.predictions.forEach((prediction) => add(prediction.sourceIds));
+  report.extendedEvidence?.items.forEach((item) => add(item.sourceIds));
+  readAlphaSearchLeads(report.extras).forEach((lead) => add(lead.sourceIds));
+  readAlphaSearchRejectedCandidates(report.extras).forEach((candidate) => add(candidate.sourceIds));
+
+  const historical = report.extras?.historicalContext;
+  if (isRecord(historical)) {
+    add(knownSourceIds(report, historical.sourceIds));
+    if (Array.isArray(historical.items)) {
+      historical.items.forEach((item) => {
+        if (isRecord(item)) {
+          add(knownSourceIds(report, item.sourceIds));
+        }
+      });
+    }
+  }
+  const spotlights = report.extras?.spotlights;
+  if (isRecord(spotlights) && Array.isArray(spotlights.items)) {
+    spotlights.items.forEach((item) => {
+      if (isRecord(item)) {
+        add(knownSourceIds(report, item.sourceIds));
+      }
+    });
+  }
+
+  return ids;
+}
+
+function sourceInventoryLine(
+  report: ResearchReport,
+  uncitedCount: number,
+  citedIds: ReadonlySet<string>,
+): string {
+  const counts = new Map<string, number>();
+  report.sources
+    .filter((source) => !citedIds.has(source.id))
+    .forEach((source) => {
+      const key = `${source.provider ?? "unknown"}/${source.kind}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+  const inventory = [...counts.entries()]
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => `${markdownText(key)}:${String(count)}`)
+    .join(", ");
+  return `- ${String(uncitedCount)} uncited normalized source(s) omitted from markdown (${inventory}). Full source arrays remain in report.json and console files.`;
+}
+
+function renderSources(report: ResearchReport): string {
+  if (report.sources.length === 0) {
+    return "- No sources.";
+  }
+
+  const citedIds = collectReportSourceIds(report);
+  const citedSources = report.sources.filter((source) => citedIds.has(source.id));
+  const uncitedCount = report.sources.length - citedSources.length;
+  const rows = citedSources.map(
+    (source) => `- [${markdownText(source.id)}] ${markdownText(source.title)}`,
+  );
+  if (uncitedCount > 0) {
+    rows.push(sourceInventoryLine(report, uncitedCount, citedIds));
+  }
+  return rows.length === 0 ? sourceInventoryLine(report, uncitedCount, citedIds) : rows.join("\n");
+}
+
 function renderFindings(title: string, findings: readonly KeyFinding[]): string {
   if (findings.length === 0) {
     return `## ${title}\n\n- No sourced items.\n`;
@@ -220,9 +295,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
     report.dataGaps.length === 0
       ? "- No material gaps identified."
       : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
-  const sources = report.sources
-    .map((source) => `- [${markdownText(source.id)}] ${markdownText(source.title)}`)
-    .join("\n");
+  const sources = renderSources(report);
   const leads = readAlphaSearchLeads(report.extras);
   const rejected = readAlphaSearchRejectedCandidates(report.extras);
   const leadRows =
@@ -299,9 +372,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     report.dataGaps.length === 0
       ? "- No material gaps identified."
       : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
-  const sources = report.sources
-    .map((source) => `- [${markdownText(source.id)}] ${markdownText(source.title)}`)
-    .join("\n");
+  const sources = renderSources(report);
 
   return [
     `# ${title}`,

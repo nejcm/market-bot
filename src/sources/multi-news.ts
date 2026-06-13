@@ -2,7 +2,12 @@ import type { Source, SourceProviderAlias } from "../domain/types";
 import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { filterSeenNewsSources } from "./news-seen";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
-import { type CollectContext, type NewsAdapter, type NewsCollectionResult } from "./types";
+import {
+  type CollectContext,
+  type NewsAdapter,
+  type NewsCollectionAnalytics,
+  type NewsCollectionResult,
+} from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
 
 function aliasFor(source: Source): SourceProviderAlias | undefined {
@@ -115,10 +120,52 @@ function fetchedAtMs(source: Source): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function tickerRelevanceTerms(ctx: CollectContext): readonly string[] {
+  if (ctx.command.jobType !== "ticker") {
+    return [];
+  }
+  return [ctx.command.symbol.toLowerCase()];
+}
+
+function normalizedSearchText(source: Source): string {
+  return [source.symbol, source.title, source.summary, source.snippet]
+    .filter((value): value is string => value !== undefined && value.trim() !== "")
+    .join(" ")
+    .toLowerCase();
+}
+
+function isTickerRelevant(source: Source, terms: readonly string[]): boolean {
+  if (terms.length === 0) {
+    return false;
+  }
+  const text = normalizedSearchText(source);
+  return terms.some((term) => text.includes(term));
+}
+
+function selectedTickerRelevanceAnalytics(
+  sources: readonly Source[],
+  terms: readonly string[],
+): Pick<
+  NewsCollectionAnalytics,
+  "selectedRelevantTickerNewsSourceCount" | "selectedGenericTickerNewsSourceCount"
+> {
+  if (terms.length === 0) {
+    return {};
+  }
+  const selectedRelevantTickerNewsSourceCount = sources.filter((source) =>
+    isTickerRelevant(source, terms),
+  ).length;
+  return {
+    selectedRelevantTickerNewsSourceCount,
+    selectedGenericTickerNewsSourceCount: sources.length - selectedRelevantTickerNewsSourceCount,
+  };
+}
+
 function selectRoundRobin(
   sources: readonly Source[],
   limit: number,
   providerOrder: readonly string[],
+  relevanceTerms: readonly string[] = [],
 ): readonly Source[] {
   const groups = new Map<string, Source[]>();
 
@@ -130,7 +177,12 @@ function selectRoundRobin(
   for (const [provider, group] of groups) {
     groups.set(
       provider,
-      group.toSorted((left, right) => fetchedAtMs(right) - fetchedAtMs(left)),
+      group.toSorted((left, right) => {
+        const relevanceDelta =
+          Number(isTickerRelevant(right, relevanceTerms)) -
+          Number(isTickerRelevant(left, relevanceTerms));
+        return relevanceDelta === 0 ? fetchedAtMs(right) - fetchedAtMs(left) : relevanceDelta;
+      }),
     );
   }
 
@@ -212,8 +264,9 @@ export function createMultiNewsAdapter(
             now: new Date(ctx.fetchedAt),
           })
         : { newsSources: dedupedSources, sourceGaps: [] };
+    const relevanceTerms = tickerRelevanceTerms(ctx);
     const newsSources = assignSourceIds(
-      selectRoundRobin(filtered.newsSources, ctx.newsLimit, providerOrder),
+      selectRoundRobin(filtered.newsSources, ctx.newsLimit, providerOrder, relevanceTerms),
     );
     const repeatFallbackUsed = filtered.sourceGaps.some((gap) => isRepeatFallbackGap(gap));
     const persistentSuppressedNewsSourceCount = dedupedSources.length - filtered.newsSources.length;
@@ -230,6 +283,7 @@ export function createMultiNewsAdapter(
         persistentSuppressedNewsSourceCount,
         repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
         selectedNewsSourceCount: newsSources.length,
+        ...selectedTickerRelevanceAnalytics(newsSources, relevanceTerms),
         repeatFallbackUsed,
       },
     };

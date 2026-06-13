@@ -72,6 +72,8 @@ export interface NewsCollectionAnalytics {
   readonly persistentSuppressedNewsSourceCount: number;
   readonly repeatFallbackKeptCount: number;
   readonly selectedNewsSourceCount: number;
+  readonly selectedRelevantTickerNewsSourceCount?: number;
+  readonly selectedGenericTickerNewsSourceCount?: number;
   readonly repeatFallbackUsed: boolean;
 }
 

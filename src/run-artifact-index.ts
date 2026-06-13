@@ -185,7 +185,7 @@ export function readRunArtifactIndexStatus(
     };
   }
 
-  let db: Database | undefined;
+  let db: Database | undefined = undefined;
   try {
     db = openDatabase(dbPath, true);
     const version = db.query("PRAGMA user_version").get() as {

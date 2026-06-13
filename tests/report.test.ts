@@ -165,6 +165,101 @@ describe("report schema and rendering", () => {
     expect(assembled.dataGaps).toEqual(["massive-news: source request failed with status 403"]);
   });
 
+  test("dedupes model provider gap prose against deterministic source gaps", () => {
+    const command = {
+      jobType: "ticker" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const targetKindMix = { favored: ["relative", "range"] as const, minNonDirection: 1 };
+    const depthProfile: DepthProfile = {
+      depth: "brief",
+      analystStyle: "concise brief",
+      minimumKeyFindings: 0,
+      minimumScenarios: 0,
+      minimumPredictions: 0,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: ["AAPL"],
+      focus: ["source gaps"],
+      targetKindMix,
+    };
+    const context: ResearchContext = {
+      depthProfile,
+      runParams: {
+        quickModel: "quick",
+        synthesisModel: "synthesis",
+        modelParams: undefined,
+        minimumKeyFindings: 0,
+        minimumScenarios: 0,
+        minimumPredictions: 0,
+        defaultPredictionHorizon: 5,
+        predictionSubjects: ["AAPL"],
+        focus: ["source gaps"],
+        analystStyle: "concise brief",
+        targetKindMix,
+      },
+      marketRegime: {
+        assetClass: "equity",
+        label: "insufficient-data",
+        proxyCount: 0,
+        drivers: [],
+        sourceIds: [],
+      },
+      calibrationContext: undefined,
+    };
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Tradier unavailable for options evidence.", "Issuer transcript unavailable."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [
+          {
+            sourceId: "market-yahoo-equity-aapl",
+            assetClass: "equity",
+            symbol: "AAPL",
+            price: 190,
+            changePercent24h: 0.2,
+            volume: 1_000_000,
+            observedAt: "2026-06-01T00:00:00.000Z",
+          },
+        ],
+        newsSources: [
+          {
+            id: "news-1",
+            title: "AAPL update",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+        ],
+      }),
+      depthProfile,
+      context,
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Issuer transcript unavailable.",
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+    ]);
+  });
+
   test("adds historical report sources to report source lists", () => {
     const history: HistoricalResearchContext = {
       generatedAt: "2026-05-19T00:00:00.000Z",
@@ -341,6 +436,36 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("[source-1]");
     expect(markdown).toContain("No derivatives data");
     expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
+  });
+
+  test("renders cited sources first and summarizes uncited sources", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      sources: [
+        ...report.sources,
+        {
+          id: "uncited-news",
+          title: "Uncited broad market story",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "news",
+          provider: "yahoo",
+        },
+        {
+          id: "uncited-market",
+          title: "Uncited market snapshot",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "market-data",
+          provider: "coingecko",
+        },
+      ],
+    });
+
+    expect(markdown).toContain("- [source-1] BTC market snapshot");
+    expect(markdown).not.toContain("Uncited broad market story");
+    expect(markdown).not.toContain("Uncited market snapshot");
+    expect(markdown).toContain(
+      "2 uncited normalized source(s) omitted from markdown (coingecko/market-data:1, yahoo/news:1)",
+    );
   });
 
   test("renders ticker Extended Evidence from report contract", () => {

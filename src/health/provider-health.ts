@@ -12,8 +12,13 @@ import type {
   SourceGapCause,
   SourceGapEvidenceQualityImpact,
 } from "../domain/types";
+import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
 import { isRecord, numberAt } from "../sources/guards";
-import { buildValidation, type ProviderValidationSummary } from "./validation";
+import {
+  buildValidation,
+  type ProviderValidationSummary,
+  type ValidationIssueClassification,
+} from "./validation";
 
 export type { ValidationCoverageItem, ValidationRouteClassification } from "./validation";
 
@@ -90,6 +95,7 @@ export interface ProviderHealthSummary {
     readonly yahooAuth: number;
     readonly other: number;
   };
+  readonly runArtifactIndex: RunArtifactIndexStatus;
   readonly validation: ProviderValidationSummary;
   readonly routes: readonly ProviderRouteHealth[];
 }
@@ -518,6 +524,63 @@ function gapOverview(routes: readonly ProviderRouteHealth[]): ProviderHealthSumm
   );
 }
 
+function indexClassification(
+  indexStatus: RunArtifactIndexStatus,
+): ValidationIssueClassification | undefined {
+  if (indexStatus.state === "unsupported-schema" || indexStatus.state === "unreadable") {
+    return "blocking";
+  }
+  return undefined;
+}
+
+function validationWithIndexStatus(
+  validation: ProviderValidationSummary,
+  indexStatus: RunArtifactIndexStatus,
+): ProviderValidationSummary {
+  const classification = indexClassification(indexStatus);
+  if (classification === undefined) {
+    return validation;
+  }
+
+  const routeClassifications = [
+    ...validation.routeClassifications,
+    {
+      route: "run-artifact-index",
+      provider: "market-bot",
+      classification,
+      reason: indexStatus.message,
+      runIds: [],
+      sampleMessages: [indexStatus.rebuildCommand],
+    },
+  ].toSorted(
+    (a, b) => a.classification.localeCompare(b.classification) || a.route.localeCompare(b.route),
+  );
+  const blockingIssueCount = routeClassifications.filter(
+    (item) => item.classification === "blocking",
+  ).length;
+  const warningIssueCount = routeClassifications.filter(
+    (item) => item.classification === "expected",
+  ).length;
+  const informationalIssueCount = routeClassifications.filter(
+    (item) => item.classification === "informational",
+  ).length;
+  let status: ProviderValidationSummary["status"] = "pass";
+  if (blockingIssueCount > 0) {
+    status = "fail";
+  } else if (warningIssueCount > 0) {
+    status = "warn";
+  }
+
+  return {
+    ...validation,
+    status,
+    blockingIssueCount,
+    warningIssueCount,
+    informationalIssueCount,
+    routeClassifications,
+  };
+}
+
 export async function buildProviderHealthSummary(
   runsDir: string,
   now: Date = new Date(),
@@ -527,6 +590,11 @@ export async function buildProviderHealthSummary(
   const dates = generatedDates(runs);
   const routes = routeHealth(runs);
   const calibrationPresent = await hasCalibration(runsDir);
+  const runArtifactIndex = readRunArtifactIndexStatus(runsDir);
+  const validation = validationWithIndexStatus(
+    buildValidation(runs, routes, calibrationPresent, now),
+    runArtifactIndex,
+  );
 
   return {
     version: 2,
@@ -538,7 +606,8 @@ export async function buildProviderHealthSummary(
     runsByAssetClass: countBy(runs, (run) => run.assetClass),
     realRunValidation: validationSummary(runs, calibrationPresent),
     gapOverview: gapOverview(routes),
-    validation: buildValidation(runs, routes, calibrationPresent, now),
+    runArtifactIndex,
+    validation,
     routes,
   };
 }
@@ -574,6 +643,10 @@ export function renderProviderHealthMarkdown(summary: ProviderHealthSummary): st
     tableRow(["Blocking issues", String(summary.validation.blockingIssueCount)]),
     tableRow(["Warning issues", String(summary.validation.warningIssueCount)]),
     tableRow(["Informational issues", String(summary.validation.informationalIssueCount)]),
+    tableRow([
+      "Run Artifact Index",
+      `${summary.runArtifactIndex.state}: ${summary.runArtifactIndex.message}`,
+    ]),
     "",
     "### Required coverage",
     "",

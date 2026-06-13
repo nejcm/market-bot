@@ -44,7 +44,7 @@ function compactPayloadSummary(
       payloadSha256,
       topLevelType: "array",
       arrayLength: payload.length,
-      arrayItemTypes: [...new Set(payload.slice(0, 50).map(valueType))],
+      arrayItemTypes: [...new Set(payload.slice(0, 50).map((item) => valueType(item)))],
     };
   }
   if (payload !== null && typeof payload === "object") {

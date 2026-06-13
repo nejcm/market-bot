@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { Database } from "bun:sqlite";
 import type { AssetClass, JobType, Source, SourceGap } from "../src/domain/types";
 import {
   buildProviderHealthSummary,
@@ -163,6 +164,30 @@ describe("provider health", () => {
     expect(summary.validation.routeClassifications).toContainEqual(
       expect.objectContaining({
         route: "fred-macro",
+        classification: "blocking",
+      }),
+    );
+  });
+
+  test("fails when the Run Artifact Index schema is unsupported", async () => {
+    await writeBaselineRuns();
+    await writeCalibration();
+    const db = new Database(join(tmpDir, "index.sqlite"), { create: true });
+    db.exec("PRAGMA user_version = 4");
+    db.close();
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.runArtifactIndex).toMatchObject({
+      state: "unsupported-schema",
+      expectedSchemaVersion: 5,
+      currentSchemaVersion: 4,
+      rebuildCommand: "bun run src/cli.ts index rebuild",
+    });
+    expect(summary.validation.status).toBe("fail");
+    expect(summary.validation.routeClassifications).toContainEqual(
+      expect.objectContaining({
+        route: "run-artifact-index",
         classification: "blocking",
       }),
     );

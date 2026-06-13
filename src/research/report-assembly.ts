@@ -7,8 +7,13 @@ import {
   type ResearchReport,
   type Scenario,
   type Source,
+  type SourceGap,
 } from "../domain/types";
-import { isCoreEvidenceQualityGap, isExtendedEvidenceQualityGap } from "../domain/source-gaps";
+import {
+  dedupeSourceGaps,
+  isCoreEvidenceQualityGap,
+  isExtendedEvidenceQualityGap,
+} from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { isRecord, nonEmptyStringArrayValue } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
@@ -274,6 +279,35 @@ function uniqueDataGaps(gaps: readonly string[]): readonly string[] {
   });
 }
 
+function normalizeGapNeedle(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, " ")
+    .trim();
+}
+
+function sourceGapNeedles(gap: SourceGap): readonly string[] {
+  return [gap.source, gap.provider]
+    .filter((value): value is string => value !== undefined && value.trim() !== "")
+    .map((value) => normalizeGapNeedle(value))
+    .filter((value) => value.length >= 4);
+}
+
+function mentionsSourceGap(modelGap: string, deterministicGap: SourceGap): boolean {
+  const normalized = normalizeGapNeedle(modelGap);
+  return sourceGapNeedles(deterministicGap).some((needle) => normalized.includes(needle));
+}
+
+function withoutModelProviderGapDuplicates(
+  modelGaps: readonly string[],
+  sourceGaps: readonly SourceGap[],
+): readonly string[] {
+  const deterministicGaps = dedupeSourceGaps(sourceGaps);
+  return modelGaps.filter(
+    (modelGap) => !deterministicGaps.some((gap) => mentionsSourceGap(modelGap, gap)),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Report assembly — combine parsed payload + context into a validated report
 // ---------------------------------------------------------------------------
@@ -307,7 +341,10 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   } = input;
 
   const dataGapsRaw = uniqueDataGaps([
-    ...nonEmptyStringArrayValue(payload.dataGaps),
+    ...withoutModelProviderGapDuplicates(
+      nonEmptyStringArrayValue(payload.dataGaps),
+      collectedSources.sourceGaps,
+    ),
     ...deterministicSourceGaps(command, collectedSources),
   ]);
   const shortfall = predResult.predictions.length < depthProfile.minimumPredictions;

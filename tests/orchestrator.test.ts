@@ -309,6 +309,7 @@ describe("runResearchJob", () => {
         sourceGaps: [],
       }),
       now: new Date("2026-05-19T00:00:00.000Z"),
+      endClock: () => new Date("2026-05-19T00:00:04.250Z"),
     });
 
     expect(requests).toEqual([
@@ -320,6 +321,9 @@ describe("runResearchJob", () => {
     ]);
     expect(result.trace.quickModel).toBe("combo-quick");
     expect(result.trace.synthesisModel).toBe("combo-synthesis");
+    expect(result.trace.startedAt).toBe("2026-05-19T00:00:00.000Z");
+    expect(result.trace.completedAt).toBe("2026-05-19T00:00:04.250Z");
+    expect(Date.parse(result.trace.completedAt) - Date.parse(result.trace.startedAt)).toBe(4250);
   });
 
   test("runs deep market updates through the coverage panel before critique and synthesis", async () => {

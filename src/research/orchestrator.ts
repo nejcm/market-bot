@@ -67,6 +67,7 @@ export interface RunResearchJobInput {
   readonly provider: ModelProvider;
   readonly collectedSources: CollectedSources;
   readonly now?: Date;
+  readonly endClock?: () => Date;
   readonly sourceFetchImpl?: FetchLike;
   readonly sourceRetryDelaysMs?: readonly number[];
 }
@@ -298,8 +299,7 @@ function refreshSpotlightSelection(
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
-  const completedAt = (): string =>
-    input.now === undefined ? new Date().toISOString() : new Date(now.getTime() + 1).toISOString();
+  const completedAt = (): string => (input.endClock?.() ?? new Date()).toISOString();
   const runId = createRunId(now);
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);

@@ -215,11 +215,14 @@ describe("research console app artifacts", () => {
     expect(results.map((result) => result.section)).toEqual([
       "summary",
       "keyFindings",
-      "predictions",
       "sources",
       "dataGaps",
     ]);
-    expect(results.map((result) => result.sourceIds)).toEqual([[], ["s1"], ["s2"], ["s3"], []]);
+    expect(results.map((result) => result.sourceIds)).toEqual([[], ["s1"], ["s3"], []]);
+
+    const predictionResults = await searchRunReports(dataDir, { query: "SPY closes higher" });
+    expect(predictionResults.map((result) => result.section)).toEqual(["predictions"]);
+    expect(predictionResults.map((result) => result.sourceIds)).toEqual([["s2"]]);
   });
 
   test("filters structured report search by run metadata", async () => {

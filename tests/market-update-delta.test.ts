@@ -320,7 +320,7 @@ describe("buildMarketUpdateDelta", () => {
       {
         runId: "daily-old",
         predictionId: "p1",
-        claim: "SPY closes higher.",
+        claim: "SPY closes higher than today over 5 trading days",
         probability: 0.65,
         outcome: "hit",
         observedAt: "2026-05-06T00:00:00.000Z",

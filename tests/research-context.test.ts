@@ -259,8 +259,60 @@ describe("buildStagePrompt", () => {
     expect(parsed.predictionRepair).toEqual({
       requiredPredictionCount: 2,
       instruction:
-        "Return a complete final report with exactly 2 valid predictions. Do not omit the predictions array, and do not return a partial patch.",
+        "Return a complete final report with exactly 2 valid predictions. Do not omit the predictions array, and do not return a partial patch. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it, and keep two direction calls on the same subject at least 2 trading days apart — otherwise vary the subject, kind, or horizon.",
     });
+  });
+
+  test("threads redundancy-rejection reasons into the final-synthesis retry prompt", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const redundancyReason =
+      "Prediction pred-2: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)";
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+      [],
+      [redundancyReason, "predictionShortfall: required 2, received 1"],
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly predictionRepromptErrors?: readonly string[];
+    };
+
+    expect(parsed.predictionRepromptErrors).toEqual([
+      redundancyReason,
+      "predictionShortfall: required 2, received 1",
+    ]);
   });
 
   test("final-synthesis shape omits model-authored prediction claims", () => {

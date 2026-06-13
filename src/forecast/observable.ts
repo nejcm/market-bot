@@ -745,9 +745,28 @@ function resolveCandidate(
   };
 }
 
+// Minimum trading-day gap between two accepted same-subject `direction` forecasts.
+// Adjacent-horizon calls (closes higher 5d vs 6d) are correlated near-duplicates.
+// Collapsing them frees prediction slots for genuinely distinct claims.
+export const MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS = 2;
+
 function redundancyKey(forecast: ObservableForecast): string {
   return [forecast.prediction.kind, forecast.subject, String(forecast.horizonTradingDays)].join(
     "|",
+  );
+}
+
+// The observable grammar renders every `direction` forecast as one up event.
+// Two same-subject direction forecasts therefore always share a direction.
+// Only their horizon differs, so closeness on horizon implies redundancy.
+function collidingDirectionHorizon(
+  forecast: ObservableForecast,
+  acceptedHorizonsBySubject: ReadonlyMap<string, readonly number[]>,
+): number | undefined {
+  const horizons = acceptedHorizonsBySubject.get(forecast.subject) ?? [];
+  return horizons.find(
+    (horizon) =>
+      Math.abs(horizon - forecast.horizonTradingDays) < MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
   );
 }
 
@@ -757,6 +776,7 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
 } {
   const measurableSeen = new Set<string>();
   const kindSubjectHorizonSeen = new Set<string>();
+  const acceptedDirectionHorizonsBySubject = new Map<string, number[]>();
   const accepted: ObservableForecast[] = [];
   const issues: ObservableForecastIssue[] = [];
 
@@ -773,20 +793,40 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
       continue;
     }
 
-    const key = redundancyKey(forecast);
-    if (kindSubjectHorizonSeen.has(key)) {
-      issues.push(
-        issue(
-          "redundant-prediction",
-          `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
-          prediction.id,
-        ),
-      );
-      continue;
+    if (prediction.kind === "direction") {
+      const colliding = collidingDirectionHorizon(forecast, acceptedDirectionHorizonsBySubject);
+      if (colliding !== undefined) {
+        issues.push(
+          issue(
+            "redundant-prediction",
+            `Prediction ${prediction.id}: redundant direction forecast for ${subject} at ${String(horizonTradingDays)} trading days (within ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days of accepted ${String(colliding)}d)`,
+            prediction.id,
+          ),
+        );
+        continue;
+      }
+    } else {
+      const key = redundancyKey(forecast);
+      if (kindSubjectHorizonSeen.has(key)) {
+        issues.push(
+          issue(
+            "redundant-prediction",
+            `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
+            prediction.id,
+          ),
+        );
+        continue;
+      }
+      kindSubjectHorizonSeen.add(key);
     }
 
     measurableSeen.add(measurableAs);
-    kindSubjectHorizonSeen.add(key);
+    if (prediction.kind === "direction") {
+      acceptedDirectionHorizonsBySubject.set(subject, [
+        ...(acceptedDirectionHorizonsBySubject.get(subject) ?? []),
+        horizonTradingDays,
+      ]);
+    }
     accepted.push(forecast);
   }
 

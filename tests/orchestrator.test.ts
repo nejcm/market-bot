@@ -159,16 +159,21 @@ async function writeHistoricalRun(input: {
 }
 
 function mockPredictions(count: number, subject = "SPY"): unknown[] {
-  return Array.from({ length: count }, (_, idx) => ({
-    id: `pred-${String(idx + 1)}`,
-    claim: `${subject} closes higher over ${String(idx + 5)} trading days.`,
-    kind: "direction",
-    subject,
-    measurableAs: `close(${subject}, +${String(idx + 5)}) > close(${subject}, 0)`,
-    horizonTradingDays: idx + 5,
-    probability: 0.6,
-    sourceIds: ["market-aapl"],
-  }));
+  // Space horizons by 2 trading days so same-subject direction calls stay distinct.
+  // MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS drops adjacent same-direction horizons.
+  return Array.from({ length: count }, (_, idx) => {
+    const horizon = idx * 2 + 5;
+    return {
+      id: `pred-${String(idx + 1)}`,
+      claim: `${subject} closes higher over ${String(horizon)} trading days.`,
+      kind: "direction",
+      subject,
+      measurableAs: `close(${subject}, +${String(horizon)}) > close(${subject}, 0)`,
+      horizonTradingDays: horizon,
+      probability: 0.6,
+      sourceIds: ["market-aapl"],
+    };
+  });
 }
 
 function modelReport(subject = "AAPL", sourceId = "market-aapl"): string {

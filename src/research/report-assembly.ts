@@ -6,6 +6,7 @@ import {
   type Prediction,
   type ResearchReport,
   type Scenario,
+  type MarketSnapshot,
   type Source,
   type SourceGap,
 } from "../domain/types";
@@ -121,6 +122,16 @@ function lowerQuality(left: EvidenceQuality, right: EvidenceQuality): EvidenceQu
 // Source list — normalized Sources the report attaches
 // ---------------------------------------------------------------------------
 
+// Primary mover/market snapshots come from the asset-class market-data provider.
+// Equity uses Yahoo and crypto uses CoinGecko; a resolved identity alias wins.
+// Stamping the provider keeps these Sources out of the analytics "unknown" bucket.
+function marketSnapshotProvider(snapshot: MarketSnapshot): string {
+  return (
+    snapshot.identity?.aliases?.[0]?.provider ??
+    (snapshot.assetClass === "crypto" ? "coingecko" : "yahoo")
+  );
+}
+
 export function buildSourceList(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -147,6 +158,7 @@ export function buildSourceList(
       kind: "market-data",
       assetClass: snapshot.assetClass,
       symbol: snapshot.symbol,
+      provider: marketSnapshotProvider(snapshot),
       ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
     };
   });

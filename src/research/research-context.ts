@@ -14,6 +14,7 @@ import {
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "./verified-snapshot-contract";
+import { MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS } from "../forecast/observable";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric, CalibrationSummary } from "../scoring/types";
 import type {
@@ -826,7 +827,7 @@ export function buildStagePrompt(
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
       ? {
           requiredPredictionCount: context.depthProfile.minimumPredictions,
-          instruction: `Return a complete final report with exactly ${String(context.depthProfile.minimumPredictions)} valid predictions. Do not omit the predictions array, and do not return a partial patch.`,
+          instruction: `Return a complete final report with exactly ${String(context.depthProfile.minimumPredictions)} valid predictions. Do not omit the predictions array, and do not return a partial patch. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it, and keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`,
         }
       : undefined;
   const requiredShape = (() => {

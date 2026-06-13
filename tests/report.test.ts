@@ -74,6 +74,30 @@ describe("report schema and rendering", () => {
     );
 
     expect(sources[0]?.identity).toEqual(snapshot.identity);
+    expect(sources[0]?.provider).toBe("coingecko");
+  });
+
+  test("stamps the asset-class market-data provider on mover snapshots", () => {
+    const snapshot: MarketSnapshot = {
+      sourceId: "market-yahoo-equity-aapl",
+      assetClass: "equity",
+      symbol: "AAPL",
+      price: 200,
+      changePercent24h: 1.2,
+      volume: 50_000_000,
+      observedAt: "2026-06-13T00:00:00.000Z",
+    };
+
+    const sources = buildSourceList(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [snapshot],
+        newsSources: [],
+      }),
+    );
+
+    expect(sources[0]?.provider).toBe("yahoo");
   });
 
   test("dedupes model and deterministic data gaps by normalized text", () => {

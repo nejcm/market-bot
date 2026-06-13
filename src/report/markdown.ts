@@ -1,4 +1,5 @@
 import type { KeyFinding, Prediction, ResearchReport, Scenario } from "../domain/types";
+import { renderClaimForMeasurableAs } from "../forecast/observable";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 import {
   readAlphaSearchLeads,
@@ -59,7 +60,8 @@ function renderPredictions(predictions: readonly Prediction[]): string {
     .map((pred) => {
       const pct = `${String(Math.round(pred.probability * 100))}%`;
       const refs = pred.sourceIds.length > 0 ? ` ${sourceRefs(pred.sourceIds)}` : "";
-      return `- [${pct}] (${pred.horizonTradingDays}d) ${pred.claim}${refs}`;
+      const claim = renderClaimForMeasurableAs(pred.measurableAs, pred.claim) ?? pred.claim;
+      return `- [${pct}] (${pred.horizonTradingDays}d) ${claim}${refs}`;
     })
     .join("\n");
 

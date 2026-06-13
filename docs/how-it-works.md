@@ -80,21 +80,21 @@ market-bot history thesis-delta AAPL --asset equity --since 2026-06-01 --narrati
 
 Command behavior:
 
-| Command | What it does |
-| --- | --- |
-| `daily --asset equity\|crypto` | Creates a daily market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence. |
-| `weekly --asset equity\|crypto` | Creates a weekly market update, with overview-first coverage and optional Market Spotlights from current market evidence. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps. |
-| `ticker <symbol> --asset equity\|crypto` | Creates a detailed single-instrument research view with same-symbol historical context. Symbols are normalized to uppercase and must match the instrument validator. |
-| `alpha-search --asset equity` | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
-| `--deep` | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass. |
-| `score` | Resolves due predictions in previous runs and writes `score.json` files. |
-| `calibration` | Rebuilds aggregate calibration outputs from existing resolved scores and prints a reliability dashboard to stdout (Brier skill, reliability bins, per-kind and per-horizon slices; small-sample warning below 5 resolved predictions). |
-| `cache prune` | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days. |
-| `provider-health` | Reads persisted run artifacts and writes provider-health contract v2 to `data/provider-health/summary.json` plus `summary.md`, including a `pass`/`warn`/`fail` validation verdict, required coverage checklist, and provider gap classifications by route. |
-| `index rebuild` | Bootstraps or fully rebuilds the derived SQLite Run Artifact Index (`data/index.sqlite` by default) from on-disk run artifacts. |
-| `history rebuild` | Rebuilds derived Historical Research Context indexes and per-Instrument timelines under `data/history/` from existing run artifacts. |
-| `history search --query <text>` | Searches prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts with optional filters. Uses the SQLite index when fresh; otherwise falls back to `data/history/index.json`. |
-| `history thesis-delta <symbol>` | Compares two historical Research Thesis states for an Instrument. By default it renders a deterministic delta; `--narrative` adds and persists a model-written research-only narrative. |
+| Command                                  | What it does                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `daily --asset equity\|crypto`           | Creates a daily market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence.                                                                                                                                                                                                                    |
+| `weekly --asset equity\|crypto`          | Creates a weekly market update, with overview-first coverage and optional Market Spotlights from current market evidence. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps.                                                                             |
+| `ticker <symbol> --asset equity\|crypto` | Creates a detailed single-instrument research view with same-symbol historical context. Symbols are normalized to uppercase and must match the instrument validator.                                                                                                                                                                                            |
+| `alpha-search --asset equity`            | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
+| `--deep`                                 | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass.                                                                                                                                                                                                                     |
+| `score`                                  | Resolves due predictions in previous runs and writes `score.json` files.                                                                                                                                                                                                                                                                                        |
+| `calibration`                            | Rebuilds aggregate calibration outputs from existing resolved scores and prints a reliability dashboard to stdout (Brier skill, reliability bins, per-kind and per-horizon slices; small-sample warning below 5 resolved predictions).                                                                                                                          |
+| `cache prune`                            | Removes raw cache day directories older than 30 days and scorer close-cache files older than 365 days.                                                                                                                                                                                                                                                          |
+| `provider-health`                        | Reads persisted run artifacts and writes provider-health contract v2 to `data/provider-health/summary.json` plus `summary.md`, including a `pass`/`warn`/`fail` validation verdict, required coverage checklist, and provider gap classifications by route.                                                                                                     |
+| `index rebuild`                          | Bootstraps or fully rebuilds the derived SQLite Run Artifact Index (`data/index.sqlite` by default) from on-disk run artifacts.                                                                                                                                                                                                                                 |
+| `history rebuild`                        | Rebuilds derived Historical Research Context indexes and per-Instrument timelines under `data/history/` from existing run artifacts.                                                                                                                                                                                                                            |
+| `history search --query <text>`          | Searches prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts with optional filters. Uses the SQLite index when fresh; otherwise falls back to `data/history/index.json`.                                                                                                                    |
+| `history thesis-delta <symbol>`          | Compares two historical Research Thesis states for an Instrument. By default it renders a deterministic delta; `--narrative` adds and persists a model-written research-only narrative.                                                                                                                                                                         |
 
 Provider-health v2 expects coverage for daily and weekly equity/crypto updates, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, and missing due scoring passes. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict. Missing history on first-run paths is a soft Historical Context Gap, not a provider-health failure.
 
@@ -135,25 +135,25 @@ Configuration is read in `src/config.ts` from environment variables. Live model 
 
 Useful knobs:
 
-| Variable | Purpose |
-| --- | --- |
-| `MARKET_BOT_PROVIDER` | `openai`, `openai-compatible`, `codex`, or `anthropic`. |
-| `MARKET_BOT_BASE_URL` | Required for `openai-compatible`. |
-| `MARKET_BOT_QUICK_MODEL` | Model for playbook-selection, specialist, coverage-panel, and critique stages. |
-| `MARKET_BOT_SYNTHESIS_MODEL` | Model for final synthesis and `--deep` output. |
-| `MARKET_BOT_REASONING_EFFORT` | Optional `low`, `medium`, or `high` reasoning-effort hint. |
-| `MARKET_BOT_DATA_DIR` | Run artifact directory, default `data/runs`. |
-| `MARKET_BOT_INDEX_DB_PATH` | Derived SQLite Run Artifact Index path; defaults to `data/index.sqlite` when `MARKET_BOT_DATA_DIR` is `data/runs`. |
-| `MARKET_BOT_INDEX_DISABLE` | Set `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through. |
-| `MARKET_BOT_CACHE_DIR` | Raw source cache directory, default `data/cache`. |
-| `MARKET_BOT_CACHE_DISABLE` | Set `1` or `true` to bypass cache. |
-| `MARKET_BOT_CACHE_FALLBACK_DAYS` | Stale cache fallback window after live fetch failure. |
-| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for daily and weekly updates. |
-| `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` / `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT` | Caps recent prior run artifacts used as Historical Research Context. |
-| `MARKET_BOT_HISTORY_RECENT_DAYS` / `MARKET_BOT_HISTORY_ANCHOR_MONTHS` | Controls recent and older anchor history selection. |
-| `MARKET_BOT_MARKETAUX_API_TOKEN` | Enables MarketAux news. |
-| `MARKET_BOT_FINNHUB_API_TOKEN` | Enables Finnhub news. |
-| `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY` | Enables supplemental Massive equity snapshots and news. `MARKET_BOT_POLYGON_API_KEY` is a legacy alias. |
+| Variable                                                                             | Purpose                                                                                                            |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `MARKET_BOT_PROVIDER`                                                                | `openai`, `openai-compatible`, `codex`, or `anthropic`.                                                            |
+| `MARKET_BOT_BASE_URL`                                                                | Required for `openai-compatible`.                                                                                  |
+| `MARKET_BOT_QUICK_MODEL`                                                             | Model for playbook-selection, specialist, coverage-panel, and critique stages.                                     |
+| `MARKET_BOT_SYNTHESIS_MODEL`                                                         | Model for final synthesis and `--deep` output.                                                                     |
+| `MARKET_BOT_REASONING_EFFORT`                                                        | Optional `low`, `medium`, or `high` reasoning-effort hint.                                                         |
+| `MARKET_BOT_DATA_DIR`                                                                | Run artifact directory, default `data/runs`.                                                                       |
+| `MARKET_BOT_INDEX_DB_PATH`                                                           | Derived SQLite Run Artifact Index path; defaults to `data/index.sqlite` when `MARKET_BOT_DATA_DIR` is `data/runs`. |
+| `MARKET_BOT_INDEX_DISABLE`                                                           | Set `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through.                      |
+| `MARKET_BOT_CACHE_DIR`                                                               | Raw source cache directory, default `data/cache`.                                                                  |
+| `MARKET_BOT_CACHE_DISABLE`                                                           | Set `1` or `true` to bypass cache.                                                                                 |
+| `MARKET_BOT_CACHE_FALLBACK_DAYS`                                                     | Stale cache fallback window after live fetch failure.                                                              |
+| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for daily and weekly updates.                                                   |
+| `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` / `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT`  | Caps recent prior run artifacts used as Historical Research Context.                                               |
+| `MARKET_BOT_HISTORY_RECENT_DAYS` / `MARKET_BOT_HISTORY_ANCHOR_MONTHS`                | Controls recent and older anchor history selection.                                                                |
+| `MARKET_BOT_MARKETAUX_API_TOKEN`                                                     | Enables MarketAux news.                                                                                            |
+| `MARKET_BOT_FINNHUB_API_TOKEN`                                                       | Enables Finnhub news.                                                                                              |
+| `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY`                          | Enables supplemental Massive equity snapshots and news. `MARKET_BOT_POLYGON_API_KEY` is a legacy alias.            |
 
 See [configuration.md](./configuration.md) for the full table.
 
@@ -163,10 +163,10 @@ Source collection lives in `src/sources/collector.ts`.
 
 The collector fetches market data and news in parallel:
 
-| Asset class | Market data | News |
-| --- | --- | --- |
-| `equity` | Yahoo Finance predefined `day_gainers`, `day_losers`, and `most_actives` screeners (deduped by symbol) for market updates; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
-| `crypto` | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol. | MarketAux, Finnhub crypto market news, and Yahoo Finance search. |
+| Asset class | Market data                                                                                                                                                                                                                                           | News                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `equity`    | Yahoo Finance predefined `day_gainers`, `day_losers`, and `most_actives` screeners (deduped by symbol) for market updates; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
+| `crypto`    | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol.                                                                                                              | MarketAux, Finnhub crypto market news, and Yahoo Finance search.                                         |
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, `^VIX`, and `^VIX3M`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
@@ -176,10 +176,10 @@ Massive, formerly Polygon.io, is a Supplemental Source Provider. `MARKET_BOT_MAS
 
 Ticker runs also collect Extended Evidence:
 
-| Asset class | Extended Evidence |
-| --- | --- |
-| `equity` | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, and Tradier options IV. |
-| `crypto` | FRED macro observations and Glassnode on-chain metrics. |
+| Asset class | Extended Evidence                                                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, and Tradier options IV. |
+| `crypto`    | FRED macro observations and Glassnode on-chain metrics.                                                                                                   |
 
 Extended Evidence is not collected for daily or weekly market updates. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
 SEC/EDGAR Fundamental Evidence uses curated operating basics and comparable prior-year deltas when SEC company facts expose matching periods; missing facts or non-comparable deltas are disclosed as `SourceGap`s.
@@ -277,10 +277,10 @@ Research orchestration lives in `src/research/orchestrator.ts`.
 
 Each research run builds a depth profile:
 
-| Mode | Effect |
-| --- | --- |
+| Mode    | Effect                                                                  |
+| ------- | ----------------------------------------------------------------------- |
 | `brief` | Concise report with fewer minimum findings, scenarios, and predictions. |
-| `deep` | Fuller report with higher minimum counts and broader focus areas. |
+| `deep`  | Fuller report with higher minimum counts and broader focus areas.       |
 
 Before the shared analysis stages:
 
@@ -327,11 +327,10 @@ Prediction validation checks:
 - required fields are present;
 - `kind`, `subject`, and `horizonTradingDays` match the parsed expression;
 - horizon is an integer from 1 to 20 trading days;
-- probability is between 0 and 1;
-- source IDs exist in the report source list;
-- claim text does not include trade-action or reader-directed language.
+- probability is between 0 and 1 and means `P(measurableAs is TRUE)`;
+- source IDs exist in the report source list.
 
-Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output.
+Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output. The stored public `claim` remains present for compatibility, but it is generated from the parsed `measurableAs`; model-authored claim text is ignored. Legacy artifact display and indexes render from `measurableAs` when parseable and fall back to the stored `claim` otherwise.
 
 ## Report validation and rendering
 
@@ -447,13 +446,13 @@ threshold it adds reliability bins and per-kind / per-horizon Brier skill slices
 
 Common extension points:
 
-| Change | Main files |
-| --- | --- |
-| Add an environment variable | `src/config.ts`, `docs/configuration.md` |
-| Add a source adapter | [Source Provider Contract](./source-provider-contract.md), `src/sources/*`, `src/sources/registry.ts`, source tests |
-| Add a prediction shape | `src/forecast/observable.ts`, `src/scoring/resolver.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, tests |
-| Change report structure | `src/domain/types.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, orchestrator prompt shape, tests |
-| Change CLI syntax | `src/cli/args.ts`, CLI tests, README command docs |
+| Change                         | Main files                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Add an environment variable    | `src/config.ts`, `docs/configuration.md`                                                                                  |
+| Add a source adapter           | [Source Provider Contract](./source-provider-contract.md), `src/sources/*`, `src/sources/registry.ts`, source tests       |
+| Add a prediction shape         | `src/forecast/observable.ts`, `src/scoring/resolver.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, tests          |
+| Change report structure        | `src/domain/types.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, orchestrator prompt shape, tests                 |
+| Change CLI syntax              | `src/cli/args.ts`, CLI tests, README command docs                                                                         |
 | Add or change Domain Playbooks | `prompts/playbooks/registry.json`, `prompts/playbooks/*.md`, `src/research/playbooks.ts`, playbook and orchestrator tests |
 
 Keep changes inside the research-only boundary in [ADR 0001](./adr/0001-research-only-boundary.md) and the observable-forecast boundary in [ADR 0004](./adr/0004-predictions-as-observable-forecasts.md).

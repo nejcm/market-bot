@@ -634,7 +634,6 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
     dataGaps: ["string"],
     predictions: Array.from({ length: depthProfile.minimumPredictions }, (_, idx) => ({
       id: `pred-${String(idx + 1)}`,
-      claim: "string describing market quantity",
       kind: "direction|relative|volatility|range|macro|iv",
       subject: exampleSubject,
       measurableAs: `close(${exampleSubject}, +${String(depthProfile.defaultPredictionHorizon)}) > close(${exampleSubject}, 0)`,
@@ -821,7 +820,7 @@ export function buildStagePrompt(
 ): string {
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV.${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
+      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0

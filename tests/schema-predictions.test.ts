@@ -18,6 +18,17 @@ describe("validatePredictions", () => {
   test("accepts a valid direction prediction", () => {
     const result = validatePredictions([validPrediction], knownIds);
     expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.claim).toBe("SPY closes higher than today over 5 trading days");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("accepts missing model claim and derives one from measurableAs", () => {
+    const { claim: _claim, ...withoutClaim } = validPrediction;
+
+    const result = validatePredictions([withoutClaim], knownIds);
+
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.claim).toBe("SPY closes higher than today over 5 trading days");
     expect(result.errors).toHaveLength(0);
   });
 
@@ -48,22 +59,14 @@ describe("validatePredictions", () => {
     expect(result.errors[0]).toContain("probability must be 0–1");
   });
 
-  test("drops prediction with trade-action language in claim", () => {
+  test("ignores unsafe model claim text because claim is derived", () => {
     const result = validatePredictions(
       [{ ...validPrediction, claim: "Sell SPY if it closes lower." }],
       knownIds,
     );
-    expect(result.valid).toHaveLength(0);
-    expect(result.errors[0]).toContain("trade-action language");
-  });
-
-  test("drops prediction with reader-directed language in claim", () => {
-    const result = validatePredictions(
-      [{ ...validPrediction, claim: "Consider rotating into SPY." }],
-      knownIds,
-    );
-    expect(result.valid).toHaveLength(0);
-    expect(result.errors[0]).toContain("reader-directed language");
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.claim).toBe("SPY closes higher than today over 5 trading days");
+    expect(result.errors).toHaveLength(0);
   });
 
   test("drops prediction with unknown sourceId", () => {
@@ -111,6 +114,7 @@ describe("validatePredictions", () => {
       knownIds,
     );
     expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.claim).toBe("QQQ outperforms SPY over 5 trading days");
   });
 
   test("rejects relative prediction with non-A:B subject", () => {
@@ -223,5 +227,22 @@ describe("validatePredictions", () => {
       knownIds,
     );
     expect(result.valid).toHaveLength(2);
+    expect(result.valid.map((item) => item.claim)).toEqual([
+      "DGS10 rises over 5 trading days",
+      "AAPL implied volatility is above 0.35 in 5 trading days",
+    ]);
+  });
+
+  test("keeps bearish encoding as low probability on the up event", () => {
+    const result = validatePredictions(
+      [{ ...validPrediction, probability: 0.3, claim: "SPY closes lower." }],
+      knownIds,
+    );
+    expect(result.valid).toEqual([
+      expect.objectContaining({
+        claim: "SPY closes higher than today over 5 trading days",
+        probability: 0.3,
+      }),
+    ]);
   });
 });

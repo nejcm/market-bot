@@ -22,6 +22,10 @@ Provider-normalized metadata that helps relate Source Provider records to an Ins
 
 A public market quantity value used to resolve a Prediction. An Observation can be point-in-time or part of a window. It is not advice, conviction, or a trade signal.
 
+## Prediction
+
+An observable forecast whose scored event is defined by `measurableAs`. The persisted public `claim` is display text rendered from that DSL expression, not a model-authored source of truth. `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event.
+
 ## Calibration
 
 An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. It describes forecast accuracy; it is not investment conviction, model endorsement, or a trade signal.

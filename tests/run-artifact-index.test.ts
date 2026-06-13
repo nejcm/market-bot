@@ -168,7 +168,6 @@ describe("run artifact index", () => {
       "summary",
       "keyFindings",
       "risks",
-      "predictions",
       "sources",
       "dataGaps",
     ]);
@@ -340,8 +339,16 @@ describe("run artifact index", () => {
         runId: "run-dup-predictions",
         generatedAt: "2026-06-01T00:00:00.000Z",
         predictions: [
-          prediction({ id: "p-dup", claim: "first forecast" }),
-          prediction({ id: "p-dup", claim: "second forecast" }),
+          prediction({
+            id: "p-dup",
+            subject: "SPY",
+            measurableAs: "close(SPY, +5) > close(SPY, 0)",
+          }),
+          prediction({
+            id: "p-dup",
+            subject: "QQQ",
+            measurableAs: "close(QQQ, +5) > close(QQQ, 0)",
+          }),
         ],
       }),
     );
@@ -352,9 +359,42 @@ describe("run artifact index", () => {
     expect(result.sourceRunCount).toBe(1);
     expect(result.malformedRunCount).toBe(0);
     const historyResults = await searchHistoryEntriesFromIndex(dataDir, {
-      query: "second forecast",
+      query: "QQQ closes higher",
       section: "predictions",
     });
-    expect(historyResults?.some((entry) => entry.text.includes("second forecast"))).toBe(true);
+    expect(
+      historyResults?.some((entry) =>
+        entry.text.includes("QQQ closes higher than today over 5 trading days"),
+      ),
+    ).toBe(true);
+  });
+
+  test("falls back to stored claim when legacy measurableAs is unparseable", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "run-legacy-prediction");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-legacy-prediction",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        predictions: [
+          prediction({
+            id: "p-legacy",
+            claim: "legacy stored forecast",
+            measurableAs: "legacy custom predicate",
+          }),
+        ],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), { runId: "run-legacy-prediction", scores: [] });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const historyResults = await searchHistoryEntriesFromIndex(dataDir, {
+      query: "legacy stored forecast",
+      section: "predictions",
+    });
+    expect(historyResults?.map((entry) => entry.text)).toEqual(["legacy stored forecast"]);
   });
 });

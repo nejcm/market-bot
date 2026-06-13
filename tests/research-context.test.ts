@@ -263,6 +263,56 @@ describe("buildStagePrompt", () => {
     });
   });
 
+  test("final-synthesis shape omits model-authored prediction claims", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          minimumPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "insufficient-data",
+          proxyCount: 0,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly requiredShape?: {
+        readonly predictions?: readonly Record<string, unknown>[];
+      };
+    };
+
+    expect(parsed.instruction).toContain("Do not write a claim field");
+    expect(parsed.instruction).toContain("probability is the probability that the measurableAs");
+    expect(parsed.requiredShape?.predictions?.[0]).not.toHaveProperty("claim");
+  });
+
   test("renders prior calibration from real CalibrationSummary JSON without undefined", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
     const summary = buildCalibrationSummary([

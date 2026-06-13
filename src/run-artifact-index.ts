@@ -13,13 +13,14 @@ import {
   type ResearchReport,
   type Source,
 } from "./domain/types";
+import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";
 import { loadRunArtifact } from "./run-artifacts";
 import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 
-const INDEX_SCHEMA_VERSION = 4;
+const INDEX_SCHEMA_VERSION = 5;
 const DEFAULT_INDEX_FILE = "index.sqlite";
 const BUSY_TIMEOUT_MS = 1000;
 const MAX_HISTORY_SEARCH_RESULTS = 100;
@@ -281,6 +282,14 @@ function parseSourceIds(value: string): readonly string[] {
   }
 }
 
+function predictionClaim(prediction: Prediction): string {
+  return renderClaimForMeasurableAs(prediction.measurableAs, prediction.claim) ?? prediction.claim;
+}
+
+function predictionClaimFromRow(row: PredictionRow): string {
+  return renderClaimForMeasurableAs(row.measurable_as, row.claim) ?? row.claim;
+}
+
 function addSearchEntry(
   rows: SearchEntryRow[],
   scope: SearchScope,
@@ -354,7 +363,7 @@ function openQuestions(
     ...report.dataGaps.map((gap) => `Data gap: ${gap}`),
     ...report.predictions
       .filter((prediction) => !resolved.has(prediction.id))
-      .map((prediction) => `Unresolved prediction: ${prediction.claim}`),
+      .map((prediction) => `Unresolved prediction: ${predictionClaim(prediction)}`),
   ];
 }
 
@@ -366,10 +375,8 @@ function addPredictionEntries(
 ): void {
   for (const [index, prediction] of predictions.entries()) {
     const label = scope === "console" ? `Observable forecast ${prediction.id}` : prediction.id;
-    const text =
-      scope === "console"
-        ? [prediction.claim, prediction.measurableAs].join(" ")
-        : prediction.claim;
+    const claim = predictionClaim(prediction);
+    const text = scope === "console" ? [claim, prediction.measurableAs].join(" ") : claim;
     addSearchEntry(
       rows,
       scope,
@@ -614,7 +621,7 @@ function predictionRowsFor(
       run_id: runId,
       kind: prediction.kind,
       subject: prediction.subject,
-      claim: prediction.claim,
+      claim: predictionClaim(prediction),
       probability: prediction.probability,
       horizon_trading_days: prediction.horizonTradingDays,
       measurable_as: prediction.measurableAs,
@@ -1359,10 +1366,11 @@ export async function loadResolvedPairsFromIndex(
 
     return rows.map((row) => {
       const jobType = row.job_type as JobType;
+      const claim = predictionClaimFromRow(row);
       return {
         prediction: {
           id: row.id,
-          claim: row.claim,
+          claim,
           kind: row.kind as PredictionKind,
           subject: row.subject,
           measurableAs: row.measurable_as,

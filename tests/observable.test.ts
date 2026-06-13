@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   observationStrategyForForecast,
   parseObservableExpression,
+  renderClaim,
   type ObservableExpression,
   type ObservableForecast,
   type ObservationStrategy,
@@ -170,6 +171,65 @@ describe("parseObservableExpression", () => {
         "Cannot parse measurableAs",
       );
     });
+  });
+});
+
+describe("renderClaim", () => {
+  test("renders claims for each observable kind", () => {
+    const cases: readonly {
+      readonly expression: ObservableExpression;
+      readonly expected: string;
+    }[] = [
+      {
+        expression: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
+        expected: "SPY closes higher than today over 5 trading days",
+      },
+      {
+        expression: {
+          kind: "relative",
+          subjectA: "QQQ",
+          subjectB: "SPY",
+          horizonTradingDays: 5,
+        },
+        expected: "QQQ outperforms SPY over 5 trading days",
+      },
+      {
+        expression: {
+          kind: "volatility",
+          subject: "^VIX",
+          horizonTradingDays: 5,
+          threshold: 20,
+        },
+        expected: "^VIX trades above 20 within 5 trading days",
+      },
+      {
+        expression: {
+          kind: "range",
+          subject: "BTC",
+          horizonTradingDays: 7,
+          lo: 90_000,
+          hi: 110_000,
+        },
+        expected: "BTC closes outside 90000-110000 over 7 trading days",
+      },
+      {
+        expression: { kind: "macro", seriesId: "DGS10", horizonTradingDays: 5 },
+        expected: "DGS10 rises over 5 trading days",
+      },
+      {
+        expression: {
+          kind: "iv",
+          subject: "AAPL",
+          horizonTradingDays: 5,
+          threshold: 0.35,
+        },
+        expected: "AAPL implied volatility is above 0.35 in 5 trading days",
+      },
+    ];
+
+    for (const item of cases) {
+      expect(renderClaim(item.expression)).toBe(item.expected);
+    }
   });
 });
 

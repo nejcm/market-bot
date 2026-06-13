@@ -1,4 +1,5 @@
 import type { RunSearchSection } from "./types";
+import { renderClaimForMeasurableAs } from "../src/forecast/observable";
 
 export interface TextWithSources {
   readonly text: string;
@@ -139,7 +140,12 @@ export function predictions(
     .filter((item) => isRecord(item))
     .flatMap((item) => {
       const id = readString(item, "id");
-      const claim = readString(item, "claim");
+      const storedClaim = readString(item, "claim");
+      const measurableAs = readString(item, "measurableAs");
+      const claim =
+        measurableAs === undefined
+          ? storedClaim
+          : renderClaimForMeasurableAs(measurableAs, storedClaim);
       const kind = readString(item, "kind");
       const probability = readNumber(item, "probability");
       const horizonTradingDays = readNumber(item, "horizonTradingDays");
@@ -284,9 +290,13 @@ function predictionCandidates(report: Record<string, unknown>): readonly ReportS
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const claim = readString(item, "claim");
       const id = readString(item, "id");
       const measurableAs = readString(item, "measurableAs");
+      const storedClaim = readString(item, "claim");
+      const claim =
+        measurableAs === undefined
+          ? storedClaim
+          : renderClaimForMeasurableAs(measurableAs, storedClaim);
       if (claim === undefined) {
         return [];
       }

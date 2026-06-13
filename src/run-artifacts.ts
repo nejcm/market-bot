@@ -11,6 +11,7 @@ import type {
   ResearchReport,
   Source,
 } from "./domain/types";
+import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "./sources/guards";
 
@@ -125,7 +126,6 @@ function readPredictions(value: unknown): readonly Prediction[] {
     if (
       !isRecord(item) ||
       typeof item.id !== "string" ||
-      typeof item.claim !== "string" ||
       !isPredictionKind(item.kind) ||
       typeof item.subject !== "string" ||
       typeof item.measurableAs !== "string" ||
@@ -134,10 +134,17 @@ function readPredictions(value: unknown): readonly Prediction[] {
     ) {
       return [];
     }
+    const claim = renderClaimForMeasurableAs(
+      item.measurableAs,
+      typeof item.claim === "string" ? item.claim : undefined,
+    );
+    if (claim === undefined) {
+      return [];
+    }
     return [
       {
         id: item.id,
-        claim: item.claim,
+        claim,
         kind: item.kind,
         subject: item.subject,
         measurableAs: item.measurableAs,

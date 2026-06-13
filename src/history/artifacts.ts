@@ -9,6 +9,7 @@ import type {
   ResearchReport,
   Source,
 } from "../domain/types";
+import { renderClaimForMeasurableAs } from "../forecast/observable";
 import type { ModelProvider } from "../model/types";
 import { violatesResearchOnly } from "../domain/research-language";
 import { scanRunArtifacts } from "../run-artifacts";
@@ -199,6 +200,10 @@ function recordArray(value: unknown): readonly Record<string, unknown>[] {
     : [];
 }
 
+function predictionClaim(prediction: Prediction): string {
+  return renderClaimForMeasurableAs(prediction.measurableAs, prediction.claim) ?? prediction.claim;
+}
+
 function openQuestions(
   report: ResearchReport,
   scores: readonly PredictionScore[],
@@ -210,7 +215,7 @@ function openQuestions(
     ...report.dataGaps.map((gap) => `Data gap: ${gap}`),
     ...report.predictions
       .filter((prediction) => !resolved.has(prediction.id))
-      .map((prediction) => `Unresolved prediction: ${prediction.claim}`),
+      .map((prediction) => `Unresolved prediction: ${predictionClaim(prediction)}`),
   ];
 }
 
@@ -315,7 +320,7 @@ function searchEntriesFor(
       report,
       "predictions",
       prediction.id,
-      prediction.claim,
+      predictionClaim(prediction),
       prediction.sourceIds,
       {
         predictionId: prediction.id,
@@ -604,7 +609,7 @@ function findingTexts(items: readonly KeyFinding[]): readonly string[] {
 function predictionTexts(items: readonly Prediction[]): readonly string[] {
   return items.map(
     (item) =>
-      `${item.id}: ${item.claim} (${item.measurableAs}, p=${item.probability.toFixed(2)}, ${String(
+      `${item.id}: ${predictionClaim(item)} (${item.measurableAs}, p=${item.probability.toFixed(2)}, ${String(
         item.horizonTradingDays,
       )} trading days)`,
   );

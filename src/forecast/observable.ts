@@ -1,5 +1,4 @@
 import type { Prediction, PredictionKind } from "../domain/types";
-import { violatesResearchOnly } from "../domain/research-language";
 import { stringArrayValue } from "../sources/guards";
 
 export interface ObservableDirection {
@@ -69,13 +68,11 @@ export interface ObservableForecastIssue {
   readonly code:
     | "not-object"
     | "missing-id"
-    | "missing-claim"
     | "invalid-kind"
     | "missing-subject"
     | "missing-measurable-as"
     | "invalid-horizon"
     | "invalid-probability"
-    | "unsafe-claim"
     | "unparseable-measurable"
     | "field-mismatch"
     | "unknown-source";
@@ -157,8 +154,6 @@ const RANGE_RE = new RegExp(
 const FRED_RE = new RegExp(String.raw`^fred\(([A-Z0-9_]+),\s*\+${N}\)\s*>\s*fred\(\1,\s*0\)$`, "u");
 const IV_RE = new RegExp(String.raw`^iv\(${SYMBOL},\s*\+${N}\)\s*>\s*${NUM}$`, "u");
 
-const READER_ACTION_PATTERN = /\b(consider|watch for|should|could be a|expect to)\b/iu;
-
 type ObservableExpressionOf<K extends PredictionKind> = Extract<
   ObservableExpression,
   { readonly kind: K }
@@ -168,6 +163,7 @@ interface PredictionShape<K extends PredictionKind> {
   readonly kind: K;
   readonly parse: (expr: string) => ObservableExpressionOf<K> | undefined;
   readonly measurableAs: (expression: ObservableExpressionOf<K>) => string;
+  readonly renderClaim: (expression: ObservableExpressionOf<K>) => string;
   readonly subject: (expression: ObservableExpressionOf<K>) => string;
   readonly instruments: (expression: ObservableExpressionOf<K>) => readonly string[];
   readonly observationStrategy: (expression: ObservableExpressionOf<K>) => ObservationStrategy;
@@ -206,6 +202,10 @@ const directionShape: PredictionShape<"direction"> = {
 
   measurableAs(expression) {
     return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) > close(${expression.subject}, 0)`;
+  },
+
+  renderClaim(expression) {
+    return `${expression.subject} closes higher than today over ${String(expression.horizonTradingDays)} trading days`;
   },
 
   subject(expression) {
@@ -249,6 +249,10 @@ const relativeShape: PredictionShape<"relative"> = {
 
   measurableAs(expression) {
     return `close(${expression.subjectA}, +${String(expression.horizonTradingDays)}) / close(${expression.subjectA}, 0) > close(${expression.subjectB}, +${String(expression.horizonTradingDays)}) / close(${expression.subjectB}, 0)`;
+  },
+
+  renderClaim(expression) {
+    return `${expression.subjectA} outperforms ${expression.subjectB} over ${String(expression.horizonTradingDays)} trading days`;
   },
 
   subject(expression) {
@@ -309,6 +313,10 @@ const volatilityShape: PredictionShape<"volatility"> = {
     return `max(close(${expression.subject}), 0..+${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
   },
 
+  renderClaim(expression) {
+    return `${expression.subject} trades above ${String(expression.threshold)} within ${String(expression.horizonTradingDays)} trading days`;
+  },
+
   subject(expression) {
     return expression.subject;
   },
@@ -364,6 +372,10 @@ const rangeShape: PredictionShape<"range"> = {
     return `close(${expression.subject}, +${String(expression.horizonTradingDays)}) outside [${String(expression.lo)}, ${String(expression.hi)}]`;
   },
 
+  renderClaim(expression) {
+    return `${expression.subject} closes outside ${String(expression.lo)}-${String(expression.hi)} over ${String(expression.horizonTradingDays)} trading days`;
+  },
+
   subject(expression) {
     return expression.subject;
   },
@@ -403,6 +415,10 @@ const macroShape: PredictionShape<"macro"> = {
 
   measurableAs(expression) {
     return `fred(${expression.seriesId}, +${String(expression.horizonTradingDays)}) > fred(${expression.seriesId}, 0)`;
+  },
+
+  renderClaim(expression) {
+    return `${expression.seriesId} rises over ${String(expression.horizonTradingDays)} trading days`;
   },
 
   subject(expression) {
@@ -466,6 +482,10 @@ const ivShape: PredictionShape<"iv"> = {
 
   measurableAs(expression) {
     return `iv(${expression.subject}, +${String(expression.horizonTradingDays)}) > ${String(expression.threshold)}`;
+  },
+
+  renderClaim(expression) {
+    return `${expression.subject} implied volatility is above ${String(expression.threshold)} in ${String(expression.horizonTradingDays)} trading days`;
   },
 
   subject(expression) {
@@ -553,6 +573,21 @@ export function measurableAsForExpression(expression: ObservableExpression): str
   return shapeForExpression(expression).measurableAs(expression);
 }
 
+export function renderClaim(expression: ObservableExpression): string {
+  return shapeForExpression(expression).renderClaim(expression);
+}
+
+export function renderClaimForMeasurableAs(
+  measurableAs: string,
+  fallback: string | undefined,
+): string | undefined {
+  try {
+    return renderClaim(parseObservableExpression(measurableAs));
+  } catch {
+    return fallback;
+  }
+}
+
 export function subjectForExpression(expression: ObservableExpression): string {
   return shapeForExpression(expression).subject(expression);
 }
@@ -618,7 +653,6 @@ function resolveCandidate(
   const p = item as Record<string, unknown>;
   const {
     id: idValue,
-    claim: claimValue,
     kind,
     subject: subjectValue,
     measurableAs: measurableAsValue,
@@ -627,7 +661,6 @@ function resolveCandidate(
     sourceIds: sourceIdsValue,
   } = p;
   const id = typeof idValue === "string" ? idValue : undefined;
-  const claim = typeof claimValue === "string" ? claimValue : undefined;
   const subject = typeof subjectValue === "string" ? subjectValue : undefined;
   const measurableAs = typeof measurableAsValue === "string" ? measurableAsValue : undefined;
   const horizonTradingDays =
@@ -637,9 +670,6 @@ function resolveCandidate(
 
   if (id === undefined) {
     return issue("missing-id", "Prediction missing id");
-  }
-  if (claim === undefined) {
-    return issue("missing-claim", `Prediction ${id}: missing claim`, id);
   }
   if (!isPredictionKind(kind)) {
     return issue("invalid-kind", `Prediction ${id}: invalid kind "${String(kind)}"`, id);
@@ -673,13 +703,6 @@ function resolveCandidate(
   ) {
     return issue("invalid-probability", `Prediction ${id}: probability must be 0–1`, id);
   }
-  if (violatesResearchOnly(claim) !== null) {
-    return issue("unsafe-claim", `Prediction ${id}: claim contains trade-action language`, id);
-  }
-  if (READER_ACTION_PATTERN.test(claim)) {
-    return issue("unsafe-claim", `Prediction ${id}: claim contains reader-directed language`, id);
-  }
-
   const expression = parseExpressionCandidate(id, measurableAs);
   if ("code" in expression) {
     return expression;
@@ -702,7 +725,7 @@ function resolveCandidate(
   const canonicalMeasurableAs = measurableAsForExpression(expression);
   const prediction: Prediction = {
     id,
-    claim,
+    claim: renderClaim(expression),
     kind,
     subject,
     measurableAs: canonicalMeasurableAs,

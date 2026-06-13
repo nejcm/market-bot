@@ -10,12 +10,19 @@ import { fetchTradierIvObservation } from "../src/sources/tradier";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
 import { massiveNewsAdapter, normalizeMassiveSnapshotPayload } from "../src/sources/massive";
+import { createMultiNewsAdapter } from "../src/sources/multi-news";
+import { normalizeTitle } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
-import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
+import type {
+  CollectContext,
+  FetchJsonResult,
+  NewsAdapter,
+  SourceRequestExecutor,
+} from "../src/sources/types";
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
 async function unexpectedTextFetch(): Promise<never> {
@@ -432,6 +439,67 @@ describe("source normalization", () => {
         summary: "Shares moved after earnings.",
       },
     ]);
+  });
+
+  test("normalizes titles only when they have enough dedupe signal", () => {
+    expect(normalizeTitle("Same BTC story!")).toBe("same btc story");
+    expect(normalizeTitle("Nikkei 株式 Market Rally")).toBe("nikkei 株式 market rally");
+    expect(normalizeTitle("2025")).toBeUndefined();
+    expect(normalizeTitle("2025 2026")).toBeUndefined();
+    expect(normalizeTitle("BTC")).toBeUndefined();
+  });
+
+  test("keeps canonical URL when title merge survivor lacked a URL", async () => {
+    const adapters: NewsAdapter[] = [
+      {
+        name: "wire-a",
+        provider: "wire-a",
+        normalizeNews: () => [],
+        collect: async () => ({
+          rawSnapshots: [],
+          newsSources: [
+            {
+              id: "wire-a-1",
+              title: "Acme earnings report jumps",
+              fetchedAt,
+              kind: "news",
+              assetClass: "equity",
+              provider: "wire-a",
+            },
+          ],
+          sourceGaps: [],
+        }),
+      },
+      {
+        name: "wire-b",
+        provider: "wire-b",
+        normalizeNews: () => [],
+        collect: async () => ({
+          rawSnapshots: [],
+          newsSources: [
+            {
+              id: "wire-b-1",
+              title: "Acme earnings report jumps!",
+              url: "https://www.example.test/acme?utm_source=wire-b",
+              fetchedAt,
+              kind: "news",
+              assetClass: "equity",
+              provider: "wire-b",
+            },
+          ],
+          sourceGaps: [],
+        }),
+      },
+    ];
+
+    const result = await createMultiNewsAdapter(adapters).collect(collectContext({ newsLimit: 5 }));
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.newsSources[0]).toMatchObject({
+      canonicalUrl: "https://example.test/acme",
+      providerAliases: [{ provider: "wire-a" }, { provider: "wire-b" }],
+    });
+    expect(result.newsAnalytics?.canonicalDuplicateNewsSourceCount).toBe(1);
   });
 });
 

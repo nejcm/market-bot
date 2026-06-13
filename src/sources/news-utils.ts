@@ -69,5 +69,14 @@ export function normalizeTitle(value: string | undefined): string | undefined {
     .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
     .replaceAll(/\s+/gu, " ")
     .trim();
-  return normalized === "" ? undefined : normalized;
+  if (normalized === undefined || normalized === "") {
+    return undefined;
+  }
+
+  const tokens = normalized.split(" ");
+  if (normalized.length < 12 || tokens.length < 2 || !/\p{L}/u.test(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
 }

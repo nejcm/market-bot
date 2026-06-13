@@ -51,12 +51,14 @@ function withAlias(source: Source): Source {
 }
 
 function mergeSource(existing: Source, source: Source): Source {
+  const canonicalUrl = existing.canonicalUrl ?? source.canonicalUrl;
   const summary = existing.summary ?? source.summary;
   const snippet = existing.snippet ?? source.snippet;
   const providerAliases = mergeAliases(existing.providerAliases, aliasFor(source));
 
   return {
     ...existing,
+    ...(canonicalUrl !== undefined ? { canonicalUrl } : {}),
     ...(summary !== undefined ? { summary } : {}),
     ...(snippet !== undefined ? { snippet } : {}),
     ...(providerAliases !== undefined ? { providerAliases } : {}),

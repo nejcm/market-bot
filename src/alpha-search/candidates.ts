@@ -19,6 +19,8 @@ export interface AlphaSearchCandidate {
   readonly socialMomentumScore?: number;
   readonly mentions?: number;
   readonly upvotes?: number;
+  readonly rank24hAgo?: number;
+  readonly mentions24hAgo?: number;
   readonly secCik?: string;
   readonly secCompanyName?: string;
   readonly recentSecFilings?: readonly AlphaSearchSecFiling[];
@@ -36,6 +38,8 @@ export function socialAlphaSearchCandidate(
     socialMomentumScore: candidate.socialMomentumScore,
     mentions: candidate.mentions,
     upvotes: candidate.upvotes,
+    ...(candidate.rank24hAgo !== undefined ? { rank24hAgo: candidate.rank24hAgo } : {}),
+    ...(candidate.mentions24hAgo !== undefined ? { mentions24hAgo: candidate.mentions24hAgo } : {}),
   };
 }
 

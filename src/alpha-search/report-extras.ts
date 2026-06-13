@@ -15,6 +15,11 @@ export interface AlphaSearchLead {
   readonly socialMomentumScore?: number;
   readonly mentions?: number;
   readonly upvotes?: number;
+  readonly rank24hAgo?: number;
+  readonly mentions24hAgo?: number;
+  readonly mentionDelta24h?: number;
+  readonly rankImprovement?: number;
+  readonly upvotesPerMention?: number;
   readonly secCik?: string;
   readonly secCompanyName?: string;
   readonly recentSecFilings?: readonly AlphaSearchSecFiling[];
@@ -37,7 +42,19 @@ export type AlphaSearchReportExtras = Readonly<Record<string, unknown>> & {
   readonly socialCandidateCount: number;
   readonly researchLeads: readonly AlphaSearchLead[];
   readonly rejectedCandidates: readonly AlphaSearchRejectedCandidate[];
+  readonly profileCoverage?: AlphaSearchProfileCoverage;
 };
+
+export interface AlphaSearchProfileCoverage {
+  readonly displayedLeadCount: number;
+  readonly candidateProfilesWithFundamentals: number;
+  readonly fundamentalGapCount: number;
+  readonly unmappedSecFilingCount: number;
+}
+
+function rounded(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 export function leadSourceIds(
   lead: YahooValidatedLead,
@@ -74,6 +91,21 @@ export function alphaSearchLead(
       : {}),
     ...(lead.candidate.mentions !== undefined ? { mentions: lead.candidate.mentions } : {}),
     ...(lead.candidate.upvotes !== undefined ? { upvotes: lead.candidate.upvotes } : {}),
+    ...(lead.candidate.rank24hAgo !== undefined ? { rank24hAgo: lead.candidate.rank24hAgo } : {}),
+    ...(lead.candidate.mentions24hAgo !== undefined
+      ? { mentions24hAgo: lead.candidate.mentions24hAgo }
+      : {}),
+    ...(lead.candidate.mentions24hAgo !== undefined && lead.candidate.mentions !== undefined
+      ? { mentionDelta24h: lead.candidate.mentions - lead.candidate.mentions24hAgo }
+      : {}),
+    ...(lead.candidate.rank24hAgo !== undefined && lead.candidate.socialRank !== undefined
+      ? { rankImprovement: Math.max(0, lead.candidate.rank24hAgo - lead.candidate.socialRank) }
+      : {}),
+    ...(lead.candidate.upvotes !== undefined && lead.candidate.mentions !== undefined
+      ? {
+          upvotesPerMention: rounded(lead.candidate.upvotes / Math.max(1, lead.candidate.mentions)),
+        }
+      : {}),
     ...(lead.candidate.secCik !== undefined ? { secCik: lead.candidate.secCik } : {}),
     ...(lead.candidate.secCompanyName !== undefined
       ? { secCompanyName: lead.candidate.secCompanyName }
@@ -117,6 +149,12 @@ function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): 
       readNumber(value, "socialMomentumScore") !== undefined) &&
     (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&
     (value.upvotes === undefined || readNumber(value, "upvotes") !== undefined) &&
+    (value.rank24hAgo === undefined || readNumber(value, "rank24hAgo") !== undefined) &&
+    (value.mentions24hAgo === undefined || readNumber(value, "mentions24hAgo") !== undefined) &&
+    (value.mentionDelta24h === undefined || readNumber(value, "mentionDelta24h") !== undefined) &&
+    (value.rankImprovement === undefined || readNumber(value, "rankImprovement") !== undefined) &&
+    (value.upvotesPerMention === undefined ||
+      readNumber(value, "upvotesPerMention") !== undefined) &&
     (value.secCik === undefined || typeof value.secCik === "string") &&
     (value.secCompanyName === undefined || typeof value.secCompanyName === "string") &&
     (value.recentSecFilings === undefined || Array.isArray(value.recentSecFilings))
@@ -170,4 +208,34 @@ export function readAlphaSearchRejectedCandidates(
   return Array.isArray(rejected)
     ? rejected.filter((candidate) => isAlphaSearchRejectedCandidate(candidate))
     : [];
+}
+
+export function readAlphaSearchProfileCoverage(
+  extras: Record<string, unknown> | undefined,
+): AlphaSearchProfileCoverage | undefined {
+  const coverage = extras?.profileCoverage;
+  if (!isRecord(coverage)) {
+    return undefined;
+  }
+  const displayedLeadCount = readNumber(coverage, "displayedLeadCount");
+  const candidateProfilesWithFundamentals = readNumber(
+    coverage,
+    "candidateProfilesWithFundamentals",
+  );
+  const fundamentalGapCount = readNumber(coverage, "fundamentalGapCount");
+  const unmappedSecFilingCount = readNumber(coverage, "unmappedSecFilingCount");
+  if (
+    displayedLeadCount === undefined ||
+    candidateProfilesWithFundamentals === undefined ||
+    fundamentalGapCount === undefined ||
+    unmappedSecFilingCount === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    displayedLeadCount,
+    candidateProfilesWithFundamentals,
+    fundamentalGapCount,
+    unmappedSecFilingCount,
+  };
 }

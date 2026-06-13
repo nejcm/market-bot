@@ -75,7 +75,8 @@ export interface ObservableForecastIssue {
     | "invalid-probability"
     | "unparseable-measurable"
     | "field-mismatch"
-    | "unknown-source";
+    | "unknown-source"
+    | "redundant-prediction";
   readonly message: string;
 }
 
@@ -744,6 +745,54 @@ function resolveCandidate(
   };
 }
 
+function redundancyKey(forecast: ObservableForecast): string {
+  return [forecast.prediction.kind, forecast.subject, String(forecast.horizonTradingDays)].join(
+    "|",
+  );
+}
+
+function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
+  readonly forecasts: readonly ObservableForecast[];
+  readonly issues: readonly ObservableForecastIssue[];
+} {
+  const measurableSeen = new Set<string>();
+  const kindSubjectHorizonSeen = new Set<string>();
+  const accepted: ObservableForecast[] = [];
+  const issues: ObservableForecastIssue[] = [];
+
+  for (const forecast of forecasts) {
+    const { measurableAs, prediction, subject, horizonTradingDays } = forecast;
+    if (measurableSeen.has(measurableAs)) {
+      issues.push(
+        issue(
+          "redundant-prediction",
+          `Prediction ${prediction.id}: duplicate measurableAs "${measurableAs}"`,
+          prediction.id,
+        ),
+      );
+      continue;
+    }
+
+    const key = redundancyKey(forecast);
+    if (kindSubjectHorizonSeen.has(key)) {
+      issues.push(
+        issue(
+          "redundant-prediction",
+          `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
+          prediction.id,
+        ),
+      );
+      continue;
+    }
+
+    measurableSeen.add(measurableAs);
+    kindSubjectHorizonSeen.add(key);
+    accepted.push(forecast);
+  }
+
+  return { forecasts: accepted, issues };
+}
+
 export function observableForecastFromPrediction(
   prediction: Prediction,
 ): ObservableForecast | ObservableForecastIssue {
@@ -762,12 +811,14 @@ export function readObservableForecasts(
   const issues = resolvedCandidates.filter(
     (item): item is ObservableForecastIssue => !("prediction" in item),
   );
+  const accepted = rejectRedundantForecasts(forecasts);
+  const allIssues = [...issues, ...accepted.issues];
 
   return {
-    forecasts,
-    predictions: forecasts.map((forecast) => forecast.prediction),
-    issues,
-    promptErrors: issues.map((item) => item.message),
+    forecasts: accepted.forecasts,
+    predictions: accepted.forecasts.map((forecast) => forecast.prediction),
+    issues: allIssues,
+    promptErrors: allIssues.map((item) => item.message),
   };
 }
 

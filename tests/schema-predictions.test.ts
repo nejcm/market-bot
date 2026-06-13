@@ -99,6 +99,53 @@ describe("validatePredictions", () => {
     expect(result.errors).toHaveLength(1);
   });
 
+  test("rejects duplicate measurableAs and same-subject same-horizon forecasts", () => {
+    const result = validatePredictions(
+      [
+        validPrediction,
+        { ...validPrediction, id: "pred-duplicate-exact" },
+        {
+          ...validPrediction,
+          id: "pred-duplicate-horizon",
+          measurableAs: "close(SPY, +5) > close(SPY, 0)",
+          probability: 0.55,
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors).toEqual([
+      expect.stringContaining("duplicate measurableAs"),
+      expect.stringContaining("duplicate measurableAs"),
+    ]);
+  });
+
+  test("rejects same ticker range predictions at the same horizon", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-range-1",
+          kind: "range",
+          subject: "AAPL",
+          measurableAs: "close(AAPL, +5) outside [180, 220]",
+        },
+        {
+          ...validPrediction,
+          id: "pred-range-2",
+          kind: "range",
+          subject: "AAPL",
+          measurableAs: "close(AAPL, +5) outside [170, 230]",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors[0]).toContain("redundant range forecast for AAPL at 5 trading days");
+  });
+
   test("accepts a valid relative prediction", () => {
     const result = validatePredictions(
       [

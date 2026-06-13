@@ -14,8 +14,13 @@ import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
+import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
-import { buildAlphaCandidateProfiles, type AlphaCandidateFundamentals } from "./candidate-state";
+import {
+  buildAlphaCandidateProfiles,
+  type AlphaCandidateFundamentals,
+  type AlphaCandidateProfile,
+} from "./candidate-state";
 import {
   mergeAlphaSearchCandidates,
   socialAlphaSearchCandidate,
@@ -33,6 +38,7 @@ import {
   leadSourceIds,
   readAlphaSearchLeads,
   type AlphaSearchReportExtras,
+  type AlphaSearchProfileCoverage,
 } from "./report-extras";
 import { discoverSecAlphaSearchCandidates, type SecDiscoveryCandidate } from "./sec-discovery";
 import {
@@ -208,6 +214,39 @@ function alphaSearchSourceGapReportTexts(gaps: readonly SourceGap[]): readonly s
       return sourceGapReportText(gap);
     }
     return `${sourceGapReportText(gap)} (${String(count)} filings)`;
+  });
+}
+
+function unmappedSecFilingCount(gaps: readonly SourceGap[]): number {
+  return gaps.filter((gap) => unmappedSecFilingKey(gap) !== undefined).length;
+}
+
+function profileCoverage(input: {
+  readonly researchLeads: readonly unknown[];
+  readonly candidateProfiles: readonly AlphaCandidateProfile[];
+  readonly fundamentalSourceGaps: readonly SourceGap[];
+  readonly sourceGaps: readonly SourceGap[];
+}): AlphaSearchProfileCoverage {
+  return {
+    displayedLeadCount: input.researchLeads.length,
+    candidateProfilesWithFundamentals: input.candidateProfiles.filter(
+      (profile) => profile.fundamentals !== undefined,
+    ).length,
+    fundamentalGapCount: input.fundamentalSourceGaps.length,
+    unmappedSecFilingCount: unmappedSecFilingCount(input.sourceGaps),
+  };
+}
+
+function withProfileCoverage(
+  report: ResearchReport,
+  coverage: AlphaSearchProfileCoverage,
+): ResearchReport {
+  return validateResearchReport({
+    ...report,
+    extras: {
+      ...report.extras,
+      profileCoverage: coverage,
+    },
   });
 }
 
@@ -488,7 +527,7 @@ export async function runAlphaSearchWorkflow(input: {
     fetchedAt: startedAt,
   });
   const rejectedCandidates = [...listed.rejectedCandidates, ...yahoo.rejectedCandidates];
-  const report = buildAlphaSearchReport({
+  const initialReport = buildAlphaSearchReport({
     runId,
     command: input.command,
     generatedAt: startedAt,
@@ -500,7 +539,7 @@ export async function runAlphaSearchWorkflow(input: {
     sourceGaps,
     sources,
   });
-  const researchLeads = readAlphaSearchLeads(report.extras);
+  const researchLeads = readAlphaSearchLeads(initialReport.extras);
   const fundamentals = await collectAlphaSearchFundamentals({
     leads: researchLeads,
     request,
@@ -517,6 +556,16 @@ export async function runAlphaSearchWorkflow(input: {
         metrics: entry.metrics,
       },
     ]),
+  );
+  const candidateProfiles = buildAlphaCandidateProfiles(initialReport, fundamentalsBySymbol);
+  const report = withProfileCoverage(
+    initialReport,
+    profileCoverage({
+      researchLeads,
+      candidateProfiles,
+      fundamentalSourceGaps: fundamentals.sourceGaps,
+      sourceGaps,
+    }),
   );
   const markdown = renderMarkdownReport(report);
   const completedAt = new Date().toISOString();
@@ -540,13 +589,16 @@ export async function runAlphaSearchWorkflow(input: {
   });
   const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
 
-  await writeJson(join(artifacts.rawDir, "snapshots.json"), [
-    ...apeWisdom.rawSnapshots,
-    ...secDiscovery.rawSnapshots,
-    ...fundamentals.rawSnapshots,
-    ...listedUniverse.rawSnapshots,
-    ...yahoo.rawSnapshots,
-  ]);
+  await writeJson(
+    join(artifacts.rawDir, "snapshots.json"),
+    compactOversizedRawSnapshots([
+      ...apeWisdom.rawSnapshots,
+      ...secDiscovery.rawSnapshots,
+      ...fundamentals.rawSnapshots,
+      ...listedUniverse.rawSnapshots,
+      ...yahoo.rawSnapshots,
+    ]),
+  );
   await writeJson(join(artifacts.normalizedDir, "social-candidates.json"), rankedCandidates);
   await writeJson(
     join(artifacts.normalizedDir, "sec-discovery-candidates.json"),
@@ -566,10 +618,7 @@ export async function runAlphaSearchWorkflow(input: {
     join(artifacts.normalizedDir, "sec-fundamentals-source-gaps.json"),
     fundamentals.sourceGaps,
   );
-  await writeJson(
-    join(artifacts.normalizedDir, "candidate-profiles.json"),
-    buildAlphaCandidateProfiles(report, fundamentalsBySymbol),
-  );
+  await writeJson(join(artifacts.normalizedDir, "candidate-profiles.json"), candidateProfiles);
   await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), rejectedCandidates);
   await writeJson(join(artifacts.normalizedDir, "source-gaps.json"), sourceGaps);
   await writeJson(join(artifacts.runDir, "analytics.json"), analytics);

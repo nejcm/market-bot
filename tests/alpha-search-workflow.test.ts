@@ -422,6 +422,33 @@ function fundamentalsFetchImpl(requestedUrls: string[]): FetchLike {
   };
 }
 
+function oversizedRawFetchImpl(requestedUrls: string[]): FetchLike {
+  return async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("company_tickers.json")) {
+      return jsonResponse({ fields: ["cik", "name", "ticker", "exchange"], data: [] });
+    }
+    if (url.includes("browse-edgar")) {
+      return new Response("<feed />");
+    }
+    const listedUniverseResponse = listingResponse(url);
+    if (listedUniverseResponse !== undefined) {
+      return listedUniverseResponse;
+    }
+    if (url.includes("apewisdom.io")) {
+      return jsonResponse({
+        ...(apeWisdomPayload() as Record<string, unknown>),
+        padding: "x".repeat(1_100_000),
+      });
+    }
+    if (url.includes("query1.finance.yahoo.com")) {
+      return jsonResponse(yahooPayload());
+    }
+    return new Response("not found", { status: 404 });
+  };
+}
+
 function unmappedSecFetchImpl(requestedUrls: string[]): FetchLike {
   return async (input) => {
     const url = String(input);
@@ -544,9 +571,24 @@ describe("alpha-search workflow", () => {
         socialMomentumScore: 100,
         mentions: 40,
         upvotes: 120,
+        rank24hAgo: 5,
+        mentions24hAgo: 18,
+        mentionDelta24h: 22,
+        rankImprovement: 4,
+        upvotesPerMention: 3,
         sourceIds: ["apewisdom-all-stocks-AAPL@rank-1", "market-yahoo-alpha-search"],
       },
     ]);
+    expect(result.report.extras?.profileCoverage).toEqual({
+      displayedLeadCount: 1,
+      candidateProfilesWithFundamentals: 0,
+      fundamentalGapCount: 1,
+      unmappedSecFilingCount: 0,
+    });
+    expect(result.markdown).toContain("## Profile Coverage");
+    expect(result.markdown).toContain("24h mention delta 22");
+    expect(result.markdown).toContain("rank improvement 4");
+    expect(result.markdown).toContain("upvotes/mention 3");
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),
@@ -578,6 +620,45 @@ describe("alpha-search workflow", () => {
         socialMomentumScore: 100,
       }),
     ]);
+  });
+
+  test("compacts oversized alpha raw snapshots without trimming normalized sidecars", async () => {
+    const requestedUrls: string[] = [];
+    const result = await runAlphaSearchWorkflow({
+      command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },
+      config: config(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      fetchImpl: oversizedRawFetchImpl(requestedUrls),
+      retryDelaysMs: [],
+    });
+
+    const rawSnapshots = JSON.parse(
+      await readFile(join(result.artifacts.rawDir, "snapshots.json"), "utf8"),
+    ) as readonly {
+      readonly adapter?: string;
+      readonly payloadCompacted?: boolean;
+      readonly payloadBytes?: number;
+      readonly payloadSha256?: string;
+      readonly payload?: { readonly topLevelKeys?: readonly string[] };
+    }[];
+    const compacted = rawSnapshots.find((snapshot) => snapshot.adapter === "apewisdom");
+    const researchLeads = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "research-leads.json"), "utf8"),
+    ) as readonly unknown[];
+    const candidateProfiles = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "candidate-profiles.json"), "utf8"),
+    ) as readonly unknown[];
+
+    expect(compacted).toMatchObject({
+      payloadCompacted: true,
+      payloadBytes: expect.any(Number),
+      payloadSha256: expect.any(String),
+      payload: expect.objectContaining({
+        topLevelKeys: expect.arrayContaining(["pages", "results", "padding"]),
+      }),
+    });
+    expect(researchLeads).toHaveLength(1);
+    expect(candidateProfiles).toHaveLength(1);
   });
 
   test("validates a wider candidate pool than the displayed lead limit", async () => {
@@ -664,6 +745,13 @@ describe("alpha-search workflow", () => {
     expect(fundamentalGaps.some((gap) => gap.message?.includes("Missing SEC company facts"))).toBe(
       true,
     );
+    expect(result.report.extras?.profileCoverage).toEqual({
+      displayedLeadCount: 1,
+      candidateProfilesWithFundamentals: 1,
+      fundamentalGapCount: 1,
+      unmappedSecFilingCount: 0,
+    });
+    expect(result.markdown).toContain("Candidate profiles with fundamentals: 1");
     expect(result.report.predictions).toEqual([]);
     expect(result.markdown).not.toMatch(/\b(buy|sell|hold)\b/iu);
   });
@@ -684,6 +772,12 @@ describe("alpha-search workflow", () => {
     expect(result.trace.sourceGaps).toContain(groupedGap);
     expect(result.markdown).toContain(
       String.raw`sec-alpha-search: SEC filing S-1 2026-06-04 did not map to a ticker \(2 filings\)`,
+    );
+    expect(result.report.extras?.profileCoverage).toMatchObject({
+      unmappedSecFilingCount: 2,
+    });
+    expect(result.markdown).toContain(
+      "Unmapped SEC filings: 2 pre-ticker filing(s) disclosed separately",
     );
     const rawGaps = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "source-gaps.json"), "utf8"),

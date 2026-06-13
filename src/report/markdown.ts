@@ -3,6 +3,7 @@ import { renderClaimForMeasurableAs } from "../forecast/observable";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 import {
   readAlphaSearchLeads,
+  readAlphaSearchProfileCoverage,
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
 
@@ -290,6 +291,57 @@ function renderMarketUpdateDelta(report: ResearchReport): string {
   return `${heading}\n\n${lines.join("\n")}\n`;
 }
 
+function renderAlphaSearchCoverage(report: ResearchReport): string {
+  const coverage = readAlphaSearchProfileCoverage(report.extras);
+  if (coverage === undefined) {
+    return "";
+  }
+  return [
+    "## Profile Coverage",
+    "",
+    `Displayed leads: ${String(coverage.displayedLeadCount)}`,
+    `Candidate profiles with fundamentals: ${String(coverage.candidateProfilesWithFundamentals)}`,
+    `Fundamental gaps: ${String(coverage.fundamentalGapCount)}`,
+    `Unmapped SEC filings: ${String(coverage.unmappedSecFilingCount)} pre-ticker filing(s) disclosed separately, not mapped-lead enrichment failures.`,
+    "",
+  ].join("\n");
+}
+
+function socialDriverText(lead: {
+  readonly socialRank?: number;
+  readonly socialMomentumScore?: number;
+  readonly mentions?: number;
+  readonly upvotes?: number;
+  readonly mentionDelta24h?: number;
+  readonly rankImprovement?: number;
+  readonly upvotesPerMention?: number;
+}): string {
+  if (
+    lead.socialRank === undefined ||
+    lead.socialMomentumScore === undefined ||
+    lead.mentions === undefined ||
+    lead.upvotes === undefined
+  ) {
+    return "";
+  }
+  const drivers = [
+    `rank ${String(lead.socialRank)}`,
+    `score ${String(lead.socialMomentumScore)}`,
+    `${String(lead.mentions)} mention(s)`,
+    `${String(lead.upvotes)} upvote(s)`,
+    ...(lead.mentionDelta24h !== undefined
+      ? [`24h mention delta ${String(lead.mentionDelta24h)}`]
+      : []),
+    ...(lead.rankImprovement !== undefined
+      ? [`rank improvement ${String(lead.rankImprovement)}`]
+      : []),
+    ...(lead.upvotesPerMention !== undefined
+      ? [`upvotes/mention ${String(lead.upvotesPerMention)}`]
+      : []),
+  ];
+  return `Social ${drivers.join(", ")}; `;
+}
+
 function renderAlphaSearchReport(report: ResearchReport): string {
   const gaps =
     report.dataGaps.length === 0
@@ -304,13 +356,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : leads
           .map((lead) => {
             const name = lead.name === undefined ? "" : ` (${markdownText(lead.name)})`;
-            const social =
-              lead.socialRank === undefined ||
-              lead.socialMomentumScore === undefined ||
-              lead.mentions === undefined ||
-              lead.upvotes === undefined
-                ? ""
-                : `Social rank ${String(lead.socialRank)}, score ${String(lead.socialMomentumScore)}, ${String(lead.mentions)} mention(s), ${String(lead.upvotes)} upvote(s); `;
+            const social = socialDriverText(lead);
             const sec =
               lead.recentSecFilings === undefined || lead.recentSecFilings.length === 0
                 ? ""
@@ -348,6 +394,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
     "",
     rejectedRows,
     "",
+    renderAlphaSearchCoverage(report),
     "## Data Gaps",
     "",
     gaps,

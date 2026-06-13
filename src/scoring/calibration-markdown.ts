@@ -1,3 +1,4 @@
+import { MIN_CALIBRATION_SAMPLE } from "./calibration";
 import type { CalibrationMetric, CalibrationSummary } from "./types";
 
 function formatBrier(value: number): string {
@@ -42,13 +43,23 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     "",
     `Resolved predictions: ${String(summary.resolvedCount)}`,
     "",
+  ];
+
+  if (summary.resolvedCount < MIN_CALIBRATION_SAMPLE) {
+    lines.push(
+      `> Small sample (${String(summary.resolvedCount)} of ${String(MIN_CALIBRATION_SAMPLE)} minimum): calibration metrics are not yet reliable.`,
+      "",
+    );
+  }
+
+  lines.push(
     `Overall Brier score: ${formatBrier(summary.brierScore)}`,
     "",
     `Brier skill vs always-0.5 baseline: ${formatSkill(summary.brierSkillScore)} (0 = no edge, 1 = perfect, <0 = worse than a coin flip)`,
     "",
     "## Reliability bins",
     "",
-  ];
+  );
 
   if (summary.bins.length === 0) {
     lines.push("_No populated bins yet._", "");

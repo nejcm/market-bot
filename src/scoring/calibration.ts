@@ -16,6 +16,8 @@ export interface ResolvedPair {
 }
 
 // Brier score of the naive always-predict-0.5 forecaster on binary outcomes: (0.5 - {0,1})^2.
+export const MIN_CALIBRATION_SAMPLE = 5;
+
 const BASELINE_BRIER = 0.25;
 const BIN_EDGES = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
 const HORIZON_BUCKETS = [

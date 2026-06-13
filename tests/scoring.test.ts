@@ -629,6 +629,16 @@ describe("renderCalibrationConsole", () => {
     expect(output).toContain("Resolved:");
   });
 
+  test("renders small-sample warning in markdown below minimum threshold", () => {
+    const summary = buildCalibrationSummary(makePairs(MIN_CALIBRATION_SAMPLE - 1), at);
+    const output = renderCalibrationMarkdown(summary);
+    expect(output).toContain("Small sample");
+    expect(output).toContain(
+      `${String(MIN_CALIBRATION_SAMPLE - 1)} of ${String(MIN_CALIBRATION_SAMPLE)} minimum`,
+    );
+    expect(output).toContain("## Reliability bins");
+  });
+
   test("renders reliability bins with hit rates", () => {
     const pairs = Array.from({ length: 10 }, (_, idx) => ({
       prediction: {

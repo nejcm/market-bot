@@ -1,7 +1,7 @@
-import { brierSkillScore } from "./calibration";
+import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "./calibration";
 import type { CalibrationMetric, CalibrationSummary } from "./types";
 
-export const MIN_CALIBRATION_SAMPLE = 5;
+export { MIN_CALIBRATION_SAMPLE } from "./calibration";
 
 function fmtBrier(v: number): string {
   return v.toFixed(4);

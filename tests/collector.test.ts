@@ -166,6 +166,14 @@ describe("collectSources", () => {
       "finnhub-news",
       "fred-macro",
     ]);
+    expect(result.sourceGaps.find((gap) => gap.source === "marketaux-news")).toMatchObject({
+      cause: "missing-credential",
+      evidenceQualityImpact: "no-cap",
+    });
+    expect(result.sourceGaps.find((gap) => gap.source === "finnhub-news")).toMatchObject({
+      cause: "missing-credential",
+      evidenceQualityImpact: "no-cap",
+    });
     expect(result.marketContext).toEqual({
       assetClass: "equity",
       items: [],
@@ -1612,7 +1620,10 @@ describe("collectSources", () => {
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["Repeated BTC story"]);
-    expect(result.sourceGaps.some((gap) => gap.source === "news-seen")).toBe(true);
+    expect(result.sourceGaps.find((gap) => gap.source === "news-seen")).toMatchObject({
+      cause: "repeat-fallback",
+      evidenceQualityImpact: "no-cap",
+    });
   });
 
   test("opens provider circuit on rate limit responses", async () => {
@@ -1664,6 +1675,7 @@ describe("collectSources", () => {
     expect(marketAuxCalls).toBe(1);
     const circuitGap = second.sourceGaps.find((gap) => gap.cause === "circuit-open");
     expect(circuitGap?.message).toContain("circuit open");
+    expect(circuitGap?.evidenceQualityImpact).toBe("core-cap");
   });
 
   test("rejects invalid test host delay overrides", () => {

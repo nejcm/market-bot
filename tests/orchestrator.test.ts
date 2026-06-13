@@ -1806,6 +1806,63 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps).toContain("fred-macro: MARKET_BOT_FRED_API_KEY is not set");
   });
 
+  test("does not cap Evidence Quality for missing optional news credentials", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Core market evidence is available.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports breadth.", sourceIds: ["news-equity-1"] }],
+          bearCase: [{ text: "Single-name breadth is limited.", sourceIds: ["market-aapl"] }],
+          risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "high",
+          dataGaps: [],
+          predictions: mockPredictions(2),
+        }),
+      ),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [
+          sourceGap({
+            source: "marketaux-news",
+            message: "missing MARKET_BOT_MARKETAUX_API_TOKEN",
+            provider: "marketaux",
+            capability: "news",
+            cause: "missing-credential",
+            evidenceQualityImpact: "no-cap",
+          }),
+          sourceGap({
+            source: "finnhub-news",
+            message: "missing MARKET_BOT_FINNHUB_API_TOKEN",
+            provider: "finnhub",
+            capability: "news",
+            cause: "missing-credential",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.confidence).toBe("high");
+    expect(result.report.dataGaps).toEqual([
+      "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+      "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
+    ]);
+  });
+
   test("caps Evidence Quality at medium when extended evidence is all gaps", async () => {
     const result = await runResearchJob({
       command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },

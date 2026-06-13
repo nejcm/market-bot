@@ -159,7 +159,7 @@ export async function filterSeenNewsSources(
         message: `Persistent news dedupe suppressed ${String(sources.length)} repeat source(s) for ${lane}; kept one repeat fallback`,
         capability: "news",
         cause: "repeat-fallback",
-        evidenceQualityImpact: "core-cap",
+        evidenceQualityImpact: "no-cap",
       }),
     ],
   };

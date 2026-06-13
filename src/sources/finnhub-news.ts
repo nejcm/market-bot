@@ -90,7 +90,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
           provider: "finnhub",
           capability: "news",
           cause: "missing-credential",
-          evidenceQualityImpact: "core-cap",
+          evidenceQualityImpact: "no-cap",
         }),
       ],
     };

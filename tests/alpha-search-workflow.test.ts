@@ -227,6 +227,25 @@ function secAtomPayload(): string {
   ].join("");
 }
 
+function unmappedSecAtomPayload(): string {
+  return [
+    "<feed>",
+    "<entry>",
+    "<title>S-1 - Unmapped One (0005555555) (Filer)</title>",
+    "<updated>2026-06-04T12:00:00-04:00</updated>",
+    "<summary>CIK=0005555555</summary>",
+    "<id>0005555555-26-000010</id>",
+    "</entry>",
+    "<entry>",
+    "<title>S-1 - Unmapped Two (0006666666) (Filer)</title>",
+    "<updated>2026-06-04T13:00:00-04:00</updated>",
+    "<summary>CIK=0006666666</summary>",
+    "<id>0006666666-26-000011</id>",
+    "</entry>",
+    "</feed>",
+  ].join("");
+}
+
 function secCompanyFactsPayload(): unknown {
   const annual = [
     { val: 100, form: "10-K", fy: 2025, filed: "2026-02-01", end: "2025-12-31" },
@@ -392,6 +411,30 @@ function fundamentalsFetchImpl(requestedUrls: string[]): FetchLike {
     }
     if (url.includes("browse-edgar")) {
       return new Response("<feed />");
+    }
+    if (url.includes("apewisdom.io")) {
+      return jsonResponse(apeWisdomPayload());
+    }
+    if (url.includes("query1.finance.yahoo.com")) {
+      return jsonResponse(yahooPayload());
+    }
+    return new Response("not found", { status: 404 });
+  };
+}
+
+function unmappedSecFetchImpl(requestedUrls: string[]): FetchLike {
+  return async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("company_tickers.json")) {
+      return jsonResponse(secTickersPayload());
+    }
+    if (url.includes("browse-edgar")) {
+      return new Response(url.includes("type=S-1") ? unmappedSecAtomPayload() : "<feed />");
+    }
+    const listedUniverseResponse = listingResponse(url);
+    if (listedUniverseResponse !== undefined) {
+      return listedUniverseResponse;
     }
     if (url.includes("apewisdom.io")) {
       return jsonResponse(apeWisdomPayload());
@@ -623,6 +666,31 @@ describe("alpha-search workflow", () => {
     );
     expect(result.report.predictions).toEqual([]);
     expect(result.markdown).not.toMatch(/\b(buy|sell|hold)\b/iu);
+  });
+
+  test("groups repeated unmapped SEC filing gaps in report and trace only", async () => {
+    const requestedUrls: string[] = [];
+    const result = await runAlphaSearchWorkflow({
+      command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },
+      config: config(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+      fetchImpl: unmappedSecFetchImpl(requestedUrls),
+      retryDelaysMs: [],
+    });
+
+    const groupedGap =
+      "sec-alpha-search: SEC filing S-1 2026-06-04 did not map to a ticker (2 filings)";
+    expect(result.report.dataGaps).toContain(groupedGap);
+    expect(result.trace.sourceGaps).toContain(groupedGap);
+    expect(result.markdown).toContain(
+      String.raw`sec-alpha-search: SEC filing S-1 2026-06-04 did not map to a ticker \(2 filings\)`,
+    );
+    const rawGaps = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "source-gaps.json"), "utf8"),
+    ) as readonly { readonly message?: string }[];
+    expect(
+      rawGaps.filter((gap) => gap.message === "SEC filing S-1 2026-06-04 did not map to a ticker"),
+    ).toHaveLength(2);
   });
 
   test("adds SEC-discovered leads and enriches ApeWisdom duplicates", async () => {

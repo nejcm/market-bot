@@ -178,6 +178,39 @@ function dedupeSourcesById(sources: readonly Source[]): readonly Source[] {
   return [...byId.values()];
 }
 
+const UNMAPPED_SEC_FILING_RE =
+  /^SEC filing (?<form>[A-Z0-9/-]+) (?<date>\d{4}-\d{2}-\d{2}) did not map to a ticker$/u;
+
+function unmappedSecFilingKey(gap: SourceGap): string | undefined {
+  if (gap.source !== "sec-alpha-search") {
+    return undefined;
+  }
+  const match = UNMAPPED_SEC_FILING_RE.exec(gap.message);
+  if (match === null) {
+    return undefined;
+  }
+  return gap.message;
+}
+
+function alphaSearchSourceGapReportTexts(gaps: readonly SourceGap[]): readonly string[] {
+  const counts = new Map<string, number>();
+  for (const gap of gaps) {
+    const key = unmappedSecFilingKey(gap);
+    if (key !== undefined) {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+
+  return dedupeSourceGaps(gaps).map((gap) => {
+    const key = unmappedSecFilingKey(gap);
+    const count = key === undefined ? undefined : counts.get(key);
+    if (key === undefined || count === undefined || count <= 1) {
+      return sourceGapReportText(gap);
+    }
+    return `${sourceGapReportText(gap)} (${String(count)} filings)`;
+  });
+}
+
 function sourceList(input: {
   readonly candidates: readonly SocialMomentumRankedCandidate[];
   readonly secCandidates: readonly SecDiscoveryCandidate[];
@@ -215,7 +248,7 @@ function dataGaps(input: {
   readonly validLeads: readonly YahooValidatedLead[];
 }): readonly string[] {
   return [
-    ...dedupeSourceGaps(input.sourceGaps).map((gap) => sourceGapReportText(gap)),
+    ...alphaSearchSourceGapReportTexts(input.sourceGaps),
     ...(input.rankedCandidates.length === 0
       ? ["No ApeWisdom-ranked equity candidates were found"]
       : []),
@@ -295,7 +328,7 @@ function buildTrace(input: {
     synthesisModel: input.config.synthesisModel,
     startedAt: input.startedAt,
     completedAt: input.completedAt,
-    sourceGaps: dedupeSourceGaps(input.sourceGaps).map((gap) => sourceGapReportText(gap)),
+    sourceGaps: alphaSearchSourceGapReportTexts(input.sourceGaps),
     stages: [
       "apewisdom-discovery",
       "social-momentum-ranking",

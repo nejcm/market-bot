@@ -142,7 +142,7 @@ function massiveGap(gap: SourceGap, capability: SourceGapCapability): SourceGap 
   return sourceGapWithContext(gap, {
     provider: MASSIVE_PROVIDER,
     capability,
-    evidenceQualityImpact: "core-cap",
+    evidenceQualityImpact: "no-cap",
   });
 }
 

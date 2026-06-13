@@ -3,9 +3,12 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import {
+  INDEX_SCHEMA_VERSION,
   listRunSummariesFromIndex,
   loadResolvedPairsFromIndex,
+  readRunArtifactIndexStatus,
   rebuildRunArtifactIndex,
   searchHistoryEntriesFromIndex,
   searchRunReportsFromIndex,
@@ -132,6 +135,24 @@ function writeRun(
 }
 
 describe("run artifact index", () => {
+  test("reports unsupported schema with rebuild guidance", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const db = new Database(dbPath, { create: true });
+    db.exec("PRAGMA user_version = 4");
+    db.close();
+
+    expect(readRunArtifactIndexStatus(dataDir)).toEqual({
+      state: "unsupported-schema",
+      dbPath,
+      expectedSchemaVersion: INDEX_SCHEMA_VERSION,
+      currentSchemaVersion: 4,
+      rebuildCommand: "bun run src/cli.ts index rebuild",
+      message: `Run Artifact Index schema 4 is unsupported; expected ${String(
+        INDEX_SCHEMA_VERSION,
+      )}. Run bun run src/cli.ts index rebuild.`,
+    });
+  });
+
   test("rebuilds SQLite metadata and serves console/history search", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeRun(dataDir, "run-a");

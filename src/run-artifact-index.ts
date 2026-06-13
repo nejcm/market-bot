@@ -20,7 +20,7 @@ import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 
-const INDEX_SCHEMA_VERSION = 5;
+export const INDEX_SCHEMA_VERSION = 5;
 const DEFAULT_INDEX_FILE = "index.sqlite";
 const BUSY_TIMEOUT_MS = 1000;
 const MAX_HISTORY_SEARCH_RESULTS = 100;
@@ -113,6 +113,22 @@ interface RebuildOptions {
   readonly dbPath?: string;
 }
 
+export type RunArtifactIndexStatusState =
+  | "available"
+  | "disabled"
+  | "missing"
+  | "unreadable"
+  | "unsupported-schema";
+
+export interface RunArtifactIndexStatus {
+  readonly state: RunArtifactIndexStatusState;
+  readonly dbPath: string;
+  readonly expectedSchemaVersion: number;
+  readonly currentSchemaVersion?: number;
+  readonly rebuildCommand: string;
+  readonly message: string;
+}
+
 interface RunIndexRows {
   readonly run: RunRow;
   readonly files: readonly ArtifactFileRow[];
@@ -141,6 +157,66 @@ export function isRunArtifactIndexDisabled(
 ): boolean {
   const value = env.MARKET_BOT_INDEX_DISABLE;
   return value === "1" || value === "true";
+}
+
+export function readRunArtifactIndexStatus(
+  dataDir: string,
+  env: Record<string, string | undefined> = process.env,
+): RunArtifactIndexStatus {
+  const dbPath = configuredRunArtifactIndexPath(dataDir, env);
+  const rebuildCommand = "bun run src/cli.ts index rebuild";
+  const base = {
+    dbPath,
+    expectedSchemaVersion: INDEX_SCHEMA_VERSION,
+    rebuildCommand,
+  };
+  if (isRunArtifactIndexDisabled(env)) {
+    return {
+      ...base,
+      state: "disabled",
+      message: "Run Artifact Index is disabled by MARKET_BOT_INDEX_DISABLE.",
+    };
+  }
+  if (!existsSync(dbPath)) {
+    return {
+      ...base,
+      state: "missing",
+      message: `Run Artifact Index database is missing; run ${rebuildCommand}.`,
+    };
+  }
+
+  let db: Database | undefined;
+  try {
+    db = openDatabase(dbPath, true);
+    const version = db.query("PRAGMA user_version").get() as {
+      readonly user_version: number;
+    } | null;
+    const currentSchemaVersion = version?.user_version;
+    if (currentSchemaVersion !== INDEX_SCHEMA_VERSION) {
+      return {
+        ...base,
+        state: "unsupported-schema",
+        ...(currentSchemaVersion !== undefined ? { currentSchemaVersion } : {}),
+        message: `Run Artifact Index schema ${String(
+          currentSchemaVersion ?? "unknown",
+        )} is unsupported; expected ${String(INDEX_SCHEMA_VERSION)}. Run ${rebuildCommand}.`,
+      };
+    }
+    return {
+      ...base,
+      state: "available",
+      currentSchemaVersion,
+      message: "Run Artifact Index schema is supported.",
+    };
+  } catch (error) {
+    return {
+      ...base,
+      state: "unreadable",
+      message: `Run Artifact Index could not be opened: ${String(error)}`,
+    };
+  } finally {
+    db?.close();
+  }
 }
 
 function openDatabase(path: string, readonly: boolean): Database {

@@ -1204,7 +1204,7 @@ describe("collectSources", () => {
       provider: "massive",
       capability: "news",
       cause: "fetch-failed",
-      evidenceQualityImpact: "core-cap",
+      evidenceQualityImpact: "no-cap",
     });
     expect(
       result.sourceGaps.find((gap) => gap.source === "massive-supplemental-market"),
@@ -1212,7 +1212,7 @@ describe("collectSources", () => {
       provider: "massive",
       capability: "market-data",
       cause: "fetch-failed",
-      evidenceQualityImpact: "core-cap",
+      evidenceQualityImpact: "no-cap",
     });
   });
 

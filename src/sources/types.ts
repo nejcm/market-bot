@@ -109,6 +109,9 @@ export interface RawSourceSnapshot {
   readonly adapter: string;
   readonly fetchedAt: string;
   readonly payload: unknown;
+  readonly payloadCompacted?: boolean;
+  readonly payloadBytes?: number;
+  readonly payloadSha256?: string;
 }
 
 export interface MarketDataAdapter {

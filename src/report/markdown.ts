@@ -350,6 +350,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   const sources = renderSources(report);
   const leads = readAlphaSearchLeads(report.extras);
   const rejected = readAlphaSearchRejectedCandidates(report.extras);
+  const coverage = renderAlphaSearchCoverage(report);
   const leadRows =
     leads.length === 0
       ? "- No Yahoo-validated research leads."
@@ -394,7 +395,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
     "",
     rejectedRows,
     "",
-    renderAlphaSearchCoverage(report),
+    ...(coverage === "" ? [] : [coverage]),
     "## Data Gaps",
     "",
     gaps,

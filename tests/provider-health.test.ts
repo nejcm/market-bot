@@ -193,6 +193,45 @@ describe("provider health", () => {
     );
   });
 
+  test("passes when the Run Artifact Index is missing", async () => {
+    await writeBaselineRuns();
+    await writeCalibration();
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.runArtifactIndex.state).toBe("missing");
+    expect(summary.validation.status).toBe("pass");
+    expect(summary.validation.routeClassifications).not.toContainEqual(
+      expect.objectContaining({ route: "run-artifact-index" }),
+    );
+  });
+
+  test("passes when the Run Artifact Index is disabled", async () => {
+    const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    try {
+      await writeBaselineRuns();
+      await writeCalibration();
+
+      const summary = await buildProviderHealthSummary(
+        dataDir,
+        new Date("2026-06-02T12:00:00.000Z"),
+      );
+
+      expect(summary.runArtifactIndex.state).toBe("disabled");
+      expect(summary.validation.status).toBe("pass");
+      expect(summary.validation.routeClassifications).not.toContainEqual(
+        expect.objectContaining({ route: "run-artifact-index" }),
+      );
+    } finally {
+      if (originalIndexDisable === undefined) {
+        delete process.env.MARKET_BOT_INDEX_DISABLE;
+      } else {
+        process.env.MARKET_BOT_INDEX_DISABLE = originalIndexDisable;
+      }
+    }
+  });
+
   test("warns when baseline is met with only optional provider gaps", async () => {
     await writeBaselineRuns({
       "daily-equity": {

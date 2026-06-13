@@ -60,17 +60,8 @@ export function leadSourceIds(
   lead: YahooValidatedLead,
   yahooSourceId: string | undefined,
 ): readonly string[] {
-  const socialSourceIds =
-    lead.candidate.socialRank === undefined
-      ? lead.candidate.sourceIds
-      : [
-          socialMomentumReportSourceId({
-            symbol: lead.symbol,
-            socialRank: lead.candidate.socialRank,
-            sourceIds: lead.candidate.sourceIds,
-          }),
-        ];
-  return yahooSourceId === undefined ? socialSourceIds : [...socialSourceIds, yahooSourceId];
+  const sourceIds = reportCandidateSourceIds(lead.candidate);
+  return yahooSourceId === undefined ? sourceIds : [...new Set([...sourceIds, yahooSourceId])];
 }
 
 export function alphaSearchLead(
@@ -120,16 +111,6 @@ export function alphaSearchLead(
 export function alphaSearchRejectedCandidate(
   rejected: YahooRejectedCandidate,
 ): AlphaSearchRejectedCandidate {
-  const sourceIds =
-    rejected.candidate.socialRank === undefined
-      ? rejected.candidate.sourceIds
-      : [
-          socialMomentumReportSourceId({
-            symbol: rejected.candidate.symbol,
-            socialRank: rejected.candidate.socialRank,
-            sourceIds: rejected.candidate.sourceIds,
-          }),
-        ];
   return {
     symbol: rejected.candidate.symbol,
     discoverySources: rejected.candidate.discoverySources,
@@ -144,8 +125,29 @@ export function alphaSearchRejectedCandidate(
     ...(rejected.candidate.secCompanyName !== undefined
       ? { secCompanyName: rejected.candidate.secCompanyName }
       : {}),
-    sourceIds,
+    sourceIds: reportCandidateSourceIds(rejected.candidate),
   };
+}
+
+function reportCandidateSourceIds(candidate: {
+  readonly symbol: string;
+  readonly socialRank?: number;
+  readonly sourceIds: readonly string[];
+}): readonly string[] {
+  if (candidate.socialRank === undefined) {
+    return candidate.sourceIds;
+  }
+  const [, ...additionalSourceIds] = candidate.sourceIds;
+  return [
+    ...new Set([
+      socialMomentumReportSourceId({
+        symbol: candidate.symbol,
+        socialRank: candidate.socialRank,
+        sourceIds: candidate.sourceIds,
+      }),
+      ...additionalSourceIds,
+    ]),
+  ];
 }
 
 function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): boolean {

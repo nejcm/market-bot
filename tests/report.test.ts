@@ -671,6 +671,7 @@ describe("report schema and rendering", () => {
 
     expect(markdown).toContain("AAPL");
     expect(markdown).toContain("OTCM");
+    expect(markdown).not.toContain("\n\n\n## Data Gaps");
     expect(markdown).not.toContain("BAD");
     expect(markdown).not.toContain("BROKEN");
   });

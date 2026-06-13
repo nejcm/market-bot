@@ -120,6 +120,16 @@ export function alphaSearchLead(
 export function alphaSearchRejectedCandidate(
   rejected: YahooRejectedCandidate,
 ): AlphaSearchRejectedCandidate {
+  const sourceIds =
+    rejected.candidate.socialRank === undefined
+      ? rejected.candidate.sourceIds
+      : [
+          socialMomentumReportSourceId({
+            symbol: rejected.candidate.symbol,
+            socialRank: rejected.candidate.socialRank,
+            sourceIds: rejected.candidate.sourceIds,
+          }),
+        ];
   return {
     symbol: rejected.candidate.symbol,
     discoverySources: rejected.candidate.discoverySources,
@@ -134,7 +144,7 @@ export function alphaSearchRejectedCandidate(
     ...(rejected.candidate.secCompanyName !== undefined
       ? { secCompanyName: rejected.candidate.secCompanyName }
       : {}),
-    sourceIds: rejected.candidate.sourceIds,
+    sourceIds,
   };
 }
 

@@ -536,12 +536,12 @@ describe("alpha-search workflow", () => {
         expect.objectContaining({
           symbol: "OTCX",
           reason: "Official listing universe marks candidate as test issue",
-          sourceIds: ["apewisdom-all-stocks-OTCX"],
+          sourceIds: ["apewisdom-all-stocks-OTCX@rank-2"],
         }),
         expect.objectContaining({
           symbol: "MEGA",
           reason: "Yahoo market cap is above configured alpha-search maximum",
-          sourceIds: ["apewisdom-all-stocks-MEGA"],
+          sourceIds: ["apewisdom-all-stocks-MEGA@rank-3"],
         }),
       ]),
     );

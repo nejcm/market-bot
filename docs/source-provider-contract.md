@@ -20,7 +20,7 @@ Use this checklist before adding or promoting a Source Provider. Provider-level 
 - Preserve Instrument Identity fields when the provider exposes useful metadata, such as exchange, quote currency, display name, provider IDs, or aliases. Do not reconcile conflicting provider identities unless a separate design accepts that behavior.
 - Use the `CollectContext` `ctx.request.json({ url, adapter, init })` seam for JSON source HTTP calls and `ctx.request.text({ url, adapter, init })` for text/HTML source HTTP calls. Adapters describe provider URLs, request headers/init, adapter identity, and any provider-specific fetch wrapper; the collector owns timeout, retry/backoff, cache, rate limiting, circuit breaking, and stale cache fallback for both paths ([ADR 0010](./adr/0010-evidence-request-loop.md)). Source Provider capability composition follows [ADR 0009](./adr/0009-source-provider-modules.md).
 - Make `SourceGap`s carry typed provider/capability/cause meaning plus a stable human-readable message. Causes should distinguish missing credential, fetch failure, circuit open, stale cache fallback, unsupported coverage, repeat fallback, malformed response, validation failure, and provider data missing.
-- Set `SourceGap.evidenceQualityImpact` from source semantics instead of relying on message text. Market Context gaps are `no-cap`; Extended Evidence gaps participate in the Extended Evidence cap check; core market/news/source-collection gaps are core caps.
+- Set `SourceGap.evidenceQualityImpact` from source semantics instead of relying on message text. Market Context gaps and supplemental-provider gaps that cannot lower core evidence quality are `no-cap`; Extended Evidence gaps participate in the Extended Evidence cap check; core market/news/source-collection gaps are core caps.
 - Keep scoring Observations behind explicit promotion. Promotion requires an observable forecast use ([ADR 0004](./adr/0004-predictions-as-observable-forecasts.md)), coverage behavior, resolver wiring, and tests.
 
 ## Test floor
@@ -41,7 +41,7 @@ Massive satisfies this contract as a supplemental-only equity Source Provider:
 
 - `MARKET_BOT_MASSIVE_API_KEY` is documented in `docs/configuration.md`.
 - Missing credentials silently disable Massive because it is supplemental-only.
-- Configured Massive failures emit `SourceGap`s for `massive-news` and `massive-supplemental-market`.
+- Configured Massive failures emit `SourceGap`s for `massive-news` and `massive-supplemental-market` with `evidenceQualityImpact: "no-cap"`.
 - Massive maps equity news into `Source` and stock snapshots into `MarketSnapshot`.
 - Massive snapshot identity preserves the provider ticker as an Instrument Identity alias.
 - Massive uses the shared `ctx.request.json` path for source timeout, retry, cache, rate-limit, circuit-breaker, and stale fallback behavior.

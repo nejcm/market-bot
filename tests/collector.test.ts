@@ -1289,8 +1289,8 @@ describe("collectSources", () => {
         return jsonResponse([
           {
             id: 55,
-            headline: "Same BTC story",
-            url: "https://example.test/btc",
+            headline: "Same BTC story!",
+            url: "https://other.example.test/btc",
             source: "Example",
             datetime: 1_779_120_000,
             summary: "Finnhub summary",
@@ -1345,6 +1345,7 @@ describe("collectSources", () => {
       id: "news-crypto-2",
       provider: "yahoo-news",
     });
+    expect(result.newsAnalytics?.canonicalDuplicateNewsSourceCount).toBe(1);
     expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["fred-macro"]);
   });
 

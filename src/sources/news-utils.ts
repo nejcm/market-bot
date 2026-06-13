@@ -62,3 +62,12 @@ export function canonicalizeUrl(value: string | undefined): string | undefined {
     return value.trim();
   }
 }
+
+export function normalizeTitle(value: string | undefined): string | undefined {
+  const normalized = value
+    ?.toLowerCase()
+    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
+    .replaceAll(/\s+/gu, " ")
+    .trim();
+  return normalized === "" ? undefined : normalized;
+}

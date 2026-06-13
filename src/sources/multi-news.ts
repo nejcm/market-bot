@@ -1,7 +1,7 @@
 import type { Source, SourceProviderAlias } from "../domain/types";
 import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { filterSeenNewsSources } from "./news-seen";
-import { canonicalizeUrl } from "./news-utils";
+import { canonicalizeUrl, normalizeTitle } from "./news-utils";
 import { type CollectContext, type NewsAdapter, type NewsCollectionResult } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
 
@@ -50,39 +50,59 @@ function withAlias(source: Source): Source {
   return providerAliases !== undefined ? { ...source, providerAliases } : source;
 }
 
-function dedupeByCanonicalUrl(sources: readonly Source[]): readonly Source[] {
+function mergeSource(existing: Source, source: Source): Source {
+  const summary = existing.summary ?? source.summary;
+  const snippet = existing.snippet ?? source.snippet;
+  const providerAliases = mergeAliases(existing.providerAliases, aliasFor(source));
+
+  return {
+    ...existing,
+    ...(summary !== undefined ? { summary } : {}),
+    ...(snippet !== undefined ? { snippet } : {}),
+    ...(providerAliases !== undefined ? { providerAliases } : {}),
+  };
+}
+
+function registerMergeKeys(
+  source: Source,
+  index: number,
+  indexByCanonical: Map<string, number>,
+  indexByTitle: Map<string, number>,
+): void {
+  if (source.canonicalUrl !== undefined) {
+    indexByCanonical.set(source.canonicalUrl, index);
+  }
+  const normalizedTitle = normalizeTitle(source.title);
+  if (normalizedTitle !== undefined) {
+    indexByTitle.set(normalizedTitle, index);
+  }
+}
+
+function dedupeByCanonicalUrlOrTitle(sources: readonly Source[]): readonly Source[] {
   const merged: Source[] = [];
   const indexByCanonical = new Map<string, number>();
+  const indexByTitle = new Map<string, number>();
 
   for (const source of sources.map((item) => withCanonical(item))) {
-    const { canonicalUrl } = source;
-    if (canonicalUrl === undefined) {
+    const titleKey = normalizeTitle(source.title);
+    const existingIndex =
+      source.canonicalUrl === undefined ? undefined : indexByCanonical.get(source.canonicalUrl);
+    const mergeIndex =
+      existingIndex ?? (titleKey === undefined ? undefined : indexByTitle.get(titleKey));
+
+    if (mergeIndex === undefined) {
+      registerMergeKeys(source, merged.length, indexByCanonical, indexByTitle);
       merged.push(withAlias(source));
       continue;
     }
 
-    const existingIndex = indexByCanonical.get(canonicalUrl);
-    if (existingIndex === undefined) {
-      indexByCanonical.set(canonicalUrl, merged.length);
-      merged.push(withAlias(source));
-      continue;
-    }
-
-    const { [existingIndex]: existing } = merged;
+    const { [mergeIndex]: existing } = merged;
     if (existing === undefined) {
       continue;
     }
 
-    const summary = existing.summary ?? source.summary;
-    const snippet = existing.snippet ?? source.snippet;
-    const providerAliases = mergeAliases(existing.providerAliases, aliasFor(source));
-
-    merged[existingIndex] = {
-      ...existing,
-      ...(summary !== undefined ? { summary } : {}),
-      ...(snippet !== undefined ? { snippet } : {}),
-      ...(providerAliases !== undefined ? { providerAliases } : {}),
-    };
+    registerMergeKeys(source, mergeIndex, indexByCanonical, indexByTitle);
+    merged[mergeIndex] = mergeSource(existing, source);
   }
 
   return merged;
@@ -178,7 +198,9 @@ export function createMultiNewsAdapter(
       (total, result) => total + result.newsSources.length,
       0,
     );
-    const dedupedSources = dedupeByCanonicalUrl(results.flatMap((result) => result.newsSources));
+    const dedupedSources = dedupeByCanonicalUrlOrTitle(
+      results.flatMap((result) => result.newsSources),
+    );
     const filtered =
       ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
         ? await filterSeenNewsSources(dedupedSources, {

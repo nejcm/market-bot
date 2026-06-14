@@ -2,6 +2,7 @@
   import type { CalibrationDetail } from "../../types";
   import {
     calibrationHeadline,
+    calibrationSampleWarning,
     calibrationSlices,
     formatDateMinute,
     reliabilityBins,
@@ -27,6 +28,7 @@
     ];
 
   const headline = $derived(calibrationHeadline(calibration));
+  const sampleWarning = $derived(calibrationSampleWarning(headline));
   const bins = $derived(reliabilityBins(calibration));
   const sliceTables = $derived(
     SLICE_GROUPS.map((entry) => ({
@@ -71,6 +73,22 @@
       to build one from resolved forecasts.
     </div>
   {:else}
+    {#if sampleWarning.show}
+      <div
+        class="mt-5 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
+      >
+        <span
+          class="mt-px shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+        >
+          WARN
+        </span>
+        <span class="text-[12.5px] leading-normal text-[#4a4334]">
+          Small sample ({sampleWarning.resolvedCount} of {sampleWarning.minimum} minimum) —
+          calibration metrics are not yet reliable.
+        </span>
+      </div>
+    {/if}
+
     <div class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="font-mono text-2xl font-medium text-foreground">

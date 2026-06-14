@@ -104,7 +104,7 @@
   {:else if !hasSearched}
     <div class="mt-9 text-center text-[13px] leading-relaxed text-muted-foreground">
       Type a query and press Enter.<br />
-      <span class="font-mono text-[11px]">search covers findings, cases, risks, catalysts, forecasts and gaps</span>
+      <span class="font-mono text-[11px]">search covers findings, cases, risks, catalysts, forecasts, extended evidence, and gaps</span>
     </div>
   {:else if searchNotice !== ""}
     <div

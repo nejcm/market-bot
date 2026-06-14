@@ -2,18 +2,23 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
   import {
+    extendedEvidenceItems,
     forecastRollup,
     formatClose,
     formatDate,
     formatDateMinute,
     horizonMarkers,
     jsonBlock,
+    predictionTargetHealth,
     runLabel,
     scenarios,
     scoredForecasts,
     sources,
+    formatShortfallGap,
+    splitDataGaps,
     stringArray,
     textItems,
+    valuationMetricTiles,
     type SnapshotView,
   } from "../view-model";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
@@ -72,6 +77,12 @@
   const forecastHorizons = $derived(horizonMarkers(forecastItems));
   const sourceItems = $derived(sources(report));
   const gapItems = $derived(stringArray(report, "dataGaps"));
+  const splitGaps = $derived(splitDataGaps(gapItems));
+  const extendedEvidence = $derived(extendedEvidenceItems(report));
+  const targetHealth = $derived(predictionTargetHealth(detail?.analytics, report));
+  const showForecastsSection = $derived(
+    forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined,
+  );
 
   const CASE_STYLES = [
     { key: "bullCase", title: "Bull case", edge: "#4ba3b2", fg: "#166e7d" },
@@ -93,8 +104,9 @@
       ["cases", "Cases & risks", caseSections.length > 0],
       ["scenarios", "Scenarios", scenarioItems.length > 0],
       ["snapshot", "Market snapshot", snapshot !== null],
-      ["forecasts", "Forecasts", forecastItems.length > 0],
-      ["gaps", "Data gaps", gapItems.length > 0],
+      ["extendedEvidence", "Extended evidence", extendedEvidence.length > 0],
+      ["forecasts", "Forecasts", showForecastsSection],
+      ["gaps", "Data gaps", splitGaps.otherGaps.length > 0 || splitGaps.shortfalls.length > 0],
     ] as const,
   );
 
@@ -330,15 +342,69 @@
             </section>
           {/if}
 
-          {#if forecastItems.length > 0}
+          {#if extendedEvidence.length > 0}
+            <section {@attach bindSection("extendedEvidence")} class="mt-8.5 scroll-mt-5">
+              {@render sectionHeading("Extended evidence")}
+              <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
+                {#each extendedEvidence as item}
+                  {@const metricTiles =
+                    item.category === "valuation" ? valuationMetricTiles(item.metrics) : []}
+                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span
+                        class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
+                      >
+                        {item.category}
+                      </span>
+                      <div class="text-[12.5px] font-semibold text-foreground">{item.title}</div>
+                    </div>
+                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
+                      {item.summary}
+                    </div>
+                    {#if metricTiles.length > 0}
+                      <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {#each metricTiles as tile}
+                          <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
+                            <div class="font-mono text-[12px] font-medium text-foreground">
+                              {tile.value}
+                            </div>
+                            <div
+                              class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground"
+                            >
+                              {tile.label}
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+                    {@render citeChips(item.sourceIds)}
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+
+          {#if showForecastsSection}
             <section {@attach bindSection("forecasts")} class="mt-8.5 scroll-mt-5">
               <div class="flex items-baseline justify-between border-b border-border pb-2">
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
-                >
-                  Observable forecasts
-                </span>
+                <div class="flex items-center gap-2">
+                  <span
+                    class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
+                  >
+                    Observable forecasts
+                  </span>
+                  {#if targetHealth !== undefined && !targetHealth.targetMet}
+                    <span
+                      class="rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+                    >
+                      BELOW TARGET
+                    </span>
+                  {/if}
+                </div>
                 <span class="font-mono text-[10px] text-[#a8acb1]">
+                  {#if targetHealth !== undefined}
+                    {targetHealth.count} / {targetHealth.target} target ·
+                  {/if}
                   {#if forecastStats.resolved > 0}
                     scored {forecastStats.resolved}/{forecastStats.total} ·
                     {forecastStats.hits} hit · {forecastStats.misses} miss ·
@@ -346,6 +412,11 @@
                   td = trading days
                 </span>
               </div>
+              {#if forecastItems.length === 0}
+                <div class="py-4 text-sm text-muted-foreground">
+                  No forecasts emitted for this run.
+                </div>
+              {/if}
               {#each forecastItems as forecast}
                 <div
                   class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_76px] sm:gap-4"
@@ -417,27 +488,56 @@
             </section>
           {/if}
 
-          {#if gapItems.length > 0}
+          {#if splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0}
             <section {@attach bindSection("gaps")} class="mt-8.5 scroll-mt-5">
-              <div
-                class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]"
-              >
-                Data gaps · what we could not verify
-              </div>
-              <div class="mt-3.5 flex flex-col gap-2.5">
-                {#each gapItems as gap}
-                  <div
-                    class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
-                  >
-                    <span
-                      class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+              {#if splitGaps.shortfalls.length > 0}
+                <div
+                  class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]"
+                >
+                  Prediction shortfall
+                </div>
+                <div class="mt-3.5 flex flex-col gap-2.5">
+                  {#each splitGaps.shortfalls as gap}
+                    <div
+                      class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
                     >
-                      GAP
-                    </span>
-                    <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
-                  </div>
-                {/each}
-              </div>
+                      <span
+                        class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+                      >
+                        SHORTFALL
+                      </span>
+                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
+                        {formatShortfallGap(gap)}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              {#if splitGaps.otherGaps.length > 0}
+                <div
+                  class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116] {splitGaps.shortfalls.length >
+                  0
+                    ? 'mt-8'
+                    : ''}"
+                >
+                  Data gaps · what we could not verify
+                </div>
+                <div class="mt-3.5 flex flex-col gap-2.5">
+                  {#each splitGaps.otherGaps as gap}
+                    <div
+                      class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
+                    >
+                      <span
+                        class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+                      >
+                        GAP
+                      </span>
+                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             </section>
           {/if}
 

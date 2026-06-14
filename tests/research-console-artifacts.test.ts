@@ -225,6 +225,39 @@ describe("research console app artifacts", () => {
     expect(predictionResults.map((result) => result.sourceIds)).toEqual([["s2"]]);
   });
 
+  test("searches extended evidence sections", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-valuation");
+    mkdirSync(runDir);
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-valuation",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        summary: "summary",
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "valuation",
+              title: "AAPL Valuation Evidence",
+              summary: "needle valuation EV/annualized revenue 12.3x",
+              sourceIds: ["extended-valuation-aapl"],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      }),
+    );
+
+    const results = await searchRunReports(dataDir, { query: "needle valuation" });
+    expect(results.map((result) => result.section)).toEqual(["extendedEvidence"]);
+    expect(results[0]?.sourceIds).toEqual(["extended-valuation-aapl"]);
+  });
+
   test("filters structured report search by run metadata", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const equityDir = join(dataDir, "run-h");

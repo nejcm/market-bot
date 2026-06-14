@@ -52,6 +52,27 @@ export interface SourceView {
   readonly url?: string;
 }
 
+export interface ExtendedEvidenceItemView {
+  readonly category: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly sourceIds: readonly string[];
+  readonly metrics?: Readonly<Record<string, number | string>>;
+}
+
+export interface SplitDataGaps {
+  readonly shortfalls: readonly string[];
+  readonly otherGaps: readonly string[];
+}
+
+export interface PredictionTargetHealth {
+  readonly count: number;
+  readonly target: number;
+  readonly targetMet: boolean;
+}
+
+const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
+
 export interface ReportSearchCandidate {
   readonly section: RunSearchSection;
   readonly label: string;
@@ -84,7 +105,7 @@ function readHttpUrl(record: Record<string, unknown>, key: string): string | und
 
 function readNumber(record: Record<string, unknown>, key: string): number | undefined {
   const value = record[key];
-  return typeof value === "number" ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function readSourceIds(record: Record<string, unknown>): readonly string[] {
@@ -92,6 +113,28 @@ function readSourceIds(record: Record<string, unknown>): readonly string[] {
   return Array.isArray(sourceIds)
     ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
     : [];
+}
+
+function readMetrics(
+  record: Record<string, unknown>,
+): Readonly<Record<string, number | string>> | undefined {
+  const { metrics } = record;
+  if (!isRecord(metrics)) {
+    return undefined;
+  }
+
+  const parsed: Record<string, number | string> = {};
+  for (const [key, value] of Object.entries(metrics)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      parsed[key] = value;
+      continue;
+    }
+    if (typeof value === "string" && value !== "") {
+      parsed[key] = value;
+    }
+  }
+
+  return Object.keys(parsed).length === 0 ? undefined : parsed;
 }
 
 export function textItems(
@@ -268,6 +311,124 @@ export function stringArray(
     : [];
 }
 
+export function extendedEvidenceItems(
+  report?: Record<string, unknown>,
+): readonly ExtendedEvidenceItemView[] {
+  const block = report?.extendedEvidence;
+  if (!isRecord(block)) {
+    return [];
+  }
+
+  const value = block.items;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const category = readString(item, "category");
+      const title = readString(item, "title");
+      const summary = readString(item, "summary");
+      if (category === undefined || title === undefined || summary === undefined) {
+        return [];
+      }
+
+      const metrics = readMetrics(item);
+      return [
+        {
+          category,
+          title,
+          summary,
+          sourceIds: readSourceIds(item),
+          ...(metrics !== undefined ? { metrics } : {}),
+        },
+      ];
+    });
+}
+
+export function splitDataGaps(gaps: readonly string[]): SplitDataGaps {
+  const shortfalls: string[] = [];
+  const otherGaps: string[] = [];
+
+  for (const gap of gaps) {
+    if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
+      shortfalls.push(gap);
+    } else {
+      otherGaps.push(gap);
+    }
+  }
+
+  return { shortfalls, otherGaps };
+}
+
+export function formatShortfallGap(gap: string): string {
+  if (!gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
+    return gap;
+  }
+
+  const message = gap.slice(PREDICTION_SHORTFALL_PREFIX.length).trimStart();
+  return message === "" ? gap : message;
+}
+
+function metricsSearchText(metrics: Readonly<Record<string, number | string>> | undefined): string {
+  if (metrics === undefined) {
+    return "";
+  }
+
+  return Object.values(metrics).map(String).join(" ");
+}
+
+function readDepthProfileTarget(report?: Record<string, unknown>): number | undefined {
+  const extras = report?.extras;
+  if (!isRecord(extras)) {
+    return undefined;
+  }
+
+  const { depthProfile } = extras;
+  if (!isRecord(depthProfile)) {
+    return undefined;
+  }
+
+  const target = depthProfile.targetPredictions;
+  return typeof target === "number" && Number.isFinite(target) ? target : undefined;
+}
+
+export function predictionTargetHealth(
+  analytics?: Record<string, unknown>,
+  report?: Record<string, unknown>,
+): PredictionTargetHealth | undefined {
+  const predictionsBlock = analytics?.predictions;
+  if (isRecord(predictionsBlock)) {
+    const count = readNumber(predictionsBlock, "count");
+    const target = readNumber(predictionsBlock, "targetCount");
+    if (count !== undefined && target !== undefined) {
+      const targetMet =
+        typeof predictionsBlock.targetMet === "boolean"
+          ? predictionsBlock.targetMet
+          : count >= target;
+      return { count, target, targetMet };
+    }
+  }
+
+  const fallbackTarget = readDepthProfileTarget(report);
+  if (fallbackTarget === undefined || report === undefined) {
+    return undefined;
+  }
+
+  const count = arrayCount(report, "predictions");
+  return {
+    count,
+    target: fallbackTarget,
+    targetMet: count >= fallbackTarget,
+  };
+}
+
+function arrayCount(record: Record<string, unknown>, key: string): number {
+  const value = record[key];
+  return Array.isArray(value) ? value.length : 0;
+}
+
 function textItemCandidates(
   report: Record<string, unknown>,
   key: RunSearchSection,
@@ -353,6 +514,19 @@ function dataGapCandidates(report: Record<string, unknown>): readonly ReportSear
   }));
 }
 
+export function extendedEvidenceCandidates(
+  report: Record<string, unknown>,
+): readonly ReportSearchCandidate[] {
+  return extendedEvidenceItems(report).map((item, index) => ({
+    section: "extendedEvidence",
+    label: item.title === "" ? `Extended evidence ${String(index + 1)}` : item.title,
+    text: [item.category, item.title, item.summary, metricsSearchText(item.metrics)]
+      .filter((part) => part !== "")
+      .join(" "),
+    sourceIds: item.sourceIds,
+  }));
+}
+
 export function reportSearchCandidates(
   report: Record<string, unknown>,
 ): readonly ReportSearchCandidate[] {
@@ -371,6 +545,7 @@ export function reportSearchCandidates(
     ...textItemCandidates(report, "catalysts", "Catalyst"),
     ...predictionCandidates(report),
     ...sourceCandidates(report),
+    ...extendedEvidenceCandidates(report),
     ...dataGapCandidates(report),
   ];
 }

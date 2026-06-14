@@ -1,14 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import { reportSearchCandidates } from "../app/report-artifact-view";
 import {
   calibrationHeadline,
+  calibrationSampleWarning,
   calibrationSlices,
   closeLinePoints,
   dashboardMetrics,
+  extendedEvidenceItems,
   filterRuns,
   forecastRollup,
   formatClose,
   horizonMarkers,
   predictionScores,
+  predictionTargetHealth,
   scoredForecasts,
   groupedRunsByType,
   groupedSearchResults,
@@ -23,7 +27,10 @@ import {
   runPath,
   runTrend,
   sources,
+  formatShortfallGap,
+  splitDataGaps,
   textItems,
+  valuationMetricTiles,
   verifiedSnapshotView,
 } from "../app/client/view-model";
 
@@ -490,6 +497,19 @@ describe("calibration view model", () => {
     expect(calibrationSlices(detail, "byAssetClass")).toEqual([]);
     expect(calibrationSlices({}, "byKind")).toEqual([]);
   });
+
+  test("flags small calibration samples", () => {
+    expect(calibrationSampleWarning({ resolvedCount: 3 })).toEqual({
+      show: true,
+      resolvedCount: 3,
+      minimum: 5,
+    });
+    expect(calibrationSampleWarning({ resolvedCount: 5 })).toEqual({
+      show: false,
+      resolvedCount: 5,
+      minimum: 5,
+    });
+  });
 });
 
 describe("verified market snapshot view model", () => {
@@ -746,5 +766,107 @@ describe("forecast outcomes", () => {
       misses: 0,
       pending: 0,
     });
+  });
+});
+
+describe("report artifact parsers", () => {
+  test("parses extended evidence items and drops malformed entries", () => {
+    expect(extendedEvidenceItems()).toEqual([]);
+    expect(extendedEvidenceItems({ extendedEvidence: "broken" })).toEqual([]);
+    expect(
+      extendedEvidenceItems({
+        extendedEvidence: {
+          items: [
+            {
+              category: "valuation",
+              title: "AAPL Valuation Evidence",
+              summary: "EV/annualized revenue 12.3x",
+              sourceIds: ["s1"],
+              metrics: { marketCap: 1_000_000_000, evToAnnualizedRevenue: 12.34 },
+            },
+            { category: "valuation", title: "missing summary" },
+            null,
+          ],
+        },
+      }),
+    ).toEqual([
+      {
+        category: "valuation",
+        title: "AAPL Valuation Evidence",
+        summary: "EV/annualized revenue 12.3x",
+        sourceIds: ["s1"],
+        metrics: { marketCap: 1_000_000_000, evToAnnualizedRevenue: 12.34 },
+      },
+    ]);
+  });
+
+  test("splits prediction shortfall gaps from other data gaps", () => {
+    expect(
+      splitDataGaps(["predictionShortfall: emitted 2 of 3 target predictions", "Missing provider"]),
+    ).toEqual({
+      shortfalls: ["predictionShortfall: emitted 2 of 3 target predictions"],
+      otherGaps: ["Missing provider"],
+    });
+    expect(formatShortfallGap("predictionShortfall: emitted 2 of 3 target predictions")).toBe(
+      "emitted 2 of 3 target predictions",
+    );
+    expect(formatShortfallGap("Missing provider")).toBe("Missing provider");
+  });
+
+  test("reads prediction target health from analytics with report fallback", () => {
+    expect(
+      predictionTargetHealth({ predictions: { count: 2, targetCount: 3, targetMet: false } }),
+    ).toEqual({ count: 2, target: 3, targetMet: false });
+
+    expect(
+      predictionTargetHealth(
+        {},
+        {
+          predictions: [{ id: "p1" }, { id: "p2" }],
+          extras: { depthProfile: { targetPredictions: 3 } },
+        },
+      ),
+    ).toEqual({ count: 2, target: 3, targetMet: false });
+
+    expect(predictionTargetHealth()).toBeUndefined();
+  });
+
+  test("formats valuation metric tiles for display", () => {
+    expect(
+      valuationMetricTiles({
+        marketCap: 2_500_000_000,
+        enterpriseValue: 2_700_000_000,
+        annualizedRevenue: 500_000_000,
+        evToAnnualizedRevenue: 5.4,
+        revenuePeriodMonths: 12,
+      }),
+    ).toEqual([
+      { label: "Market cap", value: "$2.5B" },
+      { label: "Enterprise value", value: "$2.7B" },
+      { label: "Annualized revenue", value: "$500.0M" },
+      { label: "EV / annualized revenue", value: "5.4x" },
+      { label: "Revenue period (months)", value: "12" },
+    ]);
+  });
+
+  test("indexes extended evidence metrics in search candidates", () => {
+    const candidates = reportSearchCandidates({
+      extendedEvidence: {
+        items: [
+          {
+            category: "valuation",
+            title: "AAPL Valuation Evidence",
+            summary: "Valuation summary",
+            sourceIds: ["s1"],
+            metrics: { evToAnnualizedRevenue: 5.4 },
+          },
+        ],
+      },
+    });
+
+    expect(candidates.some((candidate) => candidate.section === "extendedEvidence")).toBe(true);
+    expect(
+      candidates.find((candidate) => candidate.section === "extendedEvidence")?.text,
+    ).toContain("5.4");
   });
 });

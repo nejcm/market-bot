@@ -64,7 +64,8 @@ export type RunSearchSection =
   | "catalysts"
   | "predictions"
   | "sources"
-  | "dataGaps";
+  | "dataGaps"
+  | "extendedEvidence";
 
 export type ConsoleJobState = "queued" | "running" | "succeeded" | "failed";
 

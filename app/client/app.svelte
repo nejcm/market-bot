@@ -254,7 +254,7 @@
       });
       searchNotice =
         searchResults.length === 0
-          ? `No sections match “${searchQuery}”. Search covers findings, cases, risks, catalysts, forecasts and gaps.`
+          ? `No sections match “${searchQuery}”. Search covers findings, cases, risks, catalysts, forecasts, extended evidence, and gaps.`
           : "";
     } catch (caughtError: unknown) {
       searchResults = [];

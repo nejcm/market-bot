@@ -4,18 +4,30 @@ import type {
   RunSearchResult,
   RunSummary,
 } from "../types";
+import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 
 export {
+  extendedEvidenceItems,
   forecastRollup,
   predictionScores,
+  predictionTargetHealth,
   predictions,
   scenarios,
   scoredForecasts,
   sources,
+  formatShortfallGap,
+  splitDataGaps,
   stringArray,
   textItems,
 } from "../report-artifact-view";
-export type { ForecastRollup, PredictionScoreView, ScoredForecast } from "../report-artifact-view";
+export type {
+  ExtendedEvidenceItemView,
+  ForecastRollup,
+  PredictionScoreView,
+  PredictionTargetHealth,
+  ScoredForecast,
+  SplitDataGaps,
+} from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
 const RECENT_RUN_LIMIT = 5;
@@ -67,6 +79,17 @@ export interface CalibrationHeadline {
   readonly generatedAt?: string;
 }
 
+export interface CalibrationSampleWarning {
+  readonly show: boolean;
+  readonly resolvedCount: number;
+  readonly minimum: number;
+}
+
+export interface ValuationMetricTile {
+  readonly label: string;
+  readonly value: string;
+}
+
 export interface ReliabilityBin {
   readonly label: string;
   readonly pLow: number;
@@ -102,6 +125,71 @@ export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadl
     resolvedCount: readFiniteNumber(summary.resolvedCount) ?? 0,
     ...(generatedAt !== undefined ? { generatedAt } : {}),
   };
+}
+
+export function calibrationSampleWarning(headline: CalibrationHeadline): CalibrationSampleWarning {
+  return {
+    show: headline.resolvedCount < MIN_CALIBRATION_SAMPLE,
+    resolvedCount: headline.resolvedCount,
+    minimum: MIN_CALIBRATION_SAMPLE,
+  };
+}
+
+export function formatUsdCompact(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) {
+    return `$${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+  if (abs >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (abs >= 1000) {
+    return `$${(value / 1000).toFixed(1)}K`;
+  }
+  return `$${value.toFixed(0)}`;
+}
+
+export function formatMultiple(value: number): string {
+  return `${value.toFixed(1)}x`;
+}
+
+const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
+  marketCap: "Market cap",
+  enterpriseValue: "Enterprise value",
+  annualizedRevenue: "Annualized revenue",
+  evToAnnualizedRevenue: "EV / annualized revenue",
+  revenuePeriodMonths: "Revenue period (months)",
+};
+
+export function valuationMetricTiles(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): readonly ValuationMetricTile[] {
+  if (metrics === undefined) {
+    return [];
+  }
+
+  const keys = [
+    "marketCap",
+    "enterpriseValue",
+    "annualizedRevenue",
+    "evToAnnualizedRevenue",
+    "revenuePeriodMonths",
+  ] as const;
+
+  return keys.flatMap((key) => {
+    const raw = metrics[key];
+    const label = VALUATION_METRIC_LABELS[key] ?? key;
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      if (key === "evToAnnualizedRevenue") {
+        return [{ label, value: formatMultiple(raw) }];
+      }
+      if (key === "revenuePeriodMonths") {
+        return [{ label, value: String(raw) }];
+      }
+      return [{ label, value: formatUsdCompact(raw) }];
+    }
+    return [];
+  });
 }
 
 export function reliabilityBins(detail: CalibrationDetail): readonly ReliabilityBin[] {

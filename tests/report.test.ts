@@ -634,6 +634,7 @@ describe("report schema and rendering", () => {
         sameCadenceSelectedCount: 0,
         crossCadenceSelectedCount: 0,
         resolvedMissRunCount: 0,
+        missCorrectionSelectedCount: 0,
         gapCount: 0,
       },
       artifactDeltas: [],

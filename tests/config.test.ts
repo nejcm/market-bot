@@ -207,6 +207,7 @@ describe("resolveConfig", () => {
       marketRecentLimit: 5,
       recentDays: 90,
       anchorMonths: [3, 6, 12],
+      missCorrectionLimit: 2,
     });
   });
 
@@ -219,6 +220,7 @@ describe("resolveConfig", () => {
         MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT: "4",
         MARKET_BOT_HISTORY_RECENT_DAYS: "45",
         MARKET_BOT_HISTORY_ANCHOR_MONTHS: "1, 3,3, 9",
+        MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT: "1",
       }),
     ).toMatchObject({
       marketSpotlightOptions: {
@@ -230,6 +232,7 @@ describe("resolveConfig", () => {
         marketRecentLimit: 4,
         recentDays: 45,
         anchorMonths: [1, 3, 9],
+        missCorrectionLimit: 1,
       },
     });
   });

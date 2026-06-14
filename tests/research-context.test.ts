@@ -613,6 +613,9 @@ function historicalContextWith(runs: readonly HistoricalRunContext[]): Historica
       sameCadenceSelectedCount: 0,
       crossCadenceSelectedCount: 0,
       resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
+      missCorrectionSelectedCount: runs.filter((run) =>
+        run.selectionReasons.includes("miss-correction"),
+      ).length,
       gapCount: 0,
     },
     artifactDeltas: [],

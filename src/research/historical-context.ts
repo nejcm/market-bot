@@ -25,7 +25,14 @@ export type HistoricalRelevanceReason =
   | "spotlight-symbol"
   | "same-cadence"
   | "cross-cadence";
-export type HistoricalSelectionReason = HistoricalRecencyReason | HistoricalRelevanceReason;
+// Correction reasons answer "why was this run kept despite recency eviction": it
+// Carries a resolved miss the prior-thesis error-correction blocks draw from, and
+// Would otherwise be crowded out of the recent window by same-day reruns.
+export type HistoricalCorrectionReason = "miss-correction";
+export type HistoricalSelectionReason =
+  | HistoricalRecencyReason
+  | HistoricalRelevanceReason
+  | HistoricalCorrectionReason;
 
 export interface HistoricalPredictionSummary {
   readonly id: string;
@@ -104,6 +111,10 @@ export interface HistoricalContextAudit {
   // Selected runs carrying at least one resolved miss — the population the prior-miss correction
   // Blocks draw from (ticker instrument errors / market-scoped forecast errors).
   readonly resolvedMissRunCount: number;
+  // Resolved-miss runs preserved by the miss-correction lane specifically (i.e. pulled back in
+  // After recency eviction). Visible so same-day-rerun crowding of the calibration anchor is
+  // Auditable from the trace.
+  readonly missCorrectionSelectedCount: number;
   // Total disclosed historical/cross-run gaps, including non-data gaps such as an unreadable
   // Alpha-search watchlist surfaced here rather than as a live SourceGap.
   readonly gapCount: number;
@@ -234,6 +245,10 @@ function sortPreferredCadence(
   };
 }
 
+function hasResolvedMiss(artifact: HistoricalArtifact): boolean {
+  return artifact.scores.some((score) => score.resolved && score.outcome === "miss");
+}
+
 function selectArtifacts(input: {
   readonly candidates: readonly HistoricalArtifact[];
   readonly limit: number;
@@ -251,6 +266,20 @@ function selectArtifacts(input: {
     .toSorted(sort)
     .slice(0, limit)) {
     selected.set(artifact.report.runId, ["recent"]);
+  }
+
+  // Preserve the most recent resolved-miss runs even when the recency limit above
+  // Evicted them — without this, same-day reruns fill the recent window and drop the
+  // Resolved-miss history synthesis uses to stay calibrated. Bounded by recentDays so
+  // The correction signal stays current.
+  for (const artifact of candidates
+    .filter((candidate) => generatedAtMs(candidate) >= cutoffMs && hasResolvedMiss(candidate))
+    .toSorted(sort)
+    .slice(0, options.missCorrectionLimit)) {
+    selected.set(artifact.report.runId, [
+      ...(selected.get(artifact.report.runId) ?? []),
+      "miss-correction",
+    ]);
   }
 
   for (const anchorMonth of options.anchorMonths) {
@@ -657,6 +686,9 @@ function buildHistoricalContext(
         run.selectionReasons.includes("cross-cadence"),
       ).length,
       resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
+      missCorrectionSelectedCount: runs.filter((run) =>
+        run.selectionReasons.includes("miss-correction"),
+      ).length,
       gapCount: gaps.length,
     },
     artifactDeltas: computeArtifactDeltas(runs),

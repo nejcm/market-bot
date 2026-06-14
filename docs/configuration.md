@@ -46,6 +46,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT` | `5` | Recent daily/weekly market-update artifacts to include in market historical context. |
 | `MARKET_BOT_HISTORY_RECENT_DAYS` | `90` | Lookback window for recent historical run artifacts. |
 | `MARKET_BOT_HISTORY_ANCHOR_MONTHS` | `3,6,12` | Comma-separated month anchors used to pick older historical run artifacts. |
+| `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT` | `2` | Most recent resolved-miss runs preserved even when the recency limit would evict them, so same-day reruns can't crowd the calibration anchor out of historical context. `0` disables the lane. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FRED_API_KEY` | — | Baseline free provider. Enables FRED Market Context for market updates, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research, but provider-health v2 treats missing or failed FRED coverage as a validation failure. |

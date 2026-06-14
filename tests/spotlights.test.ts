@@ -82,6 +82,7 @@ function historyContext(): HistoricalResearchContext {
       sameCadenceSelectedCount: 0,
       crossCadenceSelectedCount: 0,
       resolvedMissRunCount: 0,
+      missCorrectionSelectedCount: 0,
       gapCount: 0,
     },
     artifactDeltas: [],

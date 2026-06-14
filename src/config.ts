@@ -54,6 +54,10 @@ export interface HistoryOptions {
   readonly marketRecentLimit: number;
   readonly recentDays: number;
   readonly anchorMonths: readonly number[];
+  // Most recent runs carrying a resolved miss to preserve even when the recency
+  // Limit would evict them. Same-day reruns otherwise crowd resolved-miss runs out
+  // Of the recent window, dropping the calibration anchor synthesis leans on.
+  readonly missCorrectionLimit: number;
 }
 
 export interface RunArtifactIndexOptions {
@@ -119,6 +123,7 @@ const DEFAULT_HISTORY_TICKER_RECENT_LIMIT = 3;
 const DEFAULT_HISTORY_MARKET_RECENT_LIMIT = 5;
 const DEFAULT_HISTORY_RECENT_DAYS = 90;
 const DEFAULT_HISTORY_ANCHOR_MONTHS = [3, 6, 12] as const;
+const DEFAULT_HISTORY_MISS_CORRECTION_LIMIT = 2;
 const APEWISDOM_FILTER_RE = /^[A-Za-z0-9-]+$/u;
 const SEC_FORM_TYPE_RE = /^[0-9A-Z-]+$/u;
 
@@ -295,6 +300,7 @@ export function defaultHistoryOptions(): HistoryOptions {
     marketRecentLimit: DEFAULT_HISTORY_MARKET_RECENT_LIMIT,
     recentDays: DEFAULT_HISTORY_RECENT_DAYS,
     anchorMonths: [...DEFAULT_HISTORY_ANCHOR_MONTHS],
+    missCorrectionLimit: DEFAULT_HISTORY_MISS_CORRECTION_LIMIT,
   };
 }
 
@@ -395,6 +401,10 @@ function resolveHistoryOptions(env: Record<string, string | undefined>): History
     anchorMonths: readPositiveIntegerList(
       env.MARKET_BOT_HISTORY_ANCHOR_MONTHS,
       DEFAULT_HISTORY_ANCHOR_MONTHS,
+    ),
+    missCorrectionLimit: readNonNegativeInteger(
+      env.MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT,
+      DEFAULT_HISTORY_MISS_CORRECTION_LIMIT,
     ),
   };
 }

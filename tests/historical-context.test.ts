@@ -53,6 +53,7 @@ function options(overrides: Partial<HistoryOptions> = {}): HistoryOptions {
     marketRecentLimit: 1,
     recentDays: 30,
     anchorMonths: [3],
+    missCorrectionLimit: 0,
     ...overrides,
   };
 }
@@ -462,6 +463,61 @@ describe("loadHistoricalContext", () => {
     });
 
     expect(context.audit.resolvedMissRunCount).toBe(1);
+  });
+
+  test("preserves a resolved-miss run that the recency limit would evict", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    // Two same-day reruns fill the recency window ahead of an older run that carries
+    // The resolved miss synthesis leans on for calibration.
+    for (const [runId, generatedAt] of [
+      ["rerun-newest", "2026-06-03T00:00:00.000Z"],
+      ["rerun-older", "2026-06-02T00:00:00.000Z"],
+    ] as const) {
+      await writeRun({
+        dataDir,
+        runDirName: runId,
+        report: researchReport({ runId, jobType: "daily", assetClass: "equity", generatedAt }),
+      });
+    }
+    await writeRun({
+      dataDir,
+      runDirName: "miss-anchor",
+      report: researchReport({
+        runId: "miss-anchor",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-05-26T00:00:00.000Z",
+        predictions: [prediction({ id: "pred-miss", subject: "QQQ" })],
+      }),
+      score: {
+        scoredAt: "2026-06-02T00:00:00.000Z",
+        scores: [predictionScore("miss", { predictionId: "pred-miss", runId: "miss-anchor" })],
+      },
+    });
+
+    const command = { jobType: "daily", assetClass: "equity", depth: "brief" } as const;
+    const selectionOptions = options({ marketRecentLimit: 2, anchorMonths: [] });
+
+    const withoutLane = await loadHistoricalContext({
+      dataDir,
+      command,
+      config: { historyOptions: { ...selectionOptions, missCorrectionLimit: 0 } },
+      now,
+    });
+    expect(withoutLane.runs.map((run) => run.runId)).not.toContain("miss-anchor");
+    expect(withoutLane.audit.missCorrectionSelectedCount).toBe(0);
+
+    const withLane = await loadHistoricalContext({
+      dataDir,
+      command,
+      config: { historyOptions: { ...selectionOptions, missCorrectionLimit: 1 } },
+      now,
+    });
+    const missRun = withLane.runs.find((run) => run.runId === "miss-anchor");
+    expect(missRun?.selectionReasons).toContain("miss-correction");
+    expect(withLane.audit.missCorrectionSelectedCount).toBe(1);
+    expect(withLane.audit.resolvedMissRunCount).toBe(1);
   });
 
   test("appends extraGaps to gaps and reflects their count in audit.gapCount", async () => {

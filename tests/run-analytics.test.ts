@@ -151,7 +151,7 @@ describe("run analytics", () => {
           costEstimateUsd: 0.02,
         },
       ],
-      minimumPredictions: 3,
+      targetPredictions: 3,
     });
 
     expect(analytics.newsDedupe).toEqual({
@@ -178,8 +178,8 @@ describe("run analytics", () => {
       byKind: { direction: 1, iv: 1 },
       citedCount: 1,
       uncitedCount: 1,
-      minimumRequired: 3,
-      minimumMet: false,
+      targetCount: 3,
+      targetMet: false,
     });
     expect(analytics.runShape.stages).toEqual([
       { stage: "specialist-analysis", tokenEstimate: 100, costEstimateUsd: 0.01 },

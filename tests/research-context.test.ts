@@ -114,7 +114,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -172,7 +172,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "fuller analyst-style",
           minimumKeyFindings: 5,
           minimumScenarios: 3,
-          minimumPredictions: 3,
+          targetPredictions: 3,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
@@ -225,7 +225,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -247,7 +247,6 @@ describe("buildStagePrompt", () => {
     );
     const parsed = JSON.parse(prompt) as {
       readonly predictionRepair?: {
-        readonly requiredPredictionCount?: number;
         readonly instruction?: string;
       };
       readonly predictionRepromptErrors?: readonly string[];
@@ -257,9 +256,8 @@ describe("buildStagePrompt", () => {
       "predictionShortfall: required 2, received 1",
     ]);
     expect(parsed.predictionRepair).toEqual({
-      requiredPredictionCount: 2,
       instruction: expect.stringContaining(
-        "Return a complete final report with exactly 2 valid predictions.",
+        "Return a complete final report with a valid predictions array, fixing the flagged predictions.",
       ),
     });
     expect(parsed.predictionRepair?.instruction).toContain(
@@ -299,7 +297,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -349,7 +347,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -406,7 +404,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -464,7 +462,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -518,7 +516,7 @@ describe("buildStagePrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -648,7 +646,7 @@ function contextWithHistory(
       analystStyle: "concise brief",
       minimumKeyFindings: 3,
       minimumScenarios: 2,
-      minimumPredictions: 2,
+      targetPredictions: 2,
       defaultPredictionHorizon: 5,
       predictionSubjects: ["AAPL"],
       focus: ["instrument"],
@@ -711,7 +709,7 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: depthProfile.minimumPredictions,
+          targetPredictions: depthProfile.targetPredictions,
           defaultPredictionHorizon: depthProfile.defaultPredictionHorizon,
           predictionSubjects: depthProfile.predictionSubjects,
           focus: depthProfile.focus,
@@ -1113,7 +1111,7 @@ describe("buildPlaybookSelectionPrompt", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
@@ -1179,7 +1177,7 @@ describe("buildSpotlightSelectionPrompt", () => {
         analystStyle: "concise brief" as const,
         minimumKeyFindings: 3,
         minimumScenarios: 2,
-        minimumPredictions: 2,
+        targetPredictions: 2,
         defaultPredictionHorizon: 5,
         predictionSubjects: ["SPY"],
         focus: ["market regime", "movers"],

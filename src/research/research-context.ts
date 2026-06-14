@@ -35,7 +35,10 @@ export interface DepthProfile {
   readonly analystStyle: "concise brief" | "fuller analyst-style";
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
-  readonly minimumPredictions: number;
+  /** Soft target for the prediction count, not a hard floor (ADR 0021). A run may
+   * emit fewer when the evidence does not support a directional lean; the shortfall
+   * is disclosed as a data gap rather than padded with coin-flip predictions. */
+  readonly targetPredictions: number;
   readonly defaultPredictionHorizon: number;
   readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];
@@ -498,7 +501,7 @@ export function buildDepthProfileFromParams(
     analystStyle: params.analystStyle,
     minimumKeyFindings: params.minimumKeyFindings,
     minimumScenarios: params.minimumScenarios,
-    minimumPredictions: params.minimumPredictions,
+    targetPredictions: params.targetPredictions,
     defaultPredictionHorizon: params.defaultPredictionHorizon,
     predictionSubjects: params.predictionSubjects,
     focus: params.focus,
@@ -633,7 +636,7 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
     confidence: "high|medium|low",
     dataGaps: ["string"],
-    predictions: Array.from({ length: depthProfile.minimumPredictions }, (_, idx) => ({
+    predictions: Array.from({ length: depthProfile.targetPredictions }, (_, idx) => ({
       id: `pred-${String(idx + 1)}`,
       kind: "direction|relative|volatility|range|macro|iv",
       subject: exampleSubject,
@@ -810,7 +813,7 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
 function buildPredictionRepairInstruction(context: ResearchContext): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
   const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
-  return `Return a complete final report with exactly ${String(context.depthProfile.minimumPredictions)} valid predictions. Do not omit the predictions array, and do not return a partial patch. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
+  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
 export function buildStagePrompt(
@@ -827,14 +830,11 @@ export function buildStagePrompt(
 ): string {
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit exactly ${String(context.depthProfile.minimumPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
+      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
-      ? {
-          requiredPredictionCount: context.depthProfile.minimumPredictions,
-          instruction: buildPredictionRepairInstruction(context),
-        }
+      ? { instruction: buildPredictionRepairInstruction(context) }
       : undefined;
   const requiredShape = (() => {
     if (stage === "evidence-request") {
@@ -860,11 +860,7 @@ export function buildStagePrompt(
       ...(playbooks !== undefined && playbooks.length > 0 ? { domainPlaybooks: playbooks } : {}),
       priorStages,
       ...(predictionRepromptErrors.length > 0
-        ? {
-            predictionRepromptErrors,
-            unmetMinimum: context.depthProfile.minimumPredictions,
-            predictionRepair,
-          }
+        ? { predictionRepromptErrors, predictionRepair }
         : {}),
       ...(reportValidationErrors.length > 0 ? { reportValidationErrors, allowedSourceIds } : {}),
       requiredShape,

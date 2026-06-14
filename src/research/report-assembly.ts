@@ -375,6 +375,44 @@ function withoutModelProviderGapDuplicates(
   );
 }
 
+function gapTokens(value: string): Set<string> {
+  return new Set(
+    normalizeGapNeedle(value)
+      .split(" ")
+      .filter((token) => token.length >= 3),
+  );
+}
+
+/*
+ * True when the model gap restates a deterministic gap — most of its meaningful
+ * tokens are already covered by the deterministic phrasing. Punctuation and
+ * inserted clauses (e.g. "— a single-day multi-screener set,") would otherwise
+ * defeat the exact-text dedupe in uniqueDataGaps.
+ */
+function restatesDeterministicGap(modelGap: string, deterministicGap: string): boolean {
+  const modelTokens = gapTokens(modelGap);
+  if (modelTokens.size === 0) {
+    return false;
+  }
+  const deterministicTokens = gapTokens(deterministicGap);
+  let shared = 0;
+  for (const token of modelTokens) {
+    if (deterministicTokens.has(token)) {
+      shared += 1;
+    }
+  }
+  return shared / modelTokens.size >= 0.8;
+}
+
+function withoutDeterministicGapRestatements(
+  modelGaps: readonly string[],
+  deterministicGapTexts: readonly string[],
+): readonly string[] {
+  return modelGaps.filter(
+    (modelGap) => !deterministicGapTexts.some((text) => restatesDeterministicGap(modelGap, text)),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Report assembly — combine parsed payload + context into a validated report
 // ---------------------------------------------------------------------------
@@ -407,18 +445,22 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     sources,
   } = input;
 
+  const deterministicGaps = deterministicSourceGaps(command, collectedSources);
   const dataGapsRaw = uniqueDataGaps([
-    ...withoutModelProviderGapDuplicates(
-      nonEmptyStringArrayValue(payload.dataGaps),
-      collectedSources.sourceGaps,
+    ...withoutDeterministicGapRestatements(
+      withoutModelProviderGapDuplicates(
+        nonEmptyStringArrayValue(payload.dataGaps),
+        collectedSources.sourceGaps,
+      ),
+      deterministicGaps,
     ),
-    ...deterministicSourceGaps(command, collectedSources),
+    ...deterministicGaps,
   ]);
-  const shortfall = predResult.predictions.length < depthProfile.minimumPredictions;
+  const shortfall = predResult.predictions.length < depthProfile.targetPredictions;
   const dataGaps = shortfall
     ? [
         ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(predResult.predictions.length)} of ${String(depthProfile.minimumPredictions)} required`,
+        `predictionShortfall: emitted ${String(predResult.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
       ]
     : dataGapsRaw;
 

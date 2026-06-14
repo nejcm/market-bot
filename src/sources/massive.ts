@@ -1,5 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
-import { sourceGapWithContext } from "../domain/source-gaps";
+import { sourceGap, sourceGapStatusCode, sourceGapWithContext } from "../domain/source-gaps";
 import type {
   AssetClass,
   InstrumentIdentity,
@@ -146,6 +146,26 @@ function massiveGap(gap: SourceGap, capability: SourceGapCapability): SourceGap 
   });
 }
 
+/*
+ * A 401/403 on the supplemental-market snapshot endpoint while the same apiKey
+ * succeeds for news means the endpoint is not entitled on the current plan — a
+ * Provider Coverage Gap, not a workflow fetch failure.
+ */
+function massiveSupplementalMarketGap(gap: SourceGap): SourceGap {
+  const status = sourceGapStatusCode(gap.message);
+  if (status === "401" || status === "403") {
+    return massiveGap(
+      sourceGap({
+        source: gap.source,
+        message: "massive supplemental-market snapshot unavailable on current plan",
+        cause: "unsupported-coverage",
+      }),
+      "market-data",
+    );
+  }
+  return massiveGap(gap, "market-data");
+}
+
 async function collectSupplementalMarket(
   ctx: CollectContext,
   primarySnapshots: readonly MarketSnapshot[],
@@ -168,7 +188,7 @@ async function collectSupplementalMarket(
     return {
       rawSnapshots: [],
       supplementalMarketSnapshots: [],
-      sourceGaps: [massiveGap(fetched, "market-data")],
+      sourceGaps: [massiveSupplementalMarketGap(fetched)],
     };
   }
 

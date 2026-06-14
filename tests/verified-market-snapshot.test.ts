@@ -548,7 +548,7 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
           analystStyle: "concise brief",
           minimumKeyFindings: 3,
           minimumScenarios: 2,
-          minimumPredictions: 2,
+          targetPredictions: 2,
           defaultPredictionHorizon: 5,
           predictionSubjects: ["AAPL"],
           focus: ["instrument"],

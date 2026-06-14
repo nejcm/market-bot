@@ -255,7 +255,7 @@ describe("runResearchJob", () => {
         quickModel: "combo-quick",
         synthesisModel: "combo-synthesis",
         modelParams: { temperature: 0.2, reasoningEffort: "medium" },
-        minimumPredictions: 2,
+        targetPredictions: 2,
       },
       "daily-crypto": {},
       "weekly-equity": {},
@@ -1587,7 +1587,7 @@ describe("runResearchJob", () => {
     ) as {
       readonly depthProfile?: {
         readonly defaultPredictionHorizon?: number;
-        readonly minimumPredictions?: number;
+        readonly targetPredictions?: number;
       };
       readonly requiredShape?: {
         readonly predictions?: readonly { readonly horizonTradingDays?: number }[];
@@ -1603,8 +1603,65 @@ describe("runResearchJob", () => {
       "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener",
     );
     expect(finalPrompt.depthProfile?.defaultPredictionHorizon).toBe(15);
-    expect(finalPrompt.depthProfile?.minimumPredictions).toBe(2);
+    expect(finalPrompt.depthProfile?.targetPredictions).toBe(2);
     expect(finalPrompt.requiredShape?.predictions?.[0]?.horizonTradingDays).toBe(15);
+  });
+
+  test("drops a model data gap that restates the deterministic weekly mover gap", async () => {
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async () => ({
+        content: JSON.stringify({
+          summary: "Weekly equity overview is sourced but mover data is approximate.",
+          keyFindings: [{ text: "AAPL is a liquid positive mover.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Demand news supports the move.", sourceIds: ["news-equity-1"] }],
+          bearCase: [
+            {
+              text: "Single-name evidence may not represent the whole market.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          risks: [{ text: "Macro data is missing.", sourceIds: ["market-aapl"] }],
+          catalysts: [
+            { text: "Supplier demand update is the main catalyst.", sourceIds: ["news-equity-1"] },
+          ],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "medium",
+          dataGaps: [
+            "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives, not a true trailing 5-session mover screener.",
+          ],
+          predictions: mockPredictions(2),
+        }),
+        tokenEstimate: 100,
+        costEstimateUsd: 0.01,
+      }),
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const moverGaps = result.report.dataGaps.filter((gap) =>
+      gap.includes("trailing 5-session mover screener"),
+    );
+    expect(moverGaps).toEqual([
+      "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener",
+    ]);
   });
 
   test("rejects reports with trade-action language", async () => {
@@ -1925,12 +1982,13 @@ describe("runResearchJob", () => {
     expect(result.report.confidence).toBe("medium");
   });
 
-  test("re-prompts synthesis twice when predictions fall below minimum, then ships with shortfall gap", async () => {
-    let callCount = 0;
+  test("ships with a shortfall gap without reprompting when predictions fall below target", async () => {
+    const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
-      generate: async () => {
-        callCount += 1;
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
         return {
           content: JSON.stringify({
             summary: "Evidence is sourced.",
@@ -1963,31 +2021,73 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(callCount).toBe(7);
+    // The count is a soft target (ADR 0021); a clean below-target result ships unrepaired.
+    expect(prompts.filter((prompt) => prompt.stage === "final-synthesis")).toHaveLength(1);
+    expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
-  test("re-prompts deep synthesis with coverage panel prior stages when predictions fall short", async () => {
+  test("re-prompts deep synthesis with coverage panel prior stages when predictions are trimmed for redundancy", async () => {
     const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
     const provider: ModelProvider = {
       name: "mock",
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
+
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        finalCalls += 1;
+        if (finalCalls === 1) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [
+                {
+                  id: "pred-1",
+                  claim: "AAPL closes higher over 5 trading days.",
+                  kind: "direction",
+                  subject: "AAPL",
+                  measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+                  horizonTradingDays: 5,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+                {
+                  id: "pred-adjacent",
+                  claim: "AAPL closes higher over 6 trading days.",
+                  kind: "direction",
+                  subject: "AAPL",
+                  measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+                  horizonTradingDays: 6,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
         return {
-          content: JSON.stringify({
-            summary: "Evidence is sourced.",
-            keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
-            bullCase: [],
-            bearCase: [],
-            risks: [],
-            catalysts: [],
-            scenarios: [],
-            confidence: "medium",
-            dataGaps: [],
-            predictions: [],
-          }),
+          content: modelReport("AAPL"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -2008,44 +2108,24 @@ describe("runResearchJob", () => {
     });
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const redundancyReason =
+      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)";
 
-    expect(prompts).toHaveLength(9);
-    expect(finalPrompts).toHaveLength(3);
-    expect(finalPrompts[1]?.predictionRepromptErrors).toContain(
-      "predictionShortfall: required 3, received 0",
-    );
-    expect(finalPrompts[2]?.predictionRepromptErrors).toContain(
-      "predictionShortfall: required 3, received 0",
-    );
-    expect(result.trace.predictionRetryErrors).toEqual([
-      "predictionShortfall: required 3, received 0",
-    ]);
+    // Redundancy still triggers a single reprompt; a shortfall alone never would (ADR 0021).
+    expect(finalPrompts).toHaveLength(2);
+    expect(finalPrompts[1]?.predictionRepromptErrors).toContain(redundancyReason);
+    expect(
+      (finalPrompts[1]?.predictionRepromptErrors as readonly string[] | undefined)?.some((reason) =>
+        reason.includes("predictionShortfall"),
+      ),
+    ).toBe(false);
+    expect(result.trace.predictionRetryErrors).toContain(redundancyReason);
     expect(priorStageNames(finalPrompts[1] ?? {})).toEqual([
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
       "critique",
     ]);
-    expect(priorStageNames(finalPrompts[2] ?? {})).toEqual([
-      "specialist-analysis",
-      "regime-context-analysis",
-      "mover-theme-analysis",
-      "critique",
-    ]);
-    expect(result.trace.stages).toEqual([
-      "source-collection",
-      "spotlight-selection",
-      "playbook-selection",
-      "specialist-analysis",
-      "regime-context-analysis",
-      "mover-theme-analysis",
-      "critique",
-      "final-synthesis",
-      "final-synthesis",
-      "final-synthesis",
-    ]);
-    expect(result.report.predictions).toHaveLength(0);
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
   test("re-prompts synthesis when adjacent direction forecasts are trimmed", async () => {
@@ -2326,9 +2406,12 @@ describe("runResearchJob", () => {
     expect(reportRetryPrompt.predictionRepromptErrors).toContain(
       'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
     );
-    expect(reportRetryPrompt.predictionRepromptErrors).toContain(
-      "predictionShortfall: required 2, received 1",
-    );
+    // The validation error keeps the reprompt alive; a count shortfall never does (ADR 0021).
+    expect(
+      (reportRetryPrompt.predictionRepromptErrors as readonly string[] | undefined)?.some(
+        (reason) => reason.includes("predictionShortfall"),
+      ),
+    ).toBe(false);
     expect(result.trace.predictionRetryErrors).toContain(
       'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
     );

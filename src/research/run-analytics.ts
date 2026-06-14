@@ -14,7 +14,7 @@ export interface BuildRunAnalyticsInput {
   readonly trace: RunTrace;
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
-  readonly minimumPredictions: number;
+  readonly targetPredictions: number;
 }
 
 export interface RunAnalytics {
@@ -85,8 +85,8 @@ export interface RunAnalytics {
     };
     readonly citedCount: number;
     readonly uncitedCount: number;
-    readonly minimumRequired: number;
-    readonly minimumMet: boolean;
+    readonly targetCount: number;
+    readonly targetMet: boolean;
   };
   readonly runShape: {
     readonly traceStages: readonly string[];
@@ -264,8 +264,8 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ),
       citedCount,
       uncitedCount: report.predictions.length - citedCount,
-      minimumRequired: input.minimumPredictions,
-      minimumMet: report.predictions.length >= input.minimumPredictions,
+      targetCount: input.targetPredictions,
+      targetMet: report.predictions.length >= input.targetPredictions,
     },
     runShape: {
       traceStages: trace.stages,

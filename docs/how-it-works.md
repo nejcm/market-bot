@@ -283,8 +283,8 @@ Each research run builds a depth profile:
 
 | Mode    | Effect                                                                  |
 | ------- | ----------------------------------------------------------------------- |
-| `brief` | Concise report with fewer minimum findings, scenarios, and predictions. |
-| `deep`  | Fuller report with higher minimum counts and broader focus areas.       |
+| `brief` | Concise report with fewer minimum findings, scenarios, and a lower prediction target. |
+| `deep`  | Fuller report with higher minimum counts, a higher prediction target, and broader focus.       |
 
 Before the shared analysis stages:
 
@@ -309,7 +309,7 @@ Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 
-If the final output has too few valid predictions, the orchestrator reprompts final synthesis once with validation errors and the unmet minimum count.
+The prediction count is a soft target, not a hard floor ([ADR 0021](./adr/0021-prediction-count-soft-target.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and discloses a `predictionShortfall` data gap rather than padding with coin-flip (≈0.5) predictions.
 
 ## Predictions
 

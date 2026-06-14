@@ -10,7 +10,11 @@ import { marketContextAdapter } from "../src/sources/market-context";
 import { fetchTradierIvObservation } from "../src/sources/tradier";
 import { finnhubNewsAdapter } from "../src/sources/finnhub-news";
 import { marketAuxNewsAdapter } from "../src/sources/marketaux-news";
-import { massiveNewsAdapter, normalizeMassiveSnapshotPayload } from "../src/sources/massive";
+import {
+  massiveNewsAdapter,
+  massiveSupplementalMarketDataAdapter,
+  normalizeMassiveSnapshotPayload,
+} from "../src/sources/massive";
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { normalizeTitle } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
@@ -24,6 +28,7 @@ import type {
   NewsAdapter,
   SourceRequestExecutor,
 } from "../src/sources/types";
+import type { MarketSnapshot } from "../src/domain/types";
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
 async function unexpectedTextFetch(): Promise<never> {
@@ -404,6 +409,43 @@ describe("source normalization", () => {
         previousClose: 189.9,
         observedAt: fetchedAt,
       },
+    ]);
+  });
+
+  test("marks an inaccessible Massive supplemental-market snapshot as unsupported coverage", async () => {
+    const primarySnapshot: MarketSnapshot = {
+      sourceId: "market-yahoo-equity-aapl",
+      assetClass: "equity",
+      symbol: "AAPL",
+      price: 192.4,
+      changePercent24h: 1.25,
+      volume: 72_000_000,
+      observedAt: fetchedAt,
+    };
+
+    const result = await massiveSupplementalMarketDataAdapter.collect(
+      collectContext({
+        massiveApiKey: "massive-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => ({
+            source: adapter,
+            message: `${adapter} source request failed with status 403`,
+          }),
+        }),
+      }),
+      [primarySnapshot],
+    );
+
+    expect(result.supplementalMarketSnapshots).toEqual([]);
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        source: "massive-supplemental-market",
+        provider: "massive",
+        capability: "market-data",
+        cause: "unsupported-coverage",
+        evidenceQualityImpact: "no-cap",
+        message: "massive supplemental-market snapshot unavailable on current plan",
+      }),
     ]);
   });
 

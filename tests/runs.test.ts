@@ -92,7 +92,7 @@ describe("resolveRunParams — fallback chain", () => {
 
     expect(result.minimumKeyFindings).toBe(3);
     expect(result.minimumScenarios).toBe(1);
-    expect(result.minimumPredictions).toBe(2);
+    expect(result.targetPredictions).toBe(2);
     expect(result.analystStyle).toBe("concise brief");
   });
 
@@ -104,7 +104,7 @@ describe("resolveRunParams — fallback chain", () => {
 
     expect(result.minimumKeyFindings).toBe(5);
     expect(result.minimumScenarios).toBe(3);
-    expect(result.minimumPredictions).toBe(3);
+    expect(result.targetPredictions).toBe(3);
     expect(result.analystStyle).toBe("fuller analyst-style");
   });
 
@@ -173,7 +173,7 @@ describe("resolveRunParams — run keys", () => {
 
     expect(result.predictionSubjects).toEqual(["AAPL"]);
     expect(result.minimumKeyFindings).toBe(4);
-    expect(result.minimumPredictions).toBe(3);
+    expect(result.targetPredictions).toBe(3);
   });
 
   test("ticker deep uses command symbol and deep overrides", () => {
@@ -184,7 +184,7 @@ describe("resolveRunParams — run keys", () => {
 
     expect(result.predictionSubjects).toEqual(["TSLA"]);
     expect(result.minimumKeyFindings).toBe(6);
-    expect(result.minimumPredictions).toBe(5);
+    expect(result.targetPredictions).toBe(5);
     expect(result.analystStyle).toBe("fuller analyst-style");
   });
 
@@ -199,7 +199,7 @@ describe("resolveRunParams — run keys", () => {
     );
 
     expect(crypto.minimumKeyFindings).toBe(equity.minimumKeyFindings);
-    expect(crypto.minimumPredictions).toBe(equity.minimumPredictions);
+    expect(crypto.targetPredictions).toBe(equity.targetPredictions);
     expect(crypto.analystStyle).toBe(equity.analystStyle);
     expect(crypto.predictionSubjects).toEqual(["BTC", "ETH"]);
     expect(crypto.predictionSubjects).not.toContain("SPY");

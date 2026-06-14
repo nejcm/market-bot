@@ -83,10 +83,7 @@ export async function synthesizeReportUntilValid(
     reportValidationErrors = [errorMessage(error)];
   }
 
-  const reportRetryPredictionErrors = predictionRetryReasons(
-    predictionProgress.state.predResult,
-    input.context.depthProfile.minimumPredictions,
-  );
+  const reportRetryPredictionErrors = predictionRetryReasons(predictionProgress.state.predResult);
   const validationState = await runAndReadFinalSynthesis(input, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
@@ -101,10 +98,7 @@ export async function synthesizeReportUntilValid(
     ]),
   };
 
-  const postReportPredictionErrors = predictionRetryReasons(
-    validationProgress.state.predResult,
-    input.context.depthProfile.minimumPredictions,
-  );
+  const postReportPredictionErrors = predictionRetryReasons(validationProgress.state.predResult);
   if (postReportPredictionErrors.length > 0) {
     const state = await runAndReadFinalSynthesis(input, {
       predictionErrors: postReportPredictionErrors,
@@ -138,10 +132,7 @@ async function runPredictionReprompts(
   return Array.from({ length: input.maxPredictionReprompts }).reduce<Promise<SynthesisProgress>>(
     async (progressPromise) => {
       const progress = await progressPromise;
-      const retryErrors = predictionRetryReasons(
-        progress.state.predResult,
-        input.context.depthProfile.minimumPredictions,
-      );
+      const retryErrors = predictionRetryReasons(progress.state.predResult);
       if (retryErrors.length === 0) {
         return progress;
       }
@@ -184,19 +175,17 @@ function buildReport(
   });
 }
 
-function predictionRetryReasons(
-  predResult: ReturnType<typeof readPredictions>,
-  minimumPredictions: number,
-): readonly string[] {
-  if (predResult.predictions.length >= minimumPredictions) {
-    return predResult.issues
-      .filter((issue) => issue.code === "redundant-prediction")
-      .map((issue) => issue.message);
-  }
-  return [
-    ...predResult.errors,
-    `predictionShortfall: required ${String(minimumPredictions)}, received ${String(predResult.predictions.length)}`,
-  ];
+function predictionRetryReasons(predResult: ReturnType<typeof readPredictions>): readonly string[] {
+  /*
+   * The prediction count is a soft target (ADR 0021), not a hard floor: a
+   * below-target result is disclosed as a predictionShortfall data gap during
+   * report assembly, never repaired by reprompting for more. Only genuine
+   * validation errors and redundant predictions warrant a retry.
+   */
+  const redundancyReasons = predResult.issues
+    .filter((issue) => issue.code === "redundant-prediction")
+    .map((issue) => issue.message);
+  return [...predResult.errors, ...redundancyReasons];
 }
 
 function uniqueStrings(values: readonly string[]): readonly string[] {

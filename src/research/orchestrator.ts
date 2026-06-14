@@ -531,7 +531,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     trace,
     collectedSources,
     stageOutputs,
-    minimumPredictions: context.depthProfile.minimumPredictions,
+    targetPredictions: context.depthProfile.targetPredictions,
   });
 
   return {

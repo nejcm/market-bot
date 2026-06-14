@@ -32,7 +32,7 @@ export interface RunBaseParams {
   readonly modelParams?: ModelParams;
   readonly minimumKeyFindings?: number;
   readonly minimumScenarios?: number;
-  readonly minimumPredictions?: number;
+  readonly targetPredictions?: number;
   readonly defaultPredictionHorizon?: number;
   readonly predictionSubjects?: readonly string[];
   readonly focus?: readonly string[];
@@ -52,7 +52,7 @@ export interface ResolvedRunParams {
   readonly modelParams: ModelParams | undefined;
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
-  readonly minimumPredictions: number;
+  readonly targetPredictions: number;
   readonly defaultPredictionHorizon: number;
   readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];
@@ -116,7 +116,7 @@ const TICKER_KIND_MIX: ForecastKindMix = {
 const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "modelParams"> = {
   minimumKeyFindings: 3,
   minimumScenarios: 1,
-  minimumPredictions: 2,
+  targetPredictions: 2,
   defaultPredictionHorizon: 5,
   predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
   focus: ["market regime", "movers", "risks", "source gaps"],
@@ -133,7 +133,7 @@ export const runConfig: RunConfig = {
   "daily-equity": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
-    minimumPredictions: 2,
+    targetPredictions: 2,
     defaultPredictionHorizon: 5,
     predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
@@ -142,7 +142,7 @@ export const runConfig: RunConfig = {
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
-      minimumPredictions: 3,
+      targetPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
       targetKindMix: { ...EQUITY_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
@@ -151,7 +151,7 @@ export const runConfig: RunConfig = {
   "daily-crypto": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
-    minimumPredictions: 2,
+    targetPredictions: 2,
     defaultPredictionHorizon: 5,
     predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
@@ -160,7 +160,7 @@ export const runConfig: RunConfig = {
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
-      minimumPredictions: 3,
+      targetPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
       targetKindMix: { ...CRYPTO_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
@@ -169,7 +169,7 @@ export const runConfig: RunConfig = {
   "weekly-equity": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
-    minimumPredictions: 2,
+    targetPredictions: 2,
     defaultPredictionHorizon: 15,
     predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
@@ -178,7 +178,7 @@ export const runConfig: RunConfig = {
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
-      minimumPredictions: 3,
+      targetPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: [
         "weekly market regime",
@@ -193,7 +193,7 @@ export const runConfig: RunConfig = {
   "weekly-crypto": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
-    minimumPredictions: 2,
+    targetPredictions: 2,
     defaultPredictionHorizon: 15,
     predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
@@ -202,7 +202,7 @@ export const runConfig: RunConfig = {
     deep: {
       minimumKeyFindings: 5,
       minimumScenarios: 3,
-      minimumPredictions: 3,
+      targetPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: [
         "weekly market regime",
@@ -217,7 +217,7 @@ export const runConfig: RunConfig = {
   ticker: {
     minimumKeyFindings: 4,
     minimumScenarios: 1,
-    minimumPredictions: 3,
+    targetPredictions: 3,
     defaultPredictionHorizon: 5,
     analystStyle: "concise brief",
     focus: ["thesis", "evidence", "risks", "data gaps"],
@@ -225,7 +225,7 @@ export const runConfig: RunConfig = {
     deep: {
       minimumKeyFindings: 6,
       minimumScenarios: 3,
-      minimumPredictions: 5,
+      targetPredictions: 5,
       analystStyle: "fuller analyst-style",
       focus: [
         "thesis",
@@ -297,7 +297,7 @@ export function resolveRunParams(
     modelParams: mergeModelParams(appConfig.modelParams, merged.modelParams),
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
-    minimumPredictions: merged.minimumPredictions ?? CODE_DEFAULTS.minimumPredictions,
+    targetPredictions: merged.targetPredictions ?? CODE_DEFAULTS.targetPredictions,
     defaultPredictionHorizon:
       merged.defaultPredictionHorizon ?? CODE_DEFAULTS.defaultPredictionHorizon,
     predictionSubjects,

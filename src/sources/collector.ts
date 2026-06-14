@@ -21,6 +21,7 @@ import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
+import { addValuationEvidence } from "./extended-evidence/valuation";
 
 interface HostState {
   queue: Promise<void>;
@@ -534,6 +535,11 @@ export async function collectSources(
   const identityResult = isEquityTicker
     ? deriveCanonicalInstrumentIdentity(resolvedMarketResult.marketSnapshots, command.symbol)
     : undefined;
+  const valuationResult = addValuationEvidence(
+    command,
+    resolvedMarketResult.marketSnapshots,
+    extendedResult.extendedEvidence,
+  );
 
   return {
     rawSnapshots: [
@@ -550,8 +556,8 @@ export async function collectSources(
     supplementalMarketSnapshots,
     newsSources: newsResult.newsSources,
     extendedSources: extendedResult.sources,
-    ...(extendedResult.extendedEvidence !== undefined
-      ? { extendedEvidence: extendedResult.extendedEvidence }
+    ...(valuationResult.extendedEvidence !== undefined
+      ? { extendedEvidence: valuationResult.extendedEvidence }
       : {}),
     ...(marketContextResult.marketContext !== undefined
       ? { marketContext: marketContextResult.marketContext }
@@ -568,6 +574,7 @@ export async function collectSources(
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
+      ...valuationResult.sourceGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

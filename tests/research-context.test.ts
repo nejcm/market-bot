@@ -258,9 +258,23 @@ describe("buildStagePrompt", () => {
     ]);
     expect(parsed.predictionRepair).toEqual({
       requiredPredictionCount: 2,
-      instruction:
-        "Return a complete final report with exactly 2 valid predictions. Do not omit the predictions array, and do not return a partial patch. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it, and keep two direction calls on the same subject at least 2 trading days apart — otherwise vary the subject, kind, or horizon.",
+      instruction: expect.stringContaining(
+        "Return a complete final report with exactly 2 valid predictions.",
+      ),
     });
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "Prefer replacement forecasts using these subjects: SPY",
+    );
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "favor these kinds when supported: relative, macro, volatility",
+    );
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "For ticker relative forecasts, use subject form TICKER:BENCHMARK.",
+    );
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "For range forecasts, vary the horizon or range bounds",
+    );
+    expect(parsed.predictionRepair?.instruction).toContain("at least 2 trading days apart");
   });
 
   test("threads redundancy-rejection reasons into the final-synthesis retry prompt", () => {

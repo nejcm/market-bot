@@ -198,6 +198,35 @@ describe("SEC latest filing evidence tool", () => {
     );
   });
 
+  test("strips inline XBRL metadata before building filing summaries", async () => {
+    const hiddenFacts = "hidden-fact ".repeat(300);
+    const filingBody = `Management Discussion ${"operating leverage ".repeat(120)}`;
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload()),
+          text: async ({ adapter }) =>
+            textResult(
+              adapter,
+              `<html><body><ix:header><ix:hidden>${hiddenFacts}</ix:hidden></ix:header><p>cover page boilerplate</p><p>ITEM 2-MANAGEMENT ${filingBody}</p></body></html>`,
+            ),
+        }),
+      }),
+    );
+
+    expect(result.sources[0]?.snippet).toContain("Management Discussion");
+    expect(result.sources[0]?.snippet).not.toContain("cover page boilerplate");
+    expect(result.sources[0]?.snippet).not.toContain("hidden-fact");
+    expect(result.items[0]?.summary).toContain("Management Discussion");
+    expect(result.items[0]?.summary).not.toContain("cover page boilerplate");
+    expect(result.items[0]?.summary).not.toContain("hidden-fact");
+    expect(result.items[0]?.summary.length).toBeLessThan(1400);
+  });
+
   test("emits fetch failure gap from filing text fetch", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",

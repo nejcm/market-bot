@@ -159,3 +159,11 @@ Optional, higher-specificity Source Provider evidence that enriches ticker Resea
 ## Fundamental Evidence
 
 Sourced issuer operating and financial facts used as Extended Evidence. It supports ticker Research Views but is not investment conviction, expected return, or a trade signal.
+
+## Valuation Evidence
+
+Deterministic Extended Evidence that combines already-collected market capitalization with sourced issuer fundamentals to calculate supplemental valuation context such as enterprise value and revenue multiples. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal.
+
+## Peer Universe
+
+A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider or checked-in mapping with provenance, not model selection.

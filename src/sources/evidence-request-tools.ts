@@ -55,6 +55,8 @@ type TickerResearchCommand = Extract<ResearchCommand, { readonly jobType: "ticke
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
+const SEC_FILING_SNIPPET_CHARS = 6000;
+const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
 
 export function availableEvidenceRequestTools(
   ctx: CollectContext,
@@ -157,6 +159,8 @@ function decodeHtmlEntities(value: string): string {
 export function normalizeFilingText(payload: string): string {
   return decodeHtmlEntities(
     payload
+      .replaceAll(/<ix:hidden[\s\S]*?<\/ix:hidden>/giu, " ")
+      .replaceAll(/<ix:header[\s\S]*?<\/ix:header>/giu, " ")
       .replaceAll(/<script[\s\S]*?<\/script>/giu, " ")
       .replaceAll(/<style[\s\S]*?<\/style>/giu, " ")
       .replaceAll(/<[^>]+>/gu, " "),
@@ -171,6 +175,21 @@ function secIdentity(match: { cik: string; ticker: string; name?: string }): Ins
     providerIds: [{ provider: "sec-edgar", idKind: "cik", value: match.cik }],
     aliases: [{ provider: "sec-edgar", idKind: "ticker", value: match.ticker }],
   };
+}
+
+function truncateText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+  const trimmed = value.slice(0, maxChars).trimEnd();
+  return `${trimmed}...`;
+}
+
+function secFilingExcerpt(normalized: string, form: SecFiling["form"]): string {
+  const sectionPattern =
+    form === "10-K" ? /ITEM\s+7\s*\S*\s*MANAGEMENT/u : /ITEM\s+2\s*\S*\s*MANAGEMENT/u;
+  const sectionStart = sectionPattern.exec(normalized)?.index ?? 0;
+  return truncateText(normalized.slice(sectionStart), SEC_FILING_SNIPPET_CHARS);
 }
 
 async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
@@ -271,7 +290,8 @@ function secFilingOutput(
 ): EvidenceRequestToolOutput {
   const identity = secIdentity(match);
   const normalized = normalizeFilingText(filingText.payload);
-  const excerpt = normalized.slice(0, 6000);
+  const excerpt = secFilingExcerpt(normalized, filing.form);
+  const summaryExcerpt = truncateText(excerpt, SEC_FILING_SUMMARY_EXCERPT_CHARS);
   const title = `${command.symbol} latest SEC ${filing.form}`;
   const source: Source = {
     id: `extended-sec-edgar-${command.symbol.toLowerCase()}-latest-filing`,
@@ -290,7 +310,7 @@ function secFilingOutput(
   const item: ExtendedEvidenceItem = {
     category: "sec-edgar",
     title,
-    summary: `${source.summary} Filing excerpt: ${excerpt}`,
+    summary: `${source.summary} Filing excerpt: ${summaryExcerpt}`,
     sourceIds: [source.id],
     observedAt: source.fetchedAt,
     metrics: {

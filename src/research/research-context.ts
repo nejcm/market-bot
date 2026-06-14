@@ -807,6 +807,12 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
   return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip.${floor}`;
 }
 
+function buildPredictionRepairInstruction(context: ResearchContext): string {
+  const subjects = context.depthProfile.predictionSubjects.join(", ");
+  const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
+  return `Return a complete final report with exactly ${String(context.depthProfile.minimumPredictions)} valid predictions. Do not omit the predictions array, and do not return a partial patch. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
+}
+
 export function buildStagePrompt(
   stage: StageLabel,
   command: ResearchCommand,
@@ -827,7 +833,7 @@ export function buildStagePrompt(
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
       ? {
           requiredPredictionCount: context.depthProfile.minimumPredictions,
-          instruction: `Return a complete final report with exactly ${String(context.depthProfile.minimumPredictions)} valid predictions. Do not omit the predictions array, and do not return a partial patch. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it, and keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`,
+          instruction: buildPredictionRepairInstruction(context),
         }
       : undefined;
   const requiredShape = (() => {

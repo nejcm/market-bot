@@ -183,6 +183,7 @@ export type EvidenceQuality = "high" | "medium" | "low";
 
 export type ExtendedEvidenceCategory =
   | "sec-edgar"
+  | "valuation"
   | "equity-events"
   | "fred-macro"
   | "options-iv"

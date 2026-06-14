@@ -375,11 +375,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       context = { ...context, historicalContext };
     }
     const cap = spotlightCap(input.command, input.config);
+    const { candidateLimit } = marketSpotlightOptions(input.config);
     spotlightCandidates = buildSpotlightCandidates({
       marketSnapshots: collectedSources.marketSnapshots.filter(
         (snapshot) => snapshot.assetClass === input.command.assetClass,
       ),
       historicalContext,
+      candidateLimit,
       ...(alpha.watchlist !== undefined ? { alphaWatchlist: alpha.watchlist } : {}),
     });
     const spotlight = await runSpotlightSelection(
@@ -404,6 +406,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           (snapshot) => snapshot.assetClass === input.command.assetClass,
         ),
         historicalContext,
+        candidateLimit,
         ...(alpha.watchlist !== undefined ? { alphaWatchlist: alpha.watchlist } : {}),
       });
       spotlightSelection = refreshSpotlightSelection(spotlightSelection, spotlightCandidates);

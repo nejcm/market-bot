@@ -202,13 +202,16 @@ export function buildSpotlightCandidates(input: {
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly historicalContext?: HistoricalResearchContext;
   readonly alphaWatchlist?: SpotlightAlphaWatchlist;
+  // Keep only the top-N ranked candidates (after dedupe) for the selector prompt.
+  // Undefined/0 keeps every candidate; ranking order is preserved either way.
+  readonly candidateLimit?: number;
 }): readonly SpotlightCandidate[] {
   const alphaBySymbol = new Map(
     (input.alphaWatchlist?.candidates ?? []).map((item) => [item.symbol, item.annotation]),
   );
   const seen = new Set<string>();
 
-  return rankMovers(input.marketSnapshots, input.marketSnapshots.length)
+  const candidates = rankMovers(input.marketSnapshots, input.marketSnapshots.length)
     .map((mover): SpotlightCandidate | undefined => {
       const symbol = mover.snapshot.symbol.toUpperCase();
       if (seen.has(symbol)) {
@@ -250,6 +253,9 @@ export function buildSpotlightCandidates(input: {
       };
     })
     .filter((candidate): candidate is SpotlightCandidate => candidate !== undefined);
+
+  const limit = input.candidateLimit;
+  return limit !== undefined && limit > 0 ? candidates.slice(0, limit) : candidates;
 }
 
 function selectionArray(value: unknown): readonly unknown[] | undefined {

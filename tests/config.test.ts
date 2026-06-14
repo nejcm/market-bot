@@ -201,6 +201,7 @@ describe("resolveConfig", () => {
     expect(resolveConfig({}).marketSpotlightOptions).toEqual({
       briefLimit: 2,
       deepLimit: 4,
+      candidateLimit: 40,
     });
     expect(resolveConfig({}).historyOptions).toEqual({
       tickerRecentLimit: 3,
@@ -216,6 +217,7 @@ describe("resolveConfig", () => {
       resolveConfig({
         MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT: "1",
         MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT: "3",
+        MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT: "25",
         MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT: "2",
         MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT: "4",
         MARKET_BOT_HISTORY_RECENT_DAYS: "45",
@@ -226,6 +228,7 @@ describe("resolveConfig", () => {
       marketSpotlightOptions: {
         briefLimit: 1,
         deepLimit: 3,
+        candidateLimit: 25,
       },
       historyOptions: {
         tickerRecentLimit: 2,

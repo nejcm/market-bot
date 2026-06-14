@@ -42,6 +42,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` | `2` | Max AI-selected Market Spotlights for brief daily/weekly market updates. Set `0` to disable spotlights. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | `4` | Max AI-selected Market Spotlights for deep daily/weekly market updates. Set `0` to disable spotlights. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` | `40` | Top-ranked mover candidates fed to the spotlight selector. Caps selector prompt size by dropping long-tail movers the model never picks. Set `0` to pass every candidate. |
 | `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` | `3` | Recent same-symbol ticker artifacts to include in ticker historical context. |
 | `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT` | `5` | Recent daily/weekly market-update artifacts to include in market historical context. |
 | `MARKET_BOT_HISTORY_RECENT_DAYS` | `90` | Lookback window for recent historical run artifacts. |

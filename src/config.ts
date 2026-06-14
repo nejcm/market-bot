@@ -47,6 +47,10 @@ export interface AlphaSearchOptions {
 export interface MarketSpotlightOptions {
   readonly briefLimit: number;
   readonly deepLimit: number;
+  // Top-ranked mover candidates fed to the spotlight selector. Caps prompt size: the
+  // Full mover set (100+ snapshots) overwhelms the quick model with long-tail noise it
+  // Never selects from. `0` disables the cap (pass every candidate).
+  readonly candidateLimit: number;
 }
 
 export interface HistoryOptions {
@@ -119,6 +123,7 @@ const DEFAULT_ALPHA_SEARCH_MIN_MARKET_CAP = 50_000_000;
 const DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP = 10_000_000_000;
 const DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT = 2;
 const DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT = 4;
+const DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT = 40;
 const DEFAULT_HISTORY_TICKER_RECENT_LIMIT = 3;
 const DEFAULT_HISTORY_MARKET_RECENT_LIMIT = 5;
 const DEFAULT_HISTORY_RECENT_DAYS = 90;
@@ -291,6 +296,7 @@ export function defaultMarketSpotlightOptions(): MarketSpotlightOptions {
   return {
     briefLimit: DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT,
     deepLimit: DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT,
+    candidateLimit: DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT,
   };
 }
 
@@ -380,6 +386,10 @@ function resolveMarketSpotlightOptions(
     deepLimit: readNonNegativeInteger(
       env.MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT,
       DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT,
+    ),
+    candidateLimit: readNonNegativeInteger(
+      env.MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT,
+      DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT,
     ),
   };
 }

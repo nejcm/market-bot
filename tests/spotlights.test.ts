@@ -153,6 +153,50 @@ describe("spotlight candidates", () => {
     });
   });
 
+  test("caps candidates to the top-ranked movers when candidateLimit is set", () => {
+    const snapshots = [
+      marketSnapshot({
+        sourceId: "market-a",
+        symbol: "AAA",
+        changePercent24h: 10,
+        volume: 2_000_000,
+      }),
+      marketSnapshot({
+        sourceId: "market-b",
+        symbol: "BBB",
+        changePercent24h: 8,
+        volume: 2_000_000,
+      }),
+      marketSnapshot({
+        sourceId: "market-c",
+        symbol: "CCC",
+        changePercent24h: 6,
+        volume: 2_000_000,
+      }),
+      marketSnapshot({
+        sourceId: "market-d",
+        symbol: "DDD",
+        changePercent24h: 4,
+        volume: 2_000_000,
+      }),
+      marketSnapshot({
+        sourceId: "market-e",
+        symbol: "EEE",
+        changePercent24h: 2,
+        volume: 2_000_000,
+      }),
+    ];
+
+    const uncapped = buildSpotlightCandidates({ marketSnapshots: snapshots });
+    expect(uncapped).toHaveLength(5);
+
+    const capped = buildSpotlightCandidates({ marketSnapshots: snapshots, candidateLimit: 3 });
+    expect(capped.map((candidate) => candidate.symbol)).toEqual(
+      uncapped.slice(0, 3).map((candidate) => candidate.symbol),
+    );
+    expect(capped).toHaveLength(3);
+  });
+
   test("parses selector output with duplicate, unknown, and cap-overflow audit failures", () => {
     const candidates = buildSpotlightCandidates({
       marketSnapshots: [

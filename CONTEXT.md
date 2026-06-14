@@ -24,7 +24,7 @@ A public market quantity value used to resolve a Prediction. An Observation can 
 
 ## Prediction
 
-An observable forecast whose scored event is defined by `measurableAs`. The persisted public `claim` is display text rendered from that DSL expression, not a model-authored source of truth. `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event.
+- `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event. The public `claim` is rendered from `measurableAs`, not model-authored ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)). Depth profiles set a soft `targetPredictions` count; below-target runs disclose `predictionShortfall` rather than padding ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)).
 
 ## Calibration
 
@@ -42,7 +42,7 @@ The umbrella term for every way a run reads curated prior state back in: the His
 
 ## Historical Research Context
 
-Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts; the prompt-time surface of Cross-run Intelligence (above). In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
+Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts; the prompt-time surface of Cross-run Intelligence (above). In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. Selection reasons include recency (`recent`, `anchor-Nm`), topical relevance (`same-symbol`, `spotlight-symbol`, `same-cadence`, `cross-cadence`), and `miss-correction` for recent resolved-miss runs preserved against same-day rerun eviction. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
 
 ## Run Artifact
 

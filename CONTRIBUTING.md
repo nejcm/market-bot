@@ -1,5 +1,7 @@
 # Contributing
 
+Thank you for your interest in contributing. By submitting a pull request, you agree that your contributions are licensed under the project's [MIT license](./LICENSE).
+
 ## Setup
 
 ```sh
@@ -46,3 +48,7 @@ Rules: lowercase subject, no trailing period, max 72 characters.
 ## CI
 
 All six CI jobs must pass before merging: **lint**, **format**, **typecheck**, **test**, **knip**, **audit**.
+
+## Security
+
+Report vulnerabilities privately — see [SECURITY.md](./SECURITY.md). Do not open public issues for security-sensitive findings.

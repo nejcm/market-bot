@@ -1,7 +1,20 @@
 {
   "name": "market-bot",
   "version": "0.1.1",
-  "private": true,
+  "description": "Research-only CLI for sourced market updates, ticker briefs, observable predictions, and calibration",
+  "keywords": [
+    "bun",
+    "calibration",
+    "cli",
+    "finance",
+    "market-research",
+    "predictions"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nejcm/market-bot.git"
+  },
   "bin": {
     "market-bot": "./src/cli.ts"
   },

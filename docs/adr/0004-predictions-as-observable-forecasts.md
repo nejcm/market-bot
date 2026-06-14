@@ -1,6 +1,7 @@
 # ADR 0004 — Predictions as observable forecasts, not advice
 
-**Status:** Accepted
+**Status:** Accepted  
+**Amended by:** [ADR 0020 (Prediction Claim Rendered From DSL)](./0020-claim-rendered-from-dsl.md), [ADR 0021 (Prediction Count Is a Soft Target)](./0021-prediction-count-soft-target.md)
 
 ## Context
 

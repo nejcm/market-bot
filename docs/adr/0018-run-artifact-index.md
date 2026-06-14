@@ -45,7 +45,7 @@ Configuration:
 - Hot queries can skip full-tree JSON parsing when the index is fresh.
 - Operators must run `index rebuild` once to bootstrap the DB; write-through updates runs
   incrementally afterward.
-- Schema changes bump `PRAGMA user_version`; mismatched DBs warn and fall back until rebuild.
+- Schema changes bump `PRAGMA user_version`; mismatched DBs warn and fall back until rebuild. Version 5 indexes prediction text rendered from `measurableAs` ([ADR 0020](./0020-claim-rendered-from-dsl.md)).
 - FTS5 (`search_fts`) is maintained on rebuild for future ranking work; substring search is the
   parity path today.
 

@@ -148,9 +148,11 @@ Useful knobs:
 | `MARKET_BOT_CACHE_DIR`                                                               | Raw source cache directory, default `data/cache`.                                                                  |
 | `MARKET_BOT_CACHE_DISABLE`                                                           | Set `1` or `true` to bypass cache.                                                                                 |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS`                                                     | Stale cache fallback window after live fetch failure.                                                              |
-| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for daily and weekly updates.                                                   |
+| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for daily and weekly updates. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT`                                      | Top-ranked mover candidates fed to the spotlight selector (`0` = all).                                           |
 | `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` / `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT`  | Caps recent prior run artifacts used as Historical Research Context.                                               |
 | `MARKET_BOT_HISTORY_RECENT_DAYS` / `MARKET_BOT_HISTORY_ANCHOR_MONTHS`                | Controls recent and older anchor history selection.                                                                |
+| `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT`                                         | Preserves recent resolved-miss runs against same-day rerun eviction (`0` = off).                                   |
 | `MARKET_BOT_MARKETAUX_API_TOKEN`                                                     | Enables MarketAux news.                                                                                            |
 | `MARKET_BOT_FINNHUB_API_TOKEN`                                                       | Enables Finnhub news.                                                                                              |
 | `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY`                          | Enables supplemental Massive equity snapshots and news. `MARKET_BOT_POLYGON_API_KEY` is a legacy alias.            |
@@ -178,7 +180,7 @@ Ticker runs also collect Extended Evidence:
 
 | Asset class | Extended Evidence                                                                                                                                         |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, and Tradier options IV. |
+| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, and Valuation Evidence when market cap and SEC fundamentals are both available. |
 | `crypto`    | FRED macro observations and Glassnode on-chain metrics.                                                                                                   |
 
 Extended Evidence is not collected for daily or weekly market updates. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
@@ -194,7 +196,7 @@ Fetch behavior:
 - `withCache` stores raw JSON by UTC date and a v2 canonical request hash that includes the adapter, strips credential-only query params, and keeps request-shaping params.
 - Same-day equivalent provider requests can reuse cache across daily, weekly, and ticker runs; broader/narrower provider payloads are not derived from each other.
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
-- Missing MarketAux or Finnhub tokens are reported as `SourceGap`s. Yahoo news still runs.
+- Missing MarketAux or Finnhub tokens are reported as `no-cap` `SourceGap`s. Yahoo news still runs.
 - Missing Massive keys are silent because Massive is supplemental-only; configured Massive failures are reported as `SourceGap`s with no evidence-quality cap.
 - Finnhub news is capped after normalization because the used Finnhub news endpoints do not expose a count-limit parameter.
 - Ticker news prefers sources whose title, summary, snippet, or source symbol mentions the ticker before provider round-robin selection. News is also checked against a persistent seen-news index at `data/news-seen.json` by default, or `MARKET_BOT_NEWS_SEEN_PATH` when set. Exact canonical-URL repeats are suppressed only within the same research lane for 30 days by default. The index is updated after report artifacts are written, so failed runs do not hide future news. If every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
@@ -205,7 +207,7 @@ Historical Research Context reads prior run artifacts from `MARKET_BOT_DATA_DIR`
 
 The prompt receives compact history: prior summaries, findings, risks, catalysts, confidence, data gaps, scored prediction status, key extras, and selected numeric snapshots. History can inform forecast wording and probability calibration, but prediction counts, subjects, and horizons remain governed by run config.
 
-Each selected prior run carries structured selection reasons: recency reasons (`recent`, `anchor-Nm`) plus topical relevance reasons (`same-symbol`, `spotlight-symbol`, `same-cadence`, `cross-cadence`). The context's audit block records how many runs each reason selected, how many carry a resolved miss (`resolvedMissRunCount`), and the total disclosed gap count, so `trace.json` shows why each prior run was pulled in without re-deriving it.
+Each selected prior run carries structured selection reasons: recency reasons (`recent`, `anchor-Nm`) plus topical relevance reasons (`same-symbol`, `spotlight-symbol`, `same-cadence`, `cross-cadence`). Up to `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT` recent resolved-miss runs are also kept with a `miss-correction` reason when same-day reruns would otherwise evict them from the recency window. The context's audit block records how many runs each reason selected, how many carry a resolved miss (`resolvedMissRunCount`), how many were preserved by the miss-correction lane (`missCorrectionSelectedCount`), and the total disclosed gap count, so `trace.json` shows why each prior run was pulled in without re-deriving it.
 
 Resolved prior **misses** are surfaced as explicit error-correction signal in the prompt — the model is asked to diagnose why a prior view was wrong before restating a similar one. Two non-overlapping blocks: ticker runs get an instrument-scoped block on the command's own symbol; daily/weekly runs get a market-scoped block on their configured index/macro/crypto forecast subjects, drawn only from prior same-cadence, same-asset market updates. Hits are never itemized here — they inform the run only through aggregate calibration.
 
@@ -219,7 +221,7 @@ The history JSON index and SQLite index both support local structured text searc
 
 Ticker jobs include recent same-symbol ticker runs plus same-asset daily/weekly market updates. This context is loaded before the Evidence Request Loop, so eligible deep ticker runs can ask for extra public evidence in response to prior-run changes.
 
-Daily and weekly jobs include same-asset market updates, with same-cadence runs prioritized. Market Spotlight candidates are built only from the current collected market snapshot universe and may be enriched with mover features, benchmark context, history availability, and alpha-search watchlist annotations. Alpha-search and history can enrich a candidate, but cannot create one without current market evidence.
+Daily and weekly jobs include same-asset market updates, with same-cadence runs prioritized. Market Spotlight candidates are built only from the current collected market snapshot universe and may be enriched with mover features, benchmark context, history availability, and alpha-search watchlist annotations. Alpha-search and history can enrich a candidate, but cannot create one without current market evidence. `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` caps the ranked mover list passed to the selector before the model runs (`0` passes every candidate).
 
 The `spotlight-selection` quick-model stage runs before Domain Playbooks when a daily or weekly run has candidates and a nonzero spotlight cap. It may select zero candidates. Unknown symbols, duplicates, cap overflow, malformed JSON, and unknown source IDs are rejected into `trace.json`; the run continues with valid selections or no spotlights.
 
@@ -234,10 +236,10 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/yahoo.ts` normalizes Yahoo quote payloads and fetches equity closes for scoring.
 - `src/sources/coingecko.ts` normalizes CoinGecko market payloads and fetches crypto closes for scoring.
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
-- `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL, suppress recently seen repeats, and preserve provider aliases.
+- `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL and by normalized title when the title carries enough signal, merge duplicates while preserving the first canonical URL and provider aliases, and suppress recently seen repeats.
 - `src/sources/massive.ts` normalizes Massive stock snapshots and equity news from `api.massive.com`. Massive was formerly Polygon.io.
 - `src/sources/market-context.ts` collects FRED macro Market Context for daily and weekly market updates.
-- `src/sources/extended-evidence.ts` composes ticker-only Extended Evidence from separate provider files under `src/sources/extended-evidence/` for SEC/EDGAR, Finnhub events, FRED, Tradier IV, and Glassnode.
+- `src/sources/extended-evidence.ts` composes ticker-only Extended Evidence from separate provider files under `src/sources/extended-evidence/` for SEC/EDGAR, Finnhub events, FRED, Tradier IV, Glassnode, and deterministic Valuation Evidence from market cap plus SEC fundamentals.
 - `src/sources/providers.ts` lists Source Provider modules and their optional capabilities.
 - `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.
 
@@ -258,6 +260,7 @@ The ranker:
 - caps unusual-volume boost at `0.25` and gap boost at `0.20`, then scores as `baseScore * (1 + unusualVolumeBoost + gapBoost)`;
 - sorts by score descending, then symbol ascending;
 - assigns 1-based ranks after slicing to the configured limit;
+- stamps each mover snapshot with the asset-class market-data provider (`yahoo` or `coingecko`) for analytics and source inventory;
 - includes the score components and short deterministic reasons in the model evidence payload.
 
 Weekly reports currently reuse the same underlying mover inputs as daily reports. The report records that limitation in `dataGaps`.
@@ -309,7 +312,7 @@ Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 
-The prediction count is a soft target, not a hard floor ([ADR 0021](./adr/0021-prediction-count-soft-target.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and discloses a `predictionShortfall` data gap rather than padding with coin-flip (≈0.5) predictions.
+The prediction count is a soft target, not a hard floor ([ADR 0021](./adr/0021-prediction-count-soft-target.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and discloses a `predictionShortfall` data gap rather than padding with coin-flip (≈0.5) predictions. Report assembly also rejects adjacent same-subject direction forecasts whose horizons are fewer than two trading days apart.
 
 ## Predictions
 
@@ -332,9 +335,10 @@ Prediction validation checks:
 - `kind`, `subject`, and `horizonTradingDays` match the parsed expression;
 - horizon is an integer from 1 to 20 trading days;
 - probability is between 0 and 1 and means `P(measurableAs is TRUE)`;
-- source IDs exist in the report source list.
+- source IDs exist in the report source list;
+- direction forecasts on the same subject are at least two trading days apart.
 
-Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output. The stored public `claim` remains present for compatibility, but it is generated from the parsed `measurableAs`; model-authored claim text is ignored. Legacy artifact display and indexes render from `measurableAs` when parseable and fall back to the stored `claim` otherwise.
+Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output. The stored public `claim` remains present for compatibility, but it is generated from the parsed `measurableAs`; model-authored claim text is ignored ([ADR 0020](./adr/0020-claim-rendered-from-dsl.md)). Legacy artifact display and indexes render from `measurableAs` when parseable and fall back to the stored `claim` otherwise.
 
 ## Report validation and rendering
 
@@ -382,7 +386,7 @@ data/runs/<run-id>/
 
 `runId` is based on the current ISO timestamp plus a short random suffix.
 
-`trace.json` records command metadata, model names, stage names, source gaps, historical-context audit metadata, Market Spotlight selector audit metadata, Domain Playbook selector audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health, and run shape. `stages.json` includes `playbook-selection` and, when it runs, `spotlight-selection` model output, so selector token and cost estimates are included in run totals.
+`trace.json` records command metadata, model names, stage names, source gaps, historical-context audit metadata, Market Spotlight selector audit metadata, Domain Playbook selector audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `startedAt` and `completedAt` use ISO timestamps; `completedAt` is recorded when artifact writing finishes so duration reflects the full run, not just model stages. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health (`targetCount` / `targetMet`), and run shape. `stages.json` includes `playbook-selection` and, when it runs, `spotlight-selection` model output, so selector token and cost estimates are included in run totals.
 
 ## Scoring
 

@@ -63,7 +63,16 @@ function formatUsd(value: number): string {
   if (abs >= 1_000_000) {
     return `$${(value / 1_000_000).toFixed(1)}M`;
   }
+  if (abs >= 1000) {
+    return `$${(value / 1000).toFixed(1)}K`;
+  }
   return `$${value.toFixed(0)}`;
+}
+
+function hasRequiredSecMetrics(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): boolean {
+  return REQUIRED_SEC_METRICS.every((metric) => readMetric(metrics, metric) !== undefined);
 }
 
 export function addValuationEvidence(
@@ -76,7 +85,11 @@ export function addValuationEvidence(
   }
 
   const snapshot = tickerSnapshot(command, marketSnapshots);
-  const secItem = extendedEvidence?.items.find((item) => item.category === "sec-edgar");
+  // Prefer a sec-edgar item that actually carries fundamentals; multiple sec-edgar
+  // Items can coexist (e.g. a filing-excerpt item alongside the fundamentals item),
+  // So picking the first unconditionally could miss the metrics-bearing one.
+  const secItems = extendedEvidence?.items.filter((item) => item.category === "sec-edgar") ?? [];
+  const secItem = secItems.find((item) => hasRequiredSecMetrics(item.metrics)) ?? secItems[0];
   const marketCap = snapshot?.marketCap;
   const revenue = readMetric(secItem?.metrics, "revenue");
   const cash = readMetric(secItem?.metrics, "cash");
@@ -106,19 +119,30 @@ export function addValuationEvidence(
     return { extendedEvidence: mergedEvidence, sourceGaps: gaps };
   }
 
-  const annualizedRevenue = revenue * 4;
+  // Annualize the latest reported revenue by its actual period length, not a blanket
+  // X4: SEC fundamentals report the latest filed fact regardless of duration, so the
+  // Value can be a full-year 10-K, a year-to-date 10-Q, or a single quarter. Without
+  // A known period we treat it as already annual rather than risk ~4x inflation.
+  const revenuePeriodMonths = readMetric(secItem.metrics, "revenuePeriodMonths");
+  const annualizationFactor =
+    revenuePeriodMonths !== undefined && revenuePeriodMonths > 0 ? 12 / revenuePeriodMonths : 1;
+  const annualizedRevenue = revenue * annualizationFactor;
   const enterpriseValue = marketCap + debt - cash;
   const evToAnnualizedRevenue = ratio(enterpriseValue, annualizedRevenue);
   const marketCapToAnnualizedRevenue = ratio(marketCap, annualizedRevenue);
   const debtToMarketCap = ratio(debt, marketCap);
   const netDebt = debt - cash;
   const netDebtToMarketCap = ratio(netDebt, marketCap);
+  const revenuePeriodLabel =
+    revenuePeriodMonths !== undefined
+      ? `${revenuePeriodMonths}-month revenue ${formatUsd(revenue)}, `
+      : "";
   const item: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
     summary:
       `Valuation Evidence: market cap ${formatUsd(marketCap)}, enterprise value ${formatUsd(enterpriseValue)}, ` +
-      `annualized latest-quarter revenue ${formatUsd(annualizedRevenue)}, EV/annualized revenue ${fixed(evToAnnualizedRevenue)}, ` +
+      `${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, EV/annualized revenue ${fixed(evToAnnualizedRevenue)}, ` +
       `market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, ` +
       `net debt/market cap ${fixed(netDebtToMarketCap)}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
@@ -129,8 +153,9 @@ export function addValuationEvidence(
       debt,
       netDebt,
       enterpriseValue,
-      latestQuarterRevenue: revenue,
-      annualizedLatestQuarterRevenue: annualizedRevenue,
+      latestPeriodRevenue: revenue,
+      annualizedRevenue,
+      ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
       ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),
       ...(marketCapToAnnualizedRevenue !== undefined ? { marketCapToAnnualizedRevenue } : {}),
       ...(debtToMarketCap !== undefined ? { debtToMarketCap } : {}),

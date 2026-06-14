@@ -931,6 +931,38 @@ describe("SEC fundamental evidence", () => {
       "Missing comparable SEC company facts for YoY deltas: revenue",
     );
   });
+
+  test("reports the latest revenue fact's reporting-period length in months", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(90, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-29",
+                }),
+                secFact(100, { start: "2026-04-01", end: "2026-06-29" }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.revenue).toBe(100);
+    expect(result?.metrics.revenuePeriodMonths).toBe(3);
+  });
+
+  test("omits revenue period length when the latest fact has no reporting span", () => {
+    const result = summarizeSecFundamentals(secCompanyFactsPayload());
+
+    expect(result?.metrics.revenue).toBe(100);
+    expect(result?.metrics.revenuePeriodMonths).toBeUndefined();
+  });
 });
 
 describe("extended evidence provider collection", () => {

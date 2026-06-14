@@ -6,6 +6,7 @@ import {
   readAlphaSearchProfileCoverage,
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
+import { isRecord } from "../sources/guards";
 
 function sourceRefs(sourceIds: readonly string[]): string {
   return sourceIds.map((sourceId) => `[${markdownText(sourceId)}]`).join(" ");
@@ -21,10 +22,6 @@ function markdownText(value: string): string {
     }
     return `${String.fromCodePoint(92)}${char}`;
   });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function readStringArray(value: unknown): readonly string[] {

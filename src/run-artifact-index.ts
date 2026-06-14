@@ -1,105 +1,42 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, stat } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
-import { Database, type Statement } from "bun:sqlite";
+import { mkdir, readdir } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
 import {
   isMarketUpdateJobType,
   type AssetClass,
   type JobType,
-  type KeyFinding,
-  type Prediction,
   type PredictionKind,
-  type ResearchReport,
-  type Source,
 } from "./domain/types";
+import { dataRootFromRunsDir } from "./data-paths";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";
-import { loadRunArtifact } from "./run-artifacts";
+import {
+  finalizeStatement,
+  INDEX_SCHEMA_VERSION,
+  openRunArtifactIndexDatabase as openDatabase,
+  resetRunArtifactIndexSchema as resetSchema,
+} from "./run-artifact-index-schema";
+import { indexIsFresh } from "./run-artifact-index-freshness";
+import { indexRowsForRun } from "./run-artifact-index-rows";
+import type {
+  PredictionRow,
+  RebuildOptions,
+  RunIndexRows,
+  RunRow,
+  SearchEntryRow,
+  SearchScope,
+  SqlParam,
+} from "./run-artifact-index-types";
 import type { ResolvedPair } from "./scoring/calibration";
 import type { PredictionScore } from "./scoring/types";
-import { isRecord } from "./sources/guards";
 
-export const INDEX_SCHEMA_VERSION = 5;
+export { INDEX_SCHEMA_VERSION };
 const DEFAULT_INDEX_FILE = "index.sqlite";
-const BUSY_TIMEOUT_MS = 1000;
 const MAX_HISTORY_SEARCH_RESULTS = 100;
 const MAX_CONSOLE_SEARCH_RESULTS = 100;
 const SNIPPET_RADIUS = 72;
-
-const MUTABLE_SIDECARS = new Set([
-  "score.json",
-  "alpha-validation.json",
-  "normalized/candidate-profiles.json",
-]);
-
-type SearchScope = "console" | "history";
-type SqlParam = string | number | bigint | boolean | null | Uint8Array;
-
-interface ArtifactFileRow {
-  readonly run_id: string;
-  readonly path: string;
-  readonly size: number;
-  readonly modified_at: number;
-}
-
-interface RunRow {
-  readonly run_id: string;
-  readonly run_dir_name: string;
-  readonly generated_at: string | null;
-  readonly job_type: string | null;
-  readonly asset_class: string | null;
-  readonly symbol: string | null;
-  readonly confidence: string | null;
-  readonly depth: string | null;
-  readonly finding_count: number;
-  readonly prediction_count: number;
-  readonly source_count: number;
-  readonly data_gap_count: number;
-  readonly has_score: number;
-  readonly report_status: string;
-  readonly score_status: string;
-}
-
-interface PredictionRow {
-  readonly id: string;
-  readonly run_id: string;
-  readonly kind: string;
-  readonly subject: string;
-  readonly claim: string;
-  readonly probability: number;
-  readonly horizon_trading_days: number;
-  readonly measurable_as: string;
-  readonly source_ids_json: string;
-}
-
-interface ScoreRow {
-  readonly prediction_id: string;
-  readonly run_id: string;
-  readonly resolved: number;
-  readonly outcome: string | null;
-  readonly observed_at: string | null;
-  readonly scoring_version: number | null;
-}
-
-interface SearchEntryRow {
-  readonly entry_key: string;
-  readonly scope: SearchScope;
-  readonly id: string;
-  readonly run_id: string;
-  readonly generated_at: string;
-  readonly job_type: JobType;
-  readonly asset_class: AssetClass;
-  readonly symbol: string | null;
-  readonly section: string;
-  readonly label: string;
-  readonly text: string;
-  readonly source_ids_json: string;
-  readonly provider: string | null;
-  readonly source_kind: string | null;
-  readonly prediction_id: string | null;
-  readonly sequence: number;
-}
 
 export interface RebuildRunArtifactIndexResult {
   readonly dbPath: string;
@@ -107,10 +44,6 @@ export interface RebuildRunArtifactIndexResult {
   readonly malformedRunCount: number;
   readonly artifactFileCount: number;
   readonly searchEntryCount: number;
-}
-
-interface RebuildOptions {
-  readonly dbPath?: string;
 }
 
 export type RunArtifactIndexStatusState =
@@ -127,18 +60,6 @@ export interface RunArtifactIndexStatus {
   readonly currentSchemaVersion?: number;
   readonly rebuildCommand: string;
   readonly message: string;
-}
-
-interface RunIndexRows {
-  readonly run: RunRow;
-  readonly files: readonly ArtifactFileRow[];
-  readonly searchEntries: readonly SearchEntryRow[];
-  readonly predictions: readonly PredictionRow[];
-  readonly scores: readonly ScoreRow[];
-}
-
-function dataRootFromRunsDir(dataDir: string): string {
-  return basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
 }
 
 export function defaultRunArtifactIndexPath(dataDir: string): string {
@@ -219,134 +140,6 @@ export function readRunArtifactIndexStatus(
   }
 }
 
-function openDatabase(path: string, readonly: boolean): Database {
-  const db = readonly
-    ? new Database(path, { readonly: true })
-    : new Database(path, { create: true });
-  db.exec(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)}`);
-  if (!readonly) {
-    db.exec("PRAGMA journal_mode = WAL");
-  }
-  return db;
-}
-
-function schemaSql(): string {
-  return `
-    CREATE TABLE runs (
-      run_id TEXT PRIMARY KEY,
-      run_dir_name TEXT NOT NULL UNIQUE,
-      generated_at TEXT,
-      job_type TEXT,
-      asset_class TEXT,
-      symbol TEXT,
-      confidence TEXT,
-      depth TEXT,
-      finding_count INTEGER NOT NULL,
-      prediction_count INTEGER NOT NULL,
-      source_count INTEGER NOT NULL,
-      data_gap_count INTEGER NOT NULL,
-      has_score INTEGER NOT NULL,
-      report_status TEXT NOT NULL,
-      score_status TEXT NOT NULL
-    );
-
-    CREATE TABLE artifact_files (
-      run_id TEXT NOT NULL,
-      path TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      modified_at REAL NOT NULL,
-      PRIMARY KEY (run_id, path),
-      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE search_entries (
-      entry_key TEXT PRIMARY KEY,
-      scope TEXT NOT NULL,
-      id TEXT NOT NULL,
-      run_id TEXT NOT NULL,
-      generated_at TEXT NOT NULL,
-      job_type TEXT NOT NULL,
-      asset_class TEXT NOT NULL,
-      symbol TEXT,
-      section TEXT NOT NULL,
-      label TEXT NOT NULL,
-      text TEXT NOT NULL,
-      source_ids_json TEXT NOT NULL,
-      provider TEXT,
-      source_kind TEXT,
-      prediction_id TEXT,
-      sequence INTEGER NOT NULL,
-      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
-    );
-
-    CREATE VIRTUAL TABLE search_fts USING fts5(
-      text,
-      label,
-      content='search_entries',
-      content_rowid='rowid'
-    );
-
-    CREATE INDEX search_entries_scope_run_idx ON search_entries(scope, run_id);
-    CREATE INDEX search_entries_filters_idx ON search_entries(scope, symbol, asset_class, job_type, section, provider);
-
-    CREATE TABLE predictions (
-      id TEXT NOT NULL,
-      run_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      claim TEXT NOT NULL,
-      probability REAL NOT NULL,
-      horizon_trading_days INTEGER NOT NULL,
-      measurable_as TEXT NOT NULL,
-      source_ids_json TEXT NOT NULL,
-      PRIMARY KEY (run_id, id),
-      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE scores (
-      prediction_id TEXT NOT NULL,
-      run_id TEXT NOT NULL,
-      resolved INTEGER NOT NULL,
-      outcome TEXT,
-      observed_at TEXT,
-      scoring_version INTEGER,
-      PRIMARY KEY (run_id, prediction_id),
-      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX scores_resolved_idx ON scores(resolved, outcome);
-  `;
-}
-
-function resetSchema(db: Database): void {
-  db.exec(`
-    DROP TABLE IF EXISTS search_fts;
-    DROP TABLE IF EXISTS scores;
-    DROP TABLE IF EXISTS predictions;
-    DROP TABLE IF EXISTS search_entries;
-    DROP TABLE IF EXISTS artifact_files;
-    DROP TABLE IF EXISTS runs;
-    ${schemaSql()}
-  `);
-}
-
-function readDepth(report: ResearchReport): string | undefined {
-  const { extras } = report;
-  if (!isRecord(extras)) {
-    return;
-  }
-  const value = extras.depth;
-  return typeof value === "string" ? value : undefined;
-}
-
-function sourceIdsJson(sourceIds: readonly string[]): string {
-  return JSON.stringify(sourceIds);
-}
-
-function indexedSearchKeySuffix(key: string, index: number): string {
-  return `${key}:${String(index)}`;
-}
-
 function parseSourceIds(value: string): readonly string[] {
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -358,386 +151,8 @@ function parseSourceIds(value: string): readonly string[] {
   }
 }
 
-function predictionClaim(prediction: Prediction): string {
-  return renderClaimForMeasurableAs(prediction.measurableAs, prediction.claim) ?? prediction.claim;
-}
-
 function predictionClaimFromRow(row: PredictionRow): string {
   return renderClaimForMeasurableAs(row.measurable_as, row.claim) ?? row.claim;
-}
-
-function addSearchEntry(
-  rows: SearchEntryRow[],
-  scope: SearchScope,
-  report: ResearchReport,
-  section: string,
-  label: string,
-  text: string,
-  keySuffix: string,
-  sequence: number,
-  sourceIds: readonly string[] = [],
-  extras: Partial<
-    Pick<SearchEntryRow, "provider" | "source_kind" | "prediction_id" | "symbol">
-  > = {},
-): void {
-  if (text.trim() === "") {
-    return;
-  }
-  const id = `${report.runId}:${scope}:${section}:${keySuffix}`;
-  const symbol = extras.symbol ?? report.symbol?.toUpperCase() ?? null;
-  rows.push({
-    entry_key: `${scope}:${id}`,
-    scope,
-    id,
-    run_id: report.runId,
-    generated_at: report.generatedAt,
-    job_type: report.jobType,
-    asset_class: report.assetClass,
-    symbol,
-    section,
-    label,
-    text,
-    source_ids_json: sourceIdsJson(sourceIds),
-    provider: extras.provider ?? null,
-    source_kind: extras.source_kind ?? null,
-    prediction_id: extras.prediction_id ?? null,
-    sequence,
-  });
-}
-
-function addFindingEntries(
-  rows: SearchEntryRow[],
-  scope: SearchScope,
-  report: ResearchReport,
-  section: "keyFindings" | "bullCase" | "bearCase" | "risks" | "catalysts",
-  label: string,
-  findings: readonly KeyFinding[],
-): void {
-  for (const [index, finding] of findings.entries()) {
-    addSearchEntry(
-      rows,
-      scope,
-      report,
-      section,
-      `${label} ${String(index + 1)}`,
-      finding.text,
-      String(index),
-      index,
-      finding.sourceIds,
-    );
-  }
-}
-
-function openQuestions(
-  report: ResearchReport,
-  scores: readonly PredictionScore[],
-): readonly string[] {
-  const resolved = new Set(
-    scores.filter((score) => score.resolved).map((score) => score.predictionId),
-  );
-  return [
-    ...report.dataGaps.map((gap) => `Data gap: ${gap}`),
-    ...report.predictions
-      .filter((prediction) => !resolved.has(prediction.id))
-      .map((prediction) => `Unresolved prediction: ${predictionClaim(prediction)}`),
-  ];
-}
-
-function addPredictionEntries(
-  rows: SearchEntryRow[],
-  scope: SearchScope,
-  report: ResearchReport,
-  predictions: readonly Prediction[],
-): void {
-  for (const [index, prediction] of predictions.entries()) {
-    const label = scope === "console" ? `Observable forecast ${prediction.id}` : prediction.id;
-    const claim = predictionClaim(prediction);
-    const text = scope === "console" ? [claim, prediction.measurableAs].join(" ") : claim;
-    addSearchEntry(
-      rows,
-      scope,
-      report,
-      "predictions",
-      label,
-      text,
-      indexedSearchKeySuffix(prediction.id, index),
-      index,
-      prediction.sourceIds,
-      {
-        prediction_id: prediction.id,
-      },
-    );
-  }
-}
-
-function addSourceEntries(
-  rows: SearchEntryRow[],
-  scope: SearchScope,
-  report: ResearchReport,
-  sources: readonly Source[],
-): void {
-  for (const [index, source] of sources.entries()) {
-    const label = scope === "console" ? `Source ${source.id}` : source.id;
-    const text =
-      scope === "console"
-        ? [
-            source.title,
-            source.publisher,
-            source.provider,
-            source.summary,
-            source.snippet,
-            source.url,
-          ]
-            .filter((part): part is string => part !== undefined)
-            .join(" ")
-        : [source.title, source.summary, source.snippet].join(" ");
-    addSearchEntry(
-      rows,
-      scope,
-      report,
-      "sources",
-      label,
-      text,
-      indexedSearchKeySuffix(source.id, index),
-      index,
-      [source.id],
-      {
-        provider: source.provider ?? null,
-        source_kind: source.kind,
-        symbol: source.symbol?.toUpperCase() ?? report.symbol?.toUpperCase() ?? null,
-      },
-    );
-  }
-}
-
-function searchEntriesForReport(
-  report: ResearchReport,
-  scores: readonly PredictionScore[],
-  scope: SearchScope,
-): readonly SearchEntryRow[] {
-  const rows: SearchEntryRow[] = [];
-  addSearchEntry(rows, scope, report, "summary", "Summary", report.summary, "summary", 0);
-  addFindingEntries(
-    rows,
-    scope,
-    report,
-    "keyFindings",
-    scope === "console" ? "Key finding" : "keyFindings",
-    report.keyFindings,
-  );
-  addFindingEntries(
-    rows,
-    scope,
-    report,
-    "bullCase",
-    scope === "console" ? "Bull case" : "bullCase",
-    report.bullCase,
-  );
-  addFindingEntries(
-    rows,
-    scope,
-    report,
-    "bearCase",
-    scope === "console" ? "Bear case" : "bearCase",
-    report.bearCase,
-  );
-  addFindingEntries(
-    rows,
-    scope,
-    report,
-    "risks",
-    scope === "console" ? "Risk" : "risks",
-    report.risks,
-  );
-  addFindingEntries(
-    rows,
-    scope,
-    report,
-    "catalysts",
-    scope === "console" ? "Catalyst" : "catalysts",
-    report.catalysts,
-  );
-  if (scope === "history") {
-    for (const [index, gap] of report.dataGaps.entries()) {
-      addSearchEntry(
-        rows,
-        scope,
-        report,
-        "dataGaps",
-        `Data gap ${String(index + 1)}`,
-        gap,
-        String(index),
-        index,
-      );
-    }
-  }
-  addPredictionEntries(rows, scope, report, report.predictions);
-  addSourceEntries(rows, scope, report, report.sources);
-  if (scope === "console") {
-    for (const [index, gap] of report.dataGaps.entries()) {
-      addSearchEntry(
-        rows,
-        scope,
-        report,
-        "dataGaps",
-        `Data gap ${String(index + 1)}`,
-        gap,
-        String(index),
-        index,
-      );
-    }
-  }
-  if (scope === "history") {
-    for (const [index, question] of openQuestions(report, scores).entries()) {
-      addSearchEntry(
-        rows,
-        scope,
-        report,
-        "openQuestions",
-        `Open question ${String(index + 1)}`,
-        question,
-        String(index),
-        index,
-      );
-    }
-  }
-  return rows;
-}
-
-async function listArtifactFiles(
-  runDir: string,
-  runId: string,
-): Promise<readonly ArtifactFileRow[]> {
-  const rows: ArtifactFileRow[] = [];
-
-  async function visit(dir: string): Promise<void> {
-    const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
-    await Promise.all(
-      entries.map(async (entry) => {
-        const fullPath = join(dir, entry.name);
-        if (entry.isDirectory()) {
-          await visit(fullPath);
-          return;
-        }
-        if (!entry.isFile()) {
-          return;
-        }
-        const metadata = await stat(fullPath);
-        rows.push({
-          run_id: runId,
-          path: relative(runDir, fullPath).replaceAll("\\", "/"),
-          size: metadata.size,
-          modified_at: metadata.mtimeMs,
-        });
-      }),
-    );
-  }
-
-  await visit(runDir);
-  return rows.toSorted((left, right) => left.path.localeCompare(right.path));
-}
-
-function runRowFor(
-  runDirName: string,
-  loaded: Awaited<ReturnType<typeof loadRunArtifact>>,
-  files: readonly ArtifactFileRow[],
-): RunRow {
-  const { artifact } = loaded;
-  if (artifact === undefined) {
-    return {
-      run_id: runDirName,
-      run_dir_name: runDirName,
-      generated_at: null,
-      job_type: null,
-      asset_class: null,
-      symbol: null,
-      confidence: null,
-      depth: null,
-      finding_count: 0,
-      prediction_count: 0,
-      source_count: 0,
-      data_gap_count: 0,
-      has_score: files.some((file) => file.path === "score.json") ? 1 : 0,
-      report_status: loaded.status.report,
-      score_status: loaded.status.score,
-    };
-  }
-  const { report } = artifact;
-  return {
-    run_id: report.runId,
-    run_dir_name: runDirName,
-    generated_at: report.generatedAt,
-    job_type: report.jobType,
-    asset_class: report.assetClass,
-    symbol: report.symbol?.toUpperCase() ?? null,
-    confidence: report.confidence,
-    depth: readDepth(report) ?? null,
-    finding_count: report.keyFindings.length,
-    prediction_count: report.predictions.length,
-    source_count: report.sources.length,
-    data_gap_count: report.dataGaps.length,
-    has_score: files.some((file) => file.path === "score.json") ? 1 : 0,
-    report_status: loaded.status.report,
-    score_status: loaded.status.score,
-  };
-}
-
-function predictionRowsFor(
-  runId: string,
-  predictions: readonly Prediction[],
-): readonly PredictionRow[] {
-  const seenIds = new Set<string>();
-  return predictions.map((prediction, index) => {
-    const id = seenIds.has(prediction.id)
-      ? indexedSearchKeySuffix(prediction.id, index)
-      : prediction.id;
-    seenIds.add(prediction.id);
-    return {
-      id,
-      run_id: runId,
-      kind: prediction.kind,
-      subject: prediction.subject,
-      claim: predictionClaim(prediction),
-      probability: prediction.probability,
-      horizon_trading_days: prediction.horizonTradingDays,
-      measurable_as: prediction.measurableAs,
-      source_ids_json: sourceIdsJson(prediction.sourceIds),
-    };
-  });
-}
-
-function scoreRowsFor(runId: string, scores: readonly PredictionScore[]): readonly ScoreRow[] {
-  return scores.map((score) => ({
-    prediction_id: score.predictionId,
-    run_id: runId,
-    resolved: score.resolved ? 1 : 0,
-    outcome: score.outcome ?? null,
-    observed_at: score.observedAt ?? null,
-    scoring_version: score.scoringVersion ?? null,
-  }));
-}
-
-async function indexRowsForRun(dataDir: string, runDirName: string): Promise<RunIndexRows> {
-  const runDir = join(dataDir, runDirName);
-  const loaded = await loadRunArtifact(runDir);
-  const runId = loaded.artifact?.report.runId ?? runDirName;
-  const files = await listArtifactFiles(runDir, runId);
-  return {
-    run: runRowFor(runDirName, loaded, files),
-    files,
-    searchEntries:
-      loaded.artifact === undefined
-        ? []
-        : [
-            ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "console"),
-            ...searchEntriesForReport(loaded.artifact.report, loaded.artifact.scores, "history"),
-          ],
-    predictions:
-      loaded.artifact === undefined
-        ? []
-        : predictionRowsFor(runId, loaded.artifact.report.predictions),
-    scores: loaded.artifact === undefined ? [] : scoreRowsFor(runId, loaded.artifact.scores),
-  };
 }
 
 function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): void {
@@ -1027,10 +442,6 @@ export async function writeThroughRunArtifactIndex(
   }
 }
 
-function finalizeStatement(statement: Statement): void {
-  statement.finalize();
-}
-
 function warnIndexFallback(message: string): void {
   process.stderr.write(`Run artifact index: ${message}\n`);
 }
@@ -1055,82 +466,6 @@ function openReadableIndex(dataDir: string): Database | undefined {
   }
 }
 
-async function listRunDirNames(dataDir: string): Promise<readonly string[]> {
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .toSorted();
-}
-
-async function mutableSidecarMatches(
-  dataDir: string,
-  runDirName: string,
-  row: ArtifactFileRow,
-): Promise<boolean> {
-  const filePath = join(dataDir, runDirName, row.path);
-  try {
-    const metadata = await stat(filePath);
-    return metadata.isFile() && metadata.size === row.size && metadata.mtimeMs === row.modified_at;
-  } catch {
-    return false;
-  }
-}
-
-async function indexIsFresh(dataDir: string, db: Database): Promise<boolean> {
-  const version = db.query("PRAGMA user_version").get() as { readonly user_version: number } | null;
-  if (version?.user_version !== INDEX_SCHEMA_VERSION) {
-    warnIndexFallback(
-      `unsupported schema version ${String(version?.user_version ?? "unknown")}, falling back to disk scan`,
-    );
-    return false;
-  }
-
-  const diskDirs = await listRunDirNames(dataDir);
-  const indexedDirs = (
-    db.query("SELECT run_dir_name FROM runs ORDER BY run_dir_name").all() as readonly {
-      readonly run_dir_name: string;
-    }[]
-  ).map((row) => row.run_dir_name);
-  if (JSON.stringify(diskDirs) !== JSON.stringify(indexedDirs)) {
-    warnIndexFallback("index stale (run directory set mismatch), falling back to disk scan");
-    return false;
-  }
-
-  const runs = db.query("SELECT * FROM runs ORDER BY run_dir_name").all() as readonly RunRow[];
-  const sidecars = db
-    .query(
-      `SELECT run_id, path, size, modified_at
-       FROM artifact_files
-       WHERE path IN ('score.json', 'alpha-validation.json', 'normalized/candidate-profiles.json')`,
-    )
-    .all() as readonly ArtifactFileRow[];
-  const sidecarsByKey = new Map(sidecars.map((row) => [`${row.run_id}:${row.path}`, row]));
-
-  const checks = runs.flatMap((run) =>
-    [...MUTABLE_SIDECARS].map(async (path) => {
-      const indexed = sidecarsByKey.get(`${run.run_id}:${path}`);
-      const diskPath = join(dataDir, run.run_dir_name, path);
-      const exists = await stat(diskPath)
-        .then((metadata) => metadata.isFile())
-        .catch(() => false);
-      if (!exists && indexed === undefined) {
-        return true;
-      }
-      return (
-        indexed !== undefined && (await mutableSidecarMatches(dataDir, run.run_dir_name, indexed))
-      );
-    }),
-  );
-
-  const results = await Promise.all(checks);
-  if (!results.every(Boolean)) {
-    warnIndexFallback("index stale (mutable sidecar mismatch), falling back to disk scan");
-    return false;
-  }
-  return true;
-}
-
 async function withFreshIndex<T>(
   dataDir: string,
   read: (db: Database) => Promise<T>,
@@ -1140,7 +475,7 @@ async function withFreshIndex<T>(
     return;
   }
   try {
-    return (await indexIsFresh(dataDir, db)) ? await read(db) : undefined;
+    return (await indexIsFresh(dataDir, db, warnIndexFallback)) ? await read(db) : undefined;
   } catch (error: unknown) {
     warnIndexFallback(
       `index read failed (${error instanceof Error ? error.message : String(error)}), falling back to disk scan`,

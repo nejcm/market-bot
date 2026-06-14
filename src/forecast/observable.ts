@@ -1,136 +1,37 @@
 import type { Prediction, PredictionKind } from "../domain/types";
 import { stringArrayValue } from "../sources/guards";
+import type {
+  ObservableExpression,
+  ObservableForecast,
+  ObservableForecastIssue,
+  ObservableForecastPolicy,
+  ObservableForecastReadResult,
+  ObservableForecastResolution,
+  ObservableForecastResolved,
+  ObservableForecastUnresolved,
+  Observation,
+  ObservationStrategy,
+} from "./observable-types";
 
-export interface ObservableDirection {
-  readonly kind: "direction";
-  readonly subject: string;
-  readonly horizonTradingDays: number;
-}
-
-export interface ObservableRelative {
-  readonly kind: "relative";
-  readonly subjectA: string;
-  readonly subjectB: string;
-  readonly horizonTradingDays: number;
-}
-
-export interface ObservableVolatility {
-  readonly kind: "volatility";
-  readonly subject: string;
-  readonly horizonTradingDays: number;
-  readonly threshold: number;
-}
-
-export interface ObservableRange {
-  readonly kind: "range";
-  readonly subject: string;
-  readonly horizonTradingDays: number;
-  readonly lo: number;
-  readonly hi: number;
-}
-
-export interface ObservableMacro {
-  readonly kind: "macro";
-  readonly seriesId: string;
-  readonly horizonTradingDays: number;
-}
-
-export interface ObservableIv {
-  readonly kind: "iv";
-  readonly subject: string;
-  readonly horizonTradingDays: number;
-  readonly threshold: number;
-}
-
-export type ObservableExpression =
-  | ObservableDirection
-  | ObservableRelative
-  | ObservableVolatility
-  | ObservableRange
-  | ObservableMacro
-  | ObservableIv;
-
-export interface ObservableForecast {
-  readonly prediction: Prediction;
-  readonly expression: ObservableExpression;
-  readonly instruments: readonly string[];
-  readonly measurableAs: string;
-  readonly subject: string;
-  readonly horizonTradingDays: number;
-}
-
-export interface ObservableForecastPolicy {
-  readonly knownSourceIds?: ReadonlySet<string>;
-}
-
-export interface ObservableForecastIssue {
-  readonly predictionId?: string;
-  readonly code:
-    | "not-object"
-    | "missing-id"
-    | "invalid-kind"
-    | "missing-subject"
-    | "missing-measurable-as"
-    | "invalid-horizon"
-    | "invalid-probability"
-    | "unparseable-measurable"
-    | "field-mismatch"
-    | "unknown-source"
-    | "redundant-prediction";
-  readonly message: string;
-}
-
-export interface ObservableForecastReadResult {
-  readonly forecasts: readonly ObservableForecast[];
-  readonly predictions: readonly Prediction[];
-  readonly issues: readonly ObservableForecastIssue[];
-  readonly promptErrors: readonly string[];
-}
-
-export interface Observation {
-  readonly subject: string;
-  readonly date: string;
-  readonly value: number;
-}
-
-export interface ObservableForecastResolved {
-  readonly status: "resolved";
-  readonly outcome: "hit" | "miss";
-  readonly evidence: Record<string, unknown>;
-}
-
-export interface ObservableForecastUnresolved {
-  readonly status: "unresolved";
-  readonly reason: "missing-origin" | "missing-horizon" | "missing-window";
-  readonly missingInstruments: readonly string[];
-}
-
-export type ObservableForecastResolution =
-  | ObservableForecastResolved
-  | ObservableForecastUnresolved;
-
-export type PointObservationRequest =
-  | {
-      readonly kind: "fred";
-      readonly subject: string;
-      readonly observationSubject: string;
-    }
-  | {
-      readonly kind: "iv";
-      readonly subject: string;
-      readonly observationSubject: string;
-    };
-
-export type ObservationStrategy =
-  | {
-      readonly mode: "close-window";
-      readonly subjects: readonly string[];
-    }
-  | {
-      readonly mode: "point";
-      readonly requests: readonly PointObservationRequest[];
-      readonly includeOrigin: boolean;
-    };
+export type {
+  ObservableDirection,
+  ObservableExpression,
+  ObservableForecast,
+  ObservableForecastIssue,
+  ObservableForecastPolicy,
+  ObservableForecastReadResult,
+  ObservableForecastResolution,
+  ObservableForecastResolved,
+  ObservableForecastUnresolved,
+  ObservableIv,
+  ObservableMacro,
+  ObservableRange,
+  ObservableRelative,
+  ObservableVolatility,
+  Observation,
+  ObservationStrategy,
+  PointObservationRequest,
+} from "./observable-types";
 
 const SYMBOL = String.raw`([\w\^]+(?::[.\w]+)*)`;
 const N = String.raw`(\d+)`;

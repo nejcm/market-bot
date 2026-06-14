@@ -1,5 +1,6 @@
 import type { AssetClass, Depth } from "../domain/types";
 import type { HistorySection } from "../history/artifacts";
+import { isRecord } from "../sources/guards";
 
 export interface DailyCommand {
   readonly jobType: "daily";
@@ -102,10 +103,6 @@ export const SEARCH_JOB_TYPE_OPTIONS = ["", "daily", "weekly", "ticker", "alpha-
 
 export const USAGE =
   "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];

@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 import type {
   AssetClass,
   InstrumentIdentity,
@@ -9,27 +9,22 @@ import type {
   ResearchReport,
   Source,
 } from "../domain/types";
-import { renderClaimForMeasurableAs } from "../forecast/observable";
+import { dataRootFromRunsDir } from "../data-paths";
 import type { ModelProvider } from "../model/types";
 import { violatesResearchOnly } from "../domain/research-language";
+import {
+  buildReportSearchEntries,
+  openQuestions,
+  predictionClaim,
+  REPORT_SEARCH_SECTIONS,
+  type ReportSearchEntry,
+} from "../report-search-entries";
 import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
 import type { PredictionScore } from "../scoring/types";
+import { isRecord } from "../sources/guards";
 
-export const HISTORY_SECTIONS = [
-  "summary",
-  "keyFindings",
-  "bullCase",
-  "bearCase",
-  "risks",
-  "catalysts",
-  "dataGaps",
-  "predictions",
-  "sources",
-  "openQuestions",
-  "fundamentals",
-  "validation",
-] as const;
+export const HISTORY_SECTIONS = [...REPORT_SEARCH_SECTIONS, "fundamentals", "validation"] as const;
 
 export type HistorySection = (typeof HISTORY_SECTIONS)[number];
 
@@ -161,10 +156,6 @@ const HISTORY_DIR = "history";
 const INDEX_FILE = "index.json";
 const MAX_SEARCH_RESULTS = 100;
 
-function dataRootFromRunsDir(dataDir: string): string {
-  return basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
-}
-
 function historyDir(dataDir: string): string {
   return join(dataRootFromRunsDir(dataDir), HISTORY_DIR);
 }
@@ -175,10 +166,6 @@ function instrumentKey(assetClass: AssetClass, symbol: string): string {
 
 function instrumentFileName(key: string): string {
   return `${key.replace(":", "-").replaceAll(/[^A-Z0-9._-]/giu, "_")}.json`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
@@ -198,25 +185,6 @@ function recordArray(value: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter((item): item is Record<string, unknown> => isRecord(item))
     : [];
-}
-
-function predictionClaim(prediction: Prediction): string {
-  return renderClaimForMeasurableAs(prediction.measurableAs, prediction.claim) ?? prediction.claim;
-}
-
-function openQuestions(
-  report: ResearchReport,
-  scores: readonly PredictionScore[],
-): readonly string[] {
-  const resolved = new Set(
-    scores.filter((score) => score.resolved).map((score) => score.predictionId),
-  );
-  return [
-    ...report.dataGaps.map((gap) => `Data gap: ${gap}`),
-    ...report.predictions
-      .filter((prediction) => !resolved.has(prediction.id))
-      .map((prediction) => `Unresolved prediction: ${predictionClaim(prediction)}`),
-  ];
 }
 
 function reportInstrumentKeys(report: ResearchReport): readonly { key: string; symbol: string }[] {
@@ -291,65 +259,38 @@ function addEntry(
   });
 }
 
+function historyEntryForReportEntry(entry: ReportSearchEntry, index: number): HistorySearchEntry {
+  return {
+    id: `${entry.runId}:${entry.section}:${String(index)}`,
+    runId: entry.runId,
+    generatedAt: entry.generatedAt,
+    jobType: entry.jobType,
+    assetClass: entry.assetClass,
+    ...(entry.symbol !== undefined
+      ? {
+          symbol: entry.symbol,
+          instrumentKey: instrumentKey(entry.assetClass, entry.symbol),
+        }
+      : {}),
+    section: entry.section,
+    label: entry.label,
+    text: entry.text,
+    sourceIds: entry.sourceIds,
+    ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+    ...(entry.sourceKind !== undefined ? { sourceKind: entry.sourceKind } : {}),
+    ...(entry.predictionId !== undefined ? { predictionId: entry.predictionId } : {}),
+  };
+}
+
 function searchEntriesFor(
   report: ResearchReport,
   scores: readonly PredictionScore[],
   fundamentals: readonly Record<string, unknown>[],
   validation: readonly Record<string, unknown>[],
 ): readonly HistorySearchEntry[] {
-  const entries: HistorySearchEntry[] = [];
-  addEntry(entries, report, "summary", "Summary", report.summary);
-  for (const section of ["keyFindings", "bullCase", "bearCase", "risks", "catalysts"] as const) {
-    for (const [index, finding] of report[section].entries()) {
-      addEntry(
-        entries,
-        report,
-        section,
-        `${section} ${String(index + 1)}`,
-        finding.text,
-        finding.sourceIds,
-      );
-    }
-  }
-  for (const [index, gap] of report.dataGaps.entries()) {
-    addEntry(entries, report, "dataGaps", `Data gap ${String(index + 1)}`, gap);
-  }
-  for (const prediction of report.predictions) {
-    addEntry(
-      entries,
-      report,
-      "predictions",
-      prediction.id,
-      predictionClaim(prediction),
-      prediction.sourceIds,
-      {
-        predictionId: prediction.id,
-      },
-    );
-  }
-  for (const source of report.sources) {
-    addEntry(
-      entries,
-      report,
-      "sources",
-      source.id,
-      [source.title, source.summary, source.snippet].join(" "),
-      [source.id],
-      {
-        ...(source.provider !== undefined ? { provider: source.provider } : {}),
-        sourceKind: source.kind,
-        ...(source.symbol !== undefined
-          ? {
-              symbol: source.symbol.toUpperCase(),
-              instrumentKey: instrumentKey(report.assetClass, source.symbol),
-            }
-          : {}),
-      },
-    );
-  }
-  for (const [index, question] of openQuestions(report, scores).entries()) {
-    addEntry(entries, report, "openQuestions", `Open question ${String(index + 1)}`, question);
-  }
+  const entries = buildReportSearchEntries(report, scores, "history").map((entry, index) =>
+    historyEntryForReportEntry(entry, index),
+  );
   for (const [index, item] of fundamentals.entries()) {
     addEntry(
       entries,

@@ -7,6 +7,7 @@ import type {
 } from "../domain/types";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
+import { isRecord } from "../sources/guards";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -36,10 +37,6 @@ function validateSourceIds(
       throw new Error(`Unknown source ID: ${sourceId}`);
     }
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function readStringArray(value: unknown): readonly string[] {

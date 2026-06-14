@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
+import { dataRootFromRunsDir } from "../data-paths";
 import { sourceGapStatusCode } from "../domain/source-gaps";
 import type {
   AssetClass,
@@ -468,10 +469,6 @@ async function hasCalibration(runsDir: string): Promise<boolean> {
     (await readJson(join(dataRootFromRunsDir(runsDir), "calibration", "summary.json"))) !==
     undefined
   );
-}
-
-function dataRootFromRunsDir(runsDir: string): string {
-  return dirname(runsDir);
 }
 
 function validationSummary(

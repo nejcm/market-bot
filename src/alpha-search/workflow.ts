@@ -9,7 +9,11 @@ import {
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { KeyFinding, ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
-import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
+import {
+  dedupeSourceGaps,
+  isCoreEvidenceQualityGap,
+  sourceGapReportText,
+} from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
@@ -340,7 +344,13 @@ function buildAlphaSearchReport(input: {
     risks: [],
     catalysts: [],
     scenarios: [],
-    confidence: validLeads.length > 0 && input.sourceGaps.length === 0 ? "medium" : "low",
+    // Only quality-capping (core) gaps should downgrade confidence.
+    // No-cap gaps such as pre-ticker SEC filings are disclosed in dataGaps,
+    // Yet must not pin an otherwise-clean run with valid leads to "low".
+    confidence:
+      validLeads.length > 0 && input.sourceGaps.filter(isCoreEvidenceQualityGap).length === 0
+        ? "medium"
+        : "low",
     dataGaps: gaps,
     predictions: [],
     sources: input.sources,

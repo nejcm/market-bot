@@ -13,8 +13,11 @@ interface SecFactValue {
   readonly fp?: string;
   readonly fy?: number;
   readonly filed?: string;
+  readonly start?: string;
   readonly end?: string;
 }
+
+const DAYS_PER_MONTH = 30.4368;
 
 interface SecMetricDefinition {
   readonly key: string;
@@ -197,6 +200,7 @@ function readSecFactValue(value: unknown): SecFactValue | undefined {
   const fp = readString(value, "fp");
   const fy = readFiscalYear(value);
   const filed = readString(value, "filed");
+  const start = readString(value, "start");
   const end = readString(value, "end");
   return {
     val,
@@ -204,8 +208,25 @@ function readSecFactValue(value: unknown): SecFactValue | undefined {
     ...(fp !== undefined ? { fp } : {}),
     ...(fy !== undefined ? { fy } : {}),
     ...(filed !== undefined ? { filed } : {}),
+    ...(start !== undefined ? { start } : {}),
     ...(end !== undefined ? { end } : {}),
   };
+}
+
+// Reporting period length in months for a duration (flow) fact, rounded to the
+// Nearest whole month: ~3 for a single quarter, ~12 for a full fiscal year.
+// Undefined when the fact lacks a start/end span (e.g. balance-sheet instants).
+function periodMonths(fact: SecFactValue): number | undefined {
+  if (fact.start === undefined || fact.end === undefined) {
+    return undefined;
+  }
+  const startMs = Date.parse(fact.start);
+  const endMs = Date.parse(fact.end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return undefined;
+  }
+  const months = Math.round((endMs - startMs) / 86_400_000 / DAYS_PER_MONTH);
+  return months > 0 ? months : undefined;
 }
 
 function compareFacts(a: SecFactValue, b: SecFactValue): number {
@@ -358,6 +379,12 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
     }
     const { latest, prior } = selection;
     metrics[definition.key] = latest.val;
+    if (definition.key === "revenue") {
+      const months = periodMonths(latest);
+      if (months !== undefined) {
+        metrics.revenuePeriodMonths = months;
+      }
+    }
     const delta = prior === undefined ? undefined : deltaPercent(latest.val, prior.val);
     if (prior === undefined) {
       missingDeltas.push(definition.key);

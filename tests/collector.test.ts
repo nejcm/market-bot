@@ -187,6 +187,352 @@ describe("collectSources", () => {
     });
   });
 
+  test("selects mover-relevant market-update news before generic headlines", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "ROKU",
+                    shortName: "Roku Inc",
+                    regularMarketPrice: 80,
+                    regularMarketChangePercent: 20,
+                    regularMarketVolume: 15_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              title: "Markets rise broadly",
+              url: "https://example.test/markets",
+              source: "Example",
+              published_at: "2026-05-19T12:00:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([
+          {
+            id: 1,
+            headline: "ROKU shares jump on streaming ad demand",
+            url: "https://example.test/roku-ticker",
+            source: "Example",
+            datetime: 1_779_120_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Roku ad demand improves",
+            link: "https://example.test/roku-name",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        equityMoverLimit: 1,
+        cryptoMoverLimit: 2,
+        newsLimit: 3,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.title)).toEqual([
+      "ROKU shares jump on streaming ad demand",
+      "Roku ad demand improves",
+      "Markets rise broadly",
+    ]);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedNewsSourceCount: 3,
+      selectedRelevantMoverNewsSourceCount: 2,
+      selectedGenericMoverNewsSourceCount: 1,
+    });
+  });
+
+  test("respects news limit when selecting mover-relevant headlines", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "ROKU",
+                    shortName: "Roku Inc",
+                    regularMarketPrice: 80,
+                    regularMarketChangePercent: 20,
+                    regularMarketVolume: 15_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({ quoteResponse: { result: [] } });
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              title: "ROKU posts strongest daily move",
+              url: "https://example.test/roku-marketaux",
+              source: "Example",
+              published_at: "2026-05-19T12:00:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([
+          {
+            id: 1,
+            headline: "ROKU volume surges",
+            url: "https://example.test/roku-finnhub",
+            source: "Example",
+            datetime: 1_779_120_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Roku ad demand improves",
+            link: "https://example.test/roku-yahoo",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        equityMoverLimit: 1,
+        cryptoMoverLimit: 2,
+        newsLimit: 1,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.newsSources[0]?.title).toBe("ROKU posts strongest daily move");
+    expect(result.newsAnalytics).toMatchObject({
+      selectedNewsSourceCount: 1,
+      selectedRelevantMoverNewsSourceCount: 1,
+      selectedGenericMoverNewsSourceCount: 0,
+    });
+  });
+
+  test("does not treat ordinary lowercase words as short ticker matches", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "BY",
+                    shortName: "Byline Bancorp Inc",
+                    regularMarketPrice: 35,
+                    regularMarketChangePercent: 18,
+                    regularMarketVolume: 150_000,
+                  },
+                  {
+                    symbol: "FLY",
+                    shortName: "Fly-E Group Inc",
+                    regularMarketPrice: 10,
+                    regularMarketChangePercent: 15,
+                    regularMarketVolume: 200_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({ quoteResponse: { result: [] } });
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              title: "Investors buy value stocks while airlines fly higher",
+              url: "https://example.test/ordinary-words",
+              source: "Example",
+              published_at: "2026-05-19T12:00:00.000Z",
+            },
+          ],
+        });
+      }
+
+      return url.includes("finnhub") ? jsonResponse([]) : jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.title)).toEqual([
+      "Investors buy value stocks while airlines fly higher",
+    ]);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantMoverNewsSourceCount: 0,
+      selectedGenericMoverNewsSourceCount: 1,
+    });
+  });
+
+  test("selects lowercase ticker-symbol news for ticker runs", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("quote")) {
+        const symbols = new URL(url).searchParams.get("symbols");
+        return jsonResponse({
+          quoteResponse: {
+            result:
+              symbols === "AAPL"
+                ? [
+                    {
+                      symbol: "AAPL",
+                      regularMarketPrice: 190,
+                      regularMarketChangePercent: 2,
+                      regularMarketVolume: 80_000_000,
+                    },
+                  ]
+                : [
+                    {
+                      symbol: "SPY",
+                      regularMarketPrice: 510,
+                      regularMarketChangePercent: 0.4,
+                      regularMarketVolume: 70_000_000,
+                    },
+                  ],
+          },
+        });
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              title: "Macro rates update",
+              url: "https://example.test/macro",
+              source: "Example",
+              published_at: "2026-05-19T12:00:00.000Z",
+            },
+            {
+              title: "aapl earnings preview",
+              url: "https://example.test/aapl",
+              source: "Example",
+              published_at: "2026-05-19T12:01:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([]);
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Broad market recap",
+            link: "https://example.test/broad",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 1,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.newsSources.map((source) => source.title)).toEqual(["aapl earnings preview"]);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantTickerNewsSourceCount: 1,
+      selectedGenericTickerNewsSourceCount: 0,
+    });
+  });
+
   test("collects weekly equity through market-update mover and regime sources", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -236,6 +582,51 @@ describe("collectSources", () => {
 
     expect(result.rawSnapshots).toHaveLength(6);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["MSFT", "SPY"]);
+  });
+
+  test("collects ticker instrument with live equity regime context", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("quote")) {
+        const symbols = new URL(url).searchParams.get("symbols");
+        return jsonResponse({
+          quoteResponse: {
+            result:
+              symbols === "AAPL"
+                ? [
+                    {
+                      symbol: "AAPL",
+                      regularMarketPrice: 190,
+                      regularMarketChangePercent: -1.5,
+                      regularMarketVolume: 40_000_000,
+                    },
+                  ]
+                : [
+                    {
+                      symbol: "SPY",
+                      regularMarketPrice: 510,
+                      regularMarketChangePercent: 0.4,
+                      regularMarketVolume: 70_000_000,
+                      fiftyDayAverage: 500,
+                    },
+                  ],
+          },
+        });
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain("yahoo-ticker");
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain("yahoo-regime");
   });
 
   test("keeps regime proxies authoritative when they also appear in a mover screener", async () => {

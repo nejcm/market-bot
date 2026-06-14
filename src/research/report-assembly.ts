@@ -3,20 +3,21 @@ import {
   isMarketUpdateJobType,
   type EvidenceQuality,
   type KeyFinding,
+  type MarketSnapshot,
   type Prediction,
   type ResearchReport,
   type Scenario,
-  type MarketSnapshot,
   type Source,
   type SourceGap,
 } from "../domain/types";
+import type { ObservableForecastIssue } from "../forecast/observable";
 import {
   dedupeSourceGaps,
   isCoreEvidenceQualityGap,
   isExtendedEvidenceQualityGap,
 } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
-import { isRecord, nonEmptyStringArrayValue } from "../sources/guards";
+import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
 import { verifiedSnapshotSource } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
@@ -170,9 +171,7 @@ export function buildSourceList(
       kind: "market-data",
       assetClass: snapshot.assetClass,
       symbol: snapshot.symbol,
-      ...(snapshot.identity?.aliases?.[0]?.provider !== undefined
-        ? { provider: snapshot.identity.aliases[0].provider }
-        : {}),
+      provider: marketSnapshotProvider(snapshot),
       ...(snapshot.identity !== undefined ? { identity: snapshot.identity } : {}),
     }),
   );
@@ -234,9 +233,13 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
 export function readPredictions(
   value: unknown,
   knownSourceIds: ReadonlySet<string>,
-): { predictions: readonly Prediction[]; errors: readonly string[] } {
+): {
+  predictions: readonly Prediction[];
+  errors: readonly string[];
+  issues: readonly ObservableForecastIssue[];
+} {
   const result = validatePredictions(readArray(value), knownSourceIds);
-  return { predictions: result.valid, errors: result.errors };
+  return { predictions: result.valid, errors: result.errors, issues: result.issues };
 }
 
 function historicalContextExtra(context: HistoricalResearchContext | undefined): unknown {
@@ -272,6 +275,58 @@ function spotlightsExtra(selection: SpotlightSelectionResult | undefined): unkno
       rationale: item.rationale,
       sourceIds: item.sourceIds,
     })),
+  };
+}
+
+function spotlightItemRationale(item: unknown): string | undefined {
+  if (!isRecord(item)) {
+    return undefined;
+  }
+  return readString(item, "rationale") ?? readString(item, "text");
+}
+
+function modelSpotlightRationaleBySymbol(modelSpotlights: unknown): ReadonlyMap<string, string> {
+  if (!isRecord(modelSpotlights) || !Array.isArray(modelSpotlights.items)) {
+    return new Map();
+  }
+
+  const bySymbol = new Map<string, string>();
+  for (const item of modelSpotlights.items) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    const symbol = readString(item, "symbol")?.toUpperCase();
+    const rationale = spotlightItemRationale(item);
+    if (symbol !== undefined && rationale !== undefined) {
+      bySymbol.set(symbol, rationale);
+    }
+  }
+  return bySymbol;
+}
+
+function mergeSpotlightsExtra(modelSpotlights: unknown, defaultSpotlights: unknown): unknown {
+  if (!isRecord(defaultSpotlights) || !Array.isArray(defaultSpotlights.items)) {
+    return modelSpotlights;
+  }
+  if (defaultSpotlights.items.length === 0) {
+    return modelSpotlights;
+  }
+
+  const rationaleBySymbol = modelSpotlightRationaleBySymbol(modelSpotlights);
+  const items = defaultSpotlights.items.map((item) => {
+    if (!isRecord(item)) {
+      return item;
+    }
+    const symbol = readString(item, "symbol")?.toUpperCase();
+    const rationale = symbol === undefined ? undefined : rationaleBySymbol.get(symbol);
+    return rationale === undefined ? item : { ...item, rationale };
+  });
+  const modelRationale = isRecord(modelSpotlights) ? modelSpotlights.rationale : undefined;
+
+  return {
+    ...defaultSpotlights,
+    ...(typeof modelRationale === "string" ? { rationale: modelRationale } : {}),
+    items,
   };
 }
 
@@ -377,6 +432,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       : {};
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
+  const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
 
   return validateResearchReport({
     runId,
@@ -404,9 +460,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(modelExtras.historicalContext === undefined && defaultHistoricalContext !== undefined
         ? { historicalContext: defaultHistoricalContext }
         : {}),
-      ...(modelExtras.spotlights === undefined && defaultSpotlights !== undefined
-        ? { spotlights: defaultSpotlights }
-        : {}),
+      ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
       depth: command.depth,
       depthProfile,
       ...(isMarketUpdateJobType(command.jobType) ? { marketUpdateCadence: command.jobType } : {}),

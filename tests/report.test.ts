@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MarketSnapshot, ResearchReport } from "../src/domain/types";
+import type { MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
@@ -7,6 +7,7 @@ import { validateResearchReport } from "../src/report/schema";
 import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context";
+import type { SpotlightSelectionResult } from "../src/research/spotlights";
 import { collectedSources } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -43,6 +44,146 @@ const report: ResearchReport = {
   ],
   notFinancialAdvice: true,
 };
+
+const spotlightSource: Source = {
+  id: "market-yahoo-equity-roku",
+  title: "ROKU market snapshot",
+  fetchedAt: "2026-06-01T00:00:00.000Z",
+  kind: "market-data",
+  assetClass: "equity",
+  symbol: "ROKU",
+};
+
+const assemblyTargetKindMix = { favored: ["relative", "range"] as const, minNonDirection: 1 };
+
+function assemblyDepthProfile(subject = "SPY"): DepthProfile {
+  return {
+    depth: "brief",
+    analystStyle: "concise brief",
+    minimumKeyFindings: 0,
+    minimumScenarios: 0,
+    minimumPredictions: 0,
+    defaultPredictionHorizon: 5,
+    predictionSubjects: [subject],
+    focus: ["source gaps"],
+    targetKindMix: assemblyTargetKindMix,
+  };
+}
+
+function spotlightSelection(rationale = "Selector rationale"): SpotlightSelectionResult {
+  return {
+    rationale: "Selected current mover.",
+    selected: [
+      {
+        symbol: "ROKU",
+        rationale,
+        sourceIds: [spotlightSource.id],
+        candidate: {
+          id: "spotlight-roku",
+          symbol: "ROKU",
+          assetClass: "equity",
+          sourceIds: [spotlightSource.id],
+          currentSnapshot: {
+            price: 72,
+            changePercent24h: 9.1,
+            volume: 12_000_000,
+            observedAt: "2026-06-01T00:00:00.000Z",
+          },
+          mover: {
+            rank: 1,
+            score: 90,
+            features: {
+              movementMagnitude: 9.1,
+              benchmarkSymbol: "SPY",
+              benchmarkChangePercent24h: 0.5,
+              relativeChangePercent24h: 8.6,
+              relativeMovementMagnitude: 8.6,
+              liquidityLog: 20,
+              baseScore: 90,
+              unusualVolumeBoost: 0,
+              gapBoost: 0,
+              finalMultiplier: 1,
+              reasons: ["large current move"],
+            },
+          },
+          history: {
+            tickerRunIds: [],
+            marketRunIds: [],
+          },
+        },
+      },
+    ],
+    rejected: [],
+    audit: {
+      cap: 2,
+      candidateCount: 1,
+      selectedCount: 1,
+      rejectedCount: 0,
+      malformed: false,
+    },
+  };
+}
+
+function assemblyContext(
+  depthProfile: DepthProfile,
+  selection?: SpotlightSelectionResult,
+): ResearchContext {
+  return {
+    depthProfile,
+    runParams: {
+      quickModel: "quick",
+      synthesisModel: "synthesis",
+      modelParams: undefined,
+      minimumKeyFindings: 0,
+      minimumScenarios: 0,
+      minimumPredictions: 0,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: depthProfile.predictionSubjects,
+      focus: ["source gaps"],
+      analystStyle: "concise brief",
+      targetKindMix: assemblyTargetKindMix,
+    },
+    marketRegime: {
+      assetClass: "equity",
+      label: "insufficient-data",
+      proxyCount: 0,
+      drivers: [],
+      sourceIds: [],
+    },
+    calibrationContext: undefined,
+    ...(selection !== undefined ? { spotlightSelection: selection } : {}),
+  };
+}
+
+function assembleWithSpotlights(
+  extras: Record<string, unknown> | undefined,
+  context: ResearchContext,
+  command?:
+    | { readonly jobType: "daily"; readonly assetClass: "equity"; readonly depth: "brief" }
+    | {
+        readonly jobType: "ticker";
+        readonly assetClass: "equity";
+        readonly symbol: "ROKU";
+        readonly depth: "brief";
+      },
+): ResearchReport {
+  const resolvedCommand = command ?? { jobType: "daily", assetClass: "equity", depth: "brief" };
+  return assembleResearchReport({
+    runId: "spotlight-run",
+    generatedAt: "2026-06-01T00:00:00.000Z",
+    command: resolvedCommand,
+    payload: {
+      summary: "Spotlight assembly test.",
+      confidence: "medium",
+      ...(extras !== undefined ? { extras } : {}),
+    },
+    predResult: { predictions: [], errors: [] },
+    collectedSources: collectedSources(),
+    depthProfile: context.depthProfile,
+    context,
+    sources: [spotlightSource],
+  });
+}
 
 describe("report schema and rendering", () => {
   test("validates source-linked findings", () => {
@@ -98,6 +239,184 @@ describe("report schema and rendering", () => {
     );
 
     expect(sources[0]?.provider).toBe("yahoo");
+  });
+
+  test("stamps the asset-class provider on supplemental market snapshots", () => {
+    const snapshot: MarketSnapshot = {
+      sourceId: "supplemental-market-massive-equity-aapl",
+      assetClass: "equity",
+      symbol: "AAPL",
+      price: 200,
+      changePercent24h: 1.2,
+      volume: 50_000_000,
+      observedAt: "2026-06-13T00:00:00.000Z",
+    };
+
+    const sources = buildSourceList(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      collectedSources({
+        rawSnapshots: [],
+        supplementalMarketSnapshots: [snapshot],
+        newsSources: [],
+      }),
+    );
+
+    expect(sources[0]?.provider).toBe("yahoo");
+  });
+
+  test("uses selected spotlights when model returns an empty spotlight list", () => {
+    const depthProfile = assemblyDepthProfile();
+    const assembled = assembleWithSpotlights(
+      { spotlights: { items: [] } },
+      assemblyContext(depthProfile, spotlightSelection()),
+    );
+
+    expect(assembled.extras?.spotlights).toEqual({
+      rationale: "Selected current mover.",
+      items: [
+        {
+          symbol: "ROKU",
+          rationale: "Selector rationale",
+          sourceIds: [spotlightSource.id],
+        },
+      ],
+    });
+  });
+
+  test("uses selected spotlights when model omits spotlights", () => {
+    const depthProfile = assemblyDepthProfile();
+    const assembled = assembleWithSpotlights(
+      undefined,
+      assemblyContext(depthProfile, spotlightSelection("Default selected rationale")),
+    );
+
+    expect(assembled.extras?.spotlights).toEqual({
+      rationale: "Selected current mover.",
+      items: [
+        {
+          symbol: "ROKU",
+          rationale: "Default selected rationale",
+          sourceIds: [spotlightSource.id],
+        },
+      ],
+    });
+  });
+
+  test("lets model refine rationale for selected spotlight without changing source IDs", () => {
+    const depthProfile = assemblyDepthProfile();
+    const assembled = assembleWithSpotlights(
+      {
+        spotlights: {
+          rationale: "Model section rationale.",
+          items: [
+            {
+              symbol: "ROKU",
+              rationale: "Model refined rationale.",
+              sourceIds: ["model-source-id"],
+            },
+          ],
+        },
+      },
+      assemblyContext(depthProfile, spotlightSelection()),
+    );
+
+    expect(assembled.extras?.spotlights).toEqual({
+      rationale: "Model section rationale.",
+      items: [
+        {
+          symbol: "ROKU",
+          rationale: "Model refined rationale.",
+          sourceIds: [spotlightSource.id],
+        },
+      ],
+    });
+  });
+
+  test("lets model refine selected spotlight rationale from text", () => {
+    const depthProfile = assemblyDepthProfile();
+    const assembled = assembleWithSpotlights(
+      {
+        spotlights: {
+          items: [
+            {
+              symbol: "ROKU",
+              text: "Model text rationale.",
+              sourceIds: ["model-source-id"],
+            },
+          ],
+        },
+      },
+      assemblyContext(depthProfile, spotlightSelection()),
+    );
+
+    expect(assembled.extras?.spotlights).toEqual({
+      rationale: "Selected current mover.",
+      items: [
+        {
+          symbol: "ROKU",
+          rationale: "Model text rationale.",
+          sourceIds: [spotlightSource.id],
+        },
+      ],
+    });
+  });
+
+  test("ignores model spotlight symbols outside the selected set", () => {
+    const depthProfile = assemblyDepthProfile();
+    const assembled = assembleWithSpotlights(
+      {
+        spotlights: {
+          items: [
+            {
+              symbol: "AAPL",
+              rationale: "Model replacement rationale.",
+              sourceIds: [spotlightSource.id],
+            },
+          ],
+        },
+      },
+      assemblyContext(depthProfile, spotlightSelection()),
+    );
+
+    expect(assembled.extras?.spotlights).toEqual({
+      rationale: "Selected current mover.",
+      items: [
+        {
+          symbol: "ROKU",
+          rationale: "Selector rationale",
+          sourceIds: [spotlightSource.id],
+        },
+      ],
+    });
+  });
+
+  test("keeps ticker model spotlights when no selected spotlights exist", () => {
+    const depthProfile = assemblyDepthProfile("ROKU");
+    const assembled = assembleWithSpotlights(
+      {
+        spotlights: {
+          items: [
+            {
+              symbol: "ROKU",
+              rationale: "Ticker-authored spotlight.",
+              sourceIds: [spotlightSource.id],
+            },
+          ],
+        },
+      },
+      assemblyContext(depthProfile),
+      { jobType: "ticker", assetClass: "equity", symbol: "ROKU", depth: "brief" },
+    );
+
+    expect(assembled.extras?.spotlights).toEqual({
+      items: [
+        {
+          symbol: "ROKU",
+          rationale: "Ticker-authored spotlight.",
+          sourceIds: [spotlightSource.id],
+        },
+      ],
+    });
   });
 
   test("dedupes model and deterministic data gaps by normalized text", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { EQUITY_REGIME_SYMBOLS } from "../src/domain/regime-symbols";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
 import {
   cryptoExtendedEvidenceAdapter,
@@ -662,6 +663,63 @@ describe("news provider collection", () => {
       { adapter: "yahoo-losers", scrId: "day_losers" },
       { adapter: "yahoo-actives", scrId: "most_actives" },
       { adapter: "yahoo-regime", scrId: null },
+    ]);
+  });
+
+  test("collects covered instrument and equity regime proxies for ticker runs", async () => {
+    const requestedAdaptersAndUrls: { adapter: string; symbols: string | null }[] = [];
+
+    const result = await yahooMarketDataAdapter.collect(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        request: requestExecutor({
+          json: async (request) => {
+            const symbols = new URL(request.url).searchParams.get("symbols");
+            requestedAdaptersAndUrls.push({ adapter: request.adapter, symbols });
+            const quoteResults =
+              symbols === "AAPL"
+                ? [
+                    {
+                      symbol: "AAPL",
+                      regularMarketPrice: 190,
+                      regularMarketChangePercent: -1.5,
+                      regularMarketVolume: 40_000_000,
+                    },
+                  ]
+                : [
+                    {
+                      symbol: "SPY",
+                      regularMarketPrice: 510,
+                      regularMarketChangePercent: 0.4,
+                      regularMarketVolume: 70_000_000,
+                      fiftyDayAverage: 500,
+                    },
+                    {
+                      symbol: "QQQ",
+                      regularMarketPrice: 430,
+                      regularMarketChangePercent: 0.6,
+                      regularMarketVolume: 50_000_000,
+                      fiftyDayAverage: 420,
+                    },
+                  ];
+            return rawJson(request.adapter, { quoteResponse: { result: quoteResults } });
+          },
+        }),
+      }),
+    );
+
+    expect(requestedAdaptersAndUrls).toEqual([
+      { adapter: "yahoo-ticker", symbols: "AAPL" },
+      { adapter: "yahoo-regime", symbols: EQUITY_REGIME_SYMBOLS.join(",") },
+    ]);
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual([
+      "AAPL",
+      "SPY",
+      "QQQ",
+    ]);
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toEqual([
+      "yahoo-ticker",
+      "yahoo-regime",
     ]);
   });
 

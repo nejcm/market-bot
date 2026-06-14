@@ -1,7 +1,8 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { SourceGap } from "../domain/types";
+import type { MarketSnapshot, SourceGap } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
+import { rankMovers } from "../movers/ranking";
 import { withCache, type CacheOptions } from "./cache";
 import type {
   CollectContext,
@@ -14,6 +15,7 @@ import type {
   RawSourceSnapshot,
   SourceRequest,
   SourceRequestExecutor,
+  NewsRelevanceTarget,
 } from "./types";
 import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
@@ -270,6 +272,40 @@ export function setSourceHostMinDelayMsForTests(ms: number): void {
 
 export { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 
+function isMarketUpdateCommand(command: ResearchCommand): boolean {
+  return command.jobType === "daily" || command.jobType === "weekly";
+}
+
+function moverLimit(command: ResearchCommand, sourceOptions: SourceOptions): number {
+  return command.assetClass === "crypto"
+    ? sourceOptions.cryptoMoverLimit
+    : sourceOptions.equityMoverLimit;
+}
+
+function moverNewsRelevanceTargets(
+  command: ResearchCommand,
+  sourceOptions: SourceOptions,
+  marketSnapshots: readonly MarketSnapshot[],
+): readonly NewsRelevanceTarget[] {
+  if (!isMarketUpdateCommand(command)) {
+    return [];
+  }
+  return rankMovers(
+    marketSnapshots.filter((snapshot) => snapshot.assetClass === command.assetClass),
+    moverLimit(command, sourceOptions),
+  ).map(({ snapshot }) => ({
+    symbol: snapshot.symbol,
+    ...(snapshot.name !== undefined ? { name: snapshot.name } : {}),
+  }));
+}
+
+function contextWithNewsRelevanceTargets(
+  ctx: CollectContext,
+  targets: readonly NewsRelevanceTarget[],
+): CollectContext {
+  return targets.length === 0 ? ctx : { ...ctx, newsRelevanceTargets: targets };
+}
+
 async function fetchJsonWithRetry(
   url: string,
   adapter: string,
@@ -458,20 +494,37 @@ export async function collectSources(
   // Verified Market Snapshot: equity ticker only (ADR 0019); joins the parallel batch
   const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
 
-  // Run market + news + extended + market-context + verified snapshot in parallel,
-  // Then supplemental (needs primary market snapshots)
-  const [marketResult, newsResult, extendedResult, marketContextResult, verifiedSnapshotResult] =
-    await Promise.all([
-      marketAdapter.collect(ctx),
-      newsAdapter.collect(ctx),
-      extendedEvidenceAdapter.collect(ctx),
-      marketContextAdapter.collect(ctx),
-      isEquityTicker
-        ? collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
-        : undefined,
-    ]);
+  // Market updates sequence market first so current ranked movers can steer news selection.
+  // Other run types keep the parallel source collection path.
+  const marketResult = isMarketUpdateCommand(command)
+    ? await marketAdapter.collect(ctx)
+    : undefined;
+  const newsContext =
+    marketResult === undefined
+      ? ctx
+      : contextWithNewsRelevanceTargets(
+          ctx,
+          moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots),
+        );
+  const [
+    resolvedMarketResult,
+    newsResult,
+    extendedResult,
+    marketContextResult,
+    verifiedSnapshotResult,
+  ] = await Promise.all([
+    marketResult ?? marketAdapter.collect(ctx),
+    newsAdapter.collect(newsContext),
+    extendedEvidenceAdapter.collect(ctx),
+    marketContextAdapter.collect(ctx),
+    isEquityTicker
+      ? collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
+      : undefined,
+  ]);
   const supplementalMarketResults = await Promise.all(
-    supplementalMarketAdapters.map((adapter) => adapter.collect(ctx, marketResult.marketSnapshots)),
+    supplementalMarketAdapters.map((adapter) =>
+      adapter.collect(ctx, resolvedMarketResult.marketSnapshots),
+    ),
   );
   const supplementalMarketSnapshots = supplementalMarketResults.flatMap(
     (result) => result.supplementalMarketSnapshots,
@@ -479,12 +532,12 @@ export async function collectSources(
 
   // Canonical identity is a pure selection from the already-fetched ticker quote
   const identityResult = isEquityTicker
-    ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
+    ? deriveCanonicalInstrumentIdentity(resolvedMarketResult.marketSnapshots, command.symbol)
     : undefined;
 
   return {
     rawSnapshots: [
-      ...marketResult.rawSnapshots,
+      ...resolvedMarketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
       ...extendedResult.rawSnapshots,
       ...marketContextResult.rawSnapshots,
@@ -493,7 +546,7 @@ export async function collectSources(
         ? [verifiedSnapshotResult.rawSnapshot]
         : []),
     ],
-    marketSnapshots: marketResult.marketSnapshots,
+    marketSnapshots: resolvedMarketResult.marketSnapshots,
     supplementalMarketSnapshots,
     newsSources: newsResult.newsSources,
     extendedSources: extendedResult.sources,
@@ -512,7 +565,7 @@ export async function collectSources(
       ? { resolvedInstrumentIdentity: identityResult.identity }
       : {}),
     sourceGaps: [
-      ...marketResult.sourceGaps,
+      ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
       ...marketContextResult.sourceGaps,

@@ -7,8 +7,24 @@ import {
   type NewsAdapter,
   type NewsCollectionAnalytics,
   type NewsCollectionResult,
+  type NewsRelevanceTarget,
 } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
+
+const COMPANY_SUFFIX_TERMS = new Set([
+  "class",
+  "company",
+  "corp",
+  "corporation",
+  "group",
+  "holding",
+  "holdings",
+  "inc",
+  "incorporated",
+  "limited",
+  "ltd",
+  "plc",
+]);
 
 function aliasFor(source: Source): SourceProviderAlias | undefined {
   if (source.provider === undefined) {
@@ -120,11 +136,11 @@ function fetchedAtMs(source: Source): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function tickerRelevanceTerms(ctx: CollectContext): readonly string[] {
+function relevanceTargets(ctx: CollectContext): readonly NewsRelevanceTarget[] {
   if (ctx.command.jobType !== "ticker") {
-    return [];
+    return ctx.newsRelevanceTargets ?? [];
   }
-  return [ctx.command.symbol.toLowerCase()];
+  return [{ symbol: ctx.command.symbol, allowLowercaseSymbolMention: true }];
 }
 
 function normalizedSearchText(source: Source): string {
@@ -134,38 +150,99 @@ function normalizedSearchText(source: Source): string {
     .toLowerCase();
 }
 
-function isTickerRelevant(source: Source, terms: readonly string[]): boolean {
-  if (terms.length === 0) {
-    return false;
-  }
-  const text = normalizedSearchText(source);
-  return terms.some((term) => text.includes(term));
+function sourceSearchText(source: Source): string {
+  return [source.title, source.summary, source.snippet]
+    .filter((value): value is string => value !== undefined && value.trim() !== "")
+    .join(" ");
 }
 
-function selectedTickerRelevanceAnalytics(
+function symbolTokens(source: Source): ReadonlySet<string> {
+  const tokens = sourceSearchText(source).match(/\$?[A-Za-z][A-Za-z0-9.-]*/gu) ?? [];
+  return new Set(
+    tokens.flatMap((token) => {
+      if (token.startsWith("$")) {
+        return [token.slice(1).toUpperCase()];
+      }
+      return token === token.toUpperCase() ? [token] : [];
+    }),
+  );
+}
+
+function caseInsensitiveSymbolTokens(source: Source): ReadonlySet<string> {
+  const tokens = normalizedSearchText(source).match(/[a-z][a-z0-9.-]*/gu) ?? [];
+  return new Set(tokens);
+}
+
+function companySearchTokens(source: Source): ReadonlySet<string> {
+  const tokens = normalizedSearchText(source).match(/[a-z][a-z0-9.-]*/gu) ?? [];
+  return new Set(tokens);
+}
+
+function companyNameTerms(name: string | undefined): readonly string[] {
+  if (name === undefined) {
+    return [];
+  }
+  const tokens = name.toLowerCase().match(/[a-z][a-z0-9.-]*/gu) ?? [];
+  return [
+    ...new Set(tokens.filter((token) => token.length >= 4 && !COMPANY_SUFFIX_TERMS.has(token))),
+  ];
+}
+
+function isNewsRelevant(source: Source, targets: readonly NewsRelevanceTarget[]): boolean {
+  if (targets.length === 0) {
+    return false;
+  }
+  const sourceSymbol = source.symbol?.toUpperCase();
+  const tickerTokens = symbolTokens(source);
+  const lowercaseSymbolTokens = caseInsensitiveSymbolTokens(source);
+  const companyTokens = companySearchTokens(source);
+  return targets.some((target) => {
+    const symbol = target.symbol.toUpperCase();
+    const lowercaseSymbol = target.symbol.toLowerCase();
+    if (sourceSymbol === symbol) {
+      return true;
+    }
+    if (tickerTokens.has(symbol)) {
+      return true;
+    }
+    if (target.allowLowercaseSymbolMention === true && lowercaseSymbolTokens.has(lowercaseSymbol)) {
+      return true;
+    }
+    return companyNameTerms(target.name).some((term) => companyTokens.has(term));
+  });
+}
+
+function selectedRelevanceAnalytics(
+  command: CollectContext["command"],
   sources: readonly Source[],
-  terms: readonly string[],
+  targets: readonly NewsRelevanceTarget[],
 ): Pick<
   NewsCollectionAnalytics,
-  "selectedRelevantTickerNewsSourceCount" | "selectedGenericTickerNewsSourceCount"
+  | "selectedRelevantTickerNewsSourceCount"
+  | "selectedGenericTickerNewsSourceCount"
+  | "selectedRelevantMoverNewsSourceCount"
+  | "selectedGenericMoverNewsSourceCount"
 > {
-  if (terms.length === 0) {
+  if (targets.length === 0) {
     return {};
   }
-  const selectedRelevantTickerNewsSourceCount = sources.filter((source) =>
-    isTickerRelevant(source, terms),
-  ).length;
-  return {
-    selectedRelevantTickerNewsSourceCount,
-    selectedGenericTickerNewsSourceCount: sources.length - selectedRelevantTickerNewsSourceCount,
-  };
+  const selectedRelevantCount = sources.filter((source) => isNewsRelevant(source, targets)).length;
+  const selectedGenericCount = sources.length - selectedRelevantCount;
+  return command.jobType === "ticker"
+    ? {
+        selectedRelevantTickerNewsSourceCount: selectedRelevantCount,
+        selectedGenericTickerNewsSourceCount: selectedGenericCount,
+      }
+    : {
+        selectedRelevantMoverNewsSourceCount: selectedRelevantCount,
+        selectedGenericMoverNewsSourceCount: selectedGenericCount,
+      };
 }
 
 function selectRoundRobin(
   sources: readonly Source[],
   limit: number,
   providerOrder: readonly string[],
-  relevanceTerms: readonly string[] = [],
 ): readonly Source[] {
   const groups = new Map<string, Source[]>();
 
@@ -177,12 +254,7 @@ function selectRoundRobin(
   for (const [provider, group] of groups) {
     groups.set(
       provider,
-      group.toSorted((left, right) => {
-        const relevanceDelta =
-          Number(isTickerRelevant(right, relevanceTerms)) -
-          Number(isTickerRelevant(left, relevanceTerms));
-        return relevanceDelta === 0 ? fetchedAtMs(right) - fetchedAtMs(left) : relevanceDelta;
-      }),
+      group.toSorted((left, right) => fetchedAtMs(right) - fetchedAtMs(left)),
     );
   }
 
@@ -219,6 +291,27 @@ function selectRoundRobin(
   }
 
   return selected;
+}
+
+function selectRelevantFirst(
+  sources: readonly Source[],
+  limit: number,
+  providerOrder: readonly string[],
+  targets: readonly NewsRelevanceTarget[],
+): readonly Source[] {
+  if (targets.length === 0) {
+    return selectRoundRobin(sources, limit, providerOrder);
+  }
+  const relevant = sources.filter((source) => isNewsRelevant(source, targets));
+  const generic = sources.filter((source) => !isNewsRelevant(source, targets));
+  const selectedRelevant = selectRoundRobin(relevant, limit, providerOrder);
+  if (selectedRelevant.length >= limit) {
+    return selectedRelevant;
+  }
+  return [
+    ...selectedRelevant,
+    ...selectRoundRobin(generic, limit - selectedRelevant.length, providerOrder),
+  ];
 }
 
 function assignSourceIds(sources: readonly Source[]): readonly Source[] {
@@ -264,9 +357,9 @@ export function createMultiNewsAdapter(
             now: new Date(ctx.fetchedAt),
           })
         : { newsSources: dedupedSources, sourceGaps: [] };
-    const relevanceTerms = tickerRelevanceTerms(ctx);
+    const targets = relevanceTargets(ctx);
     const newsSources = assignSourceIds(
-      selectRoundRobin(filtered.newsSources, ctx.newsLimit, providerOrder, relevanceTerms),
+      selectRelevantFirst(filtered.newsSources, ctx.newsLimit, providerOrder, targets),
     );
     const repeatFallbackUsed = filtered.sourceGaps.some((gap) => isRepeatFallbackGap(gap));
     const persistentSuppressedNewsSourceCount = dedupedSources.length - filtered.newsSources.length;
@@ -283,7 +376,7 @@ export function createMultiNewsAdapter(
         persistentSuppressedNewsSourceCount,
         repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
         selectedNewsSourceCount: newsSources.length,
-        ...selectedTickerRelevanceAnalytics(newsSources, relevanceTerms),
+        ...selectedRelevanceAnalytics(ctx.command, newsSources, targets),
         repeatFallbackUsed,
       },
     };

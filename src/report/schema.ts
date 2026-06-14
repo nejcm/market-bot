@@ -6,7 +6,7 @@ import type {
   Scenario,
 } from "../domain/types";
 import { violatesResearchOnly } from "../domain/research-language";
-import { readObservableForecasts } from "../forecast/observable";
+import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -14,6 +14,7 @@ export const RESEARCH_ONLY_NOTE =
 export interface PredictionValidationResult {
   readonly valid: readonly Prediction[];
   readonly errors: readonly string[];
+  readonly issues: readonly ObservableForecastIssue[];
 }
 
 function assertEvidenceQuality(value: string): asserts value is EvidenceQuality {
@@ -196,7 +197,7 @@ export function validatePredictions(
   knownSourceIds: ReadonlySet<string>,
 ): PredictionValidationResult {
   const result = readObservableForecasts(candidates, { knownSourceIds });
-  return { valid: result.predictions, errors: result.promptErrors };
+  return { valid: result.predictions, errors: result.promptErrors, issues: result.issues };
 }
 
 export function validateResearchReport(report: ResearchReport): ResearchReport {

@@ -146,6 +146,31 @@ describe("validatePredictions", () => {
     expect(result.errors[0]).toContain("redundant direction forecast for AAPL at 6 trading days");
   });
 
+  test("prefers the shorter direction horizon when adjacent forecasts arrive reversed", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-dir-6d",
+          subject: "AAPL",
+          measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+          horizonTradingDays: 6,
+        },
+        {
+          ...validPrediction,
+          id: "pred-dir-5d",
+          subject: "AAPL",
+          measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.id).toBe("pred-dir-5d");
+    expect(result.errors).toHaveLength(0);
+  });
+
   test("keeps same-subject direction forecasts at well-separated horizons", () => {
     const result = validatePredictions(
       [

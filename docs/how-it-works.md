@@ -223,6 +223,8 @@ Daily and weekly jobs include same-asset market updates, with same-cadence runs 
 
 The `spotlight-selection` quick-model stage runs before Domain Playbooks when a daily or weekly run has candidates and a nonzero spotlight cap. It may select zero candidates. Unknown symbols, duplicates, cap overflow, malformed JSON, and unknown source IDs are rejected into `trace.json`; the run continues with valid selections or no spotlights.
 
+Final synthesis may render or refine selected spotlight rationale, but report assembly preserves the validated selected symbol set and source IDs.
+
 Spotlights do not spawn ticker jobs, fetch extra evidence, use provider-native tools, or auto-upgrade to `--deep`. Weekly reports may compare current artifacts to prior run artifacts, but those deltas are run-to-run comparisons, not true trailing 5-session or 7-day mover data.
 
 ## Normalization and adapters

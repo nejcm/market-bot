@@ -69,4 +69,26 @@ describe("alpha-search source ids", () => {
       }).sourceIds,
     ).toEqual(["apewisdom-all-stocks-AAPL@rank-1", "sec-alpha-search-S-1-0003200193-1"]);
   });
+
+  test("finds the social source id when supplemental ids arrive first", () => {
+    const lead = {
+      symbol: "AAPL",
+      exchange: "NMS",
+      price: 100,
+      volume: 1000,
+      marketCap: 1_000_000,
+      candidate: {
+        symbol: "AAPL",
+        sourceIds: ["sec-alpha-search-S-1-0003200193-1", "apewisdom-all-stocks-AAPL"],
+        socialRank: 1,
+        discoverySources: ["sec-filings", "apewisdom"],
+      },
+    } satisfies YahooValidatedLead;
+
+    expect(leadSourceIds(lead, "market-yahoo-alpha-search")).toEqual([
+      "apewisdom-all-stocks-AAPL@rank-1",
+      "sec-alpha-search-S-1-0003200193-1",
+      "market-yahoo-alpha-search",
+    ]);
+  });
 });

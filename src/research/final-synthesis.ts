@@ -189,7 +189,9 @@ function predictionRetryReasons(
   minimumPredictions: number,
 ): readonly string[] {
   if (predResult.predictions.length >= minimumPredictions) {
-    return [];
+    return predResult.issues
+      .filter((issue) => issue.code === "redundant-prediction")
+      .map((issue) => issue.message);
   }
   return [
     ...predResult.errors,

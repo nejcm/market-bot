@@ -759,14 +759,92 @@ function redundancyKey(forecast: ObservableForecast): string {
 // The observable grammar renders every `direction` forecast as one up event.
 // Two same-subject direction forecasts therefore always share a direction.
 // Only their horizon differs, so closeness on horizon implies redundancy.
-function collidingDirectionHorizon(
+function collidingDirectionHorizons(
   forecast: ObservableForecast,
   acceptedHorizonsBySubject: ReadonlyMap<string, readonly number[]>,
-): number | undefined {
+): readonly number[] {
   const horizons = acceptedHorizonsBySubject.get(forecast.subject) ?? [];
-  return horizons.find(
+  return horizons.filter(
     (horizon) =>
       Math.abs(horizon - forecast.horizonTradingDays) < MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  );
+}
+
+function withoutDirectionHorizon(
+  horizons: readonly number[],
+  horizonToRemove: number,
+): readonly number[] {
+  return horizons.filter((horizon) => horizon !== horizonToRemove);
+}
+
+function replaceLongerDirectionForecast(input: {
+  readonly accepted: ObservableForecast[];
+  readonly acceptedDirectionHorizonsBySubject: Map<string, number[]>;
+  readonly measurableSeen: Set<string>;
+  readonly forecast: ObservableForecast;
+  readonly longerHorizon: number;
+}): boolean {
+  const { accepted, acceptedDirectionHorizonsBySubject, measurableSeen, forecast, longerHorizon } =
+    input;
+  const { measurableAs, subject, horizonTradingDays } = forecast;
+  const rejectedIndex = accepted.findIndex(
+    (acceptedForecast) =>
+      acceptedForecast.prediction.kind === "direction" &&
+      acceptedForecast.subject === subject &&
+      acceptedForecast.horizonTradingDays === longerHorizon,
+  );
+  const rejectedForecast = accepted[rejectedIndex];
+  if (rejectedForecast === undefined) {
+    return false;
+  }
+
+  accepted[rejectedIndex] = forecast;
+  measurableSeen.delete(rejectedForecast.measurableAs);
+  acceptedDirectionHorizonsBySubject.set(subject, [
+    ...withoutDirectionHorizon(
+      acceptedDirectionHorizonsBySubject.get(subject) ?? [],
+      rejectedForecast.horizonTradingDays,
+    ),
+    horizonTradingDays,
+  ]);
+  measurableSeen.add(measurableAs);
+  return true;
+}
+
+function directionRedundancyIssue(input: {
+  readonly accepted: ObservableForecast[];
+  readonly acceptedDirectionHorizonsBySubject: Map<string, number[]>;
+  readonly measurableSeen: Set<string>;
+  readonly forecast: ObservableForecast;
+}): ObservableForecastIssue | "replaced" | undefined {
+  const { accepted, acceptedDirectionHorizonsBySubject, measurableSeen, forecast } = input;
+  const { prediction, subject, horizonTradingDays } = forecast;
+  const collidingHorizons = collidingDirectionHorizons(
+    forecast,
+    acceptedDirectionHorizonsBySubject,
+  );
+  if (collidingHorizons.length === 0) {
+    return undefined;
+  }
+
+  const shortestColliding = Math.min(...collidingHorizons);
+  if (horizonTradingDays < shortestColliding) {
+    const replaced = replaceLongerDirectionForecast({
+      accepted,
+      acceptedDirectionHorizonsBySubject,
+      measurableSeen,
+      forecast,
+      longerHorizon: shortestColliding,
+    });
+    if (replaced) {
+      return "replaced";
+    }
+  }
+
+  return issue(
+    "redundant-prediction",
+    `Prediction ${prediction.id}: redundant direction forecast for ${subject} at ${String(horizonTradingDays)} trading days (within ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days of accepted ${String(shortestColliding)}d)`,
+    prediction.id,
   );
 }
 
@@ -794,15 +872,17 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
     }
 
     if (prediction.kind === "direction") {
-      const colliding = collidingDirectionHorizon(forecast, acceptedDirectionHorizonsBySubject);
-      if (colliding !== undefined) {
-        issues.push(
-          issue(
-            "redundant-prediction",
-            `Prediction ${prediction.id}: redundant direction forecast for ${subject} at ${String(horizonTradingDays)} trading days (within ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days of accepted ${String(colliding)}d)`,
-            prediction.id,
-          ),
-        );
+      const redundancyIssue = directionRedundancyIssue({
+        accepted,
+        acceptedDirectionHorizonsBySubject,
+        measurableSeen,
+        forecast,
+      });
+      if (redundancyIssue === "replaced") {
+        continue;
+      }
+      if (redundancyIssue !== undefined) {
+        issues.push(redundancyIssue);
         continue;
       }
     } else {

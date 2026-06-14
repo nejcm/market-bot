@@ -1,7 +1,7 @@
 import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validation";
 import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
-import { socialMomentumReportSourceId } from "./source-ids";
+import { socialMomentumBaseSourceId, socialMomentumReportSourceId } from "./source-ids";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
@@ -137,7 +137,8 @@ function reportCandidateSourceIds(candidate: {
   if (candidate.socialRank === undefined) {
     return candidate.sourceIds;
   }
-  const [, ...additionalSourceIds] = candidate.sourceIds;
+  const socialSourceId = socialMomentumBaseSourceId(candidate);
+  const additionalSourceIds = candidate.sourceIds.filter((sourceId) => sourceId !== socialSourceId);
   return [
     ...new Set([
       socialMomentumReportSourceId({

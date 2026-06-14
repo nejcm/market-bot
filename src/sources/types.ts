@@ -33,6 +33,7 @@ export interface CollectContext {
   readonly fetchedAt: string;
   readonly newsLimit: number;
   readonly cryptoMoverLimit: number;
+  readonly newsRelevanceTargets?: readonly NewsRelevanceTarget[];
   readonly marketauxApiToken?: string;
   readonly finnhubApiToken?: string;
   readonly fredApiKey?: string;
@@ -43,6 +44,12 @@ export interface CollectContext {
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
   readonly request: SourceRequestExecutor;
+}
+
+export interface NewsRelevanceTarget {
+  readonly symbol: string;
+  readonly name?: string;
+  readonly allowLowercaseSymbolMention?: boolean;
 }
 
 export interface MarketCollectionResult {
@@ -74,6 +81,8 @@ export interface NewsCollectionAnalytics {
   readonly selectedNewsSourceCount: number;
   readonly selectedRelevantTickerNewsSourceCount?: number;
   readonly selectedGenericTickerNewsSourceCount?: number;
+  readonly selectedRelevantMoverNewsSourceCount?: number;
+  readonly selectedGenericMoverNewsSourceCount?: number;
   readonly repeatFallbackUsed: boolean;
 }
 

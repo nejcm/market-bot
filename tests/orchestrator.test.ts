@@ -2048,6 +2048,112 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
+  test("re-prompts synthesis when adjacent direction forecasts are trimmed", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        finalCalls += 1;
+        if (finalCalls === 1) {
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [
+                {
+                  id: "pred-1",
+                  claim: "AAPL closes higher over 5 trading days.",
+                  kind: "direction",
+                  subject: "AAPL",
+                  measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+                  horizonTradingDays: 5,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+                {
+                  id: "pred-adjacent",
+                  claim: "AAPL closes higher over 6 trading days.",
+                  kind: "direction",
+                  subject: "AAPL",
+                  measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+                  horizonTradingDays: 6,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+                {
+                  id: "pred-distinct",
+                  claim: "AAPL closes higher over 8 trading days.",
+                  kind: "direction",
+                  subject: "AAPL",
+                  measurableAs: "close(AAPL, +8) > close(AAPL, 0)",
+                  horizonTradingDays: 8,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        return {
+          content: modelReport("AAPL"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const retryPrompt = finalPrompts[1] ?? {};
+
+    expect(finalPrompts).toHaveLength(2);
+    expect(retryPrompt.predictionRepromptErrors).toContain(
+      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)",
+    );
+    expect(retryPrompt.predictionRepromptErrors).not.toContain(
+      "predictionShortfall: required 2, received 2",
+    );
+    expect(
+      (retryPrompt.predictionRepair as { readonly instruction?: string } | undefined)?.instruction,
+    ).toContain("at least 2 trading days apart");
+    expect(result.trace.predictionRetryErrors).toContain(
+      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)",
+    );
+  });
+
   test("re-prompts synthesis once when report findings omit source IDs", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;

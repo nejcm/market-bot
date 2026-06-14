@@ -186,10 +186,24 @@ export function yahooQuoteSourceRequest(
   };
 }
 
-type EquityRole = "gainers" | "losers" | "actives" | "regime";
+type EquityRole = "gainers" | "losers" | "actives" | "regime" | "ticker";
 
 function isMoverRole(role: EquityRole): boolean {
   return role === "gainers" || role === "losers" || role === "actives";
+}
+
+function equityRoleAdapter(role: EquityRole): string {
+  if (role === "regime") {
+    return "yahoo-regime";
+  }
+  if (role === "ticker") {
+    return "yahoo-ticker";
+  }
+  return `yahoo-${role}`;
+}
+
+function usesQuoteFallback(role: EquityRole): boolean {
+  return role === "regime" || role === "ticker";
 }
 
 interface BenchmarkSelection {
@@ -362,7 +376,10 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
 
   const requests: readonly { readonly role: EquityRole; readonly url: string }[] =
     command.jobType === "ticker"
-      ? [{ role: "regime", url: yahooQuoteUrl(command.symbol ?? "") }]
+      ? [
+          { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
+          { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+        ]
       : [
           { role: "gainers", url: EQUITY_DAILY_URL },
           { role: "losers", url: EQUITY_DAILY_LOSERS_URL },
@@ -372,16 +389,14 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
 
   const results = await Promise.all(
     requests.map(async (req) => {
-      const adapter = req.role === "regime" ? "yahoo-regime" : `yahoo-${req.role}`;
       const request: SourceRequest = {
         url: req.url,
-        adapter,
+        adapter: equityRoleAdapter(req.role),
         fetch: yahooResilientFetchWrapper,
       };
-      const result =
-        req.role === "regime"
-          ? await requestJsonWithQuoteFallback(ctx, request)
-          : await ctx.request.json(request);
+      const result = usesQuoteFallback(req.role)
+        ? await requestJsonWithQuoteFallback(ctx, request)
+        : await ctx.request.json(request);
       return { role: req.role, result };
     }),
   );

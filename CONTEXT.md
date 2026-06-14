@@ -74,11 +74,15 @@ A soft absence, parse failure, or mismatch in prior run artifacts. It is disclos
 
 ## Market Spotlight
 
-An optional daily or weekly Market Update focus selected from the current collected market snapshot universe. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
+An optional daily or weekly Market Update focus selected from the current collected market snapshot universe. The selected set is the validated `spotlight-selection` result for a Market Update. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
 
 ## Market Regime
 
 The current market backdrop inferred from fetched evidence, such as broad direction, volatility, liquidity, and dominant themes.
+
+## Ticker Regime Context
+
+Live equity breadth and volatility proxy evidence collected alongside the covered Instrument on equity ticker runs, using the same proxy set as Market Updates. It enables current-run Market Regime labeling in ticker Research Views without treating prior Market Update artifacts as a substitute for missing live proxies.
 
 ## Market Context
 

@@ -8,7 +8,7 @@ import type { StageLabel } from "./prompt-loader";
 
 export type PlaybookStage = Exclude<
   StageLabel,
-  "evidence-request" | "playbook-selection" | "spotlight-selection"
+  "evidence-request" | "playbook-selection" | "spotlight-selection" | "forecast-disagreement"
 >;
 
 export interface PlaybookMetadata {

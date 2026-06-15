@@ -1,5 +1,6 @@
 import type { ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
 import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
+import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 
 export interface RunAnalyticsStage {
@@ -87,6 +88,12 @@ export interface RunAnalytics {
     readonly uncitedCount: number;
     readonly targetCount: number;
     readonly targetMet: boolean;
+    readonly forecastDisagreement?: {
+      readonly participantCount: number;
+      readonly successfulParticipantCount: number;
+      readonly errorCount: number;
+      readonly highDisagreementCount: number;
+    };
   };
   readonly runShape: {
     readonly traceStages: readonly string[];
@@ -208,6 +215,19 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           executedTools: trace.evidenceRequestLoop.executedTools,
           emittedGapCount: trace.evidenceRequestLoop.emittedGaps.length,
         };
+  const forecastDisagreement =
+    trace.forecastDisagreement === undefined ||
+    !isRecord(report.extras?.forecastDisagreement) ||
+    !Array.isArray(report.extras.forecastDisagreement.predictions)
+      ? undefined
+      : {
+          participantCount: trace.forecastDisagreement.participantCount,
+          successfulParticipantCount: trace.forecastDisagreement.successfulParticipantCount,
+          errorCount: trace.forecastDisagreement.errorCount,
+          highDisagreementCount: report.extras.forecastDisagreement.predictions.filter(
+            (item) => isRecord(item) && item.band === "high",
+          ).length,
+        };
 
   return {
     version: 1,
@@ -266,6 +286,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       uncitedCount: report.predictions.length - citedCount,
       targetCount: input.targetPredictions,
       targetMet: report.predictions.length >= input.targetPredictions,
+      ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
     },
     runShape: {
       traceStages: trace.stages,

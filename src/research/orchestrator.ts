@@ -52,6 +52,12 @@ import {
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
+import { validateResearchReport } from "../report/schema";
+import {
+  runForecastDisagreement,
+  type ForecastDisagreementArtifact,
+  type ForecastDisagreementExtra,
+} from "./forecast-disagreement";
 import {
   buildSpotlightCandidates,
   loadAlphaWatchlistForSpotlights,
@@ -80,6 +86,7 @@ export interface RunResearchJobResult {
   readonly stageOutputs: readonly StageOutput[];
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
+  readonly forecastDisagreement?: ForecastDisagreementArtifact;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly marketUpdateMovers?: readonly Mover[];
@@ -90,6 +97,31 @@ export interface PersistedResearchJobResult extends RunResearchJobResult {
 }
 
 const MAX_PREDICTION_REPROMPTS = 2;
+
+function forecastDisagreementModels(
+  input: RunResearchJobInput,
+  synthesisModel: string,
+): readonly string[] {
+  if (input.command.depth !== "deep") {
+    return [];
+  }
+  return (input.config.forecastDisagreementOptions?.challengerModels ?? []).filter(
+    (model) => model !== synthesisModel,
+  );
+}
+
+function compactForecastDisagreementExtra(
+  artifact: ForecastDisagreementArtifact,
+): ForecastDisagreementExtra {
+  return {
+    version: artifact.version,
+    generatedAt: artifact.generatedAt,
+    participantCount: artifact.participantCount,
+    successfulParticipantCount: artifact.successfulParticipantCount,
+    errorCount: artifact.errorCount,
+    predictions: artifact.predictions,
+  };
+}
 
 function coveragePanelStages(command: ResearchCommand): readonly PlaybookStage[] {
   if (command.depth !== "deep") {
@@ -490,7 +522,59 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         reprompt,
       ),
   });
-  const { report, predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
+  let { report } = synthesis;
+  let forecastDisagreement: ForecastDisagreementArtifact | undefined = undefined;
+  let forecastDisagreementStageOutputs: readonly StageOutput[] = [];
+  const configuredForecastDisagreementModels =
+    input.config.forecastDisagreementOptions?.challengerModels ?? [];
+  const challengerModels = forecastDisagreementModels(input, runParams.synthesisModel);
+  if (challengerModels.length > 0 && report.predictions.length > 0) {
+    const loaded = await loadStagePrompt(
+      "forecast-disagreement",
+      input.command,
+      input.config.promptDir,
+    );
+    const disagreement = await runForecastDisagreement({
+      generatedAt,
+      provider: input.provider,
+      providerName: input.provider.name,
+      baselineModel: runParams.synthesisModel,
+      challengerModels,
+      ...(runParams.modelParams !== undefined ? { modelParams: runParams.modelParams } : {}),
+      loaded,
+      report: {
+        runId: report.runId,
+        generatedAt: report.generatedAt,
+        summary: report.summary,
+        keyFindings: report.keyFindings,
+        bullCase: report.bullCase,
+        bearCase: report.bearCase,
+        risks: report.risks,
+        catalysts: report.catalysts,
+        scenarios: report.scenarios,
+        predictions: report.predictions,
+      },
+    });
+    forecastDisagreement = disagreement.artifact;
+    forecastDisagreementStageOutputs = disagreement.stageOutputs;
+    report = validateResearchReport({
+      ...report,
+      dataGaps: [...report.dataGaps, ...disagreement.dataGaps],
+      extras: {
+        ...report.extras,
+        forecastDisagreement: compactForecastDisagreementExtra(disagreement.artifact),
+      },
+    });
+  } else if (challengerModels.length > 0 && report.predictions.length === 0) {
+    report = validateResearchReport({
+      ...report,
+      dataGaps: [
+        ...report.dataGaps,
+        "forecastDisagreement: skipped because report emitted no predictions",
+      ],
+    });
+  }
+  const { predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
@@ -498,6 +582,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...analysisOutputs,
     critiqueOutput,
     ...synthesis.stageOutputs,
+    ...forecastDisagreementStageOutputs,
   ];
 
   const trace: RunTrace = {
@@ -525,6 +610,17 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
     ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
+    ...(forecastDisagreement !== undefined
+      ? {
+          forecastDisagreement: {
+            configuredModelCount: configuredForecastDisagreementModels.length,
+            challengerModelCount: challengerModels.length,
+            participantCount: forecastDisagreement.participantCount,
+            successfulParticipantCount: forecastDisagreement.successfulParticipantCount,
+            errorCount: forecastDisagreement.errorCount,
+          },
+        }
+      : {}),
   };
   const analytics = buildRunAnalytics({
     report,
@@ -542,6 +638,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stageOutputs,
     collectedSources,
     historicalContext,
+    ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
     ...(spotlightCandidates !== undefined ? { spotlightCandidates } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
     ...(marketUpdateMovers !== undefined ? { marketUpdateMovers } : {}),
@@ -612,6 +709,12 @@ export async function persistResearchJob(
   }
   await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
   await writeJson(join(artifacts.runDir, "analytics.json"), result.analytics);
+  if (result.forecastDisagreement !== undefined) {
+    await writeJson(
+      join(artifacts.normalizedDir, "forecast-disagreement.json"),
+      result.forecastDisagreement,
+    );
+  }
   await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);
   if (
     input.config.sourceOptions.newsSeenPath !== undefined &&

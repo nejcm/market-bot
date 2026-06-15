@@ -1763,6 +1763,104 @@ describe("runResearchJob", () => {
     );
   });
 
+  test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {
+    const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "forecast-disagreement") {
+          if (request.model === "challenger-bad") {
+            throw new Error("challenger timeout");
+          }
+          const report = isRecord(prompt.report) ? prompt.report : {};
+          const predictions = Array.isArray(report.predictions) ? report.predictions : [];
+          return {
+            content: JSON.stringify({
+              predictions: predictions.flatMap((prediction) =>
+                isRecord(prediction) && typeof prediction.id === "string"
+                  ? [{ id: prediction.id, probability: 0.8 }]
+                  : [],
+              ),
+            }),
+            tokenEstimate: 25,
+            costEstimateUsd: 0.002,
+          };
+        }
+        return {
+          content: modelReport("AAPL"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        forecastDisagreementOptions: { challengerModels: ["challenger-ok", "challenger-bad"] },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const sidecar = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "forecast-disagreement.json"), "utf8"),
+    ) as Record<string, unknown>;
+
+    expect(result.trace.stages.filter((stage) => stage === "forecast-disagreement")).toHaveLength(
+      2,
+    );
+    expect(result.trace.forecastDisagreement).toEqual({
+      configuredModelCount: 2,
+      challengerModelCount: 2,
+      participantCount: 3,
+      successfulParticipantCount: 2,
+      errorCount: 1,
+    });
+    expect(result.analytics.predictions.forecastDisagreement).toEqual({
+      participantCount: 3,
+      successfulParticipantCount: 2,
+      errorCount: 1,
+      highDisagreementCount: 6,
+    });
+    expect(result.report.dataGaps).toContain(
+      "forecastDisagreement: 1 configured challenger model(s) failed; partial uncertainty signal only",
+    );
+    expect(result.report.extras?.forecastDisagreement).toMatchObject({
+      participantCount: 3,
+      successfulParticipantCount: 2,
+      errorCount: 1,
+    });
+    expect(sidecar).toMatchObject({
+      provider: "mock",
+      baselineModel: "synthesis-test",
+      challengerModels: ["challenger-ok", "challenger-bad"],
+      participantCount: 3,
+      successfulParticipantCount: 2,
+      errorCount: 1,
+    });
+    expect(JSON.stringify(sidecar)).toContain("challenger timeout");
+    await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
+      "forecastDisagreement",
+    );
+  });
+
   test("does not persist movers.json for ticker runs", async () => {
     const dataDir = join(tmpdir(), `market-bot-ticker-movers-${Date.now()}`);
     dataDirs.push(dataDir);

@@ -1,4 +1,8 @@
 import type { Prediction } from "../domain/types";
+import type { ModelParams, ModelProvider } from "../model/types";
+import { isRecord, readNumber, readString } from "../sources/guards";
+import type { LoadedPrompt } from "./prompt-loader";
+import type { StageOutput } from "./final-synthesis";
 
 export type ForecastDisagreementBand = "low" | "medium" | "high";
 export type ForecastDisagreementParticipantRole = "primary" | "challenger";
@@ -44,6 +48,12 @@ export interface ForecastDisagreementArtifact extends ForecastDisagreementExtra 
   readonly baselineModel: string;
   readonly challengerModels: readonly string[];
   readonly participants: readonly ForecastDisagreementParticipant[];
+}
+
+export interface ForecastDisagreementResult {
+  readonly artifact: ForecastDisagreementArtifact;
+  readonly stageOutputs: readonly StageOutput[];
+  readonly dataGaps: readonly string[];
 }
 
 export function disagreementBand(spread: number): ForecastDisagreementBand {
@@ -132,5 +142,188 @@ export function buildForecastDisagreementArtifact(input: {
     baselineModel: input.baselineModel,
     challengerModels: input.challengerModels,
     participants: input.participants,
+  };
+}
+
+function buildPrompt(input: {
+  readonly loaded: LoadedPrompt;
+  readonly report: {
+    readonly runId: string;
+    readonly generatedAt: string;
+    readonly summary: string;
+    readonly keyFindings: unknown;
+    readonly bullCase: unknown;
+    readonly bearCase: unknown;
+    readonly risks: unknown;
+    readonly catalysts: unknown;
+    readonly scenarios: unknown;
+    readonly predictions: readonly Prediction[];
+  };
+}): string {
+  return JSON.stringify(
+    {
+      instruction: input.loaded.instruction,
+      stage: "forecast-disagreement",
+      stageGoal: input.loaded.goal,
+      report: input.report,
+      requiredShape: {
+        predictions: [{ id: "prediction-id", probability: 0.6 }],
+      },
+    },
+    undefined,
+    2,
+  );
+}
+
+function readParticipantPredictions(
+  value: unknown,
+  knownPredictionIds: ReadonlySet<string>,
+): readonly ForecastDisagreementParticipantPrediction[] {
+  if (!isRecord(value) || !Array.isArray(value.predictions)) {
+    throw new Error("Forecast disagreement response must include a predictions array");
+  }
+
+  const seen = new Set<string>();
+  const predictions = value.predictions.map((item) => {
+    if (!isRecord(item)) {
+      throw new Error("Forecast disagreement prediction must be an object");
+    }
+    const predictionId = readString(item, "id") ?? readString(item, "predictionId");
+    const probability = readNumber(item, "probability");
+    if (predictionId === undefined || !knownPredictionIds.has(predictionId)) {
+      throw new Error(
+        `Forecast disagreement response referenced unknown prediction ID: ${String(predictionId)}`,
+      );
+    }
+    if (probability === undefined || probability < 0 || probability > 1) {
+      throw new Error(
+        `Forecast disagreement probability for ${predictionId} must be between 0 and 1`,
+      );
+    }
+    if (seen.has(predictionId)) {
+      throw new Error(`Forecast disagreement response duplicated prediction ID: ${predictionId}`);
+    }
+    seen.add(predictionId);
+    return { predictionId, probability };
+  });
+
+  if (seen.size !== knownPredictionIds.size) {
+    throw new Error("Forecast disagreement response must include every supplied prediction ID");
+  }
+
+  return predictions;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function runForecastDisagreement(input: {
+  readonly generatedAt: string;
+  readonly provider: ModelProvider;
+  readonly providerName: string;
+  readonly baselineModel: string;
+  readonly challengerModels: readonly string[];
+  readonly modelParams?: ModelParams;
+  readonly loaded: LoadedPrompt;
+  readonly report: {
+    readonly runId: string;
+    readonly generatedAt: string;
+    readonly summary: string;
+    readonly keyFindings: unknown;
+    readonly bullCase: unknown;
+    readonly bearCase: unknown;
+    readonly risks: unknown;
+    readonly catalysts: unknown;
+    readonly scenarios: unknown;
+    readonly predictions: readonly Prediction[];
+  };
+}): Promise<ForecastDisagreementResult> {
+  const knownPredictionIds = new Set(input.report.predictions.map((prediction) => prediction.id));
+  const prompt = buildPrompt({ loaded: input.loaded, report: input.report });
+  const primary: ForecastDisagreementParticipant = {
+    role: "primary",
+    provider: input.providerName,
+    model: input.baselineModel,
+    status: "ok",
+    predictions: input.report.predictions.map((prediction) => ({
+      predictionId: prediction.id,
+      probability: prediction.probability,
+    })),
+  };
+
+  const challengerResults = await Promise.all(
+    input.challengerModels.map(async (model) => {
+      try {
+        const response = await input.provider.generate({
+          model,
+          ...(input.modelParams !== undefined ? { params: input.modelParams } : {}),
+          responseFormat: "json",
+          messages: [
+            { role: "system", content: input.loaded.system },
+            { role: "user", content: prompt },
+          ],
+        });
+        const predictions = readParticipantPredictions(
+          JSON.parse(response.content) as unknown,
+          knownPredictionIds,
+        );
+        return {
+          participant: {
+            role: "challenger",
+            provider: input.providerName,
+            model,
+            status: "ok",
+            predictions,
+            tokenEstimate: response.tokenEstimate,
+            costEstimateUsd: response.costEstimateUsd,
+          } satisfies ForecastDisagreementParticipant,
+          stageOutput: {
+            stage: "forecast-disagreement",
+            content: response.content,
+            tokenEstimate: response.tokenEstimate,
+            costEstimateUsd: response.costEstimateUsd,
+          } satisfies StageOutput,
+        };
+      } catch (error) {
+        const message = errorMessage(error);
+        return {
+          participant: {
+            role: "challenger",
+            provider: input.providerName,
+            model,
+            status: "error",
+            error: message,
+          } satisfies ForecastDisagreementParticipant,
+          stageOutput: {
+            stage: "forecast-disagreement",
+            content: JSON.stringify({ model, error: message }),
+            tokenEstimate: 0,
+            costEstimateUsd: 0,
+          } satisfies StageOutput,
+        };
+      }
+    }),
+  );
+  const participants = [primary, ...challengerResults.map((result) => result.participant)];
+  const artifact = buildForecastDisagreementArtifact({
+    generatedAt: input.generatedAt,
+    provider: input.providerName,
+    baselineModel: input.baselineModel,
+    challengerModels: input.challengerModels,
+    predictions: input.report.predictions,
+    participants,
+  });
+  const dataGaps =
+    artifact.errorCount > 0
+      ? [
+          `forecastDisagreement: ${String(artifact.errorCount)} configured challenger model(s) failed; partial uncertainty signal only`,
+        ]
+      : [];
+
+  return {
+    artifact,
+    stageOutputs: challengerResults.map((result) => result.stageOutput),
+    dataGaps,
   };
 }

@@ -360,4 +360,11 @@ export interface RunTrace {
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
+  readonly forecastDisagreement?: {
+    readonly configuredModelCount: number;
+    readonly challengerModelCount: number;
+    readonly participantCount: number;
+    readonly successfulParticipantCount: number;
+    readonly errorCount: number;
+  };
 }

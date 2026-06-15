@@ -13,7 +13,8 @@ export type StageLabel =
   | "instrument-evidence-analysis"
   | "market-behavior-analysis"
   | "critique"
-  | "final-synthesis";
+  | "final-synthesis"
+  | "forecast-disagreement";
 
 export interface LoadedPrompt {
   readonly system: string;

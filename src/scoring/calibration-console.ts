@@ -60,5 +60,11 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
     lines.push(...metricRows(horizonEntries, 10));
   }
 
+  const regimeEntries = Object.entries(summary.byMarketRegime);
+  if (regimeEntries.length > 0) {
+    lines.push("", "By market regime", "");
+    lines.push(...metricRows(regimeEntries, 18));
+  }
+
   return lines.join("\n");
 }

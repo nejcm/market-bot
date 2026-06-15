@@ -120,7 +120,8 @@ export type CalibrationSliceGroup =
   | "byAssetClass"
   | "byJobType"
   | "byMarketUpdateCadence"
-  | "byHorizonBucket";
+  | "byHorizonBucket"
+  | "byMarketRegime";
 
 const HORIZON_BUCKET_ORDER = ["1-5d", "6-10d", "11-15d", "16-20d"];
 

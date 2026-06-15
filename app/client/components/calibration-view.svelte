@@ -26,6 +26,7 @@
       { group: "byJobType", title: "By job type" },
       { group: "byMarketUpdateCadence", title: "By cadence" },
       { group: "byHorizonBucket", title: "By horizon" },
+      { group: "byMarketRegime", title: "By market regime" },
     ];
 
   const headline = $derived(calibrationHeadline(calibration));

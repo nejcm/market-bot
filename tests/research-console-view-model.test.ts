@@ -469,6 +469,10 @@ describe("calibration view model", () => {
         "1-5d": { brierScore: 0.2583, count: 11 },
         custom: { brierScore: 0.5, count: 1 },
       },
+      byMarketRegime: {
+        "risk-on": { brierScore: 0.21, count: 8 },
+        "risk-off": { brierScore: 0.29, count: 5 },
+      },
       byMissAutopsyCause: {
         source_gap: 2,
         model_overconfidence: 5,
@@ -509,6 +513,10 @@ describe("calibration view model", () => {
       "1-5d",
       "6-10d",
       "custom",
+    ]);
+    expect(calibrationSlices(detail, "byMarketRegime")).toEqual([
+      { key: "risk-on", brierScore: 0.21, count: 8 },
+      { key: "risk-off", brierScore: 0.29, count: 5 },
     ]);
     expect(calibrationSlices(detail, "byAssetClass")).toEqual([]);
     expect(calibrationSlices({}, "byKind")).toEqual([]);

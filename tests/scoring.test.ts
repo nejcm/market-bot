@@ -818,6 +818,20 @@ describe("renderCalibrationConsole", () => {
     expect(output).toContain("n=  10");
   });
 
+  test("renders a By market regime section when a regime meets the floor", () => {
+    const pairs = Array.from({ length: MIN_CALIBRATION_SAMPLE }, (_, idx) => ({
+      prediction: { ...basePrediction, id: `p${String(idx)}`, probability: 0.7 },
+      score: makeScore(idx % 2 === 0 ? "hit" : "miss"),
+      assetClass: "equity" as const,
+      jobType: "daily" as const,
+      runId: `r${String(idx)}`,
+      marketRegimeLabel: "risk-on" as const,
+    }));
+    const output = renderCalibrationConsole(buildCalibrationSummary(pairs, at));
+    expect(output).toContain("By market regime");
+    expect(output).toContain("risk-on");
+  });
+
   test("renders per-kind and per-horizon skill scores with correct values", () => {
     // Direction hits at probability=1 → Brier=0 → skill=+1.00
     // Volatility misses at probability=0 → Brier=0 → skill=+1.00

@@ -29,14 +29,16 @@ equivalent seam.
 
 Introduce one read module, `src/run-artifacts.ts`, as the canonical seam for persisted runs. It
 exposes `scanRunArtifacts(dataDir)` and `loadRunArtifact(runDir)` returning a typed `RunArtifact`
-(`runDirName`, `report`, `scores`, `marketSnapshots`, `status`).
+(`runDirName`, `report`, `scores`, `marketSnapshots`, optional `verifiedMarketSnapshot`,
+`status`).
 
 - **Full-fidelity shared parse.** `report.json` is parsed once, leniently, to the domain
   `ResearchReport` — keeping `sources` and the real prediction `kind`. Callers project down to what
   they need; a reader can carry more than a caller needs, never less.
-- **Core-triple bundle.** The reader bundles only the artifacts read by more than one caller:
-  report, scores, and primary market snapshots. History/alpha-only files (supplemental snapshots,
-  SEC fundamentals, alpha validation) and `movers.json` are read by their single caller, not here.
+- **Shared bundle.** The reader bundles only the artifacts read by more than one caller: report,
+  scores, primary market snapshots, and verified market snapshots. History/alpha-only files
+  (supplemental snapshots, SEC fundamentals, alpha validation) and `movers.json` are read by their
+  single caller, not here.
 - **Discriminated malformed contract.** Per run, the reader reports
   `report: "ok" | "malformed" | "absent"` and `score: "ok" | "malformed" | "absent"`
   (`absent` = ENOENT; `malformed` = unreadable or wrong shape). Callers fold these into their own
@@ -69,6 +71,9 @@ raw `JSON.parse(...) as T` report/score casts remain. Two notes on the completed
 - `history/artifacts` takes report + scores from the seam but keeps its single-caller sidecars
   (supplemental snapshots, `sec-fundamentals.json`, `alpha-validation.json`) local, and adopts the
   stricter `malformedRunCount` definition above.
+- `normalized/verified-market-snapshot.json` is now parsed by the seam because both the run
+  workspace and per-Instrument timeline surfaces consume it. This does not make it scoring
+  evidence; ADR 0019's research-only and supplemental-evidence boundaries still apply.
 
 ## Rejected alternatives
 

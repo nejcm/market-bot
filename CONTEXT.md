@@ -76,6 +76,10 @@ A compact, deterministic "what changed since the last same-cadence run" summary 
 
 A deterministic, analysis-date-anchored OHLCV and technical-indicator ground-truth block for a single Instrument. It is citeable supplemental evidence for exact numeric claims in a Research View. It is not investment conviction, a trade signal, or a scoring Observation unless explicitly promoted later. Equity ticker runs only; v1 uses Yahoo daily bars with a ≥400 calendar day lookback. See [ADR 0019](./docs/adr/0019-verified-market-snapshot.md).
 
+## Instrument Accountability Timeline
+
+A Research Console presentation of the existing per-Instrument timelines in Cross-run Intelligence. It assembles artifact-backed Research Theses, observable Predictions, score outcomes, Miss Autopsy causes, and available Verified Market Snapshot closes for one `assetClass + symbol`. "Accountability" means traceability from stated observable events to persisted outcomes; it is not investment correctness, model endorsement, recommendation, trade signal, or portfolio action.
+
 ## Historical Context Gap
 
 A soft absence, parse failure, or mismatch in prior run artifacts. It is disclosed in historical context, but it is not a provider `SourceGap` and does not mean live source collection failed.

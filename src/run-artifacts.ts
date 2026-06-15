@@ -10,10 +10,17 @@ import type {
   PredictionKind,
   ResearchReport,
   Source,
+  VerifiedMarketSnapshot,
 } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { MissAutopsyCause, MissAutopsyEntry, PredictionScore } from "./scoring/types";
-import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "./sources/guards";
+import {
+  isRecord,
+  nonEmptyStringArrayValue,
+  readNumber,
+  readString,
+  stringArrayValue,
+} from "./sources/guards";
 
 // ---------------------------------------------------------------------------
 // Run Artifact reader — the single read seam for persisted research runs under
@@ -42,6 +49,7 @@ export interface RunArtifact {
   readonly scores: readonly PredictionScore[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly status: RunArtifactStatus;
 }
 
@@ -326,6 +334,94 @@ function readSnapshots(value: unknown): readonly MarketSnapshot[] {
   });
 }
 
+function readOhlcvBar(value: unknown): VerifiedMarketSnapshot["ohlcv"] | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const open = readNumber(value, "open");
+  const high = readNumber(value, "high");
+  const low = readNumber(value, "low");
+  const close = readNumber(value, "close");
+  const volume = readNumber(value, "volume");
+  return typeof value.date === "string" &&
+    open !== undefined &&
+    high !== undefined &&
+    low !== undefined &&
+    close !== undefined &&
+    volume !== undefined
+    ? { date: value.date, open, high, low, close, volume }
+    : undefined;
+}
+
+function readNullableIndicator(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readIndicators(value: unknown): VerifiedMarketSnapshot["indicators"] | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  return {
+    ema10: readNullableIndicator(value, "ema10"),
+    sma50: readNullableIndicator(value, "sma50"),
+    sma200: readNullableIndicator(value, "sma200"),
+    rsi14: readNullableIndicator(value, "rsi14"),
+    macd: readNullableIndicator(value, "macd"),
+    macdSignal: readNullableIndicator(value, "macdSignal"),
+    macdHistogram: readNullableIndicator(value, "macdHistogram"),
+    bollUpper: readNullableIndicator(value, "bollUpper"),
+    bollMiddle: readNullableIndicator(value, "bollMiddle"),
+    bollLower: readNullableIndicator(value, "bollLower"),
+    atr14: readNullableIndicator(value, "atr14"),
+  };
+}
+
+function readRecentCloses(value: unknown): VerifiedMarketSnapshot["recentCloses"] | undefined {
+  if (!Array.isArray(value)) {
+    return;
+  }
+  const closes = value.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+    const close = readNumber(entry, "close");
+    return typeof entry.date === "string" && close !== undefined
+      ? [{ date: entry.date, close }]
+      : [];
+  });
+  return closes.length >= 2 ? closes : undefined;
+}
+
+function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapshot | undefined {
+  if (!isRecord(value) || value.assetClass !== "equity" || typeof value.symbol !== "string") {
+    return;
+  }
+  const analysisDate = readString(value, "analysisDate");
+  const fetchedAt = readString(value, "fetchedAt");
+  const latestSessionDate = readString(value, "latestSessionDate");
+  const ohlcv = readOhlcvBar(value.ohlcv);
+  const indicators = readIndicators(value.indicators);
+  const recentCloses = readRecentCloses(value.recentCloses);
+  return analysisDate === undefined ||
+    fetchedAt === undefined ||
+    latestSessionDate === undefined ||
+    ohlcv === undefined ||
+    indicators === undefined ||
+    recentCloses === undefined
+    ? undefined
+    : {
+        symbol: value.symbol.toUpperCase(),
+        assetClass: "equity",
+        analysisDate,
+        fetchedAt,
+        latestSessionDate,
+        ohlcv,
+        indicators,
+        recentCloses,
+      };
+}
+
 function scoreStatusFor(
   file: JsonFileResult,
   parsed: readonly PredictionScore[] | undefined,
@@ -340,6 +436,7 @@ const REPORT_FILE = "report.json";
 const SCORE_FILE = "score.json";
 const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const MARKET_SNAPSHOTS_FILE = join("normalized", "market-snapshots.json");
+const VERIFIED_MARKET_SNAPSHOT_FILE = join("normalized", "verified-market-snapshot.json");
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -359,10 +456,15 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const parsedScores = scoreFile.status === "ok" ? readScores(scoreFile.value) : undefined;
   const missAutopsyFile = await readJsonFile(join(runDir, MISS_AUTOPSY_FILE));
   const snapshotFile = await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
+  const verifiedSnapshotFile = await readJsonFile(join(runDir, VERIFIED_MARKET_SNAPSHOT_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
   };
+  const verifiedMarketSnapshot =
+    verifiedSnapshotFile.status === "ok"
+      ? readVerifiedMarketSnapshot(verifiedSnapshotFile.value)
+      : undefined;
 
   return {
     artifact: {
@@ -371,6 +473,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       scores: parsedScores ?? [],
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: readSnapshots(snapshotFile.value),
+      ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
       status,
     },
     status,

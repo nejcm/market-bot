@@ -43,6 +43,7 @@ function writeRun(
           id: "p1",
           claim: `${summary} AAPL closes higher.`,
           subject: "AAPL",
+          measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
           sourceIds: ["s1"],
         }),
       ],
@@ -241,5 +242,79 @@ describe("history artifacts", () => {
       await readFile(join(rootDir, "history", "instruments", "equity-AAPL.json"), "utf8"),
     ) as { readonly entries: readonly { readonly scores: readonly unknown[] }[] };
     expect(timeline.entries.every((entry) => entry.scores.length === 0)).toBe(true);
+  });
+
+  test("matches timelines from parsed forecast instruments without throwing on malformed forecasts", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-forecast-instruments-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    const runDir = join(dataDir, "market-run");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "market-run",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-06-05T00:00:00.000Z",
+        predictions: [
+          prediction({
+            id: "relative",
+            kind: "relative",
+            subject: "QQQ:SPY",
+            measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
+          }),
+          prediction({
+            id: "malformed",
+            claim: "A malformed legacy forecast remains readable.",
+            subject: "BROKEN",
+            measurableAs: "not parseable",
+          }),
+        ],
+      }),
+    );
+
+    const result = await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    expect(result.instrumentCount).toBe(2);
+    const qqqTimeline = JSON.parse(
+      await readFile(join(rootDir, "history", "instruments", "equity-QQQ.json"), "utf8"),
+    ) as { readonly entries: readonly { readonly scope: string; readonly runId: string }[] };
+    const spyTimeline = JSON.parse(
+      await readFile(join(rootDir, "history", "instruments", "equity-SPY.json"), "utf8"),
+    ) as { readonly entries: readonly { readonly scope: string; readonly runId: string }[] };
+    expect(
+      qqqTimeline.entries.map((entry) => ({ scope: entry.scope, runId: entry.runId })),
+    ).toEqual([{ scope: "market-update", runId: "market-run" }]);
+    expect(
+      spyTimeline.entries.map((entry) => ({ scope: entry.scope, runId: entry.runId })),
+    ).toEqual([{ scope: "market-update", runId: "market-run" }]);
+  });
+
+  test("filters verified snapshots to the matching timeline symbol", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-verified-filter-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-aapl", "2026-06-05T00:00:00.000Z", "AAPL thesis", "AAPL risk");
+    writeJson(join(dataDir, "run-aapl", "normalized", "verified-market-snapshot.json"), {
+      symbol: "MSFT",
+      assetClass: "equity",
+      analysisDate: "2026-06-05",
+      fetchedAt: "2026-06-05T00:00:00.000Z",
+      latestSessionDate: "2026-06-04",
+      ohlcv: { date: "2026-06-04", open: 1, high: 2, low: 1, close: 2, volume: 3 },
+      indicators: {},
+      recentCloses: [
+        { date: "2026-06-03", close: 1 },
+        { date: "2026-06-04", close: 2 },
+      ],
+    });
+
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const timeline = JSON.parse(
+      await readFile(join(rootDir, "history", "instruments", "equity-AAPL.json"), "utf8"),
+    ) as { readonly entries: readonly { readonly verifiedMarketSnapshot?: unknown }[] };
+    expect(timeline.entries[0]?.verifiedMarketSnapshot).toBeUndefined();
   });
 });

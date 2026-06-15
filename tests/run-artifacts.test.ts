@@ -95,6 +95,52 @@ describe("loadRunArtifact", () => {
     expect(artifact?.marketSnapshots[0]?.benchmark?.symbol).toBe("SPY");
   });
 
+  test("loads verified market snapshot through the run artifact seam", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "verified");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "verified" }));
+    await writeJson(join(runDir, "normalized", "verified-market-snapshot.json"), {
+      symbol: "aapl",
+      assetClass: "equity",
+      analysisDate: "2026-05-19",
+      fetchedAt: "2026-05-19T00:00:00.000Z",
+      latestSessionDate: "2026-05-18",
+      ohlcv: {
+        date: "2026-05-18",
+        open: 100,
+        high: 110,
+        low: 99,
+        close: 108,
+        volume: 123,
+      },
+      indicators: {
+        ema10: 101,
+        sma50: 102,
+        sma200: null,
+        rsi14: 55,
+        macd: 1,
+        macdSignal: 0.5,
+        macdHistogram: 0.5,
+        bollUpper: 120,
+        bollMiddle: 100,
+        bollLower: 80,
+        atr14: 3,
+      },
+      recentCloses: [
+        { date: "2026-05-15", close: 105 },
+        { date: "2026-05-18", close: 108 },
+      ],
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.verifiedMarketSnapshot?.symbol).toBe("AAPL");
+    expect(artifact?.verifiedMarketSnapshot?.recentCloses).toEqual([
+      { date: "2026-05-15", close: 105 },
+      { date: "2026-05-18", close: 108 },
+    ]);
+  });
+
   test("reports an absent report directory (ENOENT) without an artifact", async () => {
     const dataDir = tempRunsDir();
     await mkdir(join(dataDir, "empty"), { recursive: true });

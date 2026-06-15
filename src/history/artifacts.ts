@@ -8,7 +8,9 @@ import type {
   Prediction,
   ResearchReport,
   Source,
+  VerifiedMarketSnapshot,
 } from "../domain/types";
+import { instrumentsForExpression, parseObservableExpression } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
 import type { ModelProvider } from "../model/types";
 import { violatesResearchOnly } from "../domain/research-language";
@@ -92,6 +94,7 @@ export interface InstrumentTimelineEntry {
   readonly sources: readonly Source[];
   readonly scores: readonly PredictionScore[];
   readonly identity?: InstrumentIdentity;
+  readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly snapshots: readonly Record<string, unknown>[];
   readonly fundamentals: readonly Record<string, unknown>[];
   readonly validation: readonly Record<string, unknown>[];
@@ -187,7 +190,9 @@ function recordArray(value: unknown): readonly Record<string, unknown>[] {
     : [];
 }
 
-function reportInstrumentKeys(report: ResearchReport): readonly { key: string; symbol: string }[] {
+export function reportInstrumentKeys(
+  report: ResearchReport,
+): readonly { key: string; symbol: string }[] {
   const symbols = new Set<string>();
   if (report.symbol !== undefined) {
     symbols.add(report.symbol.toUpperCase());
@@ -198,9 +203,17 @@ function reportInstrumentKeys(report: ResearchReport): readonly { key: string; s
     }
   }
   for (const prediction of report.predictions) {
-    const subject = prediction.subject.split(":")[0]?.trim();
-    if (subject !== undefined && /^[A-Z0-9._-]+$/u.test(subject)) {
-      symbols.add(subject.toUpperCase());
+    try {
+      for (const instrument of instrumentsForExpression(
+        parseObservableExpression(prediction.measurableAs),
+      )) {
+        const symbol = instrument.trim();
+        if (/^[A-Z0-9._-]+$/iu.test(symbol)) {
+          symbols.add(symbol.toUpperCase());
+        }
+      }
+    } catch {
+      // Legacy malformed forecasts must not poison timeline aggregation.
     }
   }
   return [...symbols].map((symbol) => ({ symbol, key: instrumentKey(report.assetClass, symbol) }));
@@ -315,21 +328,19 @@ function searchEntriesFor(
 interface LoadedHistoryRun {
   readonly report: ResearchReport;
   readonly scores: readonly PredictionScore[];
+  readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly snapshots: readonly Record<string, unknown>[];
   readonly fundamentals: readonly Record<string, unknown>[];
   readonly validation: readonly Record<string, unknown>[];
 }
 
 // Report and score come from the canonical Run Artifact seam (ADR 0016). The history-only
-// Sidecars below — raw snapshot records (kept as Record so unknown provider fields survive
-// Into timelines), SEC fundamentals, and alpha validation — have a single caller and are
-// Read here, not folded into the shared bundle.
+// Sidecars below — supplemental snapshot records (kept as Record so unknown provider fields
+// Survive into timelines), SEC fundamentals, and alpha validation — have a single caller and
+// Are read here, not folded into the shared bundle.
 async function loadRunSidecars(
   runDir: string,
 ): Promise<Omit<LoadedHistoryRun, "report" | "scores">> {
-  const marketSnapshots = recordArray(
-    await readJson(join(runDir, "normalized", "market-snapshots.json")),
-  );
   const supplementalSnapshots = recordArray(
     await readJson(join(runDir, "normalized", "supplemental-market-snapshots.json")),
   );
@@ -339,36 +350,19 @@ async function loadRunSidecars(
   const validationFile = await readJson(join(runDir, "alpha-validation.json"));
   const validation = isRecord(validationFile) ? [validationFile] : recordArray(validationFile);
   return {
-    snapshots: [...marketSnapshots, ...supplementalSnapshots],
+    snapshots: supplementalSnapshots,
     fundamentals,
     validation,
   };
 }
 
-export async function rebuildHistoryArtifacts(
-  dataDir: string,
-  now: Date = new Date(),
-): Promise<HistoryRebuildResult> {
-  const scan = await scanRunArtifacts(dataDir);
-  const loaded: readonly LoadedHistoryRun[] = await Promise.all(
-    scan.artifacts.map(async (artifact) => ({
-      report: artifact.report,
-      scores: artifact.scores,
-      ...(await loadRunSidecars(join(dataDir, artifact.runDirName))),
-    })),
-  );
-  // Stricter ADR 0016 counting: only report-present-but-broken dirs are "malformed";
-  // Report-absent dirs are not counted (the prior local reader conflated the two).
-  const malformedRunCount = scan.entries.filter(
-    (entry) => entry.status.report === "malformed",
-  ).length;
-  const generatedAt = now.toISOString();
-  const indexEntries = loaded.flatMap((run) =>
-    searchEntriesFor(run.report, run.scores, run.fundamentals, run.validation),
-  );
+function buildInstrumentTimelines(
+  runs: readonly LoadedHistoryRun[],
+  generatedAt: string,
+): readonly InstrumentTimeline[] {
   const timelines = new Map<string, InstrumentTimelineEntry[]>();
 
-  for (const run of loaded) {
+  for (const run of runs) {
     for (const { key, symbol } of reportInstrumentKeys(run.report)) {
       const current = timelines.get(key) ?? [];
       const identity = firstIdentity(run.report, symbol);
@@ -376,6 +370,10 @@ export async function rebuildHistoryArtifacts(
         run.report.symbol !== undefined && run.report.symbol.toUpperCase() === symbol
           ? "instrument"
           : "market-update";
+      const verifiedMarketSnapshot =
+        run.verifiedMarketSnapshot?.symbol.toUpperCase() === symbol
+          ? run.verifiedMarketSnapshot
+          : undefined;
       current.push({
         runId: run.report.runId,
         generatedAt: run.report.generatedAt,
@@ -391,6 +389,7 @@ export async function rebuildHistoryArtifacts(
         ),
         scores: run.scores,
         ...(identity !== undefined ? { identity } : {}),
+        ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
         snapshots: run.snapshots.filter(
           (snapshot) => readString(snapshot, "symbol")?.toUpperCase() === symbol,
         ),
@@ -400,6 +399,58 @@ export async function rebuildHistoryArtifacts(
       timelines.set(key, current);
     }
   }
+
+  return [...timelines.entries()].map(([key, timelineEntries]) => {
+    const colon = key.indexOf(":");
+    const assetClass = key.slice(0, colon) as AssetClass;
+    const symbol = key.slice(colon + 1);
+    return {
+      version: 1,
+      generatedAt,
+      instrumentKey: key,
+      assetClass,
+      symbol,
+      entries: timelineEntries.toSorted((left, right) =>
+        left.generatedAt.localeCompare(right.generatedAt),
+      ),
+    };
+  });
+}
+
+export async function rebuildHistoryArtifacts(
+  dataDir: string,
+  now: Date = new Date(),
+): Promise<HistoryRebuildResult> {
+  const scan = await scanRunArtifacts(dataDir);
+  const loaded: readonly LoadedHistoryRun[] = await Promise.all(
+    scan.artifacts.map(async (artifact) => {
+      const sidecars = await loadRunSidecars(join(dataDir, artifact.runDirName));
+      return {
+        report: artifact.report,
+        scores: artifact.scores,
+        ...(artifact.verifiedMarketSnapshot !== undefined
+          ? { verifiedMarketSnapshot: artifact.verifiedMarketSnapshot }
+          : {}),
+        ...sidecars,
+        snapshots: [
+          ...artifact.marketSnapshots.map(
+            (snapshot) => snapshot as unknown as Record<string, unknown>,
+          ),
+          ...sidecars.snapshots,
+        ],
+      };
+    }),
+  );
+  // Stricter ADR 0016 counting: only report-present-but-broken dirs are "malformed";
+  // Report-absent dirs are not counted (the prior local reader conflated the two).
+  const malformedRunCount = scan.entries.filter(
+    (entry) => entry.status.report === "malformed",
+  ).length;
+  const generatedAt = now.toISOString();
+  const indexEntries = loaded.flatMap((run) =>
+    searchEntriesFor(run.report, run.scores, run.fundamentals, run.validation),
+  );
+  const timelines = buildInstrumentTimelines(loaded, generatedAt);
 
   const dir = historyDir(dataDir);
   const instrumentsDir = join(dir, "instruments");
@@ -418,32 +469,19 @@ export async function rebuildHistoryArtifacts(
   await writeFile(indexPath, `${JSON.stringify(index, undefined, 2)}\n`, "utf8");
 
   await Promise.all(
-    [...timelines.entries()].map(([key, timelineEntries]) => {
-      const colon = key.indexOf(":");
-      const assetClass = key.slice(0, colon) as AssetClass;
-      const symbol = key.slice(colon + 1);
-      const timeline: InstrumentTimeline = {
-        version: 1,
-        generatedAt,
-        instrumentKey: key,
-        assetClass,
-        symbol,
-        entries: timelineEntries.toSorted((left, right) =>
-          left.generatedAt.localeCompare(right.generatedAt),
-        ),
-      };
-      return writeFile(
-        join(instrumentsDir, instrumentFileName(key)),
+    timelines.map((timeline) =>
+      writeFile(
+        join(instrumentsDir, instrumentFileName(timeline.instrumentKey)),
         `${JSON.stringify(timeline, undefined, 2)}\n`,
         "utf8",
-      );
-    }),
+      ),
+    ),
   );
 
   return {
     historyDir: dir,
     indexPath,
-    instrumentCount: timelines.size,
+    instrumentCount: timelines.length,
     sourceRunCount: loaded.length,
     malformedRunCount,
   };

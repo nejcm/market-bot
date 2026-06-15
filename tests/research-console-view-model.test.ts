@@ -7,6 +7,7 @@ import {
   closeLinePoints,
   dashboardMetrics,
   extendedEvidenceItems,
+  forecastDisagreements,
   filterRuns,
   forecastRollup,
   formatClose,
@@ -656,6 +657,22 @@ describe("forecast outcomes", () => {
       { id: "p2", claim: "VIX max above 20.", probability: 0.3, sourceIds: [] },
       { id: "p3", claim: "BTC closes higher.", probability: 0.55, sourceIds: [] },
     ],
+    extras: {
+      forecastDisagreement: {
+        predictions: [
+          {
+            predictionId: "p1",
+            meanProbability: 0.7,
+            probabilityVariance: 0.01,
+            probabilitySpread: 0.2,
+            band: "high",
+            participantCount: 2,
+            missingParticipantCount: 0,
+          },
+          { predictionId: "p2", band: "broken" },
+        ],
+      },
+    },
   };
   const score = {
     runId: "run-1",
@@ -734,9 +751,34 @@ describe("forecast outcomes", () => {
     const joined = scoredForecasts(report, score);
     expect(joined).toHaveLength(3);
     expect(joined[0]?.score?.outcome).toBe("miss");
+    expect(joined[0]?.forecastDisagreement).toEqual({
+      predictionId: "p1",
+      meanProbability: 0.7,
+      probabilityVariance: 0.01,
+      probabilitySpread: 0.2,
+      band: "high",
+      participantCount: 2,
+      missingParticipantCount: 0,
+    });
     expect(joined[1]?.score?.resolved).toBe(false);
     expect(joined[1]?.score?.pendingReason).toBe("horizon not yet elapsed");
+    expect(joined[1]?.forecastDisagreement).toBeUndefined();
     expect(joined[2]?.score).toBeUndefined();
+  });
+
+  test("parses forecast disagreement summaries defensively", () => {
+    expect(forecastDisagreements(report)).toEqual([
+      {
+        predictionId: "p1",
+        meanProbability: 0.7,
+        probabilityVariance: 0.01,
+        probabilitySpread: 0.2,
+        band: "high",
+        participantCount: 2,
+        missingParticipantCount: 0,
+      },
+    ]);
+    expect(forecastDisagreements({ extras: { forecastDisagreement: "broken" } })).toEqual([]);
   });
 
   test("joins to empty scores when score artifact is missing", () => {

@@ -122,6 +122,20 @@
     score: "Score",
   };
 
+  const DISAGREEMENT_BADGE_CLASSES: Record<string, string> = {
+    low: "border-[#cfe0e3] bg-accent text-primary",
+    medium: "border-[#d9c89a] bg-[#f5ecd6] text-[#8a6116]",
+    high: "border-[#b8bdc3] bg-[#eef0f2] text-[#3f454b]",
+  };
+
+  function percent(value: number): string {
+    return `${String(Math.round(value * 100))}%`;
+  }
+
+  function spreadPoints(value: number): string {
+    return `${String(Math.round(value * 100))}pp`;
+  }
+
   const dataContent = $derived.by(() => {
     if (detail === null) {
       return "Not available";
@@ -419,7 +433,7 @@
               {/if}
               {#each forecastItems as forecast}
                 <div
-                  class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_76px] sm:gap-4"
+                  class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_132px] sm:gap-4"
                 >
                   <div class="font-serif text-sm leading-[1.5] text-[#1f2225]">
                     {forecast.claim}
@@ -461,7 +475,7 @@
                       ? ""
                       : `${forecast.horizonTradingDays} td`}
                   </div>
-                  <div class="sm:text-right">
+                  <div class="flex flex-wrap gap-1.5 sm:justify-end">
                     {#if forecast.score?.outcome === "hit"}
                       <span
                         class="rounded border border-[#9fc2c8] bg-[#e7f1f3] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
@@ -480,6 +494,22 @@
                         title={forecast.score?.pendingReason ?? "not yet scored"}
                       >
                         PENDING
+                      </span>
+                    {/if}
+                    {#if forecast.forecastDisagreement !== undefined}
+                      <span
+                        class="rounded border px-1.75 py-0.5 font-mono text-[10px] {DISAGREEMENT_BADGE_CLASSES[
+                          forecast.forecastDisagreement.band
+                        ]}"
+                        title="Forecast Disagreement: {forecast.forecastDisagreement.band} spread; mean {percent(
+                          forecast.forecastDisagreement.meanProbability,
+                        )}; spread {spreadPoints(
+                          forecast.forecastDisagreement.probabilitySpread,
+                        )}; {forecast.forecastDisagreement.participantCount} model probabilities"
+                      >
+                        FD {forecast.forecastDisagreement.band.toUpperCase()} {spreadPoints(
+                          forecast.forecastDisagreement.probabilitySpread,
+                        )}
                       </span>
                     {/if}
                   </div>

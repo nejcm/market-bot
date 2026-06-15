@@ -32,8 +32,21 @@ export interface PredictionScoreView {
   readonly pendingReason?: string;
 }
 
+export type ForecastDisagreementBand = "low" | "medium" | "high";
+
+export interface ForecastDisagreementView {
+  readonly predictionId: string;
+  readonly meanProbability: number;
+  readonly probabilityVariance: number;
+  readonly probabilitySpread: number;
+  readonly band: ForecastDisagreementBand;
+  readonly participantCount: number;
+  readonly missingParticipantCount: number;
+}
+
 export interface ScoredForecast extends PredictionView {
   readonly score?: PredictionScoreView;
+  readonly forecastDisagreement?: ForecastDisagreementView;
 }
 
 export interface ForecastRollup {
@@ -247,6 +260,57 @@ export function predictionScores(
     });
 }
 
+function isForecastDisagreementBand(value: unknown): value is ForecastDisagreementBand {
+  return value === "low" || value === "medium" || value === "high";
+}
+
+export function forecastDisagreements(
+  report: Record<string, unknown> | undefined,
+): readonly ForecastDisagreementView[] {
+  const extras = report?.extras;
+  if (!isRecord(extras) || !isRecord(extras.forecastDisagreement)) {
+    return [];
+  }
+  const disagreementPredictions = extras.forecastDisagreement.predictions;
+  if (!Array.isArray(disagreementPredictions)) {
+    return [];
+  }
+
+  return disagreementPredictions.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const predictionId = readString(item, "predictionId");
+    const meanProbability = readNumber(item, "meanProbability");
+    const probabilityVariance = readNumber(item, "probabilityVariance");
+    const probabilitySpread = readNumber(item, "probabilitySpread");
+    const participantCount = readNumber(item, "participantCount");
+    const missingParticipantCount = readNumber(item, "missingParticipantCount");
+    if (
+      predictionId === undefined ||
+      meanProbability === undefined ||
+      probabilityVariance === undefined ||
+      probabilitySpread === undefined ||
+      participantCount === undefined ||
+      missingParticipantCount === undefined ||
+      !isForecastDisagreementBand(item.band)
+    ) {
+      return [];
+    }
+    return [
+      {
+        predictionId,
+        meanProbability,
+        probabilityVariance,
+        probabilitySpread,
+        band: item.band,
+        participantCount,
+        missingParticipantCount,
+      },
+    ];
+  });
+}
+
 export function scoredForecasts(
   report: Record<string, unknown> | undefined,
   score: Record<string, unknown> | undefined,
@@ -254,9 +318,17 @@ export function scoredForecasts(
   const scoresById = new Map(
     predictionScores(score).map((item) => [item.predictionId, item] as const),
   );
+  const disagreementById = new Map(
+    forecastDisagreements(report).map((item) => [item.predictionId, item] as const),
+  );
   return predictions(report).map((prediction) => {
     const predictionScore = scoresById.get(prediction.id);
-    return predictionScore === undefined ? prediction : { ...prediction, score: predictionScore };
+    const forecastDisagreement = disagreementById.get(prediction.id);
+    return {
+      ...prediction,
+      ...(predictionScore !== undefined ? { score: predictionScore } : {}),
+      ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
+    };
   });
 }
 

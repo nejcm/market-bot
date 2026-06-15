@@ -42,7 +42,7 @@ Weekly market updates are a cadence and horizon change in V1, not a separate tra
 
 ## Cross-run Intelligence
 
-The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).
+The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, Miss Autopsies, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, Miss Autopsies, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).
 
 ## Historical Research Context
 
@@ -63,6 +63,10 @@ The research-only narrative state of a Research View, assembled from sourced sum
 ## Prior-Thesis Error Correction
 
 A ticker-run prompt block that surfaces prior Predictions on the current Instrument that resolved as misses — each with run ID, claim, stated probability, observed resolution values, and a source citation — framed as explicit error-correction signal rather than a passive citation pool. It steers research wording and probability calibration; it is not a recommendation, trade signal, or portfolio action. It fires for ticker runs only.
+
+## Miss Autopsy
+
+An artifact-backed classification of a material Prediction forecast error, persisted after scoring as a `miss-autopsy.json` sidecar. It compares the stated probability to the resolved observable event and records a conservative taxonomy cause from persisted artifacts only, with `insufficient_evidence` when those artifacts do not support a specific cause. It is not a live news fetch, model-generated narrative, investment conviction, recommendation, trade signal, or portfolio action.
 
 ## Market Update Delta
 

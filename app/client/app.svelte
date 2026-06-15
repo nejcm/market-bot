@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    fetchAlphaCohorts,
     createJob,
     fetchCalibration,
     fetchInstrumentTimeline,
@@ -12,6 +13,7 @@
     fetchRuns,
   } from "./api";
   import DashboardOverview from "./components/dashboard-overview.svelte";
+  import AlphaCohortsView from "./components/alpha-cohorts-view.svelte";
   import type {
     JobFormField,
     SearchFormField,
@@ -27,6 +29,7 @@
   import SearchView from "./components/search-view.svelte";
   import type {
     CalibrationDetail,
+    AlphaCohortDetail,
     ConsoleJob,
     InstrumentTimelineDetail,
     ProviderHealthDetail,
@@ -72,6 +75,7 @@
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
   let calibration = $state<CalibrationDetail>({});
+  let alphaCohorts = $state<AlphaCohortDetail>({});
   let jobs = $state<readonly ConsoleJob[]>([]);
   let searchResults = $state<readonly RunSearchResult[]>([]);
   let searchLoading = $state(false);
@@ -390,15 +394,18 @@
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
         const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
-        const [nextRuns, nextProviderHealth, nextCalibration, nextJobs] = await Promise.all([
+        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs] =
+          await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
           fetchCalibration(),
+          fetchAlphaCohorts(),
           fetchJobs(),
         ]);
         runs = nextRuns;
         providerHealth = nextProviderHealth;
         calibration = nextCalibration;
+        alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
         void loadCompareDetails(nextRuns).catch(() => {
           compareDetails = [];
@@ -501,6 +508,8 @@
         <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
       {:else if view === "calibration"}
         <CalibrationView {calibration} onNavigate={navigate} />
+      {:else if view === "alpha-cohorts"}
+        <AlphaCohortsView detail={alphaCohorts} onNavigate={navigate} />
       {:else}
         <HealthView {providerHealth} />
       {/if}

@@ -8,6 +8,7 @@ import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
+import type { AlphaLeadCohortSummary } from "../src/alpha-search/cohorts";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
 import { researchReport } from "./support/fixtures";
@@ -73,6 +74,11 @@ async function readAlphaFeatureAttribution(): Promise<AlphaFeatureAttribution> {
     "utf8",
   );
   return JSON.parse(raw) as AlphaFeatureAttribution;
+}
+
+async function readAlphaLeadCohorts(): Promise<AlphaLeadCohortSummary> {
+  const raw = await readFile(join(tmpDir, "..", "alpha-search", "cohorts.json"), "utf8");
+  return JSON.parse(raw) as AlphaLeadCohortSummary;
 }
 
 async function writeProviderHealthSummary(validation: Record<string, unknown>): Promise<void> {
@@ -516,6 +522,7 @@ describe("runScorePass Alpha validation", () => {
       await readFile(join(runDir, "normalized", "candidate-profiles.json"), "utf8"),
     ) as readonly unknown[];
     const watchlist = await readAlphaWatchlist();
+    const cohorts = await readAlphaLeadCohorts();
     expect(result).toMatchObject({ scored: 1, skipped: 0 });
     expect(result.touchedRunDirs).toEqual([runDir]);
     expect(profiles).toEqual([
@@ -558,6 +565,11 @@ describe("runScorePass Alpha validation", () => {
         expect.objectContaining({ status: "resolved", horizonTradingDays: 5 }),
       ]),
     );
+    expect(cohorts).toMatchObject({
+      watchlistCandidateCount: 1,
+      tickerBriefedLeadCount: 0,
+      unbriefedLeadCount: 1,
+    });
     expect(
       attribution.features.sourceGroup?.buckets["apewisdom-only"]?.horizons["5"],
     ).toMatchObject({

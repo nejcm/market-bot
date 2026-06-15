@@ -1,4 +1,5 @@
 import type {
+  AlphaCohortDetail,
   CalibrationDetail,
   ProviderHealthDetail,
   RunDetail,
@@ -142,6 +143,28 @@ export interface HistoricalContextAuditView {
   readonly resolvedMissRunCount: number;
   readonly missCorrectionSelectedCount: number;
   readonly gapCount: number;
+}
+
+export interface AlphaCohortHeadline {
+  readonly generatedAt?: string;
+  readonly rejectedCandidateCount: number;
+  readonly watchlistCandidateCount: number;
+  readonly tickerBriefedLeadCount: number;
+  readonly unbriefedLeadCount: number;
+}
+
+export interface AlphaRejectionBucketRow {
+  readonly reason: string;
+  readonly rejectedCount: number;
+  readonly uniqueSymbolCount: number;
+  readonly laterValidatedSymbolCount: number;
+  readonly validation: string;
+}
+
+export interface AlphaStaleLeadRow {
+  readonly ageBucket: string;
+  readonly unbriefedLeadCount: number;
+  readonly validation: string;
 }
 
 export type CalibrationSliceGroup =
@@ -346,7 +369,7 @@ function preferredCalibrationSlice(
 
 export function runCompareCards(details: readonly RunDetail[]): readonly RunCompareCard[] {
   return details.flatMap((detail) => {
-    const {analytics} = detail;
+    const { analytics } = detail;
     if (analytics === undefined) {
       return [];
     }
@@ -385,7 +408,7 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
 }
 
 export function historicalContextAuditView(
-  trace: Record<string, unknown> | undefined,
+  trace?: Record<string, unknown>,
 ): HistoricalContextAuditView | undefined {
   const audit = readRecord(trace?.historicalContext);
   if (audit === undefined) {
@@ -406,6 +429,76 @@ export function historicalContextAuditView(
     missCorrectionSelectedCount: readNumberField(audit, "missCorrectionSelectedCount"),
     gapCount: readNumberField(audit, "gapCount"),
   };
+}
+
+export function alphaCohortHeadline(detail: AlphaCohortDetail): AlphaCohortHeadline {
+  const { summary } = detail;
+  const generatedAt = readStringField(summary, "generatedAt");
+  return {
+    ...(generatedAt !== undefined ? { generatedAt } : {}),
+    rejectedCandidateCount: readNumberField(summary, "rejectedCandidateCount"),
+    watchlistCandidateCount: readNumberField(summary, "watchlistCandidateCount"),
+    tickerBriefedLeadCount: readNumberField(summary, "tickerBriefedLeadCount"),
+    unbriefedLeadCount: readNumberField(summary, "unbriefedLeadCount"),
+  };
+}
+
+function metricText(metrics: unknown): string {
+  const record = readRecord(metrics);
+  if (record === undefined) {
+    return "n/a";
+  }
+  const rows = Object.entries(record)
+    .toSorted(([left], [right]) => Number(left) - Number(right))
+    .flatMap(([horizon, value]) => {
+      const metric = readRecord(value);
+      if (metric === undefined) {
+        return [];
+      }
+      const resolvedCount = readNumberField(metric, "resolvedCount");
+      const hitRate = readFiniteNumber(metric.hitRate);
+      const averageExcessReturn = readFiniteNumber(metric.averageExcessReturn);
+      return [
+        `${horizon}d ${hitRate === undefined ? "n/a" : `${(hitRate * 100).toFixed(1)}%`} hit · ${
+          averageExcessReturn === undefined ? "n/a" : `${(averageExcessReturn * 100).toFixed(1)}%`
+        } excess · n=${String(resolvedCount)}`,
+      ];
+    });
+  return rows.length === 0 ? "n/a" : rows.join("; ");
+}
+
+export function alphaRejectionBucketRows(
+  detail: AlphaCohortDetail,
+): readonly AlphaRejectionBucketRow[] {
+  const buckets = detail.summary?.rejectionBuckets;
+  if (!Array.isArray(buckets)) {
+    return [];
+  }
+
+  return buckets
+    .filter((bucket): bucket is Record<string, unknown> => readRecord(bucket) !== undefined)
+    .map((bucket) => ({
+      reason: readStringField(bucket, "reason") ?? "unknown",
+      rejectedCount: readNumberField(bucket, "rejectedCount"),
+      uniqueSymbolCount: readNumberField(bucket, "uniqueSymbolCount"),
+      laterValidatedSymbolCount: readNumberField(bucket, "laterValidatedSymbolCount"),
+      validation: metricText(bucket.validation),
+    }));
+}
+
+export function alphaStaleLeadRows(detail: AlphaCohortDetail): readonly AlphaStaleLeadRow[] {
+  const buckets = detail.summary?.staleLeadDecay;
+  if (!Array.isArray(buckets)) {
+    return [];
+  }
+
+  return buckets
+    .filter((bucket): bucket is Record<string, unknown> => readRecord(bucket) !== undefined)
+    .map((bucket) => ({
+      ageBucket: readStringField(bucket, "ageBucket") ?? "unknown",
+      unbriefedLeadCount: readNumberField(bucket, "unbriefedLeadCount"),
+      validation: metricText(bucket.validation),
+    }));
 }
 
 export const VERIFIED_SNAPSHOT_PATH = "normalized/verified-market-snapshot.json";

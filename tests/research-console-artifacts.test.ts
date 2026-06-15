@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   listRunSummaries,
+  readAlphaLeadCohorts,
   readCalibrationSummary,
   readProviderHealth,
   readRunDetail,
@@ -169,6 +170,21 @@ describe("research console app artifacts", () => {
     await expect(readCalibrationSummary(dataDir)).resolves.toEqual({
       summary: { resolvedCount: 13, brierScore: 0.2583 },
       markdown: "# Calibration\n",
+    });
+  });
+
+  test("reads alpha cohort sibling artifacts", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const alphaDir = join(rootDir, "alpha-search");
+    mkdirSync(dataDir);
+    mkdirSync(alphaDir);
+    writeJson(join(alphaDir, "cohorts.json"), { rejectedCandidateCount: 2 });
+    writeFileSync(join(alphaDir, "cohorts.md"), "# Alpha Lead Cohorts\n", "utf8");
+
+    await expect(readAlphaLeadCohorts(dataDir)).resolves.toEqual({
+      summary: { rejectedCandidateCount: 2 },
+      markdown: "# Alpha Lead Cohorts\n",
     });
   });
 

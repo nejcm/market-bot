@@ -5,6 +5,9 @@ import {
   calibrationHeadline,
   calibrationSampleWarning,
   calibrationSlices,
+  alphaCohortHeadline,
+  alphaRejectionBucketRows,
+  alphaStaleLeadRows,
   closeLinePoints,
   dashboardMetrics,
   extendedEvidenceItems,
@@ -638,6 +641,64 @@ describe("calibration view model", () => {
       { cause: "source_gap", count: 2 },
     ]);
     expect(calibrationAutopsyCauses({})).toEqual([]);
+  });
+});
+
+describe("alpha cohort view model", () => {
+  const detail = {
+    summary: {
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      rejectedCandidateCount: 2,
+      watchlistCandidateCount: 3,
+      tickerBriefedLeadCount: 1,
+      unbriefedLeadCount: 2,
+      rejectionBuckets: [
+        {
+          reason: "Market cap above configured maximum",
+          rejectedCount: 2,
+          uniqueSymbolCount: 2,
+          laterValidatedSymbolCount: 1,
+          validation: {
+            "5": { resolvedCount: 1, hitRate: 1, averageExcessReturn: 0.15 },
+          },
+        },
+      ],
+      staleLeadDecay: [
+        {
+          ageBucket: "31+d",
+          unbriefedLeadCount: 1,
+          validation: {
+            "5": { resolvedCount: 1, hitRate: 0, averageExcessReturn: -0.02 },
+          },
+        },
+      ],
+    },
+  };
+
+  test("extracts alpha cohort headline and rows", () => {
+    expect(alphaCohortHeadline(detail)).toEqual({
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      rejectedCandidateCount: 2,
+      watchlistCandidateCount: 3,
+      tickerBriefedLeadCount: 1,
+      unbriefedLeadCount: 2,
+    });
+    expect(alphaRejectionBucketRows(detail)).toEqual([
+      {
+        reason: "Market cap above configured maximum",
+        rejectedCount: 2,
+        uniqueSymbolCount: 2,
+        laterValidatedSymbolCount: 1,
+        validation: "5d 100.0% hit · 15.0% excess · n=1",
+      },
+    ]);
+    expect(alphaStaleLeadRows(detail)).toEqual([
+      {
+        ageBucket: "31+d",
+        unbriefedLeadCount: 1,
+        validation: "5d 0.0% hit · -2.0% excess · n=1",
+      },
+    ]);
   });
 });
 

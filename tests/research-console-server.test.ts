@@ -172,6 +172,27 @@ describe("research console app API", () => {
     });
   });
 
+  test("serves alpha cohort summary", async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const alphaDir = join(rootDir, "alpha-search");
+    mkdirSync(dataDir);
+    mkdirSync(alphaDir);
+    writeJson(join(alphaDir, "cohorts.json"), { rejectedCandidateCount: 2 });
+    writeFileSync(join(alphaDir, "cohorts.md"), "# Alpha Lead Cohorts\n", "utf8");
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/alpha-cohorts"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      summary: { rejectedCandidateCount: 2 },
+      markdown: "# Alpha Lead Cohorts\n",
+    });
+  });
+
   test("serves empty calibration detail when artifacts are absent", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
 

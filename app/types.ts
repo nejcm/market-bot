@@ -42,6 +42,11 @@ export interface CalibrationDetail {
   readonly markdown?: string;
 }
 
+export interface AlphaCohortDetail {
+  readonly summary?: Record<string, unknown>;
+  readonly markdown?: string;
+}
+
 export type InstrumentForecastOutcome =
   | "event-true"
   | "event-false"

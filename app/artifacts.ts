@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import type {
   CalibrationDetail,
+  AlphaCohortDetail,
   ProviderHealthDetail,
   RunDetail,
   RunFile,
@@ -26,8 +27,11 @@ const SCORE_FILE = "score.json";
 const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const PROVIDER_HEALTH_DIR = "provider-health";
 const CALIBRATION_DIR = "calibration";
+const ALPHA_SEARCH_DIR = "alpha-search";
 const SUMMARY_FILE = "summary.json";
 const SUMMARY_MARKDOWN_FILE = "summary.md";
+const COHORTS_FILE = "cohorts.json";
+const COHORTS_MARKDOWN_FILE = "cohorts.md";
 const MAX_RUN_FILE_BYTES = 5_000_000;
 const MAX_SEARCH_RESULTS = 100;
 const SNIPPET_RADIUS = 72;
@@ -391,6 +395,19 @@ export async function readProviderHealth(dataDir: string): Promise<ProviderHealt
 
 export async function readCalibrationSummary(dataDir: string): Promise<CalibrationDetail> {
   return readSummaryArtifacts(dataDir, CALIBRATION_DIR);
+}
+
+export async function readAlphaLeadCohorts(dataDir: string): Promise<AlphaCohortDetail> {
+  const summaryDir = join(dataRootFromRunsDir(dataDir), ALPHA_SEARCH_DIR);
+  const [summary, markdown] = await Promise.all([
+    readJsonRecord(join(summaryDir, COHORTS_FILE)),
+    readOptionalText(join(summaryDir, COHORTS_MARKDOWN_FILE)),
+  ]);
+
+  return {
+    ...(summary !== undefined ? { summary } : {}),
+    ...(markdown !== undefined ? { markdown } : {}),
+  };
 }
 
 async function readSummaryArtifacts(

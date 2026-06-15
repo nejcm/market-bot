@@ -388,7 +388,7 @@ data/runs/<run-id>/
 
 `runId` is based on the current ISO timestamp plus a short random suffix.
 
-`trace.json` records command metadata, model names, stage names, source gaps, historical-context audit metadata, Market Spotlight selector audit metadata, Domain Playbook selector audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `startedAt` and `completedAt` use ISO timestamps; `completedAt` is recorded when artifact writing finishes so duration reflects the full run, not just model stages. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health (`targetCount` / `targetMet`), and run shape. `stages.json` includes `playbook-selection` and, when it runs, `spotlight-selection` model output, so selector token and cost estimates are included in run totals.
+`trace.json` records command metadata, model names, stage names, source gaps, historical-context audit metadata, Market Spotlight selector audit metadata, Domain Playbook selector audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `startedAt` and `completedAt` use ISO timestamps; `completedAt` is recorded when artifact writing finishes so duration reflects the full run, not just model stages. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health (`targetCount` / `targetMet` plus shortfall disclosure), generation-time calibration slices, Verified Market Snapshot freshness, and run shape. `stages.json` includes `playbook-selection` and, when it runs, `spotlight-selection` model output, so selector token and cost estimates are included in run totals.
 
 ## Scoring
 
@@ -414,9 +414,11 @@ data/alpha-search/feature-attribution.json
 data/alpha-search/feature-attribution.md
 data/alpha-search/watchlist.json
 data/alpha-search/watchlist.md
+data/alpha-search/cohorts.json
+data/alpha-search/cohorts.md
 ```
 
-The Alpha feature-attribution summary buckets deterministic candidate profile features, including available SEC Fundamental Evidence metrics, against Alpha validation outcomes. The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. These artifacts are historical research state, not promotion verdicts.
+The Alpha feature-attribution summary buckets deterministic candidate profile features, including available SEC Fundamental Evidence metrics, against Alpha validation outcomes. The Alpha candidate watchlist is rebuilt from per-run candidate profiles and validation sidecars. It tracks first/last seen times, run IDs, latest deterministic candidate profile, deterministic deltas, and latest validation horizons. The Alpha lead cohort summary groups rejected candidates by rejection reason and unbriefed leads by age bucket, then joins any later validation outcomes by symbol. These artifacts are historical research state, not promotion verdicts.
 
 Unresolved predictions are retried up to five attempts. After that, they are marked resolved without an outcome and excluded from calibration metrics.
 

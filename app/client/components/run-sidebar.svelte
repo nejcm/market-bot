@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Activity, LayoutGrid, Menu, Play, Search, Target } from "@lucide/svelte";
+  import { Activity, LayoutGrid, ListFilter, Menu, Play, Search, Target } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import * as Sheet from "$lib/components/ui/sheet";
@@ -59,6 +59,7 @@
     { key: "search" as View, label: "Search", icon: Search, badge: 0 },
     { key: "jobs" as View, label: "Jobs", icon: Play, badge: activeJobCount },
     { key: "calibration" as View, label: "Calibration", icon: Target, badge: 0 },
+    { key: "alpha-cohorts" as View, label: "Alpha Cohorts", icon: ListFilter, badge: 0 },
     { key: "health" as View, label: "Health", icon: Activity, badge: 0 },
   ]);
   const typeOptions = $derived(["all", ...runTypes]);

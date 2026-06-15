@@ -1,5 +1,6 @@
 import type {
   CalibrationDetail,
+  AlphaCohortDetail,
   ConsoleJob,
   InstrumentTimelineDetail,
   ProviderHealthDetail,
@@ -47,6 +48,10 @@ function isProviderHealthDetail(value: unknown): value is ProviderHealthDetail {
 }
 
 function isCalibrationDetail(value: unknown): value is CalibrationDetail {
+  return isRecord(value);
+}
+
+function isAlphaCohortDetail(value: unknown): value is AlphaCohortDetail {
   return isRecord(value);
 }
 
@@ -152,6 +157,15 @@ export async function fetchCalibration(): Promise<CalibrationDetail> {
   const payload = await fetchJson("/api/calibration");
   if (!isCalibrationDetail(payload)) {
     throw new Error("Calibration response is invalid");
+  }
+
+  return payload;
+}
+
+export async function fetchAlphaCohorts(): Promise<AlphaCohortDetail> {
+  const payload = await fetchJson("/api/alpha-cohorts");
+  if (!isAlphaCohortDetail(payload)) {
+    throw new Error("Alpha cohort response is invalid");
   }
 
   return payload;

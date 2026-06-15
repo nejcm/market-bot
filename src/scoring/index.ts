@@ -8,6 +8,12 @@ import {
   type AlphaCandidateProfile,
 } from "../alpha-search/candidate-state";
 import {
+  buildAlphaLeadCohortSummary,
+  readAlphaCandidateWatchlist,
+  readAlphaRejectedCandidateFile,
+  renderAlphaLeadCohortMarkdown,
+} from "../alpha-search/cohorts";
+import {
   buildAlphaFeatureAttribution,
   renderAlphaFeatureAttributionMarkdown,
 } from "../alpha-search/feature-attribution";
@@ -47,6 +53,7 @@ const SCORE_FILE = "score.json";
 const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const ALPHA_VALIDATION_FILE = "alpha-validation.json";
 const ALPHA_CANDIDATE_PROFILES_FILE = "candidate-profiles.json";
+const ALPHA_REJECTED_CANDIDATES_FILE = "rejected-candidates.json";
 const ZERO_CONDITIONAL_COUNTS: ConditionalCalibrationSummary = {
   activatedCount: 0,
   voidedCount: 0,
@@ -198,6 +205,15 @@ async function loadAlphaCandidateProfiles(
     const raw = await readFile(join(runDir, "normalized", ALPHA_CANDIDATE_PROFILES_FILE), "utf8");
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? parsed.filter((entry) => isAlphaCandidateProfile(entry)) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadAlphaRejectedCandidates(runDir: string) {
+  try {
+    const raw = await readFile(join(runDir, "normalized", ALPHA_REJECTED_CANDIDATES_FILE), "utf8");
+    return readAlphaRejectedCandidateFile(JSON.parse(raw) as unknown);
   } catch {
     return [];
   }
@@ -434,6 +450,7 @@ export async function runScorePass(
   await buildAndWriteAlphaValidationSummary(dataDir, now);
   await buildAndWriteAlphaFeatureAttribution(dataDir, now);
   await buildAndWriteAlphaCandidateWatchlist(dataDir, now);
+  await buildAndWriteAlphaLeadCohorts(dataDir, now);
 
   return {
     scored: results.filter((result) => result.status === "scored").length,
@@ -442,6 +459,57 @@ export async function runScorePass(
       result.touchedRunDir === undefined ? [] : [result.touchedRunDir],
     ),
   };
+}
+
+async function loadAlphaWatchlist(dataDir: string) {
+  try {
+    const raw = await readFile(join(dataDir, "../alpha-search", "watchlist.json"), "utf8");
+    return readAlphaCandidateWatchlist(JSON.parse(raw) as unknown);
+  } catch {}
+}
+
+export async function buildAndWriteAlphaLeadCohorts(
+  dataDir: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const runDirs = await listRunDirs(dataDir);
+  const [rejectedPerRun, maybeValidations, watchlist, loadedRuns] = await Promise.all([
+    Promise.all(runDirs.map((runDir) => loadAlphaRejectedCandidates(runDir))),
+    Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir))),
+    loadAlphaWatchlist(dataDir),
+    Promise.all(runDirs.map((runDir) => loadRunArtifact(runDir))),
+  ]);
+  const rejectedCandidates = rejectedPerRun.flat();
+  const validations = maybeValidations.filter(
+    (file): file is AlphaValidationFile => file !== undefined,
+  );
+  if (rejectedCandidates.length === 0 && validations.length === 0 && watchlist === undefined) {
+    return false;
+  }
+
+  const tickerBriefSymbols = new Set(
+    loadedRuns.flatMap(({ artifact }) =>
+      artifact?.report.jobType === "ticker" && artifact.report.symbol !== undefined
+        ? [artifact.report.symbol.toUpperCase()]
+        : [],
+    ),
+  );
+  const cohorts = buildAlphaLeadCohortSummary({
+    rejectedCandidates,
+    validations,
+    ...(watchlist !== undefined ? { watchlist } : {}),
+    tickerBriefSymbols,
+    now,
+  });
+  const outputDir = join(dataDir, "../alpha-search");
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(
+    join(outputDir, "cohorts.json"),
+    `${JSON.stringify(cohorts, undefined, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(join(outputDir, "cohorts.md"), renderAlphaLeadCohortMarkdown(cohorts), "utf8");
+  return true;
 }
 
 export async function buildAndWriteAlphaCandidateWatchlist(

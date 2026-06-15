@@ -5,6 +5,7 @@ export const VIEWS = [
   "search",
   "jobs",
   "calibration",
+  "alpha-cohorts",
   "health",
 ] as const;
 

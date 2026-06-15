@@ -4,6 +4,7 @@ import { resolveResearchConsoleConfig } from "../src/config";
 import {
   listRunSummaries,
   readCalibrationSummary,
+  readAlphaLeadCohorts,
   readProviderHealth,
   readRunDetail,
   readRunFile,
@@ -126,6 +127,10 @@ async function handleApiRequest(url: URL, dataDir: string): Promise<Response | u
 
   if (url.pathname === "/api/calibration") {
     return jsonResponse(await readCalibrationSummary(dataDir));
+  }
+
+  if (url.pathname === "/api/alpha-cohorts") {
+    return jsonResponse(await readAlphaLeadCohorts(dataDir));
   }
 
   const instrumentMatch = /^\/api\/instruments\/([^/]+)\/([^/]+)\/timeline$/u.exec(url.pathname);

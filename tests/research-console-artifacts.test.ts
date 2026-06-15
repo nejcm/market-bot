@@ -97,6 +97,7 @@ describe("research console app artifacts", () => {
     writeJson(join(runDir, "analytics.json"), { version: 1 });
     writeJson(join(runDir, "trace.json"), { stages: ["source-collection"] });
     writeJson(join(runDir, "score.json"), { scores: [] });
+    writeJson(join(runDir, "miss-autopsy.json"), { version: 1, autopsies: [] });
 
     const detail = await readRunDetail(dataDir, "run-c");
 
@@ -106,6 +107,7 @@ describe("research console app artifacts", () => {
     expect(detail?.analytics).toEqual({ version: 1 });
     expect(detail?.trace).toEqual({ stages: ["source-collection"] });
     expect(detail?.score).toEqual({ scores: [] });
+    expect(detail?.missAutopsy).toEqual({ version: 1, autopsies: [] });
   });
 
   test("reads run files inside the run directory", async () => {

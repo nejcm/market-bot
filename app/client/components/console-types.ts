@@ -6,7 +6,7 @@ export const TABS = ["report", "sources", "data", "files"] as const;
 
 export type Tab = (typeof TABS)[number];
 
-export const DATA_SEGMENTS = ["analytics", "trace", "score"] as const;
+export const DATA_SEGMENTS = ["analytics", "trace", "score", "missAutopsy"] as const;
 
 export type DataSegment = (typeof DATA_SEGMENTS)[number];
 

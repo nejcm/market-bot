@@ -21,6 +21,7 @@ export interface RunDetail {
   readonly analytics?: Record<string, unknown>;
   readonly trace?: Record<string, unknown>;
   readonly score?: Record<string, unknown>;
+  readonly missAutopsy?: Record<string, unknown>;
 }
 
 export interface RunFile {

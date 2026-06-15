@@ -10,6 +10,7 @@ export {
   extendedEvidenceItems,
   forecastDisagreements,
   forecastRollup,
+  missAutopsies,
   predictionScores,
   predictionTargetHealth,
   predictions,
@@ -25,6 +26,7 @@ export type {
   ExtendedEvidenceItemView,
   ForecastRollup,
   ForecastDisagreementView,
+  MissAutopsyView,
   PredictionScoreView,
   PredictionTargetHealth,
   ScoredForecast,
@@ -104,6 +106,11 @@ export interface ReliabilityBin {
 export interface CalibrationSliceRow {
   readonly key: string;
   readonly brierScore: number;
+  readonly count: number;
+}
+
+export interface CalibrationAutopsyCauseRow {
+  readonly cause: string;
   readonly count: number;
 }
 
@@ -247,6 +254,21 @@ export function calibrationSlices(
   return group === "byHorizonBucket"
     ? rows.toSorted((left, right) => horizonBucketRank(left.key) - horizonBucketRank(right.key))
     : rows.toSorted((left, right) => right.count - left.count);
+}
+
+export function calibrationAutopsyCauses(
+  detail: CalibrationDetail,
+): readonly CalibrationAutopsyCauseRow[] {
+  const counts = detail.summary?.byMissAutopsyCause;
+  if (typeof counts !== "object" || counts === null || Array.isArray(counts)) {
+    return [];
+  }
+  return Object.entries(counts)
+    .flatMap(([cause, value]) => {
+      const count = readFiniteNumber(value);
+      return count === undefined ? [] : [{ cause, count }];
+    })
+    .toSorted((left, right) => right.count - left.count || left.cause.localeCompare(right.cause));
 }
 
 function horizonBucketRank(bucket: string): number {

@@ -72,7 +72,7 @@
   const reportSummary = $derived(typeof report?.summary === "string" ? report.summary : "");
   const findingItems = $derived(textItems(report, "keyFindings"));
   const scenarioItems = $derived(scenarios(report));
-  const forecastItems = $derived(scoredForecasts(report, detail?.score));
+  const forecastItems = $derived(scoredForecasts(report, detail?.score, detail?.missAutopsy));
   const forecastStats = $derived(forecastRollup(forecastItems));
   const forecastHorizons = $derived(horizonMarkers(forecastItems));
   const sourceItems = $derived(sources(report));
@@ -120,6 +120,7 @@
     analytics: "Analytics",
     trace: "Trace",
     score: "Score",
+    missAutopsy: "Miss autopsy",
   };
 
   const DISAGREEMENT_BADGE_CLASSES: Record<string, string> = {
@@ -451,6 +452,11 @@
                         {/if}
                       </span>
                     {/if}
+                    {#if forecast.missAutopsy !== undefined}
+                      <span class="mt-1 block text-[11.5px] leading-normal text-[#5c6066]">
+                        Autopsy: {forecast.missAutopsy.rationale}
+                      </span>
+                    {/if}
                   </div>
                   <div>
                     {#if forecast.kind !== undefined}
@@ -510,6 +516,15 @@
                         FD {forecast.forecastDisagreement.band.toUpperCase()} {spreadPoints(
                           forecast.forecastDisagreement.probabilitySpread,
                         )}
+                      </span>
+                    {/if}
+                    {#if forecast.missAutopsy !== undefined}
+                      <span
+                        class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
+                        title={forecast.missAutopsy.supportingSignals.join("; ") ||
+                          forecast.missAutopsy.rationale}
+                      >
+                        AUTOPSY {forecast.missAutopsy.cause}
                       </span>
                     {/if}
                   </div>

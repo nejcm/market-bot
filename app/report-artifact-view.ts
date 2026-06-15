@@ -44,9 +44,18 @@ export interface ForecastDisagreementView {
   readonly missingParticipantCount: number;
 }
 
+export interface MissAutopsyView {
+  readonly predictionId: string;
+  readonly cause: string;
+  readonly forecastError: string;
+  readonly rationale: string;
+  readonly supportingSignals: readonly string[];
+}
+
 export interface ScoredForecast extends PredictionView {
   readonly score?: PredictionScoreView;
   readonly forecastDisagreement?: ForecastDisagreementView;
+  readonly missAutopsy?: MissAutopsyView;
 }
 
 export interface ForecastRollup {
@@ -311,9 +320,48 @@ export function forecastDisagreements(
   });
 }
 
+export function missAutopsies(
+  missAutopsy: Record<string, unknown> | undefined,
+): readonly MissAutopsyView[] {
+  const value = missAutopsy?.autopsies;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly MissAutopsyView[] => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const predictionId = readString(item, "predictionId");
+    const cause = readString(item, "cause");
+    const forecastError = readString(item, "forecastError");
+    const rationale = readString(item, "rationale");
+    if (
+      predictionId === undefined ||
+      cause === undefined ||
+      forecastError === undefined ||
+      rationale === undefined
+    ) {
+      return [];
+    }
+    const signals = item.supportingSignals;
+    return [
+      {
+        predictionId,
+        cause,
+        forecastError,
+        rationale,
+        supportingSignals: Array.isArray(signals)
+          ? signals.filter((signal): signal is string => typeof signal === "string")
+          : [],
+      },
+    ];
+  });
+}
+
 export function scoredForecasts(
   report: Record<string, unknown> | undefined,
   score: Record<string, unknown> | undefined,
+  missAutopsy: Record<string, unknown> | undefined = undefined,
 ): readonly ScoredForecast[] {
   const scoresById = new Map(
     predictionScores(score).map((item) => [item.predictionId, item] as const),
@@ -321,13 +369,18 @@ export function scoredForecasts(
   const disagreementById = new Map(
     forecastDisagreements(report).map((item) => [item.predictionId, item] as const),
   );
+  const autopsyById = new Map(
+    missAutopsies(missAutopsy).map((item) => [item.predictionId, item] as const),
+  );
   return predictions(report).map((prediction) => {
     const predictionScore = scoresById.get(prediction.id);
     const forecastDisagreement = disagreementById.get(prediction.id);
+    const predictionAutopsy = autopsyById.get(prediction.id);
     return {
       ...prediction,
       ...(predictionScore !== undefined ? { score: predictionScore } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
+      ...(predictionAutopsy !== undefined ? { missAutopsy: predictionAutopsy } : {}),
     };
   });
 }

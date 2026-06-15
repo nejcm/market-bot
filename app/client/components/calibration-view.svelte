@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { CalibrationDetail } from "../../types";
   import {
+    calibrationAutopsyCauses,
     calibrationHeadline,
     calibrationSampleWarning,
     calibrationSlices,
@@ -30,6 +31,7 @@
   const headline = $derived(calibrationHeadline(calibration));
   const sampleWarning = $derived(calibrationSampleWarning(headline));
   const bins = $derived(reliabilityBins(calibration));
+  const autopsyCauseRows = $derived(calibrationAutopsyCauses(calibration));
   const sliceTables = $derived(
     SLICE_GROUPS.map((entry) => ({
       ...entry,
@@ -138,6 +140,31 @@
         </span>
       </div>
       <CalibrationReliabilityChart {bins} />
+    </div>
+
+    <div class="mt-3.5 overflow-hidden rounded-lg border border-border bg-card">
+      <div
+        class="flex items-baseline justify-between border-b border-border bg-secondary px-4.5 py-2.5"
+      >
+        <span class="text-xs font-semibold">Forecast Error Taxonomy</span>
+        <span class="font-mono text-[10.5px] text-muted-foreground">
+          material errors only · artifact-backed
+        </span>
+      </div>
+      {#if autopsyCauseRows.length === 0}
+        <div class="px-4.5 py-3 text-[12.5px] text-muted-foreground">
+          No material forecast-error autopsies yet.
+        </div>
+      {:else}
+        {#each autopsyCauseRows as row}
+          <div
+            class="grid grid-cols-[minmax(0,1fr)_56px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-2.5 last:border-b-0"
+          >
+            <div class="truncate font-mono text-[11.5px] text-[#45494e]">{row.cause}</div>
+            <div class="text-right font-mono text-[11.5px] text-[#5c6066]">{row.count}</div>
+          </div>
+        {/each}
+      {/if}
     </div>
 
     {#if sliceTables.length > 0}

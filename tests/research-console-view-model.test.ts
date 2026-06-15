@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { reportSearchCandidates } from "../app/report-artifact-view";
 import {
+  calibrationAutopsyCauses,
   calibrationHeadline,
   calibrationSampleWarning,
   calibrationSlices,
@@ -459,6 +460,11 @@ describe("calibration view model", () => {
         "1-5d": { brierScore: 0.2583, count: 11 },
         custom: { brierScore: 0.5, count: 1 },
       },
+      byMissAutopsyCause: {
+        source_gap: 2,
+        model_overconfidence: 5,
+        broken: "many",
+      },
     },
   };
 
@@ -510,6 +516,14 @@ describe("calibration view model", () => {
       resolvedCount: 5,
       minimum: 5,
     });
+  });
+
+  test("extracts sorted miss-autopsy taxonomy rows", () => {
+    expect(calibrationAutopsyCauses(detail)).toEqual([
+      { cause: "model_overconfidence", count: 5 },
+      { cause: "source_gap", count: 2 },
+    ]);
+    expect(calibrationAutopsyCauses({})).toEqual([]);
   });
 });
 
@@ -697,6 +711,19 @@ describe("forecast outcomes", () => {
       },
     ],
   };
+  const missAutopsy = {
+    version: 1,
+    autopsies: [
+      {
+        predictionId: "p1",
+        cause: "source_gap",
+        forecastError: "overpredicted",
+        rationale: "Source coverage was incomplete.",
+        supportingSignals: ["source gap"],
+      },
+      { predictionId: "p2", cause: 12 },
+    ],
+  };
 
   test("parses score entries defensively", () => {
     expect(predictionScores(score)).toEqual([
@@ -748,7 +775,7 @@ describe("forecast outcomes", () => {
   });
 
   test("joins forecasts with score entries and leaves unmatched ones pending", () => {
-    const joined = scoredForecasts(report, score);
+    const joined = scoredForecasts(report, score, missAutopsy);
     expect(joined).toHaveLength(3);
     expect(joined[0]?.score?.outcome).toBe("miss");
     expect(joined[0]?.forecastDisagreement).toEqual({
@@ -759,6 +786,13 @@ describe("forecast outcomes", () => {
       band: "high",
       participantCount: 2,
       missingParticipantCount: 0,
+    });
+    expect(joined[0]?.missAutopsy).toEqual({
+      predictionId: "p1",
+      cause: "source_gap",
+      forecastError: "overpredicted",
+      rationale: "Source coverage was incomplete.",
+      supportingSignals: ["source gap"],
     });
     expect(joined[1]?.score?.resolved).toBe(false);
     expect(joined[1]?.score?.pendingReason).toBe("horizon not yet elapsed");

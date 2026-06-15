@@ -22,6 +22,7 @@ const MARKDOWN_FILE = "report.md";
 const ANALYTICS_FILE = "analytics.json";
 const TRACE_FILE = "trace.json";
 const SCORE_FILE = "score.json";
+const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const PROVIDER_HEALTH_DIR = "provider-health";
 const CALIBRATION_DIR = "calibration";
 const SUMMARY_FILE = "summary.json";
@@ -342,14 +343,16 @@ export async function readRunDetail(
     return undefined;
   }
 
-  const [report, markdown, analytics, trace, score, indexedSummary] = await Promise.all([
-    readJsonRecord(join(runDir, REPORT_FILE)),
-    readOptionalText(join(runDir, MARKDOWN_FILE)),
-    readJsonRecord(join(runDir, ANALYTICS_FILE)),
-    readJsonRecord(join(runDir, TRACE_FILE)),
-    readJsonRecord(join(runDir, SCORE_FILE)),
-    readRunSummaryFromIndex(dataDir, runId),
-  ]);
+  const [report, markdown, analytics, trace, score, missAutopsy, indexedSummary] =
+    await Promise.all([
+      readJsonRecord(join(runDir, REPORT_FILE)),
+      readOptionalText(join(runDir, MARKDOWN_FILE)),
+      readJsonRecord(join(runDir, ANALYTICS_FILE)),
+      readJsonRecord(join(runDir, TRACE_FILE)),
+      readJsonRecord(join(runDir, SCORE_FILE)),
+      readJsonRecord(join(runDir, MISS_AUTOPSY_FILE)),
+      readRunSummaryFromIndex(dataDir, runId),
+    ]);
   const availableFiles = indexedSummary?.availableFiles ?? (await listArtifactFiles(runDir));
 
   return {
@@ -359,6 +362,7 @@ export async function readRunDetail(
     ...(analytics !== undefined ? { analytics } : {}),
     ...(trace !== undefined ? { trace } : {}),
     ...(score !== undefined ? { score } : {}),
+    ...(missAutopsy !== undefined ? { missAutopsy } : {}),
   };
 }
 

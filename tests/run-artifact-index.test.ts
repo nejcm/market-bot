@@ -280,6 +280,25 @@ describe("run artifact index", () => {
         }),
       ],
     });
+    writeJson(join(runDir, "miss-autopsy.json"), {
+      version: 1,
+      runId: "run-cal",
+      generatedAt: "2026-06-03T00:00:00.000Z",
+      autopsies: [
+        {
+          predictionId: "p-cal",
+          runId: "run-cal",
+          observedAt: "2026-06-02T00:00:00.000Z",
+          scoreOutcome: "hit",
+          probability: 0.7,
+          forecastError: "underpredicted",
+          cause: "insufficient_evidence",
+          rationale: "Material forecast error without deterministic cause.",
+          supportingSignals: ["persisted artifacts do not identify a deterministic cause"],
+          evidence: {},
+        },
+      ],
+    });
 
     await rebuildRunArtifactIndex(dataDir, { dbPath });
     const pairs = await loadResolvedPairsFromIndex(dataDir);
@@ -291,6 +310,7 @@ describe("run artifact index", () => {
     const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
     expect(summary?.resolvedCount).toBe(1);
     expect(summary?.brierScore).toBeCloseTo(0.09, 2);
+    expect(summary?.byMissAutopsyCause).toEqual({ insufficient_evidence: 1 });
     delete process.env.MARKET_BOT_INDEX_DISABLE;
 
     const indexedSummary = await buildAndWriteCalibration(
@@ -299,6 +319,7 @@ describe("run artifact index", () => {
     );
     expect(indexedSummary?.resolvedCount).toBe(summary?.resolvedCount);
     expect(indexedSummary?.brierScore).toBe(summary?.brierScore);
+    expect(indexedSummary?.byMissAutopsyCause).toEqual(summary?.byMissAutopsyCause);
 
     const calibrationPath = join(rootDir, "calibration", "summary.json");
     expect(existsSync(calibrationPath)).toBe(true);

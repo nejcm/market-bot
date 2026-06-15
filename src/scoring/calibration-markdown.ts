@@ -35,6 +35,22 @@ function renderMetricTable(lines: string[], table: MetricTable): void {
   lines.push("");
 }
 
+function renderAutopsyCauseTable(lines: string[], summary: CalibrationSummary): void {
+  lines.push("## Forecast error taxonomy", "");
+  const entries = Object.entries(summary.byMissAutopsyCause);
+  if (entries.length === 0) {
+    lines.push("_No material forecast-error autopsies yet._", "");
+    return;
+  }
+  lines.push(`Material forecast-error autopsies: ${String(summary.missAutopsyCount)}`, "");
+  lines.push("| Cause | Count |");
+  lines.push("|---|---|");
+  for (const [cause, count] of entries) {
+    lines.push(`| ${cause} | ${String(count)} |`);
+  }
+  lines.push("");
+}
+
 export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
   const lines: string[] = [
     "# Calibration Summary",
@@ -73,6 +89,8 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     }
     lines.push("");
   }
+
+  renderAutopsyCauseTable(lines, summary);
 
   renderMetricTable(lines, { title: "By kind", label: "Kind", metricsByKey: summary.byKind });
   renderMetricTable(lines, {

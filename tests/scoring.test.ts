@@ -506,6 +506,59 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byHorizonBucket["16-20d"]?.count).toBe(1);
   });
 
+  test("aggregates material forecast-error autopsy causes", () => {
+    const summary = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, id: "p-1", probability: 0.8 },
+          score: makeScore("miss", { predictionId: "p-1" }),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+          missAutopsy: {
+            predictionId: "p-1",
+            runId: "r1",
+            observedAt: "2026-05-20T00:00:00.000Z",
+            scoreOutcome: "miss",
+            probability: 0.8,
+            forecastError: "overpredicted",
+            cause: "source_gap",
+            rationale: "Source gap.",
+            supportingSignals: ["source gap"],
+            evidence: { close0: 100, closeN: 90 },
+          },
+        },
+        {
+          prediction: { ...basePrediction, id: "p-2", probability: 0.2 },
+          score: makeScore("hit", { predictionId: "p-2" }),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r2",
+          missAutopsy: {
+            predictionId: "p-2",
+            runId: "r2",
+            observedAt: "2026-05-20T00:00:00.000Z",
+            scoreOutcome: "hit",
+            probability: 0.2,
+            forecastError: "underpredicted",
+            cause: "model_overconfidence",
+            rationale: "Extreme probability.",
+            supportingSignals: ["extreme probability"],
+            evidence: { close0: 100, closeN: 110 },
+          },
+        },
+      ],
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
+
+    expect(summary.missAutopsyCount).toBe(2);
+    expect(summary.byMissAutopsyCause).toEqual({ model_overconfidence: 1, source_gap: 1 });
+
+    const markdown = renderCalibrationMarkdown(summary);
+    expect(markdown).toContain("## Forecast error taxonomy");
+    expect(markdown).toContain("| source_gap | 1 |");
+  });
+
   test("renders empty market cadence section when only ticker predictions resolved", () => {
     const summary = buildCalibrationSummary(
       [

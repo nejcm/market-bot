@@ -504,11 +504,15 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
     return [];
   }
   const { report, scores } = artifact;
+  const autopsyByPrediction = new Map(
+    artifact.missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy]),
+  );
   return report.predictions.flatMap((prediction) => {
     const score = scores.find((sc) => sc.predictionId === prediction.id);
     if (score === undefined || !score.resolved || score.outcome === undefined) {
       return [];
     }
+    const missAutopsy = autopsyByPrediction.get(prediction.id);
     return [
       {
         prediction,
@@ -517,8 +521,36 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
         jobType: report.jobType,
         ...(isMarketUpdateJobType(report.jobType) ? { marketUpdateCadence: report.jobType } : {}),
         runId: report.runId,
+        ...(missAutopsy !== undefined ? { missAutopsy } : {}),
       },
     ];
+  });
+}
+
+async function loadMissAutopsiesByPrediction(
+  dataDir: string,
+): Promise<ReadonlyMap<string, MissAutopsyEntry>> {
+  const runDirs = await listRunDirs(dataDir);
+  const loaded = await Promise.all(runDirs.map((runDir) => loadRunArtifact(runDir)));
+  return new Map(
+    loaded.flatMap(({ artifact }) =>
+      artifact === undefined
+        ? []
+        : artifact.missAutopsies.map(
+            (autopsy) => [`${artifact.report.runId}:${autopsy.predictionId}`, autopsy] as const,
+          ),
+    ),
+  );
+}
+
+async function withMissAutopsiesFromDisk(
+  dataDir: string,
+  pairs: readonly ResolvedPair[],
+): Promise<readonly ResolvedPair[]> {
+  const autopsies = await loadMissAutopsiesByPrediction(dataDir);
+  return pairs.map((pair) => {
+    const missAutopsy = autopsies.get(`${pair.runId}:${pair.prediction.id}`);
+    return missAutopsy === undefined ? pair : { ...pair, missAutopsy };
   });
 }
 
@@ -532,8 +564,11 @@ export async function buildAndWriteCalibration(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<CalibrationSummary | null> {
+  const indexPairs = await loadResolvedPairsFromIndex(dataDir);
   const pairs =
-    (await loadResolvedPairsFromIndex(dataDir)) ?? (await loadResolvedPairsFromDisk(dataDir));
+    indexPairs === undefined
+      ? await loadResolvedPairsFromDisk(dataDir)
+      : await withMissAutopsiesFromDisk(dataDir, indexPairs);
 
   if (pairs.length === 0) {
     return null;

@@ -22,6 +22,7 @@ function validSummary(): CalibrationSummary {
   return {
     generatedAt: "2026-06-01T00:00:00.000Z",
     resolvedCount: 2,
+    missAutopsyCount: 1,
     brierScore: 0.25,
     brierSkillScore: 0,
     bins: [{ pLow: 0.6, pHigh: 0.7, label: "0.6-0.7", hitCount: 1, totalCount: 2, hitRate: 0.5 }],
@@ -30,6 +31,7 @@ function validSummary(): CalibrationSummary {
     byJobType: { daily: { brierScore: 0.25, count: 2 } },
     byMarketUpdateCadence: { daily: { brierScore: 0.25, count: 2 } },
     byHorizonBucket: { "1-5": { brierScore: 0.25, count: 2 } },
+    byMissAutopsyCause: { source_gap: 1 },
   };
 }
 
@@ -80,6 +82,20 @@ describe("parseCalibrationContext", () => {
     expect(parsed?.bins).toEqual([
       { pLow: 0.6, pHigh: 0.7, label: "0.6-0.7", hitCount: 1, totalCount: 2, hitRate: 0.5 },
     ]);
+  });
+
+  test("filters malformed miss-autopsy cause counts", () => {
+    const parsed = parseCalibrationContext({
+      missAutopsyCount: 2,
+      byMissAutopsyCause: {
+        source_gap: 1,
+        bad: -1,
+        broken: "many",
+      },
+    });
+
+    expect(parsed?.missAutopsyCount).toBe(2);
+    expect(parsed?.byMissAutopsyCause).toEqual({ source_gap: 1 });
   });
 
   test("filters out malformed metric-map entries", () => {

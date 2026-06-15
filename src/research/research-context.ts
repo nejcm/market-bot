@@ -132,6 +132,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   }
   const generatedAt = readString(value, "generatedAt");
   const resolvedCount = readNumberWhere(value, "resolvedCount", isCount);
+  const missAutopsyCount = readNumberWhere(value, "missAutopsyCount", isCount);
   const brierScore = readNumberWhere(value, "brierScore", isProbability);
   const brierSkill = readNumberWhere(value, "brierSkillScore", isBrierSkill);
   const bins = Array.isArray(value.bins)
@@ -145,9 +146,11 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   const byJobType = parseMetricMap(value.byJobType);
   const byMarketUpdateCadence = parseMetricMap(value.byMarketUpdateCadence);
   const byHorizonBucket = parseMetricMap(value.byHorizonBucket);
+  const byMissAutopsyCause = parseCountMap(value.byMissAutopsyCause);
   return {
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     ...(resolvedCount !== undefined ? { resolvedCount } : {}),
+    ...(missAutopsyCount !== undefined ? { missAutopsyCount } : {}),
     ...(brierScore !== undefined ? { brierScore } : {}),
     ...(brierSkill !== undefined ? { brierSkillScore: brierSkill } : {}),
     ...(bins !== undefined ? { bins } : {}),
@@ -156,6 +159,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     ...(byJobType !== undefined ? { byJobType } : {}),
     ...(byMarketUpdateCadence !== undefined ? { byMarketUpdateCadence } : {}),
     ...(byHorizonBucket !== undefined ? { byHorizonBucket } : {}),
+    ...(byMissAutopsyCause !== undefined ? { byMissAutopsyCause } : {}),
   };
 }
 
@@ -204,6 +208,16 @@ function parseMetricMap(value: unknown): Record<string, CalibrationMetric> | und
     const metric = parseCalibrationMetric(raw);
     return metric === undefined ? [] : [[key, metric] as const];
   });
+  return Object.fromEntries(entries);
+}
+
+function parseCountMap(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const entries = Object.entries(value).flatMap(([key, raw]) =>
+    typeof raw === "number" && isCount(raw) ? [[key, raw] as const] : [],
+  );
   return Object.fromEntries(entries);
 }
 

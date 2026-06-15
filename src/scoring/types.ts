@@ -59,6 +59,7 @@ export interface CalibrationMetric {
 export interface CalibrationSummary {
   readonly generatedAt: string;
   readonly resolvedCount: number;
+  readonly missAutopsyCount: number;
   readonly brierScore: number;
   /** Brier skill vs the always-0.5 baseline (Brier 0.25). 0 = no edge, 1 = perfect, <0 = worse. */
   readonly brierSkillScore: number;
@@ -68,4 +69,5 @@ export interface CalibrationSummary {
   readonly byJobType: Record<string, CalibrationMetric>;
   readonly byMarketUpdateCadence: Record<string, CalibrationMetric>;
   readonly byHorizonBucket: Record<string, CalibrationMetric>;
+  readonly byMissAutopsyCause: Record<string, number>;
 }

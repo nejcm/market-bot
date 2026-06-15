@@ -3,6 +3,7 @@ import type {
   CalibrationBin,
   CalibrationMetric,
   CalibrationSummary,
+  MissAutopsyEntry,
   PredictionScore,
 } from "./types";
 
@@ -13,6 +14,7 @@ export interface ResolvedPair {
   readonly jobType: JobType;
   readonly marketUpdateCadence?: MarketUpdateJobType;
   readonly runId: string;
+  readonly missAutopsy?: MissAutopsyEntry;
 }
 
 // Brier score of the naive always-predict-0.5 forecaster on binary outcomes: (0.5 - {0,1})^2.
@@ -107,6 +109,21 @@ function horizonBucket({ prediction }: ResolvedPair): string {
   return LONG_HORIZON_BUCKET;
 }
 
+function countMissAutopsies(pairs: readonly ResolvedPair[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const { missAutopsy } of pairs) {
+    if (missAutopsy === undefined) {
+      continue;
+    }
+    counts[missAutopsy.cause] = (counts[missAutopsy.cause] ?? 0) + 1;
+  }
+  return Object.fromEntries(
+    Object.entries(counts).toSorted(
+      (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+    ),
+  );
+}
+
 export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
@@ -115,6 +132,7 @@ export function buildCalibrationSummary(
   return {
     generatedAt: now.toISOString(),
     resolvedCount: pairs.length,
+    missAutopsyCount: pairs.filter(({ missAutopsy }) => missAutopsy !== undefined).length,
     brierScore: overallBrier,
     brierSkillScore: brierSkillScore(overallBrier),
     bins: buildBins(pairs),
@@ -126,5 +144,6 @@ export function buildCalibrationSummary(
       ({ marketUpdateCadence }) => marketUpdateCadence ?? "unknown",
     ),
     byHorizonBucket: groupMetrics(pairs, horizonBucket),
+    byMissAutopsyCause: countMissAutopsies(pairs),
   };
 }

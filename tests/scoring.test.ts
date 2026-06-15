@@ -7,7 +7,7 @@ import {
   MIN_CALIBRATION_SAMPLE,
 } from "../src/scoring/calibration-console";
 import { forecastErrorDirection } from "../src/scoring/miss-autopsy";
-import type { Prediction } from "../src/domain/types";
+import type { MarketRegimeLabel, Prediction } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
 
@@ -666,6 +666,80 @@ describe("forecastErrorDirection", () => {
         predictionScore("miss", { resolved: false, outcome: undefined }),
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("buildCalibrationSummary — market regime slice", () => {
+  const at = new Date("2026-05-19T00:00:00.000Z");
+
+  function regimePairs(label: MarketRegimeLabel | undefined, count: number, idPrefix: string) {
+    return Array.from({ length: count }, (_, idx) => ({
+      prediction: { ...basePrediction, id: `${idPrefix}${String(idx)}`, probability: 0.7 },
+      score: makeScore(idx % 2 === 0 ? "hit" : "miss"),
+      assetClass: "equity" as const,
+      jobType: "daily" as const,
+      runId: `${idPrefix}r${String(idx)}`,
+      ...(label !== undefined ? { marketRegimeLabel: label } : {}),
+    }));
+  }
+
+  test("reports Brier + count per regime that meets the sample floor", () => {
+    const summary = buildCalibrationSummary(
+      regimePairs("risk-on", MIN_CALIBRATION_SAMPLE, "on-"),
+      at,
+    );
+    expect(summary.byMarketRegime["risk-on"]?.count).toBe(MIN_CALIBRATION_SAMPLE);
+    expect(summary.byMarketRegime["risk-on"]?.brierScore).toBeGreaterThanOrEqual(0);
+    expect(summary.marketRegimeCoverage["risk-on"]).toBe(MIN_CALIBRATION_SAMPLE);
+  });
+
+  test("withholds Brier for a regime below the floor but still counts it", () => {
+    const summary = buildCalibrationSummary(
+      regimePairs("risk-off", MIN_CALIBRATION_SAMPLE - 1, "off-"),
+      at,
+    );
+    expect(summary.byMarketRegime["risk-off"]).toBeUndefined();
+    expect(summary.marketRegimeCoverage["risk-off"]).toBe(MIN_CALIBRATION_SAMPLE - 1);
+  });
+
+  test("treats insufficient-data as a first-class reported regime bin", () => {
+    const summary = buildCalibrationSummary(
+      regimePairs("insufficient-data", MIN_CALIBRATION_SAMPLE, "id-"),
+      at,
+    );
+    expect(summary.byMarketRegime["insufficient-data"]?.count).toBe(MIN_CALIBRATION_SAMPLE);
+  });
+
+  test("excludes absent regime from the slice but counts it as unknown", () => {
+    const summary = buildCalibrationSummary(
+      [
+        ...regimePairs("risk-on", MIN_CALIBRATION_SAMPLE, "on-"),
+        ...regimePairs(undefined, 3, "none-"),
+      ],
+      at,
+    );
+    expect(summary.byMarketRegime["unknown"]).toBeUndefined();
+    expect(summary.marketRegimeCoverage["unknown"]).toBe(3);
+    expect(summary.byMarketRegime["risk-on"]?.count).toBe(MIN_CALIBRATION_SAMPLE);
+  });
+
+  test("markdown renders the regime table and discloses excluded buckets", () => {
+    const summary = buildCalibrationSummary(
+      [
+        ...regimePairs("risk-on", MIN_CALIBRATION_SAMPLE, "on-"),
+        ...regimePairs("risk-off", MIN_CALIBRATION_SAMPLE - 1, "off-"),
+        ...regimePairs(undefined, 2, "none-"),
+      ],
+      at,
+    );
+    const output = renderCalibrationMarkdown(summary);
+    expect(output).toContain("## By market regime");
+    expect(output).toContain("| risk-on |");
+    expect(output).toContain("Excluded from the regime slice:");
+    expect(output).toContain(
+      `risk-off (${String(MIN_CALIBRATION_SAMPLE - 1)}, below sample floor)`,
+    );
+    expect(output).toContain("unknown (2, no regime label)");
   });
 });
 

@@ -180,7 +180,7 @@ describe("provider health", () => {
 
     expect(summary.runArtifactIndex).toMatchObject({
       state: "unsupported-schema",
-      expectedSchemaVersion: 5,
+      expectedSchemaVersion: 6,
       currentSchemaVersion: 4,
       rebuildCommand: "bun run src/cli.ts index rebuild",
     });

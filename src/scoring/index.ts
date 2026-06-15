@@ -20,7 +20,7 @@ import {
   type AlphaValidationFile,
 } from "../alpha-search/validation";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
-import { loadRunArtifact } from "../run-artifacts";
+import { loadRunArtifact, readReportMarketRegimeLabel } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
 import { loadResolvedPairsFromIndex } from "../run-artifact-index";
@@ -507,6 +507,7 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
   const autopsyByPrediction = new Map(
     artifact.missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy]),
   );
+  const marketRegimeLabel = readReportMarketRegimeLabel(report);
   return report.predictions.flatMap((prediction) => {
     const score = scores.find((sc) => sc.predictionId === prediction.id);
     if (score === undefined || !score.resolved || score.outcome === undefined) {
@@ -522,6 +523,7 @@ async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
         ...(isMarketUpdateJobType(report.jobType) ? { marketUpdateCadence: report.jobType } : {}),
         runId: report.runId,
         ...(missAutopsy !== undefined ? { missAutopsy } : {}),
+        ...(marketRegimeLabel !== undefined ? { marketRegimeLabel } : {}),
       },
     ];
   });

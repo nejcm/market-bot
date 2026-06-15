@@ -67,5 +67,18 @@ export interface CalibrationSummary {
   readonly byJobType: Record<string, CalibrationMetric>;
   readonly byMarketUpdateCadence: Record<string, CalibrationMetric>;
   readonly byHorizonBucket: Record<string, CalibrationMetric>;
+  /**
+   * Brier + count per Market Regime label at forecast time, restricted to real
+   * Regime labels that meet the minimum-sample floor. Excludes the "unknown"
+   * Bucket (absent/unparseable regime) and sub-floor regimes; see
+   * `marketRegimeCoverage` for the full resolved-count distribution.
+   */
+  readonly byMarketRegime: Record<string, CalibrationMetric>;
+  /**
+   * Resolved-pair counts for every regime bucket, including "unknown" and
+   * Sub-floor regimes. Discloses slice coverage honestly even where a Brier is
+   * Withheld for small samples.
+   */
+  readonly marketRegimeCoverage: Record<string, number>;
   readonly byMissAutopsyCause: Record<string, number>;
 }

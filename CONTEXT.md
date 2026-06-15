@@ -34,6 +34,10 @@ A research-only evidence signal that measures how much configured same-provider 
 
 An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. It describes forecast accuracy; it is not investment conviction, model endorsement, or a trade signal.
 
+## Regime-Sliced Calibration
+
+A Calibration view that groups resolved Predictions by the Market Regime label in effect at forecast time (the persisted `risk-on` / `risk-off` / `mixed` / `insufficient-data` value), reported alongside the existing cadence, asset-class, and horizon slices. `insufficient-data` is a reported regime bin in its own right; runs with no persisted or unparseable regime are excluded but counted as a coverage gap, not folded into a real regime. A regime slice reports a Brier score only once it meets the minimum resolved-sample floor. It describes forecast accuracy by market backdrop; it is not investment conviction, model endorsement, or a trade signal.
+
 ## Market Update
 
 A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.

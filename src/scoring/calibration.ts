@@ -1,4 +1,11 @@
-import type { AssetClass, JobType, MarketUpdateJobType, Prediction } from "../domain/types";
+import {
+  MARKET_REGIME_LABELS,
+  type AssetClass,
+  type JobType,
+  type MarketRegimeLabel,
+  type MarketUpdateJobType,
+  type Prediction,
+} from "../domain/types";
 import type {
   CalibrationBin,
   CalibrationMetric,
@@ -15,7 +22,13 @@ export interface ResolvedPair {
   readonly marketUpdateCadence?: MarketUpdateJobType;
   readonly runId: string;
   readonly missAutopsy?: MissAutopsyEntry;
+  /** Market Regime label in effect at forecast time; undefined when absent/unparseable. */
+  readonly marketRegimeLabel?: MarketRegimeLabel;
 }
+
+// Calibration bucket for resolved pairs whose forecast-time regime is absent or
+// Unparseable. Excluded from the regime slice but counted in coverage.
+export const UNKNOWN_REGIME_BUCKET = "unknown";
 
 // Brier score of the naive always-predict-0.5 forecaster on binary outcomes: (0.5 - {0,1})^2.
 export const MIN_CALIBRATION_SAMPLE = 5;
@@ -124,6 +137,38 @@ function countMissAutopsies(pairs: readonly ResolvedPair[]): Record<string, numb
   );
 }
 
+// Brier + count per real regime label, restricted to labels meeting the
+// Minimum-sample floor. Ordered by the canonical regime sequence for stable
+// Output; the "unknown" bucket is never a real regime and is excluded here.
+function buildByMarketRegime(pairs: readonly ResolvedPair[]): Record<string, CalibrationMetric> {
+  const result: Record<string, CalibrationMetric> = {};
+  for (const label of MARKET_REGIME_LABELS) {
+    const inLabel = pairs.filter(({ marketRegimeLabel }) => marketRegimeLabel === label);
+    if (inLabel.length >= MIN_CALIBRATION_SAMPLE) {
+      result[label] = { brierScore: brierScore(inLabel), count: inLabel.length };
+    }
+  }
+  return result;
+}
+
+// Resolved-pair counts for every regime bucket, including sub-floor regimes and
+// The "unknown" bucket, so slice coverage stays honest where a Brier is withheld.
+function buildMarketRegimeCoverage(pairs: readonly ResolvedPair[]): Record<string, number> {
+  const counts = new Map<string, number>();
+  for (const { marketRegimeLabel } of pairs) {
+    const bucket = marketRegimeLabel ?? UNKNOWN_REGIME_BUCKET;
+    counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+  }
+  const result: Record<string, number> = {};
+  for (const label of [...MARKET_REGIME_LABELS, UNKNOWN_REGIME_BUCKET]) {
+    const count = counts.get(label);
+    if (count !== undefined) {
+      result[label] = count;
+    }
+  }
+  return result;
+}
+
 export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
@@ -144,6 +189,8 @@ export function buildCalibrationSummary(
       ({ marketUpdateCadence }) => marketUpdateCadence ?? "unknown",
     ),
     byHorizonBucket: groupMetrics(pairs, horizonBucket),
+    byMarketRegime: buildByMarketRegime(pairs),
+    marketRegimeCoverage: buildMarketRegimeCoverage(pairs),
     byMissAutopsyCause: countMissAutopsies(pairs),
   };
 }

@@ -1,4 +1,4 @@
-import { MIN_CALIBRATION_SAMPLE } from "./calibration";
+import { MIN_CALIBRATION_SAMPLE, UNKNOWN_REGIME_BUCKET } from "./calibration";
 import type { CalibrationMetric, CalibrationSummary } from "./types";
 
 function formatBrier(value: number): string {
@@ -33,6 +33,29 @@ function renderMetricTable(lines: string[], table: MetricTable): void {
     lines.push(`| ${key} | ${formatBrier(metrics.brierScore)} | ${String(metrics.count)} |`);
   }
   lines.push("");
+}
+
+function renderMarketRegimeSection(lines: string[], summary: CalibrationSummary): void {
+  renderMetricTable(lines, {
+    title: "By market regime",
+    label: "Regime",
+    metricsByKey: summary.byMarketRegime,
+    emptyText: `_No market regime meets the ${String(MIN_CALIBRATION_SAMPLE)}-sample floor yet._`,
+  });
+
+  // Disclose buckets excluded from the slice: sub-floor regimes and the "unknown"
+  // (absent/unparseable regime) bucket, so coverage stays honest where a Brier is withheld.
+  const excluded = Object.entries(summary.marketRegimeCoverage).filter(
+    ([key]) => summary.byMarketRegime[key] === undefined,
+  );
+  if (excluded.length === 0) {
+    return;
+  }
+  const parts = excluded.map(([key, count]) => {
+    const note = key === UNKNOWN_REGIME_BUCKET ? "no regime label" : "below sample floor";
+    return `${key} (${String(count)}, ${note})`;
+  });
+  lines.push(`Excluded from the regime slice: ${parts.join("; ")}.`, "");
 }
 
 function renderAutopsyCauseTable(lines: string[], summary: CalibrationSummary): void {
@@ -116,6 +139,7 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     label: "Horizon",
     metricsByKey: summary.byHorizonBucket,
   });
+  renderMarketRegimeSection(lines, summary);
 
   return lines.join("\n");
 }

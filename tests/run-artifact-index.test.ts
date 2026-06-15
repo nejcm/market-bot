@@ -325,6 +325,45 @@ describe("run artifact index", () => {
     expect(existsSync(calibrationPath)).toBe(true);
   });
 
+  test("carries the forecast-time market regime label through the index", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "run-regime");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-regime",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        predictions: [prediction({ id: "p-regime", probability: 0.7, horizonTradingDays: 5 })],
+        extras: {
+          marketRegime: {
+            assetClass: "equity",
+            label: "risk-off",
+            proxyCount: 3,
+            drivers: ["breadth"],
+            sourceIds: ["s1"],
+          },
+        },
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      runId: "run-regime",
+      scores: [
+        predictionScore("hit", {
+          predictionId: "p-regime",
+          runId: "run-regime",
+          observedAt: "2026-06-02T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    expect(pairs?.[0]?.marketRegimeLabel).toBe("risk-off");
+  });
+
   test("returns undefined when the index is disabled", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeRun(dataDir, "run-a");

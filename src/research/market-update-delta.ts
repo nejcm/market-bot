@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import {
+  isMarketRegimeLabel,
   isMarketUpdateJobType,
   type AssetClass,
   type MarketRegimeLabel,
@@ -169,18 +170,9 @@ function regimeFromExtras(extras: Record<string, unknown> | undefined): {
     ? regime.drivers.filter((driver): driver is string => typeof driver === "string")
     : [];
   return {
-    label: isRegimeLabel(label) ? label : undefined,
+    label: isMarketRegimeLabel(label) ? label : undefined,
     drivers,
   };
-}
-
-function isRegimeLabel(value: unknown): value is MarketRegimeLabel {
-  return (
-    value === "risk-on" ||
-    value === "risk-off" ||
-    value === "mixed" ||
-    value === "insufficient-data"
-  );
 }
 
 // ---------------------------------------------------------------------------

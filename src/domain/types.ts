@@ -280,7 +280,13 @@ export interface Prediction {
   readonly sourceIds: readonly string[];
 }
 
-export type MarketRegimeLabel = "risk-on" | "risk-off" | "mixed" | "insufficient-data";
+export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
+
+export type MarketRegimeLabel = (typeof MARKET_REGIME_LABELS)[number];
+
+export function isMarketRegimeLabel(value: unknown): value is MarketRegimeLabel {
+  return MARKET_REGIME_LABELS.includes(value as MarketRegimeLabel);
+}
 
 export interface MarketRegimeSummary {
   readonly assetClass: AssetClass;

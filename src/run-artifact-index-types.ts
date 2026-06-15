@@ -20,6 +20,7 @@ export interface RunRow {
   readonly symbol: string | null;
   readonly confidence: string | null;
   readonly depth: string | null;
+  readonly market_regime_label: string | null;
   readonly finding_count: number;
   readonly prediction_count: number;
   readonly source_count: number;

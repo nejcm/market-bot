@@ -1,16 +1,18 @@
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type {
-  AssetClass,
-  JobType,
-  KeyFinding,
-  MarketSnapshot,
-  Prediction,
-  PredictionKind,
-  ResearchReport,
-  Source,
-  VerifiedMarketSnapshot,
+import {
+  isMarketRegimeLabel,
+  type AssetClass,
+  type JobType,
+  type KeyFinding,
+  type MarketRegimeLabel,
+  type MarketSnapshot,
+  type Prediction,
+  type PredictionKind,
+  type ResearchReport,
+  type Source,
+  type VerifiedMarketSnapshot,
 } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { MissAutopsyCause, MissAutopsyEntry, PredictionScore } from "./scoring/types";
@@ -33,6 +35,17 @@ import {
 // Per-file load outcome. "absent" = the file is missing (ENOENT); "malformed" =
 // Present but unreadable or wrong shape.
 export type ArtifactFileStatus = "ok" | "malformed" | "absent";
+
+// The Market Regime label in effect at forecast time, persisted on the report as
+// `extras.marketRegime.label`. Read leniently: older artifacts and reports with
+// Unreadable extras return undefined (treated as an "unknown" calibration bucket).
+export function readReportMarketRegimeLabel(report: ResearchReport): MarketRegimeLabel | undefined {
+  const regime = report.extras?.marketRegime;
+  if (!isRecord(regime)) {
+    return undefined;
+  }
+  return isMarketRegimeLabel(regime.label) ? regime.label : undefined;
+}
 
 export interface RunArtifactStatus {
   readonly report: ArtifactFileStatus;

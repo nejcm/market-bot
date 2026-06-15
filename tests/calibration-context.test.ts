@@ -31,6 +31,8 @@ function validSummary(): CalibrationSummary {
     byJobType: { daily: { brierScore: 0.25, count: 2 } },
     byMarketUpdateCadence: { daily: { brierScore: 0.25, count: 2 } },
     byHorizonBucket: { "1-5": { brierScore: 0.25, count: 2 } },
+    byMarketRegime: {},
+    marketRegimeCoverage: {},
     byMissAutopsyCause: { source_gap: 1 },
   };
 }
@@ -48,7 +50,10 @@ describe("parseCalibrationContext", () => {
 
     const parsed = parseCalibrationContext(structuredClone(summary) as unknown);
 
-    expect(parsed).toEqual(summary);
+    // Regime slices are artifact-only and not mirrored into the prompt context.
+    const { byMarketRegime, marketRegimeCoverage, ...promptFields } = summary;
+    expect([byMarketRegime, marketRegimeCoverage]).toEqual([{}, {}]);
+    expect(parsed).toEqual(promptFields);
   });
 
   test("drops fields with the wrong primitive type instead of trusting them", () => {
@@ -197,7 +202,11 @@ describe("loadCalibrationContext", () => {
 
     const context = await loadCalibrationContext(dataDir);
 
-    expect(context).toEqual(validSummary());
+    // Regime slices are artifact-only: parseCalibrationContext intentionally does
+    // Not surface them to the prompt context, so they round-trip out here.
+    const { byMarketRegime, marketRegimeCoverage, ...promptFields } = validSummary();
+    expect([byMarketRegime, marketRegimeCoverage]).toEqual([{}, {}]);
+    expect(context).toEqual(promptFields);
   });
 
   test("strips poisoned fields rather than passing them to the prompt", async () => {

@@ -6,7 +6,7 @@ import {
   predictionClaim,
   type ReportSearchScope,
 } from "./report-search-entries";
-import { loadRunArtifact } from "./run-artifacts";
+import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 import type {
@@ -112,6 +112,7 @@ function runRowFor(
       symbol: null,
       confidence: null,
       depth: null,
+      market_regime_label: null,
       finding_count: 0,
       prediction_count: 0,
       source_count: 0,
@@ -131,6 +132,7 @@ function runRowFor(
     symbol: report.symbol?.toUpperCase() ?? null,
     confidence: report.confidence,
     depth: readDepth(report) ?? null,
+    market_regime_label: readReportMarketRegimeLabel(report) ?? null,
     finding_count: report.keyFindings.length,
     prediction_count: report.predictions.length,
     source_count: report.sources.length,

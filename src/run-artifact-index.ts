@@ -4,6 +4,7 @@ import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
 import {
+  isMarketRegimeLabel,
   isMarketUpdateJobType,
   type AssetClass,
   type JobType,
@@ -223,9 +224,10 @@ export async function rebuildRunArtifactIndex(
       const insertRun = db.prepare(`
         INSERT INTO runs (
           run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
+          market_regime_label,
           finding_count, prediction_count, source_count, data_gap_count, has_score,
           report_status, score_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertFile = db.prepare(`
         INSERT INTO artifact_files (run_id, path, size, modified_at)
@@ -247,6 +249,7 @@ export async function rebuildRunArtifactIndex(
           row.symbol,
           row.confidence,
           row.depth,
+          row.market_regime_label,
           row.finding_count,
           row.prediction_count,
           row.source_count,
@@ -345,9 +348,10 @@ export async function writeThroughRunArtifactIndex(
       const insertRun = db.prepare(`
         INSERT INTO runs (
           run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
+          market_regime_label,
           finding_count, prediction_count, source_count, data_gap_count, has_score,
           report_status, score_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertFile = db.prepare(`
         INSERT INTO artifact_files (run_id, path, size, modified_at)
@@ -384,6 +388,7 @@ export async function writeThroughRunArtifactIndex(
           indexed.run.symbol,
           indexed.run.confidence,
           indexed.run.depth,
+          indexed.run.market_regime_label,
           indexed.run.finding_count,
           indexed.run.prediction_count,
           indexed.run.source_count,
@@ -755,6 +760,7 @@ interface ResolvedPairQueryRow {
   readonly scoring_version: number | null;
   readonly job_type: string;
   readonly asset_class: string;
+  readonly market_regime_label: string | null;
 }
 
 export async function loadResolvedPairsFromIndex(
@@ -767,7 +773,7 @@ export async function loadResolvedPairsFromIndex(
           p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
           p.measurable_as, p.source_ids_json,
           s.prediction_id, s.outcome, s.observed_at, s.scoring_version,
-          r.job_type, r.asset_class
+          r.job_type, r.asset_class, r.market_regime_label
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
         JOIN runs r ON r.run_id = p.run_id
@@ -803,6 +809,9 @@ export async function loadResolvedPairsFromIndex(
         jobType,
         runId: row.run_id,
         ...(isMarketUpdateJobType(jobType) ? { marketUpdateCadence: jobType } : {}),
+        ...(isMarketRegimeLabel(row.market_regime_label)
+          ? { marketRegimeLabel: row.market_regime_label }
+          : {}),
       };
     });
   });

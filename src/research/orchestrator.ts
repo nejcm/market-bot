@@ -647,6 +647,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     collectedSources,
     stageOutputs,
     targetPredictions: context.depthProfile.targetPredictions,
+    ...(calibrationContext !== undefined ? { calibrationContext } : {}),
   });
 
   return {

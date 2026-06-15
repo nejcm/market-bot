@@ -94,6 +94,31 @@ describe("run analytics", () => {
           evidenceQualityImpact: "core-cap",
         }),
       ],
+      verifiedMarketSnapshot: {
+        symbol: "AAPL",
+        assetClass: "equity",
+        analysisDate: "2026-05-19",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        latestSessionDate: "2026-05-17",
+        ohlcv: { date: "2026-05-17", open: 1, high: 2, low: 0.5, close: 1.5, volume: 100 },
+        indicators: {
+          ema10: null,
+          sma50: null,
+          sma200: null,
+          rsi14: null,
+          macd: null,
+          macdSignal: null,
+          macdHistogram: null,
+          bollUpper: null,
+          bollMiddle: null,
+          bollLower: null,
+          atr14: null,
+        },
+        recentCloses: [
+          { date: "2026-05-16", close: 1 },
+          { date: "2026-05-17", close: 1.5 },
+        ],
+      },
       newsAnalytics: {
         fetchedNewsSourcesByProvider: { marketaux: 2, finnhub: 1 },
         fetchedNewsSourceCount: 3,
@@ -152,6 +177,12 @@ describe("run analytics", () => {
         },
       ],
       targetPredictions: 3,
+      calibrationContext: {
+        generatedAt: "2026-05-18T00:00:00.000Z",
+        resolvedCount: 12,
+        byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
+        byJobType: { ticker: { brierScore: 0.22, count: 6 } },
+      },
     });
 
     expect(analytics.newsDedupe).toEqual({
@@ -180,6 +211,30 @@ describe("run analytics", () => {
       uncitedCount: 1,
       targetCount: 3,
       targetMet: false,
+      shortfall: {
+        emittedCount: 2,
+        targetCount: 3,
+        missingCount: 1,
+        disclosed: false,
+      },
+    });
+    expect(analytics.calibrationAtGeneration).toMatchObject({
+      generatedAt: "2026-05-18T00:00:00.000Z",
+      resolvedCount: 12,
+      assetClass: {
+        key: "equity",
+        brierScore: 0.2,
+        brierSkillScore: 0.199_999_999_999_999_96,
+        count: 8,
+      },
+      jobType: { key: "ticker", brierScore: 0.22, brierSkillScore: 0.12, count: 6 },
+    });
+    expect(analytics.verifiedMarketSnapshot).toEqual({
+      symbol: "AAPL",
+      analysisDate: "2026-05-19",
+      latestSessionDate: "2026-05-17",
+      fetchedAt: "2026-05-19T00:00:00.000Z",
+      latestSessionAgeDays: 2,
     });
     expect(analytics.runShape.stages).toEqual([
       { stage: "specialist-analysis", tokenEstimate: 100, costEstimateUsd: 0.01 },

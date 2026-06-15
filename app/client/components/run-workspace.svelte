@@ -9,6 +9,7 @@
     formatDate,
     formatDateMinute,
     horizonMarkers,
+    historicalContextAuditView,
     jsonBlock,
     predictionTargetHealth,
     runLabel,
@@ -84,6 +85,7 @@
   const splitGaps = $derived(splitDataGaps(gapItems));
   const extendedEvidence = $derived(extendedEvidenceItems(report));
   const targetHealth = $derived(predictionTargetHealth(detail?.analytics, report));
+  const historicalAudit = $derived(historicalContextAuditView(detail?.trace));
   const showForecastsSection = $derived(
     forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined,
   );
@@ -108,6 +110,7 @@
       ["cases", "Cases & risks", caseSections.length > 0],
       ["scenarios", "Scenarios", scenarioItems.length > 0],
       ["snapshot", "Market snapshot", snapshot !== null],
+      ["history", "Historical context", historicalAudit !== undefined],
       ["extendedEvidence", "Extended evidence", extendedEvidence.length > 0],
       ["forecasts", "Forecasts", showForecastsSection],
       ["gaps", "Data gaps", splitGaps.otherGaps.length > 0 || splitGaps.shortfalls.length > 0],
@@ -380,6 +383,46 @@
                 </span>
               </div>
               <PriceSnapshotChart {snapshot} horizons={forecastHorizons} />
+            </section>
+          {/if}
+
+          {#if historicalAudit !== undefined}
+            <section {@attach bindSection("history")} class="mt-8.5 scroll-mt-5">
+              <div class="flex items-baseline justify-between border-b border-border pb-2">
+                <span
+                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
+                >
+                  Historical context audit
+                </span>
+                <span class="font-mono text-[10px] text-[#a8acb1]">
+                  trace.json selection counts
+                </span>
+              </div>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {#each [
+                  ["Scanned", historicalAudit.scannedRunCount],
+                  ["Candidates", historicalAudit.candidateRunCount],
+                  ["Selected", historicalAudit.selectedRunCount],
+                  ["Recent", historicalAudit.recentSelectedCount],
+                  ["Anchors", historicalAudit.anchorSelectedCount],
+                  ["Same symbol", historicalAudit.sameSymbolSelectedCount],
+                  ["Spotlight", historicalAudit.spotlightSymbolSelectedCount],
+                  ["Same cadence", historicalAudit.sameCadenceSelectedCount],
+                  ["Cross cadence", historicalAudit.crossCadenceSelectedCount],
+                  ["Resolved miss runs", historicalAudit.resolvedMissRunCount],
+                  ["Miss-correction", historicalAudit.missCorrectionSelectedCount],
+                  ["Gaps", historicalAudit.gapCount],
+                ] as row}
+                  <div class="rounded-md border border-border bg-secondary px-3 py-2">
+                    <div class="font-mono text-[15px] font-medium text-foreground">
+                      {row[1]}
+                    </div>
+                    <div class="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {row[0]}
+                    </div>
+                  </div>
+                {/each}
+              </div>
             </section>
           {/if}
 

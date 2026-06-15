@@ -19,12 +19,14 @@ import {
   scoredForecasts,
   groupedRunsByType,
   groupedSearchResults,
+  historicalContextAuditView,
   matchesQuery,
   predictions,
   providerHealthRows,
   recentRunSummaries,
   reliabilityBins,
   runCountsLabel,
+  runCompareCards,
   runIdFromPathname,
   runLabel,
   runPath,
@@ -383,6 +385,100 @@ describe("research console app view model", () => {
       cryptoRuns: 1,
       averageConfidence: "medium",
     });
+  });
+
+  test("builds compare cards from run analytics", () => {
+    expect(
+      runCompareCards([
+        {
+          summary: {
+            runId: "run-1",
+            generatedAt: "2026-06-12T10:00:00Z",
+            jobType: "ticker",
+            assetClass: "equity",
+            symbol: "AAPL",
+            findingCount: 0,
+            predictionCount: 2,
+            sourceCount: 3,
+            dataGapCount: 1,
+            hasScore: false,
+            availableFiles: [],
+          },
+          analytics: {
+            predictions: {
+              count: 2,
+              targetCount: 3,
+              targetMet: false,
+              shortfall: { missingCount: 1, disclosed: true },
+            },
+            calibrationAtGeneration: {
+              jobType: { key: "ticker", brierScore: 0.2, brierSkillScore: 0.2, count: 8 },
+            },
+            verifiedMarketSnapshot: {
+              symbol: "AAPL",
+              latestSessionAgeDays: 1,
+            },
+          },
+        },
+        {
+          summary: {
+            runId: "run-2",
+            findingCount: 0,
+            predictionCount: 0,
+            sourceCount: 0,
+            dataGapCount: 0,
+            hasScore: false,
+            availableFiles: [],
+          },
+        },
+      ]),
+    ).toEqual([
+      {
+        runId: "run-1",
+        label: "ticker / AAPL",
+        generatedAt: expect.any(String),
+        forecasts: "2/3",
+        targetMet: false,
+        shortfall: "1 missing, disclosed",
+        calibration: "skill +0.20",
+        snapshotFreshness: "AAPL snapshot 1d",
+      },
+    ]);
+  });
+
+  test("parses historical-context audit trace fields", () => {
+    expect(
+      historicalContextAuditView({
+        historicalContext: {
+          scannedRunCount: 10,
+          candidateRunCount: 4,
+          selectedRunCount: 3,
+          recentSelectedCount: 2,
+          anchorSelectedCount: 1,
+          sameSymbolSelectedCount: 1,
+          spotlightSymbolSelectedCount: 0,
+          sameCadenceSelectedCount: 2,
+          crossCadenceSelectedCount: 1,
+          resolvedMissRunCount: 1,
+          missCorrectionSelectedCount: 1,
+          gapCount: 2,
+        },
+      }),
+    ).toEqual({
+      scannedRunCount: 10,
+      candidateRunCount: 4,
+      selectedRunCount: 3,
+      recentSelectedCount: 2,
+      anchorSelectedCount: 1,
+      sameSymbolSelectedCount: 1,
+      spotlightSymbolSelectedCount: 0,
+      sameCadenceSelectedCount: 2,
+      crossCadenceSelectedCount: 1,
+      resolvedMissRunCount: 1,
+      missCorrectionSelectedCount: 1,
+      gapCount: 2,
+    });
+    expect(historicalContextAuditView()).toBeUndefined();
   });
 
   test("returns empty dashboard trends for empty or undated run history", () => {

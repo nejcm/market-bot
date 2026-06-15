@@ -4,6 +4,7 @@
     runCountsLabel,
     runLabel,
     type DashboardMetrics,
+    type RunCompareCard,
     type RunTrendPoint,
   } from "../view-model";
   import type { RunSummary } from "../../types";
@@ -13,12 +14,21 @@
     readonly metrics: DashboardMetrics;
     readonly trend: readonly RunTrendPoint[];
     readonly recentRuns: readonly RunSummary[];
+    readonly compareCards: readonly RunCompareCard[];
     readonly loadingRuns: boolean;
     readonly onOpenRun: (runId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
 
-  let { metrics, trend, recentRuns, loadingRuns, onOpenRun, onOpenInstrument }: Props = $props();
+  let {
+    metrics,
+    trend,
+    recentRuns,
+    compareCards,
+    loadingRuns,
+    onOpenRun,
+    onOpenInstrument,
+  }: Props = $props();
 
   const metricCards = $derived([
     {
@@ -72,6 +82,58 @@
     </div>
     <RunTrendChart points={trend} />
   </div>
+
+  {#if compareCards.length > 0}
+    <div class="mt-7 flex items-baseline justify-between">
+      <h2 class="text-sm font-semibold">Run card compare</h2>
+      <span class="text-xs text-muted-foreground">analytics.json</span>
+    </div>
+    <div class="mt-3 overflow-hidden rounded-lg border border-border bg-card">
+      <div class="overflow-x-auto">
+        <div class="min-w-180">
+          <div
+            class="grid grid-cols-[minmax(0,1.3fr)_84px_112px_118px_118px] gap-3 border-b border-border bg-secondary px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+          >
+            <div>Run</div>
+            <div>Forecasts</div>
+            <div>Shortfall</div>
+            <div>Calibration</div>
+            <div>Snapshot</div>
+          </div>
+          {#each compareCards as card}
+            <button
+              class="grid w-full grid-cols-[minmax(0,1.3fr)_84px_112px_118px_118px] items-center gap-3 border-b border-[#f0ede7] px-4 py-2.75 text-left transition last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+              onclick={() => onOpenRun(card.runId)}
+        >
+              <span class="min-w-0">
+                <span class="block truncate text-[12.5px] font-semibold text-foreground">
+                  {card.label}
+                </span>
+                <span class="mt-0.5 block font-mono text-[10px] text-[#a8acb1]">
+                  {card.generatedAt}
+                </span>
+              </span>
+              <span
+                class="font-mono text-[11px] {card.targetMet ? 'text-primary' : 'text-[#8a6116]'}"
+              >
+                {card.forecasts}
+              </span>
+              <span class="truncate font-mono text-[10.5px] text-[#5c6066]"
+                >{card.shortfall}</span
+              >
+              <span class="truncate font-mono text-[10.5px] text-[#5c6066]"
+                >{card.calibration}</span
+              >
+              <span class="truncate font-mono text-[10.5px] text-[#5c6066]">
+                {card.snapshotFreshness}
+              </span>
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <div class="mt-7 flex items-baseline justify-between">
     <h2 class="text-sm font-semibold">Recent runs</h2>

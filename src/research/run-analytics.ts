@@ -2,6 +2,8 @@ import type { ResearchReport, RunTrace, Source, SourceGap } from "../domain/type
 import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
 import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
+import { brierSkillScore } from "../scoring/calibration";
+import type { CalibrationContext } from "./research-context-types";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -16,6 +18,7 @@ export interface BuildRunAnalyticsInput {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
   readonly targetPredictions: number;
+  readonly calibrationContext?: CalibrationContext;
 }
 
 export interface RunAnalytics {
@@ -88,12 +91,32 @@ export interface RunAnalytics {
     readonly uncitedCount: number;
     readonly targetCount: number;
     readonly targetMet: boolean;
+    readonly shortfall?: {
+      readonly emittedCount: number;
+      readonly targetCount: number;
+      readonly missingCount: number;
+      readonly disclosed: boolean;
+    };
     readonly forecastDisagreement?: {
       readonly participantCount: number;
       readonly successfulParticipantCount: number;
       readonly errorCount: number;
       readonly highDisagreementCount: number;
     };
+  };
+  readonly calibrationAtGeneration?: {
+    readonly generatedAt?: string;
+    readonly resolvedCount?: number;
+    readonly assetClass?: RunAnalyticsCalibrationSlice;
+    readonly jobType?: RunAnalyticsCalibrationSlice;
+    readonly marketUpdateCadence?: RunAnalyticsCalibrationSlice;
+  };
+  readonly verifiedMarketSnapshot?: {
+    readonly symbol: string;
+    readonly analysisDate: string;
+    readonly latestSessionDate: string;
+    readonly fetchedAt: string;
+    readonly latestSessionAgeDays: number;
   };
   readonly runShape: {
     readonly traceStages: readonly string[];
@@ -106,6 +129,13 @@ export interface RunAnalytics {
     readonly costEstimateUsd: number;
     readonly durationMs?: number;
   };
+}
+
+export interface RunAnalyticsCalibrationSlice {
+  readonly key: string;
+  readonly brierScore: number;
+  readonly brierSkillScore: number;
+  readonly count: number;
 }
 
 function countBy<T>(
@@ -196,6 +226,95 @@ function durationMs(trace: RunTrace): number | undefined {
   return Math.max(0, completedAt - startedAt);
 }
 
+function dateAgeDays(fromDate: string, toDate: string): number | undefined {
+  const from = Date.parse(`${fromDate}T00:00:00.000Z`);
+  const to = Date.parse(`${toDate}T00:00:00.000Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    return undefined;
+  }
+  return Math.max(0, Math.round((to - from) / (24 * 60 * 60 * 1000)));
+}
+
+function calibrationMetricSlice(
+  metrics: Record<string, { readonly brierScore: number; readonly count: number }> | undefined,
+  key: string | undefined,
+): RunAnalyticsCalibrationSlice | undefined {
+  if (metrics === undefined || key === undefined) {
+    return undefined;
+  }
+
+  const metric = metrics[key];
+  if (
+    metric === undefined ||
+    !Number.isFinite(metric.brierScore) ||
+    !Number.isFinite(metric.count)
+  ) {
+    return undefined;
+  }
+
+  return {
+    key,
+    brierScore: metric.brierScore,
+    brierSkillScore: brierSkillScore(metric.brierScore),
+    count: metric.count,
+  };
+}
+
+function calibrationAtGeneration(
+  input: BuildRunAnalyticsInput,
+): RunAnalytics["calibrationAtGeneration"] {
+  const calibration = input.calibrationContext;
+  if (calibration === undefined) {
+    return undefined;
+  }
+
+  const assetClass = calibrationMetricSlice(calibration.byAssetClass, input.report.assetClass);
+  const jobType = calibrationMetricSlice(calibration.byJobType, input.report.jobType);
+  const marketUpdateCadence = calibrationMetricSlice(
+    calibration.byMarketUpdateCadence,
+    input.trace.marketUpdateCadence,
+  );
+  if (
+    calibration.generatedAt === undefined &&
+    calibration.resolvedCount === undefined &&
+    assetClass === undefined &&
+    jobType === undefined &&
+    marketUpdateCadence === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(calibration.generatedAt !== undefined ? { generatedAt: calibration.generatedAt } : {}),
+    ...(calibration.resolvedCount !== undefined
+      ? { resolvedCount: calibration.resolvedCount }
+      : {}),
+    ...(assetClass !== undefined ? { assetClass } : {}),
+    ...(jobType !== undefined ? { jobType } : {}),
+    ...(marketUpdateCadence !== undefined ? { marketUpdateCadence } : {}),
+  };
+}
+
+function verifiedMarketSnapshotFreshness(
+  collectedSources: CollectedSources,
+): RunAnalytics["verifiedMarketSnapshot"] {
+  const snapshot = collectedSources.verifiedMarketSnapshot;
+  if (snapshot === undefined) {
+    return undefined;
+  }
+
+  const latestSessionAgeDays = dateAgeDays(snapshot.latestSessionDate, snapshot.analysisDate);
+  return latestSessionAgeDays === undefined
+    ? undefined
+    : {
+        symbol: snapshot.symbol,
+        analysisDate: snapshot.analysisDate,
+        latestSessionDate: snapshot.latestSessionDate,
+        fetchedAt: snapshot.fetchedAt,
+        latestSessionAgeDays,
+      };
+}
+
 export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   const { collectedSources, report, trace } = input;
   const gaps = sourceGaps(collectedSources);
@@ -228,6 +347,18 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
             (item) => isRecord(item) && item.band === "high",
           ).length,
         };
+  const missingPredictionCount = Math.max(0, input.targetPredictions - report.predictions.length);
+  const predictionShortfall =
+    missingPredictionCount === 0
+      ? undefined
+      : {
+          emittedCount: report.predictions.length,
+          targetCount: input.targetPredictions,
+          missingCount: missingPredictionCount,
+          disclosed: report.dataGaps.some((gap) => gap.startsWith("predictionShortfall:")),
+        };
+  const calibrationSnapshot = calibrationAtGeneration(input);
+  const verifiedSnapshot = verifiedMarketSnapshotFreshness(collectedSources);
 
   return {
     version: 1,
@@ -286,8 +417,11 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       uncitedCount: report.predictions.length - citedCount,
       targetCount: input.targetPredictions,
       targetMet: report.predictions.length >= input.targetPredictions,
+      ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
     },
+    ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
+    ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     runShape: {
       traceStages: trace.stages,
       stages: input.stageOutputs.map((output) => ({

@@ -1,6 +1,7 @@
 import type {
   CalibrationDetail,
   ProviderHealthDetail,
+  RunDetail,
   RunSearchResult,
   RunSummary,
 } from "../types";
@@ -115,6 +116,32 @@ export interface CalibrationSliceRow {
 export interface CalibrationAutopsyCauseRow {
   readonly cause: string;
   readonly count: number;
+}
+
+export interface RunCompareCard {
+  readonly runId: string;
+  readonly label: string;
+  readonly generatedAt: string;
+  readonly forecasts: string;
+  readonly targetMet: boolean;
+  readonly shortfall: string;
+  readonly calibration: string;
+  readonly snapshotFreshness: string;
+}
+
+export interface HistoricalContextAuditView {
+  readonly scannedRunCount: number;
+  readonly candidateRunCount: number;
+  readonly selectedRunCount: number;
+  readonly recentSelectedCount: number;
+  readonly anchorSelectedCount: number;
+  readonly sameSymbolSelectedCount: number;
+  readonly spotlightSymbolSelectedCount: number;
+  readonly sameCadenceSelectedCount: number;
+  readonly crossCadenceSelectedCount: number;
+  readonly resolvedMissRunCount: number;
+  readonly missCorrectionSelectedCount: number;
+  readonly gapCount: number;
 }
 
 export type CalibrationSliceGroup =
@@ -278,6 +305,107 @@ export function calibrationAutopsyCauses(
 function horizonBucketRank(bucket: string): number {
   const index = HORIZON_BUCKET_ORDER.indexOf(bucket);
   return index === -1 ? HORIZON_BUCKET_ORDER.length : index;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function readNumberField(record: Record<string, unknown> | undefined, key: string): number {
+  const value = record?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function readStringField(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = record?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function formatSkill(value: number | undefined): string {
+  if (value === undefined) {
+    return "cal n/a";
+  }
+  return `skill ${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+}
+
+function preferredCalibrationSlice(
+  analytics: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const calibration = readRecord(analytics?.calibrationAtGeneration);
+  return (
+    readRecord(calibration?.marketUpdateCadence) ??
+    readRecord(calibration?.jobType) ??
+    readRecord(calibration?.assetClass)
+  );
+}
+
+export function runCompareCards(details: readonly RunDetail[]): readonly RunCompareCard[] {
+  return details.flatMap((detail) => {
+    const {analytics} = detail;
+    if (analytics === undefined) {
+      return [];
+    }
+
+    const predictions = readRecord(analytics.predictions);
+    const shortfall = readRecord(predictions?.shortfall);
+    const targetCount = readNumberField(predictions, "targetCount");
+    const count = readNumberField(predictions, "count");
+    const targetMet = predictions?.targetMet === true;
+    const calibration = preferredCalibrationSlice(analytics);
+    const snapshot = readRecord(analytics.verifiedMarketSnapshot);
+    const snapshotAge = readFiniteNumber(snapshot?.latestSessionAgeDays);
+    const snapshotSymbol = readStringField(snapshot, "symbol");
+
+    return [
+      {
+        runId: detail.summary.runId,
+        label: runLabel(detail.summary),
+        generatedAt: formatDateMinute(detail.summary.generatedAt),
+        forecasts: targetCount > 0 ? `${String(count)}/${String(targetCount)}` : String(count),
+        targetMet,
+        shortfall:
+          shortfall === undefined
+            ? "none"
+            : `${String(readNumberField(shortfall, "missingCount"))} missing${
+                shortfall.disclosed === true ? ", disclosed" : ""
+              }`,
+        calibration: formatSkill(readFiniteNumber(calibration?.brierSkillScore)),
+        snapshotFreshness:
+          snapshotAge === undefined || snapshotSymbol === undefined
+            ? "snapshot n/a"
+            : `${snapshotSymbol} snapshot ${String(snapshotAge)}d`,
+      },
+    ];
+  });
+}
+
+export function historicalContextAuditView(
+  trace: Record<string, unknown> | undefined,
+): HistoricalContextAuditView | undefined {
+  const audit = readRecord(trace?.historicalContext);
+  if (audit === undefined) {
+    return undefined;
+  }
+
+  return {
+    scannedRunCount: readNumberField(audit, "scannedRunCount"),
+    candidateRunCount: readNumberField(audit, "candidateRunCount"),
+    selectedRunCount: readNumberField(audit, "selectedRunCount"),
+    recentSelectedCount: readNumberField(audit, "recentSelectedCount"),
+    anchorSelectedCount: readNumberField(audit, "anchorSelectedCount"),
+    sameSymbolSelectedCount: readNumberField(audit, "sameSymbolSelectedCount"),
+    spotlightSymbolSelectedCount: readNumberField(audit, "spotlightSymbolSelectedCount"),
+    sameCadenceSelectedCount: readNumberField(audit, "sameCadenceSelectedCount"),
+    crossCadenceSelectedCount: readNumberField(audit, "crossCadenceSelectedCount"),
+    resolvedMissRunCount: readNumberField(audit, "resolvedMissRunCount"),
+    missCorrectionSelectedCount: readNumberField(audit, "missCorrectionSelectedCount"),
+    gapCount: readNumberField(audit, "gapCount"),
+  };
 }
 
 export const VERIFIED_SNAPSHOT_PATH = "normalized/verified-market-snapshot.json";

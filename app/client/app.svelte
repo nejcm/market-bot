@@ -41,6 +41,7 @@
     instrumentFromPathname,
     instrumentPath,
     recentRunSummaries,
+    runCompareCards,
     runIdFromPathname,
     runPath,
     runTrend,
@@ -53,6 +54,7 @@
   let runs = $state<readonly RunSummary[]>([]);
   let selectedRunId = $state("");
   let detail = $state<RunDetail | null>(null);
+  let compareDetails = $state<readonly RunDetail[]>([]);
   let snapshot = $state<SnapshotView | null>(null);
   let instrumentDetail = $state<InstrumentTimelineDetail | null>(null);
   let selectedInstrument = $state<{ readonly assetClass: string; readonly symbol: string } | null>(
@@ -98,6 +100,7 @@
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
   const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
+  const compareCards = $derived(runCompareCards(compareDetails));
   const activeJobCount = $derived(
     jobs.filter((job) => job.status === "running" || job.status === "queued").length,
   );
@@ -160,6 +163,13 @@
         loadingDetail = false;
       }
     }
+  }
+
+  async function loadCompareDetails(runSummaries: readonly RunSummary[]): Promise<void> {
+    const runIds = recentRunSummaries(runSummaries, DASHBOARD_RECENT_RUN_LIMIT).map(
+      (run) => run.runId,
+    );
+    compareDetails = await Promise.all(runIds.map((runId) => fetchRunDetail(runId)));
   }
 
   async function loadSnapshot(runDetail: RunDetail): Promise<void> {
@@ -390,6 +400,9 @@
         providerHealth = nextProviderHealth;
         calibration = nextCalibration;
         jobs = nextJobs;
+        void loadCompareDetails(nextRuns).catch(() => {
+          compareDetails = [];
+        });
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
@@ -446,6 +459,7 @@
           {metrics}
           {trend}
           {recentRuns}
+          {compareCards}
           {loadingRuns}
           onOpenRun={(runId) => void openRun(runId)}
           onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}

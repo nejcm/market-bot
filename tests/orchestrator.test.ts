@@ -2408,7 +2408,7 @@ describe("runResearchJob", () => {
       "Major findings must reference source IDs",
     );
     expect(retryPrompt.allowedSourceIds).toEqual(["market-aapl", "news-equity-1"]);
-    expect(result.trace.reportValidationErrors).toEqual([
+    expect(result.trace.reportValidationRetryErrors).toEqual([
       "Major findings must reference source IDs",
     ]);
   });
@@ -2420,7 +2420,7 @@ describe("runResearchJob", () => {
       id: "bad-relative",
       claim: "QQQ outperforms SPY over 5 trading days.",
       kind: "relative",
-      subject: "QQQ",
+      subject: "DIA",
       measurableAs: "close(QQQ, +5)/close(QQQ, 0) > close(SPY, +5)/close(SPY, 0)",
       horizonTradingDays: 5,
       probability: 0.55,
@@ -2502,7 +2502,7 @@ describe("runResearchJob", () => {
       "Major findings must reference source IDs",
     );
     expect(reportRetryPrompt.predictionRepromptErrors).toContain(
-      'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
+      "Prediction bad-relative: subject does not match measurableAs",
     );
     // The validation error keeps the reprompt alive; a count shortfall never does (ADR 0021).
     expect(
@@ -2511,7 +2511,7 @@ describe("runResearchJob", () => {
       ),
     ).toBe(false);
     expect(result.trace.predictionRetryErrors).toContain(
-      'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
+      "Prediction bad-relative: subject does not match measurableAs",
     );
   });
 
@@ -2522,7 +2522,7 @@ describe("runResearchJob", () => {
       id: "bad-relative",
       claim: "QQQ outperforms SPY over 5 trading days.",
       kind: "relative",
-      subject: "QQQ",
+      subject: "DIA",
       measurableAs: "close(QQQ, +5)/close(QQQ, 0) > close(SPY, +5)/close(SPY, 0)",
       horizonTradingDays: 5,
       probability: 0.55,
@@ -2604,7 +2604,7 @@ describe("runResearchJob", () => {
       "Major findings must reference source IDs",
     );
     expect(combinedRetryPrompt.predictionRepromptErrors).toContain(
-      'Prediction bad-relative: relative subject must be "A:B" form, got "QQQ"',
+      "Prediction bad-relative: subject does not match measurableAs",
     );
     expect(result.report.predictions.length).toBeGreaterThanOrEqual(2);
   });

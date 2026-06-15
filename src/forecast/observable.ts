@@ -579,13 +579,6 @@ function resolveCandidate(
   if (subject === undefined) {
     return issue("missing-subject", `Prediction ${id}: missing subject`, id);
   }
-  if (kind === "relative" && !/^[^:\s]+:[^:\s]+$/u.test(subject)) {
-    return issue(
-      "field-mismatch",
-      `Prediction ${id}: relative subject must be "A:B" form, got "${subject}"`,
-      id,
-    );
-  }
   if (measurableAs === undefined) {
     return issue("missing-measurable-as", `Prediction ${id}: missing measurableAs`, id);
   }
@@ -610,7 +603,8 @@ function resolveCandidate(
     return expression;
   }
 
-  const mismatch = validateProjection(id, kind, subject, horizonTradingDays, expression);
+  const normalizedSubject = normalizePredictionSubject(kind, subject, expression);
+  const mismatch = validateProjection(id, kind, normalizedSubject, horizonTradingDays, expression);
   if (mismatch !== undefined) {
     return mismatch;
   }
@@ -629,7 +623,7 @@ function resolveCandidate(
     id,
     claim: renderClaim(expression),
     kind,
-    subject,
+    subject: normalizedSubject,
     measurableAs: canonicalMeasurableAs,
     horizonTradingDays,
     probability,
@@ -641,9 +635,25 @@ function resolveCandidate(
     expression,
     instruments: instrumentsForExpression(expression),
     measurableAs: canonicalMeasurableAs,
-    subject,
+    subject: normalizedSubject,
     horizonTradingDays,
   };
+}
+
+function normalizePredictionSubject(
+  kind: PredictionKind,
+  subject: string,
+  expression: ObservableExpression,
+): string {
+  if (
+    kind === "relative" &&
+    expression.kind === "relative" &&
+    !subject.includes(":") &&
+    subject === expression.subjectA
+  ) {
+    return subjectForExpression(expression);
+  }
+  return subject;
 }
 
 // Minimum trading-day gap between two accepted same-subject `direction` forecasts.

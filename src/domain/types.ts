@@ -359,7 +359,7 @@ export interface RunTrace {
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];
-  readonly reportValidationErrors?: readonly string[];
+  readonly reportValidationRetryErrors?: readonly string[];
   readonly forecastDisagreement?: {
     readonly configuredModelCount: number;
     readonly challengerModelCount: number;

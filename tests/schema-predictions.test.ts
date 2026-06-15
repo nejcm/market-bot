@@ -264,12 +264,12 @@ describe("validatePredictions", () => {
     expect(result.valid[0]?.claim).toBe("QQQ outperforms SPY over 5 trading days");
   });
 
-  test("rejects relative prediction with non-A:B subject", () => {
+  test("normalizes bare relative subject from measurableAs", () => {
     const result = validatePredictions(
       [
         {
           ...validPrediction,
-          id: "pred-rel-bad",
+          id: "pred-rel-bare",
           kind: "relative",
           subject: "QQQ",
           measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
@@ -278,8 +278,27 @@ describe("validatePredictions", () => {
       ],
       knownIds,
     );
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.subject).toBe("QQQ:SPY");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("rejects relative prediction with non-matching bare subject", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-rel-bad",
+          kind: "relative",
+          subject: "DIA",
+          measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
+          claim: "QQQ outperforms SPY over 5 trading days.",
+        },
+      ],
+      knownIds,
+    );
     expect(result.valid).toHaveLength(0);
-    expect(result.errors[0]).toContain('relative subject must be "A:B"');
+    expect(result.errors[0]).toContain("subject does not match measurableAs");
   });
 
   test("rejects prediction when kind does not match measurableAs", () => {

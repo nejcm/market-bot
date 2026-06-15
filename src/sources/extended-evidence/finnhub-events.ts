@@ -10,6 +10,11 @@ const EVENT_ROUTE_NAMES: Readonly<Record<string, string>> = {
   "finnhub-events-3": "split",
 };
 
+interface FinnhubEventRouteResult {
+  readonly adapter: string;
+  readonly payload: unknown;
+}
+
 function isForbiddenGap(gap: SourceGap): boolean {
   return sourceGapStatusCode(gap.message) === "403";
 }
@@ -29,14 +34,34 @@ function normalizeEventGap(gap: SourceGap): SourceGap {
   });
 }
 
-function summarizeFinnhubEvents(payloads: readonly unknown[]): string | undefined {
-  const counts = payloads.map((payload) =>
-    Array.isArray(payload) ? payload.length : readArray(payload, "earningsCalendar").length,
-  );
-  const total = counts.reduce((sum, count) => sum + count, 0);
-  return total > 0
-    ? `Finnhub returned ${String(total)} recent or upcoming earnings, dividend, and split records.`
-    : undefined;
+function eventRecordCount(payload: unknown): number {
+  return Array.isArray(payload) ? payload.length : readArray(payload, "earningsCalendar").length;
+}
+
+function eventSummaryPart(result: FinnhubEventRouteResult): string | undefined {
+  const count = eventRecordCount(result.payload);
+  if (count === 0) {
+    return;
+  }
+  const routeName = EVENT_ROUTE_NAMES[result.adapter] ?? "event";
+  return `${String(count)} ${routeName} ${count === 1 ? "record" : "records"}`;
+}
+
+function joinSummaryParts(parts: readonly string[]): string {
+  if (parts.length === 1) {
+    return parts[0] as string;
+  }
+  if (parts.length === 2) {
+    return `${parts[0] as string} and ${parts[1] as string}`;
+  }
+  return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1) as string}`;
+}
+
+function summarizeFinnhubEvents(results: readonly FinnhubEventRouteResult[]): string | undefined {
+  const parts = results
+    .map((result) => eventSummaryPart(result))
+    .filter((part): part is string => part !== undefined);
+  return parts.length > 0 ? `Finnhub returned ${joinSummaryParts(parts)}.` : undefined;
 }
 
 export async function collectFinnhubEvents(ctx: CollectContext): Promise<ProviderResult> {
@@ -79,7 +104,12 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
   const gaps = results
     .filter((value): value is SourceGap => !isFetchJsonResult(value))
     .map((gap) => normalizeEventGap(gap));
-  const summary = summarizeFinnhubEvents(fetched.map((result) => result.payload));
+  const summary = summarizeFinnhubEvents(
+    fetched.map((result) => ({
+      adapter: result.rawSnapshot.adapter,
+      payload: result.payload,
+    })),
+  );
   const items =
     summary === undefined
       ? []

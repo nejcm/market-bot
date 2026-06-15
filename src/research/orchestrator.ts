@@ -626,7 +626,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     domainPlaybooks: playbookSelection.audit,
     ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
-    ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
+    ...(reportValidationErrors.length > 0
+      ? { reportValidationRetryErrors: reportValidationErrors }
+      : {}),
     ...(forecastDisagreement !== undefined
       ? {
           forecastDisagreement: {

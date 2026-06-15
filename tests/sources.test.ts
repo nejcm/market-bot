@@ -1116,6 +1116,7 @@ describe("extended evidence provider collection", () => {
     );
 
     expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.item.summary).toBe("Finnhub returned 1 earnings calendar record.");
     expect(result.gaps).toEqual([
       expect.objectContaining({
         source: "finnhub-events-2",
@@ -1130,6 +1131,31 @@ describe("extended evidence provider collection", () => {
         message: "Finnhub split endpoint is unavailable for the configured token (status 403)",
       }),
     ]);
+  });
+
+  test("summarizes successful Finnhub event routes by route", async () => {
+    const result = await collectFinnhubEvents(
+      collectContext({
+        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        finnhubApiToken: "finnhub-token",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "finnhub-events-1") {
+              return rawJson(adapter, { earningsCalendar: [{ symbol: "AAPL" }] });
+            }
+            if (adapter === "finnhub-events-2") {
+              return rawJson(adapter, [{ symbol: "AAPL" }, { symbol: "AAPL" }]);
+            }
+            return rawJson(adapter, [{ symbol: "AAPL" }]);
+          },
+        }),
+      }),
+    );
+
+    expect(result.items[0]?.item.summary).toBe(
+      "Finnhub returned 1 earnings calendar record, 2 dividend records, and 1 split record.",
+    );
+    expect(result.gaps).toEqual([]);
   });
 
   test("routes crypto extended evidence only through crypto providers", async () => {

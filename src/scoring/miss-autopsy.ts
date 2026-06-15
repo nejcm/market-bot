@@ -81,17 +81,21 @@ function classifyCause(input: {
   return { cause: "insufficient_evidence", signals };
 }
 
+// Keyed by the full MissAutopsyCause union so adding a cause is a compile error
+// Until its rationale is written here. classifyCause is the only producer.
+const RATIONALE_BY_CAUSE: Record<MissAutopsyCause, string> = {
+  source_gap:
+    "Material forecast error with disclosed provider or source coverage gaps at forecast time.",
+  data_gap:
+    "Material forecast error with disclosed data gaps or weak direct citation support at forecast time.",
+  model_overconfidence:
+    "Material forecast error where the stated probability was extreme relative to the resolved event.",
+  insufficient_evidence:
+    "Material forecast error, but persisted artifacts do not support a more specific deterministic cause.",
+};
+
 function rationaleFor(cause: MissAutopsyCause): string {
-  if (cause === "source_gap") {
-    return "Material forecast error with disclosed provider or source coverage gaps at forecast time.";
-  }
-  if (cause === "data_gap") {
-    return "Material forecast error with disclosed data gaps or weak direct citation support at forecast time.";
-  }
-  if (cause === "model_overconfidence") {
-    return "Material forecast error where the stated probability was extreme relative to the resolved event.";
-  }
-  return "Material forecast error, but persisted artifacts do not support a more specific deterministic cause.";
+  return RATIONALE_BY_CAUSE[cause];
 }
 
 function buildEntry(input: {

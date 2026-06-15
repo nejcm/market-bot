@@ -3,8 +3,6 @@ export type ScoreOutcome = "hit" | "miss";
 export type MissAutopsyCause =
   | "data_gap"
   | "source_gap"
-  | "regime_shift"
-  | "one_off_catalyst"
   | "model_overconfidence"
   | "insufficient_evidence";
 

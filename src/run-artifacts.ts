@@ -81,8 +81,6 @@ const PREDICTION_KINDS: ReadonlySet<string> = new Set<PredictionKind>([
 const MISS_AUTOPSY_CAUSES: ReadonlySet<string> = new Set<MissAutopsyCause>([
   "data_gap",
   "source_gap",
-  "regime_shift",
-  "one_off_catalyst",
   "model_overconfidence",
   "insufficient_evidence",
 ]);
@@ -287,10 +285,9 @@ function readMissAutopsies(value: unknown): readonly MissAutopsyEntry[] {
     ) {
       return [];
     }
-    const evidence = readPrimitiveEvidence(item.evidence);
-    if (evidence === undefined) {
-      return [];
-    }
+    // An otherwise-valid entry with absent or non-object evidence keeps an empty
+    // Evidence map rather than being dropped (the field is non-essential context).
+    const evidence = readPrimitiveEvidence(item.evidence) ?? {};
     return [
       {
         predictionId: item.predictionId,

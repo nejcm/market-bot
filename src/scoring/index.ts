@@ -543,6 +543,9 @@ async function loadMissAutopsiesByPrediction(
   );
 }
 
+// Even on a warm index this re-reads every run directory from disk to recover
+// Miss autopsies, which the index does not yet hydrate. TODO: store the autopsy
+// Cause in the index row so loadResolvedPairsFromIndex can join it without a scan.
 async function withMissAutopsiesFromDisk(
   dataDir: string,
   pairs: readonly ResolvedPair[],

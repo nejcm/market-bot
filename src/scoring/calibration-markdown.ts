@@ -37,7 +37,9 @@ function renderMetricTable(lines: string[], table: MetricTable): void {
 
 function renderAutopsyCauseTable(lines: string[], summary: CalibrationSummary): void {
   lines.push("## Forecast error taxonomy", "");
-  const entries = Object.entries(summary.byMissAutopsyCause);
+  const entries = Object.entries(summary.byMissAutopsyCause).toSorted(
+    (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+  );
   if (entries.length === 0) {
     lines.push("_No material forecast-error autopsies yet._", "");
     return;

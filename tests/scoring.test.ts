@@ -6,6 +6,7 @@ import {
   renderCalibrationConsole,
   MIN_CALIBRATION_SAMPLE,
 } from "../src/scoring/calibration-console";
+import { forecastErrorDirection } from "../src/scoring/miss-autopsy";
 import type { Prediction } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
@@ -633,6 +634,38 @@ describe("buildCalibrationSummary", () => {
     const bin = summary.bins.find((b) => b.pLow === 0.6);
     expect(bin).toBeDefined();
     expect(bin?.hitRate).toBeCloseTo(0.7, 2);
+  });
+});
+
+describe("forecastErrorDirection", () => {
+  test("flags a miss at exactly the 0.6 overprediction threshold", () => {
+    const pred = prediction({ probability: 0.6 });
+    expect(forecastErrorDirection(pred, predictionScore("miss"))).toBe("overpredicted");
+  });
+
+  test("does not flag a miss just below the 0.6 threshold", () => {
+    const pred = prediction({ probability: 0.59 });
+    expect(forecastErrorDirection(pred, predictionScore("miss"))).toBeUndefined();
+  });
+
+  test("flags a hit at exactly the 0.4 underprediction threshold", () => {
+    const pred = prediction({ probability: 0.4 });
+    expect(forecastErrorDirection(pred, predictionScore("hit"))).toBe("underpredicted");
+  });
+
+  test("does not flag a hit just above the 0.4 threshold", () => {
+    const pred = prediction({ probability: 0.41 });
+    expect(forecastErrorDirection(pred, predictionScore("hit"))).toBeUndefined();
+  });
+
+  test("returns undefined for an unresolved score", () => {
+    const pred = prediction({ probability: 0.9 });
+    expect(
+      forecastErrorDirection(
+        pred,
+        predictionScore("miss", { resolved: false, outcome: undefined }),
+      ),
+    ).toBeUndefined();
   });
 });
 

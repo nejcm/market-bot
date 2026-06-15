@@ -1,6 +1,7 @@
 import type { AssetClass, Prediction } from "../src/domain/types";
 import { instrumentsForExpression, parseObservableExpression } from "../src/forecast/observable";
-import { readInstrumentTimeline, type InstrumentTimelineEntry } from "../src/history/artifacts";
+import type { InstrumentTimelineEntry } from "../src/history/artifacts";
+import { readInstrumentTimeline } from "../src/history/timeline-reader";
 import type { PredictionScore } from "../src/scoring/types";
 import type {
   InstrumentForecastOutcome,
@@ -60,7 +61,7 @@ function forecastsForEntry(
   let malformedPredictionCount = 0;
   const forecasts = entry.thesis.predictions.flatMap((prediction) => {
     const match = predictionMatchesSymbol(prediction, symbol);
-    if (match.malformed) {
+    if (match.malformed && match.matches) {
       malformedPredictionCount += 1;
     }
     if (!match.matches) {

@@ -496,7 +496,7 @@
                           class="rounded border border-[#cfe0e3] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           type="button"
                           onclick={() =>
-                            onOpenInstrument(detail.summary.assetClass ?? "equity", symbol)}
+                            onOpenInstrument(detail.summary.assetClass ?? "", symbol)}
                         >
                           {symbol}
                         </button>

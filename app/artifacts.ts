@@ -366,12 +366,7 @@ export async function readRunDetail(
     ...(score !== undefined ? { score } : {}),
     ...(missAutopsy !== undefined ? { missAutopsy } : {}),
     ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
-      ? {
-          verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot as unknown as Record<
-            string,
-            unknown
-          >,
-        }
+      ? { verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot }
       : {}),
   };
 }

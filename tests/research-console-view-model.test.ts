@@ -34,9 +34,18 @@ import {
   textItems,
   valuationMetricTiles,
   verifiedSnapshotView,
+  instrumentFromPathname,
+  instrumentPath,
 } from "../app/client/view-model";
 
 describe("research console app view model", () => {
+  test("round-trips instrument routes with normalized symbols", () => {
+    const pathname = instrumentPath("equity", "nvda");
+
+    expect(pathname).toBe("/instruments/equity/NVDA");
+    expect(instrumentFromPathname(pathname)).toEqual({ assetClass: "equity", symbol: "NVDA" });
+  });
+
   test("matches run summaries by searchable fields", () => {
     const run = {
       runId: "run-1",

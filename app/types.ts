@@ -1,3 +1,5 @@
+import type { VerifiedMarketSnapshot } from "../src/domain/types";
+
 export interface RunSummary {
   readonly runId: string;
   readonly generatedAt?: string;
@@ -22,7 +24,7 @@ export interface RunDetail {
   readonly trace?: Record<string, unknown>;
   readonly score?: Record<string, unknown>;
   readonly missAutopsy?: Record<string, unknown>;
-  readonly verifiedMarketSnapshot?: Record<string, unknown>;
+  readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
 }
 
 export interface RunFile {

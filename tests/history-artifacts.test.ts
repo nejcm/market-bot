@@ -8,6 +8,7 @@ import {
   rebuildHistoryArtifacts,
   searchHistoryIndex,
 } from "../src/history/artifacts";
+import { readInstrumentTimeline } from "../src/history/timeline-reader";
 import type { ModelProvider } from "../src/model/types";
 import { prediction, researchReport } from "./support/fixtures";
 
@@ -116,6 +117,9 @@ describe("history artifacts", () => {
       await readFile(join(rootDir, "history", "instruments", "equity-AAPL.json"), "utf8"),
     ) as { readonly entries: readonly { readonly runId: string }[] };
     expect(timeline.entries.map((entry) => entry.runId)).toEqual(["run-old", "run-new"]);
+    const readResult = await readInstrumentTimeline(dataDir, "equity", "aapl");
+    expect(readResult.source).toBe("history");
+    expect(readResult.timeline.entries.map((entry) => entry.runId)).toEqual(["run-old", "run-new"]);
   });
 
   test("searches structured history index with filters", async () => {

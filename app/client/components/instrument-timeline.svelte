@@ -17,9 +17,14 @@
   const PADDING_RIGHT = 18;
   const PADDING_TOP = 18;
   const PADDING_BOTTOM = 30;
+  const MAX_DATE_TICKS = 8;
   const plotWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = HEIGHT - PADDING_BOTTOM;
+
+  function dateTickStep(length: number): number {
+    return Math.max(1, Math.ceil(length / MAX_DATE_TICKS));
+  }
 
   const points = $derived.by(() => {
     const prices = detail?.pricePoints ?? [];
@@ -48,7 +53,7 @@
     points.length === 0 ? 0 : Math.max(...points.map((point) => point.close)),
   );
   const dateTicks = $derived(
-    points.filter((_, index) => index % 6 === 0 || index === points.length - 1),
+    points.filter((_, index) => index % dateTickStep(points.length) === 0 || index === points.length - 1),
   );
 
   const OUTCOME_CLASS: Record<string, string> = {

@@ -13,6 +13,7 @@ import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
+const INSTRUMENT_SYMBOL_PATTERN = /^[A-Z0-9._-]{1,20}$/u;
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   ".css": "text/css; charset=utf-8",
@@ -131,11 +132,17 @@ async function handleApiRequest(url: URL, dataDir: string): Promise<Response | u
   if (instrumentMatch !== null) {
     const assetClass = decodePathname(instrumentMatch[1] ?? "");
     const symbol = decodePathname(instrumentMatch[2] ?? "");
-    if (assetClass === undefined || symbol === undefined || !isAssetClass(assetClass)) {
+    const normalizedSymbol = symbol?.toUpperCase();
+    if (
+      assetClass === undefined ||
+      normalizedSymbol === undefined ||
+      !isAssetClass(assetClass) ||
+      !INSTRUMENT_SYMBOL_PATTERN.test(normalizedSymbol)
+    ) {
       return jsonResponse({ error: "Invalid instrument request" }, 400);
     }
 
-    return jsonResponse(await readInstrumentTimelineDetail(dataDir, assetClass, symbol));
+    return jsonResponse(await readInstrumentTimelineDetail(dataDir, assetClass, normalizedSymbol));
   }
 
   const fileMatch = /^\/api\/runs\/([^/]+)\/files$/u.exec(url.pathname);

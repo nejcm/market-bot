@@ -201,6 +201,12 @@ describe("research console app API", () => {
             subject: "AAPL",
             measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
           }),
+          prediction({
+            id: "p-msft",
+            claim: "MSFT malformed forecast.",
+            subject: "MSFT",
+            measurableAs: "not observable",
+          }),
         ],
       }),
     );
@@ -249,6 +255,7 @@ describe("research console app API", () => {
       ],
       pricePoints: [],
       counts: { total: 1, eventTrue: 1 },
+      warnings: { malformedPredictionCount: 0 },
     });
   });
 
@@ -257,6 +264,18 @@ describe("research console app API", () => {
 
     const response = await handleResearchConsoleRequest(
       new Request("http://127.0.0.1/api/instruments/forex/EURUSD/timeline"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid instrument request" });
+  });
+
+  test("rejects invalid instrument symbols", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/instruments/equity/%20/timeline"),
       { dataDir },
     );
 

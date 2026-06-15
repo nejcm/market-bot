@@ -294,9 +294,9 @@ describe("runCli", () => {
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     const calls: string[] = [];
     const runDir = join(dataDir, "run-1");
-    // Captured outside the callback: assertions inside it would be swallowed by
-    // The non-fatal .catch in updateRunArtifactIndex, so we assert after runCli.
-    let staleRebuildArgs: { readonly dataDir: string; readonly options: unknown } | undefined;
+    // Capture rebuild args, then assert after runCli resolves.
+    // Throws inside the callback are swallowed by updateRunArtifactIndex's .catch.
+    const staleRebuildArgs: { readonly dataDir: string; readonly options: unknown }[] = [];
 
     const result = await runCli(["daily", "--asset", "equity"], {
       createProvider: () => ({
@@ -334,7 +334,7 @@ describe("runCli", () => {
       },
       rebuildRunArtifactIndexIfStale: async (receivedDataDir, options) => {
         calls.push("stale-rebuild");
-        staleRebuildArgs = { dataDir: receivedDataDir, options };
+        staleRebuildArgs.push({ dataDir: receivedDataDir, options });
         return { rebuilt: false };
       },
       now: () => new Date("2026-06-01T00:00:00.000Z"),
@@ -342,9 +342,10 @@ describe("runCli", () => {
 
     expect(result).toBe(runDir);
     expect(calls).toEqual(["persist", "score", "calibration", "index", "stale-rebuild"]);
-    expect(staleRebuildArgs?.dataDir).toBe(dataDir);
+    expect(staleRebuildArgs).toHaveLength(1);
+    expect(staleRebuildArgs[0]?.dataDir).toBe(dataDir);
     // The CLI forwards the resolved index dbPath (config defaults it from dataDir).
-    expect(staleRebuildArgs?.options).toEqual({ dbPath: join(dataDir, "index.sqlite") });
+    expect(staleRebuildArgs[0]?.options).toEqual({ dbPath: join(dataDir, "index.sqlite") });
   });
 
   test("stale-rebuild error does not abort the research run", async () => {

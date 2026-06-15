@@ -284,4 +284,116 @@ describe("runCli", () => {
       }),
     ).resolves.toBe("Index rebuilt: 2 run(s), 1 malformed, 6 file(s), 10 search entries");
   });
+
+  test("invokes stale-rebuild follow-up after write-through on a research run", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-stale-rebuild-order-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+    const runDir = join(dataDir, "run-1");
+
+    const result = await runCli(["daily", "--asset", "equity"], {
+      createProvider: () => ({
+        name: "test" as const,
+        generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+      }),
+      collectSources: async () => collectedSources(),
+      persistResearchJob: async () => {
+        calls.push("persist");
+        return {
+          report: researchReport({ runId: "run-1" }),
+          markdown: "",
+          trace: {},
+          analytics: {},
+          stageOutputs: [],
+          collectedSources: collectedSources(),
+          historicalContext: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as never;
+      },
+      runScorePass: async () => {
+        calls.push("score");
+        return { scored: 0, skipped: 0, touchedRunDirs: [] };
+      },
+      buildAndWriteCalibration: async () => {
+        calls.push("calibration");
+        return null;
+      },
+      writeThroughRunArtifactIndex: async () => {
+        calls.push("index");
+      },
+      rebuildRunArtifactIndexIfStale: async (receivedDataDir) => {
+        calls.push("stale-rebuild");
+        expect(receivedDataDir).toBe(dataDir);
+        return { rebuilt: false };
+      },
+      now: () => new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    expect(result).toBe(runDir);
+    expect(calls).toEqual(["persist", "score", "calibration", "index", "stale-rebuild"]);
+  });
+
+  test("stale-rebuild error does not abort the research run", async () => {
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    const stderrChunks: string[] = [];
+    process.stderr.write = ((chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-stale-rebuild-error-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const runDir = join(dataDir, "run-1");
+
+    try {
+      const result = await runCli(["daily", "--asset", "equity"], {
+        createProvider: () => ({
+          name: "test" as const,
+          generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+        }),
+        collectSources: async () => collectedSources(),
+        persistResearchJob: async () =>
+          ({
+            report: researchReport({ runId: "run-1" }),
+            markdown: "",
+            trace: {},
+            analytics: {},
+            stageOutputs: [],
+            collectedSources: collectedSources(),
+            historicalContext: {},
+            artifacts: {
+              runDir,
+              rawDir: join(runDir, "raw"),
+              normalizedDir: join(runDir, "normalized"),
+            },
+          }) as never,
+        runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+        buildAndWriteCalibration: async () => null,
+        writeThroughRunArtifactIndex: async () => {},
+        rebuildRunArtifactIndexIfStale: async () => {
+          throw new Error("simulated repair failure");
+        },
+        now: () => new Date("2026-06-01T00:00:00.000Z"),
+      });
+
+      // Run must succeed despite the repair error.
+      expect(result).toBe(runDir);
+      expect(stderrChunks.join("")).toContain("stale-rebuild failed");
+      expect(stderrChunks.join("")).toContain("simulated repair failure");
+    } finally {
+      process.stderr.write = originalStderrWrite;
+    }
+  });
 });

@@ -14,6 +14,7 @@ import {
   searchRunReportsFromIndex,
   writeThroughRunArtifactIndex,
 } from "../src/run-artifact-index";
+import { rebuildRunArtifactIndexIfStale } from "../src/run-artifact-index-repair";
 import { buildAndWriteCalibration } from "../src/scoring/index";
 import { prediction, predictionScore, researchReport, newsSource } from "./support/fixtures";
 
@@ -417,5 +418,116 @@ describe("run artifact index", () => {
       section: "predictions",
     });
     expect(historyResults?.map((entry) => entry.text)).toEqual(["legacy stored forecast"]);
+  });
+});
+
+describe("rebuildRunArtifactIndexIfStale", () => {
+  test("heals a stale index caused by a run-directory-set mismatch", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    // Simulate drift: a new run dir appears on disk but was never write-through'd.
+    mkdirSync(join(dataDir, "run-new"));
+
+    const stderr = captureStderr();
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
+
+    expect(result).toEqual({ rebuilt: true });
+    const stderrText = stderr.join("");
+    expect(stderrText).toContain("stale, rebuilding");
+    expect(stderrText).not.toContain("falling back to disk scan");
+
+    // Index is fresh after repair and includes the new directory.
+    const summaries = await listRunSummariesFromIndex(dataDir);
+    expect(summaries).toBeDefined();
+    expect(summaries?.map((s) => s.runId)).toContain("run-new");
+  });
+
+  test("heals a stale index caused by a mutable sidecar mismatch", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    // Score sidecar written after the rebuild — triggers sidecar mismatch.
+    writeJson(join(dataDir, "run-a", "score.json"), { runId: "run-a", scores: [] });
+
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
+
+    expect(result).toEqual({ rebuilt: true });
+
+    // The sidecar row is now reflected.
+    const summaries = await listRunSummariesFromIndex(dataDir);
+    expect(summaries?.[0]?.hasScore).toBe(true);
+  });
+
+  test("no-op when the index is already fresh", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const stderr = captureStderr();
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
+
+    expect(result).toEqual({ rebuilt: false });
+    expect(stderr.join("")).not.toContain("rebuilding");
+  });
+
+  test("no-op when the database is missing (no auto-create)", async () => {
+    const { dataDir } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    const missingDbPath = join(dataDir, "..", "nonexistent.sqlite");
+
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath: missingDbPath });
+
+    expect(result).toEqual({ rebuilt: false });
+    expect(existsSync(missingDbPath)).toBe(false);
+  });
+
+  test("no-op when the schema version is unsupported (no auto-migrate)", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const db = new Database(dbPath, { create: true });
+    db.exec("PRAGMA user_version = 1");
+    db.close();
+
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
+
+    expect(result).toEqual({ rebuilt: false });
+    // Schema must be untouched.
+    const db2 = new Database(dbPath, { readonly: true });
+    const version = db2.query("PRAGMA user_version").get() as { readonly user_version: number };
+    db2.close();
+    expect(version.user_version).toBe(1);
+  });
+
+  test("no-op when the index is disabled via MARKET_BOT_INDEX_DISABLE", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    // Create drift: a new run dir appears on disk.
+    mkdirSync(join(dataDir, "run-new"));
+
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
+
+    expect(result).toEqual({ rebuilt: false });
+  });
+
+  test("honors an explicit options.dbPath differing from the env default", async () => {
+    const { dataDir } = await tempDataDir();
+    // Put the real DB at a custom path, different from the env-default.
+    const customDbPath = join(dataDir, "..", "custom-index.sqlite");
+    writeRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath: customDbPath });
+    // Drift on disk: env default points elsewhere, orchestrator must use customDbPath.
+    mkdirSync(join(dataDir, "run-new"));
+
+    process.env.MARKET_BOT_INDEX_DB_PATH = join(dataDir, "..", "other.sqlite");
+
+    const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath: customDbPath });
+
+    expect(result).toEqual({ rebuilt: true });
+    // Verify the rebuild landed at the custom path, not the env default.
+    expect(existsSync(customDbPath)).toBe(true);
   });
 });

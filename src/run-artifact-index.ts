@@ -83,8 +83,8 @@ export function isRunArtifactIndexDisabled(
 export function readRunArtifactIndexStatus(
   dataDir: string,
   env: Record<string, string | undefined> = process.env,
+  dbPath: string = configuredRunArtifactIndexPath(dataDir, env),
 ): RunArtifactIndexStatus {
-  const dbPath = configuredRunArtifactIndexPath(dataDir, env);
   const rebuildCommand = "bun run src/cli.ts index rebuild";
   const base = {
     dbPath,

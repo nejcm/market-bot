@@ -20,6 +20,7 @@ import {
   searchHistoryIndex,
 } from "./history/artifacts";
 import { rebuildRunArtifactIndex, writeThroughRunArtifactIndex } from "./run-artifact-index";
+import { rebuildRunArtifactIndexIfStale } from "./run-artifact-index-repair";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -31,6 +32,7 @@ export interface RunCliDependencies {
   readonly rebuildHistoryArtifacts?: typeof rebuildHistoryArtifacts;
   readonly rebuildRunArtifactIndex?: typeof rebuildRunArtifactIndex;
   readonly writeThroughRunArtifactIndex?: typeof writeThroughRunArtifactIndex;
+  readonly rebuildRunArtifactIndexIfStale?: typeof rebuildRunArtifactIndexIfStale;
   readonly searchHistoryIndex?: typeof searchHistoryIndex;
   readonly buildThesisDelta?: typeof buildThesisDelta;
   readonly now?: () => Date;
@@ -69,7 +71,10 @@ function createProvider(config: AppConfig): ModelProvider {
 async function updateRunArtifactIndex(
   dataDir: string,
   runDirNames: readonly string[],
-  dependencies: Pick<RunCliDependencies, "writeThroughRunArtifactIndex">,
+  dependencies: Pick<
+    RunCliDependencies,
+    "writeThroughRunArtifactIndex" | "rebuildRunArtifactIndexIfStale"
+  >,
   dbPath: string | undefined,
 ): Promise<void> {
   const normalizedRunDirs = [
@@ -82,6 +87,14 @@ async function updateRunArtifactIndex(
   ).catch((error: unknown) => {
     process.stderr.write(
       `Run artifact index update failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  });
+  await (dependencies.rebuildRunArtifactIndexIfStale ?? rebuildRunArtifactIndexIfStale)(
+    dataDir,
+    dbPath === undefined ? {} : { dbPath },
+  ).catch((error: unknown) => {
+    process.stderr.write(
+      `Run artifact index stale-rebuild failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   });
 }

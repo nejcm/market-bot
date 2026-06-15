@@ -1,6 +1,6 @@
 import { Database, type Statement } from "bun:sqlite";
 
-export const INDEX_SCHEMA_VERSION = 6;
+export const INDEX_SCHEMA_VERSION = 7;
 const BUSY_TIMEOUT_MS = 1000;
 
 export function openRunArtifactIndexDatabase(path: string, readonly: boolean): Database {
@@ -92,6 +92,7 @@ function schemaSql(): string {
       prediction_id TEXT NOT NULL,
       run_id TEXT NOT NULL,
       resolved INTEGER NOT NULL,
+      status TEXT,
       outcome TEXT,
       observed_at TEXT,
       scoring_version INTEGER,
@@ -100,6 +101,7 @@ function schemaSql(): string {
     );
 
     CREATE INDEX scores_resolved_idx ON scores(resolved, outcome);
+    CREATE INDEX scores_status_idx ON scores(status);
   `;
 }
 

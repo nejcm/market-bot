@@ -20,10 +20,13 @@ import {
   type AlphaValidationFile,
 } from "../alpha-search/validation";
 import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
-import { loadRunArtifact, readReportMarketRegimeLabel } from "../run-artifacts";
+import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
-import { loadResolvedPairsFromIndex } from "../run-artifact-index";
+import {
+  loadConditionalCalibrationCountsFromIndex,
+  loadResolvedPairsFromIndex,
+} from "../run-artifact-index";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import { buildMissAutopsyFile } from "./miss-autopsy";
@@ -32,13 +35,22 @@ import {
   type ObservationRepository,
   type FetchCloseFn,
 } from "./observations";
-import type { CalibrationSummary, MissAutopsyEntry, PredictionScore } from "./types";
+import type {
+  CalibrationSummary,
+  ConditionalCalibrationSummary,
+  MissAutopsyEntry,
+  PredictionScore,
+} from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
 const SCORE_FILE = "score.json";
 const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const ALPHA_VALIDATION_FILE = "alpha-validation.json";
 const ALPHA_CANDIDATE_PROFILES_FILE = "candidate-profiles.json";
+const ZERO_CONDITIONAL_COUNTS: ConditionalCalibrationSummary = {
+  activatedCount: 0,
+  voidedCount: 0,
+};
 export const SCORING_VERSION = 2;
 
 interface ScoreFile {
@@ -61,10 +73,12 @@ function unresolvedScore(
   report: ResearchReport,
   attemptCount: number,
   evidence: Record<string, unknown>,
+  status: PredictionScore["status"] = "pending",
 ): PredictionScore {
   return {
     predictionId: prediction.id,
     runId: report.runId,
+    status,
     resolved: false,
     outcome: undefined,
     observedAt: undefined,
@@ -109,14 +123,21 @@ async function scoreOnePrediction(
 
   if (resolveResult.status === "unresolved") {
     if (resolveResult.reason === "horizon-not-elapsed") {
-      return unresolvedScore(prediction, report, existingScore?.attemptCount ?? 0, {
-        reason: "horizon not yet elapsed",
-      });
+      return unresolvedScore(
+        prediction,
+        report,
+        existingScore?.attemptCount ?? 0,
+        {
+          reason: "horizon not yet elapsed",
+        },
+        resolveResult.scoreStatus ?? "pending",
+      );
     }
     if (attemptCount >= MAX_SCORE_ATTEMPTS) {
       return {
         predictionId: prediction.id,
         runId: report.runId,
+        status: "abandoned",
         resolved: true,
         outcome: undefined,
         observedAt: now.toISOString(),
@@ -125,12 +146,33 @@ async function scoreOnePrediction(
         evidence: { reason: "abandoned after max attempts" },
       };
     }
-    return unresolvedScore(prediction, report, attemptCount, resolveResult.evidence);
+    return unresolvedScore(
+      prediction,
+      report,
+      attemptCount,
+      resolveResult.evidence,
+      resolveResult.scoreStatus ?? "pending",
+    );
+  }
+
+  if (resolveResult.status === "voided") {
+    return {
+      predictionId: prediction.id,
+      runId: report.runId,
+      status: "voided",
+      resolved: true,
+      outcome: undefined,
+      observedAt: now.toISOString(),
+      attemptCount,
+      scoringVersion: SCORING_VERSION,
+      evidence: resolveResult.evidence,
+    };
   }
 
   return {
     predictionId: prediction.id,
     runId: report.runId,
+    status: "resolved",
     resolved: true,
     outcome: resolveResult.outcome,
     observedAt: now.toISOString(),
@@ -498,11 +540,7 @@ export async function buildAndWriteAlphaValidationSummary(
   return true;
 }
 
-async function loadRunPairs(runDir: string): Promise<readonly ResolvedPair[]> {
-  const { artifact } = await loadRunArtifact(runDir);
-  if (artifact === undefined || artifact.report.predictions.length === 0) {
-    return [];
-  }
+function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
   const { report, scores } = artifact;
   const autopsyByPrediction = new Map(
     artifact.missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy]),
@@ -559,10 +597,35 @@ async function withMissAutopsiesFromDisk(
   });
 }
 
-async function loadResolvedPairsFromDisk(dataDir: string): Promise<readonly ResolvedPair[]> {
+async function loadCalibrationInputsFromDisk(dataDir: string): Promise<{
+  readonly pairs: readonly ResolvedPair[];
+  readonly conditionalCounts: ConditionalCalibrationSummary;
+}> {
   const runDirs = await listRunDirs(dataDir);
-  const pairsPerRun = await Promise.all(runDirs.map((runDir) => loadRunPairs(runDir)));
-  return pairsPerRun.flat();
+  const loaded = await Promise.all(runDirs.map((runDir) => loadRunArtifact(runDir)));
+  const pairs = loaded.flatMap(({ artifact }) =>
+    artifact === undefined || artifact.report.predictions.length === 0
+      ? []
+      : pairsForArtifact(artifact),
+  );
+  let voidedCount = 0;
+  for (const { artifact } of loaded) {
+    if (artifact === undefined) {
+      continue;
+    }
+    const predictionsById = new Map(
+      artifact.report.predictions.map((prediction) => [prediction.id, prediction]),
+    );
+    for (const score of artifact.scores) {
+      const prediction = predictionsById.get(score.predictionId);
+      if (prediction?.kind === "conditional" && score.status === "voided") {
+        voidedCount += 1;
+      }
+    }
+  }
+  // Activated conditionals are counted from resolved pairs in
+  // BuildCalibrationSummary; disk scanning only has to add excluded voids.
+  return { pairs, conditionalCounts: { activatedCount: 0, voidedCount } };
 }
 
 export async function buildAndWriteCalibration(
@@ -570,16 +633,24 @@ export async function buildAndWriteCalibration(
   now: Date = new Date(),
 ): Promise<CalibrationSummary | null> {
   const indexPairs = await loadResolvedPairsFromIndex(dataDir);
+  const indexConditionalCounts =
+    indexPairs === undefined ? undefined : await loadConditionalCalibrationCountsFromIndex(dataDir);
+  const diskInputs =
+    indexPairs === undefined || indexConditionalCounts === undefined
+      ? await loadCalibrationInputsFromDisk(dataDir)
+      : undefined;
   const pairs =
     indexPairs === undefined
-      ? await loadResolvedPairsFromDisk(dataDir)
+      ? (diskInputs?.pairs ?? [])
       : await withMissAutopsiesFromDisk(dataDir, indexPairs);
+  const conditionalCounts =
+    indexConditionalCounts ?? diskInputs?.conditionalCounts ?? ZERO_CONDITIONAL_COUNTS;
 
   if (pairs.length === 0) {
     return null;
   }
 
-  const summary = buildCalibrationSummary(pairs, now);
+  const summary = buildCalibrationSummary(pairs, now, conditionalCounts);
   const calibrationDir = join(dataDir, "../calibration");
   await mkdir(calibrationDir, { recursive: true });
   await writeFile(

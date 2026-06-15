@@ -7,6 +7,7 @@ import { Database } from "bun:sqlite";
 import {
   INDEX_SCHEMA_VERSION,
   listRunSummariesFromIndex,
+  loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
   readRunArtifactIndexStatus,
   rebuildRunArtifactIndex,
@@ -267,6 +268,15 @@ describe("run artifact index", () => {
             probability: 0.7,
             horizonTradingDays: 5,
           }),
+          prediction({
+            id: "p-void",
+            kind: "conditional",
+            subject: "QQQ",
+            measurableAs:
+              "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+            horizonTradingDays: 10,
+            probability: 0.62,
+          }),
         ],
       }),
     );
@@ -278,6 +288,16 @@ describe("run artifact index", () => {
           runId: "run-cal",
           observedAt: "2026-06-02T00:00:00.000Z",
         }),
+        {
+          predictionId: "p-void",
+          runId: "run-cal",
+          status: "voided",
+          resolved: true,
+          outcome: undefined,
+          observedAt: "2026-06-02T00:00:00.000Z",
+          attemptCount: 1,
+          evidence: { reason: "conditional antecedent did not occur" },
+        },
       ],
     });
     writeJson(join(runDir, "miss-autopsy.json"), {
@@ -305,12 +325,17 @@ describe("run artifact index", () => {
     expect(pairs).toHaveLength(1);
     expect(pairs?.[0]?.prediction.id).toBe("p-cal");
     expect(pairs?.[0]?.score.outcome).toBe("hit");
+    await expect(loadConditionalCalibrationCountsFromIndex(dataDir)).resolves.toEqual({
+      activatedCount: 0,
+      voidedCount: 1,
+    });
 
     process.env.MARKET_BOT_INDEX_DISABLE = "1";
     const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
     expect(summary?.resolvedCount).toBe(1);
     expect(summary?.brierScore).toBeCloseTo(0.09, 2);
     expect(summary?.byMissAutopsyCause).toEqual({ insufficient_evidence: 1 });
+    expect(summary?.conditionalPredictions).toEqual({ activatedCount: 0, voidedCount: 1 });
     delete process.env.MARKET_BOT_INDEX_DISABLE;
 
     const indexedSummary = await buildAndWriteCalibration(
@@ -320,6 +345,7 @@ describe("run artifact index", () => {
     expect(indexedSummary?.resolvedCount).toBe(summary?.resolvedCount);
     expect(indexedSummary?.brierScore).toBe(summary?.brierScore);
     expect(indexedSummary?.byMissAutopsyCause).toEqual(summary?.byMissAutopsyCause);
+    expect(indexedSummary?.conditionalPredictions).toEqual(summary?.conditionalPredictions);
 
     const calibrationPath = join(rootDir, "calibration", "summary.json");
     expect(existsSync(calibrationPath)).toBe(true);

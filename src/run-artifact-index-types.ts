@@ -46,6 +46,7 @@ export interface ScoreRow {
   readonly prediction_id: string;
   readonly run_id: string;
   readonly resolved: number;
+  readonly status: string | null;
   readonly outcome: string | null;
   readonly observed_at: string | null;
   readonly scoring_version: number | null;

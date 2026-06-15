@@ -41,13 +41,22 @@ export interface ObservableIv {
   readonly threshold: number;
 }
 
-export type ObservableExpression =
+export type ObservableBaseExpression =
   | ObservableDirection
   | ObservableRelative
   | ObservableVolatility
   | ObservableRange
   | ObservableMacro
   | ObservableIv;
+
+export interface ObservableConditional {
+  readonly kind: "conditional";
+  readonly antecedent: ObservableBaseExpression;
+  readonly consequent: ObservableBaseExpression;
+  readonly horizonTradingDays: number;
+}
+
+export type ObservableExpression = ObservableBaseExpression | ObservableConditional;
 
 export interface ObservableForecast {
   readonly prediction: Prediction;
@@ -98,6 +107,11 @@ export interface ObservableForecastResolved {
   readonly evidence: Record<string, unknown>;
 }
 
+export interface ObservableForecastVoided {
+  readonly status: "voided";
+  readonly evidence: Record<string, unknown>;
+}
+
 export interface ObservableForecastUnresolved {
   readonly status: "unresolved";
   readonly reason: "missing-origin" | "missing-horizon" | "missing-window";
@@ -106,6 +120,7 @@ export interface ObservableForecastUnresolved {
 
 export type ObservableForecastResolution =
   | ObservableForecastResolved
+  | ObservableForecastVoided
   | ObservableForecastUnresolved;
 
 export type PointObservationRequest =
@@ -124,9 +139,15 @@ export type ObservationStrategy =
   | {
       readonly mode: "close-window";
       readonly subjects: readonly string[];
+      readonly horizonTradingDays: number;
     }
   | {
       readonly mode: "point";
       readonly requests: readonly PointObservationRequest[];
       readonly includeOrigin: boolean;
+      readonly horizonTradingDays: number;
+    }
+  | {
+      readonly mode: "composite";
+      readonly strategies: readonly ObservationStrategy[];
     };

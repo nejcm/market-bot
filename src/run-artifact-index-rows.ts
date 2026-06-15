@@ -172,6 +172,7 @@ function scoreRowsFor(runId: string, scores: readonly PredictionScore[]): readon
     prediction_id: score.predictionId,
     run_id: runId,
     resolved: score.resolved ? 1 : 0,
+    status: score.status ?? null,
     outcome: score.outcome ?? null,
     observed_at: score.observedAt ?? null,
     scoring_version: score.scoringVersion ?? null,

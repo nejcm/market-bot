@@ -9,6 +9,7 @@ import {
   buildProviderHealthSummary,
   writeProviderHealthSummary,
 } from "../src/health/provider-health";
+import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
 
 let tmpDir = "";
 let dataDir = "";
@@ -180,7 +181,7 @@ describe("provider health", () => {
 
     expect(summary.runArtifactIndex).toMatchObject({
       state: "unsupported-schema",
-      expectedSchemaVersion: 6,
+      expectedSchemaVersion: INDEX_SCHEMA_VERSION,
       currentSchemaVersion: 4,
       rebuildCommand: "bun run src/cli.ts index rebuild",
     });

@@ -1,6 +1,7 @@
 import type { Prediction, PredictionKind } from "../domain/types";
 import { stringArrayValue } from "../sources/guards";
 import type {
+  ObservableBaseExpression,
   ObservableExpression,
   ObservableForecast,
   ObservableForecastIssue,
@@ -14,6 +15,8 @@ import type {
 } from "./observable-types";
 
 export type {
+  ObservableBaseExpression,
+  ObservableConditional,
   ObservableDirection,
   ObservableExpression,
   ObservableForecast,
@@ -60,6 +63,7 @@ type ObservableExpressionOf<K extends PredictionKind> = Extract<
   ObservableExpression,
   { readonly kind: K }
 >;
+type BasePredictionKind = Exclude<PredictionKind, "conditional">;
 
 interface PredictionShape<K extends PredictionKind> {
   readonly kind: K;
@@ -78,6 +82,9 @@ interface PredictionShape<K extends PredictionKind> {
 type AnyPredictionShape = {
   readonly [K in PredictionKind]: PredictionShape<K>;
 }[PredictionKind];
+type AnyBasePredictionShape = {
+  readonly [K in BasePredictionKind]: PredictionShape<K>;
+}[BasePredictionKind];
 
 function isPredictionKind(value: unknown): value is PredictionKind {
   return typeof value === "string" && value in PREDICTION_SHAPE_BY_KIND;
@@ -119,7 +126,11 @@ const directionShape: PredictionShape<"direction"> = {
   },
 
   observationStrategy(expression) {
-    return { mode: "close-window", subjects: [expression.subject] };
+    return {
+      mode: "close-window",
+      subjects: [expression.subject],
+      horizonTradingDays: expression.horizonTradingDays,
+    };
   },
 
   resolve(expression, observations) {
@@ -166,7 +177,11 @@ const relativeShape: PredictionShape<"relative"> = {
   },
 
   observationStrategy(expression) {
-    return { mode: "close-window", subjects: [expression.subjectA, expression.subjectB] };
+    return {
+      mode: "close-window",
+      subjects: [expression.subjectA, expression.subjectB],
+      horizonTradingDays: expression.horizonTradingDays,
+    };
   },
 
   resolve(expression, observations) {
@@ -228,7 +243,11 @@ const volatilityShape: PredictionShape<"volatility"> = {
   },
 
   observationStrategy(expression) {
-    return { mode: "close-window", subjects: [expression.subject] };
+    return {
+      mode: "close-window",
+      subjects: [expression.subject],
+      horizonTradingDays: expression.horizonTradingDays,
+    };
   },
 
   resolve(expression, observations) {
@@ -287,7 +306,11 @@ const rangeShape: PredictionShape<"range"> = {
   },
 
   observationStrategy(expression) {
-    return { mode: "close-window", subjects: [expression.subject] };
+    return {
+      mode: "close-window",
+      subjects: [expression.subject],
+      horizonTradingDays: expression.horizonTradingDays,
+    };
   },
 
   resolve(expression, observations) {
@@ -342,6 +365,7 @@ const macroShape: PredictionShape<"macro"> = {
         },
       ],
       includeOrigin: true,
+      horizonTradingDays: expression.horizonTradingDays,
     };
   },
 
@@ -409,6 +433,7 @@ const ivShape: PredictionShape<"iv"> = {
         },
       ],
       includeOrigin: false,
+      horizonTradingDays: expression.horizonTradingDays,
     };
   },
 
@@ -428,13 +453,159 @@ const ivShape: PredictionShape<"iv"> = {
   },
 };
 
-const PREDICTION_SHAPES: readonly AnyPredictionShape[] = [
+function uniqueStrings(values: readonly string[]): readonly string[] {
+  return [...new Set(values)];
+}
+
+function splitConditionalExpression(expr: string):
+  | {
+      readonly antecedent: string;
+      readonly consequent: string;
+    }
+  | undefined {
+  if (!expr.startsWith("if (")) {
+    return undefined;
+  }
+  const antecedentStart = "if (".length - 1;
+  const antecedentEnd = matchingParenIndex(expr, antecedentStart);
+  if (antecedentEnd === undefined) {
+    return undefined;
+  }
+  const between = expr.slice(antecedentEnd + 1).trimStart();
+  if (!between.startsWith("then (")) {
+    return undefined;
+  }
+  const consequentOpen =
+    antecedentEnd + 1 + (expr.slice(antecedentEnd + 1).length - between.length) + "then ".length;
+  const consequentEnd = matchingParenIndex(expr, consequentOpen);
+  if (consequentEnd === undefined || expr.slice(consequentEnd + 1).trim() !== "") {
+    return undefined;
+  }
+  return {
+    antecedent: expr.slice(antecedentStart + 1, antecedentEnd),
+    consequent: expr.slice(consequentOpen + 1, consequentEnd),
+  };
+}
+
+function matchingParenIndex(expr: string, openIndex: number): number | undefined {
+  if (expr[openIndex] !== "(") {
+    return undefined;
+  }
+  let depth = 0;
+  for (let idx = openIndex; idx < expr.length; idx += 1) {
+    const char = expr[idx];
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return idx;
+      }
+    }
+  }
+  return undefined;
+}
+
+function parseBaseObservableExpression(expr: string): ObservableBaseExpression {
+  const s = expr.trim();
+  for (const shape of BASE_PREDICTION_SHAPES) {
+    const expression = shape.parse(s);
+    if (expression !== undefined) {
+      return expression;
+    }
+  }
+
+  throw new Error(`Cannot parse measurableAs: "${expr}"`);
+}
+
+const conditionalShape: PredictionShape<"conditional"> = {
+  kind: "conditional",
+
+  parse(expr) {
+    const parts = splitConditionalExpression(expr);
+    if (parts === undefined) {
+      return;
+    }
+    const antecedent = parseBaseObservableExpression(parts.antecedent);
+    const consequent = parseBaseObservableExpression(parts.consequent);
+    return {
+      kind: "conditional",
+      antecedent,
+      consequent,
+      horizonTradingDays: consequent.horizonTradingDays,
+    };
+  },
+
+  measurableAs(expression) {
+    return `if (${measurableAsForExpression(expression.antecedent)}) then (${measurableAsForExpression(expression.consequent)})`;
+  },
+
+  renderClaim(expression) {
+    return `If ${renderClaim(expression.antecedent)}, then ${renderClaim(expression.consequent)}`;
+  },
+
+  subject(expression) {
+    return subjectForExpression(expression.consequent);
+  },
+
+  instruments(expression) {
+    return uniqueStrings([
+      ...instrumentsForExpression(expression.antecedent),
+      ...instrumentsForExpression(expression.consequent),
+    ]);
+  },
+
+  observationStrategy(expression) {
+    return {
+      mode: "composite",
+      strategies: [
+        observationStrategyForExpression(expression.antecedent),
+        observationStrategyForExpression(expression.consequent),
+      ],
+    };
+  },
+
+  resolve(expression, observations) {
+    const antecedent = resolveObservableExpression(expression.antecedent, observations);
+    if (antecedent.status === "unresolved") {
+      return antecedent;
+    }
+    if (antecedent.status === "voided") {
+      return antecedent;
+    }
+    if (antecedent.outcome === "miss") {
+      return {
+        status: "voided",
+        evidence: {
+          reason: "conditional antecedent did not occur",
+          antecedent: antecedent.evidence,
+        },
+      };
+    }
+    const consequent = resolveObservableExpression(expression.consequent, observations);
+    if (consequent.status === "resolved") {
+      return {
+        status: "resolved",
+        outcome: consequent.outcome,
+        evidence: { antecedent: antecedent.evidence, consequent: consequent.evidence },
+      };
+    }
+    return consequent;
+  },
+};
+
+const BASE_PREDICTION_SHAPES: readonly AnyBasePredictionShape[] = [
   directionShape,
   relativeShape,
   volatilityShape,
   rangeShape,
   macroShape,
   ivShape,
+];
+
+const PREDICTION_SHAPES: readonly AnyPredictionShape[] = [
+  ...BASE_PREDICTION_SHAPES,
+  conditionalShape,
 ];
 
 const PREDICTION_SHAPE_BY_KIND: {
@@ -446,6 +617,7 @@ const PREDICTION_SHAPE_BY_KIND: {
   range: rangeShape,
   macro: macroShape,
   iv: ivShape,
+  conditional: conditionalShape,
 };
 
 function shapeByKind<K extends PredictionKind>(kind: K): PredictionShape<K> {
@@ -498,7 +670,9 @@ export function instrumentsForExpression(expression: ObservableExpression): read
   return shapeForExpression(expression).instruments(expression);
 }
 
-function observationStrategyForExpression(expression: ObservableExpression): ObservationStrategy {
+export function observationStrategyForExpression(
+  expression: ObservableExpression,
+): ObservationStrategy {
   return shapeForExpression(expression).observationStrategy(expression);
 }
 
@@ -523,6 +697,16 @@ function validateProjection(
     return issue(
       "field-mismatch",
       `Prediction ${id}: horizonTradingDays does not match measurableAs`,
+      id,
+    );
+  }
+  if (
+    expression.kind === "conditional" &&
+    expression.antecedent.horizonTradingDays >= expression.consequent.horizonTradingDays
+  ) {
+    return issue(
+      "invalid-horizon",
+      `Prediction ${id}: conditional antecedent horizon must be earlier than consequent horizon`,
       id,
     );
   }
@@ -796,7 +980,10 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
         issues.push(redundancyIssue);
         continue;
       }
-    } else {
+    } else if (prediction.kind !== "conditional") {
+      // Conditionals are redundant only when the full measurable expression
+      // Matches; same consequent, probability, and horizon can be valid under
+      // Different antecedents.
       const key = redundancyKey(forecast);
       if (kindSubjectHorizonSeen.has(key)) {
         issues.push(
@@ -880,5 +1067,12 @@ export function resolveObservableForecast(
   forecast: ObservableForecast,
   observations: readonly Observation[],
 ): ObservableForecastResolution {
-  return shapeForExpression(forecast.expression).resolve(forecast.expression, observations);
+  return resolveObservableExpression(forecast.expression, observations);
+}
+
+export function resolveObservableExpression(
+  expression: ObservableExpression,
+  observations: readonly Observation[],
+): ObservableForecastResolution {
+  return shapeForExpression(expression).resolve(expression, observations);
 }

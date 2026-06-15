@@ -17,6 +17,9 @@ function scoreOutcome(score: PredictionScore | undefined): InstrumentForecastOut
   if (!score.resolved) {
     return "pending";
   }
+  if (score.status === "voided") {
+    return "voided";
+  }
   if (score.outcome === "hit") {
     return "event-true";
   }
@@ -109,6 +112,7 @@ function countsFor(
     eventTrue: forecasts.filter((forecast) => forecast.outcome === "event-true").length,
     eventFalse: forecasts.filter((forecast) => forecast.outcome === "event-false").length,
     pending: forecasts.filter((forecast) => forecast.outcome === "pending").length,
+    voided: forecasts.filter((forecast) => forecast.outcome === "voided").length,
     unscored: forecasts.filter((forecast) => forecast.outcome === "unscored").length,
   };
 }

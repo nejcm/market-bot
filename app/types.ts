@@ -42,7 +42,12 @@ export interface CalibrationDetail {
   readonly markdown?: string;
 }
 
-export type InstrumentForecastOutcome = "event-true" | "event-false" | "pending" | "unscored";
+export type InstrumentForecastOutcome =
+  | "event-true"
+  | "event-false"
+  | "pending"
+  | "voided"
+  | "unscored";
 
 export interface InstrumentTimelinePricePoint {
   readonly date: string;
@@ -77,6 +82,7 @@ export interface InstrumentTimelineDetail {
     readonly eventTrue: number;
     readonly eventFalse: number;
     readonly pending: number;
+    readonly voided: number;
     readonly unscored: number;
   };
   readonly warnings: {

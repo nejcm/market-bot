@@ -327,6 +327,7 @@ max(close(SUBJECT), 0..+N) > T
 close(SUBJECT, +N) outside [Lo, Hi]
 fred(SERIES, +N) > fred(SERIES, 0)
 iv(SUBJECT, +N) > T
+if (<existing expression>) then (<existing expression>)
 ```
 
 Prediction validation checks:
@@ -335,6 +336,7 @@ Prediction validation checks:
 - `kind`, `subject`, and `horizonTradingDays` match the parsed expression;
 - horizon is an integer from 1 to 20 trading days;
 - probability is between 0 and 1 and means `P(measurableAs is TRUE)`;
+- for Conditional Predictions, probability means `P(consequent | antecedent)`, the antecedent horizon must be earlier than the consequent horizon, and condition-unmet scores are voided/excluded from Brier and reliability bins;
 - source IDs exist in the report source list;
 - direction forecasts on the same subject are at least two trading days apart.
 
@@ -399,7 +401,7 @@ Scoring lives in `src/scoring/index.ts`, `src/scoring/observations.ts`, and `src
 3. Check whether the prediction horizon has elapsed in trading days, counted against the US exchange calendar (`src/scoring/exchange-calendar.ts`) so weekends and market holidays are skipped.
 4. Fetch point or window Observations from Yahoo, CoinGecko, FRED, or Tradier.
 5. For close-based predictions, use provider-returned sessions: origin is the first available close at or after the report date, and horizon is the Nth available close after origin.
-6. Resolve each observable forecast as `hit`, `miss`, or unresolved.
+6. Resolve each observable forecast as `hit`, `miss`, `voided`, or unresolved. Conditional Predictions first resolve the antecedent; false antecedents are voided/excluded, true antecedents activate the consequent.
 7. Write or update `score.json`.
 8. For alpha-search reports with Research Leads, backfill `normalized/candidate-profiles.json` if missing.
 9. Validate 5- and 20-trading-day excess returns against `IWM` and write `alpha-validation.json`.

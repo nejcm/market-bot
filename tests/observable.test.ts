@@ -3,6 +3,7 @@ import {
   observationStrategyForForecast,
   parseObservableExpression,
   renderClaim,
+  resolveObservableForecast,
   type ObservableExpression,
   type ObservableForecast,
   type ObservationStrategy,
@@ -133,6 +134,47 @@ describe("parseObservableExpression", () => {
     });
   });
 
+  describe("conditional", () => {
+    test("parses a single conditional edge", () => {
+      expect(
+        parseObservableExpression(
+          "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+        ),
+      ).toEqual({
+        kind: "conditional",
+        antecedent: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
+        consequent: { kind: "direction", subject: "QQQ", horizonTradingDays: 10 },
+        horizonTradingDays: 10,
+      });
+    });
+
+    test("rejects nested conditional operands", () => {
+      expect(() =>
+        parseObservableExpression(
+          "if (if (close(SPY, +3) > close(SPY, 0)) then (close(QLD, +4) > close(QLD, 0))) then (close(QQQ, +10) > close(QQQ, 0))",
+        ),
+      ).toThrow("Cannot parse measurableAs");
+    });
+
+    test("resolves a conditional forecast from pooled observations", () => {
+      const expression = parseObservableExpression(
+        "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+      );
+
+      expect(
+        resolveObservableForecast(forecastFor(expression), [
+          { subject: "SPY", date: "2026-05-01", value: 500 },
+          { subject: "SPY", date: "2026-05-08", value: 505 },
+          { subject: "QQQ", date: "2026-05-01", value: 400 },
+          { subject: "QQQ", date: "2026-05-15", value: 410 },
+        ]),
+      ).toMatchObject({
+        status: "resolved",
+        outcome: "hit",
+      });
+    });
+  });
+
   describe("invalid input", () => {
     test("throws on unknown form", () => {
       expect(() => parseObservableExpression("SPY goes up")).toThrow("Cannot parse measurableAs");
@@ -225,6 +267,16 @@ describe("renderClaim", () => {
         },
         expected: "AAPL implied volatility is above 0.35 in 5 trading days",
       },
+      {
+        expression: {
+          kind: "conditional",
+          antecedent: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
+          consequent: { kind: "direction", subject: "QQQ", horizonTradingDays: 10 },
+          horizonTradingDays: 10,
+        },
+        expected:
+          "If SPY closes higher than today over 5 trading days, then QQQ closes higher than today over 10 trading days",
+      },
     ];
 
     for (const item of cases) {
@@ -241,7 +293,7 @@ describe("observationStrategyForForecast", () => {
     }[] = [
       {
         expression: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
-        expected: { mode: "close-window", subjects: ["SPY"] },
+        expected: { mode: "close-window", subjects: ["SPY"], horizonTradingDays: 5 },
       },
       {
         expression: {
@@ -250,7 +302,7 @@ describe("observationStrategyForForecast", () => {
           subjectB: "SPY",
           horizonTradingDays: 5,
         },
-        expected: { mode: "close-window", subjects: ["QQQ", "SPY"] },
+        expected: { mode: "close-window", subjects: ["QQQ", "SPY"], horizonTradingDays: 5 },
       },
       {
         expression: {
@@ -259,7 +311,7 @@ describe("observationStrategyForForecast", () => {
           horizonTradingDays: 5,
           threshold: 20,
         },
-        expected: { mode: "close-window", subjects: ["^VIX"] },
+        expected: { mode: "close-window", subjects: ["^VIX"], horizonTradingDays: 5 },
       },
       {
         expression: {
@@ -269,7 +321,7 @@ describe("observationStrategyForForecast", () => {
           lo: 90_000,
           hi: 110_000,
         },
-        expected: { mode: "close-window", subjects: ["BTC"] },
+        expected: { mode: "close-window", subjects: ["BTC"], horizonTradingDays: 7 },
       },
       {
         expression: { kind: "macro", seriesId: "DGS10", horizonTradingDays: 5 },
@@ -277,6 +329,7 @@ describe("observationStrategyForForecast", () => {
           mode: "point",
           requests: [{ kind: "fred", subject: "DGS10", observationSubject: "FRED:DGS10" }],
           includeOrigin: true,
+          horizonTradingDays: 5,
         },
       },
       {
@@ -290,6 +343,22 @@ describe("observationStrategyForForecast", () => {
           mode: "point",
           requests: [{ kind: "iv", subject: "AAPL", observationSubject: "IV:AAPL" }],
           includeOrigin: false,
+          horizonTradingDays: 5,
+        },
+      },
+      {
+        expression: {
+          kind: "conditional",
+          antecedent: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
+          consequent: { kind: "direction", subject: "QQQ", horizonTradingDays: 10 },
+          horizonTradingDays: 10,
+        },
+        expected: {
+          mode: "composite",
+          strategies: [
+            { mode: "close-window", subjects: ["SPY"], horizonTradingDays: 5 },
+            { mode: "close-window", subjects: ["QQQ"], horizonTradingDays: 10 },
+          ],
         },
       },
     ];

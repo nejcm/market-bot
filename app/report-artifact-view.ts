@@ -16,13 +16,24 @@ export interface PredictionView {
   readonly id: string;
   readonly claim: string;
   readonly kind?: string;
+  readonly subject?: string;
+  readonly measurableAs?: string;
   readonly probability?: number;
   readonly horizonTradingDays?: number;
   readonly sourceIds: readonly string[];
 }
 
+export type PredictionScoreStatus =
+  | "pending"
+  | "pending-condition"
+  | "active-pending"
+  | "resolved"
+  | "voided"
+  | "abandoned";
+
 export interface PredictionScoreView {
   readonly predictionId: string;
+  readonly status: PredictionScoreStatus;
   readonly resolved: boolean;
   readonly outcome?: "hit" | "miss";
   readonly observedAt?: string;
@@ -63,7 +74,14 @@ export interface ForecastRollup {
   readonly resolved: number;
   readonly hits: number;
   readonly misses: number;
+  readonly voided: number;
   readonly pending: number;
+}
+
+export interface ForecastGroup {
+  readonly key: string;
+  readonly antecedent?: string;
+  readonly forecasts: readonly ScoredForecast[];
 }
 
 export interface SourceView {
@@ -212,6 +230,7 @@ export function predictions(
           ? storedClaim
           : renderClaimForMeasurableAs(measurableAs, storedClaim);
       const kind = readString(item, "kind");
+      const subject = readString(item, "subject");
       const probability = readNumber(item, "probability");
       const horizonTradingDays = readNumber(item, "horizonTradingDays");
       return id === undefined || claim === undefined
@@ -221,12 +240,36 @@ export function predictions(
               id,
               claim,
               ...(kind !== undefined ? { kind } : {}),
+              ...(subject !== undefined ? { subject } : {}),
+              ...(measurableAs !== undefined ? { measurableAs } : {}),
               ...(probability !== undefined ? { probability } : {}),
               ...(horizonTradingDays !== undefined ? { horizonTradingDays } : {}),
               sourceIds: readSourceIds(item),
             },
           ];
     });
+}
+
+function readPredictionScoreStatus(
+  item: Record<string, unknown>,
+  resolved: boolean,
+  outcome: "hit" | "miss" | undefined,
+): PredictionScoreStatus {
+  const status = readString(item, "status");
+  if (
+    status === "pending" ||
+    status === "pending-condition" ||
+    status === "active-pending" ||
+    status === "resolved" ||
+    status === "voided" ||
+    status === "abandoned"
+  ) {
+    return status;
+  }
+  if (outcome !== undefined) {
+    return "resolved";
+  }
+  return resolved ? "abandoned" : "pending";
 }
 
 export function predictionScores(
@@ -248,6 +291,7 @@ export function predictionScores(
       const resolved = item.resolved === true;
       const rawOutcome = readString(item, "outcome");
       const outcome = rawOutcome === "hit" || rawOutcome === "miss" ? rawOutcome : undefined;
+      const status = readPredictionScoreStatus(item, resolved, outcome);
       const observedAt = readString(item, "observedAt");
       const evidence = isRecord(item.evidence) ? item.evidence : {};
       const close0 = readNumber(evidence, "close0");
@@ -258,6 +302,7 @@ export function predictionScores(
       return [
         {
           predictionId,
+          status,
           resolved,
           ...(outcome !== undefined ? { outcome } : {}),
           ...(observedAt !== undefined ? { observedAt } : {}),
@@ -267,6 +312,45 @@ export function predictionScores(
         },
       ];
     });
+}
+
+function conditionalAntecedent(measurableAs: string | undefined): string | undefined {
+  if (measurableAs === undefined || !measurableAs.startsWith("if (")) {
+    return undefined;
+  }
+  // Keep this parser local to the client view model so the UI bundle does not
+  // Pull in the full observable resolver stack.
+  let depth = 0;
+  for (let idx = "if ".length; idx < measurableAs.length; idx += 1) {
+    const char = measurableAs[idx];
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return measurableAs.slice("if (".length, idx);
+      }
+    }
+  }
+  return undefined;
+}
+
+export function forecastGroups(items: readonly ScoredForecast[]): readonly ForecastGroup[] {
+  const groups = new Map<string, ScoredForecast[]>();
+  const antecedents = new Map<string, string>();
+  for (const item of items) {
+    const antecedent =
+      item.kind === "conditional" ? conditionalAntecedent(item.measurableAs) : undefined;
+    const key = antecedent === undefined ? `forecast:${item.id}` : `conditional:${antecedent}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+    if (antecedent !== undefined) {
+      antecedents.set(key, antecedent);
+    }
+  }
+  return [...groups.entries()].map(([key, forecasts]) => {
+    const antecedent = antecedents.get(key);
+    return antecedent === undefined ? { key, forecasts } : { key, antecedent, forecasts };
+  });
 }
 
 function isForecastDisagreementBand(value: unknown): value is ForecastDisagreementBand {
@@ -389,11 +473,13 @@ export function forecastRollup(items: readonly ScoredForecast[]): ForecastRollup
   const resolvedItems = items.filter((item) => item.score?.resolved === true);
   const hits = resolvedItems.filter((item) => item.score?.outcome === "hit").length;
   const misses = resolvedItems.filter((item) => item.score?.outcome === "miss").length;
+  const voided = resolvedItems.filter((item) => item.score?.status === "voided").length;
   return {
     total: items.length,
     resolved: resolvedItems.length,
     hits,
     misses,
+    voided,
     pending: items.length - resolvedItems.length,
   };
 }

@@ -9,6 +9,7 @@ import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 export {
   extendedEvidenceItems,
   forecastDisagreements,
+  forecastGroups,
   forecastRollup,
   missAutopsies,
   predictionScores,
@@ -26,6 +27,7 @@ export type {
   ExtendedEvidenceItemView,
   ForecastRollup,
   ForecastDisagreementView,
+  ForecastGroup,
   MissAutopsyView,
   PredictionScoreView,
   PredictionTargetHealth,

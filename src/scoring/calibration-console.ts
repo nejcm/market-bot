@@ -28,6 +28,7 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
     `  Resolved:    ${String(summary.resolvedCount)} predictions`,
     `  Brier score: ${fmtBrier(summary.brierScore)}`,
     `  Brier skill: ${fmtSkill(summary.brierSkillScore)}  (0=no edge, +1=perfect, <0=worse than coin flip)`,
+    `  Conditional: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
   ];
 
   if (summary.resolvedCount < MIN_CALIBRATION_SAMPLE) {

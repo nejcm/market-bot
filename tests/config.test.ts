@@ -390,6 +390,20 @@ describe("resolveConfig", () => {
     });
   });
 
+  test("reads forecast disagreement challenger models", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_FORECAST_DISAGREEMENT_MODELS: "gpt-5.4, gpt-5.4, gpt-5.5-mini",
+      }).forecastDisagreementOptions,
+    ).toEqual({ challengerModels: ["gpt-5.4", "gpt-5.5-mini"] });
+  });
+
+  test("rejects empty forecast disagreement model entries", () => {
+    expect(() =>
+      resolveConfig({ MARKET_BOT_FORECAST_DISAGREEMENT_MODELS: "gpt-5.4,,gpt-5.5" }),
+    ).toThrow("Expected comma-separated forecast-disagreement model IDs");
+  });
+
   test("rejects invalid reasoning effort", () => {
     expect(() => resolveConfig({ MARKET_BOT_REASONING_EFFORT: "max" })).toThrow(
       "Unsupported reasoning effort",

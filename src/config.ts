@@ -53,6 +53,10 @@ export interface MarketSpotlightOptions {
   readonly candidateLimit: number;
 }
 
+export interface ForecastDisagreementOptions {
+  readonly challengerModels: readonly string[];
+}
+
 export interface HistoryOptions {
   readonly tickerRecentLimit: number;
   readonly marketRecentLimit: number;
@@ -85,6 +89,7 @@ export interface AppConfig {
   readonly evidenceRequestOptions: EvidenceRequestOptions;
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
+  readonly forecastDisagreementOptions?: ForecastDisagreementOptions;
   readonly historyOptions?: HistoryOptions;
   readonly indexOptions?: RunArtifactIndexOptions;
 }
@@ -194,6 +199,19 @@ function readPositiveIntegerList(
   });
 
   return [...new Set(parsed)];
+}
+
+function readStringList(value: string | undefined, label: string): readonly string[] {
+  const raw = readOptionalString(value);
+  if (raw === undefined) {
+    return [];
+  }
+
+  const items = raw.split(",").map((entry) => entry.trim());
+  if (items.some((item) => item === "")) {
+    throw new Error(`Expected comma-separated ${label}, received ${raw}`);
+  }
+  return [...new Set(items)];
 }
 
 function readProvider(value: string | undefined): ProviderName {
@@ -536,6 +554,12 @@ export function resolveConfig(
         ? defaultAlphaSearchOptions()
         : resolveAlphaSearchOptions(env),
     marketSpotlightOptions: resolveMarketSpotlightOptions(env),
+    forecastDisagreementOptions: {
+      challengerModels: readStringList(
+        env.MARKET_BOT_FORECAST_DISAGREEMENT_MODELS,
+        "forecast-disagreement model IDs",
+      ),
+    },
     historyOptions: resolveHistoryOptions(env),
     indexOptions: readBoolean(env.MARKET_BOT_INDEX_DISABLE)
       ? { disabled: true }

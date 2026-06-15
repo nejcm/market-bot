@@ -12,7 +12,7 @@ import type {
   Source,
 } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
-import type { PredictionScore } from "./scoring/types";
+import type { MissAutopsyCause, MissAutopsyEntry, PredictionScore } from "./scoring/types";
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "./sources/guards";
 
 // ---------------------------------------------------------------------------
@@ -40,6 +40,7 @@ export interface RunArtifact {
   readonly runDirName: string;
   readonly report: ResearchReport;
   readonly scores: readonly PredictionScore[];
+  readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly status: RunArtifactStatus;
 }
@@ -77,6 +78,15 @@ const PREDICTION_KINDS: ReadonlySet<string> = new Set<PredictionKind>([
   "iv",
 ]);
 
+const MISS_AUTOPSY_CAUSES: ReadonlySet<string> = new Set<MissAutopsyCause>([
+  "data_gap",
+  "source_gap",
+  "regime_shift",
+  "one_off_catalyst",
+  "model_overconfidence",
+  "insufficient_evidence",
+]);
+
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
 }
@@ -87,6 +97,10 @@ function isJobType(value: unknown): value is JobType {
 
 function isPredictionKind(value: unknown): value is PredictionKind {
   return typeof value === "string" && PREDICTION_KINDS.has(value);
+}
+
+function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
+  return typeof value === "string" && MISS_AUTOPSY_CAUSES.has(value);
 }
 
 // Distinguishes a missing file from a present-but-broken one: ENOENT returns
@@ -240,6 +254,60 @@ function readScores(value: unknown): readonly PredictionScore[] | undefined {
   });
 }
 
+function readPrimitiveEvidence(value: unknown): Record<string, number | string> | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const evidence: Record<string, number | string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === "number" && Number.isFinite(item)) {
+      evidence[key] = item;
+    } else if (typeof item === "string") {
+      evidence[key] = item;
+    }
+  }
+  return evidence;
+}
+
+function readMissAutopsies(value: unknown): readonly MissAutopsyEntry[] {
+  if (!isRecord(value) || !Array.isArray(value.autopsies)) {
+    return [];
+  }
+  return value.autopsies.flatMap((item): readonly MissAutopsyEntry[] => {
+    if (
+      !isRecord(item) ||
+      typeof item.predictionId !== "string" ||
+      typeof item.runId !== "string" ||
+      typeof item.observedAt !== "string" ||
+      (item.scoreOutcome !== "hit" && item.scoreOutcome !== "miss") ||
+      typeof item.probability !== "number" ||
+      (item.forecastError !== "overpredicted" && item.forecastError !== "underpredicted") ||
+      !isMissAutopsyCause(item.cause) ||
+      typeof item.rationale !== "string"
+    ) {
+      return [];
+    }
+    const evidence = readPrimitiveEvidence(item.evidence);
+    if (evidence === undefined) {
+      return [];
+    }
+    return [
+      {
+        predictionId: item.predictionId,
+        runId: item.runId,
+        observedAt: item.observedAt,
+        scoreOutcome: item.scoreOutcome,
+        probability: item.probability,
+        forecastError: item.forecastError,
+        cause: item.cause,
+        rationale: item.rationale,
+        supportingSignals: stringArrayValue(item.supportingSignals),
+        evidence,
+      },
+    ];
+  });
+}
+
 function readSnapshots(value: unknown): readonly MarketSnapshot[] {
   if (!Array.isArray(value)) {
     return [];
@@ -273,6 +341,7 @@ function scoreStatusFor(
 
 const REPORT_FILE = "report.json";
 const SCORE_FILE = "score.json";
+const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const MARKET_SNAPSHOTS_FILE = join("normalized", "market-snapshots.json");
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
@@ -291,6 +360,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
 
   const scoreFile = await readJsonFile(join(runDir, SCORE_FILE));
   const parsedScores = scoreFile.status === "ok" ? readScores(scoreFile.value) : undefined;
+  const missAutopsyFile = await readJsonFile(join(runDir, MISS_AUTOPSY_FILE));
   const snapshotFile = await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
@@ -302,6 +372,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       runDirName,
       report,
       scores: parsedScores ?? [],
+      missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: readSnapshots(snapshotFile.value),
       status,
     },

@@ -26,15 +26,17 @@ import { resolveOutcome } from "./resolver";
 import { loadResolvedPairsFromIndex } from "../run-artifact-index";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
+import { buildMissAutopsyFile } from "./miss-autopsy";
 import {
   createObservationRepository,
   type ObservationRepository,
   type FetchCloseFn,
 } from "./observations";
-import type { CalibrationSummary, PredictionScore } from "./types";
+import type { CalibrationSummary, MissAutopsyEntry, PredictionScore } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
 const SCORE_FILE = "score.json";
+const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const ALPHA_VALIDATION_FILE = "alpha-validation.json";
 const ALPHA_CANDIDATE_PROFILES_FILE = "candidate-profiles.json";
 export const SCORING_VERSION = 2;
@@ -244,14 +246,42 @@ async function writeAlphaCandidateProfilesRunDir(
   return true;
 }
 
+function sameJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+async function writeMissAutopsyRunDir(
+  runDir: string,
+  report: ResearchReport,
+  scores: readonly PredictionScore[],
+  existingAutopsies: readonly MissAutopsyEntry[],
+  now: Date,
+): Promise<boolean> {
+  const next = buildMissAutopsyFile(report, scores, now);
+  if (next.autopsies.length === 0) {
+    return false;
+  }
+  if (sameJson(existingAutopsies, next.autopsies)) {
+    return false;
+  }
+  await writeFile(
+    join(runDir, MISS_AUTOPSY_FILE),
+    `${JSON.stringify(next, undefined, 2)}\n`,
+    "utf8",
+  );
+  return true;
+}
+
 async function scoreRunDir(
   runDir: string,
   report: ResearchReport,
   priorScores: readonly PredictionScore[],
+  priorAutopsies: readonly MissAutopsyEntry[],
   now: Date,
   options: ScorePassOptions,
 ): Promise<boolean> {
   let wroteScore = false;
+  let currentScores = priorScores;
   if (report.predictions.length > 0) {
     const existingScores = new Map(priorScores.map((score) => [score.predictionId, score]));
 
@@ -296,13 +326,21 @@ async function scoreRunDir(
         `${JSON.stringify(scoreFile, undefined, 2)}\n`,
         "utf8",
       );
+      currentScores = mergedScores;
       wroteScore = true;
     }
   }
 
+  const wroteAutopsy = await writeMissAutopsyRunDir(
+    runDir,
+    report,
+    currentScores,
+    priorAutopsies,
+    now,
+  );
   const wroteAlphaProfiles = await writeAlphaCandidateProfilesRunDir(runDir, report);
   const wroteAlphaValidation = await writeAlphaValidationRunDir(runDir, report, now, options);
-  return wroteScore || wroteAlphaProfiles || wroteAlphaValidation;
+  return wroteScore || wroteAutopsy || wroteAlphaProfiles || wroteAlphaValidation;
 }
 
 async function listRunDirs(dataDir: string): Promise<readonly string[]> {
@@ -336,7 +374,14 @@ export async function runScorePass(
       if (artifact === undefined) {
         return { status: "skipped" as const };
       }
-      const wrote = await scoreRunDir(runDir, artifact.report, artifact.scores, now, options);
+      const wrote = await scoreRunDir(
+        runDir,
+        artifact.report,
+        artifact.scores,
+        artifact.missAutopsies,
+        now,
+        options,
+      );
       const status = artifact.report.predictions.length > 0 || wrote ? "scored" : "skipped";
       return {
         status,

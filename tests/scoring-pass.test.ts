@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/types";
 import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
-import type { PredictionScore } from "../src/scoring/types";
+import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
@@ -45,6 +45,11 @@ async function writeRun(runId: string, value: ResearchReport): Promise<string> {
 async function readScores(runDir: string): Promise<readonly PredictionScore[]> {
   const raw = await readFile(join(runDir, "score.json"), "utf8");
   return (JSON.parse(raw) as { scores: readonly PredictionScore[] }).scores;
+}
+
+async function readMissAutopsy(runDir: string): Promise<MissAutopsyFile> {
+  const raw = await readFile(join(runDir, "miss-autopsy.json"), "utf8");
+  return JSON.parse(raw) as MissAutopsyFile;
 }
 
 async function readAlphaValidation(runDir: string): Promise<AlphaValidationFile> {
@@ -155,6 +160,135 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score?.outcome).toBe("hit");
     expect(score?.evidence).toMatchObject({ close0: 100, closeN: 102 });
+  });
+
+  test("writes a miss-autopsy sidecar for material overpredictions", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report(
+        [
+          {
+            id: "pred-dir",
+            claim: "SPY closes higher over 2 trading days.",
+            kind: "direction",
+            subject: "SPY",
+            measurableAs: "close(SPY, +2) > close(SPY, 0)",
+            horizonTradingDays: 2,
+            probability: 0.8,
+            sourceIds: ["src-1"],
+          },
+        ],
+        { dataGaps: ["Yahoo source coverage gap affected issuer-specific news"] },
+      ),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-05-04", value: 100 },
+        { subject, date: "2026-05-05", value: 99 },
+        { subject, date: "2026-05-06", value: 95 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies).toEqual([
+      {
+        predictionId: "pred-dir",
+        runId: "run-1",
+        observedAt: "2026-05-08T00:00:00.000Z",
+        scoreOutcome: "miss",
+        probability: 0.8,
+        forecastError: "overpredicted",
+        cause: "source_gap",
+        rationale:
+          "Material forecast error with disclosed provider or source coverage gaps at forecast time.",
+        supportingSignals: ["forecast-time report disclosed provider/source evidence gaps"],
+        evidence: { close0: 100, closeN: 95 },
+      },
+    ]);
+  });
+
+  test("does not write miss-autopsy for an event miss with low stated probability", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report([
+        {
+          id: "pred-dir",
+          claim: "SPY closes higher over 2 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +2) > close(SPY, 0)",
+          horizonTradingDays: 2,
+          probability: 0.35,
+          sourceIds: [],
+        },
+      ]),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-05-04", value: 100 },
+        { subject, date: "2026-05-05", value: 99 },
+        { subject, date: "2026-05-06", value: 95 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    expect(existsSync(join(runDir, "miss-autopsy.json"))).toBe(false);
+  });
+
+  test("backfills miss-autopsy from existing resolved scores", async () => {
+    const runDir = await writeRun(
+      "run-1",
+      report([
+        {
+          id: "pred-dir",
+          claim: "SPY closes higher over 2 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +2) > close(SPY, 0)",
+          horizonTradingDays: 2,
+          probability: 0.9,
+          sourceIds: ["src-1"],
+        },
+      ]),
+    );
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify(
+        {
+          runId: "run-1",
+          scores: [
+            {
+              predictionId: "pred-dir",
+              runId: "run-1",
+              resolved: true,
+              outcome: "miss",
+              observedAt: "2026-05-07T00:00:00.000Z",
+              attemptCount: 1,
+              evidence: { close0: 100, closeN: 90 },
+            },
+          ],
+          scoredAt: "2026-05-07T00:00:00.000Z",
+        },
+        undefined,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const result = await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"));
+
+    expect(result.touchedRunDirs).toEqual([runDir]);
+    const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies[0]?.cause).toBe("model_overconfidence");
   });
 
   test("does not recompute existing resolved scores without a scoring version", async () => {

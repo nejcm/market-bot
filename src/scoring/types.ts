@@ -1,5 +1,15 @@
 export type ScoreOutcome = "hit" | "miss";
 
+export type MissAutopsyCause =
+  | "data_gap"
+  | "source_gap"
+  | "regime_shift"
+  | "one_off_catalyst"
+  | "model_overconfidence"
+  | "insufficient_evidence";
+
+export type ForecastErrorDirection = "overpredicted" | "underpredicted";
+
 export interface PredictionScore {
   readonly predictionId: string;
   readonly runId: string;
@@ -10,6 +20,26 @@ export interface PredictionScore {
   /** Undefined for legacy score files written before scoring logic versioning. */
   readonly scoringVersion?: number;
   readonly evidence: Record<string, unknown>;
+}
+
+export interface MissAutopsyEntry {
+  readonly predictionId: string;
+  readonly runId: string;
+  readonly observedAt: string;
+  readonly scoreOutcome: ScoreOutcome;
+  readonly probability: number;
+  readonly forecastError: ForecastErrorDirection;
+  readonly cause: MissAutopsyCause;
+  readonly rationale: string;
+  readonly supportingSignals: readonly string[];
+  readonly evidence: Record<string, number | string>;
+}
+
+export interface MissAutopsyFile {
+  readonly version: 1;
+  readonly runId: string;
+  readonly generatedAt: string;
+  readonly autopsies: readonly MissAutopsyEntry[];
 }
 
 export interface CalibrationBin {

@@ -449,8 +449,13 @@ describe("rebuildRunArtifactIndexIfStale", () => {
     writeRun(dataDir, "run-a", { writeScore: false });
     await rebuildRunArtifactIndex(dataDir, { dbPath });
 
-    // Score sidecar written after the rebuild — triggers sidecar mismatch.
-    writeJson(join(dataDir, "run-a", "score.json"), { runId: "run-a", scores: [] });
+    // Miss-autopsy sidecar written after the rebuild — triggers sidecar mismatch.
+    writeJson(join(dataDir, "run-a", "miss-autopsy.json"), {
+      version: 1,
+      runId: "run-a",
+      generatedAt: "2026-05-20T00:00:00.000Z",
+      autopsies: [],
+    });
 
     const result = await rebuildRunArtifactIndexIfStale(dataDir, { dbPath });
 
@@ -458,7 +463,7 @@ describe("rebuildRunArtifactIndexIfStale", () => {
 
     // The sidecar row is now reflected.
     const summaries = await listRunSummariesFromIndex(dataDir);
-    expect(summaries?.[0]?.hasScore).toBe(true);
+    expect(summaries?.[0]?.availableFiles).toContain("miss-autopsy.json");
   });
 
   test("no-op when the index is already fresh", async () => {

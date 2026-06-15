@@ -48,6 +48,25 @@ describe("loadRunArtifact", () => {
       runId: "run-ok",
       scores: [predictionScore("hit", { predictionId: "p-vol", runId: "run-ok" })],
     });
+    await writeJson(join(runDir, "miss-autopsy.json"), {
+      version: 1,
+      runId: "run-ok",
+      generatedAt: "2026-05-20T00:00:00.000Z",
+      autopsies: [
+        {
+          predictionId: "p-dir",
+          runId: "run-ok",
+          observedAt: "2026-05-20T00:00:00.000Z",
+          scoreOutcome: "miss",
+          probability: 0.8,
+          forecastError: "overpredicted",
+          cause: "model_overconfidence",
+          rationale: "Material forecast error where the stated probability was extreme.",
+          supportingSignals: ["forecast probability was extreme"],
+          evidence: { close0: 100, closeN: 90 },
+        },
+      ],
+    });
     await writeJson(join(runDir, "normalized", "market-snapshots.json"), [
       marketSnapshot({
         symbol: "AAPL",
@@ -71,6 +90,8 @@ describe("loadRunArtifact", () => {
     expect(artifact?.report.predictions.map((p) => p.kind)).toEqual(["volatility", "direction"]);
     expect(artifact?.report.symbol).toBe("AAPL");
     expect(artifact?.scores).toHaveLength(1);
+    expect(artifact?.missAutopsies).toHaveLength(1);
+    expect(artifact?.missAutopsies[0]?.cause).toBe("model_overconfidence");
     expect(artifact?.marketSnapshots[0]?.benchmark?.symbol).toBe("SPY");
   });
 
@@ -204,6 +225,20 @@ describe("loadRunArtifact", () => {
     const { artifact } = await loadRunArtifact(runDir);
 
     expect(artifact?.marketSnapshots).toEqual([]);
+  });
+
+  test("returns no miss autopsies when the sidecar is absent or malformed", async () => {
+    const dataDir = tempRunsDir();
+    const absentRun = join(dataDir, "no-autopsy");
+    await writeJson(join(absentRun, "report.json"), researchReport({ runId: "no-autopsy" }));
+    const absent = await loadRunArtifact(absentRun);
+    expect(absent.artifact?.missAutopsies).toEqual([]);
+
+    const badRun = join(dataDir, "bad-autopsy");
+    await writeJson(join(badRun, "report.json"), researchReport({ runId: "bad-autopsy" }));
+    await writeFile(join(badRun, "miss-autopsy.json"), "{not-json", "utf8");
+    const malformed = await loadRunArtifact(badRun);
+    expect(malformed.artifact?.missAutopsies).toEqual([]);
   });
 });
 

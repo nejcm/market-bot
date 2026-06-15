@@ -6,6 +6,7 @@ import type { ArtifactFileRow, RunRow } from "./run-artifact-index-types";
 
 const MUTABLE_SIDECARS = new Set([
   "score.json",
+  "miss-autopsy.json",
   "alpha-validation.json",
   "normalized/candidate-profiles.json",
 ]);
@@ -61,7 +62,7 @@ export async function indexIsFresh(
     .query(
       `SELECT run_id, path, size, modified_at
        FROM artifact_files
-       WHERE path IN ('score.json', 'alpha-validation.json', 'normalized/candidate-profiles.json')`,
+       WHERE path IN ('score.json', 'miss-autopsy.json', 'alpha-validation.json', 'normalized/candidate-profiles.json')`,
     )
     .all() as readonly ArtifactFileRow[];
   const sidecarsByKey = new Map(sidecars.map((row) => [`${row.run_id}:${row.path}`, row]));

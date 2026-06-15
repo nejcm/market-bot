@@ -55,6 +55,9 @@ Configuration:
 - **Index-only reads with no fallback** — rejected; disk scan is the permanent oracle.
 - **FTS tokenized-AND as the search oracle** — rejected; diverges from disk `includes` semantics.
 - **Auto-create index on first write-through** — rejected for now; blurs the derived/rebuild model.
+  Note: [ADR 0022](./0022-stale-index-rebuild-follow-up.md) later added automatic stale-healing for
+  an index that is already **present and schema-matched** — distinct from auto-creation of a missing
+  index, which remains rejected.
 
 ## References
 

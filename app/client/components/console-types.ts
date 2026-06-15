@@ -1,4 +1,12 @@
-export const VIEWS = ["dashboard", "run", "search", "jobs", "calibration", "health"] as const;
+export const VIEWS = [
+  "dashboard",
+  "run",
+  "instrument",
+  "search",
+  "jobs",
+  "calibration",
+  "health",
+] as const;
 
 export type View = (typeof VIEWS)[number];
 

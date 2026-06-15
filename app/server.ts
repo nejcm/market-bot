@@ -9,6 +9,7 @@ import {
   readRunFile,
   searchRunReports,
 } from "./artifacts";
+import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 
 const DIST_DIR = resolve(import.meta.dir, "dist");
@@ -55,6 +56,10 @@ function decodePathname(pathname: string): string | undefined {
 function optionalSearchParam(url: URL, key: string): string | undefined {
   const value = url.searchParams.get(key)?.trim();
   return value === undefined || value === "" ? undefined : value;
+}
+
+function isAssetClass(value: string): value is "equity" | "crypto" {
+  return value === "equity" || value === "crypto";
 }
 
 function hasParentSegment(pathname: string): boolean {
@@ -120,6 +125,17 @@ async function handleApiRequest(url: URL, dataDir: string): Promise<Response | u
 
   if (url.pathname === "/api/calibration") {
     return jsonResponse(await readCalibrationSummary(dataDir));
+  }
+
+  const instrumentMatch = /^\/api\/instruments\/([^/]+)\/([^/]+)\/timeline$/u.exec(url.pathname);
+  if (instrumentMatch !== null) {
+    const assetClass = decodePathname(instrumentMatch[1] ?? "");
+    const symbol = decodePathname(instrumentMatch[2] ?? "");
+    if (assetClass === undefined || symbol === undefined || !isAssetClass(assetClass)) {
+      return jsonResponse({ error: "Invalid instrument request" }, 400);
+    }
+
+    return jsonResponse(await readInstrumentTimelineDetail(dataDir, assetClass, symbol));
   }
 
   const fileMatch = /^\/api\/runs\/([^/]+)\/files$/u.exec(url.pathname);

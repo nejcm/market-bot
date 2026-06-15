@@ -36,6 +36,7 @@
     readonly onLoadFile: (path: string) => void;
     readonly onGoHome: () => void;
     readonly onHighlightSource: (sourceId: string) => void;
+    readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
 
   let {
@@ -50,6 +51,7 @@
     onLoadFile,
     onGoHome,
     onHighlightSource,
+    onOpenInstrument,
   }: Props = $props();
 
   interface CitePopover {
@@ -172,6 +174,16 @@
     onHighlightSource(sourceId);
     onTabChange("sources");
   }
+
+  function subjectSymbols(subject: string | undefined): readonly string[] {
+    if (subject === undefined) {
+      return [];
+    }
+    return subject
+      .split(":")
+      .map((part) => part.trim().toUpperCase())
+      .filter((part) => /^[A-Z0-9._-]+$/u.test(part));
+  }
 </script>
 
 {#snippet citeChips(sourceIds: readonly string[])}
@@ -225,7 +237,19 @@
     <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 class="text-[21px] font-semibold tracking-tight">{runLabel(detail.summary)}</h1>
-        <div class="mt-1 text-xs text-[#5c6066]">{formatDate(detail.summary.generatedAt)}</div>
+        <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5c6066]">
+          <span>{formatDate(detail.summary.generatedAt)}</span>
+          {#if detail.summary.assetClass !== undefined && detail.summary.symbol !== undefined}
+            <button
+              class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+              onclick={() =>
+                onOpenInstrument(detail.summary.assetClass ?? "", detail.summary.symbol ?? "")}
+            >
+              {detail.summary.assetClass}:{detail.summary.symbol}
+            </button>
+          {/if}
+        </div>
       </div>
       <div class="flex gap-5.5">
         {#each [
@@ -422,7 +446,7 @@
                   {/if}
                   {#if forecastStats.resolved > 0}
                     scored {forecastStats.resolved}/{forecastStats.total} ·
-                    {forecastStats.hits} hit · {forecastStats.misses} miss ·
+                    {forecastStats.hits} event true · {forecastStats.misses} event false ·
                   {/if}
                   td = trading days
                 </span>
@@ -466,6 +490,18 @@
                         {forecast.kind}
                       </span>
                     {/if}
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      {#each subjectSymbols(forecast.subject) as symbol}
+                        <button
+                          class="rounded border border-[#cfe0e3] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          type="button"
+                          onclick={() =>
+                            onOpenInstrument(detail.summary.assetClass ?? "equity", symbol)}
+                        >
+                          {symbol}
+                        </button>
+                      {/each}
+                    </div>
                   </div>
                   <div class="flex items-center gap-2">
                     {#if forecast.probability !== undefined}
@@ -486,13 +522,13 @@
                       <span
                         class="rounded border border-[#9fc2c8] bg-[#e7f1f3] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
                       >
-                        HIT
+                        EVENT TRUE
                       </span>
                     {:else if forecast.score?.outcome === "miss"}
                       <span
                         class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
                       >
-                        MISS
+                        EVENT FALSE
                       </span>
                     {:else}
                       <span

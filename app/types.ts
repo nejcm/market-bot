@@ -22,6 +22,7 @@ export interface RunDetail {
   readonly trace?: Record<string, unknown>;
   readonly score?: Record<string, unknown>;
   readonly missAutopsy?: Record<string, unknown>;
+  readonly verifiedMarketSnapshot?: Record<string, unknown>;
 }
 
 export interface RunFile {
@@ -37,6 +38,49 @@ export interface ProviderHealthDetail {
 export interface CalibrationDetail {
   readonly summary?: Record<string, unknown>;
   readonly markdown?: string;
+}
+
+export type InstrumentForecastOutcome = "event-true" | "event-false" | "pending" | "unscored";
+
+export interface InstrumentTimelinePricePoint {
+  readonly date: string;
+  readonly close: number;
+}
+
+export interface InstrumentTimelineForecast {
+  readonly id: string;
+  readonly runId: string;
+  readonly generatedAt: string;
+  readonly jobType: string;
+  readonly scope: string;
+  readonly claim: string;
+  readonly subject: string;
+  readonly probability: number;
+  readonly horizonTradingDays: number;
+  readonly outcome: InstrumentForecastOutcome;
+  readonly observedAt?: string;
+  readonly missAutopsyCause?: string;
+}
+
+export interface InstrumentTimelineDetail {
+  readonly assetClass: string;
+  readonly symbol: string;
+  readonly instrumentKey: string;
+  readonly generatedAt: string;
+  readonly source: "history" | "live";
+  readonly entries: readonly InstrumentTimelineForecast[];
+  readonly pricePoints: readonly InstrumentTimelinePricePoint[];
+  readonly counts: {
+    readonly total: number;
+    readonly eventTrue: number;
+    readonly eventFalse: number;
+    readonly pending: number;
+    readonly unscored: number;
+  };
+  readonly warnings: {
+    readonly malformedRunCount: number;
+    readonly malformedPredictionCount: number;
+  };
 }
 
 export interface RunSearchFilters {

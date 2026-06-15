@@ -1,6 +1,7 @@
 import type {
   CalibrationDetail,
   ConsoleJob,
+  InstrumentTimelineDetail,
   ProviderHealthDetail,
   RunDetail,
   RunFile,
@@ -47,6 +48,21 @@ function isProviderHealthDetail(value: unknown): value is ProviderHealthDetail {
 
 function isCalibrationDetail(value: unknown): value is CalibrationDetail {
   return isRecord(value);
+}
+
+function isInstrumentTimelineDetail(value: unknown): value is InstrumentTimelineDetail {
+  return (
+    isRecord(value) &&
+    typeof value.assetClass === "string" &&
+    typeof value.symbol === "string" &&
+    typeof value.instrumentKey === "string" &&
+    typeof value.generatedAt === "string" &&
+    (value.source === "history" || value.source === "live") &&
+    Array.isArray(value.entries) &&
+    Array.isArray(value.pricePoints) &&
+    isRecord(value.counts) &&
+    isRecord(value.warnings)
+  );
 }
 
 function isRunSearchResult(value: unknown): value is RunSearchResult {
@@ -136,6 +152,20 @@ export async function fetchCalibration(): Promise<CalibrationDetail> {
   const payload = await fetchJson("/api/calibration");
   if (!isCalibrationDetail(payload)) {
     throw new Error("Calibration response is invalid");
+  }
+
+  return payload;
+}
+
+export async function fetchInstrumentTimeline(
+  assetClass: string,
+  symbol: string,
+): Promise<InstrumentTimelineDetail> {
+  const payload = await fetchJson(
+    `/api/instruments/${encodeURIComponent(assetClass)}/${encodeURIComponent(symbol)}/timeline`,
+  );
+  if (!isInstrumentTimelineDetail(payload)) {
+    throw new Error("Instrument timeline response is invalid");
   }
 
   return payload;

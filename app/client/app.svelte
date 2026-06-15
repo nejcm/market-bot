@@ -3,6 +3,7 @@
   import {
     createJob,
     fetchCalibration,
+    fetchInstrumentTimeline,
     fetchJobs,
     fetchProviderHealth,
     fetchRunDetail,
@@ -19,6 +20,7 @@
   } from "./components/console-types";
   import CalibrationView from "./components/calibration-view.svelte";
   import HealthView from "./components/health-view.svelte";
+  import InstrumentTimeline from "./components/instrument-timeline.svelte";
   import JobsView from "./components/jobs-view.svelte";
   import RunSidebar from "./components/run-sidebar.svelte";
   import RunWorkspace from "./components/run-workspace.svelte";
@@ -26,6 +28,7 @@
   import type {
     CalibrationDetail,
     ConsoleJob,
+    InstrumentTimelineDetail,
     ProviderHealthDetail,
     RunDetail,
     RunSearchResult,
@@ -35,12 +38,14 @@
     dashboardMetrics,
     filterRuns,
     groupedRunsByType,
+    instrumentFromPathname,
+    instrumentPath,
     recentRunSummaries,
     runIdFromPathname,
     runPath,
     runTrend,
     VERIFIED_SNAPSHOT_PATH,
-    verifiedSnapshotView,
+    verifiedSnapshotValue,
     type SnapshotView,
   } from "./view-model";
 
@@ -49,11 +54,16 @@
   let selectedRunId = $state("");
   let detail = $state<RunDetail | null>(null);
   let snapshot = $state<SnapshotView | null>(null);
+  let instrumentDetail = $state<InstrumentTimelineDetail | null>(null);
+  let selectedInstrument = $state<{ readonly assetClass: string; readonly symbol: string } | null>(
+    null,
+  );
   const query = $state({ text: "" });
   let typeFilter = $state("all");
   let error = $state("");
   let loadingRuns = $state(true);
   let loadingDetail = $state(false);
+  let loadingInstrument = $state(false);
   let activeTab = $state<Tab>("report");
   let highlightSourceId = $state("");
   let fileContent = $state("");
@@ -103,9 +113,16 @@
     highlightSourceId = "";
   }
 
-  function navigate(nextView: Exclude<View, "run">): void {
+  function clearSelectedInstrument(): void {
+    selectedInstrument = null;
+    instrumentDetail = null;
+    loadingInstrument = false;
+  }
+
+  function navigate(nextView: Exclude<View, "run" | "instrument">): void {
     view = nextView;
     clearSelectedRun();
+    clearSelectedInstrument();
     error = "";
     if (globalThis.location.pathname !== "/") {
       globalThis.history.pushState({}, "", "/");
@@ -115,6 +132,7 @@
   async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     view = "run";
     selectedRunId = runId;
+    clearSelectedInstrument();
     loadingDetail = true;
     error = "";
     activeTab = nextTab;
@@ -151,13 +169,8 @@
       return;
     }
 
-    try {
-      const file = await fetchRunFile(runId, VERIFIED_SNAPSHOT_PATH);
-      if (selectedRunId === runId) {
-        snapshot = verifiedSnapshotView(file.content) ?? null;
-      }
-    } catch {
-      // The report stands on its own; a missing or malformed snapshot stays hidden.
+    if (selectedRunId === runId) {
+      snapshot = verifiedSnapshotValue(runDetail.verifiedMarketSnapshot) ?? null;
     }
   }
 
@@ -171,16 +184,60 @@
     globalThis.scrollTo({ top: 0 });
   }
 
+  async function selectInstrument(assetClass: string, symbol: string): Promise<void> {
+    const normalizedSymbol = symbol.toUpperCase();
+    view = "instrument";
+    clearSelectedRun();
+    selectedInstrument = { assetClass, symbol: normalizedSymbol };
+    loadingInstrument = true;
+    error = "";
+
+    try {
+      const timeline = await fetchInstrumentTimeline(assetClass, normalizedSymbol);
+      if (
+        selectedInstrument?.assetClass === assetClass &&
+        selectedInstrument.symbol === normalizedSymbol
+      ) {
+        instrumentDetail = timeline;
+      }
+    } catch (caughtError: unknown) {
+      if (view === "instrument") {
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      }
+    } finally {
+      if (view === "instrument") {
+        loadingInstrument = false;
+      }
+    }
+  }
+
+  async function openInstrument(assetClass: string, symbol: string): Promise<void> {
+    const pathname = instrumentPath(assetClass, symbol);
+    if (globalThis.location.pathname !== pathname) {
+      globalThis.history.pushState({}, "", pathname);
+    }
+
+    await selectInstrument(assetClass, symbol);
+    globalThis.scrollTo({ top: 0 });
+  }
+
   function handlePopState(): void {
     const runId = runIdFromPathname(globalThis.location.pathname);
-    if (runId === undefined) {
-      view = "dashboard";
-      clearSelectedRun();
-      error = "";
+    if (runId !== undefined) {
+      void selectRun(runId);
       return;
     }
 
-    void selectRun(runId);
+    const instrument = instrumentFromPathname(globalThis.location.pathname);
+    if (instrument !== undefined) {
+      void selectInstrument(instrument.assetClass, instrument.symbol);
+      return;
+    }
+
+    view = "dashboard";
+    clearSelectedRun();
+    clearSelectedInstrument();
+    error = "";
   }
 
   function handleRunKeyNav(event: KeyboardEvent): void {
@@ -322,6 +379,7 @@
     void (async () => {
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
+        const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
         const [nextRuns, nextProviderHealth, nextCalibration, nextJobs] = await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
@@ -334,6 +392,8 @@
         jobs = nextJobs;
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
+        } else if (initialInstrument !== undefined) {
+          await selectInstrument(initialInstrument.assetClass, initialInstrument.symbol);
         }
       } catch (caughtError: unknown) {
         error = caughtError instanceof Error ? caughtError.message : String(caughtError);
@@ -388,6 +448,7 @@
           {recentRuns}
           {loadingRuns}
           onOpenRun={(runId) => void openRun(runId)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
         />
       {:else if view === "run"}
         <RunWorkspace
@@ -402,6 +463,14 @@
           onLoadFile={(path) => void loadFile(path)}
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+        />
+      {:else if view === "instrument"}
+        <InstrumentTimeline
+          detail={instrumentDetail}
+          loading={loadingInstrument}
+          onOpenRun={(runId) => void openRun(runId)}
+          onGoHome={() => navigate("dashboard")}
         />
       {:else if view === "search"}
         <SearchView

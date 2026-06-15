@@ -34,6 +34,7 @@ export type {
 } from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
+const INSTRUMENT_PATH_PREFIX = "/instruments/";
 const RECENT_RUN_LIMIT = 5;
 const RUN_TYPE_ORDER = ["daily", "weekly", "ticker"];
 const PROVIDER_GAP_KEYS = ["missingCredential", "fetchFailed", "yahooAuth", "other"];
@@ -299,12 +300,15 @@ export interface CloseLinePoint {
 }
 
 export function verifiedSnapshotView(content: string): SnapshotView | undefined {
-  const parsed = parseJson(content);
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+  return verifiedSnapshotValue(parseJson(content));
+}
+
+export function verifiedSnapshotValue(value: unknown): SnapshotView | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
 
-  const record = parsed as Record<string, unknown>;
+  const record = value as Record<string, unknown>;
   const symbol = typeof record.symbol === "string" ? record.symbol : undefined;
   const recentCloses = snapshotCloses(record.recentCloses);
   if (symbol === undefined || recentCloses.length < 2) {
@@ -321,6 +325,33 @@ export function verifiedSnapshotView(content: string): SnapshotView | undefined 
     indicators: snapshotIndicators(record.indicators),
     recentCloses,
   };
+}
+
+export function instrumentPath(assetClass: string, symbol: string): string {
+  return `${INSTRUMENT_PATH_PREFIX}${encodeURIComponent(assetClass)}/${encodeURIComponent(
+    symbol.toUpperCase(),
+  )}`;
+}
+
+export function instrumentFromPathname(
+  pathname: string,
+): { readonly assetClass: string; readonly symbol: string } | undefined {
+  if (!pathname.startsWith(INSTRUMENT_PATH_PREFIX)) {
+    return undefined;
+  }
+  const parts = pathname.slice(INSTRUMENT_PATH_PREFIX.length).split("/");
+  if (parts.length !== 2) {
+    return undefined;
+  }
+  try {
+    const assetClass = decodeURIComponent(parts[0] ?? "");
+    const symbol = decodeURIComponent(parts[1] ?? "");
+    return assetClass === "" || symbol === ""
+      ? undefined
+      : { assetClass, symbol: symbol.toUpperCase() };
+  } catch {
+    return undefined;
+  }
 }
 
 function parseJson(content: string): unknown {

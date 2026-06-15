@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   AssetClass,
@@ -23,7 +23,7 @@ import {
 } from "../report-search-entries";
 import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
-import type { PredictionScore } from "../scoring/types";
+import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord } from "../sources/guards";
 
 export const HISTORY_SECTIONS = [...REPORT_SEARCH_SECTIONS, "fundamentals", "validation"] as const;
@@ -93,6 +93,7 @@ export interface InstrumentTimelineEntry {
   readonly thesis: ResearchThesisState;
   readonly sources: readonly Source[];
   readonly scores: readonly PredictionScore[];
+  readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly identity?: InstrumentIdentity;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly snapshots: readonly Record<string, unknown>[];
@@ -328,7 +329,20 @@ function searchEntriesFor(
 interface LoadedHistoryRun {
   readonly report: ResearchReport;
   readonly scores: readonly PredictionScore[];
+  readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly snapshots: readonly Record<string, unknown>[];
+  readonly fundamentals: readonly Record<string, unknown>[];
+  readonly validation: readonly Record<string, unknown>[];
+}
+
+export interface InstrumentTimelineReadResult {
+  readonly timeline: InstrumentTimeline;
+  readonly source: "history" | "live";
+  readonly malformedRunCount: number;
+}
+
+interface HistoryRunSidecars {
   readonly snapshots: readonly Record<string, unknown>[];
   readonly fundamentals: readonly Record<string, unknown>[];
   readonly validation: readonly Record<string, unknown>[];
@@ -338,9 +352,7 @@ interface LoadedHistoryRun {
 // Sidecars below — supplemental snapshot records (kept as Record so unknown provider fields
 // Survive into timelines), SEC fundamentals, and alpha validation — have a single caller and
 // Are read here, not folded into the shared bundle.
-async function loadRunSidecars(
-  runDir: string,
-): Promise<Omit<LoadedHistoryRun, "report" | "scores">> {
+async function loadRunSidecars(runDir: string): Promise<HistoryRunSidecars> {
   const supplementalSnapshots = recordArray(
     await readJson(join(runDir, "normalized", "supplemental-market-snapshots.json")),
   );
@@ -388,6 +400,7 @@ function buildInstrumentTimelines(
           (source) => source.symbol === undefined || source.symbol.toUpperCase() === symbol,
         ),
         scores: run.scores,
+        missAutopsies: run.missAutopsies,
         ...(identity !== undefined ? { identity } : {}),
         ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
         snapshots: run.snapshots.filter(
@@ -428,6 +441,7 @@ export async function rebuildHistoryArtifacts(
       return {
         report: artifact.report,
         scores: artifact.scores,
+        missAutopsies: artifact.missAutopsies,
         ...(artifact.verifiedMarketSnapshot !== undefined
           ? { verifiedMarketSnapshot: artifact.verifiedMarketSnapshot }
           : {}),
@@ -749,6 +763,130 @@ export async function buildThesisDelta(input: ThesisDeltaInput): Promise<ThesisD
   }
 
   return delta;
+}
+
+const TIMELINE_FRESHNESS_FILES = [
+  "report.json",
+  "score.json",
+  "miss-autopsy.json",
+  join("normalized", "verified-market-snapshot.json"),
+] as const;
+
+function emptyInstrumentTimeline(
+  assetClass: AssetClass,
+  symbol: string,
+  generatedAt: string,
+): InstrumentTimeline {
+  const key = instrumentKey(assetClass, symbol);
+  return {
+    version: 1,
+    generatedAt,
+    instrumentKey: key,
+    assetClass,
+    symbol: symbol.toUpperCase(),
+    entries: [],
+  };
+}
+
+function timelineHasConsoleFields(timeline: InstrumentTimeline): boolean {
+  return timeline.entries.every((entry) => "missAutopsies" in entry);
+}
+
+async function fileMtimeMs(path: string): Promise<number | undefined> {
+  try {
+    const metadata = await stat(path);
+    return metadata.isFile() ? metadata.mtimeMs : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function timelineIsFresh(dataDir: string, timelinePath: string): Promise<boolean> {
+  const timelineMtime = await fileMtimeMs(timelinePath);
+  if (timelineMtime === undefined) {
+    return false;
+  }
+
+  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
+  const checks = entries
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) =>
+      TIMELINE_FRESHNESS_FILES.map(async (file) => {
+        const mtime = await fileMtimeMs(join(dataDir, entry.name, file));
+        return mtime === undefined || mtime <= timelineMtime;
+      }),
+    );
+  const results = await Promise.all(checks);
+  return results.every(Boolean);
+}
+
+async function readFreshTimeline(
+  dataDir: string,
+  assetClass: AssetClass,
+  symbol: string,
+): Promise<InstrumentTimeline | undefined> {
+  const key = instrumentKey(assetClass, symbol);
+  const timelinePath = join(historyDir(dataDir), "instruments", instrumentFileName(key));
+  const parsed = await readJson(timelinePath);
+  if (
+    !isRecord(parsed) ||
+    parsed.version !== 1 ||
+    !Array.isArray(parsed.entries) ||
+    !timelineHasConsoleFields(parsed as unknown as InstrumentTimeline)
+  ) {
+    return undefined;
+  }
+  return (await timelineIsFresh(dataDir, timelinePath))
+    ? (parsed as unknown as InstrumentTimeline)
+    : undefined;
+}
+
+export async function readInstrumentTimeline(
+  dataDir: string,
+  assetClass: AssetClass,
+  symbol: string,
+  now: Date = new Date(),
+): Promise<InstrumentTimelineReadResult> {
+  const normalizedSymbol = symbol.toUpperCase();
+  const fresh = await readFreshTimeline(dataDir, assetClass, normalizedSymbol);
+  if (fresh !== undefined) {
+    return { timeline: fresh, source: "history", malformedRunCount: 0 };
+  }
+
+  const scan = await scanRunArtifacts(dataDir);
+  const loaded: readonly LoadedHistoryRun[] = await Promise.all(
+    scan.artifacts.map(async (artifact) => {
+      const sidecars = await loadRunSidecars(join(dataDir, artifact.runDirName));
+      return {
+        report: artifact.report,
+        scores: artifact.scores,
+        missAutopsies: artifact.missAutopsies,
+        ...(artifact.verifiedMarketSnapshot !== undefined
+          ? { verifiedMarketSnapshot: artifact.verifiedMarketSnapshot }
+          : {}),
+        ...sidecars,
+        snapshots: [
+          ...artifact.marketSnapshots.map(
+            (snapshot) => snapshot as unknown as Record<string, unknown>,
+          ),
+          ...sidecars.snapshots,
+        ],
+      };
+    }),
+  );
+  const generatedAt = now.toISOString();
+  const timelines = buildInstrumentTimelines(loaded, generatedAt);
+  const key = instrumentKey(assetClass, normalizedSymbol);
+  const malformedRunCount = scan.entries.filter(
+    (entry) => entry.status.report === "malformed",
+  ).length;
+  return {
+    timeline:
+      timelines.find((timeline) => timeline.instrumentKey === key) ??
+      emptyInstrumentTimeline(assetClass, normalizedSymbol, generatedAt),
+    source: "live",
+    malformedRunCount,
+  };
 }
 
 export function renderSearchResults(results: readonly HistorySearchEntry[]): string {

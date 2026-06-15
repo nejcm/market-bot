@@ -16,6 +16,7 @@ import {
   readRunSummaryFromIndex,
   searchRunReportsFromIndex,
 } from "../src/run-artifact-index";
+import { loadRunArtifact } from "../src/run-artifacts";
 
 const REPORT_FILE = "report.json";
 const MARKDOWN_FILE = "report.md";
@@ -353,6 +354,7 @@ export async function readRunDetail(
       readJsonRecord(join(runDir, MISS_AUTOPSY_FILE)),
       readRunSummaryFromIndex(dataDir, runId),
     ]);
+  const artifact = await loadRunArtifact(runDir);
   const availableFiles = indexedSummary?.availableFiles ?? (await listArtifactFiles(runDir));
 
   return {
@@ -363,6 +365,14 @@ export async function readRunDetail(
     ...(trace !== undefined ? { trace } : {}),
     ...(score !== undefined ? { score } : {}),
     ...(missAutopsy !== undefined ? { missAutopsy } : {}),
+    ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
+      ? {
+          verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot as unknown as Record<
+            string,
+            unknown
+          >,
+        }
+      : {}),
   };
 }
 

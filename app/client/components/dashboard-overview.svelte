@@ -15,9 +15,10 @@
     readonly recentRuns: readonly RunSummary[];
     readonly loadingRuns: boolean;
     readonly onOpenRun: (runId: string) => void;
+    readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
 
-  let { metrics, trend, recentRuns, loadingRuns, onOpenRun }: Props = $props();
+  let { metrics, trend, recentRuns, loadingRuns, onOpenRun, onOpenInstrument }: Props = $props();
 
   const metricCards = $derived([
     {
@@ -90,24 +91,37 @@
   {:else}
     <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {#each recentRuns as run}
-        <button
+        <div
           class="block w-full rounded-lg border border-border bg-card px-4 py-3.5 text-left transition hover:border-[#b9c9cc] hover:shadow-[0_1px_4px_rgba(26,28,30,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          type="button"
-          onclick={() => onOpenRun(run.runId)}
         >
           <span class="flex items-baseline justify-between gap-2">
-            <span class="truncate text-[13px] font-semibold text-foreground">{runLabel(run)}</span>
+            <button
+              class="truncate text-left text-[13px] font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+              onclick={() => onOpenRun(run.runId)}
+            >
+              {runLabel(run)}
+            </button>
             <span class="shrink-0 font-mono text-[10px] text-muted-foreground">
               {formatDateMinute(run.generatedAt)}
             </span>
           </span>
+          {#if run.assetClass !== undefined && run.symbol !== undefined}
+            <button
+              class="mt-2 rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+              onclick={() => onOpenInstrument(run.assetClass ?? "", run.symbol ?? "")}
+            >
+              {run.assetClass}:{run.symbol}
+            </button>
+          {/if}
           <span class="mt-2 block font-mono text-[10.5px] text-[#5c6066]">
             {runCountsLabel(run)} · {run.sourceCount} src
           </span>
           <span class="mt-1.5 block truncate font-mono text-[10px] text-[#a8acb1]">
             {run.runId}
           </span>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}

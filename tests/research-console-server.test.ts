@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { handleResearchConsoleRequest, researchConsoleStaticPath } from "../app/server";
-import { researchReport } from "./support/fixtures";
+import { prediction, researchReport } from "./support/fixtures";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -72,6 +72,52 @@ describe("research console app API", () => {
     });
   });
 
+  test("serves verified snapshot through run detail", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-snapshot");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-snapshot",
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+      }),
+    );
+    writeJson(join(runDir, "normalized", "verified-market-snapshot.json"), {
+      symbol: "AAPL",
+      assetClass: "equity",
+      analysisDate: "2026-06-05",
+      fetchedAt: "2026-06-05T00:00:00.000Z",
+      latestSessionDate: "2026-06-04",
+      ohlcv: { date: "2026-06-04", open: 1, high: 2, low: 1, close: 2, volume: 3 },
+      indicators: {},
+      recentCloses: [
+        { date: "2026-06-03", close: 1 },
+        { date: "2026-06-04", close: 2 },
+      ],
+    });
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/runs/run-snapshot"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      readonly verifiedMarketSnapshot?: {
+        readonly symbol?: string;
+        readonly recentCloses?: readonly { readonly date: string; readonly close: number }[];
+      };
+    };
+    expect(payload.verifiedMarketSnapshot?.symbol).toBe("AAPL");
+    expect(payload.verifiedMarketSnapshot?.recentCloses?.[0]).toEqual({
+      date: "2026-06-03",
+      close: 1,
+    });
+  });
+
   test("returns not found for missing runs", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
 
@@ -136,6 +182,86 @@ describe("research console app API", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({});
+  });
+
+  test("serves instrument timeline with normalized symbol and market-update forecasts", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "run-market");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-market",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-06-05T00:00:00.000Z",
+        predictions: [
+          prediction({
+            id: "p-aapl",
+            subject: "AAPL",
+            measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+          }),
+        ],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      scores: [
+        {
+          predictionId: "p-aapl",
+          runId: "run-market",
+          resolved: true,
+          outcome: "hit",
+          observedAt: "2026-06-10T00:00:00.000Z",
+          attemptCount: 1,
+          evidence: {},
+        },
+      ],
+    });
+    writeJson(join(runDir, "normalized", "verified-market-snapshot.json"), {
+      symbol: "MSFT",
+      assetClass: "equity",
+      analysisDate: "2026-06-05",
+      fetchedAt: "2026-06-05T00:00:00.000Z",
+      latestSessionDate: "2026-06-04",
+      ohlcv: { date: "2026-06-04", open: 1, high: 2, low: 1, close: 2, volume: 3 },
+      indicators: {},
+      recentCloses: [
+        { date: "2026-06-03", close: 1 },
+        { date: "2026-06-04", close: 2 },
+      ],
+    });
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/instruments/equity/aapl/timeline"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      assetClass: "equity",
+      symbol: "AAPL",
+      entries: [
+        {
+          runId: "run-market",
+          scope: "market-update",
+          outcome: "event-true",
+        },
+      ],
+      pricePoints: [],
+      counts: { total: 1, eventTrue: 1 },
+    });
+  });
+
+  test("rejects invalid instrument asset class", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "research-console-runs-"));
+
+    const response = await handleResearchConsoleRequest(
+      new Request("http://127.0.0.1/api/instruments/forex/EURUSD/timeline"),
+      { dataDir },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid instrument request" });
   });
 
   test("serves run files by safe relative path", async () => {

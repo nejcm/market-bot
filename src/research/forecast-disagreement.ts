@@ -175,6 +175,10 @@ function buildPrompt(input: {
   );
 }
 
+// Partial coverage is accepted to avoid voiding a whole challenger over one bad item.
+// Unknown IDs, out-of-range probabilities, duplicates, and malformed entries are skipped.
+// Incomplete coverage is already modeled per prediction by missingParticipantCount.
+// Structurally invalid responses, or zero usable probabilities, mark it as an error.
 function readParticipantPredictions(
   value: unknown,
   knownPredictionIds: ReadonlySet<string>,
@@ -184,31 +188,29 @@ function readParticipantPredictions(
   }
 
   const seen = new Set<string>();
-  const predictions = value.predictions.map((item) => {
+  const predictions: ForecastDisagreementParticipantPrediction[] = [];
+  for (const item of value.predictions) {
     if (!isRecord(item)) {
-      throw new Error("Forecast disagreement prediction must be an object");
+      continue;
     }
     const predictionId = readString(item, "id") ?? readString(item, "predictionId");
     const probability = readNumber(item, "probability");
-    if (predictionId === undefined || !knownPredictionIds.has(predictionId)) {
-      throw new Error(
-        `Forecast disagreement response referenced unknown prediction ID: ${String(predictionId)}`,
-      );
-    }
-    if (probability === undefined || probability < 0 || probability > 1) {
-      throw new Error(
-        `Forecast disagreement probability for ${predictionId} must be between 0 and 1`,
-      );
-    }
-    if (seen.has(predictionId)) {
-      throw new Error(`Forecast disagreement response duplicated prediction ID: ${predictionId}`);
+    if (
+      predictionId === undefined ||
+      !knownPredictionIds.has(predictionId) ||
+      seen.has(predictionId) ||
+      probability === undefined ||
+      probability < 0 ||
+      probability > 1
+    ) {
+      continue;
     }
     seen.add(predictionId);
-    return { predictionId, probability };
-  });
+    predictions.push({ predictionId, probability });
+  }
 
-  if (seen.size !== knownPredictionIds.size) {
-    throw new Error("Forecast disagreement response must include every supplied prediction ID");
+  if (predictions.length === 0) {
+    throw new Error("Forecast disagreement response included no usable prediction probabilities");
   }
 
   return predictions;

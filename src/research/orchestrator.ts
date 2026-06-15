@@ -529,42 +529,59 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     input.config.forecastDisagreementOptions?.challengerModels ?? [];
   const challengerModels = forecastDisagreementModels(input, runParams.synthesisModel);
   if (challengerModels.length > 0 && report.predictions.length > 0) {
-    const loaded = await loadStagePrompt(
-      "forecast-disagreement",
-      input.command,
-      input.config.promptDir,
-    );
-    const disagreement = await runForecastDisagreement({
-      generatedAt,
-      provider: input.provider,
-      providerName: input.provider.name,
-      baselineModel: runParams.synthesisModel,
-      challengerModels,
-      ...(runParams.modelParams !== undefined ? { modelParams: runParams.modelParams } : {}),
-      loaded,
-      report: {
-        runId: report.runId,
-        generatedAt: report.generatedAt,
-        summary: report.summary,
-        keyFindings: report.keyFindings,
-        bullCase: report.bullCase,
-        bearCase: report.bearCase,
-        risks: report.risks,
-        catalysts: report.catalysts,
-        scenarios: report.scenarios,
-        predictions: report.predictions,
-      },
-    });
-    forecastDisagreement = disagreement.artifact;
-    forecastDisagreementStageOutputs = disagreement.stageOutputs;
-    report = validateResearchReport({
-      ...report,
-      dataGaps: [...report.dataGaps, ...disagreement.dataGaps],
-      extras: {
-        ...report.extras,
-        forecastDisagreement: compactForecastDisagreementExtra(disagreement.artifact),
-      },
-    });
+    // The whole stage is optional, evidence-only, and must never fail the run.
+    // Per-challenger errors are already non-fatal inside runForecastDisagreement.
+    // This guard degrades prompt-load or unexpected stage failures into a data gap.
+    // See ADR 0023 for the non-fatal contract.
+    try {
+      const loaded = await loadStagePrompt(
+        "forecast-disagreement",
+        input.command,
+        input.config.promptDir,
+      );
+      const disagreement = await runForecastDisagreement({
+        generatedAt,
+        provider: input.provider,
+        providerName: input.provider.name,
+        baselineModel: runParams.synthesisModel,
+        challengerModels,
+        ...(runParams.modelParams !== undefined ? { modelParams: runParams.modelParams } : {}),
+        loaded,
+        report: {
+          runId: report.runId,
+          generatedAt: report.generatedAt,
+          summary: report.summary,
+          keyFindings: report.keyFindings,
+          bullCase: report.bullCase,
+          bearCase: report.bearCase,
+          risks: report.risks,
+          catalysts: report.catalysts,
+          scenarios: report.scenarios,
+          predictions: report.predictions,
+        },
+      });
+      forecastDisagreement = disagreement.artifact;
+      forecastDisagreementStageOutputs = disagreement.stageOutputs;
+      report = validateResearchReport({
+        ...report,
+        dataGaps: [...report.dataGaps, ...disagreement.dataGaps],
+        extras: {
+          ...report.extras,
+          forecastDisagreement: compactForecastDisagreementExtra(disagreement.artifact),
+        },
+      });
+    } catch (error) {
+      forecastDisagreement = undefined;
+      forecastDisagreementStageOutputs = [];
+      const message = error instanceof Error ? error.message : String(error);
+      report = validateResearchReport({
+        ...report,
+        dataGaps: [
+          ...report.dataGaps,
+          `forecastDisagreement: stage failed (${message}); uncertainty signal unavailable`,
+        ],
+      });
+    }
   } else if (challengerModels.length > 0 && report.predictions.length === 0) {
     report = validateResearchReport({
       ...report,

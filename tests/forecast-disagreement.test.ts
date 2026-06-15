@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Prediction } from "../src/domain/types";
+import type { ModelProvider } from "../src/model/types";
+import type { LoadedPrompt } from "../src/research/prompt-loader";
 import {
   buildForecastDisagreementArtifact,
   disagreementBand,
+  runForecastDisagreement,
 } from "../src/research/forecast-disagreement";
 
 const predictions: readonly Prediction[] = [
@@ -27,6 +30,56 @@ const predictions: readonly Prediction[] = [
     sourceIds: ["market-qqq"],
   },
 ];
+
+const loadedPrompt: LoadedPrompt = {
+  system: "system",
+  instruction: "instruction",
+  goal: "goal",
+};
+
+const challengerReport = {
+  runId: "run-1",
+  generatedAt: "2026-06-15T00:00:00.000Z",
+  summary: "summary",
+  keyFindings: [],
+  bullCase: [],
+  bearCase: [],
+  risks: [],
+  catalysts: [],
+  scenarios: [],
+  predictions,
+};
+
+function jsonProvider(content: string): ModelProvider {
+  return {
+    name: "openai",
+    generate: async () => ({ content, tokenEstimate: 10, costEstimateUsd: 0.001 }),
+  };
+}
+
+async function runWithChallenger(content: string): Promise<{
+  readonly status: "ok" | "error";
+  readonly predictions:
+    | readonly { readonly predictionId: string; readonly probability: number }[]
+    | undefined;
+}> {
+  const result = await runForecastDisagreement({
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    provider: jsonProvider(content),
+    providerName: "openai",
+    baselineModel: "gpt-5.5",
+    challengerModels: ["gpt-5.4"],
+    loaded: loadedPrompt,
+    report: challengerReport,
+  });
+  const challenger = result.artifact.participants.find(
+    (participant) => participant.role === "challenger",
+  );
+  if (challenger === undefined) {
+    throw new Error("expected a challenger participant");
+  }
+  return { status: challenger.status, predictions: challenger.predictions };
+}
 
 describe("forecast disagreement", () => {
   test("maps spread to neutral bands", () => {
@@ -141,5 +194,46 @@ describe("forecast disagreement", () => {
       participantCount: 0,
       missingParticipantCount: 2,
     });
+  });
+
+  test("keeps valid probabilities when a challenger omits some prediction IDs", async () => {
+    const challenger = await runWithChallenger(
+      JSON.stringify({ predictions: [{ id: "pred-1", probability: 0.7 }] }),
+    );
+
+    expect(challenger.status).toBe("ok");
+    expect(challenger.predictions).toEqual([{ predictionId: "pred-1", probability: 0.7 }]);
+  });
+
+  test("ignores unknown IDs, out-of-range probabilities, and duplicates", async () => {
+    const challenger = await runWithChallenger(
+      JSON.stringify({
+        predictions: [
+          { id: "pred-unknown", probability: 0.9 },
+          { id: "pred-1", probability: 1.4 },
+          { id: "pred-2", probability: 0.5 },
+          { id: "pred-2", probability: 0.6 },
+        ],
+      }),
+    );
+
+    expect(challenger.status).toBe("ok");
+    expect(challenger.predictions).toEqual([{ predictionId: "pred-2", probability: 0.5 }]);
+  });
+
+  test("marks a challenger as error when no usable probabilities remain", async () => {
+    const challenger = await runWithChallenger(
+      JSON.stringify({ predictions: [{ id: "pred-unknown", probability: 0.9 }] }),
+    );
+
+    expect(challenger.status).toBe("error");
+    expect(challenger.predictions).toBeUndefined();
+  });
+
+  test("marks a challenger as error when the response is structurally invalid", async () => {
+    const challenger = await runWithChallenger(JSON.stringify({ notPredictions: true }));
+
+    expect(challenger.status).toBe("error");
+    expect(challenger.predictions).toBeUndefined();
   });
 });

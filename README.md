@@ -13,6 +13,8 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
+> ⚠️ **Work in progress.** This project is under active development. CLI commands, configuration, and output formats may change without notice.
+
 > **Research-only.** Reports are sourced research views — not trading advice. No buy/sell calls, position sizing, execution, or portfolio actions. Predictions are observable forecasts scored for calibration, not trade signals.
 
 ## Quick start

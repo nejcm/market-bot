@@ -147,6 +147,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   const byMarketUpdateCadence = parseMetricMap(value.byMarketUpdateCadence);
   const byHorizonBucket = parseMetricMap(value.byHorizonBucket);
   const byMissAutopsyCause = parseCountMap(value.byMissAutopsyCause);
+  const conditionalPredictions = parseConditionalCalibrationSummary(value.conditionalPredictions);
   return {
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     ...(resolvedCount !== undefined ? { resolvedCount } : {}),
@@ -160,7 +161,22 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     ...(byMarketUpdateCadence !== undefined ? { byMarketUpdateCadence } : {}),
     ...(byHorizonBucket !== undefined ? { byHorizonBucket } : {}),
     ...(byMissAutopsyCause !== undefined ? { byMissAutopsyCause } : {}),
+    ...(conditionalPredictions !== undefined ? { conditionalPredictions } : {}),
   };
+}
+
+function parseConditionalCalibrationSummary(
+  value: unknown,
+): CalibrationContext["conditionalPredictions"] | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const activatedCount = readNumberWhere(value, "activatedCount", isCount);
+  const voidedCount = readNumberWhere(value, "voidedCount", isCount);
+  if (activatedCount === undefined || voidedCount === undefined) {
+    return undefined;
+  }
+  return { activatedCount, voidedCount };
 }
 
 function parseCalibrationBin(value: unknown): CalibrationBin | undefined {
@@ -257,6 +273,11 @@ function buildCalibrationBlock(calibration: CalibrationContext | undefined): str
   }
   if (typeof calibration.resolvedCount === "number") {
     lines.push(`Resolved predictions: ${calibration.resolvedCount}`);
+  }
+  if (calibration.conditionalPredictions !== undefined) {
+    lines.push(
+      `Conditional Predictions: ${String(calibration.conditionalPredictions.activatedCount)} activated, ${String(calibration.conditionalPredictions.voidedCount)} voided/excluded`,
+    );
   }
   if (Array.isArray(calibration.bins) && calibration.bins.length > 0) {
     lines.push("Bin summary (stated probability band vs actual hit rate):");
@@ -610,7 +631,7 @@ function finalReportShape(depthProfile: DepthProfile): Record<string, unknown> {
     dataGaps: ["string"],
     predictions: Array.from({ length: depthProfile.targetPredictions }, (_, idx) => ({
       id: `pred-${String(idx + 1)}`,
-      kind: "direction|relative|volatility|range|macro|iv",
+      kind: "direction|relative|volatility|range|macro|iv|conditional",
       subject: exampleSubject,
       measurableAs: `close(${exampleSubject}, +${String(depthProfile.defaultPredictionHorizon)}) > close(${exampleSubject}, 0)`,
       horizonTradingDays: depthProfile.defaultPredictionHorizon,
@@ -800,9 +821,13 @@ export function buildStagePrompt(
   reportValidationErrors: readonly string[] = [],
   allowedSourceIds: readonly string[] = [],
 ): string {
+  const conditionalPredictionInstruction =
+    stage === "final-synthesis" && command.depth === "deep"
+      ? " Deep runs may use Conditional Predictions with measurableAs syntax if (<existing expression>) then (<existing expression>) when evidence supports a conditional setup. For conditional predictions, kind is conditional, subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals."
+      : "";
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
+      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0

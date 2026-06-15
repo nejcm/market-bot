@@ -162,6 +162,51 @@ describe("runScorePass Observation scoring", () => {
     expect(score?.evidence).toMatchObject({ close0: 100, closeN: 102 });
   });
 
+  test("persists voided conditional scores when the antecedent is false", async () => {
+    const runDir = await writeRun(
+      "run-conditional",
+      report([
+        {
+          id: "pred-conditional",
+          claim: "Conditional prediction.",
+          kind: "conditional",
+          subject: "QQQ",
+          measurableAs:
+            "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+          horizonTradingDays: 10,
+          probability: 0.62,
+          sourceIds: [],
+        },
+      ]),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) =>
+        subject === "SPY"
+          ? [
+              { subject, date: "2026-05-01", value: 500 },
+              { subject, date: "2026-05-04", value: 498 },
+              { subject, date: "2026-05-05", value: 497 },
+              { subject, date: "2026-05-06", value: 496 },
+              { subject, date: "2026-05-07", value: 495 },
+              { subject, date: "2026-05-08", value: 494 },
+            ]
+          : [],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-20T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      status: "voided",
+      resolved: true,
+      evidence: { reason: "conditional antecedent did not occur" },
+    });
+    expect(score?.outcome).toBeUndefined();
+  });
+
   test("writes a miss-autopsy sidecar for material overpredictions", async () => {
     const runDir = await writeRun(
       "run-1",

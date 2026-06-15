@@ -15,6 +15,14 @@ const basePrediction: Prediction = prediction();
 const report = researchReport({ generatedAt: "2026-05-01T00:00:00.000Z" });
 const now = new Date("2026-05-20T00:00:00.000Z");
 
+function closeWindow(subject: string, values: readonly number[]): readonly Observation[] {
+  return values.map((value, index) => ({
+    subject,
+    date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+    value,
+  }));
+}
+
 function observationRepository(observations: readonly Observation[]): ObservationRepository {
   return {
     async point(request, _assetClass, date) {
@@ -272,6 +280,88 @@ describe("resolveOutcome", () => {
       expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
   });
+
+  describe("conditional", () => {
+    const conditionalPrediction: Prediction = {
+      ...basePrediction,
+      id: "pred-conditional",
+      kind: "conditional",
+      subject: "QQQ",
+      horizonTradingDays: 10,
+      measurableAs: "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+      probability: 0.62,
+    };
+
+    test("returns pending-condition before the antecedent horizon elapses", async () => {
+      const result = await resolveOutcome(
+        conditionalPrediction,
+        report,
+        observationRepository([]),
+        new Date("2026-05-05T00:00:00.000Z"),
+      );
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        scoreStatus: "pending-condition",
+        reason: "horizon-not-elapsed",
+      });
+    });
+
+    test("voids when the antecedent resolves false", async () => {
+      const result = await resolveWith(conditionalPrediction, [
+        ...closeWindow("SPY", [500, 498, 497, 496, 495, 494]),
+      ]);
+
+      expect(result).toMatchObject({
+        status: "voided",
+        evidence: { reason: "conditional antecedent did not occur" },
+      });
+    });
+
+    test("returns active-pending when the antecedent is true and consequent is not due", async () => {
+      const result = await resolveOutcome(
+        conditionalPrediction,
+        report,
+        observationRepository([...closeWindow("SPY", [500, 501, 502, 503, 504, 505])]),
+        new Date("2026-05-11T00:00:00.000Z"),
+      );
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        scoreStatus: "active-pending",
+        reason: "horizon-not-elapsed",
+      });
+    });
+
+    test("stays active-pending when the consequent observation is unavailable", async () => {
+      const result = await resolveWith(conditionalPrediction, [
+        ...closeWindow("SPY", [500, 501, 502, 503, 504, 505]),
+      ]);
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        scoreStatus: "active-pending",
+        reason: "observation-unavailable",
+        evidence: { reason: "conditional consequent observation unavailable" },
+      });
+    });
+
+    test("resolves the consequent after the condition activates", async () => {
+      const result = await resolveWith(conditionalPrediction, [
+        ...closeWindow("SPY", [500, 501, 502, 503, 504, 505]),
+        ...closeWindow("QQQ", [400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410]),
+      ]);
+
+      expect(result).toMatchObject({
+        status: "resolved",
+        outcome: "hit",
+        evidence: {
+          antecedent: { close0: 500, closeN: 505 },
+          consequent: { close0: 400, closeN: 410 },
+        },
+      });
+    });
+  });
 });
 
 describe("resolveOutcome trading-day calendar", () => {
@@ -466,6 +556,32 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byKind["volatility"]).toBeDefined();
     expect(summary.byAssetClass["equity"]).toBeDefined();
     expect(summary.byAssetClass["crypto"]).toBeDefined();
+  });
+
+  test("includes activated conditional predictions and reports voided exclusions", () => {
+    const pairs = [
+      {
+        prediction: {
+          ...basePrediction,
+          kind: "conditional" as const,
+          probability: 0.7,
+        },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r1",
+      },
+    ];
+
+    const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"), {
+      activatedCount: 0,
+      voidedCount: 1,
+    });
+
+    expect(summary.resolvedCount).toBe(1);
+    expect(summary.byKind.conditional?.count).toBe(1);
+    expect(summary.byKind.conditional?.brierScore).toBeCloseTo(0.09);
+    expect(summary.conditionalPredictions).toEqual({ activatedCount: 1, voidedCount: 1 });
   });
 
   test("groups calibration by job type, market cadence, and horizon bucket", () => {

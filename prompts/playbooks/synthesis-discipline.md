@@ -9,7 +9,7 @@ Set each prediction's probability with calibration discipline, not narrative con
 - Respect the Brier cost of overconfidence. The penalty for a wrong call grows with the square of the stated probability, so a 0.9 miss costs more than twice a 0.6 miss and over three times an even-odds miss. Reserve extreme probabilities (at or above 0.8, or at or below 0.2) for claims with strong, multi-source support.
 - Use the prior-calibration feedback. Where the priorCalibration block reports negative Brier skill for a kind or horizon slice, shade those predictions toward base rates — your past confidence in that slice has not paid off.
 - Mind the kind mix. Bare `direction` calls sit near a 50% base rate at short horizons and can mask signal; lean toward the run's favored kinds (e.g. `relative`/pairs, `macro`, `range`) when the evidence supports a more specific, more measurable claim.
-- Orient probabilities to the DSL. `probability` is `P(measurableAs is TRUE)`. The grammar only expresses up/outside events, so a bearish or stays-within-range view uses probability below 0.5 on that up/outside expression.
+- Orient probabilities to the DSL. `probability` is `P(measurableAs is TRUE)` except for Conditional Predictions, where it is `P(consequent | antecedent)`. The grammar only expresses up/outside events, so a bearish or stays-within-range view uses probability below 0.5 on that up/outside expression.
 
 ## goal
 

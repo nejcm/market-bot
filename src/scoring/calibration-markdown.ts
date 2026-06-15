@@ -98,6 +98,8 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     "",
     `Brier skill vs always-0.5 baseline: ${formatSkill(summary.brierSkillScore)} (0 = no edge, 1 = perfect, <0 = worse than a coin flip)`,
     "",
+    `Conditional Predictions: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
+    "",
     "## Reliability bins",
     "",
   );

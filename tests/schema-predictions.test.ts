@@ -411,4 +411,67 @@ describe("validatePredictions", () => {
       }),
     ]);
   });
+
+  test("accepts conditional predictions and derives consequent subject fields", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          kind: "conditional",
+          subject: "QQQ",
+          horizonTradingDays: 10,
+          measurableAs:
+            "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toEqual([
+      expect.objectContaining({
+        kind: "conditional",
+        subject: "QQQ",
+        horizonTradingDays: 10,
+        claim:
+          "If SPY closes higher than today over 5 trading days, then QQQ closes higher than today over 10 trading days",
+      }),
+    ]);
+  });
+
+  test("rejects conditional predictions when antecedent horizon is not earlier", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          kind: "conditional",
+          subject: "QQQ",
+          horizonTradingDays: 5,
+          measurableAs: "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +5) > close(QQQ, 0))",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("antecedent horizon must be earlier");
+  });
+
+  test("rejects nested conditional predictions", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          kind: "conditional",
+          subject: "QQQ",
+          horizonTradingDays: 10,
+          measurableAs:
+            "if (if (close(SPY, +3) > close(SPY, 0)) then (close(QLD, +4) > close(QLD, 0))) then (close(QQQ, +10) > close(QQQ, 0))",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("unparseable measurableAs");
+  });
 });

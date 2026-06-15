@@ -9,6 +9,7 @@ import {
   dashboardMetrics,
   extendedEvidenceItems,
   forecastDisagreements,
+  forecastGroups,
   filterRuns,
   forecastRollup,
   formatClose,
@@ -710,6 +711,7 @@ describe("forecast outcomes", () => {
     scores: [
       {
         predictionId: "p1",
+        status: "resolved",
         resolved: true,
         outcome: "miss",
         observedAt: "2026-06-10T05:46:56Z",
@@ -717,6 +719,7 @@ describe("forecast outcomes", () => {
       },
       {
         predictionId: "p2",
+        status: "pending",
         resolved: false,
         evidence: { reason: "horizon not yet elapsed" },
       },
@@ -746,6 +749,7 @@ describe("forecast outcomes", () => {
     expect(predictionScores(score)).toEqual([
       {
         predictionId: "p1",
+        status: "resolved",
         resolved: true,
         outcome: "miss",
         observedAt: "2026-06-10T05:46:56Z",
@@ -755,10 +759,11 @@ describe("forecast outcomes", () => {
       },
       {
         predictionId: "p2",
+        status: "pending",
         resolved: false,
         pendingReason: "horizon not yet elapsed",
       },
-      { predictionId: "orphan", resolved: true, outcome: "hit" },
+      { predictionId: "orphan", status: "resolved", resolved: true, outcome: "hit" },
     ]);
   });
 
@@ -771,14 +776,16 @@ describe("forecast outcomes", () => {
       predictionScores({
         scores: [null, 7, { resolved: true }, { predictionId: "p1", outcome: "draw" }],
       }),
-    ).toEqual([{ predictionId: "p1", resolved: false }]);
+    ).toEqual([{ predictionId: "p1", status: "pending", resolved: false }]);
   });
 
   test("omits evidence closes unless both are numbers", () => {
     const parsed = predictionScores({
       scores: [{ predictionId: "p1", resolved: true, outcome: "hit", evidence: { close0: 10 } }],
     });
-    expect(parsed).toEqual([{ predictionId: "p1", resolved: true, outcome: "hit" }]);
+    expect(parsed).toEqual([
+      { predictionId: "p1", status: "resolved", resolved: true, outcome: "hit" },
+    ]);
   });
 
   test("guards percent change against a zero origin close", () => {
@@ -850,6 +857,7 @@ describe("forecast outcomes", () => {
       resolved: 1,
       hits: 0,
       misses: 1,
+      voided: 0,
       pending: 2,
     });
     expect(forecastRollup([])).toEqual({
@@ -857,8 +865,62 @@ describe("forecast outcomes", () => {
       resolved: 0,
       hits: 0,
       misses: 0,
+      voided: 0,
       pending: 0,
     });
+  });
+
+  test("groups conditional forecasts by identical antecedent", () => {
+    const conditionalReport = {
+      predictions: [
+        {
+          id: "c1",
+          kind: "conditional",
+          claim: "",
+          subject: "QQQ",
+          measurableAs:
+            "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+          probability: 0.62,
+          sourceIds: [],
+        },
+        {
+          id: "c2",
+          kind: "conditional",
+          claim: "",
+          subject: "IWM",
+          measurableAs:
+            "if (close(SPY, +5) > close(SPY, 0)) then (close(IWM, +10) > close(IWM, 0))",
+          probability: 0.58,
+          sourceIds: [],
+        },
+      ],
+    };
+    const conditionalScore = {
+      scores: [
+        {
+          predictionId: "c1",
+          status: "active-pending",
+          resolved: false,
+          evidence: { reason: "condition met; consequent pending" },
+        },
+        {
+          predictionId: "c2",
+          status: "voided",
+          resolved: true,
+          evidence: { reason: "condition unmet" },
+        },
+      ],
+    };
+
+    const groups = forecastGroups(scoredForecasts(conditionalReport, conditionalScore));
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.antecedent).toBe("close(SPY, +5) > close(SPY, 0)");
+    expect(groups[0]?.forecasts.map((item) => item.id)).toEqual(["c1", "c2"]);
+    expect(groups[0]?.forecasts.map((item) => item.score?.status)).toEqual([
+      "active-pending",
+      "voided",
+    ]);
   });
 });
 

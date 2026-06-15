@@ -34,6 +34,7 @@ function validSummary(): CalibrationSummary {
     byMarketRegime: {},
     marketRegimeCoverage: {},
     byMissAutopsyCause: { source_gap: 1 },
+    conditionalPredictions: { activatedCount: 0, voidedCount: 0 },
   };
 }
 

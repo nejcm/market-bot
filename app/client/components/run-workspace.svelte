@@ -4,6 +4,7 @@
   import {
     extendedEvidenceItems,
     forecastRollup,
+    forecastGroups,
     formatClose,
     formatDate,
     formatDateMinute,
@@ -75,6 +76,7 @@
   const findingItems = $derived(textItems(report, "keyFindings"));
   const scenarioItems = $derived(scenarios(report));
   const forecastItems = $derived(scoredForecasts(report, detail?.score, detail?.missAutopsy));
+  const groupedForecastItems = $derived(forecastGroups(forecastItems));
   const forecastStats = $derived(forecastRollup(forecastItems));
   const forecastHorizons = $derived(horizonMarkers(forecastItems));
   const sourceItems = $derived(sources(report));
@@ -447,6 +449,9 @@
                   {#if forecastStats.resolved > 0}
                     scored {forecastStats.resolved}/{forecastStats.total} ·
                     {forecastStats.hits} event true · {forecastStats.misses} event false ·
+                    {#if forecastStats.voided > 0}
+                      {forecastStats.voided} voided ·
+                    {/if}
                   {/if}
                   td = trading days
                 </span>
@@ -456,10 +461,18 @@
                   No forecasts emitted for this run.
                 </div>
               {/if}
-              {#each forecastItems as forecast}
-                <div
-                  class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_132px] sm:gap-4"
-                >
+              {#each groupedForecastItems as group}
+                {#if group.antecedent !== undefined}
+                  <div
+                    class="border-b border-[#f0ede7] bg-[#fbfaf7] px-2 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-[#5c6066]"
+                  >
+                    If {group.antecedent}
+                  </div>
+                {/if}
+                {#each group.forecasts as forecast}
+                  <div
+                    class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_132px] sm:gap-4"
+                  >
                   <div class="font-serif text-sm leading-[1.5] text-[#1f2225]">
                     {forecast.claim}
                     {@render citeChips(forecast.sourceIds)}
@@ -530,6 +543,34 @@
                       >
                         EVENT FALSE
                       </span>
+                    {:else if forecast.score?.status === "voided"}
+                      <span
+                        class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
+                        title={forecast.score?.pendingReason ?? "condition unmet"}
+                      >
+                        VOIDED
+                      </span>
+                    {:else if forecast.score?.status === "active-pending"}
+                      <span
+                        class="rounded border border-dashed border-[#9fc2c8] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
+                        title={forecast.score?.pendingReason ?? "condition met; consequent pending"}
+                      >
+                        ACTIVE
+                      </span>
+                    {:else if forecast.score?.status === "pending-condition"}
+                      <span
+                        class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
+                        title={forecast.score?.pendingReason ?? "condition pending"}
+                      >
+                        CONDITION PENDING
+                      </span>
+                    {:else if forecast.score?.status === "abandoned"}
+                      <span
+                        class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
+                        title={forecast.score?.pendingReason ?? "scoring abandoned"}
+                      >
+                        ABANDONED
+                      </span>
                     {:else}
                       <span
                         class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
@@ -564,7 +605,8 @@
                       </span>
                     {/if}
                   </div>
-                </div>
+                  </div>
+                {/each}
               {/each}
             </section>
           {/if}

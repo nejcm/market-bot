@@ -1,5 +1,13 @@
 export type ScoreOutcome = "hit" | "miss";
 
+export type PredictionScoreStatus =
+  | "pending"
+  | "pending-condition"
+  | "active-pending"
+  | "resolved"
+  | "voided"
+  | "abandoned";
+
 export type MissAutopsyCause =
   | "data_gap"
   | "source_gap"
@@ -11,6 +19,8 @@ export type ForecastErrorDirection = "overpredicted" | "underpredicted";
 export interface PredictionScore {
   readonly predictionId: string;
   readonly runId: string;
+  /** Optional for score files written before conditional score lifecycle states. */
+  readonly status?: PredictionScoreStatus;
   readonly resolved: boolean;
   readonly outcome: ScoreOutcome | undefined;
   readonly observedAt: string | undefined;
@@ -54,6 +64,11 @@ export interface CalibrationMetric {
   readonly count: number;
 }
 
+export interface ConditionalCalibrationSummary {
+  readonly activatedCount: number;
+  readonly voidedCount: number;
+}
+
 export interface CalibrationSummary {
   readonly generatedAt: string;
   readonly resolvedCount: number;
@@ -81,4 +96,5 @@ export interface CalibrationSummary {
    */
   readonly marketRegimeCoverage: Record<string, number>;
   readonly byMissAutopsyCause: Record<string, number>;
+  readonly conditionalPredictions: ConditionalCalibrationSummary;
 }

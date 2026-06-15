@@ -15,7 +15,12 @@ import {
   type VerifiedMarketSnapshot,
 } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
-import type { MissAutopsyCause, MissAutopsyEntry, PredictionScore } from "./scoring/types";
+import type {
+  MissAutopsyCause,
+  MissAutopsyEntry,
+  PredictionScore,
+  PredictionScoreStatus,
+} from "./scoring/types";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -97,6 +102,7 @@ const PREDICTION_KINDS: ReadonlySet<string> = new Set<PredictionKind>([
   "range",
   "macro",
   "iv",
+  "conditional",
 ]);
 
 const MISS_AUTOPSY_CAUSES: ReadonlySet<string> = new Set<MissAutopsyCause>([
@@ -256,10 +262,12 @@ function readScores(value: unknown): readonly PredictionScore[] | undefined {
     ) {
       return [];
     }
+    const status = readPredictionScoreStatus(item.status);
     return [
       {
         predictionId: item.predictionId,
         runId: item.runId,
+        ...(status !== undefined ? { status } : {}),
         resolved: item.resolved,
         outcome: item.outcome === "hit" || item.outcome === "miss" ? item.outcome : undefined,
         observedAt: typeof item.observedAt === "string" ? item.observedAt : undefined,
@@ -271,6 +279,17 @@ function readScores(value: unknown): readonly PredictionScore[] | undefined {
       },
     ];
   });
+}
+
+function readPredictionScoreStatus(value: unknown): PredictionScoreStatus | undefined {
+  return value === "pending" ||
+    value === "pending-condition" ||
+    value === "active-pending" ||
+    value === "resolved" ||
+    value === "voided" ||
+    value === "abandoned"
+    ? value
+    : undefined;
 }
 
 function readPrimitiveEvidence(value: unknown): Record<string, number | string> | undefined {

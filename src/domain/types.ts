@@ -267,7 +267,14 @@ export interface MarketContext {
   readonly gaps: readonly SourceGap[];
 }
 
-export type PredictionKind = "direction" | "relative" | "volatility" | "range" | "macro" | "iv";
+export type PredictionKind =
+  | "direction"
+  | "relative"
+  | "volatility"
+  | "range"
+  | "macro"
+  | "iv"
+  | "conditional";
 
 export interface Prediction {
   readonly id: string;

@@ -8,6 +8,7 @@ import {
 } from "../domain/types";
 import type {
   CalibrationBin,
+  ConditionalCalibrationSummary,
   CalibrationMetric,
   CalibrationSummary,
   MissAutopsyEntry,
@@ -25,6 +26,11 @@ export interface ResolvedPair {
   /** Market Regime label in effect at forecast time; undefined when absent/unparseable. */
   readonly marketRegimeLabel?: MarketRegimeLabel;
 }
+
+const EMPTY_CONDITIONAL_SUMMARY: ConditionalCalibrationSummary = {
+  activatedCount: 0,
+  voidedCount: 0,
+};
 
 // Calibration bucket for resolved pairs whose forecast-time regime is absent or
 // Unparseable. Excluded from the regime slice but counted in coverage.
@@ -172,7 +178,11 @@ function buildMarketRegimeCoverage(pairs: readonly ResolvedPair[]): Record<strin
 export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
+  conditionalPredictions: ConditionalCalibrationSummary = EMPTY_CONDITIONAL_SUMMARY,
 ): CalibrationSummary {
+  const conditionalActivatedCount =
+    conditionalPredictions.activatedCount +
+    pairs.filter(({ prediction }) => prediction.kind === "conditional").length;
   const overallBrier = brierScore(pairs);
   return {
     generatedAt: now.toISOString(),
@@ -192,5 +202,9 @@ export function buildCalibrationSummary(
     byMarketRegime: buildByMarketRegime(pairs),
     marketRegimeCoverage: buildMarketRegimeCoverage(pairs),
     byMissAutopsyCause: countMissAutopsies(pairs),
+    conditionalPredictions: {
+      activatedCount: conditionalActivatedCount,
+      voidedCount: conditionalPredictions.voidedCount,
+    },
   };
 }

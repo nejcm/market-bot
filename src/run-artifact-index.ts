@@ -31,7 +31,11 @@ import type {
   SqlParam,
 } from "./run-artifact-index-types";
 import type { ResolvedPair } from "./scoring/calibration";
-import type { PredictionScore } from "./scoring/types";
+import type {
+  ConditionalCalibrationSummary,
+  PredictionScore,
+  PredictionScoreStatus,
+} from "./scoring/types";
 
 export { INDEX_SCHEMA_VERSION };
 const DEFAULT_INDEX_FILE = "index.sqlite";
@@ -165,8 +169,8 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
   `);
   const insertScore = db.prepare(`
     INSERT INTO scores (
-      prediction_id, run_id, resolved, outcome, observed_at, scoring_version
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      prediction_id, run_id, resolved, status, outcome, observed_at, scoring_version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   for (const indexed of indexedRuns) {
     for (const row of indexed.predictions) {
@@ -187,6 +191,7 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
         row.prediction_id,
         row.run_id,
         row.resolved,
+        row.status,
         row.outcome,
         row.observed_at,
         row.scoring_version,
@@ -755,6 +760,7 @@ interface ResolvedPairQueryRow {
   readonly measurable_as: string;
   readonly source_ids_json: string;
   readonly prediction_id: string;
+  readonly status: string | null;
   readonly outcome: string;
   readonly observed_at: string | null;
   readonly scoring_version: number | null;
@@ -772,7 +778,7 @@ export async function loadResolvedPairsFromIndex(
         `SELECT
           p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
           p.measurable_as, p.source_ids_json,
-          s.prediction_id, s.outcome, s.observed_at, s.scoring_version,
+          s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
           r.job_type, r.asset_class, r.market_regime_label
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
@@ -798,6 +804,7 @@ export async function loadResolvedPairsFromIndex(
         score: {
           predictionId: row.prediction_id,
           runId: row.run_id,
+          ...(row.status !== null ? { status: row.status as PredictionScoreStatus } : {}),
           resolved: true,
           outcome: row.outcome as PredictionScore["outcome"],
           observedAt: row.observed_at ?? undefined,
@@ -814,5 +821,23 @@ export async function loadResolvedPairsFromIndex(
           : {}),
       };
     });
+  });
+}
+
+export async function loadConditionalCalibrationCountsFromIndex(
+  dataDir: string,
+): Promise<ConditionalCalibrationSummary | undefined> {
+  return await withFreshIndex(dataDir, async (db) => {
+    const row = db
+      .query(
+        `SELECT COUNT(*) AS voided_count
+        FROM predictions p
+        JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
+        WHERE p.kind = 'conditional' AND s.status = 'voided'`,
+      )
+      .get() as { readonly voided_count: number } | null;
+    // Activated conditionals are the resolved conditional pairs already passed
+    // Into buildCalibrationSummary; this query only supplies excluded voids.
+    return { activatedCount: 0, voidedCount: row?.voided_count ?? 0 };
   });
 }

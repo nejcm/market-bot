@@ -131,6 +131,11 @@
     clearSelectedRun();
     clearSelectedInstrument();
     error = "";
+    if (nextView === "dashboard") {
+      void loadCompareDetails(runs).catch(() => {
+        compareDetails = [];
+      });
+    }
     if (globalThis.location.pathname !== "/") {
       globalThis.history.pushState({}, "", "/");
     }
@@ -158,6 +163,9 @@
         view = "dashboard";
         clearSelectedRun();
         error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+        void loadCompareDetails(runs).catch(() => {
+          compareDetails = [];
+        });
         if (globalThis.location.pathname !== "/") {
           globalThis.history.replaceState({}, "", "/");
         }
@@ -407,13 +415,14 @@
         calibration = nextCalibration;
         alphaCohorts = nextAlphaCohorts;
         jobs = nextJobs;
-        void loadCompareDetails(nextRuns).catch(() => {
-          compareDetails = [];
-        });
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
           await selectInstrument(initialInstrument.assetClass, initialInstrument.symbol);
+        } else {
+          void loadCompareDetails(nextRuns).catch(() => {
+            compareDetails = [];
+          });
         }
       } catch (caughtError: unknown) {
         error = caughtError instanceof Error ? caughtError.message : String(caughtError);

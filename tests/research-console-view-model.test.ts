@@ -660,6 +660,7 @@ describe("alpha cohort view model", () => {
           laterValidatedSymbolCount: 1,
           validation: {
             "5": { resolvedCount: 1, hitRate: 1, averageExcessReturn: 0.15 },
+            "20": { resolvedCount: 0 },
           },
         },
       ],

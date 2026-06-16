@@ -456,6 +456,9 @@ function metricText(metrics: unknown): string {
         return [];
       }
       const resolvedCount = readNumberField(metric, "resolvedCount");
+      if (resolvedCount === 0) {
+        return [];
+      }
       const hitRate = readFiniteNumber(metric.hitRate);
       const averageExcessReturn = readFiniteNumber(metric.averageExcessReturn);
       return [

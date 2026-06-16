@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/types";
-import { runScorePass, SCORING_VERSION } from "../src/scoring/index";
+import { buildAndWriteAlphaLeadCohorts, runScorePass, SCORING_VERSION } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
@@ -915,6 +915,15 @@ describe("runScorePass Alpha validation", () => {
     expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom-only"]?.["5"]).toMatchObject({
       status: "blocked-prerequisite",
     });
+  });
+
+  test("throws when persisted alpha watchlist is malformed while building cohorts", async () => {
+    await mkdir(join(tmpDir, "..", "alpha-search"), { recursive: true });
+    await writeFile(join(tmpDir, "..", "alpha-search", "watchlist.json"), "{", "utf8");
+
+    await expect(
+      buildAndWriteAlphaLeadCohorts(tmpDir, new Date("2026-06-01T00:00:00.000Z")),
+    ).rejects.toThrow();
   });
 
   test("does not write alpha validation for non-alpha reports", async () => {

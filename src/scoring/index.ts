@@ -464,8 +464,17 @@ export async function runScorePass(
 async function loadAlphaWatchlist(dataDir: string) {
   try {
     const raw = await readFile(join(dataDir, "../alpha-search", "watchlist.json"), "utf8");
-    return readAlphaCandidateWatchlist(JSON.parse(raw) as unknown);
-  } catch {}
+    const watchlist = readAlphaCandidateWatchlist(JSON.parse(raw) as unknown);
+    if (watchlist === undefined) {
+      throw new Error("Alpha candidate watchlist is invalid");
+    }
+    return watchlist;
+  } catch (error: unknown) {
+    if (isRecord(error) && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function buildAndWriteAlphaLeadCohorts(

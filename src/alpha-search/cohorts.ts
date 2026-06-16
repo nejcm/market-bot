@@ -114,7 +114,7 @@ function horizonsBySymbol(
   const result = new Map<string, readonly AlphaValidationHorizon[]>();
   for (const validation of validations) {
     for (const lead of validation.leads) {
-      result.set(lead.symbol, lead.horizons);
+      result.set(lead.symbol, [...(result.get(lead.symbol) ?? []), ...lead.horizons]);
     }
   }
   return result;
@@ -246,11 +246,11 @@ export function buildAlphaLeadCohortSummary(input: {
 }
 
 function formatRate(value: number | undefined): string {
-  return value === undefined ? "n/a" : `${String(Math.round(value * 1000) / 10)}%`;
+  return value === undefined ? "n/a" : `${(value * 100).toFixed(1)}%`;
 }
 
 function formatReturn(value: number | undefined): string {
-  return value === undefined ? "n/a" : `${String(Math.round(value * 10_000) / 100)}%`;
+  return value === undefined ? "n/a" : `${(value * 100).toFixed(1)}%`;
 }
 
 function cohortMetricText(metrics: Readonly<Record<string, AlphaValidationMetrics>>): string {
@@ -336,6 +336,40 @@ export function readAlphaRejectedCandidateFile(
     : [];
 }
 
+function isAlphaValidationHorizon(value: unknown): value is AlphaValidationHorizon {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const status = readString(value, "status");
+  const horizonTradingDays = readNumber(value, "horizonTradingDays");
+  const benchmarkSymbol = readString(value, "benchmarkSymbol");
+  if (horizonTradingDays === undefined || benchmarkSymbol === undefined) {
+    return false;
+  }
+  if (status === "unresolved") {
+    return readString(value, "reason") !== undefined;
+  }
+  return (
+    status === "resolved" &&
+    readNumber(value, "candidateClose0") !== undefined &&
+    readNumber(value, "candidateCloseN") !== undefined &&
+    readNumber(value, "benchmarkClose0") !== undefined &&
+    readNumber(value, "benchmarkCloseN") !== undefined &&
+    readString(value, "candidateDate0") !== undefined &&
+    readString(value, "candidateDateN") !== undefined &&
+    readString(value, "benchmarkDate0") !== undefined &&
+    readString(value, "benchmarkDateN") !== undefined &&
+    readNumber(value, "candidateReturn") !== undefined &&
+    readNumber(value, "benchmarkReturn") !== undefined &&
+    readNumber(value, "excessReturn") !== undefined &&
+    (value.outcome === "outperformed" || value.outcome === "did-not-outperform")
+  );
+}
+
+function readLatestValidation(value: unknown): readonly AlphaValidationHorizon[] {
+  return Array.isArray(value) ? value.filter((entry) => isAlphaValidationHorizon(entry)) : [];
+}
+
 export function readAlphaCandidateWatchlist(value: unknown): AlphaCandidateWatchlist | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -379,7 +413,7 @@ export function readAlphaCandidateWatchlist(value: unknown): AlphaCandidateWatch
           seenCount,
           runIds,
           latestProfile,
-          latestValidation: [],
+          latestValidation: readLatestValidation(candidate.latestValidation),
         },
       ];
     }),

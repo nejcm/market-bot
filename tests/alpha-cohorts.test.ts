@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAlphaLeadCohortSummary,
+  readAlphaCandidateWatchlist,
   renderAlphaLeadCohortMarkdown,
 } from "../src/alpha-search/cohorts";
 import type { AlphaSearchRejectedCandidate } from "../src/alpha-search/report-extras";
@@ -155,6 +156,83 @@ describe("alpha lead cohorts", () => {
         validation: {
           "5": expect.objectContaining({ resolvedCount: 1, outperformedCount: 1 }),
         },
+      }),
+    ]);
+  });
+
+  test("aggregates validation horizons for symbols seen in multiple validation files", () => {
+    const summary = buildAlphaLeadCohortSummary({
+      rejectedCandidates: [rejected()],
+      validations: [
+        validationFile({ runId: "alpha-run-validated-1" }),
+        validationFile({
+          runId: "alpha-run-validated-2",
+          leads: [
+            {
+              symbol: "ALFA",
+              discoverySources: ["sec-filings"],
+              sourceGroup: "sec-only",
+              sourceIds: ["sec-ALFA"],
+              horizons: [
+                {
+                  status: "resolved",
+                  horizonTradingDays: 5,
+                  benchmarkSymbol: "IWM",
+                  candidateClose0: 20,
+                  candidateCloseN: 18,
+                  benchmarkClose0: 100,
+                  benchmarkCloseN: 110,
+                  candidateDate0: "2026-05-08",
+                  candidateDateN: "2026-05-15",
+                  benchmarkDate0: "2026-05-08",
+                  benchmarkDateN: "2026-05-15",
+                  candidateReturn: -0.1,
+                  benchmarkReturn: 0.1,
+                  excessReturn: -0.2,
+                  outcome: "did-not-outperform",
+                },
+              ],
+            },
+          ],
+        }),
+      ],
+      watchlist: watchlist(),
+      now: new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    expect(summary.rejectionBuckets[0]?.validation["5"]).toMatchObject({
+      resolvedCount: 2,
+      outperformedCount: 1,
+      hitRate: 0.5,
+      averageExcessReturn: -0.025,
+    });
+    expect(
+      summary.staleLeadDecay.find((bucket) => bucket.ageBucket === "31+d")?.validation["5"],
+    ).toMatchObject({
+      resolvedCount: 2,
+      outperformedCount: 1,
+      hitRate: 0.5,
+      averageExcessReturn: -0.025,
+    });
+  });
+
+  test("preserves persisted watchlist validation horizons", () => {
+    const horizon = validationFile().leads[0]?.horizons[0];
+    const parsed = readAlphaCandidateWatchlist({
+      ...watchlist(),
+      candidates: [
+        {
+          ...watchlist().candidates[0],
+          latestValidation: horizon === undefined ? [] : [horizon],
+        },
+      ],
+    });
+
+    expect(parsed?.candidates[0]?.latestValidation).toEqual([
+      expect.objectContaining({
+        status: "resolved",
+        horizonTradingDays: 5,
+        excessReturn: 0.15,
       }),
     ]);
   });

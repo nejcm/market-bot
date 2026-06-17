@@ -560,6 +560,40 @@ describe("buildStagePrompt", () => {
     expect(parsed.instruction).toBe("Analyze.");
     expect(parsed.domainPlaybooks?.[0]?.instruction).toBe("Challenge weak claims.");
   });
+
+  test("injects market-overview prompt as steering evidence only", () => {
+    const command: ResearchCommand = {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 7,
+      prompt: "focus on banks",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      contextWithHistory(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: {
+        readonly userSteeringPrompt?: { readonly text?: string; readonly instruction?: string };
+      };
+    };
+
+    expect(parsed.evidence?.userSteeringPrompt).toEqual({
+      text: "focus on banks",
+      instruction:
+        "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
+    });
+  });
 });
 
 function missSummary(
@@ -932,10 +966,11 @@ describe("buildStagePrompt prior-thesis error correction", () => {
 
 function marketRun(
   runId: string,
-  jobType: "daily" | "weekly",
+  jobType: "daily" | "weekly" | "market-overview",
   predictions: readonly HistoricalPredictionSummary[],
   generatedAt = "2026-05-20T00:00:00.000Z",
   assetClass: "equity" | "crypto" = "equity",
+  keyExtras?: Record<string, unknown>,
 ): HistoricalRunContext {
   return {
     runId,
@@ -953,6 +988,7 @@ function marketRun(
     predictions,
     scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
     marketSnapshots: [],
+    ...(keyExtras !== undefined ? { keyExtras } : {}),
   };
 }
 
@@ -989,8 +1025,14 @@ function priorMarketForecastErrorsFor(
 
 describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", () => {
   const dailyCommand: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+  const sevenDayOverviewCommand: ResearchCommand = {
+    jobType: "market-overview",
+    assetClass: "equity",
+    depth: "brief",
+    horizonTradingDays: 7,
+  };
 
-  test("surfaces prior same-cadence market misses on configured subjects", () => {
+  test("surfaces prior same-horizon-bucket market misses on configured subjects", () => {
     const context = contextWithHistory(
       dailyCommand,
       historicalContextWith([marketRun("run-daily-1", "daily", [marketMiss("p1", "SPY")])]),
@@ -1071,13 +1113,34 @@ describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", 
     expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
   });
 
-  test("excludes the other cadence (weekly misses for a daily command)", () => {
+  test("excludes the other horizon bucket (weekly misses for a daily command)", () => {
     const context = contextWithHistory(
       dailyCommand,
       historicalContextWith([marketRun("run-weekly-1", "weekly", [marketMiss("p1", "SPY")])]),
     );
 
     expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+
+  test("isolates canonical market-overview misses by horizon bucket", () => {
+    const context = contextWithHistory(
+      sevenDayOverviewCommand,
+      historicalContextWith([
+        marketRun("run-5d", "market-overview", [marketMiss("p-5d", "SPY")], undefined, "equity", {
+          marketUpdateHorizonBucket: "1-5d",
+        }),
+        marketRun("run-7d", "market-overview", [marketMiss("p-7d", "SPY")], undefined, "equity", {
+          marketUpdateHorizonBucket: "6-10d",
+        }),
+        marketRun("run-daily", "daily", [marketMiss("p-daily", "SPY")]),
+      ]),
+    );
+    const block = priorMarketForecastErrorsFor(sevenDayOverviewCommand, context);
+
+    expect(block).toContain("run-7d");
+    expect(block).toContain("SPY forecast");
+    expect(block).not.toContain("run-5d");
+    expect(block).not.toContain("run-daily");
   });
 
   test("omits the block when the configured-subject prediction resolved as a hit", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
+import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
@@ -8,7 +8,7 @@ import { assembleResearchReport, buildSourceList } from "../src/research/report-
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
-import { collectedSources } from "./support/fixtures";
+import { collectedSources, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -417,6 +417,114 @@ describe("report schema and rendering", () => {
         },
       ],
     });
+  });
+
+  test("builds, validates, renders, and scans market-overview catalyst calendar", () => {
+    const macroSource: Source = {
+      id: "market-context-fred",
+      title: "FRED market context",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "market-data",
+      assetClass: "equity",
+    };
+    const marketContext: MarketContext = {
+      assetClass: "equity",
+      items: [
+        {
+          category: "fred-macro",
+          title: "10Y yield update",
+          summary: "Rates moved.",
+          sourceIds: [macroSource.id],
+          observedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      gaps: [],
+    };
+    const depthProfile = assemblyDepthProfile();
+    const context = assemblyContext(depthProfile);
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 7,
+      },
+      payload: {
+        summary: "Market overview.",
+        confidence: "medium",
+        catalysts: [{ text: "CPI release on calendar.", sourceIds: [macroSource.id] }],
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            id: "pred-1",
+            claim: "SPY closes higher over 7 trading days.",
+            horizonTradingDays: 7,
+            measurableAs: "close(SPY, +7) > close(SPY, 0)",
+            sourceIds: [macroSource.id],
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources({
+        marketContext,
+        marketContextSources: [macroSource],
+      }),
+      depthProfile,
+      context,
+      sources: [macroSource],
+    });
+    const markdown = renderMarkdownReport(assembled);
+
+    expect(assembled.extras?.catalystCalendar).toEqual({
+      items: [
+        {
+          label: "CPI release on calendar.",
+          sourceIds: [macroSource.id],
+          sourceStatus: "sourced catalyst",
+          researchRelevance: "watch item",
+        },
+        {
+          date: "2026-06-01",
+          label: "10Y yield update",
+          sourceIds: [macroSource.id],
+          sourceStatus: "observed macro context",
+          researchRelevance: "macro release context",
+        },
+        {
+          date: "2026-06-10",
+          label: "Prediction pred-1 resolution date",
+          sourceIds: [macroSource.id],
+          sourceStatus: "observable forecast",
+          researchRelevance: "prediction resolution",
+        },
+      ],
+    });
+    expect(markdown).toContain("## Catalyst Calendar");
+    expect(markdown).toContain(
+      "- CPI release on calendar. (sourced catalyst)[market-context-fred]",
+    );
+    expect(markdown).toContain(
+      "- 2026-06-10: Prediction pred-1 resolution date (observable forecast)[market-context-fred]",
+    );
+    expect(
+      violatesResearchOnly(markdown.slice(markdown.indexOf("## Catalyst Calendar"))),
+    ).toBeNull();
+  });
+
+  test("rejects catalyst calendar entries with unknown source IDs", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        extras: {
+          catalystCalendar: {
+            items: [{ label: "Unsourced calendar item", sourceIds: ["missing-source"] }],
+          },
+        },
+      }),
+    ).toThrow("Unknown source ID: missing-source");
   });
 
   test("dedupes model and deterministic data gaps by normalized text", () => {

@@ -7,7 +7,7 @@ import type { AssetClass, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob } from "../src/research/orchestrator";
 import type { CollectedSources } from "../src/sources/types";
-import type { ResearchCommand } from "../src/cli/args";
+import { parseArgs, type ResearchCommand } from "../src/cli/args";
 import {
   collectedSources as collectedSourceBundle,
   marketSnapshot,
@@ -141,6 +141,19 @@ async function runWorkflow(command: ResearchCommand, symbol: string) {
   });
 }
 
+function parseResearchCommand(args: readonly string[]): ResearchCommand {
+  const command = parseArgs(args);
+  if (
+    command.jobType === "market-overview" ||
+    command.jobType === "daily" ||
+    command.jobType === "weekly" ||
+    command.jobType === "ticker"
+  ) {
+    return command;
+  }
+  throw new Error("Expected research command");
+}
+
 describe("mocked research workflows", () => {
   test("persists daily, weekly, and ticker workflows with matching artifact layout", async () => {
     const workflows = [
@@ -207,5 +220,25 @@ describe("mocked research workflows", () => {
     expect(workflows[3]?.report.symbol).toBe("AAPL");
     expect(workflows[4]?.trace.depth).toBe("deep");
     expect(workflows[4]?.report.extras?.depth).toBe("deep");
+  });
+
+  test("persists canonical market-overview fields from CLI-shaped commands", async () => {
+    const overview = await runWorkflow(
+      parseResearchCommand(["market-overview", "--asset", "equity", "--horizon", "7"]),
+      "AAPL",
+    );
+    const alias = await runWorkflow(parseResearchCommand(["daily", "--asset", "equity"]), "AAPL");
+
+    expect(overview.report.jobType).toBe("market-overview");
+    expect(overview.report.horizonTradingDays).toBe(7);
+    expect(overview.report.extras?.marketUpdateHorizonBucket).toBe("6-10d");
+    expect(overview.trace.jobType).toBe("market-overview");
+    expect(overview.trace.marketUpdateHorizonBucket).toBe("6-10d");
+
+    expect(alias.report.jobType).toBe("market-overview");
+    expect(alias.report.horizonTradingDays).toBe(5);
+    expect(alias.report.extras?.legacyMarketUpdateAlias).toBe("daily");
+    expect(alias.report.extras?.marketUpdateHorizonBucket).toBe("1-5d");
+    expect(alias.trace.legacyMarketUpdateAlias).toBe("daily");
   });
 });

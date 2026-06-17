@@ -18,12 +18,6 @@ export function isLegacyMarketUpdateJobType(
   return jobType === "daily" || jobType === "weekly";
 }
 
-export function isAnyMarketUpdateJobType(
-  jobType: JobType,
-): jobType is MarketUpdateJobType | LegacyMarketUpdateJobType {
-  return isMarketUpdateJobType(jobType) || isLegacyMarketUpdateJobType(jobType);
-}
-
 export function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): number {
   return jobType === "daily" ? 5 : 15;
 }

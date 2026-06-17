@@ -233,6 +233,9 @@ function readReport(value: unknown): ResearchReport | undefined {
     jobType: value.jobType,
     assetClass: value.assetClass,
     ...(typeof value.symbol === "string" ? { symbol: value.symbol.toUpperCase() } : {}),
+    ...(typeof value.horizonTradingDays === "number"
+      ? { horizonTradingDays: value.horizonTradingDays }
+      : {}),
     generatedAt,
     summary: readString(value, "summary") ?? "",
     keyFindings: readFindings(value.keyFindings),

@@ -18,7 +18,7 @@ import type { ScoreOutcome } from "../scoring/types";
 
 // ---------------------------------------------------------------------------
 // Market Update Delta — a compact, deterministic "what changed since the last
-// Same-cadence run" summary promoted into daily/weekly market-update reports.
+// Same-horizon-bucket run" summary promoted into market-overview reports.
 //
 // Distinct from the instrument-scoped Research Thesis Delta (history thesis-delta):
 // This is market-update-scoped, automatic, and never calls the model. It is

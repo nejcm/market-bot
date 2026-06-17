@@ -10,7 +10,7 @@ CLI args
   -> source collection
   -> deterministic context
   -> historical context from prior run artifacts
-  -> market spotlight selection (daily/weekly only)
+  -> market spotlight selection (market-overview only)
   -> playbook selection
   -> model stages
   -> report validation
@@ -82,8 +82,8 @@ Command behavior:
 
 | Command                                  | What it does                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `daily --asset equity\|crypto`           | Creates a daily market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence.                                                                                                                                                                                                                    |
-| `weekly --asset equity\|crypto`          | Creates a weekly market update, with overview-first coverage and optional Market Spotlights from current market evidence. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps.                                                                             |
+| `market-overview --asset equity\|crypto [--horizon days] [prompt]` | Canonical whole-market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence. `--horizon` sets the forecast horizon in trading days (default 15); an optional free-text prompt steers spotlight selection and final synthesis. Longer horizons still draw current mover inputs from daily-style source payloads, disclosed as source gaps. |
+| `daily` / `weekly --asset equity\|crypto` | Deprecated aliases that dispatch into `market-overview` with preset horizons (`daily` -> 5 trading days, `weekly` -> 15). Retained for zero-break migration; prefer `market-overview --horizon`. |
 | `ticker <symbol> --asset equity\|crypto` | Creates a detailed single-instrument research view with same-symbol historical context. Symbols are normalized to uppercase and must match the instrument validator.                                                                                                                                                                                            |
 | `alpha-search --asset equity`            | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
 | `--deep`                                 | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass.                                                                                                                                                                                                                     |

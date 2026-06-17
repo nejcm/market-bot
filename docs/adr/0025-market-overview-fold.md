@@ -28,6 +28,8 @@ Calibration, Market Update Delta, market-scoped prior-miss correction, historica
 
 Market overview reports are comparable by asset class and horizon bucket rather than by cadence label. Scheduled legacy commands continue to work, but new code paths and artifacts use the canonical run type.
 
+The catalyst calendar added to overview report `extras` is deliberately narrow in V1: it is derived only from already-collected or persisted sources (sourced model catalysts, observed market-context/macro dates, and observable prediction resolution dates) using neutral language. Dedicated earnings-cluster and filing-window calendar items are out of scope for this slice because deriving them would require new calendar providers, which the fold explicitly excludes; they can follow once those sources are collected.
+
 Rejected alternatives:
 
 - Dropping `daily` and `weekly` immediately, which would break scheduled jobs.

@@ -50,7 +50,7 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 | **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas |
 | **Research Console** | Local Svelte UI to browse runs, search artifacts, view calibration, queue jobs |
 
-Weekly updates change cadence and prediction horizon; mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
+Market overview runs take an explicit `--horizon` in trading days; cadence is a scheduling concern (`daily` / `weekly` are deprecated horizon-preset aliases). At longer horizons, mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
 
 ## Research Console
 

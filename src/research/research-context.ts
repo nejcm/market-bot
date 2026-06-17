@@ -593,15 +593,7 @@ function buildEvidencePayload(
 
   return {
     command,
-    ...(command.jobType === "market-overview" && command.prompt !== undefined
-      ? {
-          userSteeringPrompt: {
-            text: command.prompt,
-            instruction:
-              "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
-          },
-        }
-      : {}),
+    ...userSteeringField(command),
     movers,
     marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
@@ -765,6 +757,22 @@ function evidenceCategories(
   return [...categories].toSorted();
 }
 
+// Bounded steering field shared by the spotlight-selection and final-synthesis
+// Stages so an optional market-overview prompt steers both (A3) without
+// Replacing the deterministic market overview evidence.
+function userSteeringField(command: ResearchCommand): Record<string, unknown> {
+  if (command.jobType !== "market-overview" || command.prompt === undefined) {
+    return {};
+  }
+  return {
+    userSteeringPrompt: {
+      text: command.prompt,
+      instruction:
+        "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
+    },
+  };
+}
+
 export function buildPlaybookSelectionPrompt(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -806,6 +814,7 @@ export function buildSpotlightSelectionPrompt(
       stage: "spotlight-selection",
       stageGoal: loaded.goal,
       command,
+      ...userSteeringField(command),
       depthProfile: context.depthProfile,
       selectionCap: cap,
       candidates,

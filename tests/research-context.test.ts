@@ -1278,4 +1278,61 @@ describe("buildSpotlightSelectionPrompt", () => {
     expect(parsed.evidence).toBeUndefined();
     expect(parsed.requiredShape?.selections).toHaveLength(1);
   });
+
+  test("carries the market-overview steering prompt into spotlight selection", () => {
+    const command: ResearchCommand = {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 15,
+      prompt: "focus on banks",
+    };
+    const sources = collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot()],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    });
+    const context = {
+      depthProfile: buildDepthProfile(command, config),
+      runParams: {
+        quickModel: "quick-test",
+        synthesisModel: "synthesis-test",
+        analystStyle: "concise brief" as const,
+        minimumKeyFindings: 3,
+        minimumScenarios: 2,
+        targetPredictions: 2,
+        defaultPredictionHorizon: 15,
+        predictionSubjects: ["SPY"],
+        focus: ["market regime", "movers"],
+        targetKindMix: { favored: ["relative", "range"] as const, minNonDirection: 1 },
+        modelParams: undefined,
+      },
+      marketRegime: {
+        assetClass: "equity" as const,
+        label: "mixed" as const,
+        proxyCount: 1,
+        drivers: ["SPY higher"],
+        sourceIds: ["market-aapl"],
+      },
+      calibrationContext: undefined,
+    };
+    const prompt = buildSpotlightSelectionPrompt(
+      command,
+      sources,
+      context,
+      { system: "Select.", instruction: "Choose spotlights.", goal: "Keep focus." },
+      buildSpotlightCandidates({ marketSnapshots: sources.marketSnapshots }),
+      2,
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly userSteeringPrompt?: { readonly text?: string; readonly instruction?: string };
+    };
+
+    expect(parsed.userSteeringPrompt).toEqual({
+      text: "focus on banks",
+      instruction:
+        "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
+    });
+  });
 });

@@ -231,10 +231,10 @@ export async function rebuildRunArtifactIndex(
       const insertRun = db.prepare(`
         INSERT INTO runs (
           run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
-          market_regime_label,
+          market_regime_label, horizon_trading_days,
           finding_count, prediction_count, source_count, data_gap_count, has_score,
           report_status, score_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertFile = db.prepare(`
         INSERT INTO artifact_files (run_id, path, size, modified_at)
@@ -257,6 +257,7 @@ export async function rebuildRunArtifactIndex(
           row.confidence,
           row.depth,
           row.market_regime_label,
+          row.horizon_trading_days,
           row.finding_count,
           row.prediction_count,
           row.source_count,
@@ -355,10 +356,10 @@ export async function writeThroughRunArtifactIndex(
       const insertRun = db.prepare(`
         INSERT INTO runs (
           run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
-          market_regime_label,
+          market_regime_label, horizon_trading_days,
           finding_count, prediction_count, source_count, data_gap_count, has_score,
           report_status, score_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertFile = db.prepare(`
         INSERT INTO artifact_files (run_id, path, size, modified_at)
@@ -396,6 +397,7 @@ export async function writeThroughRunArtifactIndex(
           indexed.run.confidence,
           indexed.run.depth,
           indexed.run.market_regime_label,
+          indexed.run.horizon_trading_days,
           indexed.run.finding_count,
           indexed.run.prediction_count,
           indexed.run.source_count,
@@ -769,6 +771,20 @@ interface ResolvedPairQueryRow {
   readonly job_type: string;
   readonly asset_class: string;
   readonly market_regime_label: string | null;
+  readonly run_horizon_trading_days: number | null;
+}
+
+// Bucket a resolved pair by the run-level horizon (mirroring the disk path),
+// Not the per-prediction horizon, so index-backed and disk-backed calibration
+// Slice identically regardless of index freshness.
+function marketUpdateBucketForRow(jobType: JobType, runHorizon: number | null): string | undefined {
+  if (!isMarketUpdateJobType(jobType)) {
+    return undefined;
+  }
+  if (jobType === "daily" || jobType === "weekly") {
+    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(jobType));
+  }
+  return runHorizon === null ? undefined : marketUpdateHorizonBucket(runHorizon);
 }
 
 export async function loadResolvedPairsFromIndex(
@@ -781,7 +797,8 @@ export async function loadResolvedPairsFromIndex(
           p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
           p.measurable_as, p.source_ids_json,
           s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
-          r.job_type, r.asset_class, r.market_regime_label
+          r.job_type, r.asset_class, r.market_regime_label,
+          r.horizon_trading_days AS run_horizon_trading_days
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
         JOIN runs r ON r.run_id = p.run_id
@@ -792,6 +809,7 @@ export async function loadResolvedPairsFromIndex(
     return rows.map((row) => {
       const jobType = row.job_type as JobType;
       const claim = predictionClaimFromRow(row);
+      const horizonBucket = marketUpdateBucketForRow(jobType, row.run_horizon_trading_days);
       return {
         prediction: {
           id: row.id,
@@ -817,14 +835,7 @@ export async function loadResolvedPairsFromIndex(
         assetClass: row.asset_class as AssetClass,
         jobType,
         runId: row.run_id,
-        ...(isMarketUpdateJobType(jobType)
-          ? {
-              marketUpdateHorizonBucket:
-                jobType === "daily" || jobType === "weekly"
-                  ? marketUpdateHorizonBucket(legacyMarketUpdateHorizon(jobType))
-                  : marketUpdateHorizonBucket(row.horizon_trading_days),
-            }
-          : {}),
+        ...(horizonBucket !== undefined ? { marketUpdateHorizonBucket: horizonBucket } : {}),
         ...(isMarketRegimeLabel(row.market_regime_label)
           ? { marketRegimeLabel: row.market_regime_label }
           : {}),

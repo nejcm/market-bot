@@ -117,7 +117,13 @@ function isAssetClass(value: unknown): value is AssetClass {
 }
 
 function isJobType(value: unknown): value is JobType {
-  return value === "daily" || value === "weekly" || value === "ticker" || value === "alpha-search";
+  return (
+    value === "market-overview" ||
+    value === "daily" ||
+    value === "weekly" ||
+    value === "ticker" ||
+    value === "alpha-search"
+  );
 }
 
 function isPredictionKind(value: unknown): value is PredictionKind {

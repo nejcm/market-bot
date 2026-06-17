@@ -1,13 +1,13 @@
 import type { AppConfig } from "../config";
 import type { ResearchCommand } from "../cli/args";
-import type { PredictionKind } from "../domain/types";
+import { legacyMarketUpdateHorizon, type PredictionKind } from "../domain/types";
 import type { ModelParams } from "../model/types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type RunKey = "daily-equity" | "daily-crypto" | "weekly-equity" | "weekly-crypto" | "ticker";
+export type RunKey = "market-overview-equity" | "market-overview-crypto" | "ticker";
 
 /**
  * Audit finding #10 (prediction mix policy / emission policy): per-kind skill
@@ -85,8 +85,8 @@ const CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS = ["BTC", "ETH"] as const;
 //
 // | Run key                      | Favored (priority order)    | minNonDirection (brief → deep) |
 // |------------------------------|-----------------------------|--------------------------------|
-// | daily-equity / weekly-equity | relative, macro, volatility | 1 → 2 |
-// | daily-crypto / weekly-crypto | relative, range             | 1 → 2 (macro/iv are equity-only — see src/scoring/observations.ts) |
+// | market-overview-equity | relative, macro, volatility | 1 → 2 |
+// | market-overview-crypto | relative, range             | 1 → 2 (macro/iv are equity-only — see src/scoring/observations.ts) |
 // | ticker                       | relative, range             | 1 → 2 |
 //
 // The `deep` override raises every floor to 2; brief profiles use 1.
@@ -130,50 +130,14 @@ const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "
 // ---------------------------------------------------------------------------
 
 export const runConfig: RunConfig = {
-  "daily-equity": {
-    minimumKeyFindings: 3,
-    minimumScenarios: 1,
-    targetPredictions: 2,
-    defaultPredictionHorizon: 5,
-    predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
-    analystStyle: "concise brief",
-    focus: ["market regime", "movers", "risks", "source gaps"],
-    targetKindMix: EQUITY_MARKET_UPDATE_KIND_MIX,
-    deep: {
-      minimumKeyFindings: 5,
-      minimumScenarios: 3,
-      targetPredictions: 3,
-      analystStyle: "fuller analyst-style",
-      focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
-      targetKindMix: { ...EQUITY_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
-    },
-  },
-  "daily-crypto": {
-    minimumKeyFindings: 3,
-    minimumScenarios: 1,
-    targetPredictions: 2,
-    defaultPredictionHorizon: 5,
-    predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
-    analystStyle: "concise brief",
-    focus: ["market regime", "movers", "risks", "source gaps"],
-    targetKindMix: CRYPTO_MARKET_UPDATE_KIND_MIX,
-    deep: {
-      minimumKeyFindings: 5,
-      minimumScenarios: 3,
-      targetPredictions: 3,
-      analystStyle: "fuller analyst-style",
-      focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
-      targetKindMix: { ...CRYPTO_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
-    },
-  },
-  "weekly-equity": {
+  "market-overview-equity": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
     targetPredictions: 2,
     defaultPredictionHorizon: 15,
     predictionSubjects: EQUITY_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
-    focus: ["weekly market regime", "5-session movers", "risks", "source gaps"],
+    focus: ["market regime", "movers", "narratives", "catalysts", "risks", "source gaps"],
     targetKindMix: EQUITY_MARKET_UPDATE_KIND_MIX,
     deep: {
       minimumKeyFindings: 5,
@@ -181,23 +145,25 @@ export const runConfig: RunConfig = {
       targetPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: [
-        "weekly market regime",
-        "5-session movers",
+        "market regime",
+        "movers",
         "cross-asset themes",
+        "narratives",
+        "catalysts",
         "risks",
         "source gaps",
       ],
       targetKindMix: { ...EQUITY_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
     },
   },
-  "weekly-crypto": {
+  "market-overview-crypto": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
     targetPredictions: 2,
     defaultPredictionHorizon: 15,
     predictionSubjects: CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS,
     analystStyle: "concise brief",
-    focus: ["weekly market regime", "5-session movers", "risks", "source gaps"],
+    focus: ["market regime", "movers", "narratives", "catalysts", "risks", "source gaps"],
     targetKindMix: CRYPTO_MARKET_UPDATE_KIND_MIX,
     deep: {
       minimumKeyFindings: 5,
@@ -205,9 +171,11 @@ export const runConfig: RunConfig = {
       targetPredictions: 3,
       analystStyle: "fuller analyst-style",
       focus: [
-        "weekly market regime",
-        "5-session movers",
+        "market regime",
+        "movers",
         "cross-asset themes",
+        "narratives",
+        "catalysts",
         "risks",
         "source gaps",
       ],
@@ -249,7 +217,7 @@ function toRunKey(command: ResearchCommand): RunKey {
   if (command.jobType === "ticker") {
     return "ticker";
   }
-  return `${command.jobType}-${command.assetClass}` as RunKey;
+  return `market-overview-${command.assetClass}` as RunKey;
 }
 
 function mergeModelParams(
@@ -265,6 +233,16 @@ function mergeModelParams(
   }
 
   return { ...base, ...override };
+}
+
+function defaultPredictionHorizonFor(command: ResearchCommand, merged: RunBaseParams): number {
+  if (command.jobType === "market-overview") {
+    return command.horizonTradingDays;
+  }
+  if (command.jobType === "daily" || command.jobType === "weekly") {
+    return legacyMarketUpdateHorizon(command.jobType);
+  }
+  return merged.defaultPredictionHorizon ?? CODE_DEFAULTS.defaultPredictionHorizon;
 }
 
 export function resolveRunParams(
@@ -298,8 +276,7 @@ export function resolveRunParams(
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
     targetPredictions: merged.targetPredictions ?? CODE_DEFAULTS.targetPredictions,
-    defaultPredictionHorizon:
-      merged.defaultPredictionHorizon ?? CODE_DEFAULTS.defaultPredictionHorizon,
+    defaultPredictionHorizon: defaultPredictionHorizonFor(command, merged),
     predictionSubjects,
     focus: merged.focus ?? CODE_DEFAULTS.focus,
     analystStyle: merged.analystStyle ?? CODE_DEFAULTS.analystStyle,

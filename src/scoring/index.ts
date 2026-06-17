@@ -33,7 +33,11 @@ import {
   loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
 } from "../run-artifact-index";
-import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
+import {
+  buildCalibrationSummary,
+  reportMarketUpdateHorizonBucket,
+  type ResolvedPair,
+} from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import { buildMissAutopsyFile } from "./miss-autopsy";
 import {
@@ -629,13 +633,21 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
       return [];
     }
     const missAutopsy = autopsyByPrediction.get(prediction.id);
+    const marketUpdateHorizonBucket = isMarketUpdateJobType(report.jobType)
+      ? reportMarketUpdateHorizonBucket({
+          jobType: report.jobType,
+          ...(report.horizonTradingDays !== undefined
+            ? { horizonTradingDays: report.horizonTradingDays }
+            : {}),
+        })
+      : undefined;
     return [
       {
         prediction,
         score,
         assetClass: report.assetClass,
         jobType: report.jobType,
-        ...(isMarketUpdateJobType(report.jobType) ? { marketUpdateCadence: report.jobType } : {}),
+        ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
         runId: report.runId,
         ...(missAutopsy !== undefined ? { missAutopsy } : {}),
         ...(marketRegimeLabel !== undefined ? { marketRegimeLabel } : {}),

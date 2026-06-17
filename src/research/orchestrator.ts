@@ -11,6 +11,8 @@ import {
 } from "../artifacts";
 import {
   isMarketUpdateJobType,
+  legacyMarketUpdateHorizon,
+  marketUpdateHorizonBucket,
   type Mover,
   type ResearchReport,
   type RunTrace,
@@ -259,6 +261,26 @@ function emptySpotlightSelection(cap: number, candidateCount: number): Spotlight
   };
 }
 
+function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
+  if (command.jobType === "market-overview") {
+    return {
+      marketUpdateHorizonBucket: marketUpdateHorizonBucket(command.horizonTradingDays),
+      ...(command.legacyAlias !== undefined
+        ? { legacyMarketUpdateAlias: command.legacyAlias }
+        : {}),
+    };
+  }
+  if (command.jobType === "daily" || command.jobType === "weekly") {
+    return {
+      marketUpdateHorizonBucket: marketUpdateHorizonBucket(
+        legacyMarketUpdateHorizon(command.jobType),
+      ),
+      marketUpdateCadence: command.jobType,
+    };
+  }
+  return {};
+}
+
 async function runSpotlightSelection(
   input: RunResearchJobInput,
   collectedSources: CollectedSources,
@@ -351,7 +373,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Load in this run, not dropped silently. Cheap (single-file read).
   const alpha = await loadAlphaWatchlistForSpotlights(input.config.dataDir);
   // The watchlist is only consumed for market-update spotlight enrichment, so its
-  // Load failure is only a meaningful gap for daily/weekly runs. Scoping it here
+  // Load failure is only a meaningful gap for market-update runs. Scoping it here
   // Keeps the signal out of ticker/alpha-search reports, which never enrich.
   const alphaGaps =
     isMarketUpdateJobType(input.command.jobType) && alpha.gap !== undefined ? [alpha.gap] : [];
@@ -605,9 +627,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const trace: RunTrace = {
     runId,
     jobType: input.command.jobType,
-    ...(isMarketUpdateJobType(input.command.jobType)
-      ? { marketUpdateCadence: input.command.jobType }
-      : {}),
+    ...marketUpdateTraceFields(input.command),
     assetClass: input.command.assetClass,
     ...(input.command.jobType === "ticker" ? { symbol: input.command.symbol } : {}),
     depth: input.command.depth,

@@ -109,7 +109,7 @@ export interface RunAnalytics {
     readonly resolvedCount?: number;
     readonly assetClass?: RunAnalyticsCalibrationSlice;
     readonly jobType?: RunAnalyticsCalibrationSlice;
-    readonly marketUpdateCadence?: RunAnalyticsCalibrationSlice;
+    readonly marketUpdateHorizonBucket?: RunAnalyticsCalibrationSlice;
   };
   readonly verifiedMarketSnapshot?: {
     readonly symbol: string;
@@ -270,16 +270,16 @@ function calibrationAtGeneration(
 
   const assetClass = calibrationMetricSlice(calibration.byAssetClass, input.report.assetClass);
   const jobType = calibrationMetricSlice(calibration.byJobType, input.report.jobType);
-  const marketUpdateCadence = calibrationMetricSlice(
-    calibration.byMarketUpdateCadence,
-    input.trace.marketUpdateCadence,
+  const marketUpdateHorizonBucket = calibrationMetricSlice(
+    calibration.byMarketUpdateHorizonBucket,
+    input.trace.marketUpdateHorizonBucket,
   );
   if (
     calibration.generatedAt === undefined &&
     calibration.resolvedCount === undefined &&
     assetClass === undefined &&
     jobType === undefined &&
-    marketUpdateCadence === undefined
+    marketUpdateHorizonBucket === undefined
   ) {
     return undefined;
   }
@@ -291,7 +291,7 @@ function calibrationAtGeneration(
       : {}),
     ...(assetClass !== undefined ? { assetClass } : {}),
     ...(jobType !== undefined ? { jobType } : {}),
-    ...(marketUpdateCadence !== undefined ? { marketUpdateCadence } : {}),
+    ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
   };
 }
 

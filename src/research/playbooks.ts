@@ -86,7 +86,12 @@ function readStringArray(record: Record<string, unknown>, key: string): readonly
 
 function assertJobTypes(values: readonly string[]): readonly JobType[] {
   for (const value of values) {
-    if (value !== "daily" && value !== "weekly" && value !== "ticker") {
+    if (
+      value !== "market-overview" &&
+      value !== "daily" &&
+      value !== "weekly" &&
+      value !== "ticker"
+    ) {
       throw new Error(`Playbook registry has invalid jobType: ${value}`);
     }
   }

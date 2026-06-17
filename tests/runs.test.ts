@@ -64,14 +64,14 @@ describe("resolveRunParams — fallback chain", () => {
 
   test("combo block model overrides AppConfig", () => {
     const modified = {
-      ...runConfig["daily-equity"],
+      ...runConfig["market-overview-equity"],
       quickModel: "combo-quick",
       synthesisModel: "combo-synthesis",
     };
-    const origCombo = runConfig["daily-equity"];
+    const origCombo = runConfig["market-overview-equity"];
     const patchedConfig = {
       ...runConfig,
-      "daily-equity": { ...modified },
+      "market-overview-equity": { ...modified },
     };
 
     const result = resolveRunParams(
@@ -132,9 +132,9 @@ describe("resolveRunParams — fallback chain", () => {
 });
 
 describe("resolveRunParams — run keys", () => {
-  test("daily-equity brief", () => {
+  test("market-overview equity brief", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { jobType: "market-overview", assetClass: "equity", depth: "brief", horizonTradingDays: 5 },
       baseConfig,
     );
 
@@ -145,15 +145,15 @@ describe("resolveRunParams — run keys", () => {
     expect(result.focus).not.toContain("weekly market regime");
   });
 
-  test("weekly-equity brief has 15-day horizon and weekly focus", () => {
+  test("market-overview equity brief accepts 15-day horizon", () => {
     const result = resolveRunParams(
-      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      { jobType: "market-overview", assetClass: "equity", depth: "brief", horizonTradingDays: 15 },
       baseConfig,
     );
 
     expect(result.defaultPredictionHorizon).toBe(15);
-    expect(result.focus).toContain("weekly market regime");
-    expect(result.focus).toContain("5-session movers");
+    expect(result.focus).toContain("market regime");
+    expect(result.focus).toContain("movers");
   });
 
   test("weekly-equity deep has cross-asset themes in focus", () => {
@@ -226,8 +226,8 @@ describe("resolveRunParams — run keys", () => {
   test("run-specific modelParams override AppConfig defaults", () => {
     const patchedConfig: RunConfig = {
       ...runConfig,
-      "daily-equity": {
-        ...runConfig["daily-equity"],
+      "market-overview-equity": {
+        ...runConfig["market-overview-equity"],
         modelParams: { temperature: 0.2, reasoningEffort: "high" },
       },
     };

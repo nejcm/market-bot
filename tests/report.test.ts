@@ -631,8 +631,8 @@ describe("report schema and rendering", () => {
         anchorSelectedCount: 0,
         sameSymbolSelectedCount: 0,
         spotlightSymbolSelectedCount: 0,
-        sameCadenceSelectedCount: 0,
-        crossCadenceSelectedCount: 0,
+        sameHorizonSelectedCount: 0,
+        crossHorizonSelectedCount: 0,
         resolvedMissRunCount: 0,
         missCorrectionSelectedCount: 0,
         gapCount: 0,
@@ -922,14 +922,14 @@ describe("report schema and rendering", () => {
     expect(markdown).not.toContain("BAD");
   });
 
-  test("renders cadence-specific market update titles", () => {
+  test("renders market overview titles", () => {
     const { symbol: _symbol, ...marketReport } = report;
 
     expect(renderMarkdownReport({ ...marketReport, jobType: "daily" })).toContain(
-      "# crypto Daily Market Update",
+      "# crypto Market Overview",
     );
     expect(renderMarkdownReport({ ...marketReport, jobType: "weekly" })).toContain(
-      "# crypto Weekly Market Update",
+      "# crypto Market Overview",
     );
   });
 
@@ -1114,7 +1114,7 @@ describe("market update delta rendering", () => {
       }),
     );
     const summaryAt = markdown.indexOf("## Summary");
-    const deltaAt = markdown.indexOf("## What Changed Since Last Daily");
+    const deltaAt = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
     const findingsAt = markdown.indexOf("## Key Findings");
     expect(summaryAt).toBeGreaterThanOrEqual(0);
     expect(deltaAt).toBeGreaterThan(summaryAt);
@@ -1137,7 +1137,7 @@ describe("market update delta rendering", () => {
       }),
     );
     expect(markdown).toContain(
-      "## What Changed Since Last Daily\n\nNo prior daily run to compare — this is the first.",
+      "## What Changed Since Last 1-5d Market Overview\n\nNo prior comparable market-overview run to compare — this is the first.",
     );
     expect(markdown).not.toContain("Regime:");
   });
@@ -1164,7 +1164,7 @@ describe("market update delta rendering", () => {
         ],
       }),
     );
-    const start = markdown.indexOf("## What Changed Since Last Daily");
+    const start = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
     const section = markdown.slice(start, markdown.indexOf("## Key Findings"));
     expect(section).toContain("Regime:");
     expect(violatesResearchOnly(section)).toBeNull();

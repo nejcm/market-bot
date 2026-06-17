@@ -9,6 +9,7 @@ import {
   type HistorySearchCommand,
   type HistoryThesisDeltaCommand,
   type IndexRebuildCommand,
+  type MarketOverviewCommand,
 } from "./job-registry";
 
 export { commandLabel };
@@ -22,6 +23,7 @@ export type {
   HistorySearchCommand,
   HistoryThesisDeltaCommand,
   IndexRebuildCommand,
+  MarketOverviewCommand,
   ProviderHealthCommand,
   ResearchCommand,
   ScoreCommand,
@@ -68,6 +70,62 @@ function readLimit(value: string | undefined): number | undefined {
     throw new Error("Expected positive integer after --limit");
   }
   return parsed;
+}
+
+function readHorizon(value: string | undefined, fallback: number): number {
+  if (value === undefined) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 20) {
+    throw new Error("Expected --horizon integer 1-20");
+  }
+  return parsed;
+}
+
+function readPromptPositionals(
+  args: readonly string[],
+  allowedFlags: ReadonlySet<string>,
+): string | undefined {
+  const positionals: string[] = [];
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined) {
+      continue;
+    }
+    if (!arg.startsWith("--")) {
+      positionals.push(arg);
+      continue;
+    }
+    if (!allowedFlags.has(arg)) {
+      throw new Error(`Unknown flag: ${arg}`);
+    }
+    if (arg !== "--deep") {
+      index += 1;
+    }
+  }
+  const prompt = positionals.join(" ").trim();
+  return prompt === "" ? undefined : prompt;
+}
+
+function parseMarketOverviewArgs(
+  command: "market-overview" | "daily" | "weekly",
+  args: readonly string[],
+): MarketOverviewCommand {
+  const defaultHorizon = command === "daily" ? 5 : 15;
+  const allowedFlags =
+    command === "market-overview"
+      ? new Set(["--asset", "--deep", "--horizon"])
+      : new Set(["--asset", "--deep"]);
+  const prompt = readPromptPositionals(args, allowedFlags);
+  return {
+    jobType: "market-overview",
+    assetClass: parseAsset(readFlagValue(args, "--asset")),
+    depth: readDepth(args),
+    horizonTradingDays: readHorizon(readFlagValue(args, "--horizon"), defaultHorizon),
+    ...(prompt !== undefined ? { prompt } : {}),
+    ...(command === "daily" || command === "weekly" ? { legacyAlias: command } : {}),
+  };
 }
 
 function readSection(value: string | undefined): HistorySection | undefined {
@@ -128,14 +186,8 @@ function rejectUnknownArgs(args: readonly string[], allowedPositionals: number):
 export function parseArgs(args: readonly string[]): CliCommand {
   const [command, maybeSymbol] = args;
 
-  if (command === "daily" || command === "weekly") {
-    rejectUnknownArgs(args, 1);
-
-    return {
-      jobType: command,
-      assetClass: parseAsset(readFlagValue(args, "--asset")),
-      depth: readDepth(args),
-    };
+  if (command === "market-overview" || command === "daily" || command === "weekly") {
+    return parseMarketOverviewArgs(command, args);
   }
 
   if (command === "ticker") {
@@ -224,12 +276,13 @@ export function parseArgs(args: readonly string[]): CliCommand {
     const limit = readLimit(readFlagValue(args, "--limit"));
     if (
       jobType !== undefined &&
+      jobType !== "market-overview" &&
       jobType !== "daily" &&
       jobType !== "weekly" &&
       jobType !== "ticker" &&
       jobType !== "alpha-search"
     ) {
-      throw new Error("Expected --job-type daily|weekly|ticker|alpha-search");
+      throw new Error("Expected --job-type market-overview|daily|weekly|ticker|alpha-search");
     }
     return {
       jobType: "history-search",

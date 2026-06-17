@@ -1,14 +1,16 @@
 import type { ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
-import type {
-  AssetClass,
-  EvidenceQuality,
-  JobType,
-  KeyFinding,
-  MarketSnapshot,
-  MarketUpdateJobType,
-  ResearchReport,
-  Source,
+import {
+  legacyMarketUpdateHorizon,
+  marketUpdateHorizonBucket,
+  type AssetClass,
+  type EvidenceQuality,
+  type JobType,
+  type KeyFinding,
+  type MarketUpdateJobType,
+  type MarketSnapshot,
+  type ResearchReport,
+  type Source,
 } from "../domain/types";
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { PredictionScore } from "../scoring/types";
@@ -17,14 +19,14 @@ import { isRecord, readNumber, readString, stringArrayValue } from "../sources/g
 // Recency reasons answer "why was this run in the time window" (sliding-recent vs point anchor).
 // Relevance reasons answer "why is this run topically on-point for the current command": ticker
 // History for the command's own instrument ("same-symbol") or a selected market-update spotlight
-// ("spotlight-symbol"), and market-update history matching the command's daily/weekly cadence
-// ("same-cadence") or the other cadence for the same asset ("cross-cadence").
+// ("spotlight-symbol"), and market-update history matching the command's horizon bucket
+// ("same-horizon") or another horizon bucket for the same asset ("cross-horizon").
 export type HistoricalRecencyReason = "recent" | `anchor-${number}m`;
 export type HistoricalRelevanceReason =
   | "same-symbol"
   | "spotlight-symbol"
-  | "same-cadence"
-  | "cross-cadence";
+  | "same-horizon"
+  | "cross-horizon";
 // Correction reasons answer "why was this run kept despite recency eviction": it
 // Carries a resolved miss the prior-thesis error-correction blocks draw from, and
 // Would otherwise be crowded out of the recent window by same-day reruns.
@@ -106,8 +108,8 @@ export interface HistoricalContextAudit {
   // The deterministic prior-state selection auditable from the trace without re-deriving it.
   readonly sameSymbolSelectedCount: number;
   readonly spotlightSymbolSelectedCount: number;
-  readonly sameCadenceSelectedCount: number;
-  readonly crossCadenceSelectedCount: number;
+  readonly sameHorizonSelectedCount: number;
+  readonly crossHorizonSelectedCount: number;
   // Selected runs carrying at least one resolved miss — the population the prior-miss correction
   // Blocks draw from (ticker instrument errors / market-scoped forecast errors).
   readonly resolvedMissRunCount: number;
@@ -170,7 +172,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 8;
 
 function isMarketUpdateJobType(value: JobType): value is MarketUpdateJobType {
-  return value === "daily" || value === "weekly";
+  return value === "market-overview" || value === "daily" || value === "weekly";
 }
 
 // Project the reader's full MarketSnapshot down to the compact numeric shape the
@@ -230,13 +232,13 @@ function sortNewest(left: HistoricalArtifact, right: HistoricalArtifact): number
   );
 }
 
-function sortPreferredCadence(
-  preferred: MarketUpdateJobType | undefined,
+function sortPreferredHorizon(
+  preferred: string | undefined,
 ): (left: HistoricalArtifact, right: HistoricalArtifact) => number {
   return (left, right) => {
     if (preferred !== undefined) {
-      const leftPreferred = left.report.jobType === preferred;
-      const rightPreferred = right.report.jobType === preferred;
+      const leftPreferred = artifactMarketHorizonBucket(left.report) === preferred;
+      const rightPreferred = artifactMarketHorizonBucket(right.report) === preferred;
       if (leftPreferred !== rightPreferred) {
         return leftPreferred ? -1 : 1;
       }
@@ -254,12 +256,12 @@ function selectArtifacts(input: {
   readonly limit: number;
   readonly options: HistoryOptions;
   readonly now: Date;
-  readonly preferredCadence?: MarketUpdateJobType;
+  readonly preferredHorizonBucket?: string;
 }): readonly SelectedArtifact[] {
-  const { candidates, limit, options, now, preferredCadence } = input;
+  const { candidates, limit, options, now, preferredHorizonBucket } = input;
   const selected = new Map<string, HistoricalSelectionReason[]>();
   const cutoffMs = now.getTime() - options.recentDays * DAY_MS;
-  const sort = sortPreferredCadence(preferredCadence);
+  const sort = sortPreferredHorizon(preferredHorizonBucket);
 
   for (const artifact of candidates
     .filter((candidate) => generatedAtMs(candidate) >= cutoffMs)
@@ -388,24 +390,33 @@ function compactSnapshots(
     .slice(0, SNAPSHOT_LIMIT);
 }
 
-function keyExtras(
-  extras: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
+function keyExtras(report: ResearchReport): Record<string, unknown> | undefined {
+  const { extras } = report;
   if (extras === undefined) {
-    return;
+    const bucket = artifactMarketHorizonBucket(report);
+    return bucket === undefined ? undefined : { marketUpdateHorizonBucket: bucket };
   }
   const result: Record<string, unknown> = {};
   if (typeof extras.depth === "string") {
     result.depth = extras.depth;
   }
-  if (typeof extras.marketUpdateCadence === "string") {
-    result.marketUpdateCadence = extras.marketUpdateCadence;
+  if (typeof extras.marketUpdateHorizonBucket === "string") {
+    result.marketUpdateHorizonBucket = extras.marketUpdateHorizonBucket;
+  } else if (typeof extras.marketUpdateCadence === "string") {
+    result.marketUpdateHorizonBucket = extras.marketUpdateCadence === "weekly" ? "11-15d" : "1-5d";
   }
-  if (isRecord(extras.marketRegime)) {
+  if (result.marketUpdateHorizonBucket === undefined) {
+    const bucket = artifactMarketHorizonBucket(report);
+    if (bucket !== undefined) {
+      result.marketUpdateHorizonBucket = bucket;
+    }
+  }
+  const { marketRegime } = extras;
+  if (isRecord(marketRegime)) {
     result.marketRegime = {
-      label: readString(extras.marketRegime, "label"),
-      proxyCount: readNumber(extras.marketRegime, "proxyCount"),
-      drivers: stringArrayValue(extras.marketRegime.drivers),
+      label: readString(marketRegime, "label"),
+      proxyCount: readNumber(marketRegime, "proxyCount"),
+      drivers: stringArrayValue(marketRegime.drivers),
     };
   }
   return Object.keys(result).length === 0 ? undefined : result;
@@ -417,7 +428,7 @@ function toRunContext(
 ): HistoricalRunContext {
   const { report } = selected.artifact;
   const sourceId = `history-report-${report.runId}`;
-  const extras = keyExtras(report.extras);
+  const extras = keyExtras(report);
   return {
     runId: report.runId,
     sourceId,
@@ -483,19 +494,36 @@ function withRelevanceReasons(
   });
 }
 
-// `same-cadence` / `cross-cadence` only describe relevance to a daily/weekly
-// Command — a command cadence is the basis for the comparison. Ticker and
-// Alpha-search commands pull in market-update history for general regime
-// Context, not cadence-matched forecasting context, so they get no cadence
-// Relevance reason here (recency reasons still apply).
-function marketCadenceReason(
-  artifactJobType: JobType,
-  commandJobType: JobType,
+function artifactMarketHorizonBucket(report: ResearchReport): string | undefined {
+  if (report.jobType === "market-overview" && report.horizonTradingDays !== undefined) {
+    return marketUpdateHorizonBucket(report.horizonTradingDays);
+  }
+  if (report.jobType === "daily" || report.jobType === "weekly") {
+    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(report.jobType));
+  }
+  return undefined;
+}
+
+// `same-horizon` / `cross-horizon` describe relevance to market overview commands.
+// Ticker and alpha-search commands pull in market-update history for general
+// Regime context, not horizon-matched forecasting context.
+function marketHorizonReason(
+  artifact: HistoricalArtifact,
+  command: ResearchCommand,
 ): HistoricalRelevanceReason | undefined {
-  if (commandJobType !== "daily" && commandJobType !== "weekly") {
+  if (
+    command.jobType !== "market-overview" &&
+    command.jobType !== "daily" &&
+    command.jobType !== "weekly"
+  ) {
     return undefined;
   }
-  return artifactJobType === commandJobType ? "same-cadence" : "cross-cadence";
+  const artifactBucket = artifactMarketHorizonBucket(artifact.report);
+  const commandBucket =
+    command.jobType === "market-overview"
+      ? marketUpdateHorizonBucket(command.horizonTradingDays)
+      : marketUpdateHorizonBucket(legacyMarketUpdateHorizon(command.jobType));
+  return artifactBucket === commandBucket ? "same-horizon" : "cross-horizon";
 }
 
 function normalizedSymbols(symbols: readonly string[] | undefined): Set<string> {
@@ -598,13 +626,18 @@ function buildHistoricalContext(
     selected,
     withRelevanceReasons(
       selectArtifacts(
-        input.command.jobType === "daily" || input.command.jobType === "weekly"
+        input.command.jobType === "market-overview" ||
+          input.command.jobType === "daily" ||
+          input.command.jobType === "weekly"
           ? {
               candidates: sameAssetMarketRuns,
               limit: options.marketRecentLimit,
               options,
               now,
-              preferredCadence: input.command.jobType,
+              preferredHorizonBucket:
+                input.command.jobType === "market-overview"
+                  ? marketUpdateHorizonBucket(input.command.horizonTradingDays)
+                  : marketUpdateHorizonBucket(legacyMarketUpdateHorizon(input.command.jobType)),
             }
           : {
               candidates: sameAssetMarketRuns,
@@ -613,7 +646,7 @@ function buildHistoricalContext(
               now,
             },
       ),
-      (artifact) => marketCadenceReason(artifact.report.jobType, input.command.jobType),
+      (artifact) => marketHorizonReason(artifact, input.command),
     ),
   );
 
@@ -680,10 +713,10 @@ function buildHistoricalContext(
       spotlightSymbolSelectedCount: runs.filter((run) =>
         run.selectionReasons.includes("spotlight-symbol"),
       ).length,
-      sameCadenceSelectedCount: runs.filter((run) => run.selectionReasons.includes("same-cadence"))
+      sameHorizonSelectedCount: runs.filter((run) => run.selectionReasons.includes("same-horizon"))
         .length,
-      crossCadenceSelectedCount: runs.filter((run) =>
-        run.selectionReasons.includes("cross-cadence"),
+      crossHorizonSelectedCount: runs.filter((run) =>
+        run.selectionReasons.includes("cross-horizon"),
       ).length,
       resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
       missCorrectionSelectedCount: runs.filter((run) =>

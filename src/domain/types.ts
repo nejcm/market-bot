@@ -1,13 +1,44 @@
 export type AssetClass = "equity" | "crypto";
 
-export type MarketUpdateJobType = "daily" | "weekly";
+export type LegacyMarketUpdateJobType = "daily" | "weekly";
+
+export type MarketUpdateJobType = "market-overview" | LegacyMarketUpdateJobType;
 
 export type JobType = MarketUpdateJobType | "ticker" | "alpha-search";
 
 export type Depth = "brief" | "deep";
 
 export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdateJobType {
+  return jobType === "market-overview" || jobType === "daily" || jobType === "weekly";
+}
+
+export function isLegacyMarketUpdateJobType(
+  jobType: JobType,
+): jobType is LegacyMarketUpdateJobType {
   return jobType === "daily" || jobType === "weekly";
+}
+
+export function isAnyMarketUpdateJobType(
+  jobType: JobType,
+): jobType is MarketUpdateJobType | LegacyMarketUpdateJobType {
+  return isMarketUpdateJobType(jobType) || isLegacyMarketUpdateJobType(jobType);
+}
+
+export function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): number {
+  return jobType === "daily" ? 5 : 15;
+}
+
+export function marketUpdateHorizonBucket(horizonTradingDays: number): string {
+  if (horizonTradingDays <= 5) {
+    return "1-5d";
+  }
+  if (horizonTradingDays <= 10) {
+    return "6-10d";
+  }
+  if (horizonTradingDays <= 15) {
+    return "11-15d";
+  }
+  return "16-20d";
 }
 
 export interface Instrument {
@@ -319,6 +350,7 @@ export interface ResearchReport {
   readonly jobType: JobType;
   readonly assetClass: AssetClass;
   readonly symbol?: string;
+  readonly horizonTradingDays?: number;
   readonly generatedAt: string;
   readonly summary: string;
   readonly keyFindings: readonly KeyFinding[];
@@ -339,7 +371,9 @@ export interface ResearchReport {
 export interface RunTrace {
   readonly runId: string;
   readonly jobType: JobType;
-  readonly marketUpdateCadence?: MarketUpdateJobType;
+  readonly marketUpdateHorizonBucket?: string;
+  readonly legacyMarketUpdateAlias?: LegacyMarketUpdateJobType;
+  readonly marketUpdateCadence?: LegacyMarketUpdateJobType;
   readonly assetClass: AssetClass;
   readonly symbol?: string;
   readonly depth: Depth;

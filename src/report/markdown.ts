@@ -269,23 +269,34 @@ function deltaResolvedLines(delta: Record<string, unknown>): readonly string[] {
   return rows.length === 0 ? [] : ["", "Predictions resolved since last run:", ...rows];
 }
 
-// Market Update Delta — deterministic "what changed since the last same-cadence run".
+// Market Update Delta — deterministic "what changed since the last comparable run".
 // Pure render of report.extras.marketUpdateDelta; market-update jobs only. Research-only.
 function renderMarketUpdateDelta(report: ResearchReport): string {
-  if (report.jobType !== "daily" && report.jobType !== "weekly") {
+  if (
+    report.jobType !== "market-overview" &&
+    report.jobType !== "daily" &&
+    report.jobType !== "weekly"
+  ) {
     return "";
   }
   const delta = report.extras?.marketUpdateDelta;
   if (!isRecord(delta)) {
     return "";
   }
-  const cadence = report.jobType === "weekly" ? "Weekly" : "Daily";
-  const heading = `## What Changed Since Last ${cadence}`;
+  const bucket = reportMarketUpdateBucket(report);
+  const heading = `## What Changed Since Last ${bucket} Market Overview`;
   if (delta.hasBaseline !== true) {
-    return `${heading}\n\nNo prior ${cadence.toLowerCase()} run to compare — this is the first.\n`;
+    return `${heading}\n\nNo prior comparable market-overview run to compare — this is the first.\n`;
   }
   const lines = [deltaRegimeLine(delta), deltaMoverLine(delta), ...deltaResolvedLines(delta)];
   return `${heading}\n\n${lines.join("\n")}\n`;
+}
+
+function reportMarketUpdateBucket(report: ResearchReport): string {
+  if (typeof report.extras?.marketUpdateHorizonBucket === "string") {
+    return report.extras.marketUpdateHorizonBucket;
+  }
+  return report.jobType === "weekly" ? "11-15d" : "1-5d";
 }
 
 function renderAlphaSearchCoverage(report: ResearchReport): string {
@@ -302,6 +313,25 @@ function renderAlphaSearchCoverage(report: ResearchReport): string {
     `Unmapped SEC filings: ${String(coverage.unmappedSecFilingCount)} pre-ticker filing(s) disclosed separately, not mapped-lead enrichment failures.`,
     "",
   ].join("\n");
+}
+
+function renderCatalystCalendar(report: ResearchReport): string {
+  const calendar = report.extras?.catalystCalendar;
+  if (!isRecord(calendar) || !Array.isArray(calendar.items) || calendar.items.length === 0) {
+    return "";
+  }
+  const rows = calendar.items.flatMap((item) => {
+    if (!isRecord(item) || typeof item.label !== "string") {
+      return [];
+    }
+    const date = typeof item.date === "string" ? `${item.date}: ` : "";
+    const status = typeof item.sourceStatus === "string" ? ` (${item.sourceStatus})` : "";
+    const sourceIds = Array.isArray(item.sourceIds)
+      ? item.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
+      : [];
+    return [`- ${date}${markdownText(item.label)}${status}${sourceRefs(sourceIds)}`];
+  });
+  return rows.length === 0 ? "" : ["## Catalyst Calendar", "", ...rows, ""].join("\n");
 }
 
 function socialDriverText(lead: {
@@ -412,7 +442,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
   const title =
     report.jobType === "ticker"
       ? `${report.symbol} ${report.assetClass} Research View`
-      : `${report.assetClass} ${report.jobType === "weekly" ? "Weekly" : "Daily"} Market Update`;
+      : `${report.assetClass} Market Overview`;
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."
@@ -437,6 +467,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Bear Case", report.bearCase),
     renderFindings("Risks", report.risks),
     renderFindings("Catalysts", report.catalysts),
+    renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
     renderExtendedEvidence(report),
     renderHistoricalContext(report),

@@ -251,15 +251,13 @@ describe("runResearchJob", () => {
   test("uses resolved run models and model params for provider calls and trace", async () => {
     const requests: { readonly model: string; readonly params: unknown }[] = [];
     const runConfig: RunConfig = {
-      "daily-equity": {
+      "market-overview-equity": {
         quickModel: "combo-quick",
         synthesisModel: "combo-synthesis",
         modelParams: { temperature: 0.2, reasoningEffort: "medium" },
         targetPredictions: 2,
       },
-      "daily-crypto": {},
-      "weekly-equity": {},
-      "weekly-crypto": {},
+      "market-overview-crypto": {},
       ticker: {},
     };
     const provider: ModelProvider = {
@@ -1597,10 +1595,10 @@ describe("runResearchJob", () => {
     expect(result.report.jobType).toBe("weekly");
     expect(result.report.extras?.marketUpdateCadence).toBe("weekly");
     expect(result.trace.marketUpdateCadence).toBe("weekly");
-    expect(result.markdown).toContain("# equity Weekly Market Update");
+    expect(result.markdown).toContain("# equity Market Overview");
     expect(result.report.predictions[0]?.horizonTradingDays).toBe(15);
     expect(result.report.dataGaps).toContain(
-      "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener",
+      "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
     );
     expect(finalPrompt.depthProfile?.defaultPredictionHorizon).toBe(15);
     expect(finalPrompt.depthProfile?.targetPredictions).toBe(2);
@@ -1634,7 +1632,7 @@ describe("runResearchJob", () => {
           ],
           confidence: "medium",
           dataGaps: [
-            "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives, not a true trailing 5-session mover screener.",
+            "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives, not a trailing horizon mover screener.",
           ],
           predictions: mockPredictions(2),
         }),
@@ -1657,10 +1655,10 @@ describe("runResearchJob", () => {
     });
 
     const moverGaps = result.report.dataGaps.filter((gap) =>
-      gap.includes("trailing 5-session mover screener"),
+      gap.includes("trailing horizon mover screener"),
     );
     expect(moverGaps).toEqual([
-      "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener",
+      "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
     ]);
   });
 

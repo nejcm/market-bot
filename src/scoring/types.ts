@@ -80,7 +80,7 @@ export interface CalibrationSummary {
   readonly byKind: Record<string, CalibrationMetric>;
   readonly byAssetClass: Record<string, CalibrationMetric>;
   readonly byJobType: Record<string, CalibrationMetric>;
-  readonly byMarketUpdateCadence: Record<string, CalibrationMetric>;
+  readonly byMarketUpdateHorizonBucket: Record<string, CalibrationMetric>;
   readonly byHorizonBucket: Record<string, CalibrationMetric>;
   /**
    * Brier + count per Market Regime label at forecast time, restricted to real

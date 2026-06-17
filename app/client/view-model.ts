@@ -40,7 +40,7 @@ export type {
 const RUN_PATH_PREFIX = "/runs/";
 const INSTRUMENT_PATH_PREFIX = "/instruments/";
 const RECENT_RUN_LIMIT = 5;
-const RUN_TYPE_ORDER = ["daily", "weekly", "ticker"];
+const RUN_TYPE_ORDER = ["market-overview", "daily", "weekly", "ticker"];
 const PROVIDER_GAP_KEYS = ["missingCredential", "fetchFailed", "yahooAuth", "other"];
 
 export interface SearchResultGroup {
@@ -138,8 +138,8 @@ export interface HistoricalContextAuditView {
   readonly anchorSelectedCount: number;
   readonly sameSymbolSelectedCount: number;
   readonly spotlightSymbolSelectedCount: number;
-  readonly sameCadenceSelectedCount: number;
-  readonly crossCadenceSelectedCount: number;
+  readonly sameHorizonSelectedCount: number;
+  readonly crossHorizonSelectedCount: number;
   readonly resolvedMissRunCount: number;
   readonly missCorrectionSelectedCount: number;
   readonly gapCount: number;
@@ -171,7 +171,7 @@ export type CalibrationSliceGroup =
   | "byKind"
   | "byAssetClass"
   | "byJobType"
-  | "byMarketUpdateCadence"
+  | "byMarketUpdateHorizonBucket"
   | "byHorizonBucket"
   | "byMarketRegime";
 
@@ -305,7 +305,7 @@ export function calibrationSlices(
     return brierScore === undefined || count === undefined ? [] : [{ key, brierScore, count }];
   });
 
-  return group === "byHorizonBucket"
+  return group === "byHorizonBucket" || group === "byMarketUpdateHorizonBucket"
     ? rows.toSorted((left, right) => horizonBucketRank(left.key) - horizonBucketRank(right.key))
     : rows.toSorted((left, right) => right.count - left.count);
 }
@@ -361,7 +361,7 @@ function preferredCalibrationSlice(
 ): Record<string, unknown> | undefined {
   const calibration = readRecord(analytics?.calibrationAtGeneration);
   return (
-    readRecord(calibration?.marketUpdateCadence) ??
+    readRecord(calibration?.marketUpdateHorizonBucket) ??
     readRecord(calibration?.jobType) ??
     readRecord(calibration?.assetClass)
   );
@@ -423,8 +423,8 @@ export function historicalContextAuditView(
     anchorSelectedCount: readNumberField(audit, "anchorSelectedCount"),
     sameSymbolSelectedCount: readNumberField(audit, "sameSymbolSelectedCount"),
     spotlightSymbolSelectedCount: readNumberField(audit, "spotlightSymbolSelectedCount"),
-    sameCadenceSelectedCount: readNumberField(audit, "sameCadenceSelectedCount"),
-    crossCadenceSelectedCount: readNumberField(audit, "crossCadenceSelectedCount"),
+    sameHorizonSelectedCount: readNumberField(audit, "sameHorizonSelectedCount"),
+    crossHorizonSelectedCount: readNumberField(audit, "crossHorizonSelectedCount"),
     resolvedMissRunCount: readNumberField(audit, "resolvedMissRunCount"),
     missCorrectionSelectedCount: readNumberField(audit, "missCorrectionSelectedCount"),
     gapCount: readNumberField(audit, "gapCount"),

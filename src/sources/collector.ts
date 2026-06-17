@@ -274,7 +274,11 @@ export function setSourceHostMinDelayMsForTests(ms: number): void {
 export { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 
 function isMarketUpdateCommand(command: ResearchCommand): boolean {
-  return command.jobType === "daily" || command.jobType === "weekly";
+  return (
+    command.jobType === "market-overview" ||
+    command.jobType === "daily" ||
+    command.jobType === "weekly"
+  );
 }
 
 function moverLimit(command: ResearchCommand, sourceOptions: SourceOptions): number {

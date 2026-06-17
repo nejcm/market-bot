@@ -408,7 +408,10 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     .map((e) => e.result)
     .filter((r): r is SourceGap => !isFetchJsonResult(r));
 
-  const isMarketUpdate = command.jobType === "daily" || command.jobType === "weekly";
+  const isMarketUpdate =
+    command.jobType === "market-overview" ||
+    command.jobType === "daily" ||
+    command.jobType === "weekly";
   const moverResults = fetched.filter((e) => isMarketUpdate && isMoverRole(e.role));
   const regimeSnapshots = fetched.flatMap((e) =>
     isMarketUpdate && isMoverRole(e.role)

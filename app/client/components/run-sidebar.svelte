@@ -26,6 +26,7 @@
 
   const typeTextMap: Record<string, string> = {
     all: "All",
+    "market-overview": "Overview",
     daily: "Daily",
     weekly: "Weekly",
     ticker: "Ticker",

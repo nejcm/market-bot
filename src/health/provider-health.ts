@@ -46,6 +46,7 @@ export interface RunHealth {
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly depth?: Depth;
+  readonly horizonTradingDays?: number;
   readonly sourceGaps: readonly SourceGap[];
   readonly sources: readonly SourceHealth[];
   readonly predictionHorizons: readonly number[];
@@ -116,7 +117,9 @@ function numberValue(value: unknown): number {
 }
 
 function isJobType(value: unknown): value is JobType {
-  return value === "daily" || value === "weekly" || value === "ticker";
+  return (
+    value === "market-overview" || value === "daily" || value === "weekly" || value === "ticker"
+  );
 }
 
 function isAssetClass(value: unknown): value is AssetClass {
@@ -326,6 +329,9 @@ async function loadRunHealth(runDir: string): Promise<RunHealth> {
     ...(isAssetClass(report.assetClass) ? { assetClass: report.assetClass } : {}),
     ...(symbol !== undefined ? { symbol } : {}),
     ...(depth !== undefined ? { depth } : {}),
+    ...(numberValue(report.horizonTradingDays) > 0
+      ? { horizonTradingDays: numberValue(report.horizonTradingDays) }
+      : {}),
     sourceGaps,
     sources: parseSources(report.sources),
     predictionHorizons: parsePredictionHorizons(report.predictions),
@@ -476,8 +482,10 @@ function validationSummary(
   calibrationPresent: boolean,
 ): ProviderHealthSummary["realRunValidation"] {
   return {
-    marketUpdateRuns: runs.filter((run) => run.jobType === "daily" || run.jobType === "weekly")
-      .length,
+    marketUpdateRuns: runs.filter(
+      (run) =>
+        run.jobType === "market-overview" || run.jobType === "daily" || run.jobType === "weekly",
+    ).length,
     tickerRuns: runs.filter((run) => run.jobType === "ticker").length,
     deepTickerRuns: runs.filter((run) => run.jobType === "ticker" && run.depth === "deep").length,
     extendedEvidenceRuns: runs.filter(

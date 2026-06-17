@@ -15,11 +15,14 @@ export function newsQuery(command: ResearchCommand): string {
 }
 
 export function recencyDays(command: ResearchCommand): number {
-  if (command.jobType === "daily") {
+  if (
+    command.jobType === "daily" ||
+    (command.jobType === "market-overview" && command.horizonTradingDays <= 5)
+  ) {
     return 3;
   }
 
-  if (command.jobType === "weekly") {
+  if (command.jobType === "market-overview" || command.jobType === "weekly") {
     return 10;
   }
 

@@ -85,7 +85,11 @@ function coinGeckoMarketsUrl(perPage: number): string {
 
 function fetchLimit(ctx: CollectContext): number {
   const { command, cryptoMoverLimit } = ctx;
-  if (command.jobType === "daily" || command.jobType === "weekly") {
+  if (
+    command.jobType === "market-overview" ||
+    command.jobType === "daily" ||
+    command.jobType === "weekly"
+  ) {
     return Math.max(cryptoMoverLimit * 10, 50);
   }
   return 250;

@@ -42,11 +42,11 @@ An aggregate measurement of how well stated Prediction probabilities match obser
 
 A Calibration view that groups resolved Predictions by the Market Regime label in effect at forecast time (the persisted `risk-on` / `risk-off` / `mixed` / `insufficient-data` value), reported alongside the existing cadence, asset-class, and horizon slices. `insufficient-data` is a reported regime bin in its own right; runs with no persisted or unparseable regime are excluded but counted as a coverage gap, not folded into a real regime. A regime slice reports a Brier score only once it meets the minimum resolved-sample floor. It describes forecast accuracy by market backdrop; it is not investment conviction, model endorsement, or a trade signal.
 
-## Market Update
+## Market Overview
 
-A daily or weekly research run for an asset class that summarizes market regime, liquid movers, themes, risks, and source gaps.
+A horizon-parameterized research run for an asset class that summarizes market regime, liquid movers, themes, catalysts, risks, and source gaps. It persists as `jobType: "market-overview"` with `horizonTradingDays`.
 
-Weekly market updates are a cadence and horizon change in V1, not a separate trailing-window data product. Equity mover inputs still come from Yahoo `day_gainers`, `day_losers`, and `most_actives` (a single-day multi-screener set), and crypto mover inputs still use CoinGecko 24h change fields; reports must disclose this as a source gap.
+`daily` and `weekly` are deprecated CLI aliases for market overview horizons of 5 and 15 trading days. Legacy artifacts remain readable and map into horizon buckets for calibration and cross-run intelligence. For longer horizons, equity mover inputs still come from Yahoo `day_gainers`, `day_losers`, and `most_actives` (a single-day multi-screener set), and crypto mover inputs still use CoinGecko 24h change fields; reports disclose this as a source gap.
 
 ## Cross-run Intelligence
 
@@ -54,7 +54,7 @@ The umbrella term for every way a run reads curated prior state back in: the His
 
 ## Historical Research Context
 
-Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts; the prompt-time surface of Cross-run Intelligence (above). In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. Selection reasons include recency (`recent`, `anchor-Nm`), topical relevance (`same-symbol`, `spotlight-symbol`, `same-cadence`, `cross-cadence`), and `miss-correction` for recent resolved-miss runs preserved against same-day rerun eviction. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
+Artifact-backed context loaded or derived from prior `MARKET_BOT_DATA_DIR` run artifacts; the prompt-time surface of Cross-run Intelligence (above). In prompt use, it is a compact subset of prior findings, risks, catalysts, data gaps, scored predictions, extras, and selected normalized numeric snapshots; prior reports can appear as citeable `model` Sources. In user-facing history use, it can expose searchable and comparable historical views over prior reports, Sources, Predictions, Research Theses, open questions, and per-Instrument timelines. Selection reasons include recency (`recent`, `anchor-Nm`), topical relevance (`same-symbol`, `spotlight-symbol`, `same-horizon`, `cross-horizon`), and `miss-correction` for recent resolved-miss runs preserved against same-day rerun eviction. It is context for research wording, probability calibration, and historical comparison, not a new prediction-count or horizon policy.
 
 ## Run Artifact
 
@@ -78,7 +78,7 @@ An artifact-backed classification of a material Prediction forecast error, persi
 
 ## Market Update Delta
 
-A compact, deterministic "what changed since the last same-cadence run" summary auto-promoted into a daily or weekly Market Update report, directly after the summary. It carries the regime label change (prior → current, naming flipped breadth/trend/VIX-term-structure drivers), the ranked Mover membership diff (symbols entered vs exited), and Predictions from prior same-asset-class Market Update runs that resolved since the baseline was generated. The baseline is the single most-recent prior run with the same asset class and cadence. It is computed with no model call and is descriptive only — distinct from the instrument-scoped, manual Research Thesis Delta (`history thesis-delta`), and never a trade signal or portfolio action.
+A compact, deterministic "what changed since the last comparable overview" summary auto-promoted into a Market Overview report, directly after the summary. It carries the regime label change (prior → current, naming flipped breadth/trend/VIX-term-structure drivers), the ranked Mover membership diff (symbols entered vs exited), and Predictions from prior same-asset-class, same-horizon-bucket Market Overview runs that resolved since the baseline was generated. It is computed with no model call and is descriptive only — distinct from the instrument-scoped, manual Research Thesis Delta (`history thesis-delta`), and never a trade signal or portfolio action.
 
 ## Verified Market Snapshot
 

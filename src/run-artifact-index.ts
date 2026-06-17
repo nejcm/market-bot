@@ -4,6 +4,8 @@ import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
 import {
+  legacyMarketUpdateHorizon,
+  marketUpdateHorizonBucket,
   isMarketRegimeLabel,
   isMarketUpdateJobType,
   type AssetClass,
@@ -815,7 +817,14 @@ export async function loadResolvedPairsFromIndex(
         assetClass: row.asset_class as AssetClass,
         jobType,
         runId: row.run_id,
-        ...(isMarketUpdateJobType(jobType) ? { marketUpdateCadence: jobType } : {}),
+        ...(isMarketUpdateJobType(jobType)
+          ? {
+              marketUpdateHorizonBucket:
+                jobType === "daily" || jobType === "weekly"
+                  ? marketUpdateHorizonBucket(legacyMarketUpdateHorizon(jobType))
+                  : marketUpdateHorizonBucket(row.horizon_trading_days),
+            }
+          : {}),
         ...(isMarketRegimeLabel(row.market_regime_label)
           ? { marketRegimeLabel: row.market_regime_label }
           : {}),

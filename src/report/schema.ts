@@ -101,6 +101,7 @@ function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string,
   return {
     historicalContext: historicalContextText(extras.historicalContext),
     spotlights: spotlightsText(extras.spotlights),
+    catalystCalendar: catalystCalendarText(extras.catalystCalendar),
   };
 }
 
@@ -131,6 +132,22 @@ function spotlightsText(extra: unknown): readonly string[] {
       return [item.rationale];
     }
     return typeof item.text === "string" ? [item.text] : [];
+  });
+}
+
+function catalystCalendarText(extra: unknown): readonly string[] {
+  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+    return [];
+  }
+  return extra.items.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    return [
+      typeof item.label === "string" ? item.label : undefined,
+      typeof item.sourceStatus === "string" ? item.sourceStatus : undefined,
+      typeof item.researchRelevance === "string" ? item.researchRelevance : undefined,
+    ].filter((value): value is string => value !== undefined);
   });
 }
 
@@ -178,6 +195,23 @@ function validateSpotlightsExtra(extra: unknown, knownSourceIds: ReadonlySet<str
   }
 }
 
+function validateCatalystCalendarExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+    return;
+  }
+  for (const item of extra.items) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    validateKnownSourceIds(
+      "Catalyst Calendar",
+      readStringArray(item.sourceIds),
+      knownSourceIds,
+      typeof item.label === "string",
+    );
+  }
+}
+
 function validateRenderedExtras(
   extras: ResearchReport["extras"],
   knownSourceIds: ReadonlySet<string>,
@@ -187,6 +221,7 @@ function validateRenderedExtras(
   }
   validateHistoricalContextExtra(extras.historicalContext, knownSourceIds);
   validateSpotlightsExtra(extras.spotlights, knownSourceIds);
+  validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds);
 }
 
 export function validatePredictions(

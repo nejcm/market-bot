@@ -79,7 +79,7 @@ function resolvedPair(id: string, probability: number, outcome: "hit" | "miss"):
     },
     assetClass: "equity",
     jobType: "daily",
-    marketUpdateCadence: "daily",
+    marketUpdateHorizonBucket: "1-5d",
     runId: "run-1",
   };
 }
@@ -622,8 +622,8 @@ function historicalContextWith(runs: readonly HistoricalRunContext[]): Historica
       anchorSelectedCount: 0,
       sameSymbolSelectedCount: 0,
       spotlightSymbolSelectedCount: 0,
-      sameCadenceSelectedCount: 0,
-      crossCadenceSelectedCount: 0,
+      sameHorizonSelectedCount: 0,
+      crossHorizonSelectedCount: 0,
       resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
       missCorrectionSelectedCount: runs.filter((run) =>
         run.selectionReasons.includes("miss-correction"),

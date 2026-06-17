@@ -351,7 +351,7 @@ describe("loadHistoricalContext", () => {
     });
   });
 
-  test("tags same-cadence, cross-cadence, and spotlight-symbol relevance reasons for market-update commands", async () => {
+  test("tags same-horizon, cross-horizon, and spotlight-symbol relevance reasons for market-update commands", async () => {
     const dataDir = tempRunsDir();
     const now = new Date("2026-06-04T00:00:00.000Z");
     await writeRun({
@@ -395,14 +395,14 @@ describe("loadHistoricalContext", () => {
     });
 
     const byId = new Map(context.runs.map((run) => [run.runId, run]));
-    expect(byId.get("daily-market")?.selectionReasons).toContain("same-cadence");
-    expect(byId.get("weekly-market")?.selectionReasons).toContain("cross-cadence");
+    expect(byId.get("daily-market")?.selectionReasons).toContain("same-horizon");
+    expect(byId.get("weekly-market")?.selectionReasons).toContain("cross-horizon");
     expect(byId.get("spotlight-aapl")?.selectionReasons).toContain("spotlight-symbol");
     expect(context.audit).toMatchObject({
       sameSymbolSelectedCount: 0,
       spotlightSymbolSelectedCount: 1,
-      sameCadenceSelectedCount: 1,
-      crossCadenceSelectedCount: 1,
+      sameHorizonSelectedCount: 1,
+      crossHorizonSelectedCount: 1,
     });
   });
 

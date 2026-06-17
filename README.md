@@ -29,11 +29,11 @@ bunx lefthook install   # optional — git hooks for contributors
 cp .env.example .env    # see comments in .env.example for required and optional keys
 ```
 
-Run a daily equity market update:
+Run an equity market overview:
 
 ```sh
 export OPENAI_API_KEY=sk-...
-bun run src/cli.ts daily --asset equity
+bun run src/cli.ts market-overview --asset equity
 ```
 
 Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normalized snapshots, and more). See [Data output layout](#data-output-layout).
@@ -42,7 +42,7 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 
 | Capability | Summary |
 | --- | --- |
-| **Market updates** | Daily / weekly equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
+| **Market overview** | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
 | **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation) |
 | **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
 | **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)) |
@@ -69,12 +69,12 @@ Install globally via Bun, or invoke with `bun run src/cli.ts`:
 
 ```sh
 bun link          # optional — adds `market-bot` to PATH from this clone
-market-bot daily --asset equity
+market-bot market-overview --asset equity
 ```
 
 | Command | Purpose |
 | --- | --- |
-| `daily` / `weekly --asset equity\|crypto` | Market update with predictions; optional `--deep` |
+| `market-overview --asset equity\|crypto [--horizon days]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases |
 | `ticker <SYMBOL> --asset equity\|crypto` | Single-instrument brief; `--deep` adds Evidence Request Loop + Coverage Panel (equity) |
 | `alpha-search --asset equity` | Research Leads only — no predictions or calibration side effects |
 | `score` | Resolve due predictions across prior runs |
@@ -89,8 +89,8 @@ Full command reference: [docs/how-it-works.md](./docs/how-it-works.md).
 ### Examples
 
 ```sh
-bun run src/cli.ts daily  --asset equity
-bun run src/cli.ts weekly --asset crypto --deep
+bun run src/cli.ts market-overview --asset equity
+bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts ticker AAPL --asset equity --deep
 bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score

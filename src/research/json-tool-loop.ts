@@ -1,4 +1,4 @@
-import type { SourceGap } from "../domain/types";
+import type { JsonToolLoopAudit, SourceGap } from "../domain/types";
 import { isRecord } from "../sources/guards";
 
 export interface JsonToolLoopOptions {
@@ -36,15 +36,6 @@ export interface JsonToolLoopValidationResult<TRequest, TTool extends string, TA
 export interface JsonToolLoopExecutionResult<TState> {
   readonly state: TState;
   readonly gaps: readonly SourceGap[];
-}
-
-export interface JsonToolLoopAudit<TTool extends string, TAudit> {
-  readonly rounds: number;
-  readonly acceptedRequests: readonly TAudit[];
-  readonly rejectedRequests: readonly TAudit[];
-  readonly sourceUnitsUsed: number;
-  readonly executedTools: readonly TTool[];
-  readonly emittedGaps: readonly SourceGap[];
 }
 
 interface JsonToolLoopInput<
@@ -105,7 +96,7 @@ export async function runJsonToolLoop<
   const executedTools: TTool[] = [];
 
   for (let round = 1; round <= options.maxRounds; round += 1) {
-    const roundState = { round, sourceUnitsUsed, toolCallsUsed, priorStages: stageOutputs };
+    const roundState = { round, sourceUnitsUsed, toolCallsUsed, priorStages: [...stageOutputs] };
     // oxlint-disable-next-line no-await-in-loop -- each round depends on prior evidence and budgets.
     const stageOutput = await input.generateRound(state, roundState);
     stageOutputs.push(stageOutput);
@@ -125,12 +116,7 @@ export async function runJsonToolLoop<
       break;
     }
 
-    const validation = input.validateRequests(parsed, {
-      round,
-      sourceUnitsUsed,
-      toolCallsUsed,
-      priorStages: stageOutputs,
-    });
+    const validation = input.validateRequests(parsed, roundState);
     rejectedRequests.push(...validation.rejected);
     emittedGaps.push(...validation.gaps);
     if (validation.gaps.length > 0) {

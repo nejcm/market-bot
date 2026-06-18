@@ -24,7 +24,7 @@ function dataDir(): string {
 }
 
 function config(overrides: Partial<AppConfig> = {}): AppConfig {
-  return {
+  const baseConfig: AppConfig = {
     provider: "openai",
     quickModel: "quick",
     synthesisModel: "synthesis",
@@ -38,6 +38,11 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
       sourceTimeoutMs: 1000,
     },
     evidenceRequestOptions: {
+      maxRounds: 0,
+      maxToolCalls: 0,
+      sourceBudget: 0,
+    },
+    researchGatherOptions: {
       maxRounds: 0,
       maxToolCalls: 0,
       sourceBudget: 0,
@@ -56,8 +61,8 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
       minMarketCap: 50_000_000,
       maxMarketCap: 10_000_000_000,
     },
-    ...overrides,
   };
+  return { ...baseConfig, ...overrides };
 }
 
 function jsonResponse(payload: unknown): Response {

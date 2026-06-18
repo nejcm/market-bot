@@ -132,10 +132,10 @@ export interface JsonToolLoopAuditEntry {
   readonly sourceUnits?: number;
 }
 
-export interface JsonToolLoopAudit<TTool extends string = string> {
+export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonToolLoopAuditEntry> {
   readonly rounds: number;
-  readonly acceptedRequests: readonly JsonToolLoopAuditEntry[];
-  readonly rejectedRequests: readonly JsonToolLoopAuditEntry[];
+  readonly acceptedRequests: readonly TAudit[];
+  readonly rejectedRequests: readonly TAudit[];
   readonly sourceUnitsUsed: number;
   readonly executedTools: readonly TTool[];
   readonly emittedGaps: readonly SourceGap[];

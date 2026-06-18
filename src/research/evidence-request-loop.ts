@@ -90,6 +90,7 @@ export async function runEvidenceRequestLoop(
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
 
+  // The adapter owns cross-round duplicate tracking; the generic loop only owns budgets.
   const seenKeys = new Set<string>();
   const loop = await runJsonToolLoop<
     CollectedSources,

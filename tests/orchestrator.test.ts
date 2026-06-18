@@ -40,6 +40,11 @@ const config: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
+  researchGatherOptions: {
+    maxRounds: 0,
+    maxToolCalls: 0,
+    sourceBudget: 0,
+  },
   alphaSearchOptions: {
     apeWisdomFilter: "all-stocks",
     apeWisdomBriefPageLimit: 5,

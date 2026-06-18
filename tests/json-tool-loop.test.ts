@@ -20,55 +20,67 @@ interface TestAudit {
 
 type TestStage = JsonToolLoopStageOutput & { readonly stage: "test-loop" };
 
+function testGap(message: string) {
+  return sourceGap({
+    source: "test-loop",
+    message,
+    capability: "research-gather",
+    cause: "malformed-response",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+function testStage(content: string): TestStage {
+  return {
+    stage: "test-loop",
+    content,
+    tokenEstimate: 1,
+    costEstimateUsd: 0,
+  };
+}
+
 describe("runJsonToolLoop", () => {
   test("runs dependent rounds and aggregates audit counters", async () => {
     const priorStageCounts: number[] = [];
+    const validationPriorStageCounts: number[] = [];
 
     const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
       options: { maxRounds: 2, maxToolCalls: 2, sourceBudget: 4 },
       initialState: { executed: [], gaps: [] },
       invalidJsonMessage: "invalid json",
       invalidShapeMessage: "invalid shape",
-      malformedGap: (message) =>
-        sourceGap({
-          source: "test-loop",
-          message,
-          capability: "research-gather",
-          cause: "malformed-response",
-          evidenceQualityImpact: "no-cap",
-        }),
+      malformedGap: testGap,
       generateRound: async (_state, roundState) => {
         priorStageCounts.push(roundState.priorStages.length);
+        const content =
+          roundState.round === 1
+            ? JSON.stringify({ requests: [{ tool: "lookup" }] })
+            : JSON.stringify({ requests: [] });
+        return testStage(content);
+      },
+      validateRequests: (requests, roundState) => {
+        validationPriorStageCounts.push(roundState.priorStages.length);
         return {
-          stage: "test-loop",
-          content:
-            roundState.round === 1
-              ? JSON.stringify({ requests: [{ tool: "lookup" }] })
-              : JSON.stringify({ requests: [] }),
-          tokenEstimate: 1,
-          costEstimateUsd: 0,
+          requests:
+            requests.length === 0
+              ? []
+              : [
+                  {
+                    request: { tool: "lookup" },
+                    audit: {
+                      round: roundState.round,
+                      tool: "lookup",
+                      status: "accepted",
+                      sourceUnits: 2,
+                    },
+                    sourceUnits: 2,
+                    tool: "lookup",
+                  },
+                ],
+          rejected: [],
+          gaps: [],
         };
       },
-      validateRequests: (requests, roundState) => ({
-        requests:
-          requests.length === 0
-            ? []
-            : [
-                {
-                  request: { tool: "lookup" },
-                  audit: {
-                    round: roundState.round,
-                    tool: "lookup",
-                    status: "accepted",
-                    sourceUnits: 2,
-                  },
-                  sourceUnits: 2,
-                  tool: "lookup",
-                },
-              ],
-        rejected: [],
-        gaps: [],
-      }),
       mergeGaps: (state, gaps) => ({
         ...state,
         gaps: [...state.gaps, ...gaps.map((gap) => gap.message)],
@@ -81,6 +93,7 @@ describe("runJsonToolLoop", () => {
 
     expect(result.state.executed).toEqual(["lookup"]);
     expect(priorStageCounts).toEqual([0, 1]);
+    expect(validationPriorStageCounts).toEqual([0]);
     expect(result.audit).toMatchObject({
       rounds: 2,
       sourceUnitsUsed: 2,
@@ -96,20 +109,8 @@ describe("runJsonToolLoop", () => {
       initialState: { executed: [], gaps: [] },
       invalidJsonMessage: "invalid json",
       invalidShapeMessage: "invalid shape",
-      malformedGap: (message) =>
-        sourceGap({
-          source: "test-loop",
-          message,
-          capability: "research-gather",
-          cause: "malformed-response",
-          evidenceQualityImpact: "no-cap",
-        }),
-      generateRound: async () => ({
-        stage: "test-loop",
-        content: "not-json",
-        tokenEstimate: 1,
-        costEstimateUsd: 0,
-      }),
+      malformedGap: testGap,
+      generateRound: async () => testStage("not-json"),
       validateRequests: () => ({ requests: [], rejected: [], gaps: [] }),
       mergeGaps: (state, gaps) => ({
         ...state,
@@ -122,6 +123,123 @@ describe("runJsonToolLoop", () => {
     expect(result.state.gaps).toEqual(["invalid json"]);
     expect(result.audit.emittedGaps).toEqual([
       expect.objectContaining({ message: "invalid json" }),
+    ]);
+  });
+
+  test("returns immediately when max rounds is zero", async () => {
+    let roundsGenerated = 0;
+
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 0, maxToolCalls: 2, sourceBudget: 4 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async () => {
+        roundsGenerated += 1;
+        return testStage(JSON.stringify({ requests: [{ tool: "lookup" }] }));
+      },
+      validateRequests: () => ({ requests: [], rejected: [], gaps: [] }),
+      mergeGaps: (state) => state,
+      executeRequest: async (state) => ({ state, gaps: [] }),
+    });
+
+    expect(roundsGenerated).toBe(0);
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit.rounds).toBe(0);
+  });
+
+  test("stops after tool-call budget is exhausted", async () => {
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 3, maxToolCalls: 1, sourceBudget: 9 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async () => testStage(JSON.stringify({ requests: [{ tool: "lookup" }] })),
+      validateRequests: (_requests, roundState) => ({
+        requests: [
+          {
+            request: { tool: "lookup" },
+            audit: { round: roundState.round, tool: "lookup", status: "accepted", sourceUnits: 1 },
+            sourceUnits: 1,
+            tool: "lookup",
+          },
+        ],
+        rejected: [],
+        gaps: [],
+      }),
+      mergeGaps: (state) => state,
+      executeRequest: async (state, request) => ({
+        state: { ...state, executed: [...state.executed, request.tool] },
+        gaps: [],
+      }),
+    });
+
+    expect(result.stageOutputs).toHaveLength(1);
+    expect(result.audit.sourceUnitsUsed).toBe(1);
+    expect(result.audit.executedTools).toEqual(["lookup"]);
+  });
+
+  test("stops after source budget is exhausted", async () => {
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 3, maxToolCalls: 9, sourceBudget: 2 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async () => testStage(JSON.stringify({ requests: [{ tool: "lookup" }] })),
+      validateRequests: (_requests, roundState) => ({
+        requests: [
+          {
+            request: { tool: "lookup" },
+            audit: { round: roundState.round, tool: "lookup", status: "accepted", sourceUnits: 2 },
+            sourceUnits: 2,
+            tool: "lookup",
+          },
+        ],
+        rejected: [],
+        gaps: [],
+      }),
+      mergeGaps: (state) => state,
+      executeRequest: async (state, request) => ({
+        state: { ...state, executed: [...state.executed, request.tool] },
+        gaps: [],
+      }),
+    });
+
+    expect(result.stageOutputs).toHaveLength(1);
+    expect(result.audit.sourceUnitsUsed).toBe(2);
+    expect(result.state.executed).toEqual(["lookup"]);
+  });
+
+  test("accumulates rejected requests and emitted validation gaps", async () => {
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async () => testStage(JSON.stringify({ requests: [{ tool: "lookup" }] })),
+      validateRequests: (_requests, roundState) => ({
+        requests: [],
+        rejected: [{ round: roundState.round, tool: "lookup", status: "rejected" }],
+        gaps: [testGap("validation failed")],
+      }),
+      mergeGaps: (state, gaps) => ({
+        ...state,
+        gaps: [...state.gaps, ...gaps.map((gap) => gap.message)],
+      }),
+      executeRequest: async (state) => ({ state, gaps: [] }),
+    });
+
+    expect(result.state.executed).toEqual([]);
+    expect(result.state.gaps).toEqual(["validation failed"]);
+    expect(result.audit.rejectedRequests).toEqual([
+      { round: 1, tool: "lookup", status: "rejected" },
+    ]);
+    expect(result.audit.emittedGaps).toEqual([
+      expect.objectContaining({ message: "validation failed" }),
     ]);
   });
 });

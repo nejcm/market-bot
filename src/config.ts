@@ -93,7 +93,7 @@ export interface AppConfig {
   readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
-  readonly researchGatherOptions?: ResearchGatherOptions;
+  readonly researchGatherOptions: ResearchGatherOptions;
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
   readonly forecastDisagreementOptions?: ForecastDisagreementOptions;

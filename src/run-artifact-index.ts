@@ -4,10 +4,8 @@ import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
 import {
-  legacyMarketUpdateHorizon,
-  marketUpdateHorizonBucket,
+  marketUpdateHorizonBucketOf,
   isMarketRegimeLabel,
-  isMarketUpdateJobType,
   type AssetClass,
   type JobType,
   type PredictionKind,
@@ -778,13 +776,7 @@ interface ResolvedPairQueryRow {
 // Not the per-prediction horizon, so index-backed and disk-backed calibration
 // Slice identically regardless of index freshness.
 function marketUpdateBucketForRow(jobType: JobType, runHorizon: number | null): string | undefined {
-  if (!isMarketUpdateJobType(jobType)) {
-    return undefined;
-  }
-  if (jobType === "daily" || jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(jobType));
-  }
-  return runHorizon === null ? undefined : marketUpdateHorizonBucket(runHorizon);
+  return marketUpdateHorizonBucketOf({ jobType, horizonTradingDays: runHorizon ?? undefined });
 }
 
 export async function loadResolvedPairsFromIndex(

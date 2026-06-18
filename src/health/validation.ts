@@ -1,6 +1,5 @@
 import {
-  legacyMarketUpdateHorizon,
-  marketUpdateHorizonBucket,
+  marketUpdateHorizonBucketOf,
   type InstrumentIdentity,
   type SourceGapCause,
 } from "../domain/types";
@@ -142,14 +141,13 @@ function coverageItem(
 }
 
 function runHorizonBucket(run: RunHealth): string | undefined {
-  const horizon = run.horizonTradingDays ?? run.predictionHorizons[0];
-  if (run.jobType === "market-overview" && horizon !== undefined) {
-    return marketUpdateHorizonBucket(horizon);
+  if (run.jobType === undefined) {
+    return undefined;
   }
-  if (run.jobType === "daily" || run.jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(run.jobType));
-  }
-  return undefined;
+  // Market-overview health rows may predate the explicit horizon column, so fall
+  // Back to the first prediction horizon before the canonical derivation.
+  const horizonTradingDays = run.horizonTradingDays ?? run.predictionHorizons[0];
+  return marketUpdateHorizonBucketOf({ jobType: run.jobType, horizonTradingDays });
 }
 
 function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCoverageItem[] {

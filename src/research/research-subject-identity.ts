@@ -62,6 +62,10 @@ export function reportResearchSubjectIdentity(report: ResearchReport): ResearchS
   };
 }
 
+// Two identities match when either the subject key or the prediction proxy
+// Symbol agrees. This relies on prediction proxies being unique per subject in
+// The registry (see DEFAULT_RESEARCH_SUBJECT_REGISTRY): two distinct subjects
+// Must not share a proxy, or this would conflate their cross-run history.
 export function isSameResearchSubjectIdentity(
   current: ResearchSubjectIdentity,
   prior: ResearchSubjectIdentity,

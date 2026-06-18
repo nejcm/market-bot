@@ -35,6 +35,32 @@ export function marketUpdateHorizonBucket(horizonTradingDays: number): string {
   return "16-20d";
 }
 
+// Canonical market-update horizon resolution. Market-overview runs carry an
+// Explicit horizonTradingDays; legacy daily/weekly runs map to their fixed
+// Horizon. Non-market-update job types (ticker/alpha-search/research) have no
+// Market-update horizon. Callers with a richer fallback (e.g. an extras bucket
+// Or a prediction-horizon column) should resolve that first, then delegate.
+export function marketUpdateHorizonOf(source: {
+  readonly jobType: JobType;
+  readonly horizonTradingDays?: number | undefined;
+}): number | undefined {
+  if (source.jobType === "market-overview") {
+    return source.horizonTradingDays;
+  }
+  if (isLegacyMarketUpdateJobType(source.jobType)) {
+    return legacyMarketUpdateHorizon(source.jobType);
+  }
+  return undefined;
+}
+
+export function marketUpdateHorizonBucketOf(source: {
+  readonly jobType: JobType;
+  readonly horizonTradingDays?: number | undefined;
+}): string | undefined {
+  const horizon = marketUpdateHorizonOf(source);
+  return horizon === undefined ? undefined : marketUpdateHorizonBucket(horizon);
+}
+
 export interface Instrument {
   readonly symbol: string;
   readonly assetClass: AssetClass;
@@ -104,7 +130,6 @@ export type SourceGapCapability =
   | "extended-evidence"
   | "market-context"
   | "evidence-request"
-  | "research-gather"
   | "cache";
 
 export type SourceGapCause =
@@ -144,10 +169,6 @@ export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonT
 export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
 
 export type EvidenceRequestLoopAudit = JsonToolLoopAudit<EvidenceRequestToolName>;
-
-export type ResearchGatherAuditEntry = JsonToolLoopAuditEntry;
-
-export type ResearchGatherLoopAudit = JsonToolLoopAudit;
 
 export interface DomainPlaybookSelectionAudit {
   readonly selected: readonly {

@@ -1,6 +1,5 @@
 import {
   MARKET_REGIME_LABELS,
-  legacyMarketUpdateHorizon,
   marketUpdateHorizonBucket,
   type AssetClass,
   type JobType,
@@ -114,19 +113,6 @@ function groupMetrics(
 
 function horizonBucket({ prediction }: ResolvedPair): string {
   return marketUpdateHorizonBucket(prediction.horizonTradingDays);
-}
-
-export function reportMarketUpdateHorizonBucket(input: {
-  readonly jobType: JobType;
-  readonly horizonTradingDays?: number;
-}): string | undefined {
-  if (input.jobType === "market-overview" && input.horizonTradingDays !== undefined) {
-    return marketUpdateHorizonBucket(input.horizonTradingDays);
-  }
-  if (input.jobType === "daily" || input.jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(input.jobType));
-  }
-  return undefined;
 }
 
 function countMissAutopsies(pairs: readonly ResolvedPair[]): Record<string, number> {

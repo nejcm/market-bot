@@ -11,8 +11,7 @@ import {
 } from "../artifacts";
 import {
   isMarketUpdateJobType,
-  legacyMarketUpdateHorizon,
-  marketUpdateHorizonBucket,
+  marketUpdateHorizonBucketOf,
   type Mover,
   type ResearchReport,
   type RunTrace,
@@ -267,21 +266,20 @@ function emptySpotlightSelection(cap: number, candidateCount: number): Spotlight
 }
 
 function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
+  const marketUpdateHorizonBucket = marketUpdateHorizonBucketOf(command);
+  if (marketUpdateHorizonBucket === undefined) {
+    return {};
+  }
   if (command.jobType === "market-overview") {
     return {
-      marketUpdateHorizonBucket: marketUpdateHorizonBucket(command.horizonTradingDays),
+      marketUpdateHorizonBucket,
       ...(command.legacyAlias !== undefined
         ? { legacyMarketUpdateAlias: command.legacyAlias }
         : {}),
     };
   }
   if (command.jobType === "daily" || command.jobType === "weekly") {
-    return {
-      marketUpdateHorizonBucket: marketUpdateHorizonBucket(
-        legacyMarketUpdateHorizon(command.jobType),
-      ),
-      marketUpdateCadence: command.jobType,
-    };
+    return { marketUpdateHorizonBucket, marketUpdateCadence: command.jobType };
   }
   return {};
 }

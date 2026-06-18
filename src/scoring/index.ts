@@ -25,7 +25,7 @@ import {
   type AlphaValidationPrerequisiteInput,
   type AlphaValidationFile,
 } from "../alpha-search/validation";
-import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
+import { marketUpdateHorizonBucketOf, type Prediction, type ResearchReport } from "../domain/types";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
@@ -33,11 +33,7 @@ import {
   loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
 } from "../run-artifact-index";
-import {
-  buildCalibrationSummary,
-  reportMarketUpdateHorizonBucket,
-  type ResolvedPair,
-} from "./calibration";
+import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import { buildMissAutopsyFile } from "./miss-autopsy";
 import {
@@ -633,14 +629,7 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
       return [];
     }
     const missAutopsy = autopsyByPrediction.get(prediction.id);
-    const marketUpdateHorizonBucket = isMarketUpdateJobType(report.jobType)
-      ? reportMarketUpdateHorizonBucket({
-          jobType: report.jobType,
-          ...(report.horizonTradingDays !== undefined
-            ? { horizonTradingDays: report.horizonTradingDays }
-            : {}),
-        })
-      : undefined;
+    const marketUpdateHorizonBucket = marketUpdateHorizonBucketOf(report);
     return [
       {
         prediction,

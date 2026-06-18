@@ -5,7 +5,7 @@ import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
-import { legacyMarketUpdateHorizon, marketUpdateHorizonBucket } from "../domain/types";
+import { marketUpdateHorizonBucketOf, marketUpdateHorizonOf } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
@@ -57,7 +57,7 @@ export function deterministicSourceGaps(
     collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
       ? [`No market snapshot matched ticker ${command.symbol}`]
       : [];
-  const marketUpdateHorizon = commandMarketUpdateHorizon(command);
+  const marketUpdateHorizon = marketUpdateHorizonOf(command);
   const overviewMoverGaps =
     marketUpdateHorizon !== undefined && marketUpdateHorizon > 5
       ? [
@@ -82,16 +82,6 @@ export function deterministicSourceGaps(
     ...overviewMoverGaps,
     ...verifiedSnapshotGaps,
   ];
-}
-
-function commandMarketUpdateHorizon(command: ResearchCommand): number | undefined {
-  if (command.jobType === "market-overview") {
-    return command.horizonTradingDays;
-  }
-  if (command.jobType === "daily" || command.jobType === "weekly") {
-    return legacyMarketUpdateHorizon(command.jobType);
-  }
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,13 +382,13 @@ function isConfiguredMarketSubject(subject: string, subjectKeys: ReadonlySet<str
 }
 
 function historicalRunHorizonBucket(run: HistoricalRunContext): string | undefined {
+  // The run context carries no horizonTradingDays, so market-overview history
+  // Resolves its bucket from the persisted extras; legacy daily/weekly falls
+  // Back to the canonical derivation.
   if (typeof run.keyExtras?.marketUpdateHorizonBucket === "string") {
     return run.keyExtras.marketUpdateHorizonBucket;
   }
-  if (run.jobType === "daily" || run.jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(run.jobType));
-  }
-  return undefined;
+  return marketUpdateHorizonBucketOf(run);
 }
 
 // Market-scoped sibling of collectPriorMisses (ADR 0015): for market-overview runs,
@@ -420,10 +410,7 @@ function collectMarketForecastMisses(
     return [];
   }
   const subjectKeys = new Set(predictionSubjects.map((subject) => subject.trim().toUpperCase()));
-  const commandBucket =
-    command.jobType === "market-overview"
-      ? marketUpdateHorizonBucket(command.horizonTradingDays)
-      : marketUpdateHorizonBucket(legacyMarketUpdateHorizon(command.jobType));
+  const commandBucket = marketUpdateHorizonBucketOf(command);
   const misses: PriorMiss[] = [];
   for (const run of historicalContext.runs) {
     if (

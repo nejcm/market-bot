@@ -24,7 +24,7 @@ function testGap(message: string) {
   return sourceGap({
     source: "test-loop",
     message,
-    capability: "research-gather",
+    capability: "evidence-request",
     cause: "malformed-response",
     evidenceQualityImpact: "no-cap",
   });

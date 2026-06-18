@@ -1,13 +1,12 @@
 import type { ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
 import {
-  legacyMarketUpdateHorizon,
-  marketUpdateHorizonBucket,
+  isMarketUpdateJobType,
+  marketUpdateHorizonBucketOf,
   type AssetClass,
   type EvidenceQuality,
   type JobType,
   type KeyFinding,
-  type MarketUpdateJobType,
   type MarketSnapshot,
   type ResearchReport,
   type Source,
@@ -180,10 +179,6 @@ export interface HistoricalContextReader {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 8;
 
-function isMarketUpdateJobType(value: JobType): value is MarketUpdateJobType {
-  return value === "market-overview" || value === "daily" || value === "weekly";
-}
-
 // Project the reader's full MarketSnapshot down to the compact numeric shape the
 // Historical context exposes, keeping only the benchmark fields it surfaces.
 function toHistoricalSnapshot(snapshot: MarketSnapshot): HistoricalNumericSnapshot {
@@ -246,8 +241,8 @@ function sortPreferredHorizon(
 ): (left: HistoricalArtifact, right: HistoricalArtifact) => number {
   return (left, right) => {
     if (preferred !== undefined) {
-      const leftPreferred = artifactMarketHorizonBucket(left.report) === preferred;
-      const rightPreferred = artifactMarketHorizonBucket(right.report) === preferred;
+      const leftPreferred = marketUpdateHorizonBucketOf(left.report) === preferred;
+      const rightPreferred = marketUpdateHorizonBucketOf(right.report) === preferred;
       if (leftPreferred !== rightPreferred) {
         return leftPreferred ? -1 : 1;
       }
@@ -265,7 +260,7 @@ function selectArtifacts(input: {
   readonly limit: number;
   readonly options: HistoryOptions;
   readonly now: Date;
-  readonly preferredHorizonBucket?: string;
+  readonly preferredHorizonBucket?: string | undefined;
 }): readonly SelectedArtifact[] {
   const { candidates, limit, options, now, preferredHorizonBucket } = input;
   const selected = new Map<string, HistoricalSelectionReason[]>();
@@ -402,7 +397,7 @@ function compactSnapshots(
 function keyExtras(report: ResearchReport): Record<string, unknown> | undefined {
   const { extras } = report;
   if (extras === undefined) {
-    const bucket = artifactMarketHorizonBucket(report);
+    const bucket = marketUpdateHorizonBucketOf(report);
     return bucket === undefined ? undefined : { marketUpdateHorizonBucket: bucket };
   }
   const result: Record<string, unknown> = {};
@@ -415,7 +410,7 @@ function keyExtras(report: ResearchReport): Record<string, unknown> | undefined 
     result.marketUpdateHorizonBucket = extras.marketUpdateCadence === "weekly" ? "11-15d" : "1-5d";
   }
   if (result.marketUpdateHorizonBucket === undefined) {
-    const bucket = artifactMarketHorizonBucket(report);
+    const bucket = marketUpdateHorizonBucketOf(report);
     if (bucket !== undefined) {
       result.marketUpdateHorizonBucket = bucket;
     }
@@ -513,16 +508,6 @@ function withRelevanceReasons(
   });
 }
 
-function artifactMarketHorizonBucket(report: ResearchReport): string | undefined {
-  if (report.jobType === "market-overview" && report.horizonTradingDays !== undefined) {
-    return marketUpdateHorizonBucket(report.horizonTradingDays);
-  }
-  if (report.jobType === "daily" || report.jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(report.jobType));
-  }
-  return undefined;
-}
-
 // `same-horizon` / `cross-horizon` describe relevance to market overview commands.
 // Ticker and alpha-search commands pull in market-update history for general
 // Regime context, not horizon-matched forecasting context.
@@ -530,18 +515,11 @@ function marketHorizonReason(
   artifact: HistoricalArtifact,
   command: ResearchCommand,
 ): HistoricalRelevanceReason | undefined {
-  if (
-    command.jobType !== "market-overview" &&
-    command.jobType !== "daily" &&
-    command.jobType !== "weekly"
-  ) {
+  if (!isMarketUpdateJobType(command.jobType)) {
     return undefined;
   }
-  const artifactBucket = artifactMarketHorizonBucket(artifact.report);
-  const commandBucket =
-    command.jobType === "market-overview"
-      ? marketUpdateHorizonBucket(command.horizonTradingDays)
-      : marketUpdateHorizonBucket(legacyMarketUpdateHorizon(command.jobType));
+  const artifactBucket = marketUpdateHorizonBucketOf(artifact.report);
+  const commandBucket = marketUpdateHorizonBucketOf(command);
   return artifactBucket === commandBucket ? "same-horizon" : "cross-horizon";
 }
 
@@ -684,27 +662,13 @@ function buildHistoricalContext(
   addSelections(
     selected,
     withRelevanceReasons(
-      selectArtifacts(
-        input.command.jobType === "market-overview" ||
-          input.command.jobType === "daily" ||
-          input.command.jobType === "weekly"
-          ? {
-              candidates: sameAssetMarketRuns,
-              limit: options.marketRecentLimit,
-              options,
-              now,
-              preferredHorizonBucket:
-                input.command.jobType === "market-overview"
-                  ? marketUpdateHorizonBucket(input.command.horizonTradingDays)
-                  : marketUpdateHorizonBucket(legacyMarketUpdateHorizon(input.command.jobType)),
-            }
-          : {
-              candidates: sameAssetMarketRuns,
-              limit: options.marketRecentLimit,
-              options,
-              now,
-            },
-      ),
+      selectArtifacts({
+        candidates: sameAssetMarketRuns,
+        limit: options.marketRecentLimit,
+        options,
+        now,
+        preferredHorizonBucket: marketUpdateHorizonBucketOf(input.command),
+      }),
       (artifact) => marketHorizonReason(artifact, input.command),
     ),
   );

@@ -227,12 +227,8 @@ export function mandatoryPlaybookSelections(
     return [];
   }
   const eligible = buildEligibilityMap(candidates);
-  const sourceDisciplineStages = eligible.get(SOURCE_DISCIPLINE_PLAYBOOK_ID);
-  if (sourceDisciplineStages === undefined) {
-    throw new Error(
-      `Mandatory playbook ${SOURCE_DISCIPLINE_PLAYBOOK_ID} is not eligible for research stages: ${requiredStages.join(", ")}`,
-    );
-  }
+  const sourceDisciplineStages =
+    eligible.get(SOURCE_DISCIPLINE_PLAYBOOK_ID) ?? new Set<PlaybookStage>();
   const missingStages = requiredStages.filter((stage) => !sourceDisciplineStages.has(stage));
   if (missingStages.length > 0) {
     throw new Error(

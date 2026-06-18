@@ -4,8 +4,7 @@ import type { ResearchCommand } from "../cli/args";
 import {
   isMarketRegimeLabel,
   isMarketUpdateJobType,
-  legacyMarketUpdateHorizon,
-  marketUpdateHorizonBucket,
+  marketUpdateHorizonBucketOf,
   type AssetClass,
   type MarketRegimeLabel,
   type MarketRegimeSummary,
@@ -177,26 +176,6 @@ function regimeFromExtras(extras: Record<string, unknown> | undefined): {
   };
 }
 
-function reportHorizonBucket(report: RunArtifact["report"]): string | undefined {
-  if (report.jobType === "market-overview" && report.horizonTradingDays !== undefined) {
-    return marketUpdateHorizonBucket(report.horizonTradingDays);
-  }
-  if (report.jobType === "daily" || report.jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(report.jobType));
-  }
-  return undefined;
-}
-
-function commandHorizonBucket(command: ResearchCommand): string | undefined {
-  if (command.jobType === "market-overview") {
-    return marketUpdateHorizonBucket(command.horizonTradingDays);
-  }
-  if (command.jobType === "daily" || command.jobType === "weekly") {
-    return marketUpdateHorizonBucket(legacyMarketUpdateHorizon(command.jobType));
-  }
-  return undefined;
-}
-
 // ---------------------------------------------------------------------------
 // Mover membership diff
 // ---------------------------------------------------------------------------
@@ -259,7 +238,7 @@ function resolvedSince(
     .filter(
       (run) => run.report.assetClass === assetClass && isMarketUpdateJobType(run.report.jobType),
     )
-    .filter((run) => reportHorizonBucket(run.report) === horizonBucket)
+    .filter((run) => marketUpdateHorizonBucketOf(run.report) === horizonBucket)
     .flatMap((run): readonly MarketUpdateDeltaResolvedPrediction[] => {
       const claims = predictionClaims(run);
       return run.scores.flatMap((score): MarketUpdateDeltaResolvedPrediction[] => {
@@ -305,7 +284,7 @@ export async function buildMarketUpdateDelta(
   const { command, currentRegime } = input;
   const { artifacts: runs } = await scanRunArtifacts(input.dataDir);
   const nowTime = input.now.getTime();
-  const commandBucket = commandHorizonBucket(command);
+  const commandBucket = marketUpdateHorizonBucketOf(command);
   if (commandBucket === undefined) {
     return {
       hasBaseline: false,
@@ -322,7 +301,7 @@ export async function buildMarketUpdateDelta(
       (run) =>
         run.report.assetClass === command.assetClass &&
         isMarketUpdateJobType(run.report.jobType) &&
-        reportHorizonBucket(run.report) === commandBucket &&
+        marketUpdateHorizonBucketOf(run.report) === commandBucket &&
         timeValue(run.report.generatedAt) < nowTime,
     )
     .toSorted(

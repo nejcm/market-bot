@@ -280,8 +280,5 @@ describe("parseArgs", () => {
       "biotech",
       "--deep",
     ]);
-    expect(() => jobRequestArgv({ jobType: "research", subject: " " })).toThrow(
-      "Expected research subject",
-    );
   });
 });

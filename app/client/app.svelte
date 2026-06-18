@@ -391,6 +391,12 @@
 
   function updateJobForm(field: JobFormField, value: string): void {
     jobForm[field] = value;
+    if (field === "jobType" && value !== "research") {
+      jobForm.subject = "";
+    }
+    if (field === "jobType" && value !== "ticker") {
+      jobForm.symbol = "";
+    }
   }
 
   onMount(() => {

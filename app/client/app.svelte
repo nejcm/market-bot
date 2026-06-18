@@ -93,6 +93,7 @@
     jobType: "market-overview",
     assetClass: "equity",
     symbol: "",
+    subject: "",
     depth: "brief",
     horizonTradingDays: "15",
   });
@@ -374,6 +375,7 @@
         jobType: jobForm.jobType,
         assetClass: jobForm.assetClass,
         symbol: jobForm.symbol,
+        subject: jobForm.subject,
         depth: jobForm.depth,
         horizonTradingDays: Number(jobForm.horizonTradingDays),
       });

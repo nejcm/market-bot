@@ -44,7 +44,7 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 | --- | --- |
 | **Market overview** | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
 | **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation) |
-| **Thematic research** | `research` run-type support for equity subjects with checked-in subject/proxy identity; CLI execution is not exposed yet |
+| **Thematic research** | Equity subject research via `research <subject>` with checked-in subject/proxy identity |
 | **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
 | **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)); thematic research forecasts only score a resolved listed proxy |
 | **Scoring & calibration** | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline |
@@ -79,6 +79,7 @@ market-bot market-overview --asset equity
 | --- | --- |
 | `market-overview --asset equity\|crypto [--horizon days]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases |
 | `ticker <SYMBOL> --asset equity\|crypto` | Single-instrument brief; `--deep` adds Evidence Request Loop + Coverage Panel (equity) |
+| `research <subject> [--deep]` | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions |
 | `alpha-search --asset equity` | Research Leads only — no predictions or calibration side effects |
 | `score` | Resolve due predictions across prior runs |
 | `calibration` | Rebuild calibration summary + print reliability dashboard |
@@ -95,6 +96,7 @@ Full command reference: [docs/how-it-works.md](./docs/how-it-works.md).
 bun run src/cli.ts market-overview --asset equity
 bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts ticker AAPL --asset equity --deep
+bun run src/cli.ts research AI biotech --deep
 bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score
 bun run src/cli.ts calibration

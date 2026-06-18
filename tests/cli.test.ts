@@ -58,6 +58,35 @@ describe("parseArgs", () => {
     });
   });
 
+  test("parses thematic research subject", () => {
+    expect(parseArgs(["research", "AI", "biotech"])).toEqual({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI biotech",
+      depth: "brief",
+    });
+  });
+
+  test("parses deep thematic research subject", () => {
+    expect(parseArgs(["research", "semis", "--deep"])).toEqual({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "semis",
+      depth: "deep",
+    });
+  });
+
+  test("rejects invalid thematic research arguments", () => {
+    expect(() => parseArgs(["research"])).toThrow("Expected subject for research command");
+    expect(() => parseArgs(["research", "semis", "--asset", "equity"])).toThrow(
+      "Unknown flag: --asset",
+    );
+    expect(() => parseArgs(["research", "semis", "--proxy", "SMH"])).toThrow(
+      "Unknown flag: --proxy",
+    );
+    expect(() => parseArgs(["research", "semis", "--fast"])).toThrow("Unknown flag: --fast");
+  });
+
   test("rejects alpha-search non-equity assets", () => {
     expect(() => parseArgs(["alpha-search", "--asset", "crypto"])).toThrow(
       "alpha-search supports only --asset equity in V1",
@@ -215,6 +244,7 @@ describe("parseArgs", () => {
       "weekly",
       "market-overview",
       "ticker",
+      "research",
       "alpha-search",
       "score",
       "calibration",
@@ -233,6 +263,7 @@ describe("parseArgs", () => {
     expect(jobSupportsAsset("ticker")).toBe(true);
     expect(jobSupportsAsset("score")).toBe(false);
     expect(jobSupportsDepth("alpha-search")).toBe(true);
+    expect(jobSupportsDepth("research")).toBe(true);
     expect(jobSupportsDepth("provider-health")).toBe(false);
   });
 
@@ -243,5 +274,14 @@ describe("parseArgs", () => {
       "--asset",
       "equity",
     ]);
+    expect(jobRequestArgv({ jobType: "research", subject: "AI biotech", depth: "deep" })).toEqual([
+      "research",
+      "AI",
+      "biotech",
+      "--deep",
+    ]);
+    expect(() => jobRequestArgv({ jobType: "research", subject: " " })).toThrow(
+      "Expected research subject",
+    );
   });
 });

@@ -123,6 +123,7 @@ export const CONSOLE_JOB_TYPES = [
   "weekly",
   "market-overview",
   "ticker",
+  "research",
   "alpha-search",
   "score",
   "calibration",
@@ -271,6 +272,19 @@ export function jobRequestArgv(value: unknown): readonly string[] {
       "alpha-search",
       "--asset",
       "equity",
+      ...depthArg(readDepth(readString(value, "depth"))),
+    ];
+  }
+
+  if (jobType === "research") {
+    const subject = readString(value, "subject")?.trim();
+    if (subject === undefined || subject === "") {
+      throw new Error("Expected research subject");
+    }
+
+    return [
+      "research",
+      ...subject.split(/\s+/u),
       ...depthArg(readDepth(readString(value, "depth"))),
     ];
   }

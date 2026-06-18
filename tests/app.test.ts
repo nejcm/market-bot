@@ -222,6 +222,110 @@ describe("runCli", () => {
     expect(calls).toEqual(["alpha-search", "index"]);
   });
 
+  test("resolves registered thematic research subject before persistence", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-research-proxy-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const runDir = join(dataDir, "research-run");
+
+    await runCli(["research", "semis"], {
+      createProvider: () => ({
+        name: "test" as const,
+        generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+      }),
+      collectSources: async (command) => {
+        expect(command).toMatchObject({
+          jobType: "research",
+          subject: "semis",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+        });
+        return collectedSources();
+      },
+      persistResearchJob: async ({ command }) => {
+        expect(command).toMatchObject({
+          jobType: "research",
+          subject: "semis",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+        });
+        return {
+          report: researchReport({ runId: "research-run", jobType: "research" }),
+          markdown: "",
+          trace: {},
+          analytics: {},
+          stageOutputs: [],
+          collectedSources: collectedSources(),
+          historicalContext: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as unknown as PersistedResearchJobResult;
+      },
+      runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+      buildAndWriteCalibration: async () => null,
+      writeThroughRunArtifactIndex: async () => {},
+      rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+    });
+  });
+
+  test("keeps unregistered thematic research subject runnable without proxy", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-research-unresolved-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const runDir = join(dataDir, "research-run");
+
+    await runCli(["research", "frontier", "widgets"], {
+      createProvider: () => ({
+        name: "test" as const,
+        generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+      }),
+      collectSources: async (command) => {
+        expect(command).toMatchObject({
+          jobType: "research",
+          subject: "frontier widgets",
+        });
+        expect("subjectKey" in command).toBe(false);
+        expect("predictionProxySymbol" in command).toBe(false);
+        return collectedSources();
+      },
+      persistResearchJob: async ({ command }) => {
+        expect(command).toMatchObject({
+          jobType: "research",
+          subject: "frontier widgets",
+        });
+        expect("subjectKey" in command).toBe(false);
+        expect("predictionProxySymbol" in command).toBe(false);
+        return {
+          report: researchReport({ runId: "research-run", jobType: "research" }),
+          markdown: "",
+          trace: {},
+          analytics: {},
+          stageOutputs: [],
+          collectedSources: collectedSources(),
+          historicalContext: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as unknown as PersistedResearchJobResult;
+      },
+      runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+      buildAndWriteCalibration: async () => null,
+      writeThroughRunArtifactIndex: async () => {},
+      rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+    });
+  });
+
   test("cache prune reports cache pruning without raw snapshot redaction", async () => {
     const dataDir = join(
       tmpdir(),

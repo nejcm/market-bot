@@ -10,6 +10,7 @@ import {
   type HistoryThesisDeltaCommand,
   type IndexRebuildCommand,
   type MarketOverviewCommand,
+  type ResearchSubjectCommand,
 } from "./job-registry";
 
 export { commandLabel };
@@ -128,6 +129,20 @@ function parseMarketOverviewArgs(
   };
 }
 
+function parseResearchArgs(args: readonly string[]): ResearchSubjectCommand {
+  const subject = readPromptPositionals(args, new Set(["--deep"]));
+  if (subject === undefined) {
+    throw new Error("Expected subject for research command");
+  }
+
+  return {
+    jobType: "research",
+    assetClass: "equity",
+    subject,
+    depth: readDepth(args),
+  };
+}
+
 function readSection(value: string | undefined): HistorySection | undefined {
   if (value === undefined) {
     return;
@@ -221,6 +236,10 @@ export function parseArgs(args: readonly string[]): CliCommand {
       assetClass,
       depth: readDepth(args),
     };
+  }
+
+  if (command === "research") {
+    return parseResearchArgs(args);
   }
 
   if (command === "score") {

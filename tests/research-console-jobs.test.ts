@@ -44,7 +44,16 @@ describe("research console app jobs", () => {
       "--asset",
       "equity",
     ]);
+    expect(jobRequestArgv({ jobType: "research", subject: "AI biotech", depth: "deep" })).toEqual([
+      "research",
+      "AI",
+      "biotech",
+      "--deep",
+    ]);
     expect(jobRequestArgv({ jobType: "cache-prune" })).toEqual(["cache", "prune"]);
+    expect(() => jobRequestArgv({ jobType: "research", subject: " " })).toThrow(
+      "Expected research subject",
+    );
     expect(() => jobRequestArgv({ jobType: "shell", command: "echo nope" })).toThrow(
       "Unsupported job type",
     );

@@ -34,6 +34,7 @@ export interface JobFormState {
   readonly jobType: string;
   readonly assetClass: string;
   readonly symbol: string;
+  readonly subject: string;
   readonly depth: string;
   readonly horizonTradingDays: string;
 }

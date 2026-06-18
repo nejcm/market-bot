@@ -39,7 +39,7 @@ CLI args
 4. `alpha-search` collects ApeWisdom social-momentum candidates, ranks equity candidates, adds SEC current-filing candidates, filters candidates through official listed-symbol metadata, Yahoo-validates eligible rows against the stock-only small-cap screen, and writes Research Leads, deterministic candidate profiles, profile/fundamental coverage counts, and rejected candidates without predictions. SEC Fundamental Evidence remains in `normalized/candidate-profiles.json` / `normalized/sec-fundamentals.json`, not in `researchLeads`; unmapped S-1/F-1/8-K/6-K filings are disclosed as pre-ticker mapping gaps. Oversized alpha raw payloads are compacted in `raw/snapshots.json` to byte count, SHA-256 digest, and structural summary while normalized sidecars remain complete.
 5. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
 6. `cache prune` removes old cache entries without generating research.
-7. Market overview, legacy daily/weekly alias, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
+7. Market overview, legacy daily/weekly alias, ticker, and thematic `research` commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
 
 ## Commands
 
@@ -52,6 +52,8 @@ bun run src/cli.ts market-overview --asset equity --horizon 5
 bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts ticker AAPL --asset equity
 bun run src/cli.ts ticker BTC --asset crypto
+bun run src/cli.ts research AI biotech
+bun run src/cli.ts research semis --deep
 bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score
 bun run src/cli.ts calibration
@@ -68,6 +70,7 @@ If installed as a binary, the same verbs are available through `market-bot`:
 market-bot market-overview --asset equity
 market-bot market-overview --asset crypto --horizon 15 --deep
 market-bot ticker AAPL --asset equity --deep
+market-bot research AI biotech --deep
 market-bot alpha-search --asset equity --deep
 market-bot score
 market-bot calibration
@@ -85,6 +88,7 @@ Command behavior:
 | `market-overview --asset equity\|crypto [--horizon days] [prompt]` | Canonical whole-market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence. `--horizon` sets the forecast horizon in trading days (default 15); an optional free-text prompt steers spotlight selection and final synthesis. Longer horizons still draw current mover inputs from daily-style source payloads, disclosed as source gaps. |
 | `daily` / `weekly --asset equity\|crypto` | Deprecated aliases that dispatch into `market-overview` with preset horizons (`daily` -> 5 trading days, `weekly` -> 15). Retained for zero-break migration; prefer `market-overview --horizon`. |
 | `ticker <symbol> --asset equity\|crypto` | Creates a detailed single-instrument research view with same-symbol historical context. Symbols are normalized to uppercase and must match the instrument validator.                                                                                                                                                                                            |
+| `research <subject> [--deep]`           | Creates an equity thematic Research View. Subject text is the non-flag words after `research`; `--asset` and manual proxy flags are not accepted. Registry hits with a listed ETF proxy emit proxy-only forecasts and quote collection. Registry misses, or entries without a single proxy, still produce a report with zero scored predictions and a disclosed proxy gap. |
 | `alpha-search --asset equity`            | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
 | `--deep`                                 | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass.                                                                                                                                                                                                                     |
 | `score`                                  | Resolves due predictions in previous runs and writes `score.json` files.                                                                                                                                                                                                                                                                                        |
@@ -96,7 +100,7 @@ Command behavior:
 | `history search --query <text>`          | Searches prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts with optional filters. Uses the SQLite index when fresh; otherwise falls back to `data/history/index.json`.                                                                                                                    |
 | `history thesis-delta <symbol>`          | Compares two historical Research Thesis states for an Instrument. By default it renders a deterministic delta; `--narrative` adds and persists a model-written research-only narrative.                                                                                                                                                                         |
 
-The shared run taxonomy also includes `research` for equity subject research artifacts. It is a `JobType` used by report validation, history/search filters, calibration/index rows, and subject identity helpers; `market-bot research <subject>` is not parsed by the public CLI yet.
+The shared run taxonomy includes `research` for equity subject research artifacts. It is parsed by the public CLI and Research Console as `research <subject> [--deep]`, and is also used by report validation, history/search filters, calibration/index rows, and subject identity helpers.
 
 Provider-health v2 expects coverage for short- and medium-horizon equity/crypto market overviews, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Legacy daily/weekly artifacts count during migration because they map into market-overview horizon buckets. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, missing due scoring passes, and unsupported/unreadable Run Artifact Index schemas. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict. Missing history on first-run paths is a soft Historical Context Gap, not a provider-health failure.
 

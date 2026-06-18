@@ -100,6 +100,19 @@
         />
       </label>
     {/if}
+    {#if jobForm.jobType === "research"}
+      <label class="space-y-1">
+        <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
+          Subject
+        </span>
+        <Input
+          class="h-8 w-48 bg-background text-xs"
+          value={jobForm.subject}
+          placeholder="e.g. AI biotech"
+          oninput={(event) => onJobFormChange("subject", event.currentTarget.value)}
+        />
+      </label>
+    {/if}
     {#if jobSupportsDepth(jobForm.jobType)}
       <div class="min-w-32">
         <SelectField

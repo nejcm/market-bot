@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { parseArgs } from "./cli/args";
+import { parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { createAnthropicProvider } from "./model/anthropic";
@@ -8,6 +8,7 @@ import { createOpenAIProvider } from "./model/openai";
 import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
+import { resolveResearchSubjectProxy } from "./research/subject-registry";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
@@ -214,14 +215,15 @@ export async function runCli(
   }
 
   const provider = (dependencies.createProvider ?? createProvider)(config);
+  const researchCommand = enrichResearchSubjectCommand(asResearchCommand(command));
   const collectedSources = await (dependencies.collectSources ?? collectSources)(
-    command,
+    researchCommand,
     config.sourceOptions,
   );
 
   const invokedAt = now();
   const result = await (dependencies.persistResearchJob ?? persistResearchJob)({
-    command,
+    command: researchCommand,
     config,
     provider,
     collectedSources,
@@ -252,4 +254,38 @@ export async function runCli(
   );
 
   return result.artifacts.runDir;
+}
+
+function asResearchCommand(command: ReturnType<typeof parseArgs>): ResearchCommand {
+  if (
+    command.jobType === "market-overview" ||
+    command.jobType === "daily" ||
+    command.jobType === "weekly" ||
+    command.jobType === "ticker" ||
+    command.jobType === "research"
+  ) {
+    return command;
+  }
+
+  throw new Error(`Unsupported research command: ${command.jobType}`);
+}
+
+function enrichResearchSubjectCommand(command: ResearchCommand): ResearchCommand {
+  if (command.jobType !== "research") {
+    return command;
+  }
+
+  const resolution = resolveResearchSubjectProxy(command.subject);
+  const subjectKey = resolution.subject?.subjectKey;
+  if (resolution.status !== "resolved" || subjectKey === undefined) {
+    return command;
+  }
+
+  return {
+    ...command,
+    subjectKey,
+    ...(resolution.predictionProxySymbol !== undefined
+      ? { predictionProxySymbol: resolution.predictionProxySymbol }
+      : {}),
+  };
 }

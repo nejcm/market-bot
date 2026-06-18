@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The planned `research <subject>` run needs segment/theme identity before it can emit scored
+The `research <subject>` run needs segment/theme identity before it can emit scored
 predictions. Raw prompt text would fragment history (`semis`, `chip stocks`, `semiconductors`),
 while model-selected proxies would make scored prediction subjects nondeterministic.
 

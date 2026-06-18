@@ -8,7 +8,7 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord } from "../sources/guards";
 
-const ALPHA_SEARCH_NOTE =
+const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
 
 function sourceRefs(sourceIds: readonly string[]): string {
@@ -421,7 +421,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   return [
     `# ${report.assetClass} Alpha Search Report`,
     "",
-    ALPHA_SEARCH_NOTE,
+    RESEARCH_ONLY_ALPHA_SEARCH_NOTE,
     "",
     `Generated: ${report.generatedAt}`,
     `Evidence Quality: ${report.confidence}`,

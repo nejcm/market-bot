@@ -1159,6 +1159,25 @@ describe("report schema and rendering", () => {
     expect(markdown).not.toContain("BAD");
   });
 
+  test("omits research spotlights when no prediction proxy resolved", () => {
+    const { symbol: _symbol, ...researchReport } = report;
+    const markdown = renderMarkdownReport({
+      ...researchReport,
+      jobType: "research",
+      extras: {
+        depthProfile: {
+          predictionSubjects: [],
+        },
+        spotlights: {
+          items: [{ symbol: "AAPL", rationale: "Off-subject spotlight.", sourceIds: ["source-1"] }],
+        },
+      },
+    });
+
+    expect(markdown).not.toContain("## Market Spotlights");
+    expect(markdown).not.toContain("Off-subject spotlight.");
+  });
+
   test("renders market overview titles", () => {
     const { symbol: _symbol, ...marketReport } = report;
 

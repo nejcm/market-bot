@@ -10,6 +10,7 @@ import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-sy
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";
 import { dedupeMoversBySymbol } from "../movers/dedupe";
+import { cleanResearchProxySymbol } from "../research/research-subject-identity";
 import {
   isFetchJsonResult,
   type CollectContext,
@@ -255,9 +256,9 @@ function equityRequestsFor(
 
   const researchProxy =
     command.jobType === "research"
-      ? command.predictionProxySymbol?.trim().toUpperCase()
+      ? cleanResearchProxySymbol(command.predictionProxySymbol)
       : undefined;
-  if (researchProxy !== undefined && researchProxy !== "") {
+  if (researchProxy !== undefined) {
     return [
       { role: "research-proxy", url: yahooQuoteUrl(researchProxy) },
       { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },

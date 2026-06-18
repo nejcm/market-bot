@@ -2,6 +2,7 @@ import type { AppConfig } from "../config";
 import type { ResearchCommand } from "../cli/args";
 import { legacyMarketUpdateHorizon, type PredictionKind } from "../domain/types";
 import type { ModelParams } from "../model/types";
+import { cleanResearchProxySymbol } from "../research/research-subject-identity";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -11,7 +12,6 @@ export type RunKey =
   | "market-overview-equity"
   | "market-overview-crypto"
   | "research-equity"
-  | "research-crypto"
   | "ticker";
 
 /**
@@ -245,27 +245,7 @@ export const runConfig: RunConfig = {
         "risks",
         "data gaps",
       ],
-    },
-  },
-  "research-crypto": {
-    minimumKeyFindings: 3,
-    minimumScenarios: 1,
-    targetPredictions: 0,
-    defaultPredictionHorizon: 15,
-    predictionSubjects: [],
-    analystStyle: "concise brief",
-    focus: [
-      "subject evidence",
-      "proxy evidence",
-      "representative instruments",
-      "risks",
-      "data gaps",
-    ],
-    targetKindMix: RESEARCH_KIND_MIX,
-    deep: {
-      minimumKeyFindings: 5,
-      minimumScenarios: 3,
-      analystStyle: "fuller analyst-style",
+      targetKindMix: { ...RESEARCH_KIND_MIX, minNonDirection: 2 },
     },
   },
 };
@@ -279,7 +259,7 @@ function toRunKey(command: ResearchCommand): RunKey {
     return "ticker";
   }
   if (command.jobType === "research") {
-    return `research-${command.assetClass}` as RunKey;
+    return "research-equity";
   }
   return `market-overview-${command.assetClass}` as RunKey;
 }
@@ -288,8 +268,7 @@ function researchPredictionProxy(command: ResearchCommand): string | undefined {
   if (command.jobType !== "research") {
     return undefined;
   }
-  const proxy = command.predictionProxySymbol?.trim().toUpperCase();
-  return proxy === "" ? undefined : proxy;
+  return cleanResearchProxySymbol(command.predictionProxySymbol);
 }
 
 function mergeModelParams(

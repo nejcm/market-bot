@@ -264,7 +264,6 @@ describe("runResearchJob", () => {
       },
       "market-overview-crypto": {},
       "research-equity": {},
-      "research-crypto": {},
       ticker: {},
     };
     const provider: ModelProvider = {

@@ -228,6 +228,22 @@ describe("resolveRunParams — run keys", () => {
     expect(result.targetPredictions).toBe(0);
   });
 
+  test("research deep favors non-direction prediction mix", () => {
+    const result = resolveRunParams(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Analyze AI biotech",
+        predictionProxySymbol: "xbi",
+        depth: "deep",
+      },
+      baseConfig,
+    );
+
+    expect(result.targetPredictions).toBe(3);
+    expect(result.targetKindMix).toEqual({ favored: ["range"], minNonDirection: 2 });
+  });
+
   test("daily-crypto keeps depth profile but uses crypto prediction subjects", () => {
     const equity = resolveRunParams(
       { jobType: "daily", assetClass: "equity", depth: "brief" },

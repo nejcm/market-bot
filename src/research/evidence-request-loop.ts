@@ -18,6 +18,11 @@ import {
 } from "../sources/evidence-request-tools";
 import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import type { CollectedSources, FetchLike } from "../sources/types";
+import {
+  runJsonToolLoop,
+  type JsonToolLoopAccepted,
+  type JsonToolLoopRoundState,
+} from "./json-tool-loop";
 import type { EvidenceRequestContext, ResearchContext } from "./research-context";
 
 export interface EvidenceRequestStageOutput {
@@ -58,8 +63,6 @@ interface ValidationState {
   readonly command: Extract<ResearchCommand, { readonly jobType: "ticker" }>;
   readonly availableTools: ReadonlySet<EvidenceRequestToolName>;
   readonly seenKeys: Set<string>;
-  readonly sourceUnitsUsed: number;
-  readonly toolCallsUsed: number;
   readonly config: AppConfig;
   readonly round: number;
 }
@@ -73,9 +76,10 @@ export async function runEvidenceRequestLoop(
   if (!isEvidenceRequestLoopEnabled(input.command, input.config)) {
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
+  const { command } = input;
 
   const collectContext = createCollectContext(
-    input.command,
+    command,
     input.config.sourceOptions,
     input.now,
     input.fetchImpl ?? fetch,
@@ -86,106 +90,63 @@ export async function runEvidenceRequestLoop(
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
 
-  let { collectedSources } = input;
-  let sourceUnitsUsed = 0;
-  let toolCallsUsed = 0;
-  const stageOutputs: EvidenceRequestStageOutput[] = [];
-  const acceptedRequests: EvidenceRequestAuditEntry[] = [];
-  const rejectedRequests: EvidenceRequestAuditEntry[] = [];
-  const emittedGaps: SourceGap[] = [];
-  const executedTools: EvidenceRequestToolName[] = [];
   const seenKeys = new Set<string>();
-
-  for (let round = 1; round <= input.config.evidenceRequestOptions.maxRounds; round += 1) {
-    const context = withEvidenceRequestContext(input.context, {
-      round,
-      availableTools,
-      toolUnits: EVIDENCE_REQUEST_TOOL_UNITS,
-      sourceUnitsUsed,
-      toolCallsUsed,
-      maxRounds: input.config.evidenceRequestOptions.maxRounds,
-      maxToolCalls: input.config.evidenceRequestOptions.maxToolCalls,
-      sourceBudget: input.config.evidenceRequestOptions.sourceBudget,
-    });
-    // oxlint-disable-next-line no-await-in-loop -- each round depends on prior evidence and budgets.
-    const stageOutput = await input.generateRound(collectedSources, context, stageOutputs);
-    stageOutputs.push(stageOutput);
-
-    const parsed = parseModelRequests(stageOutput.content);
-    if (typeof parsed === "string") {
-      const gap = sourceGap({
-        source: "evidence-request",
-        message: parsed,
-        capability: "evidence-request",
-        cause: "malformed-response",
-        evidenceQualityImpact: "extended-evidence-cap",
-      });
-      emittedGaps.push(gap);
-      collectedSources = mergeGaps(input.command, collectedSources, [gap]);
-      break;
-    }
-    if (parsed.length === 0) {
-      break;
-    }
-
-    const validationState: ValidationState = {
-      command: input.command,
-      availableTools: new Set(availableTools),
-      seenKeys,
-      sourceUnitsUsed,
-      toolCallsUsed,
-      config: input.config,
-      round,
-    };
-    const accepted = validateRequests(parsed, validationState);
-    rejectedRequests.push(...accepted.rejected);
-    emittedGaps.push(...accepted.gaps);
-    if (accepted.gaps.length > 0) {
-      collectedSources = mergeGaps(input.command, collectedSources, accepted.gaps);
-    }
-
-    for (const request of accepted.requests) {
-      const auditEntry: EvidenceRequestAuditEntry = {
-        round,
-        tool: request.tool,
-        args: request.args,
-        rationale: request.rationale,
-        status: "accepted",
-        sourceUnits: EVIDENCE_REQUEST_TOOL_UNITS[request.tool],
-      };
-      acceptedRequests.push(auditEntry);
-      sourceUnitsUsed += EVIDENCE_REQUEST_TOOL_UNITS[request.tool];
-      toolCallsUsed += 1;
-      executedTools.push(request.tool);
-
+  const loop = await runJsonToolLoop<
+    CollectedSources,
+    ModelEvidenceRequest,
+    EvidenceRequestToolName,
+    EvidenceRequestStageOutput,
+    EvidenceRequestAuditEntry
+  >({
+    options: input.config.evidenceRequestOptions,
+    initialState: input.collectedSources,
+    invalidJsonMessage: "Evidence request stage returned invalid JSON",
+    invalidShapeMessage: "Evidence request stage must return JSON object with requests array",
+    malformedGap: evidenceRequestMalformedGap,
+    generateRound: (currentSources, roundState) =>
+      input.generateRound(
+        currentSources,
+        withEvidenceRequestContext(input.context, {
+          round: roundState.round,
+          availableTools,
+          toolUnits: EVIDENCE_REQUEST_TOOL_UNITS,
+          sourceUnitsUsed: roundState.sourceUnitsUsed,
+          toolCallsUsed: roundState.toolCallsUsed,
+          maxRounds: input.config.evidenceRequestOptions.maxRounds,
+          maxToolCalls: input.config.evidenceRequestOptions.maxToolCalls,
+          sourceBudget: input.config.evidenceRequestOptions.sourceBudget,
+        }),
+        roundState.priorStages,
+      ),
+    validateRequests: (requests, roundState) =>
+      validateRequests(
+        requests,
+        {
+          command,
+          availableTools: new Set(availableTools),
+          seenKeys,
+          config: input.config,
+          round: roundState.round,
+        },
+        roundState,
+      ),
+    mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
+    executeRequest: async (currentSources, request) => {
       const staleStart = collectContext.staleFallbackGaps.length;
-      // oxlint-disable-next-line no-await-in-loop -- tool calls update shared budgets and merge order.
       const output = await executeEvidenceRequestTool(request.tool, collectContext.context);
       const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
       const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
-      emittedGaps.push(...outputWithStale.gaps);
-      collectedSources = mergeToolOutput(input.command, collectedSources, outputWithStale);
-    }
-
-    if (
-      toolCallsUsed >= input.config.evidenceRequestOptions.maxToolCalls ||
-      sourceUnitsUsed >= input.config.evidenceRequestOptions.sourceBudget
-    ) {
-      break;
-    }
-  }
+      return {
+        state: mergeToolOutput(command, currentSources, outputWithStale),
+        gaps: outputWithStale.gaps,
+      };
+    },
+  });
 
   return {
-    collectedSources,
-    stageOutputs,
-    audit: {
-      rounds: stageOutputs.length,
-      acceptedRequests,
-      rejectedRequests,
-      sourceUnitsUsed,
-      executedTools,
-      emittedGaps,
-    },
+    collectedSources: loop.state,
+    stageOutputs: loop.stageOutputs,
+    audit: loop.audit,
   };
 }
 
@@ -210,43 +171,46 @@ function withEvidenceRequestContext(
   return { ...context, evidenceRequest };
 }
 
-function parseModelRequests(content: string): readonly unknown[] | string {
-  const parsed = parseJson(content);
-  if (parsed === undefined) {
-    return "Evidence request stage returned invalid JSON";
-  }
-  if (!isRecord(parsed) || !Array.isArray(parsed.requests)) {
-    return "Evidence request stage must return JSON object with requests array";
-  }
-  return parsed.requests;
-}
-
-function parseJson(content: string): unknown | undefined {
-  try {
-    return JSON.parse(content) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
 function validateRequests(
   requests: readonly unknown[],
   state: ValidationState,
+  roundState: JsonToolLoopRoundState<EvidenceRequestStageOutput>,
 ): {
-  readonly requests: readonly ModelEvidenceRequest[];
+  readonly requests: readonly JsonToolLoopAccepted<
+    ModelEvidenceRequest,
+    EvidenceRequestToolName,
+    EvidenceRequestAuditEntry
+  >[];
   readonly rejected: readonly EvidenceRequestAuditEntry[];
   readonly gaps: readonly SourceGap[];
 } {
-  const accepted: ModelEvidenceRequest[] = [];
+  const accepted: JsonToolLoopAccepted<
+    ModelEvidenceRequest,
+    EvidenceRequestToolName,
+    EvidenceRequestAuditEntry
+  >[] = [];
   const rejected: EvidenceRequestAuditEntry[] = [];
   const gaps: SourceGap[] = [];
-  let { sourceUnitsUsed, toolCallsUsed } = state;
+  let { sourceUnitsUsed, toolCallsUsed } = roundState;
 
   for (const raw of requests) {
     const result = validateRequest(raw, state, sourceUnitsUsed, toolCallsUsed);
     if ("request" in result) {
-      accepted.push(result.request);
-      sourceUnitsUsed += EVIDENCE_REQUEST_TOOL_UNITS[result.request.tool];
+      const sourceUnits = EVIDENCE_REQUEST_TOOL_UNITS[result.request.tool];
+      accepted.push({
+        request: result.request,
+        audit: {
+          round: state.round,
+          tool: result.request.tool,
+          args: result.request.args,
+          rationale: result.request.rationale,
+          status: "accepted",
+          sourceUnits,
+        },
+        sourceUnits,
+        tool: result.request.tool,
+      });
+      sourceUnitsUsed += sourceUnits;
       toolCallsUsed += 1;
       state.seenKeys.add(requestKey(result.request));
     } else {
@@ -347,6 +311,16 @@ function reject(
       evidenceQualityImpact: "extended-evidence-cap",
     }),
   };
+}
+
+function evidenceRequestMalformedGap(message: string): SourceGap {
+  return sourceGap({
+    source: "evidence-request",
+    message,
+    capability: "evidence-request",
+    cause: "malformed-response",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
 }
 
 function mergeToolOutput(

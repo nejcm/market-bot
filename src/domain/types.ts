@@ -104,6 +104,7 @@ export type SourceGapCapability =
   | "extended-evidence"
   | "market-context"
   | "evidence-request"
+  | "research-gather"
   | "cache";
 
 export type SourceGapCause =
@@ -121,7 +122,7 @@ export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap
 
 export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
 
-export interface EvidenceRequestAuditEntry {
+export interface JsonToolLoopAuditEntry {
   readonly round: number;
   readonly tool: string;
   readonly args?: unknown;
@@ -131,14 +132,22 @@ export interface EvidenceRequestAuditEntry {
   readonly sourceUnits?: number;
 }
 
-export interface EvidenceRequestLoopAudit {
+export interface JsonToolLoopAudit<TTool extends string = string> {
   readonly rounds: number;
-  readonly acceptedRequests: readonly EvidenceRequestAuditEntry[];
-  readonly rejectedRequests: readonly EvidenceRequestAuditEntry[];
+  readonly acceptedRequests: readonly JsonToolLoopAuditEntry[];
+  readonly rejectedRequests: readonly JsonToolLoopAuditEntry[];
   readonly sourceUnitsUsed: number;
-  readonly executedTools: readonly EvidenceRequestToolName[];
+  readonly executedTools: readonly TTool[];
   readonly emittedGaps: readonly SourceGap[];
 }
+
+export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
+
+export type EvidenceRequestLoopAudit = JsonToolLoopAudit<EvidenceRequestToolName>;
+
+export type ResearchGatherAuditEntry = JsonToolLoopAuditEntry;
+
+export type ResearchGatherLoopAudit = JsonToolLoopAudit;
 
 export interface DomainPlaybookSelectionAudit {
   readonly selected: readonly {

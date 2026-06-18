@@ -41,6 +41,9 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `ticker --deep --asset equity`. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS` | `2` | Max accepted evidence tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |
+| `MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS` | `4` | Max JSON-loop gather rounds for future `research <subject>` runs. Set to `0` to disable gathering. |
+| `MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS` | `8` | Max accepted gather tool executions for future `research <subject>` runs. Set to `0` to disable gathering. |
+| `MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET` | `24` | Max declared source units for future `research <subject>` gathering. Set to `0` to disable gathering. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` | `2` | Max AI-selected Market Spotlights for brief market-overview runs. Set `0` to disable spotlights. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | `4` | Max AI-selected Market Spotlights for deep market-overview runs. Set `0` to disable spotlights. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` | `40` | Top-ranked mover candidates fed to the spotlight selector. Caps selector prompt size by dropping long-tail movers the model never picks. Set `0` to pass every candidate. |

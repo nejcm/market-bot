@@ -29,6 +29,12 @@ export interface EvidenceRequestOptions {
   readonly sourceBudget: number;
 }
 
+export interface ResearchGatherOptions {
+  readonly maxRounds: number;
+  readonly maxToolCalls: number;
+  readonly sourceBudget: number;
+}
+
 export interface AlphaSearchOptions {
   readonly apeWisdomFilter: string;
   readonly apeWisdomBriefPageLimit: number;
@@ -87,6 +93,7 @@ export interface AppConfig {
   readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
+  readonly researchGatherOptions?: ResearchGatherOptions;
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
   readonly forecastDisagreementOptions?: ForecastDisagreementOptions;
@@ -129,6 +136,9 @@ const DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP = 10_000_000_000;
 const DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT = 2;
 const DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT = 4;
 const DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT = 40;
+const DEFAULT_RESEARCH_GATHER_MAX_ROUNDS = 4;
+const DEFAULT_RESEARCH_GATHER_MAX_TOOL_CALLS = 8;
+const DEFAULT_RESEARCH_GATHER_SOURCE_BUDGET = 24;
 const DEFAULT_HISTORY_TICKER_RECENT_LIMIT = 3;
 const DEFAULT_HISTORY_MARKET_RECENT_LIMIT = 5;
 const DEFAULT_HISTORY_RECENT_DAYS = 90;
@@ -548,6 +558,20 @@ export function resolveConfig(
       maxRounds: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS, 2),
       maxToolCalls: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS, 2),
       sourceBudget: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET, 8),
+    },
+    researchGatherOptions: {
+      maxRounds: readNonNegativeInteger(
+        env.MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS,
+        DEFAULT_RESEARCH_GATHER_MAX_ROUNDS,
+      ),
+      maxToolCalls: readNonNegativeInteger(
+        env.MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS,
+        DEFAULT_RESEARCH_GATHER_MAX_TOOL_CALLS,
+      ),
+      sourceBudget: readNonNegativeInteger(
+        env.MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET,
+        DEFAULT_RESEARCH_GATHER_SOURCE_BUDGET,
+      ),
     },
     alphaSearchOptions:
       options.validateAlphaSearchOptions === false

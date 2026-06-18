@@ -15,6 +15,11 @@ import {
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { PredictionScore } from "../scoring/types";
 import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
+import {
+  commandResearchSubjectIdentity,
+  isSameResearchSubjectIdentity,
+  reportResearchSubjectIdentity,
+} from "./research-subject-identity";
 
 // Recency reasons answer "why was this run in the time window" (sliding-recent vs point anchor).
 // Relevance reasons answer "why is this run topically on-point for the current command": ticker
@@ -394,66 +399,6 @@ function compactSnapshots(
     .slice(0, SNAPSHOT_LIMIT);
 }
 
-function cleanSlug(value: string | undefined): string | undefined {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === "" ? undefined : normalized;
-}
-
-function cleanSymbol(value: string | undefined): string | undefined {
-  const normalized = value?.trim().toUpperCase();
-  return normalized === "" ? undefined : normalized;
-}
-
-function researchSubjectKey(report: ResearchReport): string | undefined {
-  if (report.jobType !== "research") {
-    return undefined;
-  }
-  const { extras } = report;
-  if (!isRecord(extras)) {
-    return undefined;
-  }
-  const direct = cleanSlug(readString(extras, "subjectKey"));
-  if (direct !== undefined) {
-    return direct;
-  }
-  for (const key of ["researchSubject", "proxyResolution"]) {
-    const nested = extras[key];
-    if (isRecord(nested)) {
-      const subjectKey = cleanSlug(readString(nested, "subjectKey"));
-      if (subjectKey !== undefined) {
-        return subjectKey;
-      }
-    }
-  }
-  return undefined;
-}
-
-function researchPredictionProxySymbol(report: ResearchReport): string | undefined {
-  if (report.jobType !== "research") {
-    return undefined;
-  }
-  const { extras } = report;
-  if (!isRecord(extras)) {
-    return undefined;
-  }
-  const direct = cleanSymbol(readString(extras, "predictionProxySymbol"));
-  if (direct !== undefined) {
-    return direct;
-  }
-  for (const key of ["researchSubject", "proxyResolution"]) {
-    const nested = extras[key];
-    if (isRecord(nested)) {
-      const proxy =
-        cleanSymbol(readString(nested, "predictionProxySymbol")) ??
-        cleanSymbol(readString(nested, "proxySymbol"));
-      if (proxy !== undefined) {
-        return proxy;
-      }
-    }
-  }
-  return undefined;
-}
-
 function keyExtras(report: ResearchReport): Record<string, unknown> | undefined {
   const { extras } = report;
   if (extras === undefined) {
@@ -475,13 +420,12 @@ function keyExtras(report: ResearchReport): Record<string, unknown> | undefined 
       result.marketUpdateHorizonBucket = bucket;
     }
   }
-  const subjectKey = researchSubjectKey(report);
+  const { subjectKey, predictionProxySymbol } = reportResearchSubjectIdentity(report);
   if (subjectKey !== undefined) {
     result.subjectKey = subjectKey;
   }
-  const proxy = researchPredictionProxySymbol(report);
-  if (proxy !== undefined) {
-    result.predictionProxySymbol = proxy;
+  if (predictionProxySymbol !== undefined) {
+    result.predictionProxySymbol = predictionProxySymbol;
   }
   const { marketRegime } = extras;
   if (isRecord(marketRegime)) {
@@ -501,8 +445,7 @@ function toRunContext(
   const { report } = selected.artifact;
   const sourceId = `history-report-${report.runId}`;
   const extras = keyExtras(report);
-  const subjectKey = researchSubjectKey(report);
-  const predictionProxySymbol = researchPredictionProxySymbol(report);
+  const { subjectKey, predictionProxySymbol } = reportResearchSubjectIdentity(report);
   return {
     runId: report.runId,
     sourceId,
@@ -606,25 +549,13 @@ function normalizedSymbols(symbols: readonly string[] | undefined): Set<string> 
   return new Set((symbols ?? []).map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
 }
 
-function commandResearchSubjectKey(command: ResearchCommand): string | undefined {
-  return command.jobType === "research" ? cleanSlug(command.subjectKey) : undefined;
-}
-
-function commandResearchProxySymbol(command: ResearchCommand): string | undefined {
-  return command.jobType === "research" ? cleanSymbol(command.predictionProxySymbol) : undefined;
-}
-
 function isSameResearchSubject(artifact: HistoricalArtifact, command: ResearchCommand): boolean {
   if (command.jobType !== "research" || artifact.report.jobType !== "research") {
     return false;
   }
-  const commandSubjectKey = commandResearchSubjectKey(command);
-  const commandProxy = commandResearchProxySymbol(command);
-  const artifactSubjectKey = researchSubjectKey(artifact.report);
-  const artifactProxy = researchPredictionProxySymbol(artifact.report);
-  return (
-    (commandSubjectKey !== undefined && commandSubjectKey === artifactSubjectKey) ||
-    (commandProxy !== undefined && commandProxy === artifactProxy)
+  return isSameResearchSubjectIdentity(
+    commandResearchSubjectIdentity(command),
+    reportResearchSubjectIdentity(artifact.report),
   );
 }
 
@@ -718,7 +649,7 @@ function buildHistoricalContext(
   }
 
   if (input.command.jobType === "research") {
-    const proxySymbol = commandResearchProxySymbol(input.command);
+    const proxySymbol = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
     if (proxySymbol !== undefined) {
       focusSymbols.add(proxySymbol);
     }

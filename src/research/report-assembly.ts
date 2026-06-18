@@ -29,6 +29,7 @@ import {
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
+import { researchIdentityExtras } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
@@ -575,6 +576,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),
+      ...researchIdentityExtras(command),
       ...(isMarketUpdateJobType(command.jobType) && context.marketUpdateDelta !== undefined
         ? { marketUpdateDelta: context.marketUpdateDelta }
         : {}),

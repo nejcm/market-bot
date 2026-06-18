@@ -770,6 +770,39 @@ describe("report schema and rendering", () => {
     });
   });
 
+  test("writes canonical research subject extras", () => {
+    const depthProfile = assemblyDepthProfile("SMH");
+    const assembled = assembleResearchReport({
+      runId: "research-semis",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "semis",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      payload: {
+        summary: "Semiconductor evidence is mixed.",
+        confidence: "medium",
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.extras?.researchSubject).toEqual({
+      input: "semis",
+      subjectKey: "semiconductors",
+    });
+    expect(assembled.extras?.proxyResolution).toEqual({
+      predictionProxySymbol: "SMH",
+    });
+  });
+
   test("adds de-duped benchmark market sources from market snapshots", () => {
     const snapshots: readonly MarketSnapshot[] = [
       {

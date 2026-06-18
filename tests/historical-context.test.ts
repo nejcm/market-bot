@@ -7,6 +7,7 @@ import {
   createHistoricalContextReader,
   loadHistoricalContext,
 } from "../src/research/historical-context";
+import { researchIdentityExtras } from "../src/research/research-subject-identity";
 import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -446,10 +447,14 @@ describe("loadHistoricalContext", () => {
         jobType: "research",
         assetClass: "equity",
         generatedAt: "2026-05-20T00:00:00.000Z",
-        extras: {
-          researchSubject: { subjectKey: "semiconductors" },
-          proxyResolution: { predictionProxySymbol: "SMH" },
-        },
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        }),
       }),
     });
     await writeRun({
@@ -460,7 +465,13 @@ describe("loadHistoricalContext", () => {
         jobType: "research",
         assetClass: "equity",
         generatedAt: "2026-05-18T00:00:00.000Z",
-        extras: { proxyResolution: { predictionProxySymbol: "SMH" } },
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        }),
       }),
     });
     await writeRun({
@@ -471,10 +482,14 @@ describe("loadHistoricalContext", () => {
         jobType: "research",
         assetClass: "equity",
         generatedAt: "2026-05-22T00:00:00.000Z",
-        extras: {
-          researchSubject: { subjectKey: "software" },
-          proxyResolution: { predictionProxySymbol: "IGV" },
-        },
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "software",
+          subjectKey: "software",
+          predictionProxySymbol: "IGV",
+          depth: "brief",
+        }),
       }),
     });
 

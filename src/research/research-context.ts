@@ -29,6 +29,10 @@ import type {
   EvidenceRequestContext,
   ResearchContext,
 } from "./research-context-types";
+import {
+  commandResearchSubjectIdentity,
+  isSameResearchSubjectIdentity,
+} from "./research-subject-identity";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
 export type { CalibrationContext, DepthProfile, EvidenceRequestContext, ResearchContext };
@@ -440,32 +444,11 @@ function collectMarketForecastMisses(
   return sortedRecentMisses(misses);
 }
 
-function normalizedResearchSubjectKey(command: ResearchCommand): string | undefined {
-  if (command.jobType !== "research") {
-    return undefined;
-  }
-  const value = command.subjectKey?.trim().toLowerCase();
-  return value === "" ? undefined : value;
-}
-
-function normalizedResearchProxySymbol(command: ResearchCommand): string | undefined {
-  if (command.jobType !== "research") {
-    return undefined;
-  }
-  const value = command.predictionProxySymbol?.trim().toUpperCase();
-  return value === "" ? undefined : value;
-}
-
 function isSameResearchRun(run: HistoricalRunContext, command: ResearchCommand): boolean {
   if (command.jobType !== "research" || run.jobType !== "research") {
     return false;
   }
-  const subjectKey = normalizedResearchSubjectKey(command);
-  const proxy = normalizedResearchProxySymbol(command);
-  return (
-    (subjectKey !== undefined && subjectKey === run.subjectKey) ||
-    (proxy !== undefined && proxy === run.predictionProxySymbol)
-  );
+  return isSameResearchSubjectIdentity(commandResearchSubjectIdentity(command), run);
 }
 
 function collectResearchForecastMisses(
@@ -475,7 +458,7 @@ function collectResearchForecastMisses(
   if (command.jobType !== "research" || historicalContext === undefined) {
     return [];
   }
-  const proxy = normalizedResearchProxySymbol(command);
+  const proxy = commandResearchSubjectIdentity(command).predictionProxySymbol;
   if (proxy === undefined) {
     return [];
   }
@@ -575,8 +558,9 @@ function buildResearchForecastErrorBlock(
   if (misses.length === 0 || command.jobType !== "research") {
     return undefined;
   }
-  const subjectKey = normalizedResearchSubjectKey(command) ?? command.subject;
-  const proxy = normalizedResearchProxySymbol(command);
+  const identity = commandResearchSubjectIdentity(command);
+  const subjectKey = identity.subjectKey ?? command.subject;
+  const proxy = identity.predictionProxySymbol;
   return [
     `Prior research forecasts on ${subjectKey}${proxy === undefined ? "" : ` (${proxy})`} that resolved MISS. Treat each as thematic error-correction signal: diagnose why the prior segment read was wrong before restating a similar view, and widen probabilities where the same subject setup recurs.`,
     ...misses.map((miss) => renderMissBullet(miss)),

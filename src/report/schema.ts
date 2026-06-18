@@ -212,6 +212,36 @@ function validateCatalystCalendarExtra(extra: unknown, knownSourceIds: ReadonlyS
   }
 }
 
+function validateResearchSubjectExtra(extra: unknown): void {
+  if (extra === undefined) {
+    return;
+  }
+  if (!isRecord(extra)) {
+    throw new Error("Research subject extra must be an object");
+  }
+  if (extra.input !== undefined && typeof extra.input !== "string") {
+    throw new Error("Research subject input must be a string");
+  }
+  if (extra.subjectKey !== undefined && typeof extra.subjectKey !== "string") {
+    throw new Error("Research subject key must be a string");
+  }
+}
+
+function validateProxyResolutionExtra(extra: unknown): void {
+  if (extra === undefined) {
+    return;
+  }
+  if (!isRecord(extra)) {
+    throw new Error("Research proxy resolution extra must be an object");
+  }
+  if (
+    extra.predictionProxySymbol !== undefined &&
+    typeof extra.predictionProxySymbol !== "string"
+  ) {
+    throw new Error("Research prediction proxy symbol must be a string");
+  }
+}
+
 function validateRenderedExtras(
   extras: ResearchReport["extras"],
   knownSourceIds: ReadonlySet<string>,
@@ -222,6 +252,8 @@ function validateRenderedExtras(
   validateHistoricalContextExtra(extras.historicalContext, knownSourceIds);
   validateSpotlightsExtra(extras.spotlights, knownSourceIds);
   validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds);
+  validateResearchSubjectExtra(extras.researchSubject);
+  validateProxyResolutionExtra(extras.proxyResolution);
 }
 
 export function validatePredictions(

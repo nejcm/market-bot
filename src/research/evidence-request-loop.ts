@@ -35,6 +35,11 @@ export interface EvidenceRequestStageOutput {
 export interface EvidenceRequestLoopResult {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly EvidenceRequestStageOutput[];
+  /**
+   * Absent only when the loop never ran (disabled run type, or no tools
+   * available for this run). When the loop runs it always produces an audit,
+   * even if zero rounds were generated.
+   */
   readonly audit?: EvidenceRequestLoopAudit;
 }
 
@@ -92,6 +97,7 @@ export async function runEvidenceRequestLoop(
 
   // The adapter owns cross-round duplicate tracking; the generic loop only owns budgets.
   const seenKeys = new Set<string>();
+  const availableToolsSet = new Set(availableTools);
   const loop = await runJsonToolLoop<
     CollectedSources,
     ModelEvidenceRequest,
@@ -124,7 +130,7 @@ export async function runEvidenceRequestLoop(
         requests,
         {
           command,
-          availableTools: new Set(availableTools),
+          availableTools: availableToolsSet,
           seenKeys,
           config: input.config,
           round: roundState.round,

@@ -123,7 +123,22 @@ export async function runJsonToolLoop<
       state = input.mergeGaps(state, validation.gaps);
     }
 
+    let budgetExhausted = false;
     for (const request of validation.requests) {
+      /*
+       * Last-resort budget backstop: adapters are expected to enforce budgets in
+       * validateRequests, so this only trips for an over-admitting adapter. Such
+       * dropped requests are intentionally not recorded in the audit (neither
+       * accepted nor rejected) — they were never the loop's to execute.
+       */
+      if (
+        toolCallsUsed >= options.maxToolCalls ||
+        sourceUnitsUsed + request.sourceUnits > options.sourceBudget
+      ) {
+        budgetExhausted = true;
+        break;
+      }
+
       acceptedRequests.push(request.audit);
       sourceUnitsUsed += request.sourceUnits;
       toolCallsUsed += 1;
@@ -136,7 +151,11 @@ export async function runJsonToolLoop<
       emittedGaps.push(...gaps);
     }
 
-    if (toolCallsUsed >= options.maxToolCalls || sourceUnitsUsed >= options.sourceBudget) {
+    if (
+      budgetExhausted ||
+      toolCallsUsed >= options.maxToolCalls ||
+      sourceUnitsUsed >= options.sourceBudget
+    ) {
       break;
     }
   }

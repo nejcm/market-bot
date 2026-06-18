@@ -1,7 +1,7 @@
 import type { AssetClass } from "../domain/types";
 
 const SUBJECT_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
+const SYMBOL_RE = /^(?=.{1,10}$)[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/u;
 
 export type ResearchSubjectAssetClass = Extract<AssetClass, "equity">;
 
@@ -194,7 +194,7 @@ export const DEFAULT_RESEARCH_SUBJECT_REGISTRY: readonly ResearchSubjectRegistry
     {
       subjectKey: "small-caps",
       displayName: "Small Caps",
-      aliases: ["small caps", "small-cap stocks", "small cap stocks", "russell 2000"],
+      aliases: ["small caps", "small-cap stocks", "russell 2000"],
       assetClass: "equity",
       representativeInstruments: [
         listedEtf("IWM", "iShares Russell 2000 ETF", ["ishares-iwm"]),
@@ -292,8 +292,14 @@ export function validateResearchSubjectRegistry(
 ): ResearchSubjectRegistryValidationResult {
   const errors: string[] = [];
   const aliasOwners = new Map<string, string>();
+  const subjectKeys = new Set<string>();
 
   for (const entry of registry) {
+    if (subjectKeys.has(entry.subjectKey)) {
+      errors.push(`${entry.subjectKey}: duplicate subjectKey`);
+    }
+    subjectKeys.add(entry.subjectKey);
+
     const sourceIds = new Set(entry.sources.map((sourceEntry) => sourceEntry.sourceId));
     validateEntryShape(entry, sourceIds, errors);
     validateAliasUniqueness(entry, aliasOwners, errors);
@@ -317,6 +323,8 @@ function validateEntryShape(
   sourceIds: ReadonlySet<string>,
   errors: string[],
 ): void {
+  const citedSourceIds = new Set<string>();
+
   if (!SUBJECT_KEY_RE.test(entry.subjectKey)) {
     errors.push(`${entry.subjectKey}: subjectKey must be a lowercase slug`);
   }
@@ -335,11 +343,19 @@ function validateEntryShape(
     }
   });
   entry.representativeInstruments.forEach((instrument) =>
-    validateInstrument(entry.subjectKey, instrument, sourceIds, errors),
+    validateInstrument(entry.subjectKey, instrument, sourceIds, citedSourceIds, errors),
   );
   if (entry.predictionProxy !== undefined) {
-    validatePredictionProxy(entry.subjectKey, entry.predictionProxy, sourceIds, errors);
+    validatePredictionProxy(
+      entry.subjectKey,
+      entry.predictionProxy,
+      entry.representativeInstruments,
+      sourceIds,
+      citedSourceIds,
+      errors,
+    );
   }
+  validateUsedSources(entry.subjectKey, entry.sources, citedSourceIds, errors);
 }
 
 function validateAliasUniqueness(
@@ -347,6 +363,17 @@ function validateAliasUniqueness(
   aliasOwners: Map<string, string>,
   errors: string[],
 ): void {
+  const normalizedEntryAliases = entry.aliases.map((alias) => normalizeResearchSubjectQuery(alias));
+  const entryAliasSet = new Set<string>();
+
+  for (const alias of normalizedEntryAliases) {
+    if (entryAliasSet.has(alias)) {
+      errors.push(`${entry.subjectKey}: alias "${alias}" is duplicated within subject`);
+      continue;
+    }
+    entryAliasSet.add(alias);
+  }
+
   const aliases = [entry.subjectKey, entry.displayName, ...entry.aliases].map((alias) =>
     normalizeResearchSubjectQuery(alias),
   );
@@ -364,18 +391,21 @@ function validateInstrument(
   subjectKey: string,
   instrument: ResearchSubjectInstrument,
   sourceIds: ReadonlySet<string>,
+  citedSourceIds: Set<string>,
   errors: string[],
 ): void {
   if (!SYMBOL_RE.test(instrument.symbol)) {
     errors.push(`${subjectKey}: invalid representative symbol ${instrument.symbol}`);
   }
-  validateSourceIds(subjectKey, instrument.sourceIds, sourceIds, errors);
+  validateSourceIds(subjectKey, instrument.sourceIds, sourceIds, citedSourceIds, errors);
 }
 
 function validatePredictionProxy(
   subjectKey: string,
   proxy: ResearchSubjectPredictionProxy,
+  representativeInstruments: readonly ResearchSubjectInstrument[],
   sourceIds: ReadonlySet<string>,
+  citedSourceIds: Set<string>,
   errors: string[],
 ): void {
   if (!SYMBOL_RE.test(proxy.symbol)) {
@@ -384,21 +414,39 @@ function validatePredictionProxy(
   if (proxy.instrumentType !== "listed-etf") {
     errors.push(`${subjectKey}: prediction proxy must be a listed ETF`);
   }
-  validateSourceIds(subjectKey, proxy.sourceIds, sourceIds, errors);
+  if (!representativeInstruments.some((instrument) => instrument.symbol === proxy.symbol)) {
+    errors.push(`${subjectKey}: prediction proxy symbol ${proxy.symbol} must be representative`);
+  }
+  validateSourceIds(subjectKey, proxy.sourceIds, sourceIds, citedSourceIds, errors);
 }
 
 function validateSourceIds(
   subjectKey: string,
   itemSourceIds: readonly string[],
   sourceIds: ReadonlySet<string>,
+  citedSourceIds: Set<string>,
   errors: string[],
 ): void {
   if (itemSourceIds.length === 0) {
     errors.push(`${subjectKey}: registry items must cite sourceIds`);
   }
   itemSourceIds.forEach((sourceId) => {
+    citedSourceIds.add(sourceId);
     if (!sourceIds.has(sourceId)) {
       errors.push(`${subjectKey}: unknown sourceId ${sourceId}`);
+    }
+  });
+}
+
+function validateUsedSources(
+  subjectKey: string,
+  sources: readonly ResearchSubjectSource[],
+  citedSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
+  sources.forEach((sourceEntry) => {
+    if (!citedSourceIds.has(sourceEntry.sourceId)) {
+      errors.push(`${subjectKey}: unused sourceId ${sourceEntry.sourceId}`);
     }
   });
 }

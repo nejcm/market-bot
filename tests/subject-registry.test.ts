@@ -91,6 +91,52 @@ describe("research subject registry", () => {
     );
   });
 
+  test("rejects duplicate subject keys", () => {
+    const result = validateResearchSubjectRegistry([
+      baseEntry,
+      {
+        ...baseEntry,
+        displayName: "Duplicate Subject",
+        aliases: ["duplicate subject"],
+      },
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("test-subject: duplicate subjectKey");
+  });
+
+  test("rejects duplicate normalized aliases within a subject", () => {
+    const result = validateResearchSubjectRegistry([
+      {
+        ...baseEntry,
+        aliases: ["small-cap stocks", "small cap stocks"],
+      },
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain(
+      'test-subject: alias "small cap stocks" is duplicated within subject',
+    );
+  });
+
+  test("rejects invalid registry shape", () => {
+    const result = validateResearchSubjectRegistry([
+      {
+        ...baseEntry,
+        subjectKey: "Bad Slug",
+        aliases: [],
+        assetClass: "crypto" as never,
+        representativeInstruments: [],
+      },
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("Bad Slug: subjectKey must be a lowercase slug");
+    expect(result.errors).toContain("Bad Slug: v1 registry supports equity subjects only");
+    expect(result.errors).toContain("Bad Slug: aliases must not be empty");
+    expect(result.errors).toContain("Bad Slug: representativeInstruments must not be empty");
+  });
+
   test("requires representative and proxy provenance", () => {
     const result = validateResearchSubjectRegistry([
       {
@@ -113,5 +159,37 @@ describe("research subject registry", () => {
     expect(result.valid).toBe(false);
     expect(result.errors).toContain("test-subject: unknown sourceId missing-source");
     expect(result.errors).toContain("test-subject: registry items must cite sourceIds");
+  });
+
+  test("requires a listed ETF proxy that is represented and has a valid symbol", () => {
+    const result = validateResearchSubjectRegistry([
+      {
+        ...baseEntry,
+        predictionProxy: {
+          symbol: "BRK.",
+          instrumentType: "listed-stock" as never,
+          sourceIds: ["test-source"],
+        },
+      },
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("test-subject: invalid prediction proxy symbol BRK.");
+    expect(result.errors).toContain("test-subject: prediction proxy must be a listed ETF");
+    expect(result.errors).toContain(
+      "test-subject: prediction proxy symbol BRK. must be representative",
+    );
+  });
+
+  test("rejects unused source provenance", () => {
+    const result = validateResearchSubjectRegistry([
+      {
+        ...baseEntry,
+        sources: [...baseEntry.sources, { sourceId: "unused-source", title: "Unused source" }],
+      },
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("test-subject: unused sourceId unused-source");
   });
 });

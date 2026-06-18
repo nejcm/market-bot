@@ -440,6 +440,59 @@ function collectMarketForecastMisses(
   return sortedRecentMisses(misses);
 }
 
+function normalizedResearchSubjectKey(command: ResearchCommand): string | undefined {
+  if (command.jobType !== "research") {
+    return undefined;
+  }
+  const value = command.subjectKey?.trim().toLowerCase();
+  return value === "" ? undefined : value;
+}
+
+function normalizedResearchProxySymbol(command: ResearchCommand): string | undefined {
+  if (command.jobType !== "research") {
+    return undefined;
+  }
+  const value = command.predictionProxySymbol?.trim().toUpperCase();
+  return value === "" ? undefined : value;
+}
+
+function isSameResearchRun(run: HistoricalRunContext, command: ResearchCommand): boolean {
+  if (command.jobType !== "research" || run.jobType !== "research") {
+    return false;
+  }
+  const subjectKey = normalizedResearchSubjectKey(command);
+  const proxy = normalizedResearchProxySymbol(command);
+  return (
+    (subjectKey !== undefined && subjectKey === run.subjectKey) ||
+    (proxy !== undefined && proxy === run.predictionProxySymbol)
+  );
+}
+
+function collectResearchForecastMisses(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+): readonly PriorMiss[] {
+  if (command.jobType !== "research" || historicalContext === undefined) {
+    return [];
+  }
+  const proxy = normalizedResearchProxySymbol(command);
+  if (proxy === undefined) {
+    return [];
+  }
+  const misses: PriorMiss[] = [];
+  for (const run of historicalContext.runs) {
+    if (run.assetClass !== command.assetClass || !isSameResearchRun(run, command)) {
+      continue;
+    }
+    for (const prediction of run.predictions) {
+      if (prediction.scoreOutcome === "miss" && prediction.subject.toUpperCase() === proxy) {
+        misses.push(missFrom(run, prediction));
+      }
+    }
+  }
+  return sortedRecentMisses(misses);
+}
+
 // Parse an ISO timestamp to epoch ms for ordering, tolerating malformed values (generatedAt is read
 // From disk without format validation). Non-parseable timestamps sort oldest rather than crashing.
 function generatedAtValue(value: string): number {
@@ -514,6 +567,22 @@ function buildMarketForecastErrorBlock(
   ].join("\n");
 }
 
+function buildResearchForecastErrorBlock(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+): string | undefined {
+  const misses = collectResearchForecastMisses(command, historicalContext);
+  if (misses.length === 0 || command.jobType !== "research") {
+    return undefined;
+  }
+  const subjectKey = normalizedResearchSubjectKey(command) ?? command.subject;
+  const proxy = normalizedResearchProxySymbol(command);
+  return [
+    `Prior research forecasts on ${subjectKey}${proxy === undefined ? "" : ` (${proxy})`} that resolved MISS. Treat each as thematic error-correction signal: diagnose why the prior segment read was wrong before restating a similar view, and widen probabilities where the same subject setup recurs.`,
+    ...misses.map((miss) => renderMissBullet(miss)),
+  ].join("\n");
+}
+
 // ---------------------------------------------------------------------------
 // Depth profile
 // ---------------------------------------------------------------------------
@@ -566,6 +635,10 @@ function buildEvidencePayload(
   const calibrationBlock = buildCalibrationBlock(context.calibrationContext);
   const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
+  const priorThematicForecastErrors = buildResearchForecastErrorBlock(
+    command,
+    context.historicalContext,
+  );
 
   // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
   // The full bar series stays on disk (rawSnapshots / normalized sidecar).
@@ -619,6 +692,7 @@ function buildEvidencePayload(
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
     ...(priorMarketForecastErrors !== undefined ? { priorMarketForecastErrors } : {}),
+    ...(priorThematicForecastErrors !== undefined ? { priorThematicForecastErrors } : {}),
     ...verifiedMarketSnapshotBlock,
     ...resolvedIdentityBlock,
   };

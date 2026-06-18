@@ -280,9 +280,12 @@ export function parseArgs(args: readonly string[]): CliCommand {
       jobType !== "daily" &&
       jobType !== "weekly" &&
       jobType !== "ticker" &&
-      jobType !== "alpha-search"
+      jobType !== "alpha-search" &&
+      jobType !== "research"
     ) {
-      throw new Error("Expected --job-type market-overview|daily|weekly|ticker|alpha-search");
+      throw new Error(
+        "Expected --job-type market-overview|daily|weekly|ticker|alpha-search|research",
+      );
     }
     return {
       jobType: "history-search",

@@ -407,6 +407,7 @@
                   ["Anchors", historicalAudit.anchorSelectedCount],
                   ["Same symbol", historicalAudit.sameSymbolSelectedCount],
                   ["Spotlight", historicalAudit.spotlightSymbolSelectedCount],
+                  ["Same subject", historicalAudit.sameSubjectSelectedCount],
                   ["Same horizon", historicalAudit.sameHorizonSelectedCount],
                   ["Cross horizon", historicalAudit.crossHorizonSelectedCount],
                   ["Resolved miss runs", historicalAudit.resolvedMissRunCount],

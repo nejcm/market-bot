@@ -122,7 +122,8 @@ function isJobType(value: unknown): value is JobType {
     value === "daily" ||
     value === "weekly" ||
     value === "ticker" ||
-    value === "alpha-search"
+    value === "alpha-search" ||
+    value === "research"
   );
 }
 

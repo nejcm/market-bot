@@ -138,6 +138,7 @@ export interface HistoricalContextAuditView {
   readonly anchorSelectedCount: number;
   readonly sameSymbolSelectedCount: number;
   readonly spotlightSymbolSelectedCount: number;
+  readonly sameSubjectSelectedCount: number;
   readonly sameHorizonSelectedCount: number;
   readonly crossHorizonSelectedCount: number;
   readonly resolvedMissRunCount: number;
@@ -423,6 +424,7 @@ export function historicalContextAuditView(
     anchorSelectedCount: readNumberField(audit, "anchorSelectedCount"),
     sameSymbolSelectedCount: readNumberField(audit, "sameSymbolSelectedCount"),
     spotlightSymbolSelectedCount: readNumberField(audit, "spotlightSymbolSelectedCount"),
+    sameSubjectSelectedCount: readNumberField(audit, "sameSubjectSelectedCount"),
     sameHorizonSelectedCount: readNumberField(audit, "sameHorizonSelectedCount"),
     crossHorizonSelectedCount: readNumberField(audit, "crossHorizonSelectedCount"),
     resolvedMissRunCount: readNumberField(audit, "resolvedMissRunCount"),

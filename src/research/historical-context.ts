@@ -25,6 +25,7 @@ export type HistoricalRecencyReason = "recent" | `anchor-${number}m`;
 export type HistoricalRelevanceReason =
   | "same-symbol"
   | "spotlight-symbol"
+  | "same-subject"
   | "same-horizon"
   | "cross-horizon";
 // Correction reasons answer "why was this run kept despite recency eviction": it
@@ -65,6 +66,8 @@ export interface HistoricalRunContext {
   readonly jobType: JobType;
   readonly assetClass: AssetClass;
   readonly symbol?: string;
+  readonly subjectKey?: string;
+  readonly predictionProxySymbol?: string;
   readonly generatedAt: string;
   readonly selectionReasons: readonly HistoricalSelectionReason[];
   readonly summary: string;
@@ -108,6 +111,7 @@ export interface HistoricalContextAudit {
   // The deterministic prior-state selection auditable from the trace without re-deriving it.
   readonly sameSymbolSelectedCount: number;
   readonly spotlightSymbolSelectedCount: number;
+  readonly sameSubjectSelectedCount: number;
   readonly sameHorizonSelectedCount: number;
   readonly crossHorizonSelectedCount: number;
   // Selected runs carrying at least one resolved miss — the population the prior-miss correction
@@ -390,6 +394,66 @@ function compactSnapshots(
     .slice(0, SNAPSHOT_LIMIT);
 }
 
+function cleanSlug(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "" ? undefined : normalized;
+}
+
+function cleanSymbol(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toUpperCase();
+  return normalized === "" ? undefined : normalized;
+}
+
+function researchSubjectKey(report: ResearchReport): string | undefined {
+  if (report.jobType !== "research") {
+    return undefined;
+  }
+  const { extras } = report;
+  if (!isRecord(extras)) {
+    return undefined;
+  }
+  const direct = cleanSlug(readString(extras, "subjectKey"));
+  if (direct !== undefined) {
+    return direct;
+  }
+  for (const key of ["researchSubject", "proxyResolution"]) {
+    const nested = extras[key];
+    if (isRecord(nested)) {
+      const subjectKey = cleanSlug(readString(nested, "subjectKey"));
+      if (subjectKey !== undefined) {
+        return subjectKey;
+      }
+    }
+  }
+  return undefined;
+}
+
+function researchPredictionProxySymbol(report: ResearchReport): string | undefined {
+  if (report.jobType !== "research") {
+    return undefined;
+  }
+  const { extras } = report;
+  if (!isRecord(extras)) {
+    return undefined;
+  }
+  const direct = cleanSymbol(readString(extras, "predictionProxySymbol"));
+  if (direct !== undefined) {
+    return direct;
+  }
+  for (const key of ["researchSubject", "proxyResolution"]) {
+    const nested = extras[key];
+    if (isRecord(nested)) {
+      const proxy =
+        cleanSymbol(readString(nested, "predictionProxySymbol")) ??
+        cleanSymbol(readString(nested, "proxySymbol"));
+      if (proxy !== undefined) {
+        return proxy;
+      }
+    }
+  }
+  return undefined;
+}
+
 function keyExtras(report: ResearchReport): Record<string, unknown> | undefined {
   const { extras } = report;
   if (extras === undefined) {
@@ -411,6 +475,14 @@ function keyExtras(report: ResearchReport): Record<string, unknown> | undefined 
       result.marketUpdateHorizonBucket = bucket;
     }
   }
+  const subjectKey = researchSubjectKey(report);
+  if (subjectKey !== undefined) {
+    result.subjectKey = subjectKey;
+  }
+  const proxy = researchPredictionProxySymbol(report);
+  if (proxy !== undefined) {
+    result.predictionProxySymbol = proxy;
+  }
   const { marketRegime } = extras;
   if (isRecord(marketRegime)) {
     result.marketRegime = {
@@ -429,12 +501,16 @@ function toRunContext(
   const { report } = selected.artifact;
   const sourceId = `history-report-${report.runId}`;
   const extras = keyExtras(report);
+  const subjectKey = researchSubjectKey(report);
+  const predictionProxySymbol = researchPredictionProxySymbol(report);
   return {
     runId: report.runId,
     sourceId,
     jobType: report.jobType,
     assetClass: report.assetClass,
     ...(report.symbol !== undefined ? { symbol: report.symbol } : {}),
+    ...(subjectKey !== undefined ? { subjectKey } : {}),
+    ...(predictionProxySymbol !== undefined ? { predictionProxySymbol } : {}),
     generatedAt: report.generatedAt,
     selectionReasons: selected.reasons,
     summary: report.summary,
@@ -530,6 +606,28 @@ function normalizedSymbols(symbols: readonly string[] | undefined): Set<string> 
   return new Set((symbols ?? []).map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
 }
 
+function commandResearchSubjectKey(command: ResearchCommand): string | undefined {
+  return command.jobType === "research" ? cleanSlug(command.subjectKey) : undefined;
+}
+
+function commandResearchProxySymbol(command: ResearchCommand): string | undefined {
+  return command.jobType === "research" ? cleanSymbol(command.predictionProxySymbol) : undefined;
+}
+
+function isSameResearchSubject(artifact: HistoricalArtifact, command: ResearchCommand): boolean {
+  if (command.jobType !== "research" || artifact.report.jobType !== "research") {
+    return false;
+  }
+  const commandSubjectKey = commandResearchSubjectKey(command);
+  const commandProxy = commandResearchProxySymbol(command);
+  const artifactSubjectKey = researchSubjectKey(artifact.report);
+  const artifactProxy = researchPredictionProxySymbol(artifact.report);
+  return (
+    (commandSubjectKey !== undefined && commandSubjectKey === artifactSubjectKey) ||
+    (commandProxy !== undefined && commandProxy === artifactProxy)
+  );
+}
+
 function computeArtifactDeltas(
   runs: readonly HistoricalRunContext[],
 ): readonly HistoricalArtifactDelta[] {
@@ -615,6 +713,36 @@ function buildHistoricalContext(
           now,
         }),
         () => "same-symbol",
+      ),
+    );
+  }
+
+  if (input.command.jobType === "research") {
+    const proxySymbol = commandResearchProxySymbol(input.command);
+    if (proxySymbol !== undefined) {
+      focusSymbols.add(proxySymbol);
+    }
+    const sameResearchRuns = scan.artifacts.filter(
+      (artifact) =>
+        artifact.report.assetClass === input.command.assetClass &&
+        isSameResearchSubject(artifact, input.command),
+    );
+    for (const artifact of sameResearchRuns) {
+      candidateRunIds.add(artifact.report.runId);
+    }
+    if (sameResearchRuns.length === 0) {
+      gaps.push(`No prior research runs found for ${input.command.subject}`);
+    }
+    addSelections(
+      selected,
+      withRelevanceReasons(
+        selectArtifacts({
+          candidates: sameResearchRuns,
+          limit: options.tickerRecentLimit,
+          options,
+          now,
+        }),
+        () => "same-subject",
       ),
     );
   }
@@ -713,6 +841,8 @@ function buildHistoricalContext(
       spotlightSymbolSelectedCount: runs.filter((run) =>
         run.selectionReasons.includes("spotlight-symbol"),
       ).length,
+      sameSubjectSelectedCount: runs.filter((run) => run.selectionReasons.includes("same-subject"))
+        .length,
       sameHorizonSelectedCount: runs.filter((run) => run.selectionReasons.includes("same-horizon"))
         .length,
       crossHorizonSelectedCount: runs.filter((run) =>

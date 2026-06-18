@@ -4,7 +4,7 @@ export type LegacyMarketUpdateJobType = "daily" | "weekly";
 
 export type MarketUpdateJobType = "market-overview" | LegacyMarketUpdateJobType;
 
-export type JobType = MarketUpdateJobType | "ticker" | "alpha-search";
+export type JobType = MarketUpdateJobType | "ticker" | "alpha-search" | "research";
 
 export type Depth = "brief" | "deep";
 

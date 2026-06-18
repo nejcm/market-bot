@@ -160,6 +160,14 @@ describe("parseArgs", () => {
     });
   });
 
+  test("parses research job type in history search filter", () => {
+    expect(parseArgs(["history", "search", "--query", "chips", "--job-type", "research"])).toEqual({
+      jobType: "history-search",
+      query: "chips",
+      sourceJobType: "research",
+    });
+  });
+
   test("parses history thesis-delta command", () => {
     expect(
       parseArgs([
@@ -220,6 +228,7 @@ describe("parseArgs", () => {
       "weekly",
       "ticker",
       "alpha-search",
+      "research",
     ]);
     expect(jobSupportsAsset("ticker")).toBe(true);
     expect(jobSupportsAsset("score")).toBe(false);

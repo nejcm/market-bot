@@ -435,6 +435,75 @@ describe("loadHistoricalContext", () => {
     });
   });
 
+  test("tags same-subject relevance reason for research commands", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "research-semis-key",
+      report: researchReport({
+        runId: "research-semis-key",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        extras: {
+          researchSubject: { subjectKey: "semiconductors" },
+          proxyResolution: { predictionProxySymbol: "SMH" },
+        },
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "research-semis-proxy",
+      report: researchReport({
+        runId: "research-semis-proxy",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-18T00:00:00.000Z",
+        extras: { proxyResolution: { predictionProxySymbol: "SMH" } },
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "research-software",
+      report: researchReport({
+        runId: "research-software",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-22T00:00:00.000Z",
+        extras: {
+          researchSubject: { subjectKey: "software" },
+          proxyResolution: { predictionProxySymbol: "IGV" },
+        },
+      }),
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "semis",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      config: { historyOptions: options({ tickerRecentLimit: 2, anchorMonths: [] }) },
+      now,
+    });
+
+    expect(context.runs.map((run) => run.runId)).toEqual([
+      "research-semis-key",
+      "research-semis-proxy",
+    ]);
+    expect(context.runs[0]).toMatchObject({
+      selectionReasons: ["recent", "same-subject"],
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+    });
+    expect(context.audit.sameSubjectSelectedCount).toBe(2);
+  });
+
   test("counts selected runs carrying a resolved miss towards resolvedMissRunCount", async () => {
     const dataDir = tempRunsDir();
     const now = new Date("2026-06-04T00:00:00.000Z");

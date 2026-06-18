@@ -36,6 +36,15 @@ export interface AlphaSearchCommand {
   readonly depth: Depth;
 }
 
+export interface ResearchSubjectCommand {
+  readonly jobType: "research";
+  readonly assetClass: "equity";
+  readonly subject: string;
+  readonly subjectKey?: string;
+  readonly predictionProxySymbol?: string;
+  readonly depth: Depth;
+}
+
 export interface ScoreCommand {
   readonly jobType: "score";
 }
@@ -65,7 +74,13 @@ export interface HistorySearchCommand {
   readonly query: string;
   readonly symbol?: string;
   readonly assetClass?: AssetClass;
-  readonly sourceJobType?: "market-overview" | "daily" | "weekly" | "ticker" | "alpha-search";
+  readonly sourceJobType?:
+    | "market-overview"
+    | "daily"
+    | "weekly"
+    | "ticker"
+    | "alpha-search"
+    | "research";
   readonly from?: string;
   readonly to?: string;
   readonly section?: HistorySection;
@@ -82,7 +97,12 @@ export interface HistoryThesisDeltaCommand {
   readonly narrative: boolean;
 }
 
-export type ResearchCommand = MarketOverviewCommand | DailyCommand | WeeklyCommand | TickerCommand;
+export type ResearchCommand =
+  | MarketOverviewCommand
+  | DailyCommand
+  | WeeklyCommand
+  | TickerCommand
+  | ResearchSubjectCommand;
 export type CliCommand =
   | ResearchCommand
   | AlphaSearchCommand
@@ -116,6 +136,7 @@ export const SEARCH_JOB_TYPE_OPTIONS = [
   "weekly",
   "ticker",
   "alpha-search",
+  "research",
 ] as const;
 
 export const USAGE =
@@ -176,7 +197,8 @@ export function jobSupportsDepth(jobType: string): boolean {
     jobType === "weekly" ||
     jobType === "market-overview" ||
     jobType === "ticker" ||
-    jobType === "alpha-search"
+    jobType === "alpha-search" ||
+    jobType === "research"
   );
 }
 
@@ -202,6 +224,9 @@ export function commandLabel(command: CliCommand): string {
   if (command.jobType === "market-overview") {
     const alias = command.legacyAlias === undefined ? "market-overview" : command.legacyAlias;
     return `${alias} ${command.assetClass} ${String(command.horizonTradingDays)}d${depthSuffix}`;
+  }
+  if (command.jobType === "research") {
+    return `research ${command.subject}${depthSuffix}`;
   }
 
   return `${command.jobType}${symbolPart} ${command.assetClass}${depthSuffix}`;

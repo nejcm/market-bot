@@ -661,6 +661,7 @@ function historicalContextWith(runs: readonly HistoricalRunContext[]): Historica
       anchorSelectedCount: 0,
       sameSymbolSelectedCount: 0,
       spotlightSymbolSelectedCount: 0,
+      sameSubjectSelectedCount: 0,
       sameHorizonSelectedCount: 0,
       crossHorizonSelectedCount: 0,
       resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
@@ -1028,6 +1029,57 @@ function priorMarketForecastErrorsFor(
   return parsed.evidence?.priorMarketForecastErrors;
 }
 
+function researchRun(
+  runId: string,
+  predictions: readonly HistoricalPredictionSummary[],
+  generatedAt = "2026-05-20T00:00:00.000Z",
+  overrides: Partial<HistoricalRunContext> = {},
+): HistoricalRunContext {
+  return {
+    runId,
+    sourceId: `history-report-${runId}`,
+    jobType: "research",
+    assetClass: "equity",
+    subjectKey: "semiconductors",
+    predictionProxySymbol: "SMH",
+    generatedAt,
+    selectionReasons: ["recent", "same-subject"],
+    summary: "",
+    confidence: "medium",
+    keyFindings: [],
+    risks: [],
+    catalysts: [],
+    dataGaps: [],
+    predictions,
+    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    marketSnapshots: [],
+    ...overrides,
+  };
+}
+
+function priorThematicForecastErrorsFor(
+  command: ResearchCommand,
+  context: ResearchContext,
+): string | undefined {
+  const prompt = buildStagePrompt(
+    "specialist-analysis",
+    command,
+    collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot({ symbol: "SMH" })],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    }),
+    config,
+    context,
+    { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+  );
+  const parsed = JSON.parse(prompt) as {
+    readonly evidence?: { readonly priorThematicForecastErrors?: string };
+  };
+  return parsed.evidence?.priorThematicForecastErrors;
+}
+
 describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", () => {
   const dailyCommand: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
   const sevenDayOverviewCommand: ResearchCommand = {
@@ -1157,6 +1209,74 @@ describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", 
     );
 
     expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+});
+
+describe("buildStagePrompt research thematic forecast error correction", () => {
+  const researchCommand: ResearchCommand = {
+    jobType: "research",
+    assetClass: "equity",
+    subject: "semis",
+    subjectKey: "semiconductors",
+    predictionProxySymbol: "SMH",
+    depth: "brief",
+  };
+
+  test("surfaces prior same-subject proxy misses", () => {
+    const context = contextWithHistory(
+      researchCommand,
+      historicalContextWith([
+        researchRun("run-semis-1", [
+          missSummary("p-smh", { subject: "SMH", claim: "SMH forecast" }),
+        ]),
+      ]),
+    );
+
+    const block = priorThematicForecastErrorsFor(researchCommand, context);
+
+    expect(block).toBeDefined();
+    expect(block).toContain("semiconductors");
+    expect(block).toContain("SMH");
+    expect(block).toContain("run-semis-1");
+    expect(block).toContain("SMH forecast");
+    expect(block).toContain("MISS");
+    expect(block).toContain("history-report-run-semis-1");
+  });
+
+  test("excludes prior research misses on a different proxy", () => {
+    const context = contextWithHistory(
+      researchCommand,
+      historicalContextWith([
+        researchRun(
+          "run-software",
+          [missSummary("p-igv", { subject: "IGV", claim: "IGV forecast" })],
+          "2026-05-20T00:00:00.000Z",
+          { subjectKey: "software", predictionProxySymbol: "IGV" },
+        ),
+      ]),
+    );
+
+    expect(priorThematicForecastErrorsFor(researchCommand, context)).toBeUndefined();
+  });
+
+  test("omits thematic error correction when the command has no resolved proxy", () => {
+    const commandWithoutProxy: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "semis",
+      subjectKey: "semiconductors",
+      depth: "brief",
+    };
+    const context = contextWithHistory(
+      commandWithoutProxy,
+      historicalContextWith([
+        researchRun("run-semis-1", [
+          missSummary("p-smh", { subject: "SMH", claim: "SMH forecast" }),
+        ]),
+      ]),
+    );
+
+    expect(priorThematicForecastErrorsFor(commandWithoutProxy, context)).toBeUndefined();
   });
 });
 

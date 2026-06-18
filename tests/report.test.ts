@@ -739,6 +739,7 @@ describe("report schema and rendering", () => {
         anchorSelectedCount: 0,
         sameSymbolSelectedCount: 0,
         spotlightSymbolSelectedCount: 0,
+        sameSubjectSelectedCount: 0,
         sameHorizonSelectedCount: 0,
         crossHorizonSelectedCount: 0,
         resolvedMissRunCount: 0,

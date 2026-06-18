@@ -40,6 +40,7 @@ import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
   loadPlaybooksByStage,
+  mandatoryPlaybookSelections,
   parsePlaybookSelection,
   type PlaybookSelectionAudit,
   type PlaybookStage,
@@ -223,7 +224,11 @@ async function runPlaybookSelection(
       },
     ],
   });
-  const audit = parsePlaybookSelection(response.content, candidates);
+  const audit = parsePlaybookSelection(
+    response.content,
+    candidates,
+    mandatoryPlaybookSelections(input.command, plannedStages, candidates),
+  );
   const domainPlaybooks = await loadPlaybooksByStage(
     input.config.promptDir,
     registry,

@@ -1,22 +1,30 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ResearchCommand } from "../cli/args";
 import type { AssetClass, Depth, JobType } from "../domain/types";
 import { isRecord, readString } from "../sources/guards";
 import { parseSections } from "./markdown-sections";
 import type { StageLabel } from "./prompt-loader";
+
+export type PlaybookJobType = Exclude<JobType, "alpha-search"> | "research";
 
 export type PlaybookStage = Exclude<
   StageLabel,
   "evidence-request" | "playbook-selection" | "spotlight-selection" | "forecast-disagreement"
 >;
 
+export interface PlaybookCommandScope {
+  readonly jobType: PlaybookJobType;
+  readonly assetClass: AssetClass;
+  readonly depth: Depth;
+  readonly symbol?: string;
+}
+
 export interface PlaybookMetadata {
   readonly id: string;
   readonly title: string;
   readonly summary: string;
   readonly file: string;
-  readonly jobTypes: readonly JobType[];
+  readonly jobTypes: readonly PlaybookJobType[];
   readonly assetClasses: readonly AssetClass[];
   readonly depths: readonly Depth[];
   readonly stages: readonly PlaybookStage[];
@@ -61,6 +69,8 @@ const MAX_PLAYBOOK_CHARS = 2500;
 const MAX_PLAYBOOKS_PER_STAGE = 2;
 const MAX_PLAYBOOKS_PER_RUN = 6;
 const MAX_SELECTOR_RATIONALE_CHARS = 500;
+const SOURCE_DISCIPLINE_PLAYBOOK_ID = "source-discipline";
+const SOURCE_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["critique", "final-synthesis"];
 // Keep in sync with PlaybookStage; this runtime set validates checked-in JSON.
 const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
   "specialist-analysis",
@@ -84,18 +94,19 @@ function readStringArray(record: Record<string, unknown>, key: string): readonly
   return value;
 }
 
-function assertJobTypes(values: readonly string[]): readonly JobType[] {
+function assertJobTypes(values: readonly string[]): readonly PlaybookJobType[] {
   for (const value of values) {
     if (
       value !== "market-overview" &&
       value !== "daily" &&
       value !== "weekly" &&
-      value !== "ticker"
+      value !== "ticker" &&
+      value !== "research"
     ) {
       throw new Error(`Playbook registry has invalid jobType: ${value}`);
     }
   }
-  return values as readonly JobType[];
+  return values as readonly PlaybookJobType[];
 }
 
 function assertAssetClasses(values: readonly string[]): readonly AssetClass[] {
@@ -179,7 +190,7 @@ function parseRegistryJson(raw: string, registryPath: string): unknown {
 }
 
 export function eligiblePlaybookCandidates(
-  command: ResearchCommand,
+  command: PlaybookCommandScope,
   stages: readonly PlaybookStage[],
   registry: readonly PlaybookMetadata[],
 ): readonly PlaybookCandidate[] {
@@ -201,6 +212,27 @@ export function eligiblePlaybookCandidates(
       summary: playbook.summary,
       eligibleStages,
     }));
+}
+
+export function mandatoryPlaybookSelections(
+  command: PlaybookCommandScope,
+  stages: readonly PlaybookStage[],
+  candidates: readonly PlaybookCandidate[],
+): readonly { readonly stage: PlaybookStage; readonly playbookIds: readonly string[] }[] {
+  if (command.jobType !== "research") {
+    return [];
+  }
+  const eligible = buildEligibilityMap(candidates);
+  const sourceDisciplineStages = eligible.get(SOURCE_DISCIPLINE_PLAYBOOK_ID);
+  if (sourceDisciplineStages === undefined) {
+    return [];
+  }
+  return SOURCE_DISCIPLINE_STAGES.filter(
+    (stage) => stages.includes(stage) && sourceDisciplineStages.has(stage),
+  ).map((stage) => ({
+    stage,
+    playbookIds: [SOURCE_DISCIPLINE_PLAYBOOK_ID],
+  }));
 }
 
 export async function loadPlaybooksByStage(
@@ -252,6 +284,10 @@ async function loadPlaybook(
 export function parsePlaybookSelection(
   content: string,
   candidates: readonly PlaybookCandidate[],
+  mandatorySelections: readonly {
+    readonly stage: PlaybookStage;
+    readonly playbookIds: readonly string[];
+  }[] = [],
 ): PlaybookSelectionAudit {
   const parsed = parseJson(content);
   if (!isRecord(parsed) || !Array.isArray(parsed.selections)) {
@@ -269,6 +305,20 @@ export function parsePlaybookSelection(
   }[] = [];
   const seen = new Set<string>();
   let runCount = 0;
+  for (const selection of mandatorySelections) {
+    for (const playbookId of selection.playbookIds) {
+      const { runCount: nextRunCount } = addSelection({
+        selectedByStage,
+        rejected,
+        seen,
+        runCount,
+        eligible,
+        stage: selection.stage,
+        playbookId,
+      });
+      runCount = nextRunCount;
+    }
+  }
 
   for (const raw of parsed.selections) {
     const selection = parseRawSelection(raw);
@@ -282,30 +332,16 @@ export function parsePlaybookSelection(
     }
     const typedStage = selection.stage as PlaybookStage;
     for (const playbookId of selection.playbookIds) {
-      const key = `${selection.stage}:${playbookId}`;
-      const eligibleStages = eligible.get(playbookId);
-      const stageCount = selectedByStage.get(typedStage)?.length ?? 0;
-      if (eligibleStages === undefined || !eligibleStages.has(typedStage)) {
-        rejected.push({ stage: selection.stage, playbookId, reason: "playbook is not eligible" });
-      } else if (seen.has(key)) {
-        rejected.push({ stage: selection.stage, playbookId, reason: "duplicate selection" });
-      } else if (stageCount >= MAX_PLAYBOOKS_PER_STAGE) {
-        rejected.push({
-          stage: selection.stage,
-          playbookId,
-          reason: "per-stage playbook cap exceeded",
-        });
-      } else if (runCount >= MAX_PLAYBOOKS_PER_RUN) {
-        rejected.push({
-          stage: selection.stage,
-          playbookId,
-          reason: "per-run playbook cap exceeded",
-        });
-      } else {
-        selectedByStage.set(typedStage, [...(selectedByStage.get(typedStage) ?? []), playbookId]);
-        seen.add(key);
-        runCount += 1;
-      }
+      const { runCount: nextRunCount } = addSelection({
+        selectedByStage,
+        rejected,
+        seen,
+        runCount,
+        eligible,
+        stage: typedStage,
+        playbookId,
+      });
+      runCount = nextRunCount;
     }
   }
 
@@ -319,6 +355,62 @@ export function parsePlaybookSelection(
       : {}),
     rejected,
   };
+}
+
+function addSelection(input: {
+  readonly selectedByStage: Map<PlaybookStage, string[]>;
+  readonly rejected: {
+    readonly stage?: string;
+    readonly playbookId?: string;
+    readonly reason: string;
+  }[];
+  readonly seen: Set<string>;
+  readonly runCount: number;
+  readonly eligible: ReadonlyMap<string, ReadonlySet<PlaybookStage>>;
+  readonly stage: PlaybookStage;
+  readonly playbookId: string;
+}): { readonly runCount: number } {
+  const key = `${input.stage}:${input.playbookId}`;
+  const eligibleStages = input.eligible.get(input.playbookId);
+  const stageCount = input.selectedByStage.get(input.stage)?.length ?? 0;
+  if (eligibleStages === undefined || !eligibleStages.has(input.stage)) {
+    input.rejected.push({
+      stage: input.stage,
+      playbookId: input.playbookId,
+      reason: "playbook is not eligible",
+    });
+    return { runCount: input.runCount };
+  }
+  if (input.seen.has(key)) {
+    input.rejected.push({
+      stage: input.stage,
+      playbookId: input.playbookId,
+      reason: "duplicate selection",
+    });
+    return { runCount: input.runCount };
+  }
+  if (stageCount >= MAX_PLAYBOOKS_PER_STAGE) {
+    input.rejected.push({
+      stage: input.stage,
+      playbookId: input.playbookId,
+      reason: "per-stage playbook cap exceeded",
+    });
+    return { runCount: input.runCount };
+  }
+  if (input.runCount >= MAX_PLAYBOOKS_PER_RUN) {
+    input.rejected.push({
+      stage: input.stage,
+      playbookId: input.playbookId,
+      reason: "per-run playbook cap exceeded",
+    });
+    return { runCount: input.runCount };
+  }
+  input.selectedByStage.set(input.stage, [
+    ...(input.selectedByStage.get(input.stage) ?? []),
+    input.playbookId,
+  ]);
+  input.seen.add(key);
+  return { runCount: input.runCount + 1 };
 }
 
 function parseJson(content: string): unknown {

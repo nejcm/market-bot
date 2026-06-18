@@ -70,6 +70,16 @@
       "assetClasses": ["equity", "crypto"],
       "depths": ["brief", "deep"],
       "stages": ["final-synthesis"]
+    },
+    {
+      "id": "source-discipline",
+      "title": "Source Discipline",
+      "summary": "Label evidence posture for observed facts, claims, calculations, inferences, assumptions, stale inputs, conflicts, and missing sources.",
+      "file": "source-discipline.md",
+      "jobTypes": ["research"],
+      "assetClasses": ["equity"],
+      "depths": ["brief", "deep"],
+      "stages": ["critique", "final-synthesis"]
     }
   ]
 }

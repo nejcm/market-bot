@@ -281,6 +281,18 @@ describe("mandatoryPlaybookSelections", () => {
       ),
     ).toEqual([]);
   });
+
+  test("throws when required research source-discipline is missing from candidates", () => {
+    expect(() =>
+      mandatoryPlaybookSelections(
+        { jobType: "research", assetClass: "crypto", depth: "brief" },
+        ["critique", "final-synthesis"],
+        [],
+      ),
+    ).toThrow(
+      "Mandatory playbook source-discipline is not eligible for research stages: critique, final-synthesis",
+    );
+  });
 });
 
 describe("loadPlaybooksByStage", () => {
@@ -521,5 +533,55 @@ describe("parsePlaybookSelection", () => {
       { stage: "final-synthesis", playbookIds: ["source-discipline"] },
     ]);
     expect(result.rejected).toEqual([]);
+  });
+
+  test("keeps mandatory selections when selector output is malformed", () => {
+    const result = parsePlaybookSelection(
+      "not-json",
+      [
+        ...candidates,
+        {
+          id: "source-discipline",
+          title: "Source Discipline",
+          summary: "Evidence posture.",
+          eligibleStages: ["critique", "final-synthesis"] as const,
+        },
+      ],
+      [
+        { stage: "critique", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      ],
+    );
+
+    expect(result.selected).toEqual([
+      { stage: "critique", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+    expect(result.rejected).toEqual([{ reason: "selector returned malformed JSON" }]);
+  });
+
+  test("throws when mandatory selections exceed the per-run cap", () => {
+    const manyCandidates = Array.from({ length: 7 }, (_, idx) => ({
+      id: `p${String(idx + 1)}`,
+      title: `P${String(idx + 1)}`,
+      summary: "Candidate.",
+      eligibleStages: [
+        "specialist-analysis",
+        "market-behavior-analysis",
+        "critique",
+        "final-synthesis",
+      ] as const,
+    }));
+
+    expect(() =>
+      parsePlaybookSelection(JSON.stringify({ selections: [] }), manyCandidates, [
+        { stage: "specialist-analysis", playbookIds: ["p1", "p2"] },
+        { stage: "critique", playbookIds: ["p3", "p4"] },
+        { stage: "final-synthesis", playbookIds: ["p5", "p6"] },
+        { stage: "market-behavior-analysis", playbookIds: ["p7"] },
+      ]),
+    ).toThrow(
+      "Mandatory playbook p7 for market-behavior-analysis failed: per-run playbook cap exceeded",
+    );
   });
 });

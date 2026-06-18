@@ -222,14 +222,24 @@ export function mandatoryPlaybookSelections(
   if (command.jobType !== "research") {
     return [];
   }
+  const requiredStages = SOURCE_DISCIPLINE_STAGES.filter((stage) => stages.includes(stage));
+  if (requiredStages.length === 0) {
+    return [];
+  }
   const eligible = buildEligibilityMap(candidates);
   const sourceDisciplineStages = eligible.get(SOURCE_DISCIPLINE_PLAYBOOK_ID);
   if (sourceDisciplineStages === undefined) {
-    return [];
+    throw new Error(
+      `Mandatory playbook ${SOURCE_DISCIPLINE_PLAYBOOK_ID} is not eligible for research stages: ${requiredStages.join(", ")}`,
+    );
   }
-  return SOURCE_DISCIPLINE_STAGES.filter(
-    (stage) => stages.includes(stage) && sourceDisciplineStages.has(stage),
-  ).map((stage) => ({
+  const missingStages = requiredStages.filter((stage) => !sourceDisciplineStages.has(stage));
+  if (missingStages.length > 0) {
+    throw new Error(
+      `Mandatory playbook ${SOURCE_DISCIPLINE_PLAYBOOK_ID} is not eligible for research stages: ${missingStages.join(", ")}`,
+    );
+  }
+  return requiredStages.map((stage) => ({
     stage,
     playbookIds: [SOURCE_DISCIPLINE_PLAYBOOK_ID],
   }));
@@ -289,13 +299,6 @@ export function parsePlaybookSelection(
     readonly playbookIds: readonly string[];
   }[] = [],
 ): PlaybookSelectionAudit {
-  const parsed = parseJson(content);
-  if (!isRecord(parsed) || !Array.isArray(parsed.selections)) {
-    return {
-      selected: [],
-      rejected: [{ reason: "selector returned malformed JSON" }],
-    };
-  }
   const eligible = buildEligibilityMap(candidates);
   const selectedByStage = new Map<PlaybookStage, string[]>();
   const rejected: {
@@ -305,6 +308,7 @@ export function parsePlaybookSelection(
   }[] = [];
   const seen = new Set<string>();
   let runCount = 0;
+
   for (const selection of mandatorySelections) {
     for (const playbookId of selection.playbookIds) {
       const { runCount: nextRunCount } = addSelection({
@@ -315,9 +319,21 @@ export function parsePlaybookSelection(
         eligible,
         stage: selection.stage,
         playbookId,
+        required: true,
       });
       runCount = nextRunCount;
     }
+  }
+
+  const parsed = parseJson(content);
+  if (!isRecord(parsed) || !Array.isArray(parsed.selections)) {
+    return {
+      selected: [...selectedByStage.entries()].map(([stage, playbookIds]) => ({
+        stage,
+        playbookIds,
+      })),
+      rejected: [{ reason: "selector returned malformed JSON" }],
+    };
   }
 
   for (const raw of parsed.selections) {
@@ -369,41 +385,22 @@ function addSelection(input: {
   readonly eligible: ReadonlyMap<string, ReadonlySet<PlaybookStage>>;
   readonly stage: PlaybookStage;
   readonly playbookId: string;
+  readonly required?: boolean;
 }): { readonly runCount: number } {
   const key = `${input.stage}:${input.playbookId}`;
   const eligibleStages = input.eligible.get(input.playbookId);
   const stageCount = input.selectedByStage.get(input.stage)?.length ?? 0;
   if (eligibleStages === undefined || !eligibleStages.has(input.stage)) {
-    input.rejected.push({
-      stage: input.stage,
-      playbookId: input.playbookId,
-      reason: "playbook is not eligible",
-    });
-    return { runCount: input.runCount };
+    return rejectSelection(input, "playbook is not eligible");
   }
   if (input.seen.has(key)) {
-    input.rejected.push({
-      stage: input.stage,
-      playbookId: input.playbookId,
-      reason: "duplicate selection",
-    });
-    return { runCount: input.runCount };
+    return rejectSelection(input, "duplicate selection");
   }
   if (stageCount >= MAX_PLAYBOOKS_PER_STAGE) {
-    input.rejected.push({
-      stage: input.stage,
-      playbookId: input.playbookId,
-      reason: "per-stage playbook cap exceeded",
-    });
-    return { runCount: input.runCount };
+    return rejectSelection(input, "per-stage playbook cap exceeded");
   }
   if (input.runCount >= MAX_PLAYBOOKS_PER_RUN) {
-    input.rejected.push({
-      stage: input.stage,
-      playbookId: input.playbookId,
-      reason: "per-run playbook cap exceeded",
-    });
-    return { runCount: input.runCount };
+    return rejectSelection(input, "per-run playbook cap exceeded");
   }
   input.selectedByStage.set(input.stage, [
     ...(input.selectedByStage.get(input.stage) ?? []),
@@ -411,6 +408,31 @@ function addSelection(input: {
   ]);
   input.seen.add(key);
   return { runCount: input.runCount + 1 };
+}
+
+function rejectSelection(
+  input: {
+    readonly rejected: {
+      readonly stage?: string;
+      readonly playbookId?: string;
+      readonly reason: string;
+    }[];
+    readonly runCount: number;
+    readonly stage: PlaybookStage;
+    readonly playbookId: string;
+    readonly required?: boolean;
+  },
+  reason: string,
+): { readonly runCount: number } {
+  if (input.required === true) {
+    throw new Error(`Mandatory playbook ${input.playbookId} for ${input.stage} failed: ${reason}`);
+  }
+  input.rejected.push({
+    stage: input.stage,
+    playbookId: input.playbookId,
+    reason,
+  });
+  return { runCount: input.runCount };
 }
 
 function parseJson(content: string): unknown {

@@ -8,7 +8,7 @@ import { assembleResearchReport, buildSourceList } from "../src/research/report-
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
-import { collectedSources, prediction } from "./support/fixtures";
+import { collectedSources, marketSnapshot, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -803,6 +803,101 @@ describe("report schema and rendering", () => {
     });
   });
 
+  test("gates research predictions to resolved proxy with matching snapshot", () => {
+    const depthProfile = assemblyDepthProfile("XBI");
+    const assembled = assembleResearchReport({
+      runId: "research-biotech",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      payload: {
+        summary: "AI biotech evidence is mixed.",
+        confidence: "medium",
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            id: "pred-vix",
+            kind: "volatility",
+            subject: "^VIX",
+            measurableAs: "max(close(^VIX), 0..+15) > 20",
+            horizonTradingDays: 15,
+          }),
+          prediction({
+            id: "pred-xbi",
+            subject: "XBI",
+            measurableAs: "close(XBI, +15) > close(XBI, 0)",
+            horizonTradingDays: 15,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" })],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [
+        {
+          ...spotlightSource,
+          id: "market-yahoo-equity-xbi",
+          title: "XBI market snapshot",
+          symbol: "XBI",
+        },
+      ],
+    });
+
+    expect(assembled.predictions.map((item) => item.subject)).toEqual(["XBI"]);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: dropped non-proxy predictions; allowed subject is XBI",
+    );
+  });
+
+  test("drops research predictions when proxy snapshot is missing", () => {
+    const depthProfile = assemblyDepthProfile("XBI");
+    const assembled = assembleResearchReport({
+      runId: "research-biotech",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      payload: {
+        summary: "AI biotech evidence is mixed.",
+        confidence: "medium",
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            subject: "XBI",
+            measurableAs: "close(XBI, +15) > close(XBI, 0)",
+            horizonTradingDays: 15,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toEqual([]);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: dropped predictions because no market snapshot matched proxy XBI",
+    );
+  });
+
   test("adds de-duped benchmark market sources from market snapshots", () => {
     const snapshots: readonly MarketSnapshot[] = [
       {
@@ -1073,6 +1168,30 @@ describe("report schema and rendering", () => {
     expect(renderMarkdownReport({ ...marketReport, jobType: "weekly" })).toContain(
       "# crypto Market Overview",
     );
+  });
+
+  test("renders research title as thematic research view", () => {
+    const { symbol: _symbol, ...base } = report;
+
+    expect(renderMarkdownReport({ ...base, jobType: "research" })).toContain(
+      "# crypto Thematic Research View",
+    );
+  });
+
+  test("omits prediction language from alpha-search research-only note", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "alpha-search",
+      assetClass: "equity",
+      predictions: [],
+      extras: {
+        researchLeads: [],
+        rejectedCandidates: [],
+      },
+    });
+
+    expect(markdown).toContain("Research-only note:");
+    expect(markdown).not.toContain("Predictions are probabilistic statements");
   });
 
   test("rejects trade-action language in alpha-search reports", () => {

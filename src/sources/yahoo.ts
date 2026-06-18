@@ -186,7 +186,7 @@ export function yahooQuoteSourceRequest(
   };
 }
 
-type EquityRole = "gainers" | "losers" | "actives" | "regime" | "ticker";
+type EquityRole = "gainers" | "losers" | "actives" | "regime" | "ticker" | "research-proxy";
 
 function isMoverRole(role: EquityRole): boolean {
   return role === "gainers" || role === "losers" || role === "actives";
@@ -199,11 +199,14 @@ function equityRoleAdapter(role: EquityRole): string {
   if (role === "ticker") {
     return "yahoo-ticker";
   }
+  if (role === "research-proxy") {
+    return "yahoo-research-proxy";
+  }
   return `yahoo-${role}`;
 }
 
 function usesQuoteFallback(role: EquityRole): boolean {
-  return role === "regime" || role === "ticker";
+  return role === "regime" || role === "ticker" || role === "research-proxy";
 }
 
 interface BenchmarkSelection {
@@ -238,6 +241,35 @@ function benchmarkFromSnapshot(
     changePercent24h: snapshot.changePercent24h,
     observedAt: snapshot.observedAt,
   };
+}
+
+function equityRequestsFor(
+  command: CollectContext["command"],
+): readonly { readonly role: EquityRole; readonly url: string }[] {
+  if (command.jobType === "ticker") {
+    return [
+      { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
+      { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+    ];
+  }
+
+  const researchProxy =
+    command.jobType === "research"
+      ? command.predictionProxySymbol?.trim().toUpperCase()
+      : undefined;
+  if (researchProxy !== undefined && researchProxy !== "") {
+    return [
+      { role: "research-proxy", url: yahooQuoteUrl(researchProxy) },
+      { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+    ];
+  }
+
+  return [
+    { role: "gainers", url: EQUITY_DAILY_URL },
+    { role: "losers", url: EQUITY_DAILY_LOSERS_URL },
+    { role: "actives", url: EQUITY_MOST_ACTIVES_URL },
+    { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+  ];
 }
 
 function symbolsFromQuoteUrl(url: string): readonly string[] {
@@ -373,19 +405,7 @@ async function enrichMoverBenchmarks(
 
 async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResult> {
   const { command } = ctx;
-
-  const requests: readonly { readonly role: EquityRole; readonly url: string }[] =
-    command.jobType === "ticker"
-      ? [
-          { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
-          { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
-        ]
-      : [
-          { role: "gainers", url: EQUITY_DAILY_URL },
-          { role: "losers", url: EQUITY_DAILY_LOSERS_URL },
-          { role: "actives", url: EQUITY_MOST_ACTIVES_URL },
-          { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
-        ];
+  const requests = equityRequestsFor(command);
 
   const results = await Promise.all(
     requests.map(async (req) => {

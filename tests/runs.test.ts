@@ -193,6 +193,41 @@ describe("resolveRunParams — run keys", () => {
     expect(result.analystStyle).toBe("fuller analyst-style");
   });
 
+  test("research with resolved proxy uses proxy-only prediction subjects", () => {
+    const result = resolveRunParams(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Analyze AI biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "xbi",
+        depth: "brief",
+      },
+      baseConfig,
+    );
+
+    expect(result.predictionSubjects).toEqual(["XBI"]);
+    expect(result.defaultPredictionHorizon).toBe(15);
+    expect(result.targetPredictions).toBe(2);
+    expect(result.focus).toContain("proxy evidence");
+    expect(result.predictionSubjects).not.toContain("^VIX");
+  });
+
+  test("research without resolved proxy targets zero predictions", () => {
+    const result = resolveRunParams(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Analyze an unlisted theme",
+        depth: "brief",
+      },
+      baseConfig,
+    );
+
+    expect(result.predictionSubjects).toEqual([]);
+    expect(result.targetPredictions).toBe(0);
+  });
+
   test("daily-crypto keeps depth profile but uses crypto prediction subjects", () => {
     const equity = resolveRunParams(
       { jobType: "daily", assetClass: "equity", depth: "brief" },

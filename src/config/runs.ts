@@ -7,7 +7,12 @@ import type { ModelParams } from "../model/types";
 // Types
 // ---------------------------------------------------------------------------
 
-export type RunKey = "market-overview-equity" | "market-overview-crypto" | "ticker";
+export type RunKey =
+  | "market-overview-equity"
+  | "market-overview-crypto"
+  | "research-equity"
+  | "research-crypto"
+  | "ticker";
 
 /**
  * Audit finding #10 (prediction mix policy / emission policy): per-kind skill
@@ -113,6 +118,10 @@ const TICKER_KIND_MIX: ForecastKindMix = {
   minNonDirection: 1,
 };
 
+const RESEARCH_KIND_MIX: ForecastKindMix = {
+  favored: ["range"],
+};
+
 const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "modelParams"> = {
   minimumKeyFindings: 3,
   minimumScenarios: 1,
@@ -207,6 +216,58 @@ export const runConfig: RunConfig = {
       targetKindMix: { ...TICKER_KIND_MIX, minNonDirection: 2 },
     },
   },
+  "research-equity": {
+    minimumKeyFindings: 3,
+    minimumScenarios: 1,
+    targetPredictions: 2,
+    defaultPredictionHorizon: 15,
+    predictionSubjects: [],
+    analystStyle: "concise brief",
+    focus: [
+      "subject evidence",
+      "proxy evidence",
+      "representative instruments",
+      "risks",
+      "data gaps",
+    ],
+    targetKindMix: RESEARCH_KIND_MIX,
+    deep: {
+      minimumKeyFindings: 5,
+      minimumScenarios: 3,
+      targetPredictions: 3,
+      analystStyle: "fuller analyst-style",
+      focus: [
+        "subject evidence",
+        "proxy evidence",
+        "representative instruments",
+        "catalysts",
+        "scenarios",
+        "risks",
+        "data gaps",
+      ],
+    },
+  },
+  "research-crypto": {
+    minimumKeyFindings: 3,
+    minimumScenarios: 1,
+    targetPredictions: 0,
+    defaultPredictionHorizon: 15,
+    predictionSubjects: [],
+    analystStyle: "concise brief",
+    focus: [
+      "subject evidence",
+      "proxy evidence",
+      "representative instruments",
+      "risks",
+      "data gaps",
+    ],
+    targetKindMix: RESEARCH_KIND_MIX,
+    deep: {
+      minimumKeyFindings: 5,
+      minimumScenarios: 3,
+      analystStyle: "fuller analyst-style",
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -217,7 +278,18 @@ function toRunKey(command: ResearchCommand): RunKey {
   if (command.jobType === "ticker") {
     return "ticker";
   }
+  if (command.jobType === "research") {
+    return `research-${command.assetClass}` as RunKey;
+  }
   return `market-overview-${command.assetClass}` as RunKey;
+}
+
+function researchPredictionProxy(command: ResearchCommand): string | undefined {
+  if (command.jobType !== "research") {
+    return undefined;
+  }
+  const proxy = command.predictionProxySymbol?.trim().toUpperCase();
+  return proxy === "" ? undefined : proxy;
 }
 
 function mergeModelParams(
@@ -245,6 +317,31 @@ function defaultPredictionHorizonFor(command: ResearchCommand, merged: RunBasePa
   return merged.defaultPredictionHorizon ?? CODE_DEFAULTS.defaultPredictionHorizon;
 }
 
+function predictionSubjectsFor(
+  command: ResearchCommand,
+  merged: RunBaseParams,
+  proxy: string | undefined,
+): readonly string[] {
+  if (command.jobType === "ticker") {
+    return [command.symbol];
+  }
+  if (command.jobType === "research") {
+    return proxy === undefined ? [] : [proxy];
+  }
+  return merged.predictionSubjects ?? CODE_DEFAULTS.predictionSubjects;
+}
+
+function targetPredictionsFor(
+  command: ResearchCommand,
+  merged: RunBaseParams,
+  proxy: string | undefined,
+): number {
+  if (command.jobType === "research" && proxy === undefined) {
+    return 0;
+  }
+  return merged.targetPredictions ?? CODE_DEFAULTS.targetPredictions;
+}
+
 export function resolveRunParams(
   command: ResearchCommand,
   appConfig: AppConfig,
@@ -255,11 +352,8 @@ export function resolveRunParams(
   const deepOverride = command.depth === "deep" ? (combo.deep ?? {}) : {};
   const merged: RunBaseParams = { ...combo, ...deepOverride };
 
-  // Ticker prediction subjects are always derived from the symbol at runtime.
-  const predictionSubjects =
-    command.jobType === "ticker"
-      ? [command.symbol]
-      : (merged.predictionSubjects ?? CODE_DEFAULTS.predictionSubjects);
+  const proxy = researchPredictionProxy(command);
+  const predictionSubjects = predictionSubjectsFor(command, merged, proxy);
   const defaultQuickModel =
     appConfig.provider === "codex"
       ? (appConfig.codexQuickModel ?? appConfig.quickModel)
@@ -275,7 +369,7 @@ export function resolveRunParams(
     modelParams: mergeModelParams(appConfig.modelParams, merged.modelParams),
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
-    targetPredictions: merged.targetPredictions ?? CODE_DEFAULTS.targetPredictions,
+    targetPredictions: targetPredictionsFor(command, merged, proxy),
     defaultPredictionHorizon: defaultPredictionHorizonFor(command, merged),
     predictionSubjects,
     focus: merged.focus ?? CODE_DEFAULTS.focus,

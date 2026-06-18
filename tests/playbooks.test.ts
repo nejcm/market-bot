@@ -535,6 +535,36 @@ describe("parsePlaybookSelection", () => {
     expect(result.rejected).toEqual([]);
   });
 
+  test("does not reject selector repeats of mandatory selections as duplicates", () => {
+    const result = parsePlaybookSelection(
+      JSON.stringify({
+        selections: [
+          { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
+          { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+        ],
+      }),
+      [
+        ...candidates,
+        {
+          id: "source-discipline",
+          title: "Source Discipline",
+          summary: "Evidence posture.",
+          eligibleStages: ["critique", "final-synthesis"] as const,
+        },
+      ],
+      [
+        { stage: "critique", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      ],
+    );
+
+    expect(result.selected).toEqual([
+      { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+    expect(result.rejected).toEqual([]);
+  });
+
   test("keeps mandatory selections when selector output is malformed", () => {
     const result = parsePlaybookSelection(
       "not-json",

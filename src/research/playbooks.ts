@@ -303,14 +303,17 @@ export function parsePlaybookSelection(
     readonly reason: string;
   }[] = [];
   const seen = new Set<string>();
+  const mandatorySeen = new Set<string>();
   let runCount = 0;
 
   for (const selection of mandatorySelections) {
     for (const playbookId of selection.playbookIds) {
+      mandatorySeen.add(selectionKey(selection.stage, playbookId));
       const { runCount: nextRunCount } = addSelection({
         selectedByStage,
         rejected,
         seen,
+        mandatorySeen,
         runCount,
         eligible,
         stage: selection.stage,
@@ -348,6 +351,7 @@ export function parsePlaybookSelection(
         selectedByStage,
         rejected,
         seen,
+        mandatorySeen,
         runCount,
         eligible,
         stage: typedStage,
@@ -369,6 +373,10 @@ export function parsePlaybookSelection(
   };
 }
 
+function selectionKey(stage: PlaybookStage, playbookId: string): string {
+  return `${stage}:${playbookId}`;
+}
+
 function addSelection(input: {
   readonly selectedByStage: Map<PlaybookStage, string[]>;
   readonly rejected: {
@@ -377,19 +385,23 @@ function addSelection(input: {
     readonly reason: string;
   }[];
   readonly seen: Set<string>;
+  readonly mandatorySeen: ReadonlySet<string>;
   readonly runCount: number;
   readonly eligible: ReadonlyMap<string, ReadonlySet<PlaybookStage>>;
   readonly stage: PlaybookStage;
   readonly playbookId: string;
   readonly required?: boolean;
 }): { readonly runCount: number } {
-  const key = `${input.stage}:${input.playbookId}`;
+  const key = selectionKey(input.stage, input.playbookId);
   const eligibleStages = input.eligible.get(input.playbookId);
   const stageCount = input.selectedByStage.get(input.stage)?.length ?? 0;
   if (eligibleStages === undefined || !eligibleStages.has(input.stage)) {
     return rejectSelection(input, "playbook is not eligible");
   }
   if (input.seen.has(key)) {
+    if (input.mandatorySeen.has(key)) {
+      return { runCount: input.runCount };
+    }
     return rejectSelection(input, "duplicate selection");
   }
   if (stageCount >= MAX_PLAYBOOKS_PER_STAGE) {

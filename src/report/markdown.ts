@@ -8,6 +8,9 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord } from "../sources/guards";
 
+const ALPHA_SEARCH_NOTE =
+  "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
+
 function sourceRefs(sourceIds: readonly string[]): string {
   return sourceIds.map((sourceId) => `[${markdownText(sourceId)}]`).join(" ");
 }
@@ -198,6 +201,16 @@ function renderSpotlights(report: ResearchReport): string {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return "";
   }
+  const allowedResearchSymbols =
+    report.jobType === "research" &&
+    isRecord(report.extras?.depthProfile) &&
+    Array.isArray(report.extras.depthProfile.predictionSubjects)
+      ? new Set(
+          report.extras.depthProfile.predictionSubjects.flatMap((subject) =>
+            typeof subject === "string" ? [subject.toUpperCase()] : [],
+          ),
+        )
+      : undefined;
   const rows = extra.items.flatMap((item) => {
     if (!isRecord(item)) {
       return [];
@@ -213,6 +226,9 @@ function renderSpotlights(report: ResearchReport): string {
       rationale = text;
     }
     const refs = sourceRefs(knownSourceIds(report, sourceIds));
+    if (allowedResearchSymbols !== undefined && !allowedResearchSymbols.has(symbol.toUpperCase())) {
+      return [];
+    }
     if (rationale === "" || refs === "") {
       return [];
     }
@@ -405,7 +421,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   return [
     `# ${report.assetClass} Alpha Search Report`,
     "",
-    RESEARCH_ONLY_NOTE,
+    ALPHA_SEARCH_NOTE,
     "",
     `Generated: ${report.generatedAt}`,
     `Evidence Quality: ${report.confidence}`,
@@ -434,15 +450,22 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   ].join("\n");
 }
 
+function reportTitle(report: ResearchReport): string {
+  if (report.jobType === "ticker") {
+    return `${report.symbol} ${report.assetClass} Research View`;
+  }
+  if (report.jobType === "research") {
+    return `${report.assetClass} Thematic Research View`;
+  }
+  return `${report.assetClass} Market Overview`;
+}
+
 export function renderMarkdownReport(report: ResearchReport): string {
   if (report.jobType === "alpha-search") {
     return renderAlphaSearchReport(report);
   }
 
-  const title =
-    report.jobType === "ticker"
-      ? `${report.symbol} ${report.assetClass} Research View`
-      : `${report.assetClass} Market Overview`;
+  const title = reportTitle(report);
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."

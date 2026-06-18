@@ -28,7 +28,10 @@ import {
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
-import { researchIdentityExtras } from "./research-subject-identity";
+import {
+  commandResearchSubjectIdentity,
+  researchIdentityExtras,
+} from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
@@ -400,6 +403,59 @@ function uniqueDataGaps(gaps: readonly string[]): readonly string[] {
   });
 }
 
+function hasMarketSnapshotFor(
+  collectedSources: CollectedSources,
+  symbol: string | undefined,
+): boolean {
+  if (symbol === undefined) {
+    return false;
+  }
+  const target = symbol.toUpperCase();
+  return collectedSources.marketSnapshots.some(
+    (snapshot) => snapshot.symbol.toUpperCase() === target,
+  );
+}
+
+function researchPredictionGate(input: {
+  readonly command: ResearchCommand;
+  readonly predictions: readonly Prediction[];
+  readonly collectedSources: CollectedSources;
+}): { readonly predictions: readonly Prediction[]; readonly gaps: readonly string[] } {
+  if (input.command.jobType !== "research") {
+    return { predictions: input.predictions, gaps: [] };
+  }
+  const proxy = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
+  if (proxy === undefined) {
+    return {
+      predictions: [],
+      gaps:
+        input.predictions.length === 0
+          ? []
+          : [
+              "researchProxyForecastGate: dropped predictions because no listed prediction proxy was resolved",
+            ],
+    };
+  }
+  if (!hasMarketSnapshotFor(input.collectedSources, proxy)) {
+    return {
+      predictions: [],
+      gaps: [
+        `researchProxyForecastGate: dropped predictions because no market snapshot matched proxy ${proxy}`,
+      ],
+    };
+  }
+  const predictions = input.predictions.filter(
+    (prediction) => prediction.subject.toUpperCase() === proxy,
+  );
+  return {
+    predictions,
+    gaps:
+      predictions.length === input.predictions.length
+        ? []
+        : [`researchProxyForecastGate: dropped non-proxy predictions; allowed subject is ${proxy}`],
+  };
+}
+
 function normalizeGapNeedle(value: string): string {
   return value
     .toLowerCase()
@@ -499,6 +555,11 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     sources,
   } = input;
 
+  const gatedPredictions = researchPredictionGate({
+    command,
+    predictions: predResult.predictions,
+    collectedSources,
+  });
   const deterministicGaps = deterministicSourceGaps(command, collectedSources);
   const dataGapsRaw = uniqueDataGaps([
     ...withoutDeterministicGapRestatements(
@@ -509,12 +570,13 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       deterministicGaps,
     ),
     ...deterministicGaps,
+    ...gatedPredictions.gaps,
   ]);
-  const shortfall = predResult.predictions.length < depthProfile.targetPredictions;
+  const shortfall = gatedPredictions.predictions.length < depthProfile.targetPredictions;
   const dataGaps = shortfall
     ? [
         ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(predResult.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
+        `predictionShortfall: emitted ${String(gatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
       ]
     : dataGapsRaw;
 
@@ -535,7 +597,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ? catalystCalendarExtra({
           generatedAt,
           catalysts,
-          predictions: predResult.predictions,
+          predictions: gatedPredictions.predictions,
           collectedSources,
         })
       : undefined;
@@ -558,7 +620,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     scenarios: readScenarios(payload.scenarios),
     confidence,
     dataGaps,
-    predictions: predResult.predictions,
+    predictions: gatedPredictions.predictions,
     sources,
     ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }

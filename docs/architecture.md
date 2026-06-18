@@ -17,6 +17,7 @@ src/
   report/             Report schema (zod) + markdown renderer
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
   research/           Orchestrator, prompt loader, history, Market Spotlights, Domain Playbooks, regime summary
+                      subject-registry.ts for checked-in research subject proxy resolution
   history/            Derived Historical Research Context indexes, search, and thesis deltas
   run-artifact-index.ts Derived SQLite Run Artifact Index (query layer over disk artifacts)
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
@@ -74,6 +75,8 @@ The orchestrator coordinates: collect sources → load Historical Research Conte
 Equity ticker runs also collect live Ticker Regime Context from the regime proxy set so ticker Research Views can cite current breadth and volatility context without substituting prior Market Update artifacts for live evidence. When Yahoo market capitalization and SEC Fundamental Evidence are both available, source collection derives supplemental Valuation Evidence from those already-collected inputs; it does not fetch peers or change ranking, scoring, or the research-only boundary. Peer valuation comps require a deterministic Peer Universe from a sourced provider or checked-in mapping with provenance.
 
 The Evidence Request Loop runs only for `ticker --deep --asset equity` when its three env limits are nonzero. It uses the quick model and the `evidence-request` prompt stage to ask for JSON requests, validates them against enumerated public-data tools (`sec_latest_filing`, `tradier_iv_term_structure`), enforces per-run round/tool/source-unit budgets, executes tools through the same source collector seam, and merges outputs into normal Extended Evidence, Sources, raw snapshots, and `SourceGap`s before `specialist-analysis`. Malformed JSON emits a `SourceGap`, stops the loop, and continues to `specialist-analysis`. It does not use provider-native tool calling and does not add report schema fields.
+
+The Research Subject Registry (`src/research/subject-registry.ts`, [ADR 0027](./adr/0027-subject-proxy-peer-universe-registry.md)) is a checked-in equity-only registry for future `research <subject>` runs. It maps aliases to canonical subject keys, representative instruments, provenance, and optional single listed ETF prediction proxies. It is deterministic and local; no model or provider call can create a scored thematic proxy in V1.
 
 All persisted-run reads go through one seam, `src/run-artifacts.ts` ([ADR 0016](./adr/0016-run-artifact-reader.md)): `loadRunArtifact`/`scanRunArtifacts` parse `report.json`, `score.json`, normalized market snapshots, and `normalized/verified-market-snapshot.json` once, leniently, at full fidelity, and callers project down to what they need. Every consumer (`historical-context`, `market-update-delta`, `scoring/index`, `history/artifacts`) reads through it — no raw `JSON.parse(...) as T` casts remain. Single-caller sidecars (supplemental snapshots, SEC fundamentals, alpha validation) stay with their one caller by design. The reader carries `scoringVersion` through so score-writing consumers preserve the version stamped on already-resolved scores. `scanRunArtifacts` stays disk-only; the derived SQLite index does not yet hydrate full `RunArtifact` payloads.
 

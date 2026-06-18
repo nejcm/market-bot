@@ -48,6 +48,10 @@ A horizon-parameterized research run for an asset class that summarizes market r
 
 `daily` and `weekly` are deprecated CLI aliases for market overview horizons of 5 and 15 trading days. Legacy artifacts remain readable and map into horizon buckets for calibration and cross-run intelligence. For longer horizons, equity mover inputs still come from Yahoo `day_gainers`, `day_losers`, and `most_actives` (a single-day multi-screener set), and crypto mover inputs still use CoinGecko 24h change fields; reports disclose this as a source gap.
 
+## Research Subject Registry
+
+A checked-in equity subject registry for future `research <subject>` runs. It resolves aliases such as `semis` or `chip stocks` to a canonical `subjectKey`, representative instruments, source provenance, and optionally one listed ETF prediction proxy. No registry hit, or no single proxy, means thematic research can proceed later with zero scored predictions and a disclosed proxy gap.
+
 ## Cross-run Intelligence
 
 The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, Miss Autopsies, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, Miss Autopsies, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).

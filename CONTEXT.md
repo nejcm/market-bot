@@ -50,7 +50,7 @@ A horizon-parameterized research run for an asset class that summarizes market r
 
 ## Research Subject Registry
 
-A checked-in equity subject registry for future `research <subject>` runs. It resolves aliases such as `semis` or `chip stocks` to a canonical `subjectKey`, representative instruments, source provenance, and optionally one listed ETF prediction proxy. No registry hit, or no single proxy, means thematic research can proceed later with zero scored predictions and a disclosed proxy gap.
+A checked-in equity subject registry for the `research` run type. It resolves aliases such as `semis` or `chip stocks` to a canonical `subjectKey`, representative instruments, source provenance, and optionally one listed ETF prediction proxy. The current public CLI does not parse `research <subject>` yet, but run artifacts, history/search filters, calibration/index rows, and prompt context can carry `jobType: "research"` with subject identity. No registry hit, or no single proxy, means thematic research can proceed with zero scored predictions and a disclosed proxy gap.
 
 ## Cross-run Intelligence
 
@@ -98,7 +98,7 @@ A soft absence, parse failure, or mismatch in prior run artifacts. It is disclos
 
 ## Market Spotlight
 
-An optional daily or weekly Market Update focus selected from the current collected market snapshot universe. The selected set is the validated `spotlight-selection` result for a Market Update. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
+An optional Market Overview focus selected from the current collected market snapshot universe. The selected set is the validated `spotlight-selection` result for a Market Overview. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
 
 ## Market Regime
 
@@ -106,11 +106,11 @@ The current market backdrop inferred from fetched evidence, such as broad direct
 
 ## Ticker Regime Context
 
-Live equity breadth and volatility proxy evidence collected alongside the covered Instrument on equity ticker runs, using the same proxy set as Market Updates. It enables current-run Market Regime labeling in ticker Research Views without treating prior Market Update artifacts as a substitute for missing live proxies.
+Live equity breadth and volatility proxy evidence collected alongside the covered Instrument on equity ticker runs, using the same proxy set as Market Overviews. It enables current-run Market Regime labeling in ticker Research Views without treating prior Market Overview artifacts as a substitute for missing live proxies.
 
 ## Market Context
 
-Market-level evidence that enriches Market Updates without targeting one Instrument.
+Market-level evidence that enriches Market Overviews without targeting one Instrument.
 
 ## Domain Playbook
 

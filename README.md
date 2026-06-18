@@ -44,6 +44,7 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 | --- | --- |
 | **Market overview** | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
 | **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation) |
+| **Thematic research** | `research` run-type support for equity subjects with checked-in subject/proxy identity; CLI execution is not exposed yet |
 | **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
 | **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)) |
 | **Scoring & calibration** | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline |
@@ -106,14 +107,14 @@ Set `MARKET_BOT_PROVIDER` to select one.
 
 ```sh
 export OPENAI_API_KEY=sk-...
-bun run src/cli.ts daily --asset equity
+bun run src/cli.ts market-overview --asset equity
 ```
 
 ### Anthropic
 
 ```sh
 export ANTHROPIC_API_KEY=sk-ant-...
-MARKET_BOT_PROVIDER=anthropic bun run src/cli.ts daily --asset equity
+MARKET_BOT_PROVIDER=anthropic bun run src/cli.ts market-overview --asset equity
 ```
 
 Defaults: `claude-sonnet-4-6` (quick), `claude-opus-4-8` (synthesis / `--deep`).
@@ -123,7 +124,7 @@ Defaults: `claude-sonnet-4-6` (quick), `claude-opus-4-8` (synthesis / `--deep`).
 ```sh
 npm i -g @openai/codex   # requires Node ≥ 22
 codex login
-MARKET_BOT_PROVIDER=codex bun run src/cli.ts daily --asset equity
+MARKET_BOT_PROVIDER=codex bun run src/cli.ts market-overview --asset equity
 ```
 
 ### OpenAI-compatible endpoint
@@ -132,7 +133,7 @@ MARKET_BOT_PROVIDER=codex bun run src/cli.ts daily --asset equity
 MARKET_BOT_PROVIDER=openai-compatible \
 MARKET_BOT_OPENAI_API_KEY=your-key \
 MARKET_BOT_BASE_URL=https://your-endpoint.example.com \
-bun run src/cli.ts daily --asset equity
+bun run src/cli.ts market-overview --asset equity
 ```
 
 `MARKET_BOT_BASE_URL` must be `https` (or `http` for localhost). Credentials in the URL are rejected.

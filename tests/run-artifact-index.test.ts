@@ -390,6 +390,40 @@ describe("run artifact index", () => {
     expect(pairs?.[0]?.marketRegimeLabel).toBe("risk-off");
   });
 
+  test("buckets a market-overview pair by the run horizon, not the prediction horizon", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "run-overview");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-overview",
+        jobType: "market-overview",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        // Run horizon 15 (=> 11-15d) but the prediction's own horizon is 3
+        // (=> 1-5d). Calibration must bucket by the run horizon so the slice
+        // Matches the disk path regardless of index freshness.
+        horizonTradingDays: 15,
+        predictions: [prediction({ id: "p-overview", probability: 0.7, horizonTradingDays: 3 })],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      runId: "run-overview",
+      scores: [
+        predictionScore("hit", {
+          predictionId: "p-overview",
+          runId: "run-overview",
+          observedAt: "2026-06-02T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    expect(pairs?.[0]?.marketUpdateHorizonBucket).toBe("11-15d");
+  });
+
   test("returns undefined when the index is disabled", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeRun(dataDir, "run-a");

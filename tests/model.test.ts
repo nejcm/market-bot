@@ -16,6 +16,12 @@ const alphaSearchOptions = {
   maxMarketCap: 10_000_000_000,
 };
 
+const researchGatherOptions = {
+  maxRounds: 0,
+  maxToolCalls: 0,
+  sourceBudget: 0,
+};
+
 describe("createOpenAIProvider", () => {
   test("posts chat completion requests and reads content", async () => {
     const requests: Request[] = [];
@@ -50,6 +56,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        researchGatherOptions,
         alphaSearchOptions,
       },
       fetchImpl,
@@ -102,6 +109,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        researchGatherOptions,
         alphaSearchOptions,
       },
       fetchImpl,
@@ -145,6 +153,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        researchGatherOptions,
         alphaSearchOptions,
       },
       fetchImpl,
@@ -208,6 +217,7 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
+        researchGatherOptions,
         alphaSearchOptions,
       },
       fetchImpl,

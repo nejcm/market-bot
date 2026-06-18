@@ -765,6 +765,63 @@ describe("news provider collection", () => {
     ]);
   });
 
+  test("collects research proxy quote instead of mover screeners for proxied research runs", async () => {
+    const requestedAdaptersAndUrls: {
+      adapter: string;
+      symbols: string | null;
+      scrId: string | null;
+    }[] = [];
+
+    const result = await yahooMarketDataAdapter.collect(
+      collectContext({
+        command: {
+          jobType: "research",
+          assetClass: "equity",
+          subject: "AI biotech",
+          subjectKey: "biotech",
+          predictionProxySymbol: "XBI",
+          depth: "brief",
+        },
+        request: requestExecutor({
+          json: async (request) => {
+            const url = new URL(request.url);
+            const symbols = url.searchParams.get("symbols");
+            requestedAdaptersAndUrls.push({
+              adapter: request.adapter,
+              symbols,
+              scrId: url.searchParams.get("scrIds"),
+            });
+            const quoteResults =
+              symbols === "XBI"
+                ? [
+                    {
+                      symbol: "XBI",
+                      regularMarketPrice: 95,
+                      regularMarketChangePercent: 1.2,
+                      regularMarketVolume: 4_000_000,
+                    },
+                  ]
+                : [
+                    {
+                      symbol: "SPY",
+                      regularMarketPrice: 510,
+                      regularMarketChangePercent: 0.4,
+                      regularMarketVolume: 70_000_000,
+                    },
+                  ];
+            return rawJson(request.adapter, { quoteResponse: { result: quoteResults } });
+          },
+        }),
+      }),
+    );
+
+    expect(requestedAdaptersAndUrls).toEqual([
+      { adapter: "yahoo-research-proxy", symbols: "XBI", scrId: null },
+      { adapter: "yahoo-regime", symbols: EQUITY_REGIME_SYMBOLS.join(","), scrId: null },
+    ]);
+    expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["XBI", "SPY"]);
+  });
+
   test("keeps regime quote fields when a proxy also appears as a mover", async () => {
     const result = await yahooMarketDataAdapter.collect(
       collectContext({

@@ -29,11 +29,11 @@ bunx lefthook install   # optional — git hooks for contributors
 cp .env.example .env    # see comments in .env.example for required and optional keys
 ```
 
-Run a daily equity market update:
+Run an equity market overview:
 
 ```sh
 export OPENAI_API_KEY=sk-...
-bun run src/cli.ts daily --asset equity
+bun run src/cli.ts market-overview --asset equity
 ```
 
 Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normalized snapshots, and more). See [Data output layout](#data-output-layout).
@@ -42,15 +42,16 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 
 | Capability | Summary |
 | --- | --- |
-| **Market updates** | Daily / weekly equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
+| **Market overview** | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
 | **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation) |
+| **Thematic research** | `research` run-type support for equity subjects with checked-in subject/proxy identity; CLI execution is not exposed yet |
 | **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
 | **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)) |
 | **Scoring & calibration** | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline |
 | **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas |
 | **Research Console** | Local Svelte UI to browse runs, search artifacts, view calibration, queue jobs |
 
-Weekly updates change cadence and prediction horizon; mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
+Market overview runs take an explicit `--horizon` in trading days; cadence is a scheduling concern (`daily` / `weekly` are deprecated horizon-preset aliases). At longer horizons, mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
 
 ## Research Console
 
@@ -69,12 +70,12 @@ Install globally via Bun, or invoke with `bun run src/cli.ts`:
 
 ```sh
 bun link          # optional — adds `market-bot` to PATH from this clone
-market-bot daily --asset equity
+market-bot market-overview --asset equity
 ```
 
 | Command | Purpose |
 | --- | --- |
-| `daily` / `weekly --asset equity\|crypto` | Market update with predictions; optional `--deep` |
+| `market-overview --asset equity\|crypto [--horizon days]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases |
 | `ticker <SYMBOL> --asset equity\|crypto` | Single-instrument brief; `--deep` adds Evidence Request Loop + Coverage Panel (equity) |
 | `alpha-search --asset equity` | Research Leads only — no predictions or calibration side effects |
 | `score` | Resolve due predictions across prior runs |
@@ -89,8 +90,8 @@ Full command reference: [docs/how-it-works.md](./docs/how-it-works.md).
 ### Examples
 
 ```sh
-bun run src/cli.ts daily  --asset equity
-bun run src/cli.ts weekly --asset crypto --deep
+bun run src/cli.ts market-overview --asset equity
+bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts ticker AAPL --asset equity --deep
 bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score
@@ -106,14 +107,14 @@ Set `MARKET_BOT_PROVIDER` to select one.
 
 ```sh
 export OPENAI_API_KEY=sk-...
-bun run src/cli.ts daily --asset equity
+bun run src/cli.ts market-overview --asset equity
 ```
 
 ### Anthropic
 
 ```sh
 export ANTHROPIC_API_KEY=sk-ant-...
-MARKET_BOT_PROVIDER=anthropic bun run src/cli.ts daily --asset equity
+MARKET_BOT_PROVIDER=anthropic bun run src/cli.ts market-overview --asset equity
 ```
 
 Defaults: `claude-sonnet-4-6` (quick), `claude-opus-4-8` (synthesis / `--deep`).
@@ -123,7 +124,7 @@ Defaults: `claude-sonnet-4-6` (quick), `claude-opus-4-8` (synthesis / `--deep`).
 ```sh
 npm i -g @openai/codex   # requires Node ≥ 22
 codex login
-MARKET_BOT_PROVIDER=codex bun run src/cli.ts daily --asset equity
+MARKET_BOT_PROVIDER=codex bun run src/cli.ts market-overview --asset equity
 ```
 
 ### OpenAI-compatible endpoint
@@ -132,7 +133,7 @@ MARKET_BOT_PROVIDER=codex bun run src/cli.ts daily --asset equity
 MARKET_BOT_PROVIDER=openai-compatible \
 MARKET_BOT_OPENAI_API_KEY=your-key \
 MARKET_BOT_BASE_URL=https://your-endpoint.example.com \
-bun run src/cli.ts daily --asset equity
+bun run src/cli.ts market-overview --asset equity
 ```
 
 `MARKET_BOT_BASE_URL` must be `https` (or `http` for localhost). Credentials in the URL are rejected.

@@ -35,6 +35,7 @@ export interface JobFormState {
   readonly assetClass: string;
   readonly symbol: string;
   readonly depth: string;
+  readonly horizonTradingDays: string;
 }
 
 export type JobFormField = keyof JobFormState;

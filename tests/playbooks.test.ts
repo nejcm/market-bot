@@ -6,6 +6,7 @@ import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
   loadPlaybooksByStage,
+  mandatoryPlaybookSelections,
   parsePlaybookSelection,
   type PlaybookMetadata,
 } from "../src/research/playbooks";
@@ -50,6 +51,16 @@ const registry: readonly PlaybookMetadata[] = [
     assetClasses: ["equity"],
     depths: ["deep"],
     stages: ["market-behavior-analysis", "critique", "final-synthesis"],
+  },
+  {
+    id: "source-discipline",
+    title: "Source Discipline",
+    summary: "Evidence posture.",
+    file: "source-discipline.md",
+    jobTypes: ["research"],
+    assetClasses: ["equity"],
+    depths: ["brief", "deep"],
+    stages: ["critique", "final-synthesis"],
   },
 ];
 
@@ -164,6 +175,33 @@ describe("loadPlaybookRegistry", () => {
     expect(instruction).toContain("evidence");
     expect(instruction).toContain("direction");
   });
+
+  test("source-discipline labels evidence posture for research stages", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const sourceDiscipline = realRegistry.find((playbook) => playbook.id === "source-discipline");
+    const loaded = await loadPlaybooksByStage("prompts", realRegistry, [
+      { stage: "critique", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+    const instruction = loaded
+      .flatMap((stage) => stage.playbooks)
+      .map((playbook) => playbook.instruction.toLowerCase())
+      .join("\n");
+
+    expect(sourceDiscipline).toMatchObject({
+      jobTypes: ["research"],
+      assetClasses: ["equity"],
+      stages: ["critique", "final-synthesis"],
+    });
+    expect(instruction).toContain("observed fact");
+    expect(instruction).toContain("issuer claim");
+    expect(instruction).toContain("derived calculation");
+    expect(instruction).toContain("model inference");
+    expect(instruction).toContain("assumption");
+    expect(instruction).toContain("stale evidence");
+    expect(instruction).toContain("conflicting evidence");
+    expect(instruction).toContain("missing required source");
+  });
 });
 
 describe("eligiblePlaybookCandidates", () => {
@@ -188,6 +226,72 @@ describe("eligiblePlaybookCandidates", () => {
     );
 
     expect(result).toEqual([]);
+  });
+
+  test("makes source-discipline eligible for future equity research stages only", () => {
+    const result = eligiblePlaybookCandidates(
+      { jobType: "research", assetClass: "equity", depth: "brief" },
+      ["specialist-analysis", "critique", "final-synthesis"],
+      registry,
+    );
+
+    expect(result).toEqual([
+      {
+        id: "source-discipline",
+        title: "Source Discipline",
+        summary: "Evidence posture.",
+        eligibleStages: ["critique", "final-synthesis"],
+      },
+    ]);
+  });
+});
+
+describe("mandatoryPlaybookSelections", () => {
+  test("requires source-discipline for research critique and final synthesis", () => {
+    const candidates = eligiblePlaybookCandidates(
+      { jobType: "research", assetClass: "equity", depth: "brief" },
+      ["specialist-analysis", "critique", "final-synthesis"],
+      registry,
+    );
+
+    expect(
+      mandatoryPlaybookSelections(
+        { jobType: "research", assetClass: "equity", depth: "brief" },
+        ["specialist-analysis", "critique", "final-synthesis"],
+        candidates,
+      ),
+    ).toEqual([
+      { stage: "critique", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+  });
+
+  test("does not require source-discipline for existing run types", () => {
+    const candidates = eligiblePlaybookCandidates(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      ["critique", "final-synthesis"],
+      registry,
+    );
+
+    expect(
+      mandatoryPlaybookSelections(
+        { jobType: "ticker", assetClass: "equity", depth: "deep" },
+        ["critique", "final-synthesis"],
+        candidates,
+      ),
+    ).toEqual([]);
+  });
+
+  test("throws when required research source-discipline is missing from candidates", () => {
+    expect(() =>
+      mandatoryPlaybookSelections(
+        { jobType: "research", assetClass: "crypto", depth: "brief" },
+        ["critique", "final-synthesis"],
+        [],
+      ),
+    ).toThrow(
+      "Mandatory playbook source-discipline is not eligible for research stages: critique, final-synthesis",
+    );
   });
 });
 
@@ -402,5 +506,112 @@ describe("parsePlaybookSelection", () => {
         reason: "per-stage playbook cap exceeded",
       },
     ]);
+  });
+
+  test("preseeds mandatory selections before selector output", () => {
+    const result = parsePlaybookSelection(
+      JSON.stringify({
+        selections: [{ stage: "critique", playbookIds: ["critique-discipline"] }],
+      }),
+      [
+        ...candidates,
+        {
+          id: "source-discipline",
+          title: "Source Discipline",
+          summary: "Evidence posture.",
+          eligibleStages: ["critique", "final-synthesis"] as const,
+        },
+      ],
+      [
+        { stage: "critique", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      ],
+    );
+
+    expect(result.selected).toEqual([
+      { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  test("does not reject selector repeats of mandatory selections as duplicates", () => {
+    const result = parsePlaybookSelection(
+      JSON.stringify({
+        selections: [
+          { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
+          { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+        ],
+      }),
+      [
+        ...candidates,
+        {
+          id: "source-discipline",
+          title: "Source Discipline",
+          summary: "Evidence posture.",
+          eligibleStages: ["critique", "final-synthesis"] as const,
+        },
+      ],
+      [
+        { stage: "critique", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      ],
+    );
+
+    expect(result.selected).toEqual([
+      { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  test("keeps mandatory selections when selector output is malformed", () => {
+    const result = parsePlaybookSelection(
+      "not-json",
+      [
+        ...candidates,
+        {
+          id: "source-discipline",
+          title: "Source Discipline",
+          summary: "Evidence posture.",
+          eligibleStages: ["critique", "final-synthesis"] as const,
+        },
+      ],
+      [
+        { stage: "critique", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      ],
+    );
+
+    expect(result.selected).toEqual([
+      { stage: "critique", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+    ]);
+    expect(result.rejected).toEqual([{ reason: "selector returned malformed JSON" }]);
+  });
+
+  test("throws when mandatory selections exceed the per-run cap", () => {
+    const manyCandidates = Array.from({ length: 7 }, (_, idx) => ({
+      id: `p${String(idx + 1)}`,
+      title: `P${String(idx + 1)}`,
+      summary: "Candidate.",
+      eligibleStages: [
+        "specialist-analysis",
+        "market-behavior-analysis",
+        "critique",
+        "final-synthesis",
+      ] as const,
+    }));
+
+    expect(() =>
+      parsePlaybookSelection(JSON.stringify({ selections: [] }), manyCandidates, [
+        { stage: "specialist-analysis", playbookIds: ["p1", "p2"] },
+        { stage: "critique", playbookIds: ["p3", "p4"] },
+        { stage: "final-synthesis", playbookIds: ["p5", "p6"] },
+        { stage: "market-behavior-analysis", playbookIds: ["p7"] },
+      ]),
+    ).toThrow(
+      "Mandatory playbook p7 for market-behavior-analysis failed: per-run playbook cap exceeded",
+    );
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
+import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
@@ -8,7 +8,7 @@ import { assembleResearchReport, buildSourceList } from "../src/research/report-
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
-import { collectedSources } from "./support/fixtures";
+import { collectedSources, marketSnapshot, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -419,6 +419,114 @@ describe("report schema and rendering", () => {
     });
   });
 
+  test("builds, validates, renders, and scans market-overview catalyst calendar", () => {
+    const macroSource: Source = {
+      id: "market-context-fred",
+      title: "FRED market context",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "market-data",
+      assetClass: "equity",
+    };
+    const marketContext: MarketContext = {
+      assetClass: "equity",
+      items: [
+        {
+          category: "fred-macro",
+          title: "10Y yield update",
+          summary: "Rates moved.",
+          sourceIds: [macroSource.id],
+          observedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      gaps: [],
+    };
+    const depthProfile = assemblyDepthProfile();
+    const context = assemblyContext(depthProfile);
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 7,
+      },
+      payload: {
+        summary: "Market overview.",
+        confidence: "medium",
+        catalysts: [{ text: "CPI release on calendar.", sourceIds: [macroSource.id] }],
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            id: "pred-1",
+            claim: "SPY closes higher over 7 trading days.",
+            horizonTradingDays: 7,
+            measurableAs: "close(SPY, +7) > close(SPY, 0)",
+            sourceIds: [macroSource.id],
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources({
+        marketContext,
+        marketContextSources: [macroSource],
+      }),
+      depthProfile,
+      context,
+      sources: [macroSource],
+    });
+    const markdown = renderMarkdownReport(assembled);
+
+    expect(assembled.extras?.catalystCalendar).toEqual({
+      items: [
+        {
+          label: "CPI release on calendar.",
+          sourceIds: [macroSource.id],
+          sourceStatus: "sourced catalyst",
+          researchRelevance: "watch item",
+        },
+        {
+          date: "2026-06-01",
+          label: "10Y yield update",
+          sourceIds: [macroSource.id],
+          sourceStatus: "observed macro context",
+          researchRelevance: "macro release context",
+        },
+        {
+          date: "2026-06-10",
+          label: "Prediction pred-1 resolution date",
+          sourceIds: [macroSource.id],
+          sourceStatus: "observable forecast",
+          researchRelevance: "prediction resolution",
+        },
+      ],
+    });
+    expect(markdown).toContain("## Catalyst Calendar");
+    expect(markdown).toContain(
+      "- CPI release on calendar. (sourced catalyst)[market-context-fred]",
+    );
+    expect(markdown).toContain(
+      "- 2026-06-10: Prediction pred-1 resolution date (observable forecast)[market-context-fred]",
+    );
+    expect(
+      violatesResearchOnly(markdown.slice(markdown.indexOf("## Catalyst Calendar"))),
+    ).toBeNull();
+  });
+
+  test("rejects catalyst calendar entries with unknown source IDs", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        extras: {
+          catalystCalendar: {
+            items: [{ label: "Unsourced calendar item", sourceIds: ["missing-source"] }],
+          },
+        },
+      }),
+    ).toThrow("Unknown source ID: missing-source");
+  });
+
   test("dedupes model and deterministic data gaps by normalized text", () => {
     const command = {
       jobType: "daily" as const,
@@ -631,8 +739,9 @@ describe("report schema and rendering", () => {
         anchorSelectedCount: 0,
         sameSymbolSelectedCount: 0,
         spotlightSymbolSelectedCount: 0,
-        sameCadenceSelectedCount: 0,
-        crossCadenceSelectedCount: 0,
+        sameSubjectSelectedCount: 0,
+        sameHorizonSelectedCount: 0,
+        crossHorizonSelectedCount: 0,
         resolvedMissRunCount: 0,
         missCorrectionSelectedCount: 0,
         gapCount: 0,
@@ -659,6 +768,134 @@ describe("report schema and rendering", () => {
       rawRef: "prior-run/report.json",
       provider: "market-bot",
     });
+  });
+
+  test("writes canonical research subject extras", () => {
+    const depthProfile = assemblyDepthProfile("SMH");
+    const assembled = assembleResearchReport({
+      runId: "research-semis",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "semis",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      payload: {
+        summary: "Semiconductor evidence is mixed.",
+        confidence: "medium",
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.extras?.researchSubject).toEqual({
+      input: "semis",
+      subjectKey: "semiconductors",
+    });
+    expect(assembled.extras?.proxyResolution).toEqual({
+      predictionProxySymbol: "SMH",
+    });
+  });
+
+  test("gates research predictions to resolved proxy with matching snapshot", () => {
+    const depthProfile = assemblyDepthProfile("XBI");
+    const assembled = assembleResearchReport({
+      runId: "research-biotech",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      payload: {
+        summary: "AI biotech evidence is mixed.",
+        confidence: "medium",
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            id: "pred-vix",
+            kind: "volatility",
+            subject: "^VIX",
+            measurableAs: "max(close(^VIX), 0..+15) > 20",
+            horizonTradingDays: 15,
+          }),
+          prediction({
+            id: "pred-xbi",
+            subject: "XBI",
+            measurableAs: "close(XBI, +15) > close(XBI, 0)",
+            horizonTradingDays: 15,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" })],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [
+        {
+          ...spotlightSource,
+          id: "market-yahoo-equity-xbi",
+          title: "XBI market snapshot",
+          symbol: "XBI",
+        },
+      ],
+    });
+
+    expect(assembled.predictions.map((item) => item.subject)).toEqual(["XBI"]);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: dropped non-proxy predictions; allowed subject is XBI",
+    );
+  });
+
+  test("drops research predictions when proxy snapshot is missing", () => {
+    const depthProfile = assemblyDepthProfile("XBI");
+    const assembled = assembleResearchReport({
+      runId: "research-biotech",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      payload: {
+        summary: "AI biotech evidence is mixed.",
+        confidence: "medium",
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            subject: "XBI",
+            measurableAs: "close(XBI, +15) > close(XBI, 0)",
+            horizonTradingDays: 15,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toEqual([]);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: dropped predictions because no market snapshot matched proxy XBI",
+    );
   });
 
   test("adds de-duped benchmark market sources from market snapshots", () => {
@@ -922,15 +1159,39 @@ describe("report schema and rendering", () => {
     expect(markdown).not.toContain("BAD");
   });
 
-  test("renders cadence-specific market update titles", () => {
+  test("renders market overview titles", () => {
     const { symbol: _symbol, ...marketReport } = report;
 
     expect(renderMarkdownReport({ ...marketReport, jobType: "daily" })).toContain(
-      "# crypto Daily Market Update",
+      "# crypto Market Overview",
     );
     expect(renderMarkdownReport({ ...marketReport, jobType: "weekly" })).toContain(
-      "# crypto Weekly Market Update",
+      "# crypto Market Overview",
     );
+  });
+
+  test("renders research title as thematic research view", () => {
+    const { symbol: _symbol, ...base } = report;
+
+    expect(renderMarkdownReport({ ...base, jobType: "research" })).toContain(
+      "# crypto Thematic Research View",
+    );
+  });
+
+  test("omits prediction language from alpha-search research-only note", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "alpha-search",
+      assetClass: "equity",
+      predictions: [],
+      extras: {
+        researchLeads: [],
+        rejectedCandidates: [],
+      },
+    });
+
+    expect(markdown).toContain("Research-only note:");
+    expect(markdown).not.toContain("Predictions are probabilistic statements");
   });
 
   test("rejects trade-action language in alpha-search reports", () => {
@@ -1114,7 +1375,7 @@ describe("market update delta rendering", () => {
       }),
     );
     const summaryAt = markdown.indexOf("## Summary");
-    const deltaAt = markdown.indexOf("## What Changed Since Last Daily");
+    const deltaAt = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
     const findingsAt = markdown.indexOf("## Key Findings");
     expect(summaryAt).toBeGreaterThanOrEqual(0);
     expect(deltaAt).toBeGreaterThan(summaryAt);
@@ -1137,7 +1398,7 @@ describe("market update delta rendering", () => {
       }),
     );
     expect(markdown).toContain(
-      "## What Changed Since Last Daily\n\nNo prior daily run to compare — this is the first.",
+      "## What Changed Since Last 1-5d Market Overview\n\nNo prior comparable market-overview run to compare — this is the first.",
     );
     expect(markdown).not.toContain("Regime:");
   });
@@ -1164,7 +1425,7 @@ describe("market update delta rendering", () => {
         ],
       }),
     );
-    const start = markdown.indexOf("## What Changed Since Last Daily");
+    const start = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
     const section = markdown.slice(start, markdown.indexOf("## Key Findings"));
     expect(section).toContain("Regime:");
     expect(violatesResearchOnly(section)).toBeNull();

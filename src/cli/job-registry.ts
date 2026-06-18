@@ -1,6 +1,15 @@
-import type { AssetClass, Depth } from "../domain/types";
+import type { AssetClass, Depth, LegacyMarketUpdateJobType } from "../domain/types";
 import type { HistorySection } from "../history/artifacts";
 import { isRecord } from "../sources/guards";
+
+export interface MarketOverviewCommand {
+  readonly jobType: "market-overview";
+  readonly assetClass: AssetClass;
+  readonly depth: Depth;
+  readonly horizonTradingDays: number;
+  readonly prompt?: string;
+  readonly legacyAlias?: LegacyMarketUpdateJobType;
+}
 
 export interface DailyCommand {
   readonly jobType: "daily";
@@ -24,6 +33,15 @@ export interface TickerCommand {
 export interface AlphaSearchCommand {
   readonly jobType: "alpha-search";
   readonly assetClass: "equity";
+  readonly depth: Depth;
+}
+
+export interface ResearchSubjectCommand {
+  readonly jobType: "research";
+  readonly assetClass: "equity";
+  readonly subject: string;
+  readonly subjectKey?: string;
+  readonly predictionProxySymbol?: string;
   readonly depth: Depth;
 }
 
@@ -56,7 +74,13 @@ export interface HistorySearchCommand {
   readonly query: string;
   readonly symbol?: string;
   readonly assetClass?: AssetClass;
-  readonly sourceJobType?: "daily" | "weekly" | "ticker" | "alpha-search";
+  readonly sourceJobType?:
+    | "market-overview"
+    | "daily"
+    | "weekly"
+    | "ticker"
+    | "alpha-search"
+    | "research";
   readonly from?: string;
   readonly to?: string;
   readonly section?: HistorySection;
@@ -73,7 +97,12 @@ export interface HistoryThesisDeltaCommand {
   readonly narrative: boolean;
 }
 
-export type ResearchCommand = DailyCommand | WeeklyCommand | TickerCommand;
+export type ResearchCommand =
+  | MarketOverviewCommand
+  | DailyCommand
+  | WeeklyCommand
+  | TickerCommand
+  | ResearchSubjectCommand;
 export type CliCommand =
   | ResearchCommand
   | AlphaSearchCommand
@@ -92,6 +121,7 @@ export const DEPTH_OPTIONS = ["brief", "deep"] as const;
 export const CONSOLE_JOB_TYPES = [
   "daily",
   "weekly",
+  "market-overview",
   "ticker",
   "alpha-search",
   "score",
@@ -99,14 +129,33 @@ export const CONSOLE_JOB_TYPES = [
   "cache-prune",
   "provider-health",
 ] as const;
-export const SEARCH_JOB_TYPE_OPTIONS = ["", "daily", "weekly", "ticker", "alpha-search"] as const;
+export const SEARCH_JOB_TYPE_OPTIONS = [
+  "",
+  "market-overview",
+  "daily",
+  "weekly",
+  "ticker",
+  "alpha-search",
+  "research",
+] as const;
 
 export const USAGE =
-  "Usage: market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
+  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function readPositiveIntegerString(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return String(value);
+  }
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
 function readAssetClass(value: string | undefined): AssetClass {
@@ -134,15 +183,22 @@ function depthArg(depth: Depth): readonly string[] {
 }
 
 export function jobSupportsAsset(jobType: string): boolean {
-  return jobType === "daily" || jobType === "weekly" || jobType === "ticker";
+  return (
+    jobType === "daily" ||
+    jobType === "weekly" ||
+    jobType === "market-overview" ||
+    jobType === "ticker"
+  );
 }
 
 export function jobSupportsDepth(jobType: string): boolean {
   return (
     jobType === "daily" ||
     jobType === "weekly" ||
+    jobType === "market-overview" ||
     jobType === "ticker" ||
-    jobType === "alpha-search"
+    jobType === "alpha-search" ||
+    jobType === "research"
   );
 }
 
@@ -165,6 +221,13 @@ export function commandLabel(command: CliCommand): string {
   }
   const depthSuffix = command.depth === "deep" ? " deep" : "";
   const symbolPart = command.jobType === "ticker" ? ` ${command.symbol}` : "";
+  if (command.jobType === "market-overview") {
+    const alias = command.legacyAlias === undefined ? "market-overview" : command.legacyAlias;
+    return `${alias} ${command.assetClass} ${String(command.horizonTradingDays)}d${depthSuffix}`;
+  }
+  if (command.jobType === "research") {
+    return `research ${command.subject}${depthSuffix}`;
+  }
 
   return `${command.jobType}${symbolPart} ${command.assetClass}${depthSuffix}`;
 }
@@ -175,9 +238,16 @@ export function jobRequestArgv(value: unknown): readonly string[] {
   }
 
   const jobType = readString(value, "jobType");
-  if (jobType === "daily" || jobType === "weekly") {
+  if (jobType === "daily" || jobType === "weekly" || jobType === "market-overview") {
     const assetClass = readAssetClass(readString(value, "assetClass"));
-    return [jobType, "--asset", assetClass, ...depthArg(readDepth(readString(value, "depth")))];
+    const horizon = readPositiveIntegerString(value, "horizonTradingDays");
+    return [
+      jobType,
+      "--asset",
+      assetClass,
+      ...(jobType === "market-overview" && horizon !== undefined ? ["--horizon", horizon] : []),
+      ...depthArg(readDepth(readString(value, "depth"))),
+    ];
   }
 
   if (jobType === "ticker") {

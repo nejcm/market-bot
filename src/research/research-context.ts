@@ -5,6 +5,7 @@ import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
+import { marketUpdateHorizonBucketOf, marketUpdateHorizonOf } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
@@ -28,6 +29,10 @@ import type {
   EvidenceRequestContext,
   ResearchContext,
 } from "./research-context-types";
+import {
+  commandResearchSubjectIdentity,
+  isSameResearchSubjectIdentity,
+} from "./research-subject-identity";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
 export type { CalibrationContext, DepthProfile, EvidenceRequestContext, ResearchContext };
@@ -52,12 +57,13 @@ export function deterministicSourceGaps(
     collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
       ? [`No market snapshot matched ticker ${command.symbol}`]
       : [];
-  const weeklyMoverGaps =
-    command.jobType === "weekly"
+  const marketUpdateHorizon = marketUpdateHorizonOf(command);
+  const overviewMoverGaps =
+    marketUpdateHorizon !== undefined && marketUpdateHorizon > 5
       ? [
           command.assetClass === "equity"
-            ? "Weekly equity mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a true trailing 5-session mover screener"
-            : "Weekly crypto mover data uses CoinGecko 24h change fields; trailing 7-day mover changes are not available in the current source payload",
+            ? "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener"
+            : "Market overview crypto mover data uses CoinGecko 24h change fields; trailing horizon mover changes are not available in the current source payload",
         ]
       : [];
 
@@ -73,7 +79,7 @@ export function deterministicSourceGaps(
     ...marketGaps,
     ...newsGaps,
     ...tickerGaps,
-    ...weeklyMoverGaps,
+    ...overviewMoverGaps,
     ...verifiedSnapshotGaps,
   ];
 }
@@ -144,7 +150,9 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   const byKind = parseMetricMap(value.byKind);
   const byAssetClass = parseMetricMap(value.byAssetClass);
   const byJobType = parseMetricMap(value.byJobType);
-  const byMarketUpdateCadence = parseMetricMap(value.byMarketUpdateCadence);
+  const byMarketUpdateHorizonBucket =
+    parseMetricMap(value.byMarketUpdateHorizonBucket) ??
+    parseMetricMap(value.byMarketUpdateCadence);
   const byHorizonBucket = parseMetricMap(value.byHorizonBucket);
   const byMissAutopsyCause = parseCountMap(value.byMissAutopsyCause);
   const conditionalPredictions = parseConditionalCalibrationSummary(value.conditionalPredictions);
@@ -158,7 +166,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     ...(byKind !== undefined ? { byKind } : {}),
     ...(byAssetClass !== undefined ? { byAssetClass } : {}),
     ...(byJobType !== undefined ? { byJobType } : {}),
-    ...(byMarketUpdateCadence !== undefined ? { byMarketUpdateCadence } : {}),
+    ...(byMarketUpdateHorizonBucket !== undefined ? { byMarketUpdateHorizonBucket } : {}),
     ...(byHorizonBucket !== undefined ? { byHorizonBucket } : {}),
     ...(byMissAutopsyCause !== undefined ? { byMissAutopsyCause } : {}),
     ...(conditionalPredictions !== undefined ? { conditionalPredictions } : {}),
@@ -373,8 +381,18 @@ function isConfiguredMarketSubject(subject: string, subjectKeys: ReadonlySet<str
   return subjectParts.length > 0 && subjectParts.every((part) => subjectKeys.has(part));
 }
 
-// Market-scoped sibling of collectPriorMisses (ADR 0015): for daily/weekly runs,
-// Gathers resolved misses from prior same-cadence, same-asset market-update runs
+function historicalRunHorizonBucket(run: HistoricalRunContext): string | undefined {
+  // The run context carries no horizonTradingDays, so market-overview history
+  // Resolves its bucket from the persisted extras; legacy daily/weekly falls
+  // Back to the canonical derivation.
+  if (typeof run.keyExtras?.marketUpdateHorizonBucket === "string") {
+    return run.keyExtras.marketUpdateHorizonBucket;
+  }
+  return marketUpdateHorizonBucketOf(run);
+}
+
+// Market-scoped sibling of collectPriorMisses (ADR 0015): for market-overview runs,
+// Gathers resolved misses from prior same-horizon, same-asset market-update runs
 // Whose prediction subject is one of the command's configured market subjects
 // (index/macro), so the forecast can learn from prior market-scoped errors. The
 // JobType filter alone already excludes spotlight ticker misses (jobType "ticker").
@@ -384,15 +402,21 @@ function collectMarketForecastMisses(
   predictionSubjects: readonly string[],
 ): readonly PriorMiss[] {
   if (
-    (command.jobType !== "daily" && command.jobType !== "weekly") ||
+    (command.jobType !== "market-overview" &&
+      command.jobType !== "daily" &&
+      command.jobType !== "weekly") ||
     historicalContext === undefined
   ) {
     return [];
   }
   const subjectKeys = new Set(predictionSubjects.map((subject) => subject.trim().toUpperCase()));
+  const commandBucket = marketUpdateHorizonBucketOf(command);
   const misses: PriorMiss[] = [];
   for (const run of historicalContext.runs) {
-    if (run.jobType !== command.jobType || run.assetClass !== command.assetClass) {
+    if (
+      run.assetClass !== command.assetClass ||
+      historicalRunHorizonBucket(run) !== commandBucket
+    ) {
       continue;
     }
     for (const prediction of run.predictions) {
@@ -400,6 +424,38 @@ function collectMarketForecastMisses(
         prediction.scoreOutcome === "miss" &&
         isConfiguredMarketSubject(prediction.subject, subjectKeys)
       ) {
+        misses.push(missFrom(run, prediction));
+      }
+    }
+  }
+  return sortedRecentMisses(misses);
+}
+
+function isSameResearchRun(run: HistoricalRunContext, command: ResearchCommand): boolean {
+  if (command.jobType !== "research" || run.jobType !== "research") {
+    return false;
+  }
+  return isSameResearchSubjectIdentity(commandResearchSubjectIdentity(command), run);
+}
+
+function collectResearchForecastMisses(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+): readonly PriorMiss[] {
+  if (command.jobType !== "research" || historicalContext === undefined) {
+    return [];
+  }
+  const proxy = commandResearchSubjectIdentity(command).predictionProxySymbol;
+  if (proxy === undefined) {
+    return [];
+  }
+  const misses: PriorMiss[] = [];
+  for (const run of historicalContext.runs) {
+    if (run.assetClass !== command.assetClass || !isSameResearchRun(run, command)) {
+      continue;
+    }
+    for (const prediction of run.predictions) {
+      if (prediction.scoreOutcome === "miss" && prediction.subject.toUpperCase() === proxy) {
         misses.push(missFrom(run, prediction));
       }
     }
@@ -459,10 +515,10 @@ function buildPriorThesisErrorBlock(
 }
 
 // Market-scoped counterpart of the ticker instrument block (ADR 0015): for
-// Daily/weekly runs, surfaces prior MISS forecasts on the command's configured
+// Market-overview runs, surfaces prior MISS forecasts on the command's configured
 // Market subjects (index/macro) so the model corrects market-scoped errors. The
 // Ticker instrument block stays untouched; spotlight ticker misses are excluded
-// By the same-cadence jobType filter in collectMarketForecastMisses.
+// By the same-horizon filter in collectMarketForecastMisses.
 function buildMarketForecastErrorBlock(
   command: ResearchCommand,
   context: ResearchContext,
@@ -476,7 +532,24 @@ function buildMarketForecastErrorBlock(
     return undefined;
   }
   return [
-    `Prior ${command.jobType} forecasts on configured market subjects that resolved MISS. Treat each as error-correction signal: diagnose why the prior market read was wrong before restating a similar view, and widen probabilities where the same regime setup recurs.`,
+    `Prior market-overview forecasts on configured market subjects that resolved MISS. Treat each as error-correction signal: diagnose why the prior market read was wrong before restating a similar view, and widen probabilities where the same regime setup recurs.`,
+    ...misses.map((miss) => renderMissBullet(miss)),
+  ].join("\n");
+}
+
+function buildResearchForecastErrorBlock(
+  command: ResearchCommand,
+  historicalContext: HistoricalResearchContext | undefined,
+): string | undefined {
+  const misses = collectResearchForecastMisses(command, historicalContext);
+  if (misses.length === 0 || command.jobType !== "research") {
+    return undefined;
+  }
+  const identity = commandResearchSubjectIdentity(command);
+  const subjectKey = identity.subjectKey ?? command.subject;
+  const proxy = identity.predictionProxySymbol;
+  return [
+    `Prior research forecasts on ${subjectKey}${proxy === undefined ? "" : ` (${proxy})`} that resolved MISS. Treat each as thematic error-correction signal: diagnose why the prior segment read was wrong before restating a similar view, and widen probabilities where the same subject setup recurs.`,
     ...misses.map((miss) => renderMissBullet(miss)),
   ].join("\n");
 }
@@ -533,6 +606,10 @@ function buildEvidencePayload(
   const calibrationBlock = buildCalibrationBlock(context.calibrationContext);
   const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
+  const priorThematicForecastErrors = buildResearchForecastErrorBlock(
+    command,
+    context.historicalContext,
+  );
 
   // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
   // The full bar series stays on disk (rawSnapshots / normalized sidecar).
@@ -560,6 +637,7 @@ function buildEvidencePayload(
 
   return {
     command,
+    ...userSteeringField(command),
     movers,
     marketRegime: context.marketRegime,
     marketSnapshots: collectedSources.marketSnapshots,
@@ -585,6 +663,7 @@ function buildEvidencePayload(
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
     ...(priorMarketForecastErrors !== undefined ? { priorMarketForecastErrors } : {}),
+    ...(priorThematicForecastErrors !== undefined ? { priorThematicForecastErrors } : {}),
     ...verifiedMarketSnapshotBlock,
     ...resolvedIdentityBlock,
   };
@@ -723,6 +802,22 @@ function evidenceCategories(
   return [...categories].toSorted();
 }
 
+// Bounded steering field shared by the spotlight-selection and final-synthesis
+// Stages so an optional market-overview prompt steers both (A3) without
+// Replacing the deterministic market overview evidence.
+function userSteeringField(command: ResearchCommand): Record<string, unknown> {
+  if (command.jobType !== "market-overview" || command.prompt === undefined) {
+    return {};
+  }
+  return {
+    userSteeringPrompt: {
+      text: command.prompt,
+      instruction:
+        "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
+    },
+  };
+}
+
 export function buildPlaybookSelectionPrompt(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -764,6 +859,7 @@ export function buildSpotlightSelectionPrompt(
       stage: "spotlight-selection",
       stageGoal: loaded.goal,
       command,
+      ...userSteeringField(command),
       depthProfile: context.depthProfile,
       selectionCap: cap,
       candidates,

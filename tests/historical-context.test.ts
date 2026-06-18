@@ -7,6 +7,7 @@ import {
   createHistoricalContextReader,
   loadHistoricalContext,
 } from "../src/research/historical-context";
+import { researchIdentityExtras } from "../src/research/research-subject-identity";
 import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -351,7 +352,7 @@ describe("loadHistoricalContext", () => {
     });
   });
 
-  test("tags same-cadence, cross-cadence, and spotlight-symbol relevance reasons for market-update commands", async () => {
+  test("tags same-horizon, cross-horizon, and spotlight-symbol relevance reasons for market-update commands", async () => {
     const dataDir = tempRunsDir();
     const now = new Date("2026-06-04T00:00:00.000Z");
     await writeRun({
@@ -395,14 +396,14 @@ describe("loadHistoricalContext", () => {
     });
 
     const byId = new Map(context.runs.map((run) => [run.runId, run]));
-    expect(byId.get("daily-market")?.selectionReasons).toContain("same-cadence");
-    expect(byId.get("weekly-market")?.selectionReasons).toContain("cross-cadence");
+    expect(byId.get("daily-market")?.selectionReasons).toContain("same-horizon");
+    expect(byId.get("weekly-market")?.selectionReasons).toContain("cross-horizon");
     expect(byId.get("spotlight-aapl")?.selectionReasons).toContain("spotlight-symbol");
     expect(context.audit).toMatchObject({
       sameSymbolSelectedCount: 0,
       spotlightSymbolSelectedCount: 1,
-      sameCadenceSelectedCount: 1,
-      crossCadenceSelectedCount: 1,
+      sameHorizonSelectedCount: 1,
+      crossHorizonSelectedCount: 1,
     });
   });
 
@@ -433,6 +434,89 @@ describe("loadHistoricalContext", () => {
       sameSymbolSelectedCount: 1,
       spotlightSymbolSelectedCount: 0,
     });
+  });
+
+  test("tags same-subject relevance reason for research commands", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "research-semis-key",
+      report: researchReport({
+        runId: "research-semis-key",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        }),
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "research-semis-proxy",
+      report: researchReport({
+        runId: "research-semis-proxy",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-18T00:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        }),
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "research-software",
+      report: researchReport({
+        runId: "research-software",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-22T00:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "software",
+          subjectKey: "software",
+          predictionProxySymbol: "IGV",
+          depth: "brief",
+        }),
+      }),
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "semis",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      config: { historyOptions: options({ tickerRecentLimit: 2, anchorMonths: [] }) },
+      now,
+    });
+
+    expect(context.runs.map((run) => run.runId)).toEqual([
+      "research-semis-key",
+      "research-semis-proxy",
+    ]);
+    expect(context.runs[0]).toMatchObject({
+      selectionReasons: ["recent", "same-subject"],
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+    });
+    expect(context.audit.sameSubjectSelectedCount).toBe(2);
   });
 
   test("counts selected runs carrying a resolved miss towards resolvedMissRunCount", async () => {

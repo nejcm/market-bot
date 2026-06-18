@@ -5,7 +5,7 @@
       "title": "Market Regime",
       "summary": "Classify the market backdrop from supplied market data, macro context, and source gaps.",
       "file": "market-regime.md",
-      "jobTypes": ["daily", "weekly"],
+      "jobTypes": ["market-overview", "daily", "weekly"],
       "assetClasses": ["equity", "crypto"],
       "depths": ["brief", "deep"],
       "stages": ["specialist-analysis", "regime-context-analysis", "critique", "final-synthesis"]
@@ -15,7 +15,7 @@
       "title": "Mover Themes",
       "summary": "Group liquid movers into evidence-backed themes without turning rank into conviction.",
       "file": "mover-themes.md",
-      "jobTypes": ["daily", "weekly"],
+      "jobTypes": ["market-overview", "daily", "weekly"],
       "assetClasses": ["equity", "crypto"],
       "depths": ["brief", "deep"],
       "stages": ["specialist-analysis", "mover-theme-analysis", "critique", "final-synthesis"]
@@ -40,7 +40,7 @@
       "title": "Market Behavior",
       "summary": "Describe observable price, liquidity, volatility, and participation behavior from supplied evidence.",
       "file": "market-behavior.md",
-      "jobTypes": ["daily", "weekly", "ticker"],
+      "jobTypes": ["market-overview", "daily", "weekly", "ticker"],
       "assetClasses": ["equity", "crypto"],
       "depths": ["deep"],
       "stages": [
@@ -56,7 +56,7 @@
       "title": "Critique Discipline",
       "summary": "Stress-test weak claims, missing evidence, and alternative explanations, and flag forecast claims whose stated probability outruns its evidence strength.",
       "file": "critique-discipline.md",
-      "jobTypes": ["daily", "weekly", "ticker"],
+      "jobTypes": ["market-overview", "daily", "weekly", "ticker"],
       "assetClasses": ["equity", "crypto"],
       "depths": ["brief", "deep"],
       "stages": ["critique"]
@@ -66,10 +66,20 @@
       "title": "Synthesis Discipline",
       "summary": "Synthesize evidence into research-only output and set calibrated, base-rate-anchored prediction probabilities.",
       "file": "synthesis-discipline.md",
-      "jobTypes": ["daily", "weekly", "ticker"],
+      "jobTypes": ["market-overview", "daily", "weekly", "ticker"],
       "assetClasses": ["equity", "crypto"],
       "depths": ["brief", "deep"],
       "stages": ["final-synthesis"]
+    },
+    {
+      "id": "source-discipline",
+      "title": "Source Discipline",
+      "summary": "Label evidence posture for observed facts, claims, calculations, inferences, assumptions, stale inputs, conflicts, and missing sources.",
+      "file": "source-discipline.md",
+      "jobTypes": ["research"],
+      "assetClasses": ["equity"],
+      "depths": ["brief", "deep"],
+      "stages": ["critique", "final-synthesis"]
     }
   ]
 }

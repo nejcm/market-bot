@@ -1,6 +1,7 @@
 import type { ResearchCommand } from "../cli/args";
 import {
   isMarketUpdateJobType,
+  marketUpdateHorizonBucketOf,
   type EvidenceQuality,
   type KeyFinding,
   type MarketSnapshot,
@@ -17,6 +18,7 @@ import {
   isExtendedEvidenceQualityGap,
 } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
+import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
 import { verifiedSnapshotSource } from "./verified-snapshot-contract";
@@ -26,6 +28,10 @@ import {
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
+import {
+  commandResearchSubjectIdentity,
+  researchIdentityExtras,
+} from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
@@ -330,6 +336,57 @@ function mergeSpotlightsExtra(modelSpotlights: unknown, defaultSpotlights: unkno
   };
 }
 
+function catalystCalendarExtra(input: {
+  readonly generatedAt: string;
+  readonly catalysts: readonly KeyFinding[];
+  readonly predictions: readonly Prediction[];
+  readonly collectedSources: CollectedSources;
+}): unknown {
+  const catalystItems = input.catalysts.map((catalyst) => ({
+    label: catalyst.text,
+    sourceIds: catalyst.sourceIds,
+    sourceStatus: "sourced catalyst",
+    researchRelevance: "watch item",
+  }));
+  const macroItems = (input.collectedSources.marketContext?.items ?? []).map((item) => ({
+    date: item.observedAt.slice(0, 10),
+    label: item.title,
+    sourceIds: item.sourceIds,
+    sourceStatus: "observed macro context",
+    researchRelevance: "macro release context",
+  }));
+  const predictionItems = input.predictions.map((prediction) => ({
+    date: resolutionDate(input.generatedAt, prediction.horizonTradingDays)
+      .toISOString()
+      .slice(0, 10),
+    label: `Prediction ${prediction.id} resolution date`,
+    sourceIds: prediction.sourceIds,
+    sourceStatus: "observable forecast",
+    researchRelevance: "prediction resolution",
+  }));
+  const items = [...catalystItems, ...macroItems, ...predictionItems];
+  return items.length === 0 ? undefined : { items };
+}
+
+function marketUpdateExtras(command: ResearchCommand): Record<string, unknown> {
+  const marketUpdateHorizonBucket = marketUpdateHorizonBucketOf(command);
+  if (marketUpdateHorizonBucket === undefined) {
+    return {};
+  }
+  if (command.jobType === "market-overview") {
+    return {
+      marketUpdateHorizonBucket,
+      ...(command.legacyAlias !== undefined
+        ? { legacyMarketUpdateAlias: command.legacyAlias }
+        : {}),
+    };
+  }
+  if (command.jobType === "daily" || command.jobType === "weekly") {
+    return { marketUpdateCadence: command.jobType, marketUpdateHorizonBucket };
+  }
+  return {};
+}
+
 function dataGapKey(value: string): string {
   return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
 }
@@ -344,6 +401,59 @@ function uniqueDataGaps(gaps: readonly string[]): readonly string[] {
     seen.add(key);
     return true;
   });
+}
+
+function hasMarketSnapshotFor(
+  collectedSources: CollectedSources,
+  symbol: string | undefined,
+): boolean {
+  if (symbol === undefined) {
+    return false;
+  }
+  const target = symbol.toUpperCase();
+  return collectedSources.marketSnapshots.some(
+    (snapshot) => snapshot.symbol.toUpperCase() === target,
+  );
+}
+
+function researchPredictionGate(input: {
+  readonly command: ResearchCommand;
+  readonly predictions: readonly Prediction[];
+  readonly collectedSources: CollectedSources;
+}): { readonly predictions: readonly Prediction[]; readonly gaps: readonly string[] } {
+  if (input.command.jobType !== "research") {
+    return { predictions: input.predictions, gaps: [] };
+  }
+  const proxy = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
+  if (proxy === undefined) {
+    return {
+      predictions: [],
+      gaps:
+        input.predictions.length === 0
+          ? []
+          : [
+              "researchProxyForecastGate: dropped predictions because no listed prediction proxy was resolved",
+            ],
+    };
+  }
+  if (!hasMarketSnapshotFor(input.collectedSources, proxy)) {
+    return {
+      predictions: [],
+      gaps: [
+        `researchProxyForecastGate: dropped predictions because no market snapshot matched proxy ${proxy}`,
+      ],
+    };
+  }
+  const predictions = input.predictions.filter(
+    (prediction) => prediction.subject.toUpperCase() === proxy,
+  );
+  return {
+    predictions,
+    gaps:
+      predictions.length === input.predictions.length
+        ? []
+        : [`researchProxyForecastGate: dropped non-proxy predictions; allowed subject is ${proxy}`],
+  };
 }
 
 function normalizeGapNeedle(value: string): string {
@@ -445,6 +555,11 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     sources,
   } = input;
 
+  const gatedPredictions = researchPredictionGate({
+    command,
+    predictions: predResult.predictions,
+    collectedSources,
+  });
   const deterministicGaps = deterministicSourceGaps(command, collectedSources);
   const dataGapsRaw = uniqueDataGaps([
     ...withoutDeterministicGapRestatements(
@@ -455,12 +570,13 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       deterministicGaps,
     ),
     ...deterministicGaps,
+    ...gatedPredictions.gaps,
   ]);
-  const shortfall = predResult.predictions.length < depthProfile.targetPredictions;
+  const shortfall = gatedPredictions.predictions.length < depthProfile.targetPredictions;
   const dataGaps = shortfall
     ? [
         ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(predResult.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
+        `predictionShortfall: emitted ${String(gatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
       ]
     : dataGapsRaw;
 
@@ -475,23 +591,36 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
+  const catalysts = readFindings(payload.catalysts);
+  const catalystCalendar =
+    command.jobType === "market-overview"
+      ? catalystCalendarExtra({
+          generatedAt,
+          catalysts,
+          predictions: gatedPredictions.predictions,
+          collectedSources,
+        })
+      : undefined;
 
   return validateResearchReport({
     runId,
     jobType: command.jobType,
     assetClass: command.assetClass,
     ...(command.jobType === "ticker" ? { symbol: command.symbol } : {}),
+    ...(command.jobType === "market-overview"
+      ? { horizonTradingDays: command.horizonTradingDays }
+      : {}),
     generatedAt,
     summary: typeof payload.summary === "string" ? payload.summary : "",
     keyFindings: readFindings(payload.keyFindings),
     bullCase: readFindings(payload.bullCase),
     bearCase: readFindings(payload.bearCase),
     risks: readFindings(payload.risks),
-    catalysts: readFindings(payload.catalysts),
+    catalysts,
     scenarios: readScenarios(payload.scenarios),
     confidence,
     dataGaps,
-    predictions: predResult.predictions,
+    predictions: gatedPredictions.predictions,
     sources,
     ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
@@ -503,9 +632,11 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         ? { historicalContext: defaultHistoricalContext }
         : {}),
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
+      ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
       depth: command.depth,
       depthProfile,
-      ...(isMarketUpdateJobType(command.jobType) ? { marketUpdateCadence: command.jobType } : {}),
+      ...marketUpdateExtras(command),
+      ...researchIdentityExtras(command),
       ...(isMarketUpdateJobType(command.jobType) && context.marketUpdateDelta !== undefined
         ? { marketUpdateDelta: context.marketUpdateDelta }
         : {}),

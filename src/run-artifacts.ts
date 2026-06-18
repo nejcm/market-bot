@@ -117,7 +117,14 @@ function isAssetClass(value: unknown): value is AssetClass {
 }
 
 function isJobType(value: unknown): value is JobType {
-  return value === "daily" || value === "weekly" || value === "ticker" || value === "alpha-search";
+  return (
+    value === "market-overview" ||
+    value === "daily" ||
+    value === "weekly" ||
+    value === "ticker" ||
+    value === "alpha-search" ||
+    value === "research"
+  );
 }
 
 function isPredictionKind(value: unknown): value is PredictionKind {
@@ -227,6 +234,9 @@ function readReport(value: unknown): ResearchReport | undefined {
     jobType: value.jobType,
     assetClass: value.assetClass,
     ...(typeof value.symbol === "string" ? { symbol: value.symbol.toUpperCase() } : {}),
+    ...(typeof value.horizonTradingDays === "number"
+      ? { horizonTradingDays: value.horizonTradingDays }
+      : {}),
     generatedAt,
     summary: readString(value, "summary") ?? "",
     keyFindings: readFindings(value.keyFindings),

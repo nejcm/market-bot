@@ -1,9 +1,9 @@
 import {
   MARKET_REGIME_LABELS,
+  marketUpdateHorizonBucket,
   type AssetClass,
   type JobType,
   type MarketRegimeLabel,
-  type MarketUpdateJobType,
   type Prediction,
 } from "../domain/types";
 import type {
@@ -20,7 +20,7 @@ export interface ResolvedPair {
   readonly score: PredictionScore;
   readonly assetClass: AssetClass;
   readonly jobType: JobType;
-  readonly marketUpdateCadence?: MarketUpdateJobType;
+  readonly marketUpdateHorizonBucket?: string;
   readonly runId: string;
   readonly missAutopsy?: MissAutopsyEntry;
   /** Market Regime label in effect at forecast time; undefined when absent/unparseable. */
@@ -41,13 +41,6 @@ export const MIN_CALIBRATION_SAMPLE = 5;
 
 const BASELINE_BRIER = 0.25;
 const BIN_EDGES = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
-const HORIZON_BUCKETS = [
-  { max: 5, label: "1-5d" },
-  { max: 10, label: "6-10d" },
-  { max: 15, label: "11-15d" },
-] as const;
-const LONG_HORIZON_BUCKET = "16-20d";
-
 function makeBinLabel(lo: number, hi: number): string {
   return `${String(lo.toFixed(1))}-${String(hi.toFixed(1))}`;
 }
@@ -119,13 +112,7 @@ function groupMetrics(
 }
 
 function horizonBucket({ prediction }: ResolvedPair): string {
-  const horizon = prediction.horizonTradingDays;
-  for (const bucket of HORIZON_BUCKETS) {
-    if (horizon <= bucket.max) {
-      return bucket.label;
-    }
-  }
-  return LONG_HORIZON_BUCKET;
+  return marketUpdateHorizonBucket(prediction.horizonTradingDays);
 }
 
 function countMissAutopsies(pairs: readonly ResolvedPair[]): Record<string, number> {
@@ -194,9 +181,9 @@ export function buildCalibrationSummary(
     byKind: groupMetrics(pairs, ({ prediction }) => prediction.kind),
     byAssetClass: groupMetrics(pairs, ({ assetClass }) => assetClass),
     byJobType: groupMetrics(pairs, ({ jobType }) => jobType),
-    byMarketUpdateCadence: groupMetrics(
-      pairs.filter(({ marketUpdateCadence }) => marketUpdateCadence !== undefined),
-      ({ marketUpdateCadence }) => marketUpdateCadence ?? "unknown",
+    byMarketUpdateHorizonBucket: groupMetrics(
+      pairs.filter((pair) => pair.marketUpdateHorizonBucket !== undefined),
+      (pair) => pair.marketUpdateHorizonBucket ?? "unknown",
     ),
     byHorizonBucket: groupMetrics(pairs, horizonBucket),
     byMarketRegime: buildByMarketRegime(pairs),

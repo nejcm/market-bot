@@ -131,9 +131,9 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     metricsByKey: summary.byJobType,
   });
   renderMetricTable(lines, {
-    title: "By market update cadence",
-    label: "Cadence",
-    metricsByKey: summary.byMarketUpdateCadence,
+    title: "By market overview horizon",
+    label: "Horizon",
+    metricsByKey: summary.byMarketUpdateHorizonBucket,
     emptyText: "_No resolved market-update predictions yet._",
   });
   renderMetricTable(lines, {

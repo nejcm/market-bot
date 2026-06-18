@@ -72,6 +72,21 @@
         />
       </div>
     {/if}
+    {#if jobForm.jobType === "market-overview"}
+      <label class="space-y-1">
+        <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
+          Horizon
+        </span>
+        <Input
+          class="h-8 w-24 bg-background font-mono text-xs"
+          value={jobForm.horizonTradingDays}
+          type="number"
+          min="1"
+          max="20"
+          oninput={(event) => onJobFormChange("horizonTradingDays", event.currentTarget.value)}
+        />
+      </label>
+    {/if}
     {#if jobForm.jobType === "ticker"}
       <label class="space-y-1">
         <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">

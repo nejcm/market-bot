@@ -10,7 +10,7 @@ CLI args
   -> source collection
   -> deterministic context
   -> historical context from prior run artifacts
-  -> market spotlight selection (daily/weekly only)
+  -> market spotlight selection (market-overview only)
   -> playbook selection
   -> model stages
   -> report validation
@@ -39,17 +39,17 @@ CLI args
 4. `alpha-search` collects ApeWisdom social-momentum candidates, ranks equity candidates, adds SEC current-filing candidates, filters candidates through official listed-symbol metadata, Yahoo-validates eligible rows against the stock-only small-cap screen, and writes Research Leads, deterministic candidate profiles, profile/fundamental coverage counts, and rejected candidates without predictions. SEC Fundamental Evidence remains in `normalized/candidate-profiles.json` / `normalized/sec-fundamentals.json`, not in `researchLeads`; unmapped S-1/F-1/8-K/6-K filings are disclosed as pre-ticker mapping gaps. Oversized alpha raw payloads are compacted in `raw/snapshots.json` to byte count, SHA-256 digest, and structural summary while normalized sidecars remain complete.
 5. `score` and `calibration` commands skip research generation and operate on existing run artifacts.
 6. `cache prune` removes old cache entries without generating research.
-7. Daily, weekly, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
+7. Market overview, legacy daily/weekly alias, and ticker research commands also run scoring and calibration as non-blocking side effects before generating the new report. If scoring or calibration fails, the CLI logs the error and continues the research run.
 
 ## Commands
 
 Run commands directly with Bun:
 
 ```sh
-bun run src/cli.ts daily --asset equity
-bun run src/cli.ts daily --asset crypto
-bun run src/cli.ts weekly --asset equity
-bun run src/cli.ts weekly --asset crypto
+bun run src/cli.ts market-overview --asset equity
+bun run src/cli.ts market-overview --asset crypto --horizon 15
+bun run src/cli.ts market-overview --asset equity --horizon 5
+bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts ticker AAPL --asset equity
 bun run src/cli.ts ticker BTC --asset crypto
 bun run src/cli.ts alpha-search --asset equity
@@ -65,8 +65,8 @@ bun run src/cli.ts history thesis-delta AAPL --asset equity --since 2026-06-01
 If installed as a binary, the same verbs are available through `market-bot`:
 
 ```sh
-market-bot daily --asset equity
-market-bot weekly --asset crypto --deep
+market-bot market-overview --asset equity
+market-bot market-overview --asset crypto --horizon 15 --deep
 market-bot ticker AAPL --asset equity --deep
 market-bot alpha-search --asset equity --deep
 market-bot score
@@ -82,8 +82,8 @@ Command behavior:
 
 | Command                                  | What it does                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `daily --asset equity\|crypto`           | Creates a daily market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence.                                                                                                                                                                                                                    |
-| `weekly --asset equity\|crypto`          | Creates a weekly market update, with overview-first coverage and optional Market Spotlights from current market evidence. Weekly changes the cadence and prediction horizon, but current mover inputs still come from daily-style source payloads and are disclosed as source gaps.                                                                             |
+| `market-overview --asset equity\|crypto [--horizon days] [prompt]` | Canonical whole-market update for one asset class, with overview-first coverage and optional Market Spotlights from current market evidence. `--horizon` sets the forecast horizon in trading days (default 15); an optional free-text prompt steers spotlight selection and final synthesis. Longer horizons still draw current mover inputs from daily-style source payloads, disclosed as source gaps. |
+| `daily` / `weekly --asset equity\|crypto` | Deprecated aliases that dispatch into `market-overview` with preset horizons (`daily` -> 5 trading days, `weekly` -> 15). Retained for zero-break migration; prefer `market-overview --horizon`. |
 | `ticker <symbol> --asset equity\|crypto` | Creates a detailed single-instrument research view with same-symbol historical context. Symbols are normalized to uppercase and must match the instrument validator.                                                                                                                                                                                            |
 | `alpha-search --asset equity`            | Runs ApeWisdom social discovery plus SEC current-filing discovery, filters candidates through official listed-symbol metadata, validates eligible candidates with Yahoo as listed stocks inside the configured price, volume, and market-cap screen, and emits Research Leads plus rejected candidates with no predictions or scoring/calibration side effects. |
 | `--deep`                                 | Uses the deep profile: more findings, scenarios, predictions, and fixed coverage-panel stages, with the synthesis model for the final pass.                                                                                                                                                                                                                     |
@@ -96,7 +96,9 @@ Command behavior:
 | `history search --query <text>`          | Searches prior reports, Sources, Predictions, Research Thesis components, open questions, fundamentals, and validation artifacts with optional filters. Uses the SQLite index when fresh; otherwise falls back to `data/history/index.json`.                                                                                                                    |
 | `history thesis-delta <symbol>`          | Compares two historical Research Thesis states for an Instrument. By default it renders a deterministic delta; `--narrative` adds and persists a model-written research-only narrative.                                                                                                                                                                         |
 
-Provider-health v2 expects coverage for daily and weekly equity/crypto updates, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, missing due scoring passes, and unsupported/unreadable Run Artifact Index schemas. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict. Missing history on first-run paths is a soft Historical Context Gap, not a provider-health failure.
+The shared run taxonomy also includes `research` for equity subject research artifacts. It is a `JobType` used by report validation, history/search filters, calibration/index rows, and subject identity helpers; `market-bot research <subject>` is not parsed by the public CLI yet.
+
+Provider-health v2 expects coverage for short- and medium-horizon equity/crypto market overviews, equity and crypto ticker runs, a deep equity ticker run, and at least one international equity ticker smoke run. Legacy daily/weekly artifacts count during migration because they map into market-overview horizon buckets. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, missing due scoring passes, and unsupported/unreadable Run Artifact Index schemas. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict. Missing history on first-run paths is a soft Historical Context Gap, not a provider-health failure.
 
 ## Setup and development commands
 
@@ -148,7 +150,7 @@ Useful knobs:
 | `MARKET_BOT_CACHE_DIR`                                                               | Raw source cache directory, default `data/cache`.                                                                  |
 | `MARKET_BOT_CACHE_DISABLE`                                                           | Set `1` or `true` to bypass cache.                                                                                 |
 | `MARKET_BOT_CACHE_FALLBACK_DAYS`                                                     | Stale cache fallback window after live fetch failure.                                                              |
-| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for daily and weekly updates. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for market-overview runs. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT`                                      | Top-ranked mover candidates fed to the spotlight selector (`0` = all).                                           |
 | `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` / `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT`  | Caps recent prior run artifacts used as Historical Research Context.                                               |
 | `MARKET_BOT_HISTORY_RECENT_DAYS` / `MARKET_BOT_HISTORY_ANCHOR_MONTHS`                | Controls recent and older anchor history selection.                                                                |
@@ -167,12 +169,12 @@ The collector fetches market data and news in parallel:
 
 | Asset class | Market data                                                                                                                                                                                                                                           | News                                                                                                     |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `equity`    | Yahoo Finance predefined `day_gainers`, `day_losers`, and `most_actives` screeners (deduped by symbol) for market updates; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
-| `crypto`    | CoinGecko markets endpoint. Market updates request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol.                                                                                                              | MarketAux, Finnhub crypto market news, and Yahoo Finance search.                                         |
+| `equity`    | Yahoo Finance predefined `day_gainers`, `day_losers`, and `most_actives` screeners (deduped by symbol) for market overviews; Yahoo quote endpoint for regime proxies and ticker runs. Optional Massive snapshots supplement the Yahoo-selected symbols. | MarketAux, Finnhub company news for ticker runs, Yahoo Finance search, and optional Massive equity news. |
+| `crypto`    | CoinGecko markets endpoint. Market overviews request enough rows to rank movers; ticker runs fetch a larger universe and filter by symbol.                                                                                                           | MarketAux, Finnhub crypto market news, and Yahoo Finance search.                                         |
 
 Equity regime context uses `SPY`, `QQQ`, `IWM`, `DIA`, `^VIX`, and `^VIX3M`. Crypto regime context uses major proxies such as `BTC` and `ETH`.
 
-Daily and weekly market updates also collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s and do not abort research, but provider-health v2 treats them as validation failures because FRED is baseline-required.
+Market overview runs collect Market Context from FRED when `MARKET_BOT_FRED_API_KEY` is set. Market Context is market-level evidence, not ticker Extended Evidence. It is sent to model prompts, saved in `report.json` extras, persisted as `normalized/market-context.json`, and included in `report.sources` so findings and macro predictions can cite it. Missing FRED credentials or fetch failures are disclosed as `SourceGap`s and do not abort research, but provider-health v2 treats them as validation failures because FRED is baseline-required.
 
 Massive, formerly Polygon.io, is a Supplemental Source Provider. `MARKET_BOT_MASSIVE_API_KEY` enables requests to `api.massive.com` for equity news and stock snapshots; `MARKET_BOT_POLYGON_API_KEY` is accepted as a legacy alias. Missing keys silently disable Massive. When the key is set and a Massive request fails, the failure is recorded as a `SourceGap` with `evidenceQualityImpact: "no-cap"`. Massive is equity-only in this version: it does not run for crypto, does not replace Yahoo, does not affect mover ranking or market regime, and does not create scoring Observations. Supplemental snapshots are saved as `normalized/supplemental-market-snapshots.json`, included in prompt evidence, and attached as citeable report Sources.
 
@@ -183,7 +185,7 @@ Ticker runs also collect Extended Evidence:
 | `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, and Valuation Evidence when market cap and SEC fundamentals are both available. |
 | `crypto`    | FRED macro observations and Glassnode on-chain metrics.                                                                                                   |
 
-Extended Evidence is not collected for daily or weekly market updates. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
+Extended Evidence is not collected for market overview runs. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
 SEC/EDGAR Fundamental Evidence uses curated operating basics and comparable prior-year deltas when SEC company facts expose matching periods; missing facts or non-comparable deltas are disclosed as `SourceGap`s.
 
 Fetch behavior:
@@ -194,7 +196,7 @@ Fetch behavior:
 - Repeated transient failures, provider usage-limit responses, and rate-limit responses open a circuit temporarily; open circuits emit `SourceGap`s.
 - Failed sources become `SourceGap` entries instead of crashing the whole research run.
 - `withCache` stores raw JSON by UTC date and a v2 canonical request hash that includes the adapter, strips credential-only query params, and keeps request-shaping params.
-- Same-day equivalent provider requests can reuse cache across daily, weekly, and ticker runs; broader/narrower provider payloads are not derived from each other.
+- Same-day equivalent provider requests can reuse cache across market overview, legacy daily/weekly alias, ticker, and evidence-request runs; broader/narrower provider payloads are not derived from each other.
 - If a live request fails and a recent cached entry exists, the cached payload is used and a stale-source gap is recorded.
 - Missing MarketAux or Finnhub tokens are reported as `no-cap` `SourceGap`s. Yahoo news still runs.
 - Missing Massive keys are silent because Massive is supplemental-only; configured Massive failures are reported as `SourceGap`s with no evidence-quality cap.
@@ -207,9 +209,9 @@ Historical Research Context reads prior run artifacts from `MARKET_BOT_DATA_DIR`
 
 The prompt receives compact history: prior summaries, findings, risks, catalysts, confidence, data gaps, scored prediction status, key extras, and selected numeric snapshots. History can inform forecast wording and probability calibration, but prediction counts, subjects, and horizons remain governed by run config.
 
-Each selected prior run carries structured selection reasons: recency reasons (`recent`, `anchor-Nm`) plus topical relevance reasons (`same-symbol`, `spotlight-symbol`, `same-cadence`, `cross-cadence`). Up to `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT` recent resolved-miss runs are also kept with a `miss-correction` reason when same-day reruns would otherwise evict them from the recency window. The context's audit block records how many runs each reason selected, how many carry a resolved miss (`resolvedMissRunCount`), how many were preserved by the miss-correction lane (`missCorrectionSelectedCount`), and the total disclosed gap count, so `trace.json` shows why each prior run was pulled in without re-deriving it.
+Each selected prior run carries structured selection reasons: recency reasons (`recent`, `anchor-Nm`) plus topical relevance reasons (`same-symbol`, `spotlight-symbol`, `same-horizon`, `cross-horizon`). Up to `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT` recent resolved-miss runs are also kept with a `miss-correction` reason when same-day reruns would otherwise evict them from the recency window. The context's audit block records how many runs each reason selected, how many carry a resolved miss (`resolvedMissRunCount`), how many were preserved by the miss-correction lane (`missCorrectionSelectedCount`), and the total disclosed gap count, so `trace.json` shows why each prior run was pulled in without re-deriving it.
 
-Resolved prior **misses** are surfaced as explicit error-correction signal in the prompt — the model is asked to diagnose why a prior view was wrong before restating a similar one. Two non-overlapping blocks: ticker runs get an instrument-scoped block on the command's own symbol; daily/weekly runs get a market-scoped block on their configured index/macro/crypto forecast subjects, drawn only from prior same-cadence, same-asset market updates. Hits are never itemized here — they inform the run only through aggregate calibration.
+Resolved prior **misses** are surfaced as explicit error-correction signal in the prompt — the model is asked to diagnose why a prior view was wrong before restating a similar one. The scoped blocks stay separate: ticker runs get an instrument-scoped block on the command's own symbol; market overview runs get a market-scoped block on their configured index/macro/crypto forecast subjects, drawn only from prior same-horizon, same-asset market overviews; `research` runs can get a thematic block when prior research artifacts match the same subject key or prediction proxy. Hits are never itemized here — they inform the run only through aggregate calibration.
 
 Historical Research Context also has user-facing derived views. `history rebuild` scans existing run artifacts and writes `data/history/index.json` plus per-Instrument timelines under `data/history/instruments/`. These derived files keep `data/runs/<run-id>/` as the source of truth, use `assetClass:symbol` as the compatibility key, and preserve any Instrument Identity metadata that prior Sources exposed. History commands are artifact-only: they do not fetch fresh market data, news, fundamentals, or Observations.
 
@@ -217,13 +219,13 @@ The Run Artifact Index ([ADR 0018](./adr/0018-run-artifact-index.md)) is a separ
 
 Markdown reports list cited Sources first and replace uncited normalized Sources with a compact provider/kind inventory line. `report.json` and console artifact views keep the full source array for audit and inspection.
 
-The history JSON index and SQLite index both support local structured text search over report sections, Sources, Predictions, open questions, Fundamental Evidence, and validation artifacts. Thesis deltas compare Research Thesis components between two historical runs for the same Instrument: summary, findings, bull/bear cases, risks, catalysts, data gaps, open questions, observable Predictions, score state, fundamentals, and validation. Each timeline entry is tagged `instrument` or `market-update` scope: an `instrument`-scoped entry comes from a run whose subject is that symbol (a ticker run), while a `market-update`-scoped entry only references the symbol from a broader daily/weekly report. `history thesis-delta` compares `instrument`-scoped entries only, so a whole-market narrative is never compared as if it were a single Instrument's Research Thesis. When `--narrative` is passed, the model summarizes the deterministic delta and the output is persisted with the input delta and model metadata under `data/history/deltas/`; a narrative that contains trade-action language is rejected before any file is written.
+The history JSON index and SQLite index both support local structured text search over report sections, Sources, Predictions, open questions, Fundamental Evidence, and validation artifacts. Thesis deltas compare Research Thesis components between two historical runs for the same Instrument: summary, findings, bull/bear cases, risks, catalysts, data gaps, open questions, observable Predictions, score state, fundamentals, and validation. Each timeline entry is tagged `instrument` or `market-update` scope: an `instrument`-scoped entry comes from a run whose subject is that symbol (a ticker run), while a `market-update`-scoped entry only references the symbol from a broader market overview or legacy daily/weekly report. `history thesis-delta` compares `instrument`-scoped entries only, so a whole-market narrative is never compared as if it were a single Instrument's Research Thesis. When `--narrative` is passed, the model summarizes the deterministic delta and the output is persisted with the input delta and model metadata under `data/history/deltas/`; a narrative that contains trade-action language is rejected before any file is written.
 
-Ticker jobs include recent same-symbol ticker runs plus same-asset daily/weekly market updates. This context is loaded before the Evidence Request Loop, so eligible deep ticker runs can ask for extra public evidence in response to prior-run changes.
+Ticker jobs include recent same-symbol ticker runs plus same-asset market overview history, including readable legacy daily/weekly artifacts. This context is loaded before the Evidence Request Loop, so eligible deep ticker runs can ask for extra public evidence in response to prior-run changes.
 
-Daily and weekly jobs include same-asset market updates, with same-cadence runs prioritized. Market Spotlight candidates are built only from the current collected market snapshot universe and may be enriched with mover features, benchmark context, history availability, and alpha-search watchlist annotations. Alpha-search and history can enrich a candidate, but cannot create one without current market evidence. `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` caps the ranked mover list passed to the selector before the model runs (`0` passes every candidate).
+Market overview jobs include same-asset market overview history, with same-horizon runs prioritized. Market Spotlight candidates are built only from the current collected market snapshot universe and may be enriched with mover features, benchmark context, history availability, and alpha-search watchlist annotations. Alpha-search and history can enrich a candidate, but cannot create one without current market evidence. `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` caps the ranked mover list passed to the selector before the model runs (`0` passes every candidate).
 
-The `spotlight-selection` quick-model stage runs before Domain Playbooks when a daily or weekly run has candidates and a nonzero spotlight cap. It may select zero candidates. Unknown symbols, duplicates, cap overflow, malformed JSON, and unknown source IDs are rejected into `trace.json`; the run continues with valid selections or no spotlights.
+The `spotlight-selection` quick-model stage runs before Domain Playbooks when a market overview has candidates and a nonzero spotlight cap. It may select zero candidates. Unknown symbols, duplicates, cap overflow, malformed JSON, and unknown source IDs are rejected into `trace.json`; the run continues with valid selections or no spotlights.
 
 Final synthesis may render or refine selected spotlight rationale, but report assembly preserves the validated selected symbol set and source IDs.
 
@@ -238,7 +240,7 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/yahoo-news.ts` normalizes news search results into report sources.
 - `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL and by normalized title when the title carries enough signal, merge duplicates while preserving the first canonical URL and provider aliases, and suppress recently seen repeats.
 - `src/sources/massive.ts` normalizes Massive stock snapshots and equity news from `api.massive.com`. Massive was formerly Polygon.io.
-- `src/sources/market-context.ts` collects FRED macro Market Context for daily and weekly market updates.
+- `src/sources/market-context.ts` collects FRED macro Market Context for market overview runs.
 - `src/sources/extended-evidence.ts` composes ticker-only Extended Evidence from separate provider files under `src/sources/extended-evidence/` for SEC/EDGAR, Finnhub events, FRED, Tradier IV, Glassnode, and deterministic Valuation Evidence from market cap plus SEC fundamentals.
 - `src/sources/providers.ts` lists Source Provider modules and their optional capabilities.
 - `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.
@@ -255,7 +257,7 @@ The ranker:
 
 - drops snapshots with invalid price, invalid percent change, or volume below `10_000`;
 - computes a baseline score as `abs(changePercent24h) * log10(volume)`;
-- adds Benchmark-Relative Mover Context for daily and weekly equity movers when Yahoo benchmark quotes are available. The context compares each Yahoo-selected mover against a sector ETF, or `SPY` when sector metadata is unavailable, and is citeable evidence rather than a ranking input;
+- adds Benchmark-Relative Mover Context for market overview equity movers when Yahoo benchmark quotes are available. The context compares each Yahoo-selected mover against a sector ETF, or `SPY` when sector metadata is unavailable, and is citeable evidence rather than a ranking input;
 - adds neutral-if-missing Mover Feature boosts for unusual volume and opening gap size when the source payload includes usable fields;
 - caps unusual-volume boost at `0.25` and gap boost at `0.20`, then scores as `baseScore * (1 + unusualVolumeBoost + gapBoost)`;
 - sorts by score descending, then symbol ascending;
@@ -263,7 +265,7 @@ The ranker:
 - stamps each mover snapshot with the asset-class market-data provider (`yahoo` or `coingecko`) for analytics and source inventory;
 - includes the score components and short deterministic reasons in the model evidence payload.
 
-Weekly reports currently reuse the same underlying mover inputs as daily reports. The report records that limitation in `dataGaps`.
+Longer-horizon market overviews currently reuse the same underlying mover inputs as short-horizon reports. The report records that limitation in `dataGaps`.
 
 ## Market regime
 
@@ -291,7 +293,7 @@ Each research run builds a depth profile:
 
 Before the shared analysis stages:
 
-- Daily and weekly runs may run `spotlight-selection` after current source collection and historical context.
+- Market overview runs may run `spotlight-selection` after current source collection and historical context.
 - Eligible deep equity ticker runs may run `evidence-request`; the prompt sees historical context before requesting extra public evidence.
 
 Brief runs use these shared model stages:
@@ -303,7 +305,7 @@ Brief runs use these shared model stages:
 
 Deep runs keep `specialist-analysis` as the anchor, then run two fixed coverage-panel stages before critique:
 
-- Market updates: `regime-context-analysis` and `mover-theme-analysis`.
+- Market overviews: `regime-context-analysis` and `mover-theme-analysis`.
 - Tickers: `instrument-evidence-analysis` and `market-behavior-analysis`.
 
 Each coverage-panel stage receives the specialist output as prior context. `critique` receives the specialist plus both role outputs, and `final-synthesis` receives all analyses plus critique. The panel broadens coverage without adding report schema fields.
@@ -355,7 +357,7 @@ Accepted predictions are canonicalized so the stored `measurableAs` matches the 
 
 Historical Context and Market Spotlights render from `report.extras.historicalContext` and `report.extras.spotlights`. The renderer parses them defensively, escapes markdown text, and only includes item-level source references that exist in the final source list.
 
-For daily and weekly market updates, a `## What Changed Since Last Daily|Weekly` section renders directly after the summary from `report.extras.marketUpdateDelta` (the Market Update Delta). It is a deterministic, no-model-call diff against the most-recent prior same-cadence run: regime label change with flipped drivers, the ranked Mover membership diff, and Predictions from prior same-asset-class market-update runs that resolved since the baseline. When there is no prior same-cadence run it renders a single empty-state line.
+For market overview reports, a `## What Changed Since Last <horizon> Market Overview` section renders directly after the summary from `report.extras.marketUpdateDelta` (the Market Update Delta). It is a deterministic, no-model-call diff against the most-recent prior same-horizon run: regime label change with flipped drivers, the ranked Mover membership diff, and Predictions from prior same-asset-class market overview runs that resolved since the baseline. When there is no prior same-horizon run it renders a single empty-state line.
 
 ## Artifacts
 
@@ -369,9 +371,9 @@ data/runs/<run-id>/
   normalized/market-snapshots.json
   normalized/market-context.json
   normalized/historical-context.json
-  normalized/spotlight-candidates.json  # market updates only
-  normalized/spotlight-selection.json  # market updates only
-  normalized/movers.json  # market updates only — ranked mover set, baseline for the next Market Update Delta
+  normalized/spotlight-candidates.json  # market overview only
+  normalized/spotlight-selection.json  # market overview only
+  normalized/movers.json  # market overview only — ranked mover set, baseline for the next Market Update Delta
   normalized/news-sources.json
   normalized/source-gaps.json
   normalized/sec-fundamentals.json  # alpha-search only
@@ -444,7 +446,7 @@ The summary includes:
 - metrics by prediction kind;
 - metrics by asset class;
 - metrics by job type;
-- metrics by market-update cadence;
+- metrics by market overview horizon bucket;
 - metrics by horizon bucket.
 
 When no resolved pairs exist, calibration does not write a new summary.

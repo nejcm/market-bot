@@ -591,7 +591,7 @@ describe("buildCalibrationSummary", () => {
         score: makeScore("hit"),
         assetClass: "equity" as const,
         jobType: "daily" as const,
-        marketUpdateCadence: "daily" as const,
+        marketUpdateHorizonBucket: "1-5d",
         runId: "r1",
       },
       {
@@ -599,7 +599,7 @@ describe("buildCalibrationSummary", () => {
         score: makeScore("miss"),
         assetClass: "equity" as const,
         jobType: "weekly" as const,
-        marketUpdateCadence: "weekly" as const,
+        marketUpdateHorizonBucket: "11-15d",
         runId: "r2",
       },
       {
@@ -616,8 +616,8 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byJobType["daily"]?.count).toBe(1);
     expect(summary.byJobType["weekly"]?.count).toBe(1);
     expect(summary.byJobType["ticker"]?.count).toBe(1);
-    expect(summary.byMarketUpdateCadence["daily"]?.count).toBe(1);
-    expect(summary.byMarketUpdateCadence["weekly"]?.count).toBe(1);
+    expect(summary.byMarketUpdateHorizonBucket["1-5d"]?.count).toBe(1);
+    expect(summary.byMarketUpdateHorizonBucket["11-15d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["1-5d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["11-15d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["16-20d"]?.count).toBe(1);
@@ -873,7 +873,7 @@ describe("renderCalibrationConsole", () => {
       score: makeScore(idx % 2 === 0 ? "hit" : "miss"),
       assetClass: "equity" as const,
       jobType: "daily" as const,
-      marketUpdateCadence: "daily" as const,
+      marketUpdateHorizonBucket: "1-5d",
       runId: `r${String(idx)}`,
     }));
   }

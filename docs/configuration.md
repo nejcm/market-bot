@@ -41,17 +41,20 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `ticker --deep --asset equity`. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS` | `2` | Max accepted evidence tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |
-| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` | `2` | Max AI-selected Market Spotlights for brief daily/weekly market updates. Set `0` to disable spotlights. |
-| `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | `4` | Max AI-selected Market Spotlights for deep daily/weekly market updates. Set `0` to disable spotlights. |
+| `MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS` | `4` | Max JSON-loop gather rounds for `research` run-type gathering. Set to `0` to disable gathering. |
+| `MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS` | `8` | Max accepted gather tool executions for `research` run-type gathering. Set to `0` to disable gathering. |
+| `MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET` | `24` | Max declared source units for `research` run-type gathering. Set to `0` to disable gathering. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` | `2` | Max AI-selected Market Spotlights for brief market-overview runs. Set `0` to disable spotlights. |
+| `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | `4` | Max AI-selected Market Spotlights for deep market-overview runs. Set `0` to disable spotlights. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` | `40` | Top-ranked mover candidates fed to the spotlight selector. Caps selector prompt size by dropping long-tail movers the model never picks. Set `0` to pass every candidate. |
 | `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` | `3` | Recent same-symbol ticker artifacts to include in ticker historical context. |
-| `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT` | `5` | Recent daily/weekly market-update artifacts to include in market historical context. |
+| `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT` | `5` | Recent market-overview artifacts to include in market historical context. Legacy daily/weekly artifacts remain readable during migration. |
 | `MARKET_BOT_HISTORY_RECENT_DAYS` | `90` | Lookback window for recent historical run artifacts. |
 | `MARKET_BOT_HISTORY_ANCHOR_MONTHS` | `3,6,12` | Comma-separated month anchors used to pick older historical run artifacts. |
 | `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT` | `2` | Most recent resolved-miss runs preserved even when the recency limit would evict them, so same-day reruns can't crowd the calibration anchor out of historical context. `0` disables the lane. |
 | `MARKET_BOT_MARKETAUX_API_TOKEN` | — | Enables MarketAux news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
 | `MARKET_BOT_FINNHUB_API_TOKEN` | — | Enables Finnhub news. Missing tokens emit a `SourceGap`; Yahoo news still runs. |
-| `MARKET_BOT_FRED_API_KEY` | — | Baseline free provider. Enables FRED Market Context for market updates, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research, but provider-health v2 treats missing or failed FRED coverage as a validation failure. |
+| `MARKET_BOT_FRED_API_KEY` | — | Baseline free provider. Enables FRED Market Context for market overviews, FRED macro Extended Evidence for ticker runs, and FRED forecast scoring. Missing token emits FRED `SourceGap`s without aborting research, but provider-health v2 treats missing or failed FRED coverage as a validation failure. |
 | `MARKET_BOT_TRADIER_API_TOKEN` | — | Optional equity options/IV provider. Enables Tradier options/IV Extended Evidence and IV forecast scoring. Free/delayed access depends on Tradier account/API access. Missing token, account limits, or unsupported international coverage emit expected provider coverage gaps. |
 | `MARKET_BOT_GLASSNODE_API_KEY` | — | Optional paid crypto on-chain provider. Glassnode API access requires a paid/API-add-on plan. Missing token emits ticker `SourceGap`s for on-chain evidence. |
 | `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY` | — | Enables Massive, formerly Polygon.io, as a supplemental equity source provider using `api.massive.com`. `MARKET_BOT_POLYGON_API_KEY` is accepted as a legacy alias. Missing key silently disables Massive. When set, failed Massive news/supplemental requests emit no-cap `SourceGap`s. Massive contributes equity news and supplemental equity market snapshots. When set and Yahoo equity quote/chart routes fail after retries, Massive also serves as an opportunistic fallback for quotes, benchmarks, alpha-search validation, and scoring closes. Massive does not affect mover ranking, market regime labels, crypto, or replace Yahoo screeners/news. |
@@ -62,7 +65,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 
 Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close cache files older than 365 days.
 
-Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The history env vars control how many prior reports are summarized and which older anchor runs are considered; they do not make the reader scan `MARKET_BOT_CACHE_DIR`. Market Spotlight limits cap AI-selected spotlights for daily and weekly updates. Setting a spotlight limit to `0` disables the selector for that depth.
+Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The history env vars control how many prior reports are summarized and which older anchor runs are considered; they do not make the reader scan `MARKET_BOT_CACHE_DIR`. Market Spotlight limits cap AI-selected spotlights for market-overview runs. Setting a spotlight limit to `0` disables the selector for that depth.
 
 ## Free provider setup
 

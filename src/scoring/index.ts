@@ -25,7 +25,7 @@ import {
   type AlphaValidationPrerequisiteInput,
   type AlphaValidationFile,
 } from "../alpha-search/validation";
-import { isMarketUpdateJobType, type Prediction, type ResearchReport } from "../domain/types";
+import { marketUpdateHorizonBucketOf, type Prediction, type ResearchReport } from "../domain/types";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
@@ -629,13 +629,14 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
       return [];
     }
     const missAutopsy = autopsyByPrediction.get(prediction.id);
+    const marketUpdateHorizonBucket = marketUpdateHorizonBucketOf(report);
     return [
       {
         prediction,
         score,
         assetClass: report.assetClass,
         jobType: report.jobType,
-        ...(isMarketUpdateJobType(report.jobType) ? { marketUpdateCadence: report.jobType } : {}),
+        ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
         runId: report.runId,
         ...(missAutopsy !== undefined ? { missAutopsy } : {}),
         ...(marketRegimeLabel !== undefined ? { marketRegimeLabel } : {}),

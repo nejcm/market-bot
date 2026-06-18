@@ -36,6 +36,11 @@ const config: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
+  researchGatherOptions: {
+    maxRounds: 0,
+    maxToolCalls: 0,
+    sourceBudget: 0,
+  },
   alphaSearchOptions: {
     apeWisdomFilter: "all-stocks",
     apeWisdomBriefPageLimit: 5,
@@ -79,7 +84,7 @@ function resolvedPair(id: string, probability: number, outcome: "hit" | "miss"):
     },
     assetClass: "equity",
     jobType: "daily",
-    marketUpdateCadence: "daily",
+    marketUpdateHorizonBucket: "1-5d",
     runId: "run-1",
   };
 }
@@ -560,6 +565,40 @@ describe("buildStagePrompt", () => {
     expect(parsed.instruction).toBe("Analyze.");
     expect(parsed.domainPlaybooks?.[0]?.instruction).toBe("Challenge weak claims.");
   });
+
+  test("injects market-overview prompt as steering evidence only", () => {
+    const command: ResearchCommand = {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 7,
+      prompt: "focus on banks",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      contextWithHistory(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: {
+        readonly userSteeringPrompt?: { readonly text?: string; readonly instruction?: string };
+      };
+    };
+
+    expect(parsed.evidence?.userSteeringPrompt).toEqual({
+      text: "focus on banks",
+      instruction:
+        "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
+    });
+  });
 });
 
 function missSummary(
@@ -622,8 +661,9 @@ function historicalContextWith(runs: readonly HistoricalRunContext[]): Historica
       anchorSelectedCount: 0,
       sameSymbolSelectedCount: 0,
       spotlightSymbolSelectedCount: 0,
-      sameCadenceSelectedCount: 0,
-      crossCadenceSelectedCount: 0,
+      sameSubjectSelectedCount: 0,
+      sameHorizonSelectedCount: 0,
+      crossHorizonSelectedCount: 0,
       resolvedMissRunCount: runs.filter((run) => run.scoreSummary.miss > 0).length,
       missCorrectionSelectedCount: runs.filter((run) =>
         run.selectionReasons.includes("miss-correction"),
@@ -932,10 +972,11 @@ describe("buildStagePrompt prior-thesis error correction", () => {
 
 function marketRun(
   runId: string,
-  jobType: "daily" | "weekly",
+  jobType: "daily" | "weekly" | "market-overview",
   predictions: readonly HistoricalPredictionSummary[],
   generatedAt = "2026-05-20T00:00:00.000Z",
   assetClass: "equity" | "crypto" = "equity",
+  keyExtras?: Record<string, unknown>,
 ): HistoricalRunContext {
   return {
     runId,
@@ -953,6 +994,7 @@ function marketRun(
     predictions,
     scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
     marketSnapshots: [],
+    ...(keyExtras !== undefined ? { keyExtras } : {}),
   };
 }
 
@@ -987,10 +1029,67 @@ function priorMarketForecastErrorsFor(
   return parsed.evidence?.priorMarketForecastErrors;
 }
 
+function researchRun(
+  runId: string,
+  predictions: readonly HistoricalPredictionSummary[],
+  generatedAt = "2026-05-20T00:00:00.000Z",
+  overrides: Partial<HistoricalRunContext> = {},
+): HistoricalRunContext {
+  return {
+    runId,
+    sourceId: `history-report-${runId}`,
+    jobType: "research",
+    assetClass: "equity",
+    subjectKey: "semiconductors",
+    predictionProxySymbol: "SMH",
+    generatedAt,
+    selectionReasons: ["recent", "same-subject"],
+    summary: "",
+    confidence: "medium",
+    keyFindings: [],
+    risks: [],
+    catalysts: [],
+    dataGaps: [],
+    predictions,
+    scoreSummary: { total: predictions.length, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+    marketSnapshots: [],
+    ...overrides,
+  };
+}
+
+function priorThematicForecastErrorsFor(
+  command: ResearchCommand,
+  context: ResearchContext,
+): string | undefined {
+  const prompt = buildStagePrompt(
+    "specialist-analysis",
+    command,
+    collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot({ symbol: "SMH" })],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    }),
+    config,
+    context,
+    { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+  );
+  const parsed = JSON.parse(prompt) as {
+    readonly evidence?: { readonly priorThematicForecastErrors?: string };
+  };
+  return parsed.evidence?.priorThematicForecastErrors;
+}
+
 describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", () => {
   const dailyCommand: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+  const sevenDayOverviewCommand: ResearchCommand = {
+    jobType: "market-overview",
+    assetClass: "equity",
+    depth: "brief",
+    horizonTradingDays: 7,
+  };
 
-  test("surfaces prior same-cadence market misses on configured subjects", () => {
+  test("surfaces prior same-horizon-bucket market misses on configured subjects", () => {
     const context = contextWithHistory(
       dailyCommand,
       historicalContextWith([marketRun("run-daily-1", "daily", [marketMiss("p1", "SPY")])]),
@@ -1071,13 +1170,34 @@ describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", 
     expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
   });
 
-  test("excludes the other cadence (weekly misses for a daily command)", () => {
+  test("excludes the other horizon bucket (weekly misses for a daily command)", () => {
     const context = contextWithHistory(
       dailyCommand,
       historicalContextWith([marketRun("run-weekly-1", "weekly", [marketMiss("p1", "SPY")])]),
     );
 
     expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+
+  test("isolates canonical market-overview misses by horizon bucket", () => {
+    const context = contextWithHistory(
+      sevenDayOverviewCommand,
+      historicalContextWith([
+        marketRun("run-5d", "market-overview", [marketMiss("p-5d", "SPY")], undefined, "equity", {
+          marketUpdateHorizonBucket: "1-5d",
+        }),
+        marketRun("run-7d", "market-overview", [marketMiss("p-7d", "SPY")], undefined, "equity", {
+          marketUpdateHorizonBucket: "6-10d",
+        }),
+        marketRun("run-daily", "daily", [marketMiss("p-daily", "SPY")]),
+      ]),
+    );
+    const block = priorMarketForecastErrorsFor(sevenDayOverviewCommand, context);
+
+    expect(block).toContain("run-7d");
+    expect(block).toContain("SPY forecast");
+    expect(block).not.toContain("run-5d");
+    expect(block).not.toContain("run-daily");
   });
 
   test("omits the block when the configured-subject prediction resolved as a hit", () => {
@@ -1089,6 +1209,74 @@ describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", 
     );
 
     expect(priorMarketForecastErrorsFor(dailyCommand, context)).toBeUndefined();
+  });
+});
+
+describe("buildStagePrompt research thematic forecast error correction", () => {
+  const researchCommand: ResearchCommand = {
+    jobType: "research",
+    assetClass: "equity",
+    subject: "semis",
+    subjectKey: "semiconductors",
+    predictionProxySymbol: "SMH",
+    depth: "brief",
+  };
+
+  test("surfaces prior same-subject proxy misses", () => {
+    const context = contextWithHistory(
+      researchCommand,
+      historicalContextWith([
+        researchRun("run-semis-1", [
+          missSummary("p-smh", { subject: "SMH", claim: "SMH forecast" }),
+        ]),
+      ]),
+    );
+
+    const block = priorThematicForecastErrorsFor(researchCommand, context);
+
+    expect(block).toBeDefined();
+    expect(block).toContain("semiconductors");
+    expect(block).toContain("SMH");
+    expect(block).toContain("run-semis-1");
+    expect(block).toContain("SMH forecast");
+    expect(block).toContain("MISS");
+    expect(block).toContain("history-report-run-semis-1");
+  });
+
+  test("excludes prior research misses on a different proxy", () => {
+    const context = contextWithHistory(
+      researchCommand,
+      historicalContextWith([
+        researchRun(
+          "run-software",
+          [missSummary("p-igv", { subject: "IGV", claim: "IGV forecast" })],
+          "2026-05-20T00:00:00.000Z",
+          { subjectKey: "software", predictionProxySymbol: "IGV" },
+        ),
+      ]),
+    );
+
+    expect(priorThematicForecastErrorsFor(researchCommand, context)).toBeUndefined();
+  });
+
+  test("omits thematic error correction when the command has no resolved proxy", () => {
+    const commandWithoutProxy: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "semis",
+      subjectKey: "semiconductors",
+      depth: "brief",
+    };
+    const context = contextWithHistory(
+      commandWithoutProxy,
+      historicalContextWith([
+        researchRun("run-semis-1", [
+          missSummary("p-smh", { subject: "SMH", claim: "SMH forecast" }),
+        ]),
+      ]),
+    );
+
+    expect(priorThematicForecastErrorsFor(commandWithoutProxy, context)).toBeUndefined();
   });
 });
 
@@ -1214,5 +1402,62 @@ describe("buildSpotlightSelectionPrompt", () => {
     expect(parsed.candidates?.[0]).toMatchObject({ symbol: "AAPL", sourceIds: ["market-aapl"] });
     expect(parsed.evidence).toBeUndefined();
     expect(parsed.requiredShape?.selections).toHaveLength(1);
+  });
+
+  test("carries the market-overview steering prompt into spotlight selection", () => {
+    const command: ResearchCommand = {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 15,
+      prompt: "focus on banks",
+    };
+    const sources = collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot()],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    });
+    const context = {
+      depthProfile: buildDepthProfile(command, config),
+      runParams: {
+        quickModel: "quick-test",
+        synthesisModel: "synthesis-test",
+        analystStyle: "concise brief" as const,
+        minimumKeyFindings: 3,
+        minimumScenarios: 2,
+        targetPredictions: 2,
+        defaultPredictionHorizon: 15,
+        predictionSubjects: ["SPY"],
+        focus: ["market regime", "movers"],
+        targetKindMix: { favored: ["relative", "range"] as const, minNonDirection: 1 },
+        modelParams: undefined,
+      },
+      marketRegime: {
+        assetClass: "equity" as const,
+        label: "mixed" as const,
+        proxyCount: 1,
+        drivers: ["SPY higher"],
+        sourceIds: ["market-aapl"],
+      },
+      calibrationContext: undefined,
+    };
+    const prompt = buildSpotlightSelectionPrompt(
+      command,
+      sources,
+      context,
+      { system: "Select.", instruction: "Choose spotlights.", goal: "Keep focus." },
+      buildSpotlightCandidates({ marketSnapshots: sources.marketSnapshots }),
+      2,
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly userSteeringPrompt?: { readonly text?: string; readonly instruction?: string };
+    };
+
+    expect(parsed.userSteeringPrompt).toEqual({
+      text: "focus on banks",
+      instruction:
+        "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
+    });
   });
 });

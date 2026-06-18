@@ -4,6 +4,7 @@ import type { ResearchCommand } from "../cli/args";
 import {
   isMarketRegimeLabel,
   isMarketUpdateJobType,
+  marketUpdateHorizonBucketOf,
   type AssetClass,
   type MarketRegimeLabel,
   type MarketRegimeSummary,
@@ -16,7 +17,7 @@ import type { ScoreOutcome } from "../scoring/types";
 
 // ---------------------------------------------------------------------------
 // Market Update Delta — a compact, deterministic "what changed since the last
-// Same-cadence run" summary promoted into daily/weekly market-update reports.
+// Same-horizon-bucket run" summary promoted into market-overview reports.
 //
 // Distinct from the instrument-scoped Research Thesis Delta (history thesis-delta):
 // This is market-update-scoped, automatic, and never calls the model. It is
@@ -229,6 +230,7 @@ function membershipDiff(
 function resolvedSince(
   runs: readonly RunArtifact[],
   assetClass: AssetClass,
+  horizonBucket: string,
   baselineGeneratedAt: string,
 ): readonly MarketUpdateDeltaResolvedPrediction[] {
   const baselineTime = timeValue(baselineGeneratedAt);
@@ -236,6 +238,7 @@ function resolvedSince(
     .filter(
       (run) => run.report.assetClass === assetClass && isMarketUpdateJobType(run.report.jobType),
     )
+    .filter((run) => marketUpdateHorizonBucketOf(run.report) === horizonBucket)
     .flatMap((run): readonly MarketUpdateDeltaResolvedPrediction[] => {
       const claims = predictionClaims(run);
       return run.scores.flatMap((score): MarketUpdateDeltaResolvedPrediction[] => {
@@ -281,11 +284,24 @@ export async function buildMarketUpdateDelta(
   const { command, currentRegime } = input;
   const { artifacts: runs } = await scanRunArtifacts(input.dataDir);
   const nowTime = input.now.getTime();
+  const commandBucket = marketUpdateHorizonBucketOf(command);
+  if (commandBucket === undefined) {
+    return {
+      hasBaseline: false,
+      currentRegime: currentRegime.label,
+      regimeChanged: false,
+      flippedDrivers: [],
+      moversEntered: [],
+      moversExited: [],
+      resolvedSince: [],
+    };
+  }
   const [baseline] = runs
     .filter(
       (run) =>
         run.report.assetClass === command.assetClass &&
-        run.report.jobType === command.jobType &&
+        isMarketUpdateJobType(run.report.jobType) &&
+        marketUpdateHorizonBucketOf(run.report) === commandBucket &&
         timeValue(run.report.generatedAt) < nowTime,
     )
     .toSorted(
@@ -316,7 +332,12 @@ export async function buildMarketUpdateDelta(
   );
   const { entered, exited } = membershipDiff(priorMovers, moverSymbols(input.currentMovers));
 
-  const resolved = resolvedSince(runs, command.assetClass, baseline.report.generatedAt);
+  const resolved = resolvedSince(
+    runs,
+    command.assetClass,
+    commandBucket,
+    baseline.report.generatedAt,
+  );
 
   return {
     hasBaseline: true,

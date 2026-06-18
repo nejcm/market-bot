@@ -20,6 +20,11 @@ const baseConfig: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
+  researchGatherOptions: {
+    maxRounds: 0,
+    maxToolCalls: 0,
+    sourceBudget: 0,
+  },
   alphaSearchOptions: {
     apeWisdomFilter: "all-stocks",
     apeWisdomBriefPageLimit: 5,
@@ -64,14 +69,14 @@ describe("resolveRunParams — fallback chain", () => {
 
   test("combo block model overrides AppConfig", () => {
     const modified = {
-      ...runConfig["daily-equity"],
+      ...runConfig["market-overview-equity"],
       quickModel: "combo-quick",
       synthesisModel: "combo-synthesis",
     };
-    const origCombo = runConfig["daily-equity"];
+    const origCombo = runConfig["market-overview-equity"];
     const patchedConfig = {
       ...runConfig,
-      "daily-equity": { ...modified },
+      "market-overview-equity": { ...modified },
     };
 
     const result = resolveRunParams(
@@ -132,9 +137,9 @@ describe("resolveRunParams — fallback chain", () => {
 });
 
 describe("resolveRunParams — run keys", () => {
-  test("daily-equity brief", () => {
+  test("market-overview equity brief", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      { jobType: "market-overview", assetClass: "equity", depth: "brief", horizonTradingDays: 5 },
       baseConfig,
     );
 
@@ -145,15 +150,15 @@ describe("resolveRunParams — run keys", () => {
     expect(result.focus).not.toContain("weekly market regime");
   });
 
-  test("weekly-equity brief has 15-day horizon and weekly focus", () => {
+  test("market-overview equity brief accepts 15-day horizon", () => {
     const result = resolveRunParams(
-      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      { jobType: "market-overview", assetClass: "equity", depth: "brief", horizonTradingDays: 15 },
       baseConfig,
     );
 
     expect(result.defaultPredictionHorizon).toBe(15);
-    expect(result.focus).toContain("weekly market regime");
-    expect(result.focus).toContain("5-session movers");
+    expect(result.focus).toContain("market regime");
+    expect(result.focus).toContain("movers");
   });
 
   test("weekly-equity deep has cross-asset themes in focus", () => {
@@ -186,6 +191,41 @@ describe("resolveRunParams — run keys", () => {
     expect(result.minimumKeyFindings).toBe(6);
     expect(result.targetPredictions).toBe(5);
     expect(result.analystStyle).toBe("fuller analyst-style");
+  });
+
+  test("research with resolved proxy uses proxy-only prediction subjects", () => {
+    const result = resolveRunParams(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Analyze AI biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "xbi",
+        depth: "brief",
+      },
+      baseConfig,
+    );
+
+    expect(result.predictionSubjects).toEqual(["XBI"]);
+    expect(result.defaultPredictionHorizon).toBe(15);
+    expect(result.targetPredictions).toBe(2);
+    expect(result.focus).toContain("proxy evidence");
+    expect(result.predictionSubjects).not.toContain("^VIX");
+  });
+
+  test("research without resolved proxy targets zero predictions", () => {
+    const result = resolveRunParams(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Analyze an unlisted theme",
+        depth: "brief",
+      },
+      baseConfig,
+    );
+
+    expect(result.predictionSubjects).toEqual([]);
+    expect(result.targetPredictions).toBe(0);
   });
 
   test("daily-crypto keeps depth profile but uses crypto prediction subjects", () => {
@@ -226,8 +266,8 @@ describe("resolveRunParams — run keys", () => {
   test("run-specific modelParams override AppConfig defaults", () => {
     const patchedConfig: RunConfig = {
       ...runConfig,
-      "daily-equity": {
-        ...runConfig["daily-equity"],
+      "market-overview-equity": {
+        ...runConfig["market-overview-equity"],
         modelParams: { temperature: 0.2, reasoningEffort: "high" },
       },
     };

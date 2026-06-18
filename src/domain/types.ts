@@ -1,13 +1,64 @@
 export type AssetClass = "equity" | "crypto";
 
-export type MarketUpdateJobType = "daily" | "weekly";
+export type LegacyMarketUpdateJobType = "daily" | "weekly";
 
-export type JobType = MarketUpdateJobType | "ticker" | "alpha-search";
+export type MarketUpdateJobType = "market-overview" | LegacyMarketUpdateJobType;
+
+export type JobType = MarketUpdateJobType | "ticker" | "alpha-search" | "research";
 
 export type Depth = "brief" | "deep";
 
 export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdateJobType {
+  return jobType === "market-overview" || jobType === "daily" || jobType === "weekly";
+}
+
+export function isLegacyMarketUpdateJobType(
+  jobType: JobType,
+): jobType is LegacyMarketUpdateJobType {
   return jobType === "daily" || jobType === "weekly";
+}
+
+export function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): number {
+  return jobType === "daily" ? 5 : 15;
+}
+
+export function marketUpdateHorizonBucket(horizonTradingDays: number): string {
+  if (horizonTradingDays <= 5) {
+    return "1-5d";
+  }
+  if (horizonTradingDays <= 10) {
+    return "6-10d";
+  }
+  if (horizonTradingDays <= 15) {
+    return "11-15d";
+  }
+  return "16-20d";
+}
+
+// Canonical market-update horizon resolution. Market-overview runs carry an
+// Explicit horizonTradingDays; legacy daily/weekly runs map to their fixed
+// Horizon. Non-market-update job types (ticker/alpha-search/research) have no
+// Market-update horizon. Callers with a richer fallback (e.g. an extras bucket
+// Or a prediction-horizon column) should resolve that first, then delegate.
+export function marketUpdateHorizonOf(source: {
+  readonly jobType: JobType;
+  readonly horizonTradingDays?: number | undefined;
+}): number | undefined {
+  if (source.jobType === "market-overview") {
+    return source.horizonTradingDays;
+  }
+  if (isLegacyMarketUpdateJobType(source.jobType)) {
+    return legacyMarketUpdateHorizon(source.jobType);
+  }
+  return undefined;
+}
+
+export function marketUpdateHorizonBucketOf(source: {
+  readonly jobType: JobType;
+  readonly horizonTradingDays?: number | undefined;
+}): string | undefined {
+  const horizon = marketUpdateHorizonOf(source);
+  return horizon === undefined ? undefined : marketUpdateHorizonBucket(horizon);
 }
 
 export interface Instrument {
@@ -96,7 +147,7 @@ export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap
 
 export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
 
-export interface EvidenceRequestAuditEntry {
+export interface JsonToolLoopAuditEntry {
   readonly round: number;
   readonly tool: string;
   readonly args?: unknown;
@@ -106,14 +157,18 @@ export interface EvidenceRequestAuditEntry {
   readonly sourceUnits?: number;
 }
 
-export interface EvidenceRequestLoopAudit {
+export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonToolLoopAuditEntry> {
   readonly rounds: number;
-  readonly acceptedRequests: readonly EvidenceRequestAuditEntry[];
-  readonly rejectedRequests: readonly EvidenceRequestAuditEntry[];
+  readonly acceptedRequests: readonly TAudit[];
+  readonly rejectedRequests: readonly TAudit[];
   readonly sourceUnitsUsed: number;
-  readonly executedTools: readonly EvidenceRequestToolName[];
+  readonly executedTools: readonly TTool[];
   readonly emittedGaps: readonly SourceGap[];
 }
+
+export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
+
+export type EvidenceRequestLoopAudit = JsonToolLoopAudit<EvidenceRequestToolName>;
 
 export interface DomainPlaybookSelectionAudit {
   readonly selected: readonly {
@@ -319,6 +374,7 @@ export interface ResearchReport {
   readonly jobType: JobType;
   readonly assetClass: AssetClass;
   readonly symbol?: string;
+  readonly horizonTradingDays?: number;
   readonly generatedAt: string;
   readonly summary: string;
   readonly keyFindings: readonly KeyFinding[];
@@ -339,7 +395,9 @@ export interface ResearchReport {
 export interface RunTrace {
   readonly runId: string;
   readonly jobType: JobType;
-  readonly marketUpdateCadence?: MarketUpdateJobType;
+  readonly marketUpdateHorizonBucket?: string;
+  readonly legacyMarketUpdateAlias?: LegacyMarketUpdateJobType;
+  readonly marketUpdateCadence?: LegacyMarketUpdateJobType;
   readonly assetClass: AssetClass;
   readonly symbol?: string;
   readonly depth: Depth;

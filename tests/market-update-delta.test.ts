@@ -38,6 +38,7 @@ interface RunSpec {
   readonly jobType: JobType;
   readonly assetClass: AssetClass;
   readonly generatedAt: string;
+  readonly horizonTradingDays?: number;
   readonly regime?: MarketRegimeSummary;
   readonly movers?: readonly MarketSnapshot[];
   readonly snapshots?: readonly MarketSnapshot[];
@@ -57,6 +58,9 @@ function writeRun(dataDir: string, spec: RunSpec): void {
     runId: spec.runId,
     jobType: spec.jobType,
     assetClass: spec.assetClass,
+    ...(spec.horizonTradingDays !== undefined
+      ? { horizonTradingDays: spec.horizonTradingDays }
+      : {}),
     generatedAt: spec.generatedAt,
     summary: "",
     keyFindings: [],
@@ -117,7 +121,7 @@ async function tempDataDir(): Promise<string> {
 }
 
 describe("buildMarketUpdateDelta", () => {
-  test("returns empty state when no prior same-cadence run exists", async () => {
+  test("returns empty state when no prior same-horizon-bucket run exists", async () => {
     const dataDir = await tempDataDir();
     const delta = await buildMarketUpdateDelta({
       dataDir,
@@ -133,7 +137,7 @@ describe("buildMarketUpdateDelta", () => {
     expect(delta.resolvedSince).toEqual([]);
   });
 
-  test("selects newest prior same assetClass+jobType, excluding weekly and ticker", async () => {
+  test("selects newest prior same assetClass+horizon bucket, excluding other scopes", async () => {
     const dataDir = await tempDataDir();
     writeRun(dataDir, {
       runId: "daily-old",
@@ -149,7 +153,7 @@ describe("buildMarketUpdateDelta", () => {
       generatedAt: "2026-05-08T00:00:00.000Z",
       regime: regime("risk-off", []),
     });
-    // Newer, but wrong cadence / asset / scope — must be ignored as baseline.
+    // Newer, but wrong horizon / asset / scope — must be ignored as baseline.
     writeRun(dataDir, {
       runId: "weekly-new",
       jobType: "weekly",
@@ -183,6 +187,67 @@ describe("buildMarketUpdateDelta", () => {
     expect(delta.baselineRunId).toBe("daily-new");
     expect(delta.priorRegime).toBe("risk-off");
     expect(delta.regimeChanged).toBe(true);
+  });
+
+  test("uses canonical market-overview horizon buckets for baseline isolation", async () => {
+    const dataDir = await tempDataDir();
+    writeRun(dataDir, {
+      runId: "legacy-daily",
+      jobType: "daily",
+      assetClass: "equity",
+      generatedAt: "2026-05-06T00:00:00.000Z",
+      regime: regime("mixed", []),
+    });
+    writeRun(dataDir, {
+      runId: "overview-5d",
+      jobType: "market-overview",
+      assetClass: "equity",
+      horizonTradingDays: 5,
+      generatedAt: "2026-05-08T00:00:00.000Z",
+      regime: regime("risk-off", []),
+    });
+    writeRun(dataDir, {
+      runId: "overview-7d",
+      jobType: "market-overview",
+      assetClass: "equity",
+      horizonTradingDays: 7,
+      generatedAt: "2026-05-09T00:00:00.000Z",
+      regime: regime("risk-on", []),
+    });
+
+    const baseInput = {
+      dataDir,
+      now: NOW,
+      currentMovers: [],
+      currentRegime: regime("mixed", []),
+      moverLimit: 5,
+    };
+    const fiveDayDelta = await buildMarketUpdateDelta({
+      ...baseInput,
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+      },
+    });
+    const legacyDailyDelta = await buildMarketUpdateDelta({
+      ...baseInput,
+      command: DAILY_EQUITY,
+    });
+    const sevenDayDelta = await buildMarketUpdateDelta({
+      ...baseInput,
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 7,
+      },
+    });
+
+    expect(fiveDayDelta.baselineRunId).toBe("overview-5d");
+    expect(legacyDailyDelta.baselineRunId).toBe("overview-5d");
+    expect(sevenDayDelta.baselineRunId).toBe("overview-7d");
   });
 
   test("names flipped drivers by category when regime label changes", async () => {

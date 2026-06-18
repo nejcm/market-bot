@@ -24,7 +24,7 @@
       { group: "byKind", title: "By forecast kind" },
       { group: "byAssetClass", title: "By asset class" },
       { group: "byJobType", title: "By job type" },
-      { group: "byMarketUpdateCadence", title: "By cadence" },
+      { group: "byMarketUpdateHorizonBucket", title: "By overview horizon" },
       { group: "byHorizonBucket", title: "By horizon" },
       { group: "byMarketRegime", title: "By market regime" },
     ];

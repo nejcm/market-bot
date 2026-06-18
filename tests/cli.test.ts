@@ -11,17 +11,33 @@ import {
 describe("parseArgs", () => {
   test("parses daily equity brief", () => {
     expect(parseArgs(["daily", "--asset", "equity"])).toEqual({
-      jobType: "daily",
+      jobType: "market-overview",
       assetClass: "equity",
       depth: "brief",
+      horizonTradingDays: 5,
+      legacyAlias: "daily",
     });
   });
 
   test("parses weekly crypto deep", () => {
     expect(parseArgs(["weekly", "--asset", "crypto", "--deep"])).toEqual({
-      jobType: "weekly",
+      jobType: "market-overview",
       assetClass: "crypto",
       depth: "deep",
+      horizonTradingDays: 15,
+      legacyAlias: "weekly",
+    });
+  });
+
+  test("parses market overview horizon and prompt", () => {
+    expect(
+      parseArgs(["market-overview", "--asset", "equity", "--horizon", "7", "banks", "credit"]),
+    ).toEqual({
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 7,
+      prompt: "banks credit",
     });
   });
 
@@ -60,12 +76,23 @@ describe("parseArgs", () => {
     expect(
       commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" }),
     ).toBe("ticker AAPL equity deep");
-    expect(commandLabel({ jobType: "weekly", assetClass: "crypto", depth: "brief" })).toBe(
-      "weekly crypto",
-    );
-    expect(commandLabel({ jobType: "weekly", assetClass: "equity", depth: "deep" })).toBe(
-      "weekly equity deep",
-    );
+    expect(
+      commandLabel({
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      }),
+    ).toBe("weekly crypto 15d");
+    expect(
+      commandLabel({
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 15,
+      }),
+    ).toBe("market-overview equity 15d deep");
     expect(commandLabel({ jobType: "alpha-search", assetClass: "equity", depth: "deep" })).toBe(
       "alpha-search equity deep",
     );
@@ -133,6 +160,14 @@ describe("parseArgs", () => {
     });
   });
 
+  test("parses research job type in history search filter", () => {
+    expect(parseArgs(["history", "search", "--query", "chips", "--job-type", "research"])).toEqual({
+      jobType: "history-search",
+      query: "chips",
+      sourceJobType: "research",
+    });
+  });
+
   test("parses history thesis-delta command", () => {
     expect(
       parseArgs([
@@ -178,6 +213,7 @@ describe("parseArgs", () => {
     expect(CONSOLE_JOB_TYPES).toEqual([
       "daily",
       "weekly",
+      "market-overview",
       "ticker",
       "alpha-search",
       "score",
@@ -185,7 +221,15 @@ describe("parseArgs", () => {
       "cache-prune",
       "provider-health",
     ]);
-    expect(SEARCH_JOB_TYPE_OPTIONS).toEqual(["", "daily", "weekly", "ticker", "alpha-search"]);
+    expect(SEARCH_JOB_TYPE_OPTIONS).toEqual([
+      "",
+      "market-overview",
+      "daily",
+      "weekly",
+      "ticker",
+      "alpha-search",
+      "research",
+    ]);
     expect(jobSupportsAsset("ticker")).toBe(true);
     expect(jobSupportsAsset("score")).toBe(false);
     expect(jobSupportsDepth("alpha-search")).toBe(true);

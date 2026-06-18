@@ -1,4 +1,8 @@
-import type { InstrumentIdentity, SourceGapCause } from "../domain/types";
+import {
+  marketUpdateHorizonBucketOf,
+  type InstrumentIdentity,
+  type SourceGapCause,
+} from "../domain/types";
 import { numberAt } from "../sources/guards";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";
 
@@ -53,10 +57,10 @@ const INTERNATIONAL_SUFFIXES = new Set([
 export type ValidationStatus = "pass" | "warn" | "fail";
 export type ValidationIssueClassification = "blocking" | "expected" | "informational";
 export type CoverageKey =
-  | "daily-equity"
-  | "weekly-equity"
-  | "daily-crypto"
-  | "weekly-crypto"
+  | "market-overview-equity-short"
+  | "market-overview-equity-medium"
+  | "market-overview-crypto-short"
+  | "market-overview-crypto-medium"
   | "ticker-equity"
   | "ticker-crypto"
   | "deep-equity-ticker"
@@ -136,31 +140,41 @@ function coverageItem(
   };
 }
 
+function runHorizonBucket(run: RunHealth): string | undefined {
+  if (run.jobType === undefined) {
+    return undefined;
+  }
+  // Market-overview health rows may predate the explicit horizon column, so fall
+  // Back to the first prediction horizon before the canonical derivation.
+  const horizonTradingDays = run.horizonTradingDays ?? run.predictionHorizons[0];
+  return marketUpdateHorizonBucketOf({ jobType: run.jobType, horizonTradingDays });
+}
+
 function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCoverageItem[] {
   return [
     coverageItem(
-      "daily-equity",
-      "Daily equity",
+      "market-overview-equity-short",
+      "Market overview equity short horizon",
       runs,
-      (run) => run.jobType === "daily" && run.assetClass === "equity",
+      (run) => run.assetClass === "equity" && runHorizonBucket(run) === "1-5d",
     ),
     coverageItem(
-      "weekly-equity",
-      "Weekly equity",
+      "market-overview-equity-medium",
+      "Market overview equity medium horizon",
       runs,
-      (run) => run.jobType === "weekly" && run.assetClass === "equity",
+      (run) => run.assetClass === "equity" && runHorizonBucket(run) === "11-15d",
     ),
     coverageItem(
-      "daily-crypto",
-      "Daily crypto",
+      "market-overview-crypto-short",
+      "Market overview crypto short horizon",
       runs,
-      (run) => run.jobType === "daily" && run.assetClass === "crypto",
+      (run) => run.assetClass === "crypto" && runHorizonBucket(run) === "1-5d",
     ),
     coverageItem(
-      "weekly-crypto",
-      "Weekly crypto",
+      "market-overview-crypto-medium",
+      "Market overview crypto medium horizon",
       runs,
-      (run) => run.jobType === "weekly" && run.assetClass === "crypto",
+      (run) => run.assetClass === "crypto" && runHorizonBucket(run) === "11-15d",
     ),
     coverageItem(
       "ticker-equity",

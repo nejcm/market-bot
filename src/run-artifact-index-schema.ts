@@ -1,6 +1,6 @@
 import { Database, type Statement } from "bun:sqlite";
 
-export const INDEX_SCHEMA_VERSION = 7;
+export const INDEX_SCHEMA_VERSION = 8;
 const BUSY_TIMEOUT_MS = 1000;
 
 export function openRunArtifactIndexDatabase(path: string, readonly: boolean): Database {
@@ -26,6 +26,7 @@ function schemaSql(): string {
       confidence TEXT,
       depth TEXT,
       market_regime_label TEXT,
+      horizon_trading_days INTEGER,
       finding_count INTEGER NOT NULL,
       prediction_count INTEGER NOT NULL,
       source_count INTEGER NOT NULL,

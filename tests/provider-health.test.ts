@@ -349,7 +349,7 @@ describe("provider health", () => {
     expect(summary.validation.status).toBe("fail");
     expect(summary.validation.routeClassifications).toContainEqual(
       expect.objectContaining({
-        route: "news:daily-equity",
+        route: "news:market-overview-equity-short",
         classification: "blocking",
       }),
     );
@@ -405,13 +405,13 @@ describe("provider health", () => {
     expect(summary.validation.status).toBe("fail");
     expect(summary.validation.requiredCoverage).toContainEqual(
       expect.objectContaining({
-        key: "weekly-crypto",
+        key: "market-overview-crypto-medium",
         met: false,
       }),
     );
     expect(summary.validation.routeClassifications).toContainEqual(
       expect.objectContaining({
-        route: "coverage:weekly-crypto",
+        route: "coverage:market-overview-crypto-medium",
         classification: "blocking",
       }),
     );

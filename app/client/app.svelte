@@ -90,10 +90,11 @@
     to: "",
   });
   const jobForm = $state({
-    jobType: "daily",
+    jobType: "market-overview",
     assetClass: "equity",
     symbol: "",
     depth: "brief",
+    horizonTradingDays: "15",
   });
 
   const JOBS_POLL_INTERVAL_MS = 2000;
@@ -374,6 +375,7 @@
         assetClass: jobForm.assetClass,
         symbol: jobForm.symbol,
         depth: jobForm.depth,
+        horizonTradingDays: Number(jobForm.horizonTradingDays),
       });
       await refreshJobs();
     } catch (caughtError: unknown) {

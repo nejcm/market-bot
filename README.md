@@ -46,12 +46,14 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 | **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation) |
 | **Thematic research** | `research` run-type support for equity subjects with checked-in subject/proxy identity; CLI execution is not exposed yet |
 | **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
-| **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)) |
+| **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)); thematic research forecasts only score a resolved listed proxy |
 | **Scoring & calibration** | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline |
 | **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas |
 | **Research Console** | Local Svelte UI to browse runs, search artifacts, view calibration, queue jobs |
 
 Market overview runs take an explicit `--horizon` in trading days; cadence is a scheduling concern (`daily` / `weekly` are deprecated horizon-preset aliases). At longer horizons, mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
+
+Thematic research is equity-only and uses checked-in subject identity to keep forecasts observable. When a subject resolves to a listed proxy, predictions and proxy quote collection are limited to that proxy. When no listed proxy resolves, the run emits no predictions rather than scoring an unrelated market instrument.
 
 ## Research Console
 
@@ -146,6 +148,7 @@ bun run src/cli.ts market-overview --asset equity
 | Coverage panel | No | Yes — two concurrent role stages before critique |
 | Evidence Request Loop | No | Yes — equity ticker only; SEC filing + Tradier IV on request |
 | Alpha search pages | Brief limit | Deep page limit |
+| Thematic research forecasts | Proxy-only, if resolved | Proxy-only, with a higher non-direction forecast mix target |
 
 ## Configuration
 

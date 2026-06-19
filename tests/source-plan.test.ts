@@ -83,6 +83,28 @@ describe("source plan", () => {
     expect(plan.evidenceLanes.summary.requiredGapLaneCount).toBe(0);
   });
 
+  test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
+    const plan = buildSourcePlan(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      collectedSources({
+        supplementalMarketSnapshots: [
+          marketSnapshot({
+            sourceId: "supplemental-market-massive-equity-aapl",
+            assetClass: "equity",
+            symbol: "AAPL",
+          }),
+        ],
+      }),
+      generatedAt,
+    );
+
+    expect(
+      plan.sourceLedger.sources.find(
+        (source) => source.id === "supplemental-market-massive-equity-aapl",
+      ),
+    ).toMatchObject({ provider: "massive", lane: "supplemental-market" });
+  });
+
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {
     const plan = buildSourcePlan(
       { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" },

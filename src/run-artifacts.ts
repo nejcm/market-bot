@@ -34,7 +34,10 @@ import type {
   PredictionScoreStatus,
 } from "./scoring/types";
 import type {
+  EvidenceLane,
   EvidenceLanesArtifact,
+  LaneCoverageStatus,
+  LaneRequirement,
   SourceLedgerArtifact,
   SourcePlanArtifact,
 } from "./research/source-plan";
@@ -43,6 +46,7 @@ import {
   nonEmptyStringArrayValue,
   readNumber,
   readString,
+  readStringArray,
   stringArrayValue,
 } from "./sources/guards";
 
@@ -139,9 +143,41 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "options-iv",
   "on-chain",
 ]);
+const EVIDENCE_LANES: ReadonlySet<string> = new Set<EvidenceLane>([
+  "market-data",
+  "supplemental-market",
+  "news",
+  "macro-context",
+  "verified-snapshot",
+  "sec-edgar",
+  "equity-events",
+  "extended-fred-macro",
+  "options-iv",
+  "on-chain",
+  "valuation",
+]);
+const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);
+const LANE_COVERAGE_STATUSES: ReadonlySet<string> = new Set<LaneCoverageStatus>([
+  "covered",
+  "gap",
+  "not-covered",
+]);
+const SOURCE_KINDS: ReadonlySet<string> = new Set<Source["kind"]>([
+  "market-data",
+  "news",
+  "model",
+  "extended-evidence",
+  "market-context",
+  "discussion",
+  "reference",
+]);
 
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
+}
+
+function isDepth(value: unknown): value is "brief" | "deep" {
+  return value === "brief" || value === "deep";
 }
 
 function isJobType(value: unknown): value is JobType {
@@ -165,6 +201,22 @@ function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
 
 function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCategory {
   return typeof value === "string" && EXTENDED_EVIDENCE_CATEGORIES.has(value);
+}
+
+function isEvidenceLane(value: unknown): value is EvidenceLane {
+  return typeof value === "string" && EVIDENCE_LANES.has(value);
+}
+
+function isLaneRequirement(value: unknown): value is LaneRequirement {
+  return typeof value === "string" && LANE_REQUIREMENTS.has(value);
+}
+
+function isLaneCoverageStatus(value: unknown): value is LaneCoverageStatus {
+  return typeof value === "string" && LANE_COVERAGE_STATUSES.has(value);
+}
+
+function isSourceKind(value: unknown): value is Source["kind"] {
+  return typeof value === "string" && SOURCE_KINDS.has(value);
 }
 
 // Distinguishes a missing file from a present-but-broken one: ENOENT returns
@@ -625,16 +677,64 @@ function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapshot | un
       };
 }
 
+function hasSourcePlanRunShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isJobType(value.jobType) &&
+    isAssetClass(value.assetClass) &&
+    isDepth(value.depth)
+  );
+}
+
+function hasSourcePlanLaneShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isEvidenceLane(value.lane) &&
+    isLaneRequirement(value.requirement) &&
+    typeof value.appliesToRun === "boolean" &&
+    typeof value.providerPath === "string"
+  );
+}
+
 function readSourcePlan(value: unknown): SourcePlanArtifact | undefined {
   if (
     !isRecord(value) ||
     value.version !== 1 ||
-    !isRecord(value.run) ||
-    !Array.isArray(value.lanes)
+    !hasSourcePlanRunShape(value.run) ||
+    !Array.isArray(value.lanes) ||
+    !value.lanes.every(hasSourcePlanLaneShape)
   ) {
     return;
   }
   return value as unknown as SourcePlanArtifact;
+}
+
+function hasEvidenceLaneSummaryShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "plannedLaneCount") !== undefined &&
+    readNumber(value, "requiredLaneCount") !== undefined &&
+    readNumber(value, "optionalLaneCount") !== undefined &&
+    readNumber(value, "coveredLaneCount") !== undefined &&
+    readNumber(value, "gapLaneCount") !== undefined &&
+    readNumber(value, "requiredGapLaneCount") !== undefined &&
+    readNumber(value, "sourceCount") !== undefined &&
+    readNumber(value, "gapCount") !== undefined &&
+    readNumber(value, "coverageRatio") !== undefined
+  );
+}
+
+function hasEvidenceLaneCoverageShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isEvidenceLane(value.lane) &&
+    isLaneCoverageStatus(value.status) &&
+    typeof value.required === "boolean" &&
+    readStringArray(value, "coveredSourceIds") !== undefined &&
+    readStringArray(value, "gapIds") !== undefined &&
+    readStringArray(value, "gapText") !== undefined &&
+    readStringArray(value, "freshnessNotes") !== undefined
+  );
 }
 
 function readEvidenceLanes(value: unknown): EvidenceLanesArtifact | undefined {
@@ -642,15 +742,35 @@ function readEvidenceLanes(value: unknown): EvidenceLanesArtifact | undefined {
     !isRecord(value) ||
     value.version !== 1 ||
     !Array.isArray(value.lanes) ||
-    !isRecord(value.summary)
+    !value.lanes.every(hasEvidenceLaneCoverageShape) ||
+    !hasEvidenceLaneSummaryShape(value.summary)
   ) {
     return;
   }
   return value as unknown as EvidenceLanesArtifact;
 }
 
+function hasSourceLedgerEntryShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    isSourceKind(value.kind) &&
+    isEvidenceLane(value.lane) &&
+    value.posture === "covered" &&
+    readStringArray(value, "relatedGapIds") !== undefined &&
+    (value.provider === undefined || typeof value.provider === "string") &&
+    (value.fetchedAt === undefined || typeof value.fetchedAt === "string") &&
+    (value.observedAt === undefined || typeof value.observedAt === "string")
+  );
+}
+
 function readSourceLedger(value: unknown): SourceLedgerArtifact | undefined {
-  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.sources)) {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !Array.isArray(value.sources) ||
+    !value.sources.every(hasSourceLedgerEntryShape)
+  ) {
     return;
   }
   return value as unknown as SourceLedgerArtifact;

@@ -236,7 +236,7 @@ function sourceProvider(source: Source): string | undefined {
 }
 
 function marketProvider(assetClass: AssetClass, sourceId: string): string {
-  if (sourceId.startsWith("massive-")) {
+  if (sourceId.startsWith("massive-") || sourceId.startsWith("supplemental-market-massive-")) {
     return "massive";
   }
   return assetClass === "crypto" ? "coingecko" : "yahoo";

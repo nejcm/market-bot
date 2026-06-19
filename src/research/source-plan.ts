@@ -101,23 +101,36 @@ interface LaneDefinition {
   readonly gapMatches: (gap: SourceGap) => boolean;
 }
 
+function isMarketDataLaneGap(gap: SourceGap): boolean {
+  return (
+    gap.capability === "market-data" &&
+    gap.source !== "yahoo-verified-chart" &&
+    gap.source !== "massive-supplemental-market"
+  );
+}
+
+function marketDataApplies(command: ResearchCommand, collectedSources: CollectedSources): boolean {
+  return (
+    command.jobType !== "research" ||
+    command.predictionProxySymbol !== undefined ||
+    collectedSources.marketSnapshots.length > 0 ||
+    collectedSources.sourceGaps.some(isMarketDataLaneGap)
+  );
+}
+
 const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   {
     lane: "market-data",
     requirement: "required",
     providerPath: "yahoo equity market data or coingecko crypto market data",
-    applies: (command, collectedSources) =>
-      command.jobType !== "research" || collectedSources.marketSnapshots.length > 0,
+    applies: marketDataApplies,
     sourceIds: (sources) => [
       ...sources.marketSnapshots.map((snapshot) => snapshot.sourceId),
       ...sources.marketSnapshots.flatMap((snapshot) =>
         snapshot.benchmark === undefined ? [] : [snapshot.benchmark.sourceId],
       ),
     ],
-    gapMatches: (gap) =>
-      gap.capability === "market-data" &&
-      gap.source !== "yahoo-verified-chart" &&
-      gap.source !== "massive-supplemental-market",
+    gapMatches: isMarketDataLaneGap,
   },
   {
     lane: "supplemental-market",

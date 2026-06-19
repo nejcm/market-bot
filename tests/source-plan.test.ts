@@ -83,6 +83,39 @@ describe("source plan", () => {
     expect(plan.evidenceLanes.summary.requiredGapLaneCount).toBe(0);
   });
 
+  test("keeps required market-data gap for resolved research proxy failures", () => {
+    const plan = buildSourcePlan(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      collectedSources({
+        newsSources: [newsSource({ id: "news-biotech", provider: "yahoo-news" })],
+        sourceGaps: [
+          sourceGap({
+            source: "yahoo-research-proxy",
+            message: "source request failed with status 500",
+            capability: "market-data",
+            cause: "fetch-failed",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+      generatedAt,
+    );
+
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("market-data");
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
+      status: "gap",
+      required: true,
+      gapText: ["yahoo-research-proxy: source request failed with status 500"],
+    });
+  });
+
   test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
     const plan = buildSourcePlan(
       { jobType: "daily", assetClass: "equity", depth: "brief" },

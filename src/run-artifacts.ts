@@ -682,7 +682,9 @@ function hasSourcePlanRunShape(value: unknown): boolean {
     isRecord(value) &&
     isJobType(value.jobType) &&
     isAssetClass(value.assetClass) &&
-    isDepth(value.depth)
+    isDepth(value.depth) &&
+    (value.symbol === undefined || typeof value.symbol === "string") &&
+    (value.subject === undefined || typeof value.subject === "string")
   );
 }
 
@@ -700,6 +702,7 @@ function readSourcePlan(value: unknown): SourcePlanArtifact | undefined {
   if (
     !isRecord(value) ||
     value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
     !hasSourcePlanRunShape(value.run) ||
     !Array.isArray(value.lanes) ||
     !value.lanes.every(hasSourcePlanLaneShape)
@@ -741,6 +744,7 @@ function readEvidenceLanes(value: unknown): EvidenceLanesArtifact | undefined {
   if (
     !isRecord(value) ||
     value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
     !Array.isArray(value.lanes) ||
     !value.lanes.every(hasEvidenceLaneCoverageShape) ||
     !hasEvidenceLaneSummaryShape(value.summary)
@@ -768,6 +772,7 @@ function readSourceLedger(value: unknown): SourceLedgerArtifact | undefined {
   if (
     !isRecord(value) ||
     value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
     !Array.isArray(value.sources) ||
     !value.sources.every(hasSourceLedgerEntryShape)
   ) {

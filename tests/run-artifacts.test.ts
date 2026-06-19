@@ -207,6 +207,74 @@ describe("loadRunArtifact", () => {
     expect(artifact?.sourceLedger?.sources[0]?.id).toBe("market-yahoo-equity-aapl");
   });
 
+  test("drops source-plan sidecars with invalid headers", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "bad-source-plan-headers");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({ runId: "bad-source-plan-headers" }),
+    );
+    await writeJson(join(runDir, "normalized", "source-plan.json"), {
+      version: 1,
+      generatedAt: 42,
+      run: { jobType: "ticker", assetClass: "equity", symbol: 42, depth: "deep" },
+      lanes: [
+        {
+          lane: "market-data",
+          requirement: "required",
+          appliesToRun: true,
+          providerPath: "yahoo equity market data",
+        },
+      ],
+    });
+    await writeJson(join(runDir, "normalized", "evidence-lanes.json"), {
+      version: 1,
+      generatedAt: 42,
+      lanes: [
+        {
+          lane: "market-data",
+          status: "covered",
+          required: true,
+          coveredSourceIds: ["market-yahoo-equity-aapl"],
+          gapIds: [],
+          gapText: [],
+          freshnessNotes: [],
+        },
+      ],
+      summary: {
+        plannedLaneCount: 1,
+        requiredLaneCount: 1,
+        optionalLaneCount: 0,
+        coveredLaneCount: 1,
+        gapLaneCount: 0,
+        requiredGapLaneCount: 0,
+        sourceCount: 1,
+        gapCount: 0,
+        coverageRatio: 1,
+      },
+    });
+    await writeJson(join(runDir, "normalized", "source-ledger.json"), {
+      version: 1,
+      sources: [
+        {
+          id: "market-yahoo-equity-aapl",
+          kind: "market-data",
+          provider: "yahoo",
+          observedAt: "2026-05-19T00:00:00.000Z",
+          lane: "market-data",
+          posture: "covered",
+          relatedGapIds: [],
+        },
+      ],
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.sourcePlan).toBeUndefined();
+    expect(artifact?.evidenceLanes).toBeUndefined();
+    expect(artifact?.sourceLedger).toBeUndefined();
+  });
+
   test("drops malformed source-plan sidecars at the run artifact seam", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "bad-source-plan");

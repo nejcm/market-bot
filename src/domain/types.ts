@@ -404,6 +404,24 @@ export interface ResearchReport {
   readonly extras?: Record<string, unknown>;
 }
 
+export interface HistoricalContextAudit {
+  readonly scannedRunCount: number;
+  readonly malformedRunCount: number;
+  readonly malformedScoreCount: number;
+  readonly candidateRunCount: number;
+  readonly selectedRunCount: number;
+  readonly recentSelectedCount: number;
+  readonly anchorSelectedCount: number;
+  readonly sameSymbolSelectedCount: number;
+  readonly spotlightSymbolSelectedCount: number;
+  readonly sameSubjectSelectedCount: number;
+  readonly sameHorizonSelectedCount: number;
+  readonly crossHorizonSelectedCount: number;
+  readonly resolvedMissRunCount: number;
+  readonly missCorrectionSelectedCount: number;
+  readonly gapCount: number;
+}
+
 export interface RunTrace {
   readonly runId: string;
   readonly jobType: JobType;
@@ -423,15 +441,7 @@ export interface RunTrace {
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
-  readonly historicalContext?: {
-    readonly scannedRunCount: number;
-    readonly malformedRunCount: number;
-    readonly malformedScoreCount: number;
-    readonly candidateRunCount: number;
-    readonly selectedRunCount: number;
-    readonly recentSelectedCount: number;
-    readonly anchorSelectedCount: number;
-  };
+  readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;
     readonly candidateCount: number;

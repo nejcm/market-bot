@@ -5,6 +5,7 @@ import {
   marketUpdateHorizonBucketOf,
   type AssetClass,
   type EvidenceQuality,
+  type HistoricalContextAudit,
   type JobType,
   type KeyFinding,
   type MarketSnapshot,
@@ -104,33 +105,6 @@ export interface HistoricalResearchContext {
   readonly gaps: readonly string[];
   readonly audit: HistoricalContextAudit;
   readonly artifactDeltas: readonly HistoricalArtifactDelta[];
-}
-
-export interface HistoricalContextAudit {
-  readonly scannedRunCount: number;
-  readonly malformedRunCount: number;
-  readonly malformedScoreCount: number;
-  readonly candidateRunCount: number;
-  readonly selectedRunCount: number;
-  readonly recentSelectedCount: number;
-  readonly anchorSelectedCount: number;
-  // Relevance-lane and correction-input visibility (Cross-run Intelligence hardening). These make
-  // The deterministic prior-state selection auditable from the trace without re-deriving it.
-  readonly sameSymbolSelectedCount: number;
-  readonly spotlightSymbolSelectedCount: number;
-  readonly sameSubjectSelectedCount: number;
-  readonly sameHorizonSelectedCount: number;
-  readonly crossHorizonSelectedCount: number;
-  // Selected runs carrying at least one resolved miss — the population the prior-miss correction
-  // Blocks draw from (ticker instrument errors / market-scoped forecast errors).
-  readonly resolvedMissRunCount: number;
-  // Resolved-miss runs preserved by the miss-correction lane specifically (i.e. pulled back in
-  // After recency eviction). Visible so same-day-rerun crowding of the calibration anchor is
-  // Auditable from the trace.
-  readonly missCorrectionSelectedCount: number;
-  // Total disclosed historical/cross-run gaps, including non-data gaps such as an unreadable
-  // Alpha-search watchlist surfaced here rather than as a live SourceGap.
-  readonly gapCount: number;
 }
 
 export interface HistoricalArtifactDelta {

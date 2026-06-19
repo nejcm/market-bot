@@ -5,7 +5,11 @@ import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "
 import type { ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
-import { marketUpdateHorizonBucketOf, marketUpdateHorizonOf } from "../domain/types";
+import {
+  isMarketRegimeLabel,
+  marketUpdateHorizonBucketOf,
+  marketUpdateHorizonOf,
+} from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
@@ -14,7 +18,11 @@ import {
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "./verified-snapshot-contract";
-import { MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS } from "../forecast/observable";
+import {
+  instrumentsForExpression,
+  MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  observableForecastFromPrediction,
+} from "../forecast/observable";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
 import type {
@@ -179,6 +187,8 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     parseMetricMap(value.byMarketUpdateHorizonBucket) ??
     parseMetricMap(value.byMarketUpdateCadence);
   const byHorizonBucket = parseMetricMap(value.byHorizonBucket);
+  const byMarketRegime = parseMarketRegimeMetricMap(value.byMarketRegime);
+  const marketRegimeCoverage = parseMarketRegimeCoverage(value.marketRegimeCoverage);
   const byMissAutopsyCause = parseCountMap(value.byMissAutopsyCause);
   const conditionalPredictions = parseConditionalCalibrationSummary(value.conditionalPredictions);
   return {
@@ -193,6 +203,8 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     ...(byJobType !== undefined ? { byJobType } : {}),
     ...(byMarketUpdateHorizonBucket !== undefined ? { byMarketUpdateHorizonBucket } : {}),
     ...(byHorizonBucket !== undefined ? { byHorizonBucket } : {}),
+    ...(byMarketRegime !== undefined ? { byMarketRegime } : {}),
+    ...(marketRegimeCoverage !== undefined ? { marketRegimeCoverage } : {}),
     ...(byMissAutopsyCause !== undefined ? { byMissAutopsyCause } : {}),
     ...(conditionalPredictions !== undefined ? { conditionalPredictions } : {}),
   };
@@ -260,6 +272,32 @@ function parseMetricMap(value: unknown): Record<string, CalibrationMetric> | und
   return Object.fromEntries(entries);
 }
 
+function parseMarketRegimeMetricMap(value: unknown): Record<string, CalibrationMetric> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const entries = Object.entries(value).flatMap(([key, raw]) => {
+    if (!isMarketRegimeLabel(key)) {
+      return [];
+    }
+    const metric = parseCalibrationMetric(raw);
+    return metric === undefined ? [] : [[key, metric] as const];
+  });
+  return Object.fromEntries(entries);
+}
+
+function parseMarketRegimeCoverage(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const entries = Object.entries(value).flatMap(([key, raw]) =>
+    (isMarketRegimeLabel(key) || key === "unknown") && typeof raw === "number" && isCount(raw)
+      ? [[key, raw] as const]
+      : [],
+  );
+  return Object.fromEntries(entries);
+}
+
 function parseCountMap(value: unknown): Record<string, number> | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -293,11 +331,31 @@ function renderMetricSlice(
   }
 }
 
-function buildCalibrationBlock(calibration: CalibrationContext | undefined): string | undefined {
+const CURRENT_REGIME_CALIBRATION_SAMPLE_FLOOR = 5;
+
+function renderCurrentRegimeCalibration(
+  calibration: CalibrationContext,
+  context: Pick<ResearchContext, "marketRegime">,
+): string | undefined {
+  const metric = calibration.byMarketRegime?.[context.marketRegime.label];
+  if (metric === undefined || metric.count < CURRENT_REGIME_CALIBRATION_SAMPLE_FLOOR) {
+    return undefined;
+  }
+  return `Current-regime calibration (${context.marketRegime.label}, all run types): skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}). Use this alongside the run-type and horizon slices; ignore thinner regime slices below n=${String(CURRENT_REGIME_CALIBRATION_SAMPLE_FLOOR)}.`;
+}
+
+function buildCalibrationBlock(
+  calibration: CalibrationContext | undefined,
+  context: Pick<ResearchContext, "marketRegime">,
+): string | undefined {
   if (calibration === undefined) {
     return undefined;
   }
   const lines: string[] = [];
+  const currentRegimeLine = renderCurrentRegimeCalibration(calibration, context);
+  if (currentRegimeLine !== undefined) {
+    lines.push(currentRegimeLine);
+  }
   if (typeof calibration.brierScore === "number") {
     lines.push(`Overall Brier score: ${calibration.brierScore.toFixed(3)} (lower is better)`);
     lines.push(
@@ -372,6 +430,28 @@ function sortedRecentMisses(misses: readonly PriorMiss[]): readonly PriorMiss[] 
     .slice(0, MAX_PRIOR_MISS_BULLETS);
 }
 
+function predictionInstrumentsInclude(
+  prediction: HistoricalPredictionSummary,
+  symbol: string,
+): boolean {
+  const forecast = observableForecastFromPrediction({
+    id: prediction.id,
+    claim: prediction.claim,
+    kind: prediction.kind,
+    subject: prediction.subject,
+    measurableAs: prediction.measurableAs,
+    horizonTradingDays: prediction.horizonTradingDays,
+    probability: prediction.probability,
+    sourceIds: [],
+  });
+  if (!("expression" in forecast)) {
+    return false;
+  }
+  return instrumentsForExpression(forecast.expression).some(
+    (instrument) => instrument.toUpperCase() === symbol,
+  );
+}
+
 function collectPriorMisses(
   command: ResearchCommand,
   historicalContext: HistoricalResearchContext | undefined,
@@ -386,7 +466,7 @@ function collectPriorMisses(
       continue;
     }
     for (const prediction of run.predictions) {
-      if (prediction.scoreOutcome === "miss") {
+      if (prediction.scoreOutcome === "miss" && predictionInstrumentsInclude(prediction, symbol)) {
         misses.push(missFrom(run, prediction));
       }
     }
@@ -628,13 +708,15 @@ function buildEvidencePayload(
     ),
     moverLimitFor(command, config),
   );
-  const calibrationBlock = buildCalibrationBlock(context.calibrationContext);
+  const calibrationBlock = buildCalibrationBlock(context.calibrationContext, context);
   const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
   const priorThematicForecastErrors = buildResearchForecastErrorBlock(
     command,
     context.historicalContext,
   );
+  const deterministicCitationGuidance =
+    "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, or verifiedMarketSnapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
   // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
   // The full bar series stays on disk (rawSnapshots / normalized sidecar).
@@ -719,6 +801,7 @@ function buildEvidencePayload(
       : {}),
     ...(context.evidenceRequest !== undefined ? { evidenceRequest: context.evidenceRequest } : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
+    deterministicCitationGuidance,
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
     ...(priorMarketForecastErrors !== undefined ? { priorMarketForecastErrors } : {}),

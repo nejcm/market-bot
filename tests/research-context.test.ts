@@ -502,6 +502,101 @@ describe("buildStagePrompt", () => {
     expect(block).toContain("base rates");
   });
 
+  test("injects current-regime calibration only at the sample floor", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          targetPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: {
+          byMarketRegime: { mixed: { brierScore: 0.2, count: 5 } },
+        },
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: { readonly priorCalibration?: string };
+    };
+
+    expect(parsed.evidence?.priorCalibration).toContain("Current-regime calibration (mixed");
+    expect(parsed.evidence?.priorCalibration).toContain("n=5");
+  });
+
+  test("omits current-regime calibration below the sample floor", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          targetPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: {
+          byMarketRegime: { mixed: { brierScore: 0.2, count: 4 } },
+        },
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: { readonly priorCalibration?: string };
+    };
+
+    expect(parsed.evidence?.priorCalibration).toBeUndefined();
+  });
+
   test("injects domain playbooks as a separate prompt field", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
     const prompt = buildStagePrompt(
@@ -567,6 +662,29 @@ describe("buildStagePrompt", () => {
     expect(parsed.domainPlaybooks?.[0]?.instruction).toBe("Challenge weak claims.");
   });
 
+  test("adds citation guidance that reserves history reports for narrative context", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      contextWithHistory(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: { readonly deterministicCitationGuidance?: string };
+    };
+
+    expect(parsed.evidence?.deterministicCitationGuidance).toContain("exact numeric market claims");
+    expect(parsed.evidence?.deterministicCitationGuidance).toContain("history-report-*");
+  });
+
   test("injects market-overview prompt as steering evidence only", () => {
     const command: ResearchCommand = {
       jobType: "market-overview",
@@ -609,7 +727,9 @@ function missSummary(
   return {
     id,
     claim: "AAPL closes higher",
+    kind: "direction",
     subject: "AAPL",
+    measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
     horizonTradingDays: 5,
     probability: 0.72,
     scoreStatus: "resolved",
@@ -901,6 +1021,23 @@ describe("buildStagePrompt prior-thesis error correction", () => {
       historicalContextWith([
         tickerRun("run-msft", "MSFT", [
           missSummary("p-msft", { claim: "MSFT closes higher", subject: "MSFT" }),
+        ]),
+      ]),
+    );
+
+    expect(priorThesisErrorsFor(tickerCommand, context)).toBeUndefined();
+  });
+
+  test("excludes same-run misses whose parsed instruments do not include the ticker", () => {
+    const context = contextWithHistory(
+      tickerCommand,
+      historicalContextWith([
+        tickerRun("run-aapl-benchmark-only", "AAPL", [
+          missSummary("p-spy", {
+            claim: "SPY closes higher",
+            subject: "SPY",
+            measurableAs: "close(SPY, +5) > close(SPY, 0)",
+          }),
         ]),
       ]),
     );

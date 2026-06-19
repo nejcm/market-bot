@@ -604,6 +604,54 @@ describe("loadHistoricalContext", () => {
     expect(withLane.audit.resolvedMissRunCount).toBe(1);
   });
 
+  test("collapses same-day comparable market history but keeps miss-correction anchors", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    for (const [runId, generatedAt] of [
+      ["same-day-new", "2026-06-03T15:00:00.000Z"],
+      ["same-day-mid", "2026-06-03T12:00:00.000Z"],
+    ] as const) {
+      await writeRun({
+        dataDir,
+        runDirName: runId,
+        report: researchReport({ runId, jobType: "daily", assetClass: "equity", generatedAt }),
+      });
+    }
+    await writeRun({
+      dataDir,
+      runDirName: "same-day-miss-anchor",
+      report: researchReport({
+        runId: "same-day-miss-anchor",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-06-03T09:00:00.000Z",
+        predictions: [prediction({ id: "pred-miss", subject: "SPY" })],
+      }),
+      score: {
+        scoredAt: "2026-06-04T00:00:00.000Z",
+        scores: [
+          predictionScore("miss", {
+            predictionId: "pred-miss",
+            runId: "same-day-miss-anchor",
+          }),
+        ],
+      },
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      config: {
+        historyOptions: options({ marketRecentLimit: 3, anchorMonths: [], missCorrectionLimit: 1 }),
+      },
+      now,
+    });
+
+    expect(context.runs.map((run) => run.runId)).toEqual(["same-day-miss-anchor"]);
+    expect(context.audit.selectedRunCount).toBe(1);
+    expect(context.audit.missCorrectionSelectedCount).toBe(1);
+  });
+
   test("appends extraGaps to gaps and reflects their count in audit.gapCount", async () => {
     const context = await loadHistoricalContext({
       dataDir: tempRunsDir(),

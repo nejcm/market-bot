@@ -21,7 +21,7 @@ import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
-import { verifiedSnapshotSource } from "./verified-snapshot-contract";
+import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
   deterministicSourceGaps,
@@ -570,6 +570,82 @@ function withoutDeterministicGapRestatements(
   );
 }
 
+const NUMERIC_CLAIM_PATTERN = /(?:[$€£]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
+const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
+
+function citesOnlyHistoryReports(sourceIds: readonly string[]): boolean {
+  return (
+    sourceIds.length > 0 && sourceIds.every((sourceId) => sourceId.startsWith("history-report-"))
+  );
+}
+
+function firstSnapshotSourceIdForText(input: {
+  readonly text: string;
+  readonly collectedSources: CollectedSources;
+}): string | undefined {
+  const text = input.text.toUpperCase();
+  const snapshots = [
+    ...input.collectedSources.marketSnapshots,
+    ...input.collectedSources.supplementalMarketSnapshots,
+  ];
+  const snapshot = snapshots.find((candidate) => text.includes(candidate.symbol.toUpperCase()));
+  if (snapshot !== undefined) {
+    return snapshot.sourceId;
+  }
+  const verified = input.collectedSources.verifiedMarketSnapshot;
+  if (
+    verified !== undefined &&
+    TECHNICAL_INDICATOR_PATTERN.test(input.text) &&
+    text.includes(verified.symbol.toUpperCase())
+  ) {
+    return verifiedSnapshotSourceId(verified.symbol);
+  }
+  return undefined;
+}
+
+function preferSnapshotCitationForFinding(input: {
+  readonly finding: KeyFinding;
+  readonly collectedSources: CollectedSources;
+}): KeyFinding {
+  if (
+    !NUMERIC_CLAIM_PATTERN.test(input.finding.text) ||
+    !citesOnlyHistoryReports(input.finding.sourceIds)
+  ) {
+    return input.finding;
+  }
+  const sourceId = firstSnapshotSourceIdForText({
+    text: input.finding.text,
+    collectedSources: input.collectedSources,
+  });
+  return sourceId === undefined ? input.finding : { ...input.finding, sourceIds: [sourceId] };
+}
+
+function preferSnapshotCitationsForFindings(
+  findings: readonly KeyFinding[],
+  collectedSources: CollectedSources,
+): readonly KeyFinding[] {
+  return findings.map((finding) => preferSnapshotCitationForFinding({ finding, collectedSources }));
+}
+
+function preferSnapshotCitationsForScenarios(
+  scenarios: readonly Scenario[],
+  collectedSources: CollectedSources,
+): readonly Scenario[] {
+  return scenarios.map((scenario) => {
+    if (
+      !NUMERIC_CLAIM_PATTERN.test(scenario.description) ||
+      !citesOnlyHistoryReports(scenario.sourceIds)
+    ) {
+      return scenario;
+    }
+    const sourceId = firstSnapshotSourceIdForText({
+      text: scenario.description,
+      collectedSources,
+    });
+    return sourceId === undefined ? scenario : { ...scenario, sourceIds: [sourceId] };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Report assembly — combine parsed payload + context into a validated report
 // ---------------------------------------------------------------------------
@@ -638,7 +714,27 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
-  const catalysts = readFindings(payload.catalysts);
+  const keyFindings = preferSnapshotCitationsForFindings(
+    readFindings(payload.keyFindings),
+    collectedSources,
+  );
+  const bullCase = preferSnapshotCitationsForFindings(
+    readFindings(payload.bullCase),
+    collectedSources,
+  );
+  const bearCase = preferSnapshotCitationsForFindings(
+    readFindings(payload.bearCase),
+    collectedSources,
+  );
+  const risks = preferSnapshotCitationsForFindings(readFindings(payload.risks), collectedSources);
+  const catalysts = preferSnapshotCitationsForFindings(
+    readFindings(payload.catalysts),
+    collectedSources,
+  );
+  const scenarios = preferSnapshotCitationsForScenarios(
+    readScenarios(payload.scenarios),
+    collectedSources,
+  );
   const catalystCalendar =
     command.jobType === "market-overview"
       ? catalystCalendarExtra({
@@ -659,12 +755,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       : {}),
     generatedAt,
     summary: typeof payload.summary === "string" ? payload.summary : "",
-    keyFindings: readFindings(payload.keyFindings),
-    bullCase: readFindings(payload.bullCase),
-    bearCase: readFindings(payload.bearCase),
-    risks: readFindings(payload.risks),
+    keyFindings,
+    bullCase,
+    bearCase,
+    risks,
     catalysts,
-    scenarios: readScenarios(payload.scenarios),
+    scenarios,
     confidence,
     dataGaps,
     predictions: gatedPredictions.predictions,

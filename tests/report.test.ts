@@ -770,6 +770,107 @@ describe("report schema and rendering", () => {
     });
   });
 
+  test("prefers snapshot citations for numeric claims cited only to history reports", () => {
+    const history: HistoricalResearchContext = {
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      recentDays: 90,
+      anchorMonths: [],
+      runs: [
+        {
+          runId: "prior-run",
+          sourceId: "history-report-prior-run",
+          jobType: "ticker",
+          assetClass: "equity",
+          symbol: "AAPL",
+          generatedAt: "2026-05-01T00:00:00.000Z",
+          selectionReasons: ["recent", "same-symbol"],
+          summary: "Prior narrative context.",
+          confidence: "medium",
+          keyFindings: [],
+          risks: [],
+          catalysts: [],
+          dataGaps: [],
+          predictions: [],
+          scoreSummary: { total: 0, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+          marketSnapshots: [],
+        },
+      ],
+      sources: [
+        {
+          id: "history-report-prior-run",
+          title: "Prior AAPL report",
+          fetchedAt: "2026-05-01T00:00:00.000Z",
+          kind: "model",
+          assetClass: "equity",
+          symbol: "AAPL",
+          rawRef: "prior-run/report.json",
+          provider: "market-bot",
+        },
+      ],
+      gaps: [],
+      audit: {
+        scannedRunCount: 1,
+        malformedRunCount: 0,
+        malformedScoreCount: 0,
+        candidateRunCount: 1,
+        selectedRunCount: 1,
+        recentSelectedCount: 1,
+        anchorSelectedCount: 0,
+        sameSymbolSelectedCount: 1,
+        spotlightSymbolSelectedCount: 0,
+        sameSubjectSelectedCount: 0,
+        sameHorizonSelectedCount: 0,
+        crossHorizonSelectedCount: 0,
+        resolvedMissRunCount: 0,
+        missCorrectionSelectedCount: 0,
+        gapCount: 0,
+      },
+      artifactDeltas: [],
+    };
+    const command = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol: "AAPL", sourceId: "market-aapl", price: 100 })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const assembled = assembleResearchReport({
+      runId: "ticker-aapl",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL evidence is mixed.",
+        keyFindings: [
+          {
+            text: "AAPL traded near 100 in the current snapshot.",
+            sourceIds: ["history-report-prior-run"],
+          },
+        ],
+        risks: [
+          {
+            text: "Prior narrative context remains relevant.",
+            sourceIds: ["history-report-prior-run"],
+          },
+        ],
+        confidence: "medium",
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: { ...assemblyContext(depthProfile), historicalContext: history },
+      sources: buildSourceList(command, collected, history),
+    });
+
+    expect(assembled.keyFindings[0]?.sourceIds).toEqual(["market-aapl"]);
+    expect(assembled.risks[0]?.sourceIds).toEqual(["history-report-prior-run"]);
+    expect(assembled.extras?.historicalContext).toMatchObject({
+      items: [{ sourceIds: ["history-report-prior-run"] }],
+    });
+  });
+
   test("writes canonical research subject extras", () => {
     const depthProfile = assemblyDepthProfile("SMH");
     const assembled = assembleResearchReport({

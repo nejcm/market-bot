@@ -32,6 +32,7 @@ import {
   commandResearchSubjectIdentity,
   researchIdentityExtras,
 } from "./research-subject-identity";
+import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
@@ -139,10 +140,33 @@ function marketSnapshotProvider(snapshot: MarketSnapshot): string {
   );
 }
 
+// Build registry provenance sources for research commands. Registry sources
+// Are static reference entries (kind "reference") so findings and predictions can
+// Cite them instead of leaning on generic mover fallback (Phase 2.1).
+function registryProvenanceSources(command: ResearchCommand, fetchedAt: string): readonly Source[] {
+  if (command.jobType !== "research") {
+    return [];
+  }
+  const resolution = resolveResearchSubjectProxy(command.subject);
+  if (resolution.subject === undefined) {
+    return [];
+  }
+  return resolution.subject.sources.map(
+    (srcEntry): Source => ({
+      id: srcEntry.sourceId,
+      title: srcEntry.title,
+      ...(srcEntry.url !== undefined ? { url: srcEntry.url } : {}),
+      fetchedAt,
+      kind: "reference",
+    }),
+  );
+}
+
 export function buildSourceList(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   historicalContext?: HistoricalResearchContext,
+  fetchedAt?: string,
 ): readonly Source[] {
   const benchmarkSourcesById = new Map<string, Source>();
   const marketSources = collectedSources.marketSnapshots.map((snapshot): Source => {
@@ -192,6 +216,12 @@ export function buildSourceList(
       ? [verifiedSnapshotSource(collectedSources.verifiedMarketSnapshot)]
       : [];
 
+  // Registry provenance sources for research — kind:"reference" so the model can cite
+  // Checked-in subject registry entries in findings/predictions (Phase 2.1).
+  const resolvedFetchedAt =
+    fetchedAt ?? collectedSources.marketSnapshots[0]?.observedAt ?? new Date().toISOString();
+  const registrySources = registryProvenanceSources(command, resolvedFetchedAt);
+
   return [
     ...marketSources,
     ...benchmarkSources,
@@ -201,6 +231,7 @@ export function buildSourceList(
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
     ...(command.jobType === "ticker" ? collectedSources.extendedSources : []),
     ...(historicalContext?.sources ?? []),
+    ...registrySources,
   ];
 }
 
@@ -424,8 +455,23 @@ function researchPredictionGate(input: {
   if (input.command.jobType !== "research") {
     return { predictions: input.predictions, gaps: [] };
   }
-  const proxy = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
+  const identity = commandResearchSubjectIdentity(input.command);
+  const proxy = identity.predictionProxySymbol;
   if (proxy === undefined) {
+    // Resolved subject with no proxy (e.g. ai-infrastructure): always emit an explicit gap.
+    // So the absence of predictions is disclosed, not implicit (Phase 2.4).
+    // Use registry resolution as the discriminator — identity.subjectKey is caller-provided
+    // And not proof that the subject actually matched a registry entry.
+    const resolution = resolveResearchSubjectProxy(input.command.subject);
+    if (resolution.subject !== undefined) {
+      return {
+        predictions: [],
+        gaps: [
+          `researchProxyForecastGate: subject ${resolution.subject.subjectKey} has no listed prediction proxy; predictions cannot be emitted`,
+        ],
+      };
+    }
+    // Unresolved subject: only emit gap if there were predictions to drop.
     return {
       predictions: [],
       gaps:

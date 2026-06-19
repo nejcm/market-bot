@@ -8,6 +8,7 @@ import {
   collectSources,
   createCollectContext,
   resetSourceResilienceForTests,
+  researchNewsRelevanceTargets,
   setSourceHostMinDelayMsForTests,
 } from "../src/sources/collector";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
@@ -2073,5 +2074,74 @@ describe("collectSources", () => {
   test("rejects invalid test host delay overrides", () => {
     expect(() => setSourceHostMinDelayMsForTests(Number.NaN)).toThrow(RangeError);
     expect(() => setSourceHostMinDelayMsForTests(-1)).toThrow(RangeError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.3 — researchNewsRelevanceTargets
+// ---------------------------------------------------------------------------
+
+describe("researchNewsRelevanceTargets", () => {
+  test("returns proxy + non-proxy representatives for a resolved registry subject", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    });
+
+    // Semiconductors: proxy=SMH (with displayName+aliases as name), plus NVDA, AMD, AVGO
+    const symbols = targets.map((t) => t.symbol);
+    expect(symbols).toContain("SMH");
+    expect(symbols).toContain("NVDA");
+    expect(symbols).toContain("AMD");
+    expect(symbols).toContain("AVGO");
+
+    // Proxy target carries the displayName for topic-level matching
+    const proxyTarget = targets.find((t) => t.symbol === "SMH");
+    expect(proxyTarget?.name).toContain("Semiconductors");
+
+    // Proxy symbol should not appear twice
+    expect(symbols.filter((s) => s === "SMH")).toHaveLength(1);
+  });
+
+  test("returns all representatives when there is no proxy (e.g. ai-infrastructure)", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI capex",
+      subjectKey: "ai-infrastructure",
+      depth: "brief",
+    });
+
+    // Ai-infrastructure has no proxy; all three representatives should be returned
+    const symbols = targets.map((t) => t.symbol);
+    expect(symbols).toContain("NVDA");
+    expect(symbols).toContain("ANET");
+    expect(symbols).toContain("VRT");
+  });
+
+  test("returns empty array for unresolved subject", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "completely unknown niche",
+      depth: "brief",
+    });
+
+    expect(targets).toHaveLength(0);
+  });
+
+  test("returns empty array for non-research job types", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "SMH",
+      depth: "brief",
+    });
+
+    expect(targets).toHaveLength(0);
   });
 });

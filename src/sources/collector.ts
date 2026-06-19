@@ -22,6 +22,7 @@ import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils"
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addValuationEvidence } from "./extended-evidence/valuation";
+import { resolveResearchSubjectProxy } from "../research/subject-registry";
 
 interface HostState {
   queue: Promise<void>;
@@ -304,6 +305,43 @@ function moverNewsRelevanceTargets(
   }));
 }
 
+// Build news relevance targets for research runs from the subject registry (Phase 2.3).
+// Uses the proxy symbol + subject display name/aliases for topic-level news matching,
+// Plus each non-proxy representative instrument by symbol and name.
+// Exported for testing; internal callers use this directly.
+export function researchNewsRelevanceTargets(
+  command: ResearchCommand,
+): readonly NewsRelevanceTarget[] {
+  if (command.jobType !== "research") {
+    return [];
+  }
+  const resolution = resolveResearchSubjectProxy(command.subject);
+  if (resolution.subject === undefined) {
+    return [];
+  }
+  const entry = resolution.subject;
+  const targets: NewsRelevanceTarget[] = [];
+
+  // Proxy target: use the subject display name + aliases as the name for broad topic matching
+  if (entry.predictionProxy !== undefined) {
+    const topicName = [entry.displayName, ...entry.aliases].join(" ");
+    targets.push({ symbol: entry.predictionProxy.symbol, name: topicName });
+  }
+
+  // Non-proxy representative instruments by symbol and name
+  for (const instrument of entry.representativeInstruments) {
+    if (instrument.symbol === entry.predictionProxy?.symbol) {
+      continue;
+    }
+    targets.push({
+      symbol: instrument.symbol,
+      ...(instrument.name !== undefined ? { name: instrument.name } : {}),
+    });
+  }
+
+  return targets;
+}
+
 function contextWithNewsRelevanceTargets(
   ctx: CollectContext,
   targets: readonly NewsRelevanceTarget[],
@@ -500,17 +538,20 @@ export async function collectSources(
   const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
 
   // Market updates sequence market first so current ranked movers can steer news selection.
+  // Research runs resolve registry-based relevance targets without waiting on market data.
   // Other run types keep the parallel source collection path.
   const marketResult = isMarketUpdateCommand(command)
     ? await marketAdapter.collect(ctx)
     : undefined;
-  const newsContext =
-    marketResult === undefined
-      ? ctx
-      : contextWithNewsRelevanceTargets(
-          ctx,
-          moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots),
-        );
+  let newsContext: CollectContext = ctx;
+  if (marketResult !== undefined) {
+    newsContext = contextWithNewsRelevanceTargets(
+      ctx,
+      moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots),
+    );
+  } else if (command.jobType === "research") {
+    newsContext = contextWithNewsRelevanceTargets(ctx, researchNewsRelevanceTargets(command));
+  }
   const [
     resolvedMarketResult,
     newsResult,

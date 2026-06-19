@@ -523,7 +523,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     playbookContext,
     analysisOutputs,
   );
-  const sources = buildSourceList(input.command, collectedSources, historicalContext);
+  const sources = buildSourceList(input.command, collectedSources, historicalContext, generatedAt);
   const knownSourceIds = new Set(sources.map((source) => source.id));
 
   const synthesis = await synthesizeReportUntilValid({

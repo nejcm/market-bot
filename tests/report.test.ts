@@ -1370,6 +1370,182 @@ function marketUpdateReport(delta: Record<string, unknown>): ResearchReport {
   };
 }
 
+describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
+  test("attaches registry sources as kind:reference for resolved research subjects", () => {
+    const sources = buildSourceList(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "chip stocks",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      collectedSources(),
+      undefined,
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    const referenceSources = sources.filter((s) => s.kind === "reference");
+    // Semiconductors registry has 4 sources: vaneck-smh + 3 Nasdaq listings
+    expect(referenceSources.length).toBeGreaterThan(0);
+    expect(referenceSources[0]).toMatchObject({
+      id: "vaneck-smh",
+      title: "VanEck Semiconductor ETF",
+      url: "https://www.vaneck.com/us/en/investments/semiconductor-etf-smh/",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "reference",
+    });
+    const ids = referenceSources.map((s) => s.id);
+    expect(ids).toContain("nasdaq-nvda");
+    expect(ids).toContain("nasdaq-amd");
+  });
+
+  test("omits registry sources for unresolved research subjects", () => {
+    const sources = buildSourceList(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "unknown niche sector",
+        depth: "brief",
+      },
+      collectedSources(),
+      undefined,
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    expect(sources.filter((s) => s.kind === "reference")).toHaveLength(0);
+  });
+
+  test("omits registry sources for non-research job types", () => {
+    const sources = buildSourceList(
+      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "brief" },
+      collectedSources(),
+      undefined,
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    expect(sources.filter((s) => s.kind === "reference")).toHaveLength(0);
+  });
+});
+
+describe("researchPredictionGate gap text (phase 2.4)", () => {
+  test("always emits gap when resolved subject has no proxy, even with zero model predictions", () => {
+    const depthProfile = assemblyDepthProfile("SMH");
+    const assembled = assembleResearchReport({
+      runId: "research-ai-infra",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI capex",
+        subjectKey: "ai-infrastructure",
+        depth: "brief",
+      },
+      payload: { summary: "AI infrastructure evidence.", confidence: "medium" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: subject ai-infrastructure has no listed prediction proxy; predictions cannot be emitted",
+    );
+  });
+
+  test("drops predictions and emits gap for resolved-no-proxy subject even when model emits some", () => {
+    const depthProfile = assemblyDepthProfile("NVDA");
+    const assembled = assembleResearchReport({
+      runId: "research-ai-infra-2",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI capex",
+        subjectKey: "ai-infrastructure",
+        depth: "brief",
+      },
+      payload: { summary: "AI infrastructure evidence.", confidence: "medium" },
+      predResult: {
+        predictions: [
+          prediction({
+            subject: "NVDA",
+            measurableAs: "close(NVDA, +5) > close(NVDA, 0)",
+            horizonTradingDays: 5,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: subject ai-infrastructure has no listed prediction proxy; predictions cannot be emitted",
+    );
+  });
+
+  test("omits gap for unresolved subject when model emits zero predictions", () => {
+    const depthProfile = assemblyDepthProfile("SPY");
+    const assembled = assembleResearchReport({
+      runId: "research-unresolved",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "some unknown niche sector",
+        depth: "brief",
+      },
+      payload: { summary: "Niche sector evidence.", confidence: "medium" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    const gateGaps = assembled.dataGaps.filter((g) => g.startsWith("researchProxyForecastGate"));
+    expect(gateGaps).toHaveLength(0);
+  });
+
+  test("omits resolved-subject gap when subjectKey is set but subject string does not resolve in registry", () => {
+    // Guards the HIGH fix: identity.subjectKey is caller-provided and not proof of registry
+    // Resolution. The gate must use resolveResearchSubjectProxy(command.subject) instead.
+    const depthProfile = assemblyDepthProfile("SPY");
+    const assembled = assembleResearchReport({
+      runId: "research-unresolved-with-key",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "completely-unknown-sector-xyz123",
+        subjectKey: "unknown-sector-key",
+        depth: "brief",
+      },
+      payload: { summary: "Unknown sector evidence.", confidence: "medium" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    // No gate gap: the subject does not resolve, and zero predictions were emitted.
+    const gateGaps = assembled.dataGaps.filter((g) => g.startsWith("researchProxyForecastGate"));
+    expect(gateGaps).toHaveLength(0);
+  });
+});
+
 describe("market update delta rendering", () => {
   test("renders the What Changed section after Summary and before Key Findings", () => {
     const markdown = renderMarkdownReport(

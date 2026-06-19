@@ -93,7 +93,8 @@ export interface Source {
     | "model"
     | "extended-evidence"
     | "market-context"
-    | "discussion";
+    | "discussion"
+    | "reference";
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;

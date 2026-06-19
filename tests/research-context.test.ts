@@ -6,6 +6,7 @@ import {
   buildPlaybookSelectionPrompt,
   buildSpotlightSelectionPrompt,
   buildStagePrompt,
+  deterministicSourceGaps,
   type ResearchContext,
 } from "../src/research/research-context";
 import { buildSpotlightCandidates } from "../src/research/spotlights";
@@ -1459,5 +1460,184 @@ describe("buildSpotlightSelectionPrompt", () => {
       instruction:
         "Use this as steering for spotlight selection and final synthesis. Do not replace the deterministic market overview evidence.",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.2 — registry subject in evidence payload and missing-snapshot gaps
+// ---------------------------------------------------------------------------
+
+function researchContext(command: ResearchCommand): ResearchContext {
+  return {
+    depthProfile: buildDepthProfile(command, config),
+    runParams: {
+      quickModel: "quick-test",
+      synthesisModel: "synthesis-test",
+      analystStyle: "concise brief",
+      minimumKeyFindings: 3,
+      minimumScenarios: 2,
+      targetPredictions: 2,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: ["SMH"],
+      focus: ["market regime"],
+      targetKindMix: { favored: ["direction"], minNonDirection: 0 },
+      modelParams: undefined,
+    },
+    marketRegime: {
+      assetClass: "equity",
+      label: "insufficient-data",
+      proxyCount: 0,
+      drivers: [],
+      sourceIds: [],
+    },
+    calibrationContext: undefined,
+  };
+}
+
+describe("phase 2.2 — registrySubject in evidence payload", () => {
+  test("includes registrySubject block for resolved research subject", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    };
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        marketSnapshots: [
+          marketSnapshot({ sourceId: "market-smh", symbol: "SMH" }),
+          marketSnapshot({ sourceId: "market-nvda", symbol: "NVDA" }),
+        ],
+        newsSources: [newsSource()],
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: {
+        readonly registrySubject?: {
+          readonly subjectKey?: string;
+          readonly displayName?: string;
+          readonly representativeInstruments?: readonly {
+            readonly symbol?: string;
+            readonly hasLiveSnapshot?: boolean;
+          }[];
+          readonly provenanceSources?: readonly { readonly sourceId?: string }[];
+          readonly predictionProxy?: { readonly symbol?: string };
+        };
+      };
+    };
+
+    const subject = parsed.evidence?.registrySubject;
+    expect(subject?.subjectKey).toBe("semiconductors");
+    expect(subject?.displayName).toBe("Semiconductors");
+    expect(subject?.predictionProxy?.symbol).toBe("SMH");
+
+    const reps = subject?.representativeInstruments ?? [];
+    const smh = reps.find((r) => r.symbol === "SMH");
+    const nvda = reps.find((r) => r.symbol === "NVDA");
+    const amd = reps.find((r) => r.symbol === "AMD");
+
+    expect(smh?.hasLiveSnapshot).toBe(true);
+    expect(nvda?.hasLiveSnapshot).toBe(true);
+    expect(amd?.hasLiveSnapshot).toBe(false);
+
+    const sourceIds = (subject?.provenanceSources ?? []).map((s) => s.sourceId);
+    expect(sourceIds).toContain("vaneck-smh");
+    expect(sourceIds).toContain("nasdaq-nvda");
+  });
+
+  test("omits registrySubject block for unresolved research subject", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "unknown niche",
+      depth: "brief",
+    };
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({ newsSources: [newsSource()] }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: { readonly registrySubject?: unknown };
+    };
+
+    expect(parsed.evidence?.registrySubject).toBeUndefined();
+  });
+});
+
+describe("phase 2.2 — deterministicSourceGaps for missing representative snapshots", () => {
+  test("adds gap for each registry representative without a live snapshot", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    };
+    // Only SMH has a snapshot; NVDA, AMD, AVGO are absent
+    const gaps = deterministicSourceGaps(
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-smh", symbol: "SMH" })],
+        newsSources: [newsSource()],
+      }),
+    );
+
+    const repGaps = gaps.filter((g) => g.startsWith("researchRepresentative:"));
+    expect(repGaps.length).toBe(3);
+    expect(repGaps.some((g) => g.includes("NVDA"))).toBe(true);
+    expect(repGaps.some((g) => g.includes("AMD"))).toBe(true);
+    expect(repGaps.some((g) => g.includes("AVGO"))).toBe(true);
+  });
+
+  test("emits no representative gaps when all representatives have live snapshots", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    };
+    const gaps = deterministicSourceGaps(
+      command,
+      collectedSources({
+        marketSnapshots: [
+          marketSnapshot({ sourceId: "market-smh", symbol: "SMH" }),
+          marketSnapshot({ sourceId: "market-nvda", symbol: "NVDA" }),
+          marketSnapshot({ sourceId: "market-amd", symbol: "AMD" }),
+          marketSnapshot({ sourceId: "market-avgo", symbol: "AVGO" }),
+        ],
+        newsSources: [newsSource()],
+      }),
+    );
+
+    expect(gaps.filter((g) => g.startsWith("researchRepresentative:"))).toHaveLength(0);
+  });
+
+  test("emits no representative gaps for unresolved research subject", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "unknown niche",
+      depth: "brief",
+    };
+    const gaps = deterministicSourceGaps(
+      command,
+      collectedSources({ newsSources: [newsSource()] }),
+    );
+
+    expect(gaps.filter((g) => g.startsWith("researchRepresentative:"))).toHaveLength(0);
   });
 });

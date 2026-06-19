@@ -33,6 +33,7 @@ import {
   commandResearchSubjectIdentity,
   isSameResearchSubjectIdentity,
 } from "./research-subject-identity";
+import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
 export type { CalibrationContext, DepthProfile, EvidenceRequestContext, ResearchContext };
@@ -74,6 +75,29 @@ export function deterministicSourceGaps(
       ? [missingVerifiedSnapshotGapText(command.symbol)]
       : [];
 
+  // Research subject: flag representative instruments with no live market snapshot so the
+  // Model can cite the gap instead of silently substituting a mover (Phase 2.2).
+  const researchRepresentativeGaps: string[] = [];
+  if (command.jobType === "research") {
+    const resolution = resolveResearchSubjectProxy(command.subject);
+    if (resolution.subject !== undefined) {
+      const liveSymbols = new Set(
+        collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
+      );
+      for (const instrument of resolution.subject.representativeInstruments) {
+        if (!liveSymbols.has(instrument.symbol.toUpperCase())) {
+          const label =
+            instrument.name !== undefined
+              ? `${instrument.name} (${instrument.symbol})`
+              : instrument.symbol;
+          researchRepresentativeGaps.push(
+            `researchRepresentative: no live market snapshot for representative ${label}; cite the registry sourceId instead`,
+          );
+        }
+      }
+    }
+  }
+
   return [
     ...gaps,
     ...marketGaps,
@@ -81,6 +105,7 @@ export function deterministicSourceGaps(
     ...tickerGaps,
     ...overviewMoverGaps,
     ...verifiedSnapshotGaps,
+    ...researchRepresentativeGaps,
   ];
 }
 
@@ -635,6 +660,40 @@ function buildEvidencePayload(
         }
       : {};
 
+  // Research subject: surface registry representatives + provenance in the evidence payload
+  // So the model quotes named representatives instead of generic movers (Phase 2.2).
+  const registrySubjectBlock: Record<string, unknown> = {};
+  if (command.jobType === "research") {
+    const resolution = resolveResearchSubjectProxy(command.subject);
+    if (resolution.subject !== undefined) {
+      const liveSymbols = new Set(
+        collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
+      );
+      const entry = resolution.subject;
+      registrySubjectBlock.registrySubject = {
+        subjectKey: entry.subjectKey,
+        displayName: entry.displayName,
+        representativeInstruments: entry.representativeInstruments.map((instrument) => ({
+          symbol: instrument.symbol,
+          ...(instrument.name !== undefined ? { name: instrument.name } : {}),
+          instrumentType: instrument.instrumentType,
+          sourceIds: instrument.sourceIds,
+          hasLiveSnapshot: liveSymbols.has(instrument.symbol.toUpperCase()),
+        })),
+        provenanceSources: entry.sources.map((src) => ({
+          sourceId: src.sourceId,
+          title: src.title,
+          ...(src.url !== undefined ? { url: src.url } : {}),
+        })),
+        ...(entry.predictionProxy !== undefined
+          ? { predictionProxy: { symbol: entry.predictionProxy.symbol } }
+          : {}),
+        instruction:
+          "Quote the named representative instruments and cite their sourceIds in findings and predictions. Prefer registry representatives over generic market movers for this subject.",
+      };
+    }
+  }
+
   return {
     command,
     ...userSteeringField(command),
@@ -666,6 +725,7 @@ function buildEvidencePayload(
     ...(priorThematicForecastErrors !== undefined ? { priorThematicForecastErrors } : {}),
     ...verifiedMarketSnapshotBlock,
     ...resolvedIdentityBlock,
+    ...registrySubjectBlock,
   };
 }
 

@@ -8,6 +8,59 @@ import type {
 export type SourceGapAnalyticsClass = "missingCredential" | "fetchFailed" | "other";
 type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circuit-open">;
 
+// Exhaustive membership tables keyed by every union member.
+// The `satisfies Record<Union, true>` constraint fails typecheck if a member is missing.
+// Runtime guards below therefore cannot silently drift behind the type.
+const SOURCE_GAP_CAUSE_TABLE = {
+  "missing-credential": true,
+  "fetch-failed": true,
+  "circuit-open": true,
+  "stale-fallback": true,
+  "unsupported-coverage": true,
+  "repeat-fallback": true,
+  "malformed-response": true,
+  "validation-failed": true,
+  "provider-data-missing": true,
+} satisfies Record<SourceGapCause, true>;
+
+const SOURCE_GAP_CAPABILITY_TABLE = {
+  "market-data": true,
+  news: true,
+  discussion: true,
+  "extended-evidence": true,
+  "market-context": true,
+  "evidence-request": true,
+  cache: true,
+} satisfies Record<SourceGapCapability, true>;
+
+const SOURCE_GAP_EVIDENCE_QUALITY_IMPACT_TABLE = {
+  "core-cap": true,
+  "extended-evidence-cap": true,
+  "no-cap": true,
+} satisfies Record<SourceGapEvidenceQualityImpact, true>;
+
+const SOURCE_GAP_CAUSES: ReadonlySet<string> = new Set(Object.keys(SOURCE_GAP_CAUSE_TABLE));
+const SOURCE_GAP_CAPABILITIES: ReadonlySet<string> = new Set(
+  Object.keys(SOURCE_GAP_CAPABILITY_TABLE),
+);
+const SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS: ReadonlySet<string> = new Set(
+  Object.keys(SOURCE_GAP_EVIDENCE_QUALITY_IMPACT_TABLE),
+);
+
+export function isSourceGapCause(value: unknown): value is SourceGapCause {
+  return typeof value === "string" && SOURCE_GAP_CAUSES.has(value);
+}
+
+export function isSourceGapCapability(value: unknown): value is SourceGapCapability {
+  return typeof value === "string" && SOURCE_GAP_CAPABILITIES.has(value);
+}
+
+export function isSourceGapEvidenceQualityImpact(
+  value: unknown,
+): value is SourceGapEvidenceQualityImpact {
+  return typeof value === "string" && SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS.has(value);
+}
+
 export interface SourceGapInput {
   readonly source: string;
   readonly message: string;

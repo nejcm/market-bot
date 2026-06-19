@@ -22,6 +22,7 @@ import {
 import { indexIsFresh } from "./run-artifact-index-freshness";
 import { indexRowsForRun } from "./run-artifact-index-rows";
 import { runSearchResultFromIndexRow, runSummaryFromIndexRow } from "./run-artifact-projection";
+import { parseStringArrayJson } from "./sources/guards";
 import type {
   PredictionRow,
   RebuildOptions,
@@ -142,17 +143,6 @@ export function readRunArtifactIndexStatus(
     };
   } finally {
     db?.close();
-  }
-}
-
-function parseSourceIds(value: string): readonly string[] {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string")
-      : [];
-  } catch {
-    return [];
   }
 }
 
@@ -712,7 +702,7 @@ export async function searchHistoryEntriesFromIndex(
       section: row.section as HistorySection,
       label: row.label,
       text: row.text,
-      sourceIds: parseSourceIds(row.source_ids_json),
+      sourceIds: parseStringArrayJson(row.source_ids_json),
       ...(row.provider !== null ? { provider: row.provider } : {}),
       ...(row.source_kind !== null ? { sourceKind: row.source_kind } : {}),
       ...(row.prediction_id !== null ? { predictionId: row.prediction_id } : {}),
@@ -780,7 +770,7 @@ export async function loadResolvedPairsFromIndex(
           measurableAs: row.measurable_as,
           horizonTradingDays: row.horizon_trading_days,
           probability: row.probability,
-          sourceIds: parseSourceIds(row.source_ids_json),
+          sourceIds: parseStringArrayJson(row.source_ids_json),
         },
         score: {
           predictionId: row.prediction_id,

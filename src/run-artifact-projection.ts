@@ -1,5 +1,6 @@
 import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } from "../app/types";
 import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
+import { isRecord, parseStringArrayJson } from "./sources/guards";
 
 const SCORE_FILE = "score.json";
 const SNIPPET_RADIUS = 72;
@@ -11,10 +12,8 @@ export interface ReportSearchCandidateProjection {
   readonly sourceIds: readonly string[];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
+// Local, non-trimming string reader for summary projection.
+// Values are preserved verbatim, unlike guards.readString which drops empty/whitespace.
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
@@ -28,17 +27,6 @@ function arrayCount(record: Record<string, unknown>, key: string): number {
 function readDepth(report: Record<string, unknown>): string | undefined {
   const { extras } = report;
   return isRecord(extras) ? readString(extras, "depth") : undefined;
-}
-
-function parseSourceIds(value: string): readonly string[] {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string")
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 export function runSummaryFromReport(
@@ -172,6 +160,6 @@ export function runSearchResultFromIndexRow(
     section: row.section as RunSearchSection,
     label: row.label,
     snippet: searchSnippet(row.text, query),
-    sourceIds: parseSourceIds(row.source_ids_json),
+    sourceIds: parseStringArrayJson(row.source_ids_json),
   };
 }

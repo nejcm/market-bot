@@ -19,11 +19,13 @@ import {
   type ResearchReport,
   type Source,
   type SourceGap,
-  type SourceGapCapability,
-  type SourceGapCause,
-  type SourceGapEvidenceQualityImpact,
   type VerifiedMarketSnapshot,
 } from "./domain/types";
+import {
+  isSourceGapCapability,
+  isSourceGapCause,
+  isSourceGapEvidenceQualityImpact,
+} from "./domain/source-gaps";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type {
   MissAutopsyCause,
@@ -129,28 +131,6 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "options-iv",
   "on-chain",
 ]);
-const SOURCE_GAP_CAPABILITIES: ReadonlySet<string> = new Set<SourceGapCapability>([
-  "market-data",
-  "news",
-  "discussion",
-  "extended-evidence",
-  "market-context",
-  "evidence-request",
-  "cache",
-]);
-const SOURCE_GAP_CAUSES: ReadonlySet<string> = new Set<SourceGapCause>([
-  "missing-credential",
-  "fetch-failed",
-  "circuit-open",
-  "stale-fallback",
-  "unsupported-coverage",
-  "repeat-fallback",
-  "malformed-response",
-  "validation-failed",
-  "provider-data-missing",
-]);
-const SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS: ReadonlySet<string> =
-  new Set<SourceGapEvidenceQualityImpact>(["core-cap", "extended-evidence-cap", "no-cap"]);
 
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
@@ -177,18 +157,6 @@ function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
 
 function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCategory {
   return typeof value === "string" && EXTENDED_EVIDENCE_CATEGORIES.has(value);
-}
-
-function isSourceGapCapability(value: unknown): value is SourceGapCapability {
-  return typeof value === "string" && SOURCE_GAP_CAPABILITIES.has(value);
-}
-
-function isSourceGapCause(value: unknown): value is SourceGapCause {
-  return typeof value === "string" && SOURCE_GAP_CAUSES.has(value);
-}
-
-function isSourceGapEvidenceQualityImpact(value: unknown): value is SourceGapEvidenceQualityImpact {
-  return typeof value === "string" && SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS.has(value);
 }
 
 // Distinguishes a missing file from a present-but-broken one: ENOENT returns

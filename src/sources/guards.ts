@@ -62,3 +62,13 @@ export function stringArrayValue(value: unknown): readonly string[] {
 export function nonEmptyStringArrayValue(value: unknown): readonly string[] {
   return stringArrayValue(value).filter((item) => item.trim() !== "");
 }
+
+// Parses a JSON-encoded string array, such as a serialized index column.
+// Malformed JSON and non-array payloads return an empty array.
+export function parseStringArrayJson(value: string): readonly string[] {
+  try {
+    return stringArrayValue(JSON.parse(value));
+  } catch {
+    return [];
+  }
+}

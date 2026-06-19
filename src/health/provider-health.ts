@@ -1,7 +1,12 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { dataRootFromRunsDir } from "../data-paths";
-import { sourceGapStatusCode } from "../domain/source-gaps";
+import {
+  isSourceGapCapability,
+  isSourceGapCause,
+  isSourceGapEvidenceQualityImpact,
+  sourceGapStatusCode,
+} from "../domain/source-gaps";
 import type {
   AssetClass,
   Depth,
@@ -9,9 +14,6 @@ import type {
   JobType,
   Source,
   SourceGap,
-  SourceGapCapability,
-  SourceGapCause,
-  SourceGapEvidenceQualityImpact,
 } from "../domain/types";
 import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
 import { isRecord, numberAt } from "../sources/guards";
@@ -138,36 +140,6 @@ function isSourceKind(value: unknown): value is Source["kind"] {
 
 function isDepth(value: unknown): value is Depth {
   return value === "brief" || value === "deep";
-}
-
-function isSourceGapCause(value: unknown): value is SourceGapCause {
-  return (
-    value === "missing-credential" ||
-    value === "fetch-failed" ||
-    value === "circuit-open" ||
-    value === "stale-fallback" ||
-    value === "unsupported-coverage" ||
-    value === "repeat-fallback" ||
-    value === "malformed-response" ||
-    value === "validation-failed" ||
-    value === "provider-data-missing"
-  );
-}
-
-function isSourceGapCapability(value: unknown): value is SourceGapCapability {
-  return (
-    value === "market-data" ||
-    value === "news" ||
-    value === "discussion" ||
-    value === "extended-evidence" ||
-    value === "market-context" ||
-    value === "evidence-request" ||
-    value === "cache"
-  );
-}
-
-function isSourceGapEvidenceQualityImpact(value: unknown): value is SourceGapEvidenceQualityImpact {
-  return value === "core-cap" || value === "extended-evidence-cap" || value === "no-cap";
 }
 
 async function readJson(path: string): Promise<unknown | undefined> {

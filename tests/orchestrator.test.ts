@@ -896,6 +896,11 @@ describe("runResearchJob", () => {
           readonly domainPlaybooks?: readonly { readonly id?: string }[];
         }
       | undefined;
+    const finalPrompt = prompts.find((prompt) => prompt.stage === "final-synthesis") as
+      | {
+          readonly domainPlaybooks?: readonly { readonly id?: string }[];
+        }
+      | undefined;
 
     expect(selectorPrompt?.evidenceCategories).toContain("sec-edgar");
     expect(selectorPrompt?.plannedStages).toEqual([
@@ -911,8 +916,12 @@ describe("runResearchJob", () => {
     expect(critiquePrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
       "critique-discipline",
     ]);
+    expect(finalPrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
+      "synthesis-discipline",
+    ]);
     expect(result.trace.domainPlaybooks).toMatchObject({
       selected: [
+        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
         { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
         { stage: "critique", playbookIds: ["critique-discipline"] },
       ],
@@ -963,7 +972,9 @@ describe("runResearchJob", () => {
     });
 
     expect(result.report.summary).toBe("AAPL evidence is sourced.");
-    expect(result.trace.domainPlaybooks.selected).toEqual([]);
+    expect(result.trace.domainPlaybooks.selected).toEqual([
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+    ]);
     expect(result.trace.domainPlaybooks.rejected).toEqual([
       { stage: "evidence-request", reason: "invalid stage" },
       {
@@ -972,6 +983,82 @@ describe("runResearchJob", () => {
         reason: "playbook is not eligible",
       },
     ]);
+  });
+
+  test("emits non-blocking post-synthesis audit warnings", async () => {
+    const dataDir = tempDataDir("market-bot-audit");
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-aapl",
+      jobType: "ticker",
+      generatedAt: "2026-05-18T00:00:00.000Z",
+      symbol: "AAPL",
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return {
+          content: JSON.stringify({
+            summary: "AAPL evidence is sourced.",
+            keyFindings: [
+              { text: "Sector RSI14 is 70.", sourceIds: ["history-report-prior-aapl"] },
+            ],
+            bullCase: [{ text: "Evidence supports the setup.", sourceIds: ["market-aapl"] }],
+            bearCase: [{ text: "Coverage remains incomplete.", sourceIds: ["market-aapl"] }],
+            risks: [{ text: "Source coverage can change.", sourceIds: ["market-aapl"] }],
+            catalysts: [{ text: "New evidence is visible.", sourceIds: ["market-aapl"] }],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Evidence remains relevant.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: mockPredictions(6, "AAPL"),
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.keyFindings[0]?.text).toBe("Sector RSI14 is 70.");
+    expect(result.report.predictions).toHaveLength(6);
+    expect(result.trace.postSynthesisAudit?.warningCount).toBe(2);
+    expect(result.trace.postSynthesisAudit?.warnings.map((warning) => warning.code)).toEqual([
+      "unsupported-numeric-claim",
+      "weak-evidence-posture-missing",
+    ]);
+    expect(result.analytics.postSynthesisAudit).toEqual({
+      warningCount: 2,
+      byCode: {
+        "unsupported-numeric-claim": 1,
+        "weak-evidence-posture-missing": 1,
+      },
+    });
   });
 
   test("audits rejected duplicate, invalid, and over-budget evidence requests", async () => {

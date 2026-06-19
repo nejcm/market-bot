@@ -37,7 +37,7 @@ const registry: readonly PlaybookMetadata[] = [
     title: "Synthesis Discipline",
     summary: "Synthesize evidence.",
     file: "synthesis-discipline.md",
-    jobTypes: ["daily", "weekly", "ticker"],
+    jobTypes: ["market-overview", "daily", "weekly", "ticker", "research"],
     assetClasses: ["equity", "crypto"],
     depths: ["brief", "deep"],
     stages: ["final-synthesis"],
@@ -228,7 +228,7 @@ describe("eligiblePlaybookCandidates", () => {
     expect(result).toEqual([]);
   });
 
-  test("makes source-discipline eligible for future equity research stages only", () => {
+  test("makes research discipline playbooks eligible for their configured stages", () => {
     const result = eligiblePlaybookCandidates(
       { jobType: "research", assetClass: "equity", depth: "brief" },
       ["specialist-analysis", "critique", "final-synthesis"],
@@ -236,6 +236,12 @@ describe("eligiblePlaybookCandidates", () => {
     );
 
     expect(result).toEqual([
+      {
+        id: "synthesis-discipline",
+        title: "Synthesis Discipline",
+        summary: "Synthesize evidence.",
+        eligibleStages: ["final-synthesis"],
+      },
       {
         id: "source-discipline",
         title: "Source Discipline",
@@ -247,7 +253,7 @@ describe("eligiblePlaybookCandidates", () => {
 });
 
 describe("mandatoryPlaybookSelections", () => {
-  test("requires source-discipline for research critique and final synthesis", () => {
+  test("requires source-discipline for research critique and synthesis-discipline for final synthesis", () => {
     const candidates = eligiblePlaybookCandidates(
       { jobType: "research", assetClass: "equity", depth: "brief" },
       ["specialist-analysis", "critique", "final-synthesis"],
@@ -262,11 +268,11 @@ describe("mandatoryPlaybookSelections", () => {
       ),
     ).toEqual([
       { stage: "critique", playbookIds: ["source-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
     ]);
   });
 
-  test("does not require source-discipline for existing run types", () => {
+  test("requires synthesis-discipline for eligible non-research final synthesis", () => {
     const candidates = eligiblePlaybookCandidates(
       { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       ["critique", "final-synthesis"],
@@ -279,7 +285,7 @@ describe("mandatoryPlaybookSelections", () => {
         ["critique", "final-synthesis"],
         candidates,
       ),
-    ).toEqual([]);
+    ).toEqual([{ stage: "final-synthesis", playbookIds: ["synthesis-discipline"] }]);
   });
 
   test("throws when required research source-discipline is missing from candidates", () => {
@@ -290,7 +296,7 @@ describe("mandatoryPlaybookSelections", () => {
         [],
       ),
     ).toThrow(
-      "Mandatory playbook source-discipline is not eligible for research stages: critique, final-synthesis",
+      "Mandatory playbook source-discipline is not eligible for research source-discipline stages: critique",
     );
   });
 });
@@ -524,13 +530,13 @@ describe("parsePlaybookSelection", () => {
       ],
       [
         { stage: "critique", playbookIds: ["source-discipline"] },
-        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
       ],
     );
 
     expect(result.selected).toEqual([
       { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
     ]);
     expect(result.rejected).toEqual([]);
   });
@@ -540,7 +546,7 @@ describe("parsePlaybookSelection", () => {
       JSON.stringify({
         selections: [
           { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
-          { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+          { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
         ],
       }),
       [
@@ -554,13 +560,13 @@ describe("parsePlaybookSelection", () => {
       ],
       [
         { stage: "critique", playbookIds: ["source-discipline"] },
-        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
       ],
     );
 
     expect(result.selected).toEqual([
       { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
     ]);
     expect(result.rejected).toEqual([]);
   });
@@ -579,13 +585,13 @@ describe("parsePlaybookSelection", () => {
       ],
       [
         { stage: "critique", playbookIds: ["source-discipline"] },
-        { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
       ],
     );
 
     expect(result.selected).toEqual([
       { stage: "critique", playbookIds: ["source-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["source-discipline"] },
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
     ]);
     expect(result.rejected).toEqual([{ reason: "selector returned malformed JSON" }]);
   });

@@ -184,6 +184,17 @@ export interface DomainPlaybookSelectionAudit {
   }[];
 }
 
+export type PostSynthesisAuditWarningCode =
+  | "unsupported-numeric-claim"
+  | "weak-evidence-posture-missing";
+
+export interface PostSynthesisAuditWarning {
+  readonly code: PostSynthesisAuditWarningCode;
+  readonly location: string;
+  readonly message: string;
+  readonly sourceIds: readonly string[];
+}
+
 export interface MarketSnapshot {
   readonly sourceId: string;
   readonly assetClass: AssetClass;
@@ -432,6 +443,10 @@ export interface RunTrace {
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];
   readonly reportValidationRetryErrors?: readonly string[];
+  readonly postSynthesisAudit?: {
+    readonly warningCount: number;
+    readonly warnings: readonly PostSynthesisAuditWarning[];
+  };
   readonly forecastDisagreement?: {
     readonly configuredModelCount: number;
     readonly challengerModelCount: number;

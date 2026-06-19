@@ -112,6 +112,10 @@ export interface RunAnalytics {
     /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
     readonly mixWarnings: readonly string[];
   };
+  readonly postSynthesisAudit?: {
+    readonly warningCount: number;
+    readonly byCode: Readonly<Record<string, number>>;
+  };
   readonly calibrationAtGeneration?: {
     readonly generatedAt?: string;
     readonly resolvedCount?: number;
@@ -404,6 +408,13 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   }
   const calibrationSnapshot = calibrationAtGeneration(input);
   const verifiedSnapshot = verifiedMarketSnapshotFreshness(collectedSources);
+  const postSynthesisAudit =
+    trace.postSynthesisAudit === undefined
+      ? undefined
+      : {
+          warningCount: trace.postSynthesisAudit.warningCount,
+          byCode: countBy(trace.postSynthesisAudit.warnings, (warning) => warning.code),
+        };
 
   return {
     version: 1,
@@ -469,6 +480,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       signalTargetMet,
       mixWarnings,
     },
+    ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
     ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     runShape: {

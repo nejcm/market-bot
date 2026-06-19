@@ -67,6 +67,7 @@ import {
   type SpotlightCandidate,
   type SpotlightSelectionResult,
 } from "./spotlights";
+import { auditPostSynthesisReport } from "./post-synthesis-audit";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -553,6 +554,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ),
   });
   let { report } = synthesis;
+  const postSynthesisWarnings = auditPostSynthesisReport(report);
   let forecastDisagreement: ForecastDisagreementArtifact | undefined = undefined;
   let forecastDisagreementStageOutputs: readonly StageOutput[] = [];
   const configuredForecastDisagreementModels =
@@ -656,6 +658,14 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
     ...(reportValidationErrors.length > 0
       ? { reportValidationRetryErrors: reportValidationErrors }
+      : {}),
+    ...(postSynthesisWarnings.length > 0
+      ? {
+          postSynthesisAudit: {
+            warningCount: postSynthesisWarnings.length,
+            warnings: postSynthesisWarnings,
+          },
+        }
       : {}),
     ...(forecastDisagreement !== undefined
       ? {

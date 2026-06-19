@@ -70,7 +70,16 @@ const MAX_PLAYBOOKS_PER_STAGE = 2;
 const MAX_PLAYBOOKS_PER_RUN = 6;
 const MAX_SELECTOR_RATIONALE_CHARS = 500;
 const SOURCE_DISCIPLINE_PLAYBOOK_ID = "source-discipline";
-const SOURCE_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["critique", "final-synthesis"];
+const SYNTHESIS_DISCIPLINE_PLAYBOOK_ID = "synthesis-discipline";
+const SOURCE_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["critique"];
+const SYNTHESIS_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["final-synthesis"];
+const SYNTHESIS_DISCIPLINE_JOB_TYPES: ReadonlySet<PlaybookJobType> = new Set([
+  "market-overview",
+  "daily",
+  "weekly",
+  "ticker",
+  "research",
+]);
 // Keep in sync with PlaybookStage; this runtime set validates checked-in JSON.
 const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
   "specialist-analysis",
@@ -219,25 +228,51 @@ export function mandatoryPlaybookSelections(
   stages: readonly PlaybookStage[],
   candidates: readonly PlaybookCandidate[],
 ): readonly { readonly stage: PlaybookStage; readonly playbookIds: readonly string[] }[] {
-  if (command.jobType !== "research") {
-    return [];
-  }
-  const requiredStages = SOURCE_DISCIPLINE_STAGES.filter((stage) => stages.includes(stage));
+  const sourceDiscipline =
+    command.jobType === "research"
+      ? mandatoryPlaybookSelection({
+          playbookId: SOURCE_DISCIPLINE_PLAYBOOK_ID,
+          label: "research source-discipline",
+          stages,
+          requiredStages: SOURCE_DISCIPLINE_STAGES,
+          candidates,
+        })
+      : [];
+  const synthesisDiscipline = SYNTHESIS_DISCIPLINE_JOB_TYPES.has(command.jobType)
+    ? mandatoryPlaybookSelection({
+        playbookId: SYNTHESIS_DISCIPLINE_PLAYBOOK_ID,
+        label: "synthesis-discipline",
+        stages,
+        requiredStages: SYNTHESIS_DISCIPLINE_STAGES,
+        candidates,
+      })
+    : [];
+
+  return [...sourceDiscipline, ...synthesisDiscipline];
+}
+
+function mandatoryPlaybookSelection(input: {
+  readonly playbookId: string;
+  readonly label: string;
+  readonly stages: readonly PlaybookStage[];
+  readonly requiredStages: readonly PlaybookStage[];
+  readonly candidates: readonly PlaybookCandidate[];
+}): readonly { readonly stage: PlaybookStage; readonly playbookIds: readonly string[] }[] {
+  const requiredStages = input.requiredStages.filter((stage) => input.stages.includes(stage));
   if (requiredStages.length === 0) {
     return [];
   }
-  const eligible = buildEligibilityMap(candidates);
-  const sourceDisciplineStages =
-    eligible.get(SOURCE_DISCIPLINE_PLAYBOOK_ID) ?? new Set<PlaybookStage>();
-  const missingStages = requiredStages.filter((stage) => !sourceDisciplineStages.has(stage));
+  const eligible = buildEligibilityMap(input.candidates);
+  const playbookStages = eligible.get(input.playbookId) ?? new Set<PlaybookStage>();
+  const missingStages = requiredStages.filter((stage) => !playbookStages.has(stage));
   if (missingStages.length > 0) {
     throw new Error(
-      `Mandatory playbook ${SOURCE_DISCIPLINE_PLAYBOOK_ID} is not eligible for research stages: ${missingStages.join(", ")}`,
+      `Mandatory playbook ${input.playbookId} is not eligible for ${input.label} stages: ${missingStages.join(", ")}`,
     );
   }
   return requiredStages.map((stage) => ({
     stage,
-    playbookIds: [SOURCE_DISCIPLINE_PLAYBOOK_ID],
+    playbookIds: [input.playbookId],
   }));
 }
 

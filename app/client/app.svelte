@@ -60,9 +60,10 @@
   let compareDetails = $state<readonly RunDetail[]>([]);
   let snapshot = $state<SnapshotView | null>(null);
   let instrumentDetail = $state<InstrumentTimelineDetail | null>(null);
-  let selectedInstrument = $state<{ readonly assetClass: string; readonly symbol: string } | null>(
-    null,
-  );
+  let selectedInstrument = $state<{
+    readonly assetClass: string;
+    readonly symbol: string;
+  } | null>(null);
   const query = $state({ text: "" });
   let typeFilter = $state("all");
   let error = $state("");
@@ -105,10 +106,13 @@
   const runTypes = $derived(groupedRunsByType(runs).map((group) => group.type));
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
-  const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
+  const recentRuns = $derived(
+    recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT),
+  );
   const compareCards = $derived(runCompareCards(compareDetails));
   const activeJobCount = $derived(
-    jobs.filter((job) => job.status === "running" || job.status === "queued").length,
+    jobs.filter((job) => job.status === "running" || job.status === "queued")
+      .length,
   );
 
   function clearSelectedRun(): void {
@@ -143,7 +147,10 @@
     }
   }
 
-  async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
+  async function selectRun(
+    runId: string,
+    nextTab: Tab = "report",
+  ): Promise<void> {
     view = "run";
     selectedRunId = runId;
     clearSelectedInstrument();
@@ -164,7 +171,10 @@
       if (selectedRunId === runId) {
         view = "dashboard";
         clearSelectedRun();
-        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+        error =
+          caughtError instanceof Error
+            ? caughtError.message
+            : String(caughtError);
         void loadCompareDetails(runs).catch(() => {
           compareDetails = [];
         });
@@ -179,26 +189,38 @@
     }
   }
 
-  async function loadCompareDetails(runSummaries: readonly RunSummary[]): Promise<void> {
-    const runIds = recentRunSummaries(runSummaries, DASHBOARD_RECENT_RUN_LIMIT).map(
-      (run) => run.runId,
+  async function loadCompareDetails(
+    runSummaries: readonly RunSummary[],
+  ): Promise<void> {
+    const runIds = recentRunSummaries(
+      runSummaries,
+      DASHBOARD_RECENT_RUN_LIMIT,
+    ).map((run) => run.runId);
+    compareDetails = await Promise.all(
+      runIds.map((runId) => fetchRunDetail(runId)),
     );
-    compareDetails = await Promise.all(runIds.map((runId) => fetchRunDetail(runId)));
   }
 
   async function loadSnapshot(runDetail: RunDetail): Promise<void> {
     const { runId, jobType, availableFiles } = runDetail.summary;
     snapshot = null;
-    if (jobType !== "ticker" || !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)) {
+    if (
+      jobType !== "ticker" ||
+      !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)
+    ) {
       return;
     }
 
     if (selectedRunId === runId) {
-      snapshot = verifiedSnapshotValue(runDetail.verifiedMarketSnapshot) ?? null;
+      snapshot =
+        verifiedSnapshotValue(runDetail.verifiedMarketSnapshot) ?? null;
     }
   }
 
-  async function openRun(runId: string, nextTab: Tab = "report"): Promise<void> {
+  async function openRun(
+    runId: string,
+    nextTab: Tab = "report",
+  ): Promise<void> {
     const pathname = runPath(runId);
     if (globalThis.location.pathname !== pathname) {
       globalThis.history.pushState({}, "", pathname);
@@ -208,7 +230,10 @@
     globalThis.scrollTo({ top: 0 });
   }
 
-  async function selectInstrument(assetClass: string, symbol: string): Promise<void> {
+  async function selectInstrument(
+    assetClass: string,
+    symbol: string,
+  ): Promise<void> {
     const normalizedSymbol = symbol.toUpperCase();
     view = "instrument";
     clearSelectedRun();
@@ -217,7 +242,10 @@
     error = "";
 
     try {
-      const timeline = await fetchInstrumentTimeline(assetClass, normalizedSymbol);
+      const timeline = await fetchInstrumentTimeline(
+        assetClass,
+        normalizedSymbol,
+      );
       if (
         selectedInstrument?.assetClass === assetClass &&
         selectedInstrument.symbol === normalizedSymbol
@@ -226,7 +254,10 @@
       }
     } catch (caughtError: unknown) {
       if (view === "instrument") {
-        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+        error =
+          caughtError instanceof Error
+            ? caughtError.message
+            : String(caughtError);
       }
     } finally {
       if (view === "instrument") {
@@ -235,7 +266,10 @@
     }
   }
 
-  async function openInstrument(assetClass: string, symbol: string): Promise<void> {
+  async function openInstrument(
+    assetClass: string,
+    symbol: string,
+  ): Promise<void> {
     const pathname = instrumentPath(assetClass, symbol);
     if (globalThis.location.pathname !== pathname) {
       globalThis.history.pushState({}, "", pathname);
@@ -276,7 +310,8 @@
     const { target } = event;
     if (
       target instanceof HTMLElement &&
-      (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      (target.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
     ) {
       return;
     }
@@ -339,7 +374,10 @@
           : "";
     } catch (caughtError: unknown) {
       searchResults = [];
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      error =
+        caughtError instanceof Error
+          ? caughtError.message
+          : String(caughtError);
     } finally {
       searchLoading = false;
     }
@@ -359,7 +397,10 @@
       fileContent = file.content;
     } catch (caughtError: unknown) {
       fileContent = "";
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      error =
+        caughtError instanceof Error
+          ? caughtError.message
+          : String(caughtError);
     }
   }
 
@@ -381,7 +422,10 @@
       });
       await refreshJobs();
     } catch (caughtError: unknown) {
-      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      error =
+        caughtError instanceof Error
+          ? caughtError.message
+          : String(caughtError);
     }
   }
 
@@ -411,9 +455,16 @@
     void (async () => {
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
-        const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
-        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs] =
-          await Promise.all([
+        const initialInstrument = instrumentFromPathname(
+          globalThis.location.pathname,
+        );
+        const [
+          nextRuns,
+          nextProviderHealth,
+          nextCalibration,
+          nextAlphaCohorts,
+          nextJobs,
+        ] = await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
           fetchCalibration(),
@@ -428,14 +479,20 @@
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
-          await selectInstrument(initialInstrument.assetClass, initialInstrument.symbol);
+          await selectInstrument(
+            initialInstrument.assetClass,
+            initialInstrument.symbol,
+          );
         } else {
           void loadCompareDetails(nextRuns).catch(() => {
             compareDetails = [];
           });
         }
       } catch (caughtError: unknown) {
-        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
+        error =
+          caughtError instanceof Error
+            ? caughtError.message
+            : String(caughtError);
       } finally {
         loadingRuns = false;
       }
@@ -465,7 +522,7 @@
     onNavigate={navigate}
   />
 
-  <main class="min-w-0 flex-1">
+  <main class="min-w-0 flex-1 pt-12 lg:pt-0">
     <div class="mx-auto max-w-295 px-4 py-6 lg:px-10 lg:py-7">
       {#if error !== ""}
         <div
@@ -476,7 +533,9 @@
           >
             ERROR
           </span>
-          <span class="text-[12.5px] leading-normal text-[#4a4334]">{error}</span>
+          <span class="text-[12.5px] leading-normal text-[#4a4334]"
+            >{error}</span
+          >
         </div>
       {/if}
 
@@ -488,7 +547,8 @@
           {compareCards}
           {loadingRuns}
           onOpenRun={(runId) => void openRun(runId)}
-          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+          onOpenInstrument={(assetClass, symbol) =>
+            void openInstrument(assetClass, symbol)}
         />
       {:else if view === "run"}
         <RunWorkspace
@@ -503,7 +563,8 @@
           onLoadFile={(path) => void loadFile(path)}
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
-          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
+          onOpenInstrument={(assetClass, symbol) =>
+            void openInstrument(assetClass, symbol)}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline
@@ -524,7 +585,12 @@
           onSearchFormChange={updateSearchForm}
         />
       {:else if view === "jobs"}
-        <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
+        <JobsView
+          {jobs}
+          {jobForm}
+          onJobFormChange={updateJobForm}
+          onSubmitJob={() => void submitJob()}
+        />
       {:else if view === "calibration"}
         <CalibrationView {calibration} onNavigate={navigate} />
       {:else if view === "alpha-cohorts"}

@@ -628,7 +628,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     notFinancialAdvice: true,
     extras: {
       ...modelExtras,
-      ...(modelExtras.historicalContext === undefined && defaultHistoricalContext !== undefined
+      ...(defaultHistoricalContext !== undefined
         ? { historicalContext: defaultHistoricalContext }
         : {}),
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),

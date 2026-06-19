@@ -770,7 +770,7 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).not.toMatch(/\b(buy|sell|hold)\b/iu);
   });
 
-  test("groups repeated unmapped SEC filing gaps in report and trace only", async () => {
+  test("groups repeated unmapped SEC filing gaps in report, trace, and sidecar", async () => {
     const requestedUrls: string[] = [];
     const result = await runAlphaSearchWorkflow({
       command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },

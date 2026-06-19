@@ -60,7 +60,6 @@ Thematic research is equity-only and uses checked-in subject identity to keep fo
 Browse existing artifacts without changing the research-only boundary:
 
 ```sh
-bun run app:build
 bun run app
 ```
 
@@ -176,6 +175,8 @@ bun test
 bun run typecheck
 bun run lint
 bun run fmt
+bun run app      # build and serve Research Console at 127.0.0.1:4173
+bun run app:dev  # start API + Vite dev server
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for hooks, commit format, and CI expectations.

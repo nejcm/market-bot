@@ -127,11 +127,11 @@ The local Research Console App browses existing artifacts without changing the r
 boundary. Build the Svelte client, then start the localhost Bun server:
 
 ```sh
-bun run app:build
 bun run app
 ```
 
 The server binds to `127.0.0.1` and reads `MARKET_BOT_DATA_DIR` / `data/runs`.
+Use `bun run app:dev` for the API plus Vite dev server.
 The Jobs view queues allowlisted CLI verbs one at a time and shows basic status plus captured output.
 The Search view queries the Run Artifact Index when fresh (substring match on report text, same semantics as the disk fallback) and filters by symbol, asset class, job type, and date range. Run detail still loads `report.json`, `score.json`, and other payloads from disk.
 

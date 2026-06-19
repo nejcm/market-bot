@@ -20,7 +20,7 @@
   },
   "type": "module",
   "scripts": {
-    "app": "bun run app:build && bun run app:dev",
+    "app": "bun run app:build && bun run app:serve",
     "app:serve": "bun run app/server.ts",
     "app:dev": "bun run app/dev.ts",
     "app:build": "vite build --config app/vite.config.ts",

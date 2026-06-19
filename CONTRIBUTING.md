@@ -24,6 +24,8 @@ bunx lefthook install
 | `bun run knip`      | Find unused exports and dependencies             |
 | `bun run audit`     | Check for high-severity vulnerabilities          |
 | `bun run check`     | Run lint + fmt:check + typecheck + test in order |
+| `bun run app`       | Build and serve the Research Console             |
+| `bun run app:dev`   | Start the console API and Vite dev server        |
 
 ## Git hooks (via lefthook)
 

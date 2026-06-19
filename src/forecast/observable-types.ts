@@ -73,6 +73,11 @@ export interface ObservableForecastPolicy {
    *  Leave unset (or false) on the re-parse path so historical artifacts are
    *  not affected. */
   readonly requireSourceIds?: boolean;
+  /** When set, predictions whose normalized subject (or, for relative forecasts,
+   *  whose primary subject before the colon) is not in this set are rejected.
+   *  Leave unset for research runs — `researchPredictionGate` is the authority
+   *  there; pass `undefined` so no double-drop occurs. */
+  readonly allowedSubjects?: ReadonlySet<string>;
 }
 
 export interface ObservableForecastIssue {
@@ -90,7 +95,8 @@ export interface ObservableForecastIssue {
     | "unknown-source"
     | "missing-sources"
     | "duplicate-id"
-    | "redundant-prediction";
+    | "redundant-prediction"
+    | "disallowed-subject";
   readonly message: string;
 }
 

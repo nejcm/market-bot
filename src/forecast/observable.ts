@@ -793,7 +793,21 @@ function resolveCandidate(
     return mismatch;
   }
 
-  const { knownSourceIds, requireSourceIds } = policy;
+  const { knownSourceIds, requireSourceIds, allowedSubjects } = policy;
+  if (allowedSubjects !== undefined) {
+    // For relative forecasts the normalized subject is "primarySymbol:benchmarkSymbol".
+    // Allow the forecast when the primary instrument (before the colon) is in the set.
+    const primarySubject = normalizedSubject.includes(":")
+      ? (normalizedSubject.split(":")[0] ?? normalizedSubject)
+      : normalizedSubject;
+    if (!allowedSubjects.has(primarySubject) && !allowedSubjects.has(normalizedSubject)) {
+      return issue(
+        "disallowed-subject",
+        `Prediction ${id}: subject "${normalizedSubject}" is not in the allowed set for this run`,
+        id,
+      );
+    }
+  }
   if (knownSourceIds !== undefined) {
     for (const sid of sourceIds) {
       if (!knownSourceIds.has(sid)) {

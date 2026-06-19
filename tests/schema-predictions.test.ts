@@ -541,3 +541,90 @@ describe("missing-sources rejection (emission vs re-parse)", () => {
     expect(result.issues).toHaveLength(0);
   });
 });
+
+describe("allowedSubjects enforcement (3.1 — context-aware subject gate)", () => {
+  const marketOverviewAllowed = new Set(["SPY", "QQQ", "^VIX", "DGS10"]);
+  const tickerAllowed = new Set(["AAPL"]);
+
+  test("rejects a market-overview prediction whose subject is not in the allowed set", () => {
+    // BTC is not an equity market-overview subject
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-btc",
+          subject: "BTC",
+          measurableAs: "close(BTC, +5) > close(BTC, 0)",
+        },
+      ],
+      knownIds,
+      marketOverviewAllowed,
+    );
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("not in the allowed set");
+    expect(result.issues[0]?.code).toBe("disallowed-subject");
+  });
+
+  test("accepts a prediction whose subject is in the allowed set", () => {
+    // SPY is an allowed market-overview subject
+    const result = validatePredictions([validPrediction], knownIds, marketOverviewAllowed);
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("accepts a macro prediction whose subject is a FRED series in the allowed set", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-macro",
+          kind: "macro",
+          subject: "DGS10",
+          measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)",
+          claim: "DGS10 rises over 5 trading days.",
+        },
+      ],
+      knownIds,
+      marketOverviewAllowed,
+    );
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("accepts a ticker relative forecast where the primary subject (AAPL) is in the allowed set", () => {
+    // Relative subject is "AAPL:SPY"; primary part "AAPL" is in tickerAllowed
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-rel",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+      ],
+      knownIds,
+      tickerAllowed,
+    );
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("accepts predictions when allowedSubjects is undefined (no gate)", () => {
+    // Research runs pass allowedSubjects=undefined; all subjects pass through
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-btc",
+          subject: "BTC",
+          measurableAs: "close(BTC, +5) > close(BTC, 0)",
+        },
+      ],
+      knownIds,
+      // AllowedSubjects not passed — undefined means no gate
+    );
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
+});

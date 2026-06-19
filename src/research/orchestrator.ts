@@ -525,6 +525,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   );
   const sources = buildSourceList(input.command, collectedSources, historicalContext, generatedAt);
   const knownSourceIds = new Set(sources.map((source) => source.id));
+  // Build the emission-time subject allowlist from the resolved run params.
+  // Research runs use researchPredictionGate instead; pass undefined so no double-drop occurs.
+  const allowedSubjects =
+    input.command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
 
   const synthesis = await synthesizeReportUntilValid({
     runId,
@@ -534,6 +538,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     context: playbookContext,
     sources,
     knownSourceIds,
+    ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
     priorStages: [...analysisOutputs, critiqueOutput],
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
     runFinalSynthesis: (priorStages, reprompt) =>

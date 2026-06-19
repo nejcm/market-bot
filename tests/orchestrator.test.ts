@@ -2152,7 +2152,7 @@ describe("runResearchJob", () => {
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
-              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
               bullCase: [],
               bearCase: [],
               risks: [],
@@ -2163,20 +2163,20 @@ describe("runResearchJob", () => {
               predictions: [
                 {
                   id: "pred-1",
-                  claim: "AAPL closes higher over 5 trading days.",
+                  claim: "SPY closes higher over 5 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +5) > close(SPY, 0)",
                   horizonTradingDays: 5,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
                 {
                   id: "pred-adjacent",
-                  claim: "AAPL closes higher over 6 trading days.",
+                  claim: "SPY closes higher over 6 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +6) > close(SPY, 0)",
                   horizonTradingDays: 6,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
@@ -2189,7 +2189,7 @@ describe("runResearchJob", () => {
         }
 
         return {
-          content: modelReport("AAPL"),
+          content: modelReport("SPY"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -2211,7 +2211,7 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
     const redundancyReason =
-      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)";
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)";
 
     // Redundancy still triggers a single reprompt; a shortfall alone never would (ADR 0021).
     expect(finalPrompts).toHaveLength(2);
@@ -2252,7 +2252,7 @@ describe("runResearchJob", () => {
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
-              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
               bullCase: [],
               bearCase: [],
               risks: [],
@@ -2263,30 +2263,30 @@ describe("runResearchJob", () => {
               predictions: [
                 {
                   id: "pred-1",
-                  claim: "AAPL closes higher over 5 trading days.",
+                  claim: "SPY closes higher over 5 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +5) > close(SPY, 0)",
                   horizonTradingDays: 5,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
                 {
                   id: "pred-adjacent",
-                  claim: "AAPL closes higher over 6 trading days.",
+                  claim: "SPY closes higher over 6 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +6) > close(SPY, 0)",
                   horizonTradingDays: 6,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
                 {
                   id: "pred-distinct",
-                  claim: "AAPL closes higher over 8 trading days.",
+                  claim: "SPY closes higher over 8 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +8) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +8) > close(SPY, 0)",
                   horizonTradingDays: 8,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
@@ -2299,7 +2299,7 @@ describe("runResearchJob", () => {
         }
 
         return {
-          content: modelReport("AAPL"),
+          content: modelReport("SPY"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -2323,7 +2323,7 @@ describe("runResearchJob", () => {
 
     expect(finalPrompts).toHaveLength(2);
     expect(retryPrompt.predictionRepromptErrors).toContain(
-      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)",
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)",
     );
     expect(retryPrompt.predictionRepromptErrors).not.toContain(
       "predictionShortfall: required 2, received 2",
@@ -2332,7 +2332,7 @@ describe("runResearchJob", () => {
       (retryPrompt.predictionRepair as { readonly instruction?: string } | undefined)?.instruction,
     ).toContain("at least 2 trading days apart");
     expect(result.trace.predictionRetryErrors).toContain(
-      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)",
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)",
     );
   });
 

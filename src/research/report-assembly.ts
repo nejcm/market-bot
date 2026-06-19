@@ -270,12 +270,13 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
 export function readPredictions(
   value: unknown,
   knownSourceIds: ReadonlySet<string>,
+  allowedSubjects?: ReadonlySet<string>,
 ): {
   predictions: readonly Prediction[];
   errors: readonly string[];
   issues: readonly ObservableForecastIssue[];
 } {
-  const result = validatePredictions(readArray(value), knownSourceIds);
+  const result = validatePredictions(readArray(value), knownSourceIds, allowedSubjects);
   return { predictions: result.valid, errors: result.errors, issues: result.issues };
 }
 

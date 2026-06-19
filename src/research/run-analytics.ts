@@ -103,6 +103,14 @@ export interface RunAnalytics {
       readonly errorCount: number;
       readonly highDisagreementCount: number;
     };
+    /** Count of emitted predictions whose probability is within NEAR_BASE_RATE_BAND of 0.5. */
+    readonly nearBaseRateCount: number;
+    /** Count of emitted predictions outside the near-base-rate band (more informative). */
+    readonly informativeCount: number;
+    /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count. */
+    readonly signalTargetMet: boolean;
+    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
+    readonly mixWarnings: readonly string[];
   };
   readonly calibrationAtGeneration?: {
     readonly generatedAt?: string;
@@ -130,6 +138,19 @@ export interface RunAnalytics {
     readonly durationMs?: number;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Forecast-quality telemetry constants (analytics-only, never rejection gates)
+// ---------------------------------------------------------------------------
+
+/** Predictions within this distance of 0.5 probability are "near base rate". */
+const NEAR_BASE_RATE_BAND = 0.05;
+
+/**
+ * Minimum fraction of emitted predictions that must be outside the near-base-rate
+ * band for `signalTargetMet` to be true.
+ */
+const SIGNAL_INFORMATIVE_FLOOR = 0.5;
 
 export interface RunAnalyticsCalibrationSlice {
   readonly key: string;
@@ -357,6 +378,26 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           missingCount: missingPredictionCount,
           disclosed: report.dataGaps.some((gap) => gap.startsWith("predictionShortfall:")),
         };
+
+  const emittedPredictions = report.predictions;
+  const nearBaseRateCount = emittedPredictions.filter(
+    (prediction) => Math.abs(prediction.probability - 0.5) <= NEAR_BASE_RATE_BAND,
+  ).length;
+  const informativeCount = emittedPredictions.length - nearBaseRateCount;
+  const signalTargetMet =
+    emittedPredictions.length === 0 ||
+    informativeCount / emittedPredictions.length >= SIGNAL_INFORMATIVE_FLOOR;
+  const mixWarnings: string[] = [];
+  if (emittedPredictions.length > 0 && emittedPredictions.every((p) => p.kind === "direction")) {
+    mixWarnings.push(
+      "all emitted predictions are direction kind; consider more informative kinds such as relative, range, or macro",
+    );
+  }
+  if (emittedPredictions.length > 0 && nearBaseRateCount === emittedPredictions.length) {
+    mixWarnings.push(
+      "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal",
+    );
+  }
   const calibrationSnapshot = calibrationAtGeneration(input);
   const verifiedSnapshot = verifiedMarketSnapshotFreshness(collectedSources);
 
@@ -419,6 +460,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       targetMet: report.predictions.length >= input.targetPredictions,
       ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
+      nearBaseRateCount,
+      informativeCount,
+      signalTargetMet,
+      mixWarnings,
     },
     ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),

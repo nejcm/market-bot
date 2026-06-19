@@ -43,6 +43,9 @@ export interface SynthesizeReportUntilValidInput {
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
   readonly knownSourceIds: ReadonlySet<string>;
+  /** Subjects the model is allowed to forecast for this run type.
+   *  Undefined for research runs — `researchPredictionGate` is the authority there. */
+  readonly allowedSubjects?: ReadonlySet<string>;
   readonly priorStages: readonly StageOutput[];
   readonly maxPredictionReprompts: number;
   readonly runFinalSynthesis: (
@@ -154,7 +157,11 @@ async function runAndReadFinalSynthesis(
 ): Promise<FinalSynthesisState> {
   const output = await input.runFinalSynthesis(input.priorStages, reprompt);
   const payload = parseModelPayload(output.content);
-  const predResult = readPredictions(payload.predictions, input.knownSourceIds);
+  const predResult = readPredictions(
+    payload.predictions,
+    input.knownSourceIds,
+    input.allowedSubjects,
+  );
   return { output, payload, predResult };
 }
 

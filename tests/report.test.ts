@@ -871,6 +871,54 @@ describe("report schema and rendering", () => {
     });
   });
 
+  test("keeps prior forecast numeric narrative cited to history reports", () => {
+    const historySourceId = "history-report-prior-run";
+    const command = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol: "AAPL", sourceId: "market-aapl", price: 100 })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const assembled = assembleResearchReport({
+      runId: "ticker-aapl",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL evidence is mixed.",
+        keyFindings: [
+          {
+            text: "Prior AAPL forecast had p=0.72 and missed after 5 days.",
+            sourceIds: [historySourceId],
+          },
+        ],
+        confidence: "medium",
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [
+        ...buildSourceList(command, collected),
+        {
+          id: historySourceId,
+          title: "Prior AAPL report",
+          fetchedAt: "2026-05-01T00:00:00.000Z",
+          kind: "model",
+          assetClass: "equity",
+          symbol: "AAPL",
+          rawRef: "prior-run/report.json",
+          provider: "market-bot",
+        },
+      ],
+    });
+
+    expect(assembled.keyFindings[0]?.sourceIds).toEqual([historySourceId]);
+  });
+
   test("writes canonical research subject extras", () => {
     const depthProfile = assemblyDepthProfile("SMH");
     const assembled = assembleResearchReport({

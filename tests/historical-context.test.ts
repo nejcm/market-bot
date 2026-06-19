@@ -652,6 +652,66 @@ describe("loadHistoricalContext", () => {
     expect(context.audit.missCorrectionSelectedCount).toBe(1);
   });
 
+  test("collapses same-day research history across subject-key and proxy-only identities", async () => {
+    const dataDir = tempRunsDir();
+    const now = new Date("2026-06-04T00:00:00.000Z");
+    await writeRun({
+      dataDir,
+      runDirName: "research-key-and-proxy",
+      report: researchReport({
+        runId: "research-key-and-proxy",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-06-03T15:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        }),
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "research-proxy-only",
+      report: researchReport({
+        runId: "research-proxy-only",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-06-03T12:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        }),
+      }),
+    });
+
+    const context = await loadHistoricalContext({
+      dataDir,
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "semis",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      config: {
+        historyOptions: options({ tickerRecentLimit: 2, anchorMonths: [], missCorrectionLimit: 0 }),
+      },
+      now,
+    });
+
+    expect(context.runs.map((run) => run.runId)).toEqual(["research-key-and-proxy"]);
+    expect(context.audit.selectedRunCount).toBe(1);
+    expect(context.audit.sameSubjectSelectedCount).toBe(1);
+  });
+
   test("appends extraGaps to gaps and reflects their count in audit.gapCount", async () => {
     const context = await loadHistoricalContext({
       dataDir: tempRunsDir(),

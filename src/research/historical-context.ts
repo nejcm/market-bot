@@ -587,7 +587,7 @@ function comparableRunKey(run: HistoricalRunContext): string | undefined {
     return ["ticker", run.assetClass, run.symbol.toUpperCase(), "none", day].join("|");
   }
   if (run.jobType === "research") {
-    const subject = run.subjectKey ?? run.predictionProxySymbol;
+    const subject = run.predictionProxySymbol ?? run.subjectKey;
     return subject === undefined
       ? undefined
       : ["research", run.assetClass, subject.toUpperCase(), "none", day].join("|");

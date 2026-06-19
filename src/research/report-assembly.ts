@@ -572,6 +572,8 @@ function withoutDeterministicGapRestatements(
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$€£]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
+const CURRENT_SNAPSHOT_CLAIM_PATTERN =
+  /\b(?:current|latest|snapshot|traded|trading|price|priced|quote|volume|market cap|change|open|close|closed|previous close|average volume)\b/iu;
 
 function citesOnlyHistoryReports(sourceIds: readonly string[]): boolean {
   return (
@@ -609,6 +611,10 @@ function preferSnapshotCitationForFinding(input: {
 }): KeyFinding {
   if (
     !NUMERIC_CLAIM_PATTERN.test(input.finding.text) ||
+    !(
+      CURRENT_SNAPSHOT_CLAIM_PATTERN.test(input.finding.text) ||
+      TECHNICAL_INDICATOR_PATTERN.test(input.finding.text)
+    ) ||
     !citesOnlyHistoryReports(input.finding.sourceIds)
   ) {
     return input.finding;
@@ -634,6 +640,10 @@ function preferSnapshotCitationsForScenarios(
   return scenarios.map((scenario) => {
     if (
       !NUMERIC_CLAIM_PATTERN.test(scenario.description) ||
+      !(
+        CURRENT_SNAPSHOT_CLAIM_PATTERN.test(scenario.description) ||
+        TECHNICAL_INDICATOR_PATTERN.test(scenario.description)
+      ) ||
       !citesOnlyHistoryReports(scenario.sourceIds)
     ) {
       return scenario;

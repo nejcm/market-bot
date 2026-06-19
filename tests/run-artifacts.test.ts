@@ -141,6 +141,72 @@ describe("loadRunArtifact", () => {
     ]);
   });
 
+  test("loads source-plan sidecars through the run artifact seam", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "source-plan");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "source-plan" }));
+    await writeJson(join(runDir, "normalized", "source-plan.json"), {
+      version: 1,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      run: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      lanes: [
+        {
+          lane: "market-data",
+          requirement: "required",
+          appliesToRun: true,
+          providerPath: "yahoo equity market data",
+        },
+      ],
+    });
+    await writeJson(join(runDir, "normalized", "evidence-lanes.json"), {
+      version: 1,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      lanes: [
+        {
+          lane: "market-data",
+          status: "covered",
+          required: true,
+          coveredSourceIds: ["market-yahoo-equity-aapl"],
+          gapIds: [],
+          gapText: [],
+          freshnessNotes: ["latest evidence timestamp 2026-05-19T00:00:00.000Z"],
+        },
+      ],
+      summary: {
+        plannedLaneCount: 1,
+        requiredLaneCount: 1,
+        optionalLaneCount: 0,
+        coveredLaneCount: 1,
+        gapLaneCount: 0,
+        requiredGapLaneCount: 0,
+        sourceCount: 1,
+        gapCount: 0,
+        coverageRatio: 1,
+      },
+    });
+    await writeJson(join(runDir, "normalized", "source-ledger.json"), {
+      version: 1,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      sources: [
+        {
+          id: "market-yahoo-equity-aapl",
+          kind: "market-data",
+          provider: "yahoo",
+          observedAt: "2026-05-19T00:00:00.000Z",
+          lane: "market-data",
+          posture: "covered",
+          relatedGapIds: [],
+        },
+      ],
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.sourcePlan?.lanes[0]?.lane).toBe("market-data");
+    expect(artifact?.evidenceLanes?.summary.coverageRatio).toBe(1);
+    expect(artifact?.sourceLedger?.sources[0]?.id).toBe("market-yahoo-equity-aapl");
+  });
+
   test("preserves extended evidence identities and source gap metadata", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "extended-evidence");

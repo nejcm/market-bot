@@ -1840,6 +1840,17 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "movers.json"), "utf8"),
     ).resolves.toContain("market-aapl");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "source-plan.json"), "utf8"),
+    ).resolves.toContain("market-data");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "evidence-lanes.json"), "utf8"),
+    ).resolves.toContain("coveredLaneCount");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "source-ledger.json"), "utf8"),
+    ).resolves.toContain("market-aapl");
+    expect(result.trace.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);
+    expect(result.analytics.evidenceLanes?.coveredLaneCount).toBeGreaterThan(0);
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "Equity market breadth",
     );

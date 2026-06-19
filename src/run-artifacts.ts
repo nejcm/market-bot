@@ -33,6 +33,11 @@ import type {
   PredictionScore,
   PredictionScoreStatus,
 } from "./scoring/types";
+import type {
+  EvidenceLanesArtifact,
+  SourceLedgerArtifact,
+  SourcePlanArtifact,
+} from "./research/source-plan";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -80,6 +85,9 @@ export interface RunArtifact {
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly sourcePlan?: SourcePlanArtifact;
+  readonly evidenceLanes?: EvidenceLanesArtifact;
+  readonly sourceLedger?: SourceLedgerArtifact;
   readonly status: RunArtifactStatus;
 }
 
@@ -617,6 +625,37 @@ function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapshot | un
       };
 }
 
+function readSourcePlan(value: unknown): SourcePlanArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !isRecord(value.run) ||
+    !Array.isArray(value.lanes)
+  ) {
+    return;
+  }
+  return value as unknown as SourcePlanArtifact;
+}
+
+function readEvidenceLanes(value: unknown): EvidenceLanesArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !Array.isArray(value.lanes) ||
+    !isRecord(value.summary)
+  ) {
+    return;
+  }
+  return value as unknown as EvidenceLanesArtifact;
+}
+
+function readSourceLedger(value: unknown): SourceLedgerArtifact | undefined {
+  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.sources)) {
+    return;
+  }
+  return value as unknown as SourceLedgerArtifact;
+}
+
 function scoreStatusFor(
   file: JsonFileResult,
   parsed: readonly PredictionScore[] | undefined,
@@ -632,6 +671,9 @@ const SCORE_FILE = "score.json";
 const MISS_AUTOPSY_FILE = "miss-autopsy.json";
 const MARKET_SNAPSHOTS_FILE = join("normalized", "market-snapshots.json");
 const VERIFIED_MARKET_SNAPSHOT_FILE = join("normalized", "verified-market-snapshot.json");
+const SOURCE_PLAN_FILE = join("normalized", "source-plan.json");
+const EVIDENCE_LANES_FILE = join("normalized", "evidence-lanes.json");
+const SOURCE_LEDGER_FILE = join("normalized", "source-ledger.json");
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -652,6 +694,9 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const missAutopsyFile = await readJsonFile(join(runDir, MISS_AUTOPSY_FILE));
   const snapshotFile = await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
   const verifiedSnapshotFile = await readJsonFile(join(runDir, VERIFIED_MARKET_SNAPSHOT_FILE));
+  const sourcePlanFile = await readJsonFile(join(runDir, SOURCE_PLAN_FILE));
+  const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
+  const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
@@ -660,6 +705,12 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     verifiedSnapshotFile.status === "ok"
       ? readVerifiedMarketSnapshot(verifiedSnapshotFile.value)
       : undefined;
+  const sourcePlan =
+    sourcePlanFile.status === "ok" ? readSourcePlan(sourcePlanFile.value) : undefined;
+  const evidenceLanes =
+    evidenceLanesFile.status === "ok" ? readEvidenceLanes(evidenceLanesFile.value) : undefined;
+  const sourceLedger =
+    sourceLedgerFile.status === "ok" ? readSourceLedger(sourceLedgerFile.value) : undefined;
 
   return {
     artifact: {
@@ -669,6 +720,9 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: readSnapshots(snapshotFile.value),
       ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
+      ...(sourcePlan !== undefined ? { sourcePlan } : {}),
+      ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
+      ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       status,
     },
     status,

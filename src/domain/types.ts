@@ -447,6 +447,19 @@ export interface RunTrace {
     readonly warningCount: number;
     readonly warnings: readonly PostSynthesisAuditWarning[];
   };
+  readonly sourcePlan?: {
+    readonly plannedLaneCount: number;
+    readonly requiredLaneCount: number;
+    readonly optionalLaneCount: number;
+  };
+  readonly evidenceLanes?: {
+    readonly coveredLaneCount: number;
+    readonly gapLaneCount: number;
+    readonly requiredGapLaneCount: number;
+    readonly sourceCount: number;
+    readonly gapCount: number;
+    readonly coverageRatio: number;
+  };
   readonly forecastDisagreement?: {
     readonly configuredModelCount: number;
     readonly challengerModelCount: number;

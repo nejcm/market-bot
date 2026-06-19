@@ -177,6 +177,17 @@ describe("run analytics", () => {
         },
       ],
       targetPredictions: 3,
+      sourcePlanSummary: {
+        plannedLaneCount: 5,
+        requiredLaneCount: 2,
+        optionalLaneCount: 3,
+        coveredLaneCount: 3,
+        gapLaneCount: 1,
+        requiredGapLaneCount: 1,
+        sourceCount: 4,
+        gapCount: 1,
+        coverageRatio: 0.6,
+      },
       calibrationContext: {
         generatedAt: "2026-05-18T00:00:00.000Z",
         resolvedCount: 12,
@@ -235,6 +246,19 @@ describe("run analytics", () => {
       latestSessionDate: "2026-05-17",
       fetchedAt: "2026-05-19T00:00:00.000Z",
       latestSessionAgeDays: 2,
+    });
+    expect(analytics.sourcePlan).toEqual({
+      plannedLaneCount: 5,
+      requiredLaneCount: 2,
+      optionalLaneCount: 3,
+    });
+    expect(analytics.evidenceLanes).toEqual({
+      coveredLaneCount: 3,
+      gapLaneCount: 1,
+      requiredGapLaneCount: 1,
+      sourceCount: 4,
+      gapCount: 1,
+      coverageRatio: 0.6,
     });
     expect(analytics.runShape.stages).toEqual([
       { stage: "specialist-analysis", tokenEstimate: 100, costEstimateUsd: 0.01 },

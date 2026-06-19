@@ -4,6 +4,7 @@ import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationContext } from "./research-context-types";
+import type { EvidenceLaneSummary } from "./source-plan";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -18,6 +19,7 @@ export interface BuildRunAnalyticsInput {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
   readonly targetPredictions: number;
+  readonly sourcePlanSummary?: EvidenceLaneSummary;
   readonly calibrationContext?: CalibrationContext;
 }
 
@@ -115,6 +117,19 @@ export interface RunAnalytics {
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly byCode: Readonly<Record<string, number>>;
+  };
+  readonly sourcePlan?: {
+    readonly plannedLaneCount: number;
+    readonly requiredLaneCount: number;
+    readonly optionalLaneCount: number;
+  };
+  readonly evidenceLanes?: {
+    readonly coveredLaneCount: number;
+    readonly gapLaneCount: number;
+    readonly requiredGapLaneCount: number;
+    readonly sourceCount: number;
+    readonly gapCount: number;
+    readonly coverageRatio: number;
   };
   readonly calibrationAtGeneration?: {
     readonly generatedAt?: string;
@@ -345,7 +360,7 @@ function verifiedMarketSnapshotFreshness(
 }
 
 export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
-  const { collectedSources, report, trace } = input;
+  const { collectedSources, report, sourcePlanSummary, trace } = input;
   const gaps = sourceGaps(collectedSources);
   const { extendedEvidence, marketContext } = collectedSources;
   const runDurationMs = durationMs(trace);
@@ -481,6 +496,23 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       mixWarnings,
     },
     ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
+    ...(sourcePlanSummary !== undefined
+      ? {
+          sourcePlan: {
+            plannedLaneCount: sourcePlanSummary.plannedLaneCount,
+            requiredLaneCount: sourcePlanSummary.requiredLaneCount,
+            optionalLaneCount: sourcePlanSummary.optionalLaneCount,
+          },
+          evidenceLanes: {
+            coveredLaneCount: sourcePlanSummary.coveredLaneCount,
+            gapLaneCount: sourcePlanSummary.gapLaneCount,
+            requiredGapLaneCount: sourcePlanSummary.requiredGapLaneCount,
+            sourceCount: sourcePlanSummary.sourceCount,
+            gapCount: sourcePlanSummary.gapCount,
+            coverageRatio: sourcePlanSummary.coverageRatio,
+          },
+        }
+      : {}),
     ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     runShape: {

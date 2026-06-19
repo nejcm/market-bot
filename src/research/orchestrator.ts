@@ -68,6 +68,12 @@ import {
   type SpotlightSelectionResult,
 } from "./spotlights";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
+import {
+  buildSourcePlan,
+  type EvidenceLanesArtifact,
+  type SourceLedgerArtifact,
+  type SourcePlanArtifact,
+} from "./source-plan";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -89,6 +95,9 @@ export interface RunResearchJobResult {
   readonly stageOutputs: readonly StageOutput[];
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
+  readonly sourcePlan: SourcePlanArtifact;
+  readonly evidenceLanes: EvidenceLanesArtifact;
+  readonly sourceLedger: SourceLedgerArtifact;
   readonly forecastDisagreement?: ForecastDisagreementArtifact;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
@@ -623,6 +632,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ],
     });
   }
+  const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
   const { predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
@@ -667,6 +677,19 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           },
         }
       : {}),
+    sourcePlan: {
+      plannedLaneCount: sourcePlanning.evidenceLanes.summary.plannedLaneCount,
+      requiredLaneCount: sourcePlanning.evidenceLanes.summary.requiredLaneCount,
+      optionalLaneCount: sourcePlanning.evidenceLanes.summary.optionalLaneCount,
+    },
+    evidenceLanes: {
+      coveredLaneCount: sourcePlanning.evidenceLanes.summary.coveredLaneCount,
+      gapLaneCount: sourcePlanning.evidenceLanes.summary.gapLaneCount,
+      requiredGapLaneCount: sourcePlanning.evidenceLanes.summary.requiredGapLaneCount,
+      sourceCount: sourcePlanning.evidenceLanes.summary.sourceCount,
+      gapCount: sourcePlanning.evidenceLanes.summary.gapCount,
+      coverageRatio: sourcePlanning.evidenceLanes.summary.coverageRatio,
+    },
     ...(forecastDisagreement !== undefined
       ? {
           forecastDisagreement: {
@@ -685,6 +708,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     collectedSources,
     stageOutputs,
     targetPredictions: context.depthProfile.targetPredictions,
+    sourcePlanSummary: sourcePlanning.evidenceLanes.summary,
     ...(calibrationContext !== undefined ? { calibrationContext } : {}),
   });
 
@@ -696,6 +720,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stageOutputs,
     collectedSources,
     historicalContext,
+    sourcePlan: sourcePlanning.sourcePlan,
+    evidenceLanes: sourcePlanning.evidenceLanes,
+    sourceLedger: sourcePlanning.sourceLedger,
     ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
     ...(spotlightCandidates !== undefined ? { spotlightCandidates } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
@@ -738,6 +765,9 @@ export async function persistResearchJob(
     join(artifacts.normalizedDir, "source-gaps.json"),
     result.collectedSources.sourceGaps,
   );
+  await writeJson(join(artifacts.normalizedDir, "source-plan.json"), result.sourcePlan);
+  await writeJson(join(artifacts.normalizedDir, "evidence-lanes.json"), result.evidenceLanes);
+  await writeJson(join(artifacts.normalizedDir, "source-ledger.json"), result.sourceLedger);
   await writeJson(
     join(artifacts.normalizedDir, "historical-context.json"),
     result.historicalContext,

@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import {
+  observableForecastFromPrediction,
+  readObservableForecasts,
+} from "../src/forecast/observable";
 import { validatePredictions } from "../src/report/schema";
 
 const knownIds = new Set(["src-1", "src-2"]);
@@ -78,10 +82,10 @@ describe("validatePredictions", () => {
     expect(result.errors[0]).toContain("unknown sourceId");
   });
 
-  test("accepts prediction with empty sourceIds", () => {
+  test("rejects prediction with empty sourceIds at emission", () => {
     const result = validatePredictions([{ ...validPrediction, sourceIds: [] }], knownIds);
-    expect(result.valid).toHaveLength(1);
-    expect(result.errors).toHaveLength(0);
+    expect(result.valid).toHaveLength(0);
+    expect(result.errors[0]).toContain("predictions must cite at least one sourceId");
   });
 
   test("drops non-object candidates", () => {
@@ -473,5 +477,67 @@ describe("validatePredictions", () => {
 
     expect(result.valid).toHaveLength(0);
     expect(result.errors[0]).toContain("unparseable measurableAs");
+  });
+});
+
+describe("duplicate-id rejection", () => {
+  test("first occurrence wins; second with same id and different measurableAs gets duplicate-id", () => {
+    const result = validatePredictions(
+      [
+        { ...validPrediction, id: "dup-id", measurableAs: "close(SPY, +5) > close(SPY, 0)" },
+        {
+          ...validPrediction,
+          id: "dup-id",
+          measurableAs: "close(QQQ, +5) > close(QQQ, 0)",
+          subject: "QQQ",
+        },
+      ],
+      knownIds,
+    );
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.subject).toBe("SPY");
+    expect(result.errors[0]).toContain("duplicate prediction id");
+  });
+
+  test("distinct ids are unaffected", () => {
+    const result = validatePredictions(
+      [
+        validPrediction,
+        {
+          ...validPrediction,
+          id: "pred-2",
+          measurableAs: "close(QQQ, +5) > close(QQQ, 0)",
+          subject: "QQQ",
+        },
+      ],
+      knownIds,
+    );
+    expect(result.valid).toHaveLength(2);
+    expect(result.errors).toHaveLength(0);
+  });
+});
+
+describe("missing-sources rejection (emission vs re-parse)", () => {
+  test("re-parse path: observableForecastFromPrediction accepts empty sourceIds (no regression for historical artifacts)", () => {
+    const prediction = {
+      id: "hist-1",
+      claim: "SPY closes higher than today over 5 trading days",
+      kind: "direction" as const,
+      subject: "SPY",
+      measurableAs: "close(SPY, +5) > close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.6,
+      sourceIds: [] as string[],
+    };
+    const result = observableForecastFromPrediction(prediction);
+    // Re-parse path must not reject empty sourceIds — historical artifacts may lack them.
+    expect("prediction" in result).toBe(true);
+  });
+
+  test("re-parse path: readObservableForecasts without requireSourceIds accepts empty sourceIds", () => {
+    const candidates = [{ ...validPrediction, sourceIds: [] }];
+    const result = readObservableForecasts(candidates);
+    expect(result.forecasts).toHaveLength(1);
+    expect(result.issues).toHaveLength(0);
   });
 });

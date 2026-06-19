@@ -10,8 +10,9 @@ import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { KeyFinding, ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
 import {
-  dedupeSourceGaps,
+  compactUnmappedSecFilingGaps,
   isCoreEvidenceQualityGap,
+  isUnmappedSecFilingGap,
   sourceGapReportText,
 } from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
@@ -88,7 +89,10 @@ export interface AlphaSearchRunAnalytics {
   readonly alphaSearch: {
     readonly socialCandidateCount: number;
     readonly secCandidateCount: number;
+    /** All Yahoo-validated leads before the display limit is applied. */
     readonly validLeadCount: number;
+    /** Leads actually surfaced in the report (after leadLimit slice). */
+    readonly researchLeadCount: number;
     readonly rejectedCandidateCount: number;
     readonly fundamentalGapCount: number;
   };
@@ -188,41 +192,12 @@ function dedupeSourcesById(sources: readonly Source[]): readonly Source[] {
   return [...byId.values()];
 }
 
-const UNMAPPED_SEC_FILING_RE =
-  /^SEC filing (?<form>[A-Z0-9/-]+) (?<date>\d{4}-\d{2}-\d{2}) did not map to a ticker$/u;
-
-function unmappedSecFilingKey(gap: SourceGap): string | undefined {
-  if (gap.source !== "sec-alpha-search") {
-    return undefined;
-  }
-  const match = UNMAPPED_SEC_FILING_RE.exec(gap.message);
-  if (match === null) {
-    return undefined;
-  }
-  return gap.message;
-}
-
 function alphaSearchSourceGapReportTexts(gaps: readonly SourceGap[]): readonly string[] {
-  const counts = new Map<string, number>();
-  for (const gap of gaps) {
-    const key = unmappedSecFilingKey(gap);
-    if (key !== undefined) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-
-  return dedupeSourceGaps(gaps).map((gap) => {
-    const key = unmappedSecFilingKey(gap);
-    const count = key === undefined ? undefined : counts.get(key);
-    if (key === undefined || count === undefined || count <= 1) {
-      return sourceGapReportText(gap);
-    }
-    return `${sourceGapReportText(gap)} (${String(count)} filings)`;
-  });
+  return compactUnmappedSecFilingGaps(gaps).map((gap) => sourceGapReportText(gap));
 }
 
 function unmappedSecFilingCount(gaps: readonly SourceGap[]): number {
-  return gaps.filter((gap) => unmappedSecFilingKey(gap) !== undefined).length;
+  return gaps.filter((gap) => isUnmappedSecFilingGap(gap)).length;
 }
 
 function profileCoverage(input: {
@@ -414,6 +389,8 @@ function buildAlphaSearchAnalytics(input: {
   readonly rankedCandidates: readonly SocialMomentumRankedCandidate[];
   readonly secCandidates: readonly SecDiscoveryCandidate[];
   readonly validLeads: readonly YahooValidatedLead[];
+  /** Number of leads actually surfaced after the leadLimit slice. */
+  readonly researchLeadCount: number;
   readonly rejectedCandidates: readonly (
     | YahooRejectedCandidate
     | ListedUniverseRejectedCandidate<AlphaSearchCandidate>
@@ -450,6 +427,7 @@ function buildAlphaSearchAnalytics(input: {
       socialCandidateCount: input.rankedCandidates.length,
       secCandidateCount: input.secCandidates.length,
       validLeadCount: input.validLeads.length,
+      researchLeadCount: input.researchLeadCount,
       rejectedCandidateCount: input.rejectedCandidates.length,
       fundamentalGapCount: input.fundamentalSourceGaps.length,
     },
@@ -593,6 +571,7 @@ export async function runAlphaSearchWorkflow(input: {
     rankedCandidates,
     secCandidates: secDiscovery.candidates,
     validLeads: yahoo.validLeads,
+    researchLeadCount: researchLeads.length,
     rejectedCandidates,
     sourceGaps,
     fundamentalSourceGaps: fundamentals.sourceGaps,
@@ -630,7 +609,10 @@ export async function runAlphaSearchWorkflow(input: {
   );
   await writeJson(join(artifacts.normalizedDir, "candidate-profiles.json"), candidateProfiles);
   await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), rejectedCandidates);
-  await writeJson(join(artifacts.normalizedDir, "source-gaps.json"), sourceGaps);
+  await writeJson(
+    join(artifacts.normalizedDir, "source-gaps.json"),
+    compactUnmappedSecFilingGaps(sourceGaps),
+  );
   await writeJson(join(artifacts.runDir, "analytics.json"), analytics);
   await writeRunOutputs(artifacts, report, markdown, trace);
 

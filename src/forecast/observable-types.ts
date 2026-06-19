@@ -69,6 +69,10 @@ export interface ObservableForecast {
 
 export interface ObservableForecastPolicy {
   readonly knownSourceIds?: ReadonlySet<string>;
+  /** When true, predictions with no sourceIds are rejected at emission time.
+   *  Leave unset (or false) on the re-parse path so historical artifacts are
+   *  not affected. */
+  readonly requireSourceIds?: boolean;
 }
 
 export interface ObservableForecastIssue {
@@ -84,6 +88,8 @@ export interface ObservableForecastIssue {
     | "unparseable-measurable"
     | "field-mismatch"
     | "unknown-source"
+    | "missing-sources"
+    | "duplicate-id"
     | "redundant-prediction";
   readonly message: string;
 }

@@ -260,7 +260,7 @@ export function validatePredictions(
   candidates: readonly unknown[],
   knownSourceIds: ReadonlySet<string>,
 ): PredictionValidationResult {
-  const result = readObservableForecasts(candidates, { knownSourceIds });
+  const result = readObservableForecasts(candidates, { knownSourceIds, requireSourceIds: true });
   return { valid: result.predictions, errors: result.promptErrors, issues: result.issues };
 }
 

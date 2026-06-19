@@ -26,12 +26,12 @@ const COMPANY_SUFFIX_TERMS = new Set([
   "plc",
 ]);
 
-// Generic market words that appear in subject aliases (e.g. "chip stocks", "small caps")
-// But carry no thematic signal. Excluded from name-relevance terms so that broad market
-// Headlines ("Stocks rally...") do not match a specific research subject's news targets.
+// Generic market words that appear in subject aliases (e.g. the "stocks" in "chip stocks")
+// But carry no thematic signal for any subject. Excluded from name-relevance terms so that
+// Broad market headlines ("Stocks rally...") do not match a specific research subject's news
+// Targets. Only universally-generic words belong here: subject-defining words such as "small"
+// Or "caps" (the theme of the small-caps subject) must stay matchable.
 const GENERIC_TOPIC_TERMS = new Set([
-  "cap",
-  "caps",
   "equities",
   "equity",
   "market",
@@ -40,7 +40,6 @@ const GENERIC_TOPIC_TERMS = new Set([
   "sectors",
   "share",
   "shares",
-  "small",
   "stock",
   "stocks",
 ]);

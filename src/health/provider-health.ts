@@ -128,16 +128,27 @@ function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
 }
 
+// Listed kinds must stay in sync with Source["kind"]. The `satisfies` guard rejects invalid
+// Entries, and EXHAUSTIVE_SOURCE_KINDS below fails the build if a new kind is added to the
+// Union without being added here — the omission that previously dropped "reference" sources.
+const SOURCE_KINDS = [
+  "market-data",
+  "news",
+  "model",
+  "extended-evidence",
+  "market-context",
+  "discussion",
+  "reference",
+] as const satisfies readonly Source["kind"][];
+
+type MissingSourceKinds = Exclude<Source["kind"], (typeof SOURCE_KINDS)[number]>;
+const EXHAUSTIVE_SOURCE_KINDS: MissingSourceKinds extends never ? true : never = true;
+void EXHAUSTIVE_SOURCE_KINDS;
+
+const SOURCE_KIND_SET: ReadonlySet<Source["kind"]> = new Set(SOURCE_KINDS);
+
 function isSourceKind(value: unknown): value is Source["kind"] {
-  return (
-    value === "market-data" ||
-    value === "news" ||
-    value === "model" ||
-    value === "extended-evidence" ||
-    value === "market-context" ||
-    value === "discussion" ||
-    value === "reference"
-  );
+  return typeof value === "string" && SOURCE_KIND_SET.has(value as Source["kind"]);
 }
 
 function isDepth(value: unknown): value is Depth {

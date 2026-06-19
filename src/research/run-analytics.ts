@@ -152,6 +152,10 @@ const NEAR_BASE_RATE_BAND = 0.05;
  */
 const SIGNAL_INFORMATIVE_FLOOR = 0.5;
 
+function isNearBaseRateProbability(probability: number): boolean {
+  return Math.abs(probability - 0.5) <= NEAR_BASE_RATE_BAND + Number.EPSILON;
+}
+
 export interface RunAnalyticsCalibrationSlice {
   readonly key: string;
   readonly brierScore: number;
@@ -380,8 +384,8 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         };
 
   const emittedPredictions = report.predictions;
-  const nearBaseRateCount = emittedPredictions.filter(
-    (prediction) => Math.abs(prediction.probability - 0.5) <= NEAR_BASE_RATE_BAND,
+  const nearBaseRateCount = emittedPredictions.filter((prediction) =>
+    isNearBaseRateProbability(prediction.probability),
   ).length;
   const informativeCount = emittedPredictions.length - nearBaseRateCount;
   const signalTargetMet =

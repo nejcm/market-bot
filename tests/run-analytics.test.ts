@@ -320,6 +320,20 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.mixWarnings).toHaveLength(0);
   });
 
+  test("near-base-rate band includes exact 0.45 and 0.55 boundaries", () => {
+    const preds = [
+      prediction({ id: "p1", probability: 0.45 }),
+      prediction({ id: "p2", probability: 0.5 }),
+      prediction({ id: "p3", probability: 0.55 }),
+      prediction({ id: "p4", probability: 0.44 }),
+      prediction({ id: "p5", probability: 0.56 }),
+    ];
+    const result = predictionsFor(preds);
+    expect(result.nearBaseRateCount).toBe(3);
+    expect(result.informativeCount).toBe(2);
+    expect(result.signalTargetMet).toBe(false);
+  });
+
   test("all-near-0.5 set yields signalTargetMet: false and a mix warning, but count unchanged", () => {
     const preds = [
       prediction({ id: "p1", probability: 0.5 }),

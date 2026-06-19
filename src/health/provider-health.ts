@@ -134,7 +134,9 @@ function isSourceKind(value: unknown): value is Source["kind"] {
     value === "news" ||
     value === "model" ||
     value === "extended-evidence" ||
-    value === "market-context"
+    value === "market-context" ||
+    value === "discussion" ||
+    value === "reference"
   );
 }
 

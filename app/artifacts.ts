@@ -17,6 +17,12 @@ import {
   readRunSummaryFromIndex,
   searchRunReportsFromIndex,
 } from "../src/run-artifact-index";
+import {
+  compareRunSummariesByRecency,
+  runSearchResultFromCandidate,
+  runSummaryFromReport,
+  runSummaryMatchesFilters,
+} from "../src/run-artifact-projection";
 import { loadRunArtifact } from "../src/run-artifacts";
 
 const REPORT_FILE = "report.json";
@@ -34,20 +40,9 @@ const COHORTS_FILE = "cohorts.json";
 const COHORTS_MARKDOWN_FILE = "cohorts.md";
 const MAX_RUN_FILE_BYTES = 5_000_000;
 const MAX_SEARCH_RESULTS = 100;
-const SNIPPET_RADIUS = 72;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function arrayCount(record: Record<string, unknown>, key: string): number {
-  const value = record[key];
-  return Array.isArray(value) ? value.length : 0;
 }
 
 async function readJsonRecord(path: string): Promise<Record<string, unknown> | undefined> {
@@ -152,89 +147,6 @@ async function listArtifactFiles(runDir: string): Promise<readonly string[]> {
   return files.toSorted((left, right) => left.localeCompare(right));
 }
 
-function readDepth(report: Record<string, unknown>): string | undefined {
-  const { extras } = report;
-  return isRecord(extras) ? readString(extras, "depth") : undefined;
-}
-
-function runSummary(
-  runId: string,
-  report: Record<string, unknown> | undefined,
-  availableFiles: readonly string[],
-): RunSummary {
-  const generatedAt = report === undefined ? undefined : readString(report, "generatedAt");
-  const jobType = report === undefined ? undefined : readString(report, "jobType");
-  const assetClass = report === undefined ? undefined : readString(report, "assetClass");
-  const symbol = report === undefined ? undefined : readString(report, "symbol");
-  const depth = report === undefined ? undefined : readDepth(report);
-  const confidence = report === undefined ? undefined : readString(report, "confidence");
-
-  return {
-    runId: readString(report ?? {}, "runId") ?? runId,
-    ...(generatedAt !== undefined ? { generatedAt } : {}),
-    ...(jobType !== undefined ? { jobType } : {}),
-    ...(assetClass !== undefined ? { assetClass } : {}),
-    ...(symbol !== undefined ? { symbol } : {}),
-    ...(depth !== undefined ? { depth } : {}),
-    ...(confidence !== undefined ? { confidence } : {}),
-    findingCount: report === undefined ? 0 : arrayCount(report, "keyFindings"),
-    predictionCount: report === undefined ? 0 : arrayCount(report, "predictions"),
-    sourceCount: report === undefined ? 0 : arrayCount(report, "sources"),
-    dataGapCount: report === undefined ? 0 : arrayCount(report, "dataGaps"),
-    hasScore: availableFiles.includes(SCORE_FILE),
-    availableFiles,
-  };
-}
-
-function reportMatchesFilters(
-  summary: RunSummary,
-  filters: Omit<RunSearchFilters, "query">,
-): boolean {
-  const symbol = filters.symbol?.trim().toLowerCase();
-  const assetClass = filters.assetClass?.trim().toLowerCase();
-  const jobType = filters.jobType?.trim().toLowerCase();
-  const generatedDate = summary.generatedAt?.slice(0, 10) ?? "";
-
-  if (symbol !== undefined && symbol !== "" && summary.symbol?.toLowerCase() !== symbol) {
-    return false;
-  }
-
-  if (
-    assetClass !== undefined &&
-    assetClass !== "" &&
-    summary.assetClass?.toLowerCase() !== assetClass
-  ) {
-    return false;
-  }
-
-  if (jobType !== undefined && jobType !== "" && summary.jobType?.toLowerCase() !== jobType) {
-    return false;
-  }
-
-  if ((filters.from !== undefined || filters.to !== undefined) && generatedDate === "") {
-    return false;
-  }
-
-  if (filters.from !== undefined && generatedDate < filters.from.slice(0, 10)) {
-    return false;
-  }
-
-  if (filters.to !== undefined && generatedDate > filters.to.slice(0, 10)) {
-    return false;
-  }
-
-  return true;
-}
-
-function textSnippet(text: string, query: string): string {
-  const index = text.toLowerCase().indexOf(query);
-  const start = Math.max(0, index - SNIPPET_RADIUS);
-  const end = Math.min(text.length, index + query.length + SNIPPET_RADIUS);
-  const prefix = start === 0 ? "" : "...";
-  const suffix = end === text.length ? "" : "...";
-  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
-}
-
 async function searchRun(
   dataDir: string,
   runId: string,
@@ -253,21 +165,15 @@ async function searchRun(
     return [];
   }
 
-  const summary = runSummary(runId, report, availableFiles);
-  if (!reportMatchesFilters(summary, filters)) {
+  const summary = runSummaryFromReport(runId, report, availableFiles);
+  if (!runSummaryMatchesFilters(summary, filters)) {
     return [];
   }
 
   const normalizedQuery = filters.query.trim().toLowerCase();
   return reportSearchCandidates(report)
     .filter((candidate) => candidate.text.toLowerCase().includes(normalizedQuery))
-    .map((candidate) => ({
-      run: summary,
-      section: candidate.section,
-      label: candidate.label,
-      snippet: textSnippet(candidate.text, normalizedQuery),
-      sourceIds: candidate.sourceIds,
-    }));
+    .map((candidate) => runSearchResultFromCandidate(summary, candidate, normalizedQuery));
 }
 
 async function runSummaryFromDir(dataDir: string, runId: string): Promise<RunSummary | undefined> {
@@ -281,7 +187,7 @@ async function runSummaryFromDir(dataDir: string, runId: string): Promise<RunSum
     listArtifactFiles(runDir),
   ]);
 
-  return runSummary(runId, report, availableFiles);
+  return runSummaryFromReport(runId, report, availableFiles);
 }
 
 export async function listRunSummaries(dataDir: string): Promise<readonly RunSummary[]> {
@@ -299,11 +205,7 @@ export async function listRunSummaries(dataDir: string): Promise<readonly RunSum
 
   return summaries
     .filter((summary): summary is RunSummary => summary !== undefined)
-    .toSorted(
-      (left, right) =>
-        (right.generatedAt ?? right.runId).localeCompare(left.generatedAt ?? left.runId) ||
-        right.runId.localeCompare(left.runId),
-    );
+    .toSorted(compareRunSummariesByRecency);
 }
 
 export async function searchRunReports(
@@ -330,12 +232,7 @@ export async function searchRunReports(
   const results = runResults.flat();
 
   return results
-    .toSorted(
-      (left, right) =>
-        (right.run.generatedAt ?? right.run.runId).localeCompare(
-          left.run.generatedAt ?? left.run.runId,
-        ) || right.run.runId.localeCompare(left.run.runId),
-    )
+    .toSorted((left, right) => compareRunSummariesByRecency(left.run, right.run))
     .slice(0, limit);
 }
 
@@ -362,7 +259,7 @@ export async function readRunDetail(
   const availableFiles = indexedSummary?.availableFiles ?? (await listArtifactFiles(runDir));
 
   return {
-    summary: indexedSummary ?? runSummary(runId, report, availableFiles),
+    summary: indexedSummary ?? runSummaryFromReport(runId, report, availableFiles),
     ...(report !== undefined ? { report } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
     ...(analytics !== undefined ? { analytics } : {}),

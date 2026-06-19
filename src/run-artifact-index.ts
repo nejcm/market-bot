@@ -21,6 +21,7 @@ import {
 } from "./run-artifact-index-schema";
 import { indexIsFresh } from "./run-artifact-index-freshness";
 import { indexRowsForRun } from "./run-artifact-index-rows";
+import { runSearchResultFromIndexRow, runSummaryFromIndexRow } from "./run-artifact-projection";
 import type {
   PredictionRow,
   RebuildOptions,
@@ -41,7 +42,6 @@ export { INDEX_SCHEMA_VERSION };
 const DEFAULT_INDEX_FILE = "index.sqlite";
 const MAX_HISTORY_SEARCH_RESULTS = 100;
 const MAX_CONSOLE_SEARCH_RESULTS = 100;
-const SNIPPET_RADIUS = 72;
 
 export interface RebuildRunArtifactIndexResult {
   readonly dbPath: string;
@@ -498,24 +498,6 @@ async function withFreshIndex<T>(
   }
 }
 
-function rowToSummary(row: RunRow, availableFiles: readonly string[]): RunSummary {
-  return {
-    runId: row.run_id,
-    ...(row.generated_at !== null ? { generatedAt: row.generated_at } : {}),
-    ...(row.job_type !== null ? { jobType: row.job_type } : {}),
-    ...(row.asset_class !== null ? { assetClass: row.asset_class } : {}),
-    ...(row.symbol !== null ? { symbol: row.symbol } : {}),
-    ...(row.depth !== null ? { depth: row.depth } : {}),
-    ...(row.confidence !== null ? { confidence: row.confidence } : {}),
-    findingCount: row.finding_count,
-    predictionCount: row.prediction_count,
-    sourceCount: row.source_count,
-    dataGapCount: row.data_gap_count,
-    hasScore: row.has_score === 1,
-    availableFiles,
-  };
-}
-
 function availableFilesFor(db: Database, runId: string): readonly string[] {
   return (
     db
@@ -570,7 +552,7 @@ export async function listRunSummariesFromIndex(
       db,
       rows.map((row) => row.run_id),
     );
-    return rows.map((row) => rowToSummary(row, filesByRunId.get(row.run_id) ?? []));
+    return rows.map((row) => runSummaryFromIndexRow(row, filesByRunId.get(row.run_id) ?? []));
   });
 }
 
@@ -582,7 +564,9 @@ export async function readRunSummaryFromIndex(
     const row = db
       .query("SELECT * FROM runs WHERE run_id = ? OR run_dir_name = ?")
       .get(runId, runId) as RunRow | null;
-    return row === null ? undefined : rowToSummary(row, availableFilesFor(db, row.run_id));
+    return row === null
+      ? undefined
+      : runSummaryFromIndexRow(row, availableFilesFor(db, row.run_id));
   });
 }
 
@@ -664,19 +648,6 @@ function searchRows(
     .all(...params) as readonly SearchEntryRow[];
 }
 
-function textSnippet(text: string, query: string): string {
-  const normalized = query.trim().toLowerCase();
-  const index = text.toLowerCase().indexOf(normalized);
-  if (index === -1) {
-    return text.slice(0, SNIPPET_RADIUS * 2).trim();
-  }
-  const start = Math.max(0, index - SNIPPET_RADIUS);
-  const end = Math.min(text.length, index + normalized.length + SNIPPET_RADIUS);
-  const prefix = start === 0 ? "" : "...";
-  const suffix = end === text.length ? "" : "...";
-  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
-}
-
 export async function searchRunReportsFromIndex(
   dataDir: string,
   filters: {
@@ -699,13 +670,11 @@ export async function searchRunReportsFromIndex(
       if (run === undefined) {
         throw new Error(`Missing indexed run row for ${row.run_id}`);
       }
-      return {
-        run: rowToSummary(run, filesByRunId.get(run.run_id) ?? []),
-        section: row.section as RunSearchResult["section"],
-        label: row.label,
-        snippet: textSnippet(row.text, filters.query),
-        sourceIds: parseSourceIds(row.source_ids_json),
-      };
+      return runSearchResultFromIndexRow(
+        row,
+        runSummaryFromIndexRow(run, filesByRunId.get(run.run_id) ?? []),
+        filters.query,
+      );
     });
   });
 }

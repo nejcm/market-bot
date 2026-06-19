@@ -141,6 +141,72 @@ describe("loadRunArtifact", () => {
     ]);
   });
 
+  test("preserves extended evidence identities and source gap metadata", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "extended-evidence");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "extended-evidence",
+        extendedEvidence: {
+          instrument: {
+            symbol: "aapl",
+            assetClass: "equity",
+            identity: {
+              exchange: "NASDAQ",
+              quoteCurrency: "USD",
+              displayName: "Apple Inc.",
+              providerIds: [{ provider: "sec", idKind: "cik", value: "0000320193" }],
+              aliases: [{ provider: "yahoo", idKind: "ticker", value: "AAPL" }],
+            },
+          },
+          items: [
+            {
+              category: "sec-edgar",
+              title: "Latest filing",
+              summary: "10-Q filing summary",
+              sourceIds: ["sec-aapl-10q"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              identity: { displayName: "Apple Inc.", exchange: "NASDAQ" },
+            },
+          ],
+          gaps: [
+            {
+              source: "tradier-options",
+              message: "No options data available",
+              provider: "tradier",
+              capability: "extended-evidence",
+              cause: "provider-data-missing",
+              evidenceQualityImpact: "extended-evidence-cap",
+            },
+          ],
+        },
+      }),
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.report.extendedEvidence?.instrument.identity).toEqual({
+      exchange: "NASDAQ",
+      quoteCurrency: "USD",
+      displayName: "Apple Inc.",
+      providerIds: [{ provider: "sec", idKind: "cik", value: "0000320193" }],
+      aliases: [{ provider: "yahoo", idKind: "ticker", value: "AAPL" }],
+    });
+    expect(artifact?.report.extendedEvidence?.items[0]?.identity).toEqual({
+      displayName: "Apple Inc.",
+      exchange: "NASDAQ",
+    });
+    expect(artifact?.report.extendedEvidence?.gaps[0]).toEqual({
+      source: "tradier-options",
+      message: "No options data available",
+      provider: "tradier",
+      capability: "extended-evidence",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+  });
+
   test("reports an absent report directory (ENOENT) without an artifact", async () => {
     const dataDir = tempRunsDir();
     await mkdir(join(dataDir, "empty"), { recursive: true });

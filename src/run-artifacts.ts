@@ -4,14 +4,24 @@ import { basename, join } from "node:path";
 import {
   isMarketRegimeLabel,
   type AssetClass,
+  type ExtendedEvidence,
+  type ExtendedEvidenceCategory,
+  type ExtendedEvidenceItem,
+  type Instrument,
+  type InstrumentIdentity,
   type JobType,
   type KeyFinding,
   type MarketRegimeLabel,
   type MarketSnapshot,
   type Prediction,
   type PredictionKind,
+  type ProviderInstrumentId,
   type ResearchReport,
   type Source,
+  type SourceGap,
+  type SourceGapCapability,
+  type SourceGapCause,
+  type SourceGapEvidenceQualityImpact,
   type VerifiedMarketSnapshot,
 } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
@@ -111,6 +121,36 @@ const MISS_AUTOPSY_CAUSES: ReadonlySet<string> = new Set<MissAutopsyCause>([
   "model_overconfidence",
   "insufficient_evidence",
 ]);
+const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEvidenceCategory>([
+  "sec-edgar",
+  "valuation",
+  "equity-events",
+  "fred-macro",
+  "options-iv",
+  "on-chain",
+]);
+const SOURCE_GAP_CAPABILITIES: ReadonlySet<string> = new Set<SourceGapCapability>([
+  "market-data",
+  "news",
+  "discussion",
+  "extended-evidence",
+  "market-context",
+  "evidence-request",
+  "cache",
+]);
+const SOURCE_GAP_CAUSES: ReadonlySet<string> = new Set<SourceGapCause>([
+  "missing-credential",
+  "fetch-failed",
+  "circuit-open",
+  "stale-fallback",
+  "unsupported-coverage",
+  "repeat-fallback",
+  "malformed-response",
+  "validation-failed",
+  "provider-data-missing",
+]);
+const SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS: ReadonlySet<string> =
+  new Set<SourceGapEvidenceQualityImpact>(["core-cap", "extended-evidence-cap", "no-cap"]);
 
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
@@ -133,6 +173,22 @@ function isPredictionKind(value: unknown): value is PredictionKind {
 
 function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
   return typeof value === "string" && MISS_AUTOPSY_CAUSES.has(value);
+}
+
+function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCategory {
+  return typeof value === "string" && EXTENDED_EVIDENCE_CATEGORIES.has(value);
+}
+
+function isSourceGapCapability(value: unknown): value is SourceGapCapability {
+  return typeof value === "string" && SOURCE_GAP_CAPABILITIES.has(value);
+}
+
+function isSourceGapCause(value: unknown): value is SourceGapCause {
+  return typeof value === "string" && SOURCE_GAP_CAUSES.has(value);
+}
+
+function isSourceGapEvidenceQualityImpact(value: unknown): value is SourceGapEvidenceQualityImpact {
+  return typeof value === "string" && SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS.has(value);
 }
 
 // Distinguishes a missing file from a present-but-broken one: ENOENT returns
@@ -220,6 +276,133 @@ function readSources(value: unknown): readonly Source[] {
   });
 }
 
+function readInstrument(value: unknown): Instrument | undefined {
+  if (!isRecord(value) || typeof value.symbol !== "string" || !isAssetClass(value.assetClass)) {
+    return;
+  }
+  const identity = readInstrumentIdentity(value.identity);
+  return {
+    symbol: value.symbol.toUpperCase(),
+    assetClass: value.assetClass,
+    ...(identity !== undefined ? { identity } : {}),
+  };
+}
+
+function readProviderInstrumentIds(value: unknown): readonly ProviderInstrumentId[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly ProviderInstrumentId[] => {
+    if (
+      !isRecord(item) ||
+      typeof item.provider !== "string" ||
+      typeof item.idKind !== "string" ||
+      typeof item.value !== "string"
+    ) {
+      return [];
+    }
+    return [{ provider: item.provider, idKind: item.idKind, value: item.value }];
+  });
+}
+
+function readInstrumentIdentity(value: unknown): InstrumentIdentity | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const exchange = readString(value, "exchange");
+  const quoteCurrency = readString(value, "quoteCurrency");
+  const displayName = readString(value, "displayName");
+  const providerIds = readProviderInstrumentIds(value.providerIds);
+  const aliases = readProviderInstrumentIds(value.aliases);
+  if (
+    exchange === undefined &&
+    quoteCurrency === undefined &&
+    displayName === undefined &&
+    providerIds.length === 0 &&
+    aliases.length === 0
+  ) {
+    return;
+  }
+  return {
+    ...(exchange !== undefined ? { exchange } : {}),
+    ...(quoteCurrency !== undefined ? { quoteCurrency } : {}),
+    ...(displayName !== undefined ? { displayName } : {}),
+    ...(providerIds.length > 0 ? { providerIds } : {}),
+    ...(aliases.length > 0 ? { aliases } : {}),
+  };
+}
+
+function readSourceGaps(value: unknown): readonly SourceGap[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly SourceGap[] => {
+    if (!isRecord(item) || typeof item.source !== "string" || typeof item.message !== "string") {
+      return [];
+    }
+    const capability = isSourceGapCapability(item.capability) ? item.capability : undefined;
+    const cause = isSourceGapCause(item.cause) ? item.cause : undefined;
+    const evidenceQualityImpact = isSourceGapEvidenceQualityImpact(item.evidenceQualityImpact)
+      ? item.evidenceQualityImpact
+      : undefined;
+    return [
+      {
+        source: item.source,
+        message: item.message,
+        ...(typeof item.provider === "string" ? { provider: item.provider } : {}),
+        ...(capability !== undefined ? { capability } : {}),
+        ...(cause !== undefined ? { cause } : {}),
+        ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
+      },
+    ];
+  });
+}
+
+function readExtendedEvidenceItems(value: unknown): readonly ExtendedEvidenceItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly ExtendedEvidenceItem[] => {
+    if (
+      !isRecord(item) ||
+      !isExtendedEvidenceCategory(item.category) ||
+      typeof item.title !== "string" ||
+      typeof item.summary !== "string" ||
+      typeof item.observedAt !== "string"
+    ) {
+      return [];
+    }
+    const metrics = readPrimitiveEvidence(item.metrics);
+    const identity = readInstrumentIdentity(item.identity);
+    return [
+      {
+        category: item.category,
+        title: item.title,
+        summary: item.summary,
+        sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        observedAt: item.observedAt,
+        ...(metrics !== undefined ? { metrics } : {}),
+        ...(identity !== undefined ? { identity } : {}),
+      },
+    ];
+  });
+}
+
+function readExtendedEvidence(value: unknown): ExtendedEvidence | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const instrument = readInstrument(value.instrument);
+  if (instrument === undefined) {
+    return;
+  }
+  return {
+    instrument,
+    items: readExtendedEvidenceItems(value.items),
+    gaps: readSourceGaps(value.gaps),
+  };
+}
+
 function readReport(value: unknown): ResearchReport | undefined {
   if (!isRecord(value) || !isJobType(value.jobType) || !isAssetClass(value.assetClass)) {
     return;
@@ -229,6 +412,7 @@ function readReport(value: unknown): ResearchReport | undefined {
   if (runId === undefined || generatedAt === undefined) {
     return;
   }
+  const extendedEvidence = readExtendedEvidence(value.extendedEvidence);
   return {
     runId,
     jobType: value.jobType,
@@ -252,6 +436,7 @@ function readReport(value: unknown): ResearchReport | undefined {
     dataGaps: stringArrayValue(value.dataGaps),
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),
+    ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
     notFinancialAdvice: true,
     ...(isRecord(value.extras) ? { extras: value.extras } : {}),
   };

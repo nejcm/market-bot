@@ -12,6 +12,7 @@ export const REPORT_SEARCH_SECTIONS = [
   "dataGaps",
   "predictions",
   "sources",
+  "extendedEvidence",
   "openQuestions",
 ] as const;
 
@@ -191,6 +192,31 @@ function addSourceEntries(
   }
 }
 
+function metricsSearchText(metrics: Readonly<Record<string, number | string>> | undefined): string {
+  if (metrics === undefined) {
+    return "";
+  }
+
+  return Object.values(metrics).map(String).join(" ");
+}
+
+function addExtendedEvidenceEntries(entries: ReportSearchEntry[], report: ResearchReport): void {
+  for (const [index, item] of (report.extendedEvidence?.items ?? []).entries()) {
+    addEntry(
+      entries,
+      report,
+      "extendedEvidence",
+      item.title === "" ? `Extended evidence ${String(index + 1)}` : item.title,
+      [item.category, item.title, item.summary, metricsSearchText(item.metrics)]
+        .filter((part) => part !== "")
+        .join(" "),
+      String(index),
+      index,
+      item.sourceIds,
+    );
+  }
+}
+
 function addOpenQuestionEntries(
   entries: ReportSearchEntry[],
   report: ResearchReport,
@@ -233,6 +259,7 @@ export function buildReportSearchEntries(
   addSourceEntries(entries, report, scope);
   if (scope === "console") {
     addDataGapEntries(entries, report);
+    addExtendedEvidenceEntries(entries, report);
   }
   if (scope === "history") {
     addOpenQuestionEntries(entries, report, scores);

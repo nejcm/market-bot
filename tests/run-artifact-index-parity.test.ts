@@ -72,6 +72,28 @@ function searchResultKey(entry: {
   return [entry.run.runId, entry.section, entry.label].join("\0");
 }
 
+function searchResultProjection(entry: {
+  readonly run: { readonly runId: string };
+  readonly section: string;
+  readonly label: string;
+  readonly snippet: string;
+  readonly sourceIds: readonly string[];
+}): {
+  readonly runId: string;
+  readonly section: string;
+  readonly label: string;
+  readonly snippet: string;
+  readonly sourceIds: readonly string[];
+} {
+  return {
+    runId: entry.run.runId,
+    section: entry.section,
+    label: entry.label,
+    snippet: entry.snippet,
+    sourceIds: entry.sourceIds,
+  };
+}
+
 function writeFixtureRun(dataDir: string, runId: string): void {
   const runDir = join(dataDir, runId);
   mkdirSync(join(runDir, "normalized"), { recursive: true });
@@ -106,6 +128,20 @@ function writeFixtureRun(dataDir: string, runId: string): void {
         },
       ],
       dataGaps: ["needle gap"],
+      extendedEvidence: {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          {
+            category: "valuation",
+            title: "AAPL Valuation Evidence",
+            summary: "needle valuation EV/annualized revenue 12.3x",
+            sourceIds: ["extended-valuation-aapl"],
+            observedAt: "2026-06-01T00:00:00.000Z",
+            metrics: { evToAnnualizedRevenue: 12.3 },
+          },
+        ],
+        gaps: [],
+      },
       extras: { depth: "deep" },
     }),
   );
@@ -128,8 +164,14 @@ describe("run artifact index parity", () => {
     const diskSearch = await searchRunReports(dataDir, { query: "needle" });
 
     expect(indexedSummaries).toEqual(diskSummaries);
-    expect(indexedSearch.map((entry) => searchResultKey(entry)).toSorted()).toEqual(
-      diskSearch.map((entry) => searchResultKey(entry)).toSorted(),
+    expect(
+      indexedSearch
+        .toSorted((left, right) => searchResultKey(left).localeCompare(searchResultKey(right)))
+        .map((entry) => searchResultProjection(entry)),
+    ).toEqual(
+      diskSearch
+        .toSorted((left, right) => searchResultKey(left).localeCompare(searchResultKey(right)))
+        .map((entry) => searchResultProjection(entry)),
     );
   });
 

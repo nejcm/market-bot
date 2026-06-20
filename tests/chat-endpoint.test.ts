@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RunChatConfig } from "../src/config";
 import type { ModelProvider, ModelRequest, ModelResponse } from "../src/model/types";
-import { handleRunChat, type ChatEndpointDeps } from "../app/chat";
+import { handleRunChat, type ReadyChatDeps } from "../app/chat";
 import { handleResearchConsoleRequest } from "../app/server";
 import { researchReport } from "./support/fixtures";
 
@@ -34,8 +34,9 @@ function defaultChatConfig(overrides: Partial<RunChatConfig> = {}): RunChatConfi
   };
 }
 
-function chatDeps(dataDir: string, overrides: Partial<ChatEndpointDeps> = {}): ChatEndpointDeps {
+function chatDeps(dataDir: string, overrides: Partial<ReadyChatDeps> = {}): ReadyChatDeps {
   return {
+    status: "ready",
     provider: fakeProvider(),
     chatConfig: defaultChatConfig(),
     dataDir,
@@ -107,16 +108,12 @@ describe("chat endpoint", () => {
   });
 
   test("returns 503 when chat is disabled", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
-    setupRunDir(dataDir, "run-disabled");
-
     const request = chatRequest("run-disabled", [{ role: "user", content: "test" }]);
     const url = new URL(request.url);
-    const response = await handleRunChat(
-      request,
-      url,
-      chatDeps(dataDir, { chatConfig: defaultChatConfig({ disabled: true }) }),
-    );
+    const response = await handleRunChat(request, url, {
+      status: "unavailable",
+      reason: "Run chat is disabled",
+    });
 
     expect(response).not.toBeUndefined();
     expect(response!.status).toBe(503);
@@ -267,18 +264,12 @@ describe("chat endpoint", () => {
   });
 
   test("returns 503 when no provider is configured", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
-    setupRunDir(dataDir, "run-unavailable");
-
     const request = chatRequest("run-unavailable", [{ role: "user", content: "test" }]);
     const url = new URL(request.url);
-    const response = await handleRunChat(
-      request,
-      url,
-      chatDeps(dataDir, {
-        unavailableReason: "Run chat is unavailable: no model provider is configured",
-      }),
-    );
+    const response = await handleRunChat(request, url, {
+      status: "unavailable",
+      reason: "Run chat is unavailable: no model provider is configured",
+    });
 
     expect(response).not.toBeUndefined();
     expect(response!.status).toBe(503);

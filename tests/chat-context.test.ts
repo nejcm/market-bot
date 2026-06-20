@@ -241,6 +241,22 @@ describe("buildRunChatContext", () => {
     expect(context).toContain("[section truncated to fit context budget]");
   });
 
+  test("stays within budget when the truncated head section is followed by other sections", () => {
+    const detail = minimalDetail({
+      markdown: `# Big Report\n\n${"x".repeat(5000)}`,
+      score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
+      verifiedMarketSnapshot: testSnapshot(),
+      summary: minimalSummary({ availableFiles: ["normalized/movers.json"] }),
+    });
+    const budget = 500;
+    const context = buildRunChatContext(detail, budget);
+
+    expect(context.length).toBeLessThanOrEqual(budget);
+    expect(context).toContain("[section truncated to fit context budget]");
+    // The inline marker already signals the cut; no trailing omitted-sections notice is appended.
+    expect(context).not.toContain("section(s) omitted]");
+  });
+
   test("returns empty string for empty detail", () => {
     const detail = minimalDetail();
     const context = buildRunChatContext(detail);

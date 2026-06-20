@@ -20,14 +20,21 @@ interface ChatRequestBody {
   readonly messages?: readonly UIMessage[];
 }
 
-export interface ChatEndpointDeps {
+export interface ReadyChatDeps {
+  readonly status: "ready";
   readonly provider: ModelProvider;
   readonly chatConfig: RunChatConfig;
   readonly dataDir: string;
   readonly systemPromptPath?: string;
-  // When set, the route is matched but returns 503 with this reason (e.g. no provider configured).
-  readonly unavailableReason?: string;
 }
+
+// The route is matched but returns 503 with this reason (e.g. disabled, or no provider configured).
+export interface UnavailableChatDeps {
+  readonly status: "unavailable";
+  readonly reason: string;
+}
+
+export type ChatEndpointDeps = ReadyChatDeps | UnavailableChatDeps;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -120,12 +127,8 @@ export async function handleRunChat(
     return textResponse("Chat request origin is not allowed", 403);
   }
 
-  if (deps.chatConfig.disabled) {
-    return textResponse("Run chat is disabled", 503);
-  }
-
-  if (deps.unavailableReason !== undefined) {
-    return textResponse(deps.unavailableReason, 503);
+  if (deps.status === "unavailable") {
+    return textResponse(deps.reason, 503);
   }
 
   const runId = decodeURIComponent(chatMatch[1] ?? "");

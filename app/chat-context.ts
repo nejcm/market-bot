@@ -206,6 +206,7 @@ export function buildRunChatContext(
   const result: string[] = [];
   let totalChars = 0;
   let includedCount = 0;
+  let headTruncated = false;
 
   for (const section of sections) {
     const block = `## ${section.label}\n\n${section.content}`;
@@ -218,6 +219,7 @@ export function buildRunChatContext(
         result.push(truncated);
         totalChars += truncated.length;
         includedCount += 1;
+        headTruncated = true;
       }
       break;
     }
@@ -226,8 +228,10 @@ export function buildRunChatContext(
     includedCount += 1;
   }
 
+  // A hard-truncated head section already fills the budget and carries its own inline marker.
+  // Skip the omitted-sections notice rather than push the output over budget.
   const omittedCount = sections.length - includedCount;
-  if (omittedCount > 0) {
+  if (omittedCount > 0 && !headTruncated) {
     result.push(`[context truncated: ${String(omittedCount)} section(s) omitted]`);
   }
 

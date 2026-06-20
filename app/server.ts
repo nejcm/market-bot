@@ -242,33 +242,29 @@ export function isSameOriginPost(request: Request, url: URL): boolean {
   }
 }
 
-function buildChatDeps(dataDir: string): ChatEndpointDeps | undefined {
+const NO_PROVIDER_REASON = "Run chat is unavailable: no model provider is configured";
+
+function buildChatDeps(dataDir: string): ChatEndpointDeps {
   const consoleConfig = resolveResearchConsoleConfig();
   if (consoleConfig.chat.disabled) {
-    return {
-      provider: { name: "none", generate: () => Promise.reject(new Error("disabled")) },
-      chatConfig: consoleConfig.chat,
-      dataDir,
-    };
+    return { status: "unavailable", reason: "Run chat is disabled" };
   }
-
-  const unavailable: ChatEndpointDeps = {
-    provider: { name: "none", generate: () => Promise.reject(new Error("unavailable")) },
-    chatConfig: consoleConfig.chat,
-    dataDir,
-    unavailableReason: "Run chat is unavailable: no model provider is configured",
-  };
 
   try {
     const appConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
     if (appConfig.apiKey === undefined && appConfig.provider !== "codex") {
-      return unavailable;
+      return { status: "unavailable", reason: NO_PROVIDER_REASON };
     }
     const provider = createProvider(appConfig);
     const chatModel = consoleConfig.chat.model ?? appConfig.quickModel;
-    return { provider, chatConfig: { ...consoleConfig.chat, model: chatModel }, dataDir };
+    return {
+      status: "ready",
+      provider,
+      chatConfig: { ...consoleConfig.chat, model: chatModel },
+      dataDir,
+    };
   } catch {
-    return unavailable;
+    return { status: "unavailable", reason: NO_PROVIDER_REASON };
   }
 }
 
@@ -287,11 +283,9 @@ export async function handleResearchConsoleRequest(
 
   // Chat endpoint — before read-only API and static handler
   const chatDeps = options.chatDeps ?? buildChatDeps(dataDir);
-  if (chatDeps !== undefined) {
-    const chatResponse = await handleRunChat(request, url, chatDeps);
-    if (chatResponse !== undefined) {
-      return chatResponse;
-    }
+  const chatResponse = await handleRunChat(request, url, chatDeps);
+  if (chatResponse !== undefined) {
+    return chatResponse;
   }
 
   const apiResponse = await handleApiRequest(url, dataDir);

@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { Activity, LayoutGrid, ListFilter, Menu, Play, Search, Target } from "@lucide/svelte";
+  import {
+    Activity,
+    LayoutGrid,
+    ListFilter,
+    Menu,
+    Play,
+    Search,
+    Target,
+  } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import * as Sheet from "$lib/components/ui/sheet";
@@ -31,6 +39,7 @@
     weekly: "Weekly",
     ticker: "Ticker",
     "alpha-search": "Alpha",
+    research: "Research",
   };
 
   let {
@@ -59,8 +68,18 @@
     },
     { key: "search" as View, label: "Search", icon: Search, badge: 0 },
     { key: "jobs" as View, label: "Jobs", icon: Play, badge: activeJobCount },
-    { key: "calibration" as View, label: "Calibration", icon: Target, badge: 0 },
-    { key: "alpha-cohorts" as View, label: "Alpha Cohorts", icon: ListFilter, badge: 0 },
+    {
+      key: "calibration" as View,
+      label: "Calibration",
+      icon: Target,
+      badge: 0,
+    },
+    {
+      key: "alpha-cohorts" as View,
+      label: "Alpha Cohorts",
+      icon: ListFilter,
+      badge: 0,
+    },
     { key: "health" as View, label: "Health", icon: Activity, badge: 0 },
   ]);
   const typeOptions = $derived(["all", ...runTypes]);
@@ -143,7 +162,7 @@
         placeholder="Filter runs…"
         oninput={(event) => onQueryChange(event.currentTarget.value)}
       />
-      <div class="mt-2 flex overflow-auto gap-1">
+      <div class="mt-2 pb-5 flex overflow-auto gap-1">
         {#each typeOptions as type}
           <button
             class="rounded-full border px-2 flex-1 py-0.5 font-mono text-[10px] capitalize transition hover:border-[#4a525a] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {typeFilter ===
@@ -204,13 +223,13 @@
 {/snippet}
 
 <aside
-  class="hidden h-screen w-[320px] shrink-0 border-r border-[#14171a] bg-sidebar lg:sticky lg:top-0 lg:block"
+  class="hidden h-screen w-81.5 shrink-0 border-r border-[#14171a] bg-sidebar lg:sticky lg:top-0 lg:block"
 >
   {@render content()}
 </aside>
 
 <div
-  class="sticky top-0 z-30 border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden"
+  class="fixed w-full top-0 z-30 border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden"
 >
   <Sheet.Sheet bind:open={mobileOpen}>
     <Sheet.SheetTrigger>
@@ -223,7 +242,7 @@
     </Sheet.SheetTrigger>
     <Sheet.SheetContent
       side="left"
-      class="w-[320px] border-sidebar-border bg-sidebar p-0"
+      class="w-81.5 border-sidebar-border bg-sidebar p-0"
     >
       {@render content()}
     </Sheet.SheetContent>

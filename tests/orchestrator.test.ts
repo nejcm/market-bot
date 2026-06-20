@@ -622,6 +622,36 @@ describe("runResearchJob", () => {
     expect(result.trace.historicalContext?.selectedRunCount).toBe(2);
   });
 
+  test("allows final reports to cite loaded historical report sources", async () => {
+    const dataDir = tempDataDir("market-bot-history-source-validation");
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-aapl-ticker",
+      jobType: "ticker",
+      symbol: "AAPL",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      snapshots: marketSnapshots,
+    });
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir },
+      provider: providerReturning(modelReport("AAPL", "history-report-prior-aapl-ticker")),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.keyFindings[0]?.sourceIds).toEqual(["history-report-prior-aapl-ticker"]);
+    expect(result.report.sources.map((source) => source.id)).toContain(
+      "history-report-prior-aapl-ticker",
+    );
+  });
+
   test("surfaces an unreadable alpha-watchlist gap for market-update runs but not ticker runs", async () => {
     const dataDir = tempDataDir("market-bot-alpha-gap");
     // Present-but-unreadable watchlist → loadAlphaWatchlistForSpotlights returns a gap.

@@ -1022,6 +1022,98 @@ describe("report schema and rendering", () => {
     expect(assembled.keyFindings[0]?.sourceIds).toEqual([historySourceId]);
   });
 
+  test("uses deterministic historical context instead of model-authored history extras", () => {
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const historySource: Source = {
+      id: "history-report-prior-aapl",
+      title: "Prior AAPL report",
+      fetchedAt: "2026-05-01T00:00:00.000Z",
+      kind: "model",
+      assetClass: "equity",
+      symbol: "AAPL",
+      provider: "market-bot",
+      rawRef: "prior-aapl/report.json",
+    };
+    const context: ResearchContext = {
+      ...assemblyContext(depthProfile),
+      historicalContext: {
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        recentDays: 90,
+        anchorMonths: [3, 6, 12],
+        runs: [
+          {
+            runId: "prior-aapl",
+            sourceId: historySource.id,
+            jobType: "ticker",
+            assetClass: "equity",
+            symbol: "AAPL",
+            generatedAt: "2026-05-01T00:00:00.000Z",
+            selectionReasons: ["same-symbol"],
+            summary: "Prior AAPL summary.",
+            confidence: "medium",
+            keyFindings: [],
+            risks: [],
+            catalysts: [],
+            dataGaps: [],
+            predictions: [],
+            scoreSummary: { total: 0, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+            marketSnapshots: [],
+          },
+        ],
+        sources: [historySource],
+        gaps: [],
+        audit: {
+          scannedRunCount: 1,
+          malformedRunCount: 0,
+          malformedScoreCount: 0,
+          candidateRunCount: 1,
+          selectedRunCount: 1,
+          recentSelectedCount: 1,
+          anchorSelectedCount: 0,
+          sameSymbolSelectedCount: 1,
+          spotlightSymbolSelectedCount: 0,
+          sameSubjectSelectedCount: 0,
+          sameHorizonSelectedCount: 0,
+          crossHorizonSelectedCount: 0,
+          resolvedMissRunCount: 0,
+          missCorrectionSelectedCount: 0,
+          gapCount: 0,
+        },
+        artifactDeltas: [],
+      },
+    };
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      payload: {
+        summary: "History-informed report.",
+        keyFindings: [{ text: "Prior context is relevant.", sourceIds: [historySource.id] }],
+        confidence: "medium",
+        extras: {
+          historicalContext: {
+            summary: "Model-authored stale history.",
+            sourceIds: ["history-report-missing"],
+            items: [{ text: "Missing history.", sourceIds: ["history-report-missing"] }],
+          },
+        },
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context,
+      sources: [historySource],
+    });
+
+    expect(assembled.extras?.historicalContext).toEqual({
+      summary: "Historical context includes 1 prior run artifact(s).",
+      sourceIds: [historySource.id],
+      items: [{ text: "prior-aapl: Prior AAPL summary.", sourceIds: [historySource.id] }],
+      gaps: [],
+    });
+  });
+
   test("writes canonical research subject extras", () => {
     const depthProfile = assemblyDepthProfile("SMH");
     const assembled = assembleResearchReport({

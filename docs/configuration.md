@@ -19,6 +19,11 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_INDEX_DB_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Path for the derived SQLite Run Artifact Index. Defaults to `data/index.sqlite` for `data/runs`; if `MARKET_BOT_DATA_DIR` does not end in `runs`, defaults inside that directory. Run `index rebuild` once to create or fully repopulate the file. |
 | `MARKET_BOT_INDEX_DISABLE` | `false` | Set to `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through updates. This is a permanent recovery escape hatch. |
 | `MARKET_BOT_CONSOLE_PORT` | `4173` | Localhost port for the Research Console App web server. |
+| `MARKET_BOT_CONSOLE_CHAT_DISABLE` | `false` | Set to `1` or `true` to disable the Run Chat endpoint. Chat is enabled by default when a provider API key is configured. |
+| `MARKET_BOT_CONSOLE_CHAT_MODEL` | Quick model | Override the model used for Run Chat responses. Defaults to the provider's quick model. |
+| `MARKET_BOT_CONSOLE_CHAT_CONTEXT_BUDGET_CHARS` | `96000` | Character budget for run artifact context assembled into the chat system prompt (~24k tokens at ~4 chars/token). |
+| `MARKET_BOT_CONSOLE_CHAT_MAX_OUTPUT_TOKENS` | `1500` | `max_completion_tokens` passed to the model for chat responses. |
+| `MARKET_BOT_CONSOLE_CHAT_HISTORY_TURNS` | `20` | Maximum conversation turns (user + assistant messages) sent to the model per request. |
 | `MARKET_BOT_PROMPT_DIR` | `prompts/` (repo root) | Directory containing `<stage>/base.md` prompt files. Override to point at a custom prompt tree without editing source code. |
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |

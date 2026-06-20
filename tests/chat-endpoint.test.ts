@@ -12,7 +12,7 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function fakeProvider(responseText: string = "Model response"): ModelProvider {
+function fakeProvider(responseText = "Model response"): ModelProvider {
   return {
     name: "fake",
     generate: async (_request: ModelRequest): Promise<ModelResponse> => ({

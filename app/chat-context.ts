@@ -1,6 +1,7 @@
 import type { RunDetail } from "./types";
 
-const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000; // ~24k tokens at ~4 chars/token
+// ~24k tokens at ~4 chars/token
+const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000;
 
 interface ContextSection {
   readonly label: string;
@@ -39,8 +40,8 @@ function formatScoreOutcomes(score: Record<string, unknown> | undefined): string
 
     let detail = `- ${id}: ${outcome} (${resolved})`;
     if (isRecord(entry.evidence)) {
-      const {close0} = entry.evidence;
-      const {closeN} = entry.evidence;
+      const { close0 } = entry.evidence;
+      const { closeN } = entry.evidence;
       if (typeof close0 === "number" && typeof closeN === "number") {
         detail += ` | close ${String(close0)} → ${String(closeN)}`;
       }
@@ -117,7 +118,7 @@ function formatVerifiedSnapshot(snapshot: RunDetail["verifiedMarketSnapshot"]): 
     lines.push(`Analysis date: ${snapshot.analysisDate}`);
   }
 
-  const {ohlcv} = snapshot;
+  const { ohlcv } = snapshot;
   if (isRecord(ohlcv)) {
     const fields = ["open", "high", "low", "close", "volume"] as const;
     const ohlcvParts = fields

@@ -24,6 +24,7 @@
     type SnapshotView,
   } from "../view-model";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
+  import MessageSquareIcon from "@lucide/svelte/icons/message-square";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
 
   interface Props {
@@ -39,6 +40,7 @@
     readonly onGoHome: () => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
+    readonly onOpenChat: () => void;
   }
 
   let {
@@ -54,6 +56,7 @@
     onGoHome,
     onHighlightSource,
     onOpenInstrument,
+    onOpenChat,
   }: Props = $props();
 
   interface CitePopover {
@@ -256,19 +259,30 @@
           {/if}
         </div>
       </div>
-      <div class="flex gap-5.5">
-        {#each [
-          { value: detail.summary.confidence ?? "—", label: "Confidence" },
-          { value: String(detail.summary.sourceCount), label: "Sources" },
-          { value: String(detail.summary.availableFiles.length), label: "Files" },
-        ] as stat}
-          <div class="text-right">
-            <div class="font-mono text-[17px] font-medium">{stat.value}</div>
-            <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
-              {stat.label}
+      <div class="flex items-end gap-4">
+        <div class="flex gap-5.5">
+          {#each [
+            { value: detail.summary.confidence ?? "—", label: "Confidence" },
+            { value: String(detail.summary.sourceCount), label: "Sources" },
+            { value: String(detail.summary.availableFiles.length), label: "Files" },
+          ] as stat}
+            <div class="text-right">
+              <div class="font-mono text-[17px] font-medium">{stat.value}</div>
+              <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                {stat.label}
+              </div>
             </div>
-          </div>
-        {/each}
+          {/each}
+        </div>
+        <button
+          class="rounded-md border border-border bg-card p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          type="button"
+          onclick={onOpenChat}
+          title="Chat with this run"
+          aria-label="Chat with this run"
+        >
+          <MessageSquareIcon class="h-4 w-4" />
+        </button>
       </div>
     </div>
 

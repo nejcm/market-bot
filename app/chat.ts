@@ -39,7 +39,7 @@ function isChatRequestBody(value: unknown): value is ChatRequestBody {
   return true;
 }
 
-function textResponse(text: string, status: number = 200): Response {
+function textResponse(text: string, status = 200): Response {
   return new Response(text, {
     status,
     headers: { "content-type": "text/plain; charset=utf-8" },
@@ -72,7 +72,7 @@ function mapUIMessages(messages: readonly UIMessage[], cap: number): readonly Mo
   const mapped: ModelMessage[] = [];
 
   for (const message of messages) {
-    const {role} = message;
+    const { role } = message;
     if (role !== "user" && role !== "assistant") {
       continue;
     }
@@ -119,7 +119,7 @@ export async function handleRunChat(
     return textResponse("Invalid run id", 400);
   }
 
-  let body: unknown;
+  let body: unknown = undefined;
   try {
     body = await request.json();
   } catch {

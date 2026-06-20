@@ -7,5 +7,5 @@
     "entry": ["app/index.html"]
   },
   "ignoreExportsUsedInFile": true,
-  "ignoreDependencies": ["bun-types", "shadcn-svelte", "tw-animate-css"]
+  "ignoreDependencies": ["ai", "bun-types", "shadcn-svelte", "tw-animate-css"]
 }

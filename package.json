@@ -40,6 +40,7 @@
     "check": "bun run lint && bun run fmt:check && bun run typecheck && bun test"
   },
   "devDependencies": {
+    "@ai-sdk/svelte": "^4.0.208",
     "@commitlint/cli": "21.0.1",
     "@commitlint/config-conventional": "21.0.1",
     "@lucide/svelte": "^1.17.0",

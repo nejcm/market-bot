@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
+import { renderAlphaSearchAnalyticsConsole } from "./alpha-search/run-analytics-console";
 import { createAnthropicProvider } from "./model/anthropic";
 import { createCodexProvider } from "./model/codex";
 import { createOpenAIProvider } from "./model/openai";
@@ -99,6 +100,18 @@ async function updateRunArtifactIndex(
       `Run artifact index stale-rebuild failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   });
+}
+
+// Run-quality digest goes to stderr so stdout stays reserved for the run-dir path.
+// The run is already persisted by call time, so a cosmetic summary must never abort it.
+function emitRunQualitySummary(render: () => string): void {
+  try {
+    process.stderr.write(`${render()}\n`);
+  } catch (error: unknown) {
+    process.stderr.write(
+      `Run quality summary failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  }
 }
 
 export async function runCli(
@@ -212,6 +225,7 @@ export async function runCli(
       dependencies,
       config.indexOptions?.dbPath,
     );
+    emitRunQualitySummary(() => renderAlphaSearchAnalyticsConsole(result.analytics));
     return result.artifacts.runDir;
   }
 
@@ -254,15 +268,7 @@ export async function runCli(
     config.indexOptions?.dbPath,
   );
 
-  // Run-quality summary goes to stderr so stdout stays reserved for the run-dir path.
-  // The run is already persisted; a cosmetic summary must never abort a completed run.
-  try {
-    process.stderr.write(`${renderRunAnalyticsConsole(result.analytics)}\n`);
-  } catch (error: unknown) {
-    process.stderr.write(
-      `Run quality summary failed: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  }
+  emitRunQualitySummary(() => renderRunAnalyticsConsole(result.analytics));
 
   return result.artifacts.runDir;
 }

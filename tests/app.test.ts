@@ -26,6 +26,26 @@ const analyticsStub = {
   },
 };
 
+// Alpha-search analytics has its own shape; the stderr summary reads alphaSearch and
+// SourceFunnel counts. Only those fields need to be present on this double.
+const alphaAnalyticsStub = {
+  jobType: "alpha-search",
+  runId: "alpha-run",
+  sourceFunnel: {
+    reportSources: { total: 0 },
+    sourceGaps: { total: 0 },
+    dataGaps: { total: 0 },
+  },
+  alphaSearch: {
+    socialCandidateCount: 0,
+    secCandidateCount: 0,
+    validLeadCount: 0,
+    researchLeadCount: 0,
+    rejectedCandidateCount: 0,
+    fundamentalGapCount: 0,
+  },
+};
+
 const dataDirs: string[] = [];
 const originalDataDir = process.env.MARKET_BOT_DATA_DIR;
 const originalCacheDir = process.env.MARKET_BOT_CACHE_DIR;
@@ -221,7 +241,7 @@ describe("runCli", () => {
           report: researchReport({ runId: "alpha-run", jobType: "alpha-search" }),
           markdown: "",
           trace: {},
-          analytics: analyticsStub,
+          analytics: alphaAnalyticsStub,
           artifacts: {
             runDir,
             rawDir: join(runDir, "raw"),

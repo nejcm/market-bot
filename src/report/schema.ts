@@ -259,8 +259,13 @@ function validateRenderedExtras(
 export function validatePredictions(
   candidates: readonly unknown[],
   knownSourceIds: ReadonlySet<string>,
+  allowedSubjects?: ReadonlySet<string>,
 ): PredictionValidationResult {
-  const result = readObservableForecasts(candidates, { knownSourceIds });
+  const result = readObservableForecasts(candidates, {
+    knownSourceIds,
+    requireSourceIds: true,
+    ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
+  });
   return { valid: result.predictions, errors: result.promptErrors, issues: result.issues };
 }
 

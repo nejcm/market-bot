@@ -5,9 +5,11 @@ import {
   marketUpdateHorizonBucketOf,
   type AssetClass,
   type EvidenceQuality,
+  type HistoricalContextAudit,
   type JobType,
   type KeyFinding,
   type MarketSnapshot,
+  type PredictionKind,
   type ResearchReport,
   type Source,
 } from "../domain/types";
@@ -44,7 +46,9 @@ export type HistoricalSelectionReason =
 export interface HistoricalPredictionSummary {
   readonly id: string;
   readonly claim: string;
+  readonly kind: PredictionKind;
   readonly subject: string;
+  readonly measurableAs: string;
   readonly horizonTradingDays: number;
   readonly probability: number;
   readonly scoreStatus: "not-scored" | "unresolved" | "resolved";
@@ -101,33 +105,6 @@ export interface HistoricalResearchContext {
   readonly gaps: readonly string[];
   readonly audit: HistoricalContextAudit;
   readonly artifactDeltas: readonly HistoricalArtifactDelta[];
-}
-
-export interface HistoricalContextAudit {
-  readonly scannedRunCount: number;
-  readonly malformedRunCount: number;
-  readonly malformedScoreCount: number;
-  readonly candidateRunCount: number;
-  readonly selectedRunCount: number;
-  readonly recentSelectedCount: number;
-  readonly anchorSelectedCount: number;
-  // Relevance-lane and correction-input visibility (Cross-run Intelligence hardening). These make
-  // The deterministic prior-state selection auditable from the trace without re-deriving it.
-  readonly sameSymbolSelectedCount: number;
-  readonly spotlightSymbolSelectedCount: number;
-  readonly sameSubjectSelectedCount: number;
-  readonly sameHorizonSelectedCount: number;
-  readonly crossHorizonSelectedCount: number;
-  // Selected runs carrying at least one resolved miss — the population the prior-miss correction
-  // Blocks draw from (ticker instrument errors / market-scoped forecast errors).
-  readonly resolvedMissRunCount: number;
-  // Resolved-miss runs preserved by the miss-correction lane specifically (i.e. pulled back in
-  // After recency eviction). Visible so same-day-rerun crowding of the calibration anchor is
-  // Auditable from the trace.
-  readonly missCorrectionSelectedCount: number;
-  // Total disclosed historical/cross-run gaps, including non-data gaps such as an unreadable
-  // Alpha-search watchlist surfaced here rather than as a live SourceGap.
-  readonly gapCount: number;
 }
 
 export interface HistoricalArtifactDelta {
@@ -367,7 +344,9 @@ function predictionSummaries(
     return {
       id: prediction.id,
       claim: prediction.claim,
+      kind: prediction.kind,
       subject: prediction.subject,
+      measurableAs: prediction.measurableAs,
       horizonTradingDays: prediction.horizonTradingDays,
       probability: prediction.probability,
       scoreStatus,
@@ -576,6 +555,64 @@ function computeArtifactDeltas(
   return deltas;
 }
 
+function comparableRunKey(run: HistoricalRunContext): string | undefined {
+  const day = run.generatedAt.slice(0, 10);
+  if (run.jobType === "ticker" && run.symbol !== undefined) {
+    return ["ticker", run.assetClass, run.symbol.toUpperCase(), "none", day].join("|");
+  }
+  if (run.jobType === "research") {
+    const subject = run.predictionProxySymbol ?? run.subjectKey;
+    return subject === undefined
+      ? undefined
+      : ["research", run.assetClass, subject.toUpperCase(), "none", day].join("|");
+  }
+  if (isMarketUpdateJobType(run.jobType)) {
+    const bucket =
+      typeof run.keyExtras?.marketUpdateHorizonBucket === "string"
+        ? run.keyExtras.marketUpdateHorizonBucket
+        : marketUpdateHorizonBucketOf(run);
+    return bucket === undefined
+      ? undefined
+      : ["market", run.assetClass, "market", bucket, day].join("|");
+  }
+  return undefined;
+}
+
+function collapseSameDayComparableRuns(
+  runs: readonly HistoricalRunContext[],
+): readonly HistoricalRunContext[] {
+  const groups = new Map<string, HistoricalRunContext[]>();
+  const keyByRun = new Map<string, string>();
+  for (const run of runs) {
+    const key = comparableRunKey(run);
+    if (key === undefined) {
+      continue;
+    }
+    keyByRun.set(run.runId, key);
+    groups.set(key, [...(groups.get(key) ?? []), run]);
+  }
+
+  const kept = new Set<string>();
+  for (const run of runs) {
+    const key = keyByRun.get(run.runId);
+    if (key === undefined) {
+      kept.add(run.runId);
+      continue;
+    }
+    const group = groups.get(key) ?? [];
+    const anchors = group.filter((entry) => entry.selectionReasons.includes("miss-correction"));
+    if (anchors.length > 0) {
+      for (const anchor of anchors) {
+        kept.add(anchor.runId);
+      }
+    } else if (group[0] !== undefined) {
+      kept.add(group[0].runId);
+    }
+  }
+
+  return runs.filter((run) => kept.has(run.runId));
+}
+
 function buildHistoricalContext(
   input: LoadHistoricalContextInput,
   scan: ScanResult,
@@ -710,9 +747,10 @@ function buildHistoricalContext(
   // Surfaced here rather than as a live SourceGap — see LoadHistoricalContextInput.extraGaps.
   gaps.push(...(input.extraGaps ?? []));
 
-  const runs = [...selected.values()]
+  const selectedRuns = [...selected.values()]
     .map((selection) => toRunContext(selection, focusSymbols))
     .toSorted((left, right) => right.generatedAt.localeCompare(left.generatedAt));
+  const runs = collapseSameDayComparableRuns(selectedRuns);
 
   return {
     generatedAt: now.toISOString(),

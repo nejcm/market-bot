@@ -75,9 +75,170 @@ describe("multi-news", () => {
       "Tech sector roundup",
     ]);
     expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 2,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 2,
       selectedNewsSourceCount: 4,
       selectedRelevantTickerNewsSourceCount: 2,
       selectedGenericTickerNewsSourceCount: 2,
+    });
+  });
+
+  test("uses ticker identity name terms for relevance", async () => {
+    const tickerContext: CollectContext = {
+      ...context(),
+      newsLimit: 1,
+      newsRelevanceTargets: [{ symbol: "AAPL", name: "Apple Inc." }],
+    };
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [
+          source("a-generic", "provider-a", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+          source(
+            "a-relevant",
+            "provider-a",
+            "Apple supplier demand rises",
+            "2026-06-01T11:00:00.000Z",
+          ),
+        ]),
+      ],
+      ["provider-a"],
+    );
+
+    const result = await multi.collect(tickerContext);
+
+    expect(result.newsSources.map((item) => item.title)).toEqual(["Apple supplier demand rises"]);
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 1,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 1,
+      selectedRelevantTickerNewsSourceCount: 1,
+      selectedGenericTickerNewsSourceCount: 0,
+    });
+  });
+
+  test("does not treat generic market headlines as subject-relevant for thematic targets", async () => {
+    // Mirrors the semiconductor subject proxy target: displayName + aliases joined into one name.
+    // Aliases here include generic terms ("chip stocks", "semiconductor stocks").
+    const semiconductorTargetName =
+      "Semiconductors semiconductors semiconductor stocks chips chip stocks semis";
+    const researchContext: CollectContext = {
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "semiconductors",
+        depth: "brief",
+      },
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      newsLimit: 4,
+      cryptoMoverLimit: 0,
+      newsRelevanceTargets: [
+        { symbol: "SMH", name: semiconductorTargetName },
+        { symbol: "NVDA", name: "NVIDIA Corporation" },
+        { symbol: "AMD", name: "Advanced Micro Devices" },
+        { symbol: "AVGO", name: "Broadcom" },
+      ],
+      request: {
+        json: async () => {
+          throw new Error("not used");
+        },
+        text: async () => {
+          throw new Error("not used");
+        },
+      },
+    };
+
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [
+          source(
+            "a-generic",
+            "provider-a",
+            "Stocks rally as Fed holds rates",
+            "2026-06-01T12:00:00.000Z",
+          ),
+          source(
+            "a-relevant",
+            "provider-a",
+            "NVDA chips power AI demand",
+            "2026-06-01T11:00:00.000Z",
+          ),
+        ]),
+      ],
+      ["provider-a"],
+    );
+
+    const result = await multi.collect(researchContext);
+
+    // The subject-relevant headline must outrank the generic "stocks" headline.
+    expect(result.newsSources.map((item) => item.title)).toEqual([
+      "NVDA chips power AI demand",
+      "Stocks rally as Fed holds rates",
+    ]);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantMoverNewsSourceCount: 1,
+      selectedGenericMoverNewsSourceCount: 1,
+    });
+  });
+
+  test("keeps subject-defining words (small caps) matchable for the small-caps subject", async () => {
+    // The small-caps subject's own theme is "small caps"; those words must stay matchable
+    // Even though they are generic-sounding, while "stocks" remains pure noise.
+    const smallCapsTargetName = "Small Caps small caps small-cap stocks russell 2000";
+    const researchContext: CollectContext = {
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "small caps",
+        depth: "brief",
+      },
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      newsLimit: 4,
+      cryptoMoverLimit: 0,
+      newsRelevanceTargets: [
+        { symbol: "IWM", name: smallCapsTargetName },
+        { symbol: "VTWO", name: "Vanguard Russell 2000 ETF" },
+      ],
+      request: {
+        json: async () => {
+          throw new Error("not used");
+        },
+        text: async () => {
+          throw new Error("not used");
+        },
+      },
+    };
+
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [
+          source(
+            "a-generic",
+            "provider-a",
+            "Stocks rally as Fed holds rates",
+            "2026-06-01T12:00:00.000Z",
+          ),
+          source(
+            "a-relevant",
+            "provider-a",
+            "Small caps lead the market rally",
+            "2026-06-01T11:00:00.000Z",
+          ),
+        ]),
+      ],
+      ["provider-a"],
+    );
+
+    const result = await multi.collect(researchContext);
+
+    // The small-caps headline must outrank the generic "stocks" headline.
+    expect(result.newsSources.map((item) => item.title)).toEqual([
+      "Small caps lead the market rally",
+      "Stocks rally as Fed holds rates",
+    ]);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantMoverNewsSourceCount: 1,
+      selectedGenericMoverNewsSourceCount: 1,
     });
   });
 });

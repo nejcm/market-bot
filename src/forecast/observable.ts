@@ -793,13 +793,34 @@ function resolveCandidate(
     return mismatch;
   }
 
-  const { knownSourceIds } = policy;
+  const { knownSourceIds, requireSourceIds, allowedSubjects } = policy;
+  if (allowedSubjects !== undefined) {
+    // For relative forecasts the normalized subject is "primarySymbol:benchmarkSymbol".
+    // Allow the forecast when the primary instrument (before the colon) is in the set.
+    const primarySubject = normalizedSubject.includes(":")
+      ? (normalizedSubject.split(":")[0] ?? normalizedSubject)
+      : normalizedSubject;
+    if (!allowedSubjects.has(primarySubject) && !allowedSubjects.has(normalizedSubject)) {
+      return issue(
+        "disallowed-subject",
+        `Prediction ${id}: subject "${normalizedSubject}" is not in the allowed set for this run`,
+        id,
+      );
+    }
+  }
   if (knownSourceIds !== undefined) {
     for (const sid of sourceIds) {
       if (!knownSourceIds.has(sid)) {
         return issue("unknown-source", `Prediction ${id}: unknown sourceId "${sid}"`, id);
       }
     }
+  }
+  if (requireSourceIds === true && sourceIds.length === 0) {
+    return issue(
+      "missing-sources",
+      `Prediction ${id}: predictions must cite at least one sourceId`,
+      id,
+    );
   }
 
   const canonicalMeasurableAs = measurableAsForExpression(expression);
@@ -947,6 +968,7 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
   readonly forecasts: readonly ObservableForecast[];
   readonly issues: readonly ObservableForecastIssue[];
 } {
+  const idSeen = new Set<string>();
   const measurableSeen = new Set<string>();
   const kindSubjectHorizonSeen = new Set<string>();
   const acceptedDirectionHorizonsBySubject = new Map<string, number[]>();
@@ -955,6 +977,19 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
 
   for (const forecast of forecasts) {
     const { measurableAs, prediction, subject, horizonTradingDays } = forecast;
+
+    if (idSeen.has(prediction.id)) {
+      issues.push(
+        issue(
+          "duplicate-id",
+          `Prediction ${prediction.id}: duplicate prediction id`,
+          prediction.id,
+        ),
+      );
+      continue;
+    }
+    idSeen.add(prediction.id);
+
     if (measurableSeen.has(measurableAs)) {
       issues.push(
         issue(

@@ -125,6 +125,9 @@ describe("run analytics", () => {
         canonicalDedupedNewsSourceCount: 2,
         canonicalDuplicateNewsSourceCount: 1,
         persistentSuppressedNewsSourceCount: 1,
+        relevantBeforeSeenFilterCount: 0,
+        relevantSuppressedBySeenFilterCount: 0,
+        relevantSelectedCount: 0,
         repeatFallbackKeptCount: 0,
         selectedNewsSourceCount: 1,
         repeatFallbackUsed: false,
@@ -177,6 +180,17 @@ describe("run analytics", () => {
         },
       ],
       targetPredictions: 3,
+      sourcePlanSummary: {
+        plannedLaneCount: 5,
+        requiredLaneCount: 2,
+        optionalLaneCount: 3,
+        coveredLaneCount: 3,
+        gapLaneCount: 1,
+        requiredGapLaneCount: 1,
+        sourceCount: 4,
+        gapCount: 1,
+        coverageRatio: 0.6,
+      },
       calibrationContext: {
         generatedAt: "2026-05-18T00:00:00.000Z",
         resolvedCount: 12,
@@ -191,6 +205,9 @@ describe("run analytics", () => {
       canonicalDedupedNewsSourceCount: 2,
       canonicalDuplicateNewsSourceCount: 1,
       persistentSuppressedNewsSourceCount: 1,
+      relevantBeforeSeenFilterCount: 0,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 0,
       repeatFallbackKeptCount: 0,
       selectedNewsSourceCount: 1,
       repeatFallbackUsed: false,
@@ -236,6 +253,19 @@ describe("run analytics", () => {
       fetchedAt: "2026-05-19T00:00:00.000Z",
       latestSessionAgeDays: 2,
     });
+    expect(analytics.sourcePlan).toEqual({
+      plannedLaneCount: 5,
+      requiredLaneCount: 2,
+      optionalLaneCount: 3,
+    });
+    expect(analytics.evidenceLanes).toEqual({
+      coveredLaneCount: 3,
+      gapLaneCount: 1,
+      requiredGapLaneCount: 1,
+      sourceCount: 4,
+      gapCount: 1,
+      coverageRatio: 0.6,
+    });
     expect(analytics.runShape.stages).toEqual([
       { stage: "specialist-analysis", tokenEstimate: 100, costEstimateUsd: 0.01 },
       { stage: "final-synthesis", tokenEstimate: 200, costEstimateUsd: 0.02 },
@@ -249,5 +279,151 @@ describe("run analytics", () => {
       executedTools: ["sec_latest_filing"],
       emittedGapCount: 0,
     });
+  });
+});
+
+describe("forecast quality telemetry (3.2)", () => {
+  const baseTrace: RunTrace = {
+    runId: "run-q",
+    jobType: "ticker",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "brief",
+    provider: "mock",
+    quickModel: "quick",
+    synthesisModel: "synthesis",
+    startedAt: "2026-05-19T00:00:00.000Z",
+    completedAt: "2026-05-19T00:00:01.000Z",
+    sourceGaps: [],
+    stages: ["specialist-analysis", "final-synthesis"],
+    tokenEstimate: 100,
+    costEstimateUsd: 0.01,
+    domainPlaybooks: { selected: [], rejected: [] },
+  };
+
+  const aaplSource = {
+    id: "src-1",
+    title: "AAPL market snapshot",
+    fetchedAt: "2026-05-19T00:00:00.000Z",
+    kind: "market-data" as const,
+    assetClass: "equity" as const,
+    symbol: "AAPL",
+  };
+
+  function predictionsFor(
+    preds: ReturnType<typeof prediction>[],
+  ): ReturnType<typeof buildRunAnalytics>["predictions"] {
+    return buildRunAnalytics({
+      report: researchReport({
+        jobType: "ticker",
+        assetClass: "equity",
+        symbol: "AAPL",
+        predictions: preds,
+        sources: [aaplSource],
+      }),
+      trace: baseTrace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: preds.length,
+    }).predictions;
+  }
+
+  test("straddling set produces correct nearBaseRateCount and informativeCount", () => {
+    // P1 and p2 are near base rate (within 0.05 of 0.5); p3 and p4 are informative.
+    // P4 uses range kind so the set is not all-direction and the direction warning stays silent.
+    const preds = [
+      prediction({ id: "p1", probability: 0.5 }),
+      prediction({ id: "p2", probability: 0.54 }),
+      prediction({ id: "p3", probability: 0.56 }),
+      prediction({
+        id: "p4",
+        kind: "range",
+        subject: "AAPL",
+        measurableAs: "close(AAPL, +5) outside [170, 230]",
+        probability: 0.4,
+      }),
+    ];
+    const result = predictionsFor(preds);
+    expect(result.nearBaseRateCount).toBe(2);
+    expect(result.informativeCount).toBe(2);
+    expect(result.signalTargetMet).toBe(true);
+    expect(result.mixWarnings).toHaveLength(0);
+  });
+
+  test("near-base-rate band includes exact 0.45 and 0.55 boundaries", () => {
+    const preds = [
+      prediction({ id: "p1", probability: 0.45 }),
+      prediction({ id: "p2", probability: 0.5 }),
+      prediction({ id: "p3", probability: 0.55 }),
+      prediction({ id: "p4", probability: 0.44 }),
+      prediction({ id: "p5", probability: 0.56 }),
+    ];
+    const result = predictionsFor(preds);
+    expect(result.nearBaseRateCount).toBe(3);
+    expect(result.informativeCount).toBe(2);
+    expect(result.signalTargetMet).toBe(false);
+  });
+
+  test("all-near-0.5 set yields signalTargetMet: false and a mix warning, but count unchanged", () => {
+    const preds = [
+      prediction({ id: "p1", probability: 0.5 }),
+      prediction({
+        id: "p2",
+        subject: "QQQ",
+        measurableAs: "close(QQQ, +5) > close(QQQ, 0)",
+        probability: 0.52,
+      }),
+      prediction({
+        id: "p3",
+        subject: "^VIX",
+        measurableAs: "close(^VIX, +5) > close(^VIX, 0)",
+        probability: 0.48,
+      }),
+    ];
+    const result = predictionsFor(preds);
+    expect(result.nearBaseRateCount).toBe(3);
+    expect(result.informativeCount).toBe(0);
+    expect(result.signalTargetMet).toBe(false);
+    // All 3 predictions must still be emitted — telemetry never rejects
+    expect(result.count).toBe(3);
+    expect(result.mixWarnings.some((w) => w.includes("base rate"))).toBe(true);
+  });
+
+  test("all-direction set produces direction-only mix warning", () => {
+    const preds = [
+      prediction({ id: "p1", kind: "direction", probability: 0.65 }),
+      prediction({
+        id: "p2",
+        kind: "direction",
+        subject: "QQQ",
+        measurableAs: "close(QQQ, +5) > close(QQQ, 0)",
+        probability: 0.7,
+      }),
+    ];
+    const result = predictionsFor(preds);
+    expect(result.mixWarnings.some((w) => w.includes("direction kind"))).toBe(true);
+  });
+
+  test("mixed kinds do not produce direction-only mix warning", () => {
+    const preds = [
+      prediction({ id: "p1", kind: "direction", probability: 0.65 }),
+      prediction({
+        id: "p2",
+        kind: "range",
+        subject: "AAPL",
+        measurableAs: "close(AAPL, +5) outside [170, 230]",
+        probability: 0.6,
+      }),
+    ];
+    const result = predictionsFor(preds);
+    expect(result.mixWarnings.every((w) => !w.includes("direction kind"))).toBe(true);
+  });
+
+  test("zero predictions yields signalTargetMet: true with empty warnings", () => {
+    const result = predictionsFor([]);
+    expect(result.nearBaseRateCount).toBe(0);
+    expect(result.informativeCount).toBe(0);
+    expect(result.signalTargetMet).toBe(true);
+    expect(result.mixWarnings).toHaveLength(0);
   });
 });

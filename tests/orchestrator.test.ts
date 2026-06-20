@@ -926,6 +926,11 @@ describe("runResearchJob", () => {
           readonly domainPlaybooks?: readonly { readonly id?: string }[];
         }
       | undefined;
+    const finalPrompt = prompts.find((prompt) => prompt.stage === "final-synthesis") as
+      | {
+          readonly domainPlaybooks?: readonly { readonly id?: string }[];
+        }
+      | undefined;
 
     expect(selectorPrompt?.evidenceCategories).toContain("sec-edgar");
     expect(selectorPrompt?.plannedStages).toEqual([
@@ -941,8 +946,12 @@ describe("runResearchJob", () => {
     expect(critiquePrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
       "critique-discipline",
     ]);
+    expect(finalPrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
+      "synthesis-discipline",
+    ]);
     expect(result.trace.domainPlaybooks).toMatchObject({
       selected: [
+        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
         { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
         { stage: "critique", playbookIds: ["critique-discipline"] },
       ],
@@ -993,7 +1002,9 @@ describe("runResearchJob", () => {
     });
 
     expect(result.report.summary).toBe("AAPL evidence is sourced.");
-    expect(result.trace.domainPlaybooks.selected).toEqual([]);
+    expect(result.trace.domainPlaybooks.selected).toEqual([
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+    ]);
     expect(result.trace.domainPlaybooks.rejected).toEqual([
       { stage: "evidence-request", reason: "invalid stage" },
       {
@@ -1002,6 +1013,82 @@ describe("runResearchJob", () => {
         reason: "playbook is not eligible",
       },
     ]);
+  });
+
+  test("emits non-blocking post-synthesis audit warnings", async () => {
+    const dataDir = tempDataDir("market-bot-audit");
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-aapl",
+      jobType: "ticker",
+      generatedAt: "2026-05-18T00:00:00.000Z",
+      symbol: "AAPL",
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return {
+          content: JSON.stringify({
+            summary: "AAPL evidence is sourced.",
+            keyFindings: [
+              { text: "Sector RSI14 is 70.", sourceIds: ["history-report-prior-aapl"] },
+            ],
+            bullCase: [{ text: "Evidence supports the setup.", sourceIds: ["market-aapl"] }],
+            bearCase: [{ text: "Coverage remains incomplete.", sourceIds: ["market-aapl"] }],
+            risks: [{ text: "Source coverage can change.", sourceIds: ["market-aapl"] }],
+            catalysts: [{ text: "New evidence is visible.", sourceIds: ["market-aapl"] }],
+            scenarios: [
+              {
+                name: "Base",
+                description: "Evidence remains relevant.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: mockPredictions(6, "AAPL"),
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.keyFindings[0]?.text).toBe("Sector RSI14 is 70.");
+    expect(result.report.predictions).toHaveLength(6);
+    expect(result.trace.postSynthesisAudit?.warningCount).toBe(2);
+    expect(result.trace.postSynthesisAudit?.warnings.map((warning) => warning.code)).toEqual([
+      "unsupported-numeric-claim",
+      "weak-evidence-posture-missing",
+    ]);
+    expect(result.analytics.postSynthesisAudit).toEqual({
+      warningCount: 2,
+      byCode: {
+        "unsupported-numeric-claim": 1,
+        "weak-evidence-posture-missing": 1,
+      },
+    });
   });
 
   test("audits rejected duplicate, invalid, and over-budget evidence requests", async () => {
@@ -1783,12 +1870,31 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "movers.json"), "utf8"),
     ).resolves.toContain("market-aapl");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "source-plan.json"), "utf8"),
+    ).resolves.toContain("market-data");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "evidence-lanes.json"), "utf8"),
+    ).resolves.toContain("coveredLaneCount");
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "source-ledger.json"), "utf8"),
+    ).resolves.toContain("market-aapl");
+    expect(result.trace.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);
+    expect(result.analytics.evidenceLanes?.coveredLaneCount).toBeGreaterThan(0);
+    expect(result.trace.codeVersion?.dirty).toEqual(expect.any(Boolean));
+    expect(result.analytics.codeVersion).toEqual(result.trace.codeVersion);
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "Equity market breadth",
     );
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
       "Research-only note",
     );
+    await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain(
+      "codeVersion",
+    );
+    await expect(
+      readFile(join(result.artifacts.runDir, "analytics.json"), "utf8"),
+    ).resolves.toContain("codeVersion");
     await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain(
       "quick-test",
     );
@@ -2182,7 +2288,7 @@ describe("runResearchJob", () => {
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
-              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
               bullCase: [],
               bearCase: [],
               risks: [],
@@ -2193,20 +2299,20 @@ describe("runResearchJob", () => {
               predictions: [
                 {
                   id: "pred-1",
-                  claim: "AAPL closes higher over 5 trading days.",
+                  claim: "SPY closes higher over 5 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +5) > close(SPY, 0)",
                   horizonTradingDays: 5,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
                 {
                   id: "pred-adjacent",
-                  claim: "AAPL closes higher over 6 trading days.",
+                  claim: "SPY closes higher over 6 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +6) > close(SPY, 0)",
                   horizonTradingDays: 6,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
@@ -2219,7 +2325,7 @@ describe("runResearchJob", () => {
         }
 
         return {
-          content: modelReport("AAPL"),
+          content: modelReport("SPY"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -2241,7 +2347,7 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
     const redundancyReason =
-      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)";
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)";
 
     // Redundancy still triggers a single reprompt; a shortfall alone never would (ADR 0021).
     expect(finalPrompts).toHaveLength(2);
@@ -2282,7 +2388,7 @@ describe("runResearchJob", () => {
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
-              keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
               bullCase: [],
               bearCase: [],
               risks: [],
@@ -2293,30 +2399,30 @@ describe("runResearchJob", () => {
               predictions: [
                 {
                   id: "pred-1",
-                  claim: "AAPL closes higher over 5 trading days.",
+                  claim: "SPY closes higher over 5 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +5) > close(SPY, 0)",
                   horizonTradingDays: 5,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
                 {
                   id: "pred-adjacent",
-                  claim: "AAPL closes higher over 6 trading days.",
+                  claim: "SPY closes higher over 6 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +6) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +6) > close(SPY, 0)",
                   horizonTradingDays: 6,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
                 {
                   id: "pred-distinct",
-                  claim: "AAPL closes higher over 8 trading days.",
+                  claim: "SPY closes higher over 8 trading days.",
                   kind: "direction",
-                  subject: "AAPL",
-                  measurableAs: "close(AAPL, +8) > close(AAPL, 0)",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +8) > close(SPY, 0)",
                   horizonTradingDays: 8,
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
@@ -2329,7 +2435,7 @@ describe("runResearchJob", () => {
         }
 
         return {
-          content: modelReport("AAPL"),
+          content: modelReport("SPY"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -2353,7 +2459,7 @@ describe("runResearchJob", () => {
 
     expect(finalPrompts).toHaveLength(2);
     expect(retryPrompt.predictionRepromptErrors).toContain(
-      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)",
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)",
     );
     expect(retryPrompt.predictionRepromptErrors).not.toContain(
       "predictionShortfall: required 2, received 2",
@@ -2362,7 +2468,7 @@ describe("runResearchJob", () => {
       (retryPrompt.predictionRepair as { readonly instruction?: string } | undefined)?.instruction,
     ).toContain("at least 2 trading days apart");
     expect(result.trace.predictionRetryErrors).toContain(
-      "Prediction pred-adjacent: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)",
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)",
     );
   });
 
@@ -2445,6 +2551,115 @@ describe("runResearchJob", () => {
     expect(result.trace.reportValidationRetryErrors).toEqual([
       "Major findings must reference source IDs",
     ]);
+  });
+
+  test("discloses absent Tradier options as a data gap without source-id retry", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0,
+          };
+        }
+
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          const allowedSourceIds = Array.isArray(prompt.allowedSourceIds)
+            ? prompt.allowedSourceIds.filter((value): value is string => typeof value === "string")
+            : [];
+          const guidance =
+            typeof prompt.sourceIdGuidance === "string" ? prompt.sourceIdGuidance : "";
+          const hasGapGuidance =
+            allowedSourceIds.includes("market-aapl") &&
+            !allowedSourceIds.includes("tradier-options") &&
+            guidance.includes("tradier-options") &&
+            guidance.includes("dataGaps");
+
+          return {
+            content: JSON.stringify({
+              summary: "AAPL evidence is sourced.",
+              keyFindings: [
+                {
+                  text: "AAPL has a current market snapshot.",
+                  sourceIds: [hasGapGuidance ? "market-aapl" : "tradier-options"],
+                },
+              ],
+              bullCase: [
+                { text: "Market evidence supports the setup.", sourceIds: ["market-aapl"] },
+              ],
+              bearCase: [{ text: "Options IV evidence is absent.", sourceIds: ["market-aapl"] }],
+              risks: [
+                { text: "Options coverage remains unavailable.", sourceIds: ["market-aapl"] },
+              ],
+              catalysts: [
+                { text: "Market data is the visible input.", sourceIds: ["market-aapl"] },
+              ],
+              scenarios: [
+                {
+                  name: "Base",
+                  description: "Evidence remains limited without options IV.",
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+              confidence: "medium",
+              dataGaps: hasGapGuidance
+                ? ["tradier-options: missing MARKET_BOT_TRADIER_API_TOKEN"]
+                : [],
+              predictions: mockPredictions(2, "AAPL"),
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        return {
+          content: modelReport("AAPL"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir: tempDataDir("market-bot-tradier-gap") },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-options",
+            message: "missing MARKET_BOT_TRADIER_API_TOKEN",
+            capability: "extended-evidence",
+            cause: "missing-credential",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const finalPrompt = finalPrompts[0] ?? {};
+
+    expect(finalCalls).toBe(1);
+    expect(finalPrompts).toHaveLength(1);
+    expect(finalPrompt.allowedSourceIds).toEqual(["market-aapl", "news-equity-1"]);
+    expect(finalPrompt.sourceIdGuidance).toContain("dataGaps");
+    expect(result.trace.reportValidationRetryErrors).toBeUndefined();
+    expect(result.report.dataGaps).toContain(
+      "tradier-options: missing MARKET_BOT_TRADIER_API_TOKEN",
+    );
+    expect(result.report.keyFindings[0]?.sourceIds).toEqual(["market-aapl"]);
   });
 
   test("keeps prediction retry guidance when report validation also retries synthesis", async () => {

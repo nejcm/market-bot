@@ -8,6 +8,7 @@ import {
   collectSources,
   createCollectContext,
   resetSourceResilienceForTests,
+  researchNewsRelevanceTargets,
   setSourceHostMinDelayMsForTests,
 } from "../src/sources/collector";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
@@ -528,6 +529,89 @@ describe("collectSources", () => {
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["aapl earnings preview"]);
     expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantTickerNewsSourceCount: 1,
+      selectedGenericTickerNewsSourceCount: 0,
+    });
+  });
+
+  test("uses resolved ticker identity name for news relevance", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("quote")) {
+        const symbols = new URL(url).searchParams.get("symbols");
+        return jsonResponse({
+          quoteResponse: {
+            result:
+              symbols === "AAPL"
+                ? [
+                    {
+                      symbol: "AAPL",
+                      shortName: "Apple Inc.",
+                      regularMarketPrice: 190,
+                      regularMarketChangePercent: 2,
+                      regularMarketVolume: 80_000_000,
+                    },
+                  ]
+                : [
+                    {
+                      symbol: "SPY",
+                      regularMarketPrice: 510,
+                      regularMarketChangePercent: 0.4,
+                      regularMarketVolume: 70_000_000,
+                    },
+                  ],
+          },
+        });
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              title: "Macro rates update",
+              url: "https://example.test/macro",
+              source: "Example",
+              published_at: "2026-05-19T12:00:00.000Z",
+            },
+            {
+              title: "Apple supplier demand improves",
+              url: "https://example.test/apple",
+              source: "Example",
+              published_at: "2026-05-19T12:01:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([]);
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 1,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
+    expect(result.newsSources.map((source) => source.title)).toEqual([
+      "Apple supplier demand improves",
+    ]);
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 1,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 1,
       selectedRelevantTickerNewsSourceCount: 1,
       selectedGenericTickerNewsSourceCount: 0,
     });
@@ -1887,6 +1971,11 @@ describe("collectSources", () => {
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["Fresh BTC story"]);
     expect(result.newsSources[0]?.id).toBe("news-crypto-1");
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 2,
+      relevantSuppressedBySeenFilterCount: 1,
+      relevantSelectedCount: 1,
+    });
     expect(result.sourceGaps.map((gap) => gap.source)).not.toContain("news-seen");
   });
 
@@ -2073,5 +2162,74 @@ describe("collectSources", () => {
   test("rejects invalid test host delay overrides", () => {
     expect(() => setSourceHostMinDelayMsForTests(Number.NaN)).toThrow(RangeError);
     expect(() => setSourceHostMinDelayMsForTests(-1)).toThrow(RangeError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.3 — researchNewsRelevanceTargets
+// ---------------------------------------------------------------------------
+
+describe("researchNewsRelevanceTargets", () => {
+  test("returns proxy + non-proxy representatives for a resolved registry subject", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    });
+
+    // Semiconductors: proxy=SMH (with displayName+aliases as name), plus NVDA, AMD, AVGO
+    const symbols = targets.map((t) => t.symbol);
+    expect(symbols).toContain("SMH");
+    expect(symbols).toContain("NVDA");
+    expect(symbols).toContain("AMD");
+    expect(symbols).toContain("AVGO");
+
+    // Proxy target carries the displayName for topic-level matching
+    const proxyTarget = targets.find((t) => t.symbol === "SMH");
+    expect(proxyTarget?.name).toContain("Semiconductors");
+
+    // Proxy symbol should not appear twice
+    expect(symbols.filter((s) => s === "SMH")).toHaveLength(1);
+  });
+
+  test("returns all representatives when there is no proxy (e.g. ai-infrastructure)", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI capex",
+      subjectKey: "ai-infrastructure",
+      depth: "brief",
+    });
+
+    // Ai-infrastructure has no proxy; all three representatives should be returned
+    const symbols = targets.map((t) => t.symbol);
+    expect(symbols).toContain("NVDA");
+    expect(symbols).toContain("ANET");
+    expect(symbols).toContain("VRT");
+  });
+
+  test("returns empty array for unresolved subject", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "completely unknown niche",
+      depth: "brief",
+    });
+
+    expect(targets).toHaveLength(0);
+  });
+
+  test("returns empty array for non-research job types", () => {
+    const targets = researchNewsRelevanceTargets({
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "SMH",
+      depth: "brief",
+    });
+
+    expect(targets).toHaveLength(0);
   });
 });

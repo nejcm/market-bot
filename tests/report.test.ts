@@ -711,6 +711,109 @@ describe("report schema and rendering", () => {
     ]);
   });
 
+  test("keeps deterministic options and supplemental gaps over model restatements", () => {
+    const command = {
+      jobType: "ticker" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [
+          "Options IV evidence unavailable.",
+          "Supplemental market snapshots unavailable.",
+          "Issuer transcript unavailable.",
+        ],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [
+          {
+            id: "news-1",
+            title: "AAPL update",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+          sourceGap({
+            source: "massive-supplemental-market",
+            provider: "massive",
+            message: "supplemental market snapshot request failed with status 403",
+            capability: "market-data",
+            cause: "fetch-failed",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Issuer transcript unavailable.",
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "massive-supplemental-market: supplemental market snapshot request failed with status 403",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+    ]);
+  });
+
+  test("keeps deterministic mover-universe gap over model restatements", () => {
+    const command = {
+      jobType: "market-overview" as const,
+      assetClass: "equity" as const,
+      horizonTradingDays: 15,
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("SPY");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Mover universe is limited to a single day."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-spy", symbol: "SPY" })],
+        newsSources: [
+          {
+            id: "news-1",
+            title: "Market update",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
+    ]);
+  });
+
   test("adds historical report sources to report source lists", () => {
     const history: HistoricalResearchContext = {
       generatedAt: "2026-05-19T00:00:00.000Z",
@@ -768,6 +871,155 @@ describe("report schema and rendering", () => {
       rawRef: "prior-run/report.json",
       provider: "market-bot",
     });
+  });
+
+  test("prefers snapshot citations for numeric claims cited only to history reports", () => {
+    const history: HistoricalResearchContext = {
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      recentDays: 90,
+      anchorMonths: [],
+      runs: [
+        {
+          runId: "prior-run",
+          sourceId: "history-report-prior-run",
+          jobType: "ticker",
+          assetClass: "equity",
+          symbol: "AAPL",
+          generatedAt: "2026-05-01T00:00:00.000Z",
+          selectionReasons: ["recent", "same-symbol"],
+          summary: "Prior narrative context.",
+          confidence: "medium",
+          keyFindings: [],
+          risks: [],
+          catalysts: [],
+          dataGaps: [],
+          predictions: [],
+          scoreSummary: { total: 0, resolved: 0, hit: 0, miss: 0, unresolved: 0 },
+          marketSnapshots: [],
+        },
+      ],
+      sources: [
+        {
+          id: "history-report-prior-run",
+          title: "Prior AAPL report",
+          fetchedAt: "2026-05-01T00:00:00.000Z",
+          kind: "model",
+          assetClass: "equity",
+          symbol: "AAPL",
+          rawRef: "prior-run/report.json",
+          provider: "market-bot",
+        },
+      ],
+      gaps: [],
+      audit: {
+        scannedRunCount: 1,
+        malformedRunCount: 0,
+        malformedScoreCount: 0,
+        candidateRunCount: 1,
+        selectedRunCount: 1,
+        recentSelectedCount: 1,
+        anchorSelectedCount: 0,
+        sameSymbolSelectedCount: 1,
+        spotlightSymbolSelectedCount: 0,
+        sameSubjectSelectedCount: 0,
+        sameHorizonSelectedCount: 0,
+        crossHorizonSelectedCount: 0,
+        resolvedMissRunCount: 0,
+        missCorrectionSelectedCount: 0,
+        gapCount: 0,
+      },
+      artifactDeltas: [],
+    };
+    const command = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol: "AAPL", sourceId: "market-aapl", price: 100 })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const assembled = assembleResearchReport({
+      runId: "ticker-aapl",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL evidence is mixed.",
+        keyFindings: [
+          {
+            text: "AAPL traded near 100 in the current snapshot.",
+            sourceIds: ["history-report-prior-run"],
+          },
+        ],
+        risks: [
+          {
+            text: "Prior narrative context remains relevant.",
+            sourceIds: ["history-report-prior-run"],
+          },
+        ],
+        confidence: "medium",
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: { ...assemblyContext(depthProfile), historicalContext: history },
+      sources: buildSourceList(command, collected, history),
+    });
+
+    expect(assembled.keyFindings[0]?.sourceIds).toEqual(["market-aapl"]);
+    expect(assembled.risks[0]?.sourceIds).toEqual(["history-report-prior-run"]);
+    expect(assembled.extras?.historicalContext).toMatchObject({
+      items: [{ sourceIds: ["history-report-prior-run"] }],
+    });
+  });
+
+  test("keeps prior forecast numeric narrative cited to history reports", () => {
+    const historySourceId = "history-report-prior-run";
+    const command = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol: "AAPL", sourceId: "market-aapl", price: 100 })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const assembled = assembleResearchReport({
+      runId: "ticker-aapl",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL evidence is mixed.",
+        keyFindings: [
+          {
+            text: "Prior AAPL forecast had p=0.72 and missed after 5 days.",
+            sourceIds: [historySourceId],
+          },
+        ],
+        confidence: "medium",
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [
+        ...buildSourceList(command, collected),
+        {
+          id: historySourceId,
+          title: "Prior AAPL report",
+          fetchedAt: "2026-05-01T00:00:00.000Z",
+          kind: "model",
+          assetClass: "equity",
+          symbol: "AAPL",
+          rawRef: "prior-run/report.json",
+          provider: "market-bot",
+        },
+      ],
+    });
+
+    expect(assembled.keyFindings[0]?.sourceIds).toEqual([historySourceId]);
   });
 
   test("uses deterministic historical context instead of model-authored history extras", () => {
@@ -1461,6 +1713,200 @@ function marketUpdateReport(delta: Record<string, unknown>): ResearchReport {
     extras: { marketUpdateDelta: delta },
   };
 }
+
+describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
+  test("attaches registry sources as kind:reference for resolved research subjects", () => {
+    const sources = buildSourceList(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "chip stocks",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "brief",
+      },
+      collectedSources(),
+      undefined,
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    const referenceSources = sources.filter((s) => s.kind === "reference");
+    // Semiconductors registry has 4 sources: vaneck-smh + 3 Nasdaq listings
+    expect(referenceSources.length).toBeGreaterThan(0);
+    expect(referenceSources[0]).toMatchObject({
+      id: "vaneck-smh",
+      title: "VanEck Semiconductor ETF",
+      url: "https://www.vaneck.com/us/en/investments/semiconductor-etf-smh/",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "reference",
+    });
+    const ids = referenceSources.map((s) => s.id);
+    expect(ids).toContain("nasdaq-nvda");
+    expect(ids).toContain("nasdaq-amd");
+  });
+
+  test("omits registry sources for unresolved research subjects", () => {
+    const sources = buildSourceList(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "unknown niche sector",
+        depth: "brief",
+      },
+      collectedSources(),
+      undefined,
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    expect(sources.filter((s) => s.kind === "reference")).toHaveLength(0);
+  });
+
+  test("requires caller timestamp for resolved registry source provenance", () => {
+    expect(() =>
+      buildSourceList(
+        {
+          jobType: "research",
+          assetClass: "equity",
+          subject: "chip stocks",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        },
+        collectedSources(),
+        undefined,
+        undefined as never,
+      ),
+    ).toThrow();
+  });
+
+  test("omits registry sources for non-research job types", () => {
+    const sources = buildSourceList(
+      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "brief" },
+      collectedSources(),
+      undefined,
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    expect(sources.filter((s) => s.kind === "reference")).toHaveLength(0);
+  });
+});
+
+describe("researchPredictionGate gap text (phase 2.4)", () => {
+  test("always emits gap when resolved subject has no proxy, even with zero model predictions", () => {
+    const depthProfile = assemblyDepthProfile("SMH");
+    const assembled = assembleResearchReport({
+      runId: "research-ai-infra",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI capex",
+        subjectKey: "ai-infrastructure",
+        depth: "brief",
+      },
+      payload: { summary: "AI infrastructure evidence.", confidence: "medium" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: subject ai-infrastructure has no listed prediction proxy; predictions cannot be emitted",
+    );
+  });
+
+  test("drops predictions and emits gap for resolved-no-proxy subject even when model emits some", () => {
+    const depthProfile = assemblyDepthProfile("NVDA");
+    const assembled = assembleResearchReport({
+      runId: "research-ai-infra-2",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI capex",
+        subjectKey: "ai-infrastructure",
+        depth: "brief",
+      },
+      payload: { summary: "AI infrastructure evidence.", confidence: "medium" },
+      predResult: {
+        predictions: [
+          prediction({
+            subject: "NVDA",
+            measurableAs: "close(NVDA, +5) > close(NVDA, 0)",
+            horizonTradingDays: 5,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    expect(assembled.dataGaps).toContain(
+      "researchProxyForecastGate: subject ai-infrastructure has no listed prediction proxy; predictions cannot be emitted",
+    );
+  });
+
+  test("omits gap for unresolved subject when model emits zero predictions", () => {
+    const depthProfile = assemblyDepthProfile("SPY");
+    const assembled = assembleResearchReport({
+      runId: "research-unresolved",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "some unknown niche sector",
+        depth: "brief",
+      },
+      payload: { summary: "Niche sector evidence.", confidence: "medium" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    const gateGaps = assembled.dataGaps.filter((g) => g.startsWith("researchProxyForecastGate"));
+    expect(gateGaps).toHaveLength(0);
+  });
+
+  test("omits resolved-subject gap when subjectKey is set but subject string does not resolve in registry", () => {
+    // Guards the HIGH fix: identity.subjectKey is caller-provided and not proof of registry
+    // Resolution. The gate must use resolveResearchSubjectProxy(command.subject) instead.
+    const depthProfile = assemblyDepthProfile("SPY");
+    const assembled = assembleResearchReport({
+      runId: "research-unresolved-with-key",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "completely-unknown-sector-xyz123",
+        subjectKey: "unknown-sector-key",
+        depth: "brief",
+      },
+      payload: { summary: "Unknown sector evidence.", confidence: "medium" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.predictions).toHaveLength(0);
+    // No gate gap: the subject does not resolve, and zero predictions were emitted.
+    const gateGaps = assembled.dataGaps.filter((g) => g.startsWith("researchProxyForecastGate"));
+    expect(gateGaps).toHaveLength(0);
+  });
+});
 
 describe("market update delta rendering", () => {
   test("renders the What Changed section after Summary and before Key Findings", () => {

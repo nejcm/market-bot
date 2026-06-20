@@ -31,8 +31,8 @@ function validSummary(): CalibrationSummary {
     byJobType: { "market-overview": { brierScore: 0.25, count: 2 } },
     byMarketUpdateHorizonBucket: { "1-5d": { brierScore: 0.25, count: 2 } },
     byHorizonBucket: { "1-5": { brierScore: 0.25, count: 2 } },
-    byMarketRegime: {},
-    marketRegimeCoverage: {},
+    byMarketRegime: { mixed: { brierScore: 0.2, count: 5 } },
+    marketRegimeCoverage: { mixed: 5, unknown: 1 },
     byMissAutopsyCause: { source_gap: 1 },
     conditionalPredictions: { activatedCount: 0, voidedCount: 0 },
   };
@@ -51,10 +51,7 @@ describe("parseCalibrationContext", () => {
 
     const parsed = parseCalibrationContext(structuredClone(summary) as unknown);
 
-    // Regime slices are artifact-only and not mirrored into the prompt context.
-    const { byMarketRegime, marketRegimeCoverage, ...promptFields } = summary;
-    expect([byMarketRegime, marketRegimeCoverage]).toEqual([{}, {}]);
-    expect(parsed).toEqual(promptFields);
+    expect(parsed).toEqual(summary);
   });
 
   test("drops fields with the wrong primitive type instead of trusting them", () => {
@@ -114,6 +111,25 @@ describe("parseCalibrationContext", () => {
     });
 
     expect(parsed?.byKind).toEqual({ direction: { brierScore: 0.25, count: 2 } });
+  });
+
+  test("filters malformed market-regime slices and coverage counts", () => {
+    const parsed = parseCalibrationContext({
+      byMarketRegime: {
+        mixed: { brierScore: 0.2, count: 5 },
+        euphoric: { brierScore: 0.1, count: 8 },
+        "risk-off": { brierScore: 0.25, count: 0 },
+      },
+      marketRegimeCoverage: {
+        mixed: 5,
+        unknown: 2,
+        euphoric: 3,
+        "risk-on": -1,
+      },
+    });
+
+    expect(parsed?.byMarketRegime).toEqual({ mixed: { brierScore: 0.2, count: 5 } });
+    expect(parsed?.marketRegimeCoverage).toEqual({ mixed: 5, unknown: 2 });
   });
 
   test("ignores a malformed bins value that is not an array", () => {
@@ -203,11 +219,7 @@ describe("loadCalibrationContext", () => {
 
     const context = await loadCalibrationContext(dataDir);
 
-    // Regime slices are artifact-only: parseCalibrationContext intentionally does
-    // Not surface them to the prompt context, so they round-trip out here.
-    const { byMarketRegime, marketRegimeCoverage, ...promptFields } = validSummary();
-    expect([byMarketRegime, marketRegimeCoverage]).toEqual([{}, {}]);
-    expect(context).toEqual(promptFields);
+    expect(context).toEqual(validSummary());
   });
 
   test("strips poisoned fields rather than passing them to the prompt", async () => {

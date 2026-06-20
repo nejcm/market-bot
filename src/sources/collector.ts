@@ -22,6 +22,7 @@ import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils"
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addValuationEvidence } from "./extended-evidence/valuation";
+import { resolveResearchSubjectProxy } from "../research/subject-registry";
 
 interface HostState {
   queue: Promise<void>;
@@ -304,6 +305,58 @@ function moverNewsRelevanceTargets(
   }));
 }
 
+function tickerNewsRelevanceTargets(
+  command: ResearchCommand,
+  displayName: string | undefined,
+): readonly NewsRelevanceTarget[] {
+  if (command.jobType !== "ticker") {
+    return [];
+  }
+  return [
+    {
+      symbol: command.symbol,
+      ...(displayName !== undefined ? { name: displayName } : {}),
+    },
+  ];
+}
+
+// Build news relevance targets for research runs from the subject registry (Phase 2.3).
+// Uses the proxy symbol + subject display name/aliases for topic-level news matching,
+// Plus each non-proxy representative instrument by symbol and name.
+// Exported for testing; internal callers use this directly.
+export function researchNewsRelevanceTargets(
+  command: ResearchCommand,
+): readonly NewsRelevanceTarget[] {
+  if (command.jobType !== "research") {
+    return [];
+  }
+  const resolution = resolveResearchSubjectProxy(command.subject);
+  if (resolution.subject === undefined) {
+    return [];
+  }
+  const entry = resolution.subject;
+  const targets: NewsRelevanceTarget[] = [];
+
+  // Proxy target: use the subject display name + aliases as the name for broad topic matching
+  if (entry.predictionProxy !== undefined) {
+    const topicName = [entry.displayName, ...entry.aliases].join(" ");
+    targets.push({ symbol: entry.predictionProxy.symbol, name: topicName });
+  }
+
+  // Non-proxy representative instruments by symbol and name
+  for (const instrument of entry.representativeInstruments) {
+    if (instrument.symbol === entry.predictionProxy?.symbol) {
+      continue;
+    }
+    targets.push({
+      symbol: instrument.symbol,
+      ...(instrument.name !== undefined ? { name: instrument.name } : {}),
+    });
+  }
+
+  return targets;
+}
+
 function contextWithNewsRelevanceTargets(
   ctx: CollectContext,
   targets: readonly NewsRelevanceTarget[],
@@ -499,18 +552,26 @@ export async function collectSources(
   // Verified Market Snapshot: equity ticker only (ADR 0019); joins the parallel batch
   const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
 
-  // Market updates sequence market first so current ranked movers can steer news selection.
+  // Market updates and ticker runs sequence market first so current ranked movers or resolved
+  // Instrument identity can steer news selection.
+  // Research runs resolve registry-based relevance targets without waiting on market data.
   // Other run types keep the parallel source collection path.
-  const marketResult = isMarketUpdateCommand(command)
-    ? await marketAdapter.collect(ctx)
-    : undefined;
-  const newsContext =
-    marketResult === undefined
-      ? ctx
-      : contextWithNewsRelevanceTargets(
-          ctx,
-          moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots),
-        );
+  const shouldCollectMarketBeforeNews =
+    isMarketUpdateCommand(command) || command.jobType === "ticker";
+  const marketResult = shouldCollectMarketBeforeNews ? await marketAdapter.collect(ctx) : undefined;
+  const preliminaryIdentityResult =
+    isEquityTicker && marketResult !== undefined
+      ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
+      : undefined;
+  let newsContext: CollectContext = ctx;
+  if (marketResult !== undefined) {
+    const targets = isMarketUpdateCommand(command)
+      ? moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots)
+      : tickerNewsRelevanceTargets(command, preliminaryIdentityResult?.identity?.displayName);
+    newsContext = contextWithNewsRelevanceTargets(ctx, targets);
+  } else if (command.jobType === "research") {
+    newsContext = contextWithNewsRelevanceTargets(ctx, researchNewsRelevanceTargets(command));
+  }
   const [
     resolvedMarketResult,
     newsResult,
@@ -536,9 +597,11 @@ export async function collectSources(
   );
 
   // Canonical identity is a pure selection from the already-fetched ticker quote
-  const identityResult = isEquityTicker
-    ? deriveCanonicalInstrumentIdentity(resolvedMarketResult.marketSnapshots, command.symbol)
-    : undefined;
+  const identityResult =
+    preliminaryIdentityResult ??
+    (isEquityTicker
+      ? deriveCanonicalInstrumentIdentity(resolvedMarketResult.marketSnapshots, command.symbol)
+      : undefined);
   const valuationResult = addValuationEvidence(
     command,
     resolvedMarketResult.marketSnapshots,

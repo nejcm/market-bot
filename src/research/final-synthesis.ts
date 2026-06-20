@@ -43,6 +43,9 @@ export interface SynthesizeReportUntilValidInput {
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
   readonly knownSourceIds: ReadonlySet<string>;
+  /** Subjects the model is allowed to forecast for this run type.
+   *  Undefined for research runs — `researchPredictionGate` is the authority there. */
+  readonly allowedSubjects?: ReadonlySet<string>;
   readonly priorStages: readonly StageOutput[];
   readonly maxPredictionReprompts: number;
   readonly runFinalSynthesis: (
@@ -87,7 +90,6 @@ export async function synthesizeReportUntilValid(
   const validationState = await runAndReadFinalSynthesis(input, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
-    allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
@@ -103,7 +105,6 @@ export async function synthesizeReportUntilValid(
     const state = await runAndReadFinalSynthesis(input, {
       predictionErrors: postReportPredictionErrors,
       reportValidationErrors,
-      allowedSourceIds: [...input.knownSourceIds].toSorted(),
     });
     validationProgress = {
       state,
@@ -152,9 +153,16 @@ async function runAndReadFinalSynthesis(
   input: SynthesizeReportUntilValidInput,
   reprompt?: StageReprompt,
 ): Promise<FinalSynthesisState> {
-  const output = await input.runFinalSynthesis(input.priorStages, reprompt);
+  const output = await input.runFinalSynthesis(input.priorStages, {
+    ...reprompt,
+    allowedSourceIds: [...input.knownSourceIds].toSorted(),
+  });
   const payload = parseModelPayload(output.content);
-  const predResult = readPredictions(payload.predictions, input.knownSourceIds);
+  const predResult = readPredictions(
+    payload.predictions,
+    input.knownSourceIds,
+    input.allowedSubjects,
+  );
   return { output, payload, predResult };
 }
 

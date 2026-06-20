@@ -93,7 +93,8 @@ export interface Source {
     | "model"
     | "extended-evidence"
     | "market-context"
-    | "discussion";
+    | "discussion"
+    | "reference";
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;
@@ -181,6 +182,17 @@ export interface DomainPlaybookSelectionAudit {
     readonly playbookId?: string;
     readonly reason: string;
   }[];
+}
+
+export type PostSynthesisAuditWarningCode =
+  | "unsupported-numeric-claim"
+  | "weak-evidence-posture-missing";
+
+export interface PostSynthesisAuditWarning {
+  readonly code: PostSynthesisAuditWarningCode;
+  readonly location: string;
+  readonly message: string;
+  readonly sourceIds: readonly string[];
 }
 
 export interface MarketSnapshot {
@@ -392,6 +404,31 @@ export interface ResearchReport {
   readonly extras?: Record<string, unknown>;
 }
 
+export interface HistoricalContextAudit {
+  readonly scannedRunCount: number;
+  readonly malformedRunCount: number;
+  readonly malformedScoreCount: number;
+  readonly candidateRunCount: number;
+  readonly selectedRunCount: number;
+  readonly recentSelectedCount: number;
+  readonly anchorSelectedCount: number;
+  readonly sameSymbolSelectedCount: number;
+  readonly spotlightSymbolSelectedCount: number;
+  readonly sameSubjectSelectedCount: number;
+  readonly sameHorizonSelectedCount: number;
+  readonly crossHorizonSelectedCount: number;
+  readonly resolvedMissRunCount: number;
+  readonly missCorrectionSelectedCount: number;
+  readonly gapCount: number;
+}
+
+export interface CodeVersion {
+  readonly branch?: string;
+  readonly commit?: string;
+  readonly commitShort?: string;
+  readonly dirty: boolean;
+}
+
 export interface RunTrace {
   readonly runId: string;
   readonly jobType: JobType;
@@ -402,6 +439,7 @@ export interface RunTrace {
   readonly symbol?: string;
   readonly depth: Depth;
   readonly provider: string;
+  readonly codeVersion?: CodeVersion;
   readonly quickModel: string;
   readonly synthesisModel: string;
   readonly startedAt: string;
@@ -411,15 +449,7 @@ export interface RunTrace {
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
-  readonly historicalContext?: {
-    readonly scannedRunCount: number;
-    readonly malformedRunCount: number;
-    readonly malformedScoreCount: number;
-    readonly candidateRunCount: number;
-    readonly selectedRunCount: number;
-    readonly recentSelectedCount: number;
-    readonly anchorSelectedCount: number;
-  };
+  readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;
     readonly candidateCount: number;
@@ -431,6 +461,23 @@ export interface RunTrace {
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionErrors?: readonly string[];
   readonly reportValidationRetryErrors?: readonly string[];
+  readonly postSynthesisAudit?: {
+    readonly warningCount: number;
+    readonly warnings: readonly PostSynthesisAuditWarning[];
+  };
+  readonly sourcePlan?: {
+    readonly plannedLaneCount: number;
+    readonly requiredLaneCount: number;
+    readonly optionalLaneCount: number;
+  };
+  readonly evidenceLanes?: {
+    readonly coveredLaneCount: number;
+    readonly gapLaneCount: number;
+    readonly requiredGapLaneCount: number;
+    readonly sourceCount: number;
+    readonly gapCount: number;
+    readonly coverageRatio: number;
+  };
   readonly forecastDisagreement?: {
     readonly configuredModelCount: number;
     readonly challengerModelCount: number;

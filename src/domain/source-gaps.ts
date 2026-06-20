@@ -148,6 +148,41 @@ export function fetchFailureSourceGap(
   });
 }
 
+// Matches unmapped SEC filing messages produced by the alpha-search SEC discovery path.
+// Each such gap has source "sec-alpha-search" and a message of the form
+// "SEC filing <FORM> <YYYY-MM-DD> did not map to a ticker".
+const UNMAPPED_SEC_FILING_RE =
+  /^SEC filing (?<form>[A-Z0-9/-]+) (?<date>\d{4}-\d{2}-\d{2}) did not map to a ticker$/u;
+
+// Returns true for unmapped-SEC-filing source gaps.
+export function isUnmappedSecFilingGap(gap: SourceGap): boolean {
+  return gap.source === "sec-alpha-search" && UNMAPPED_SEC_FILING_RE.test(gap.message);
+}
+
+// Compacts unmapped-SEC-filing source gaps by deduplicating and appending
+// "(N filings)" to the surviving entry's message when count > 1.
+// Non-SEC gaps and unique unmapped-SEC gaps pass through unchanged.
+// Apply before writing the normalized source-gaps.json sidecar so the persisted
+// Content matches the compacted representation shown in rendered reports.
+export function compactUnmappedSecFilingGaps(gaps: readonly SourceGap[]): readonly SourceGap[] {
+  const counts = new Map<string, number>();
+  for (const gap of gaps) {
+    if (isUnmappedSecFilingGap(gap)) {
+      counts.set(gap.message, (counts.get(gap.message) ?? 0) + 1);
+    }
+  }
+  return dedupeSourceGaps(gaps).map((gap) => {
+    if (!isUnmappedSecFilingGap(gap)) {
+      return gap;
+    }
+    const count = counts.get(gap.message);
+    if (count === undefined || count <= 1) {
+      return gap;
+    }
+    return { ...gap, message: `${gap.message} (${String(count)} filings)` };
+  });
+}
+
 export function sourceGapAnalyticsClass(gap: SourceGap): SourceGapAnalyticsClass {
   const { cause } = gap;
   switch (cause) {

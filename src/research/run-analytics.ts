@@ -4,6 +4,7 @@ import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationContext } from "./research-context-types";
+import type { EvidenceLaneSummary } from "./source-plan";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -18,6 +19,7 @@ export interface BuildRunAnalyticsInput {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
   readonly targetPredictions: number;
+  readonly sourcePlanSummary?: EvidenceLaneSummary;
   readonly calibrationContext?: CalibrationContext;
 }
 
@@ -29,6 +31,7 @@ export interface RunAnalytics {
   readonly assetClass: ResearchReport["assetClass"];
   readonly symbol?: string;
   readonly depth: RunTrace["depth"];
+  readonly codeVersion?: RunTrace["codeVersion"];
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -103,6 +106,31 @@ export interface RunAnalytics {
       readonly errorCount: number;
       readonly highDisagreementCount: number;
     };
+    /** Count of emitted predictions whose probability is within NEAR_BASE_RATE_BAND of 0.5. */
+    readonly nearBaseRateCount: number;
+    /** Count of emitted predictions outside the near-base-rate band (more informative). */
+    readonly informativeCount: number;
+    /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count. */
+    readonly signalTargetMet: boolean;
+    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
+    readonly mixWarnings: readonly string[];
+  };
+  readonly postSynthesisAudit?: {
+    readonly warningCount: number;
+    readonly byCode: Readonly<Record<string, number>>;
+  };
+  readonly sourcePlan?: {
+    readonly plannedLaneCount: number;
+    readonly requiredLaneCount: number;
+    readonly optionalLaneCount: number;
+  };
+  readonly evidenceLanes?: {
+    readonly coveredLaneCount: number;
+    readonly gapLaneCount: number;
+    readonly requiredGapLaneCount: number;
+    readonly sourceCount: number;
+    readonly gapCount: number;
+    readonly coverageRatio: number;
   };
   readonly calibrationAtGeneration?: {
     readonly generatedAt?: string;
@@ -129,6 +157,23 @@ export interface RunAnalytics {
     readonly costEstimateUsd: number;
     readonly durationMs?: number;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Forecast-quality telemetry constants (analytics-only, never rejection gates)
+// ---------------------------------------------------------------------------
+
+/** Predictions within this distance of 0.5 probability are "near base rate". */
+const NEAR_BASE_RATE_BAND = 0.05;
+
+/**
+ * Minimum fraction of emitted predictions that must be outside the near-base-rate
+ * band for `signalTargetMet` to be true.
+ */
+const SIGNAL_INFORMATIVE_FLOOR = 0.5;
+
+function isNearBaseRateProbability(probability: number): boolean {
+  return Math.abs(probability - 0.5) <= NEAR_BASE_RATE_BAND + Number.EPSILON;
 }
 
 export interface RunAnalyticsCalibrationSlice {
@@ -195,6 +240,9 @@ function newsDedupe(input: BuildRunAnalyticsInput): RunAnalytics["newsDedupe"] {
     canonicalDedupedNewsSourceCount: selectedNewsSources.length,
     canonicalDuplicateNewsSourceCount: selectedAliasDuplicates,
     persistentSuppressedNewsSourceCount: 0,
+    relevantBeforeSeenFilterCount: 0,
+    relevantSuppressedBySeenFilterCount: 0,
+    relevantSelectedCount: 0,
     repeatFallbackKeptCount: 0,
     selectedNewsSourceCount: selectedNewsSources.length,
     repeatFallbackUsed: sourceGaps(input.collectedSources).some((gap) => isRepeatFallbackGap(gap)),
@@ -316,7 +364,7 @@ function verifiedMarketSnapshotFreshness(
 }
 
 export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
-  const { collectedSources, report, trace } = input;
+  const { collectedSources, report, sourcePlanSummary, trace } = input;
   const gaps = sourceGaps(collectedSources);
   const { extendedEvidence, marketContext } = collectedSources;
   const runDurationMs = durationMs(trace);
@@ -357,8 +405,35 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           missingCount: missingPredictionCount,
           disclosed: report.dataGaps.some((gap) => gap.startsWith("predictionShortfall:")),
         };
+
+  const emittedPredictions = report.predictions;
+  const nearBaseRateCount = emittedPredictions.filter((prediction) =>
+    isNearBaseRateProbability(prediction.probability),
+  ).length;
+  const informativeCount = emittedPredictions.length - nearBaseRateCount;
+  const signalTargetMet =
+    emittedPredictions.length === 0 ||
+    informativeCount / emittedPredictions.length >= SIGNAL_INFORMATIVE_FLOOR;
+  const mixWarnings: string[] = [];
+  if (emittedPredictions.length > 0 && emittedPredictions.every((p) => p.kind === "direction")) {
+    mixWarnings.push(
+      "all emitted predictions are direction kind; consider more informative kinds such as relative, range, or macro",
+    );
+  }
+  if (emittedPredictions.length > 0 && nearBaseRateCount === emittedPredictions.length) {
+    mixWarnings.push(
+      "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal",
+    );
+  }
   const calibrationSnapshot = calibrationAtGeneration(input);
   const verifiedSnapshot = verifiedMarketSnapshotFreshness(collectedSources);
+  const postSynthesisAudit =
+    trace.postSynthesisAudit === undefined
+      ? undefined
+      : {
+          warningCount: trace.postSynthesisAudit.warningCount,
+          byCode: countBy(trace.postSynthesisAudit.warnings, (warning) => warning.code),
+        };
 
   return {
     version: 1,
@@ -368,6 +443,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     assetClass: report.assetClass,
     ...(report.symbol !== undefined ? { symbol: report.symbol } : {}),
     depth: trace.depth,
+    ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,
@@ -419,7 +495,29 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       targetMet: report.predictions.length >= input.targetPredictions,
       ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
+      nearBaseRateCount,
+      informativeCount,
+      signalTargetMet,
+      mixWarnings,
     },
+    ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
+    ...(sourcePlanSummary !== undefined
+      ? {
+          sourcePlan: {
+            plannedLaneCount: sourcePlanSummary.plannedLaneCount,
+            requiredLaneCount: sourcePlanSummary.requiredLaneCount,
+            optionalLaneCount: sourcePlanSummary.optionalLaneCount,
+          },
+          evidenceLanes: {
+            coveredLaneCount: sourcePlanSummary.coveredLaneCount,
+            gapLaneCount: sourcePlanSummary.gapLaneCount,
+            requiredGapLaneCount: sourcePlanSummary.requiredGapLaneCount,
+            sourceCount: sourcePlanSummary.sourceCount,
+            gapCount: sourcePlanSummary.gapCount,
+            coverageRatio: sourcePlanSummary.coverageRatio,
+          },
+        }
+      : {}),
     ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     runShape: {

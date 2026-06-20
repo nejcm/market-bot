@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
@@ -21,7 +22,7 @@ import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
-import { verifiedSnapshotSource } from "./verified-snapshot-contract";
+import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
   deterministicSourceGaps,
@@ -32,6 +33,7 @@ import {
   commandResearchSubjectIdentity,
   researchIdentityExtras,
 } from "./research-subject-identity";
+import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightSelectionResult } from "./spotlights";
 
 // ---------------------------------------------------------------------------
@@ -139,10 +141,53 @@ function marketSnapshotProvider(snapshot: MarketSnapshot): string {
   );
 }
 
+// Build registry provenance sources for research commands. Registry sources
+// Are static reference entries (kind "reference") so findings and predictions can
+// Cite them instead of leaning on generic mover fallback (Phase 2.1).
+function registryProvenanceSources(command: ResearchCommand, fetchedAt: string): readonly Source[] {
+  if (command.jobType !== "research") {
+    return [];
+  }
+  const resolution = resolveResearchSubjectProxy(command.subject);
+  if (resolution.subject === undefined) {
+    return [];
+  }
+  return resolution.subject.sources.map(
+    (srcEntry): Source => ({
+      id: srcEntry.sourceId,
+      title: srcEntry.title,
+      ...(srcEntry.url !== undefined ? { url: srcEntry.url } : {}),
+      fetchedAt,
+      kind: "reference",
+    }),
+  );
+}
+
+function missingRegistryProvenanceFetchedAt(command: ResearchSubjectCommand): never {
+  throw new Error(
+    `buildSourceList requires fetchedAt for resolved research subject provenance: ${command.subject}`,
+  );
+}
+
+type NonResearchCommand = Exclude<ResearchCommand, ResearchSubjectCommand>;
+
+export function buildSourceList(
+  command: NonResearchCommand,
+  collectedSources: CollectedSources,
+  historicalContext?: HistoricalResearchContext,
+  fetchedAt?: string,
+): readonly Source[];
+export function buildSourceList(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  historicalContext: HistoricalResearchContext | undefined,
+  fetchedAt: string,
+): readonly Source[];
 export function buildSourceList(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   historicalContext?: HistoricalResearchContext,
+  fetchedAt?: string,
 ): readonly Source[] {
   const benchmarkSourcesById = new Map<string, Source>();
   const marketSources = collectedSources.marketSnapshots.map((snapshot): Source => {
@@ -192,6 +237,13 @@ export function buildSourceList(
       ? [verifiedSnapshotSource(collectedSources.verifiedMarketSnapshot)]
       : [];
 
+  // Registry provenance sources for research — kind:"reference" so the model can cite
+  // Checked-in subject registry entries in findings/predictions (Phase 2.1).
+  const registrySources =
+    command.jobType === "research"
+      ? registryProvenanceSources(command, fetchedAt ?? missingRegistryProvenanceFetchedAt(command))
+      : [];
+
   return [
     ...marketSources,
     ...benchmarkSources,
@@ -201,6 +253,7 @@ export function buildSourceList(
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
     ...(command.jobType === "ticker" ? collectedSources.extendedSources : []),
     ...(historicalContext?.sources ?? []),
+    ...registrySources,
   ];
 }
 
@@ -239,12 +292,13 @@ function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQu
 export function readPredictions(
   value: unknown,
   knownSourceIds: ReadonlySet<string>,
+  allowedSubjects?: ReadonlySet<string>,
 ): {
   predictions: readonly Prediction[];
   errors: readonly string[];
   issues: readonly ObservableForecastIssue[];
 } {
-  const result = validatePredictions(readArray(value), knownSourceIds);
+  const result = validatePredictions(readArray(value), knownSourceIds, allowedSubjects);
   return { predictions: result.valid, errors: result.errors, issues: result.issues };
 }
 
@@ -424,8 +478,23 @@ function researchPredictionGate(input: {
   if (input.command.jobType !== "research") {
     return { predictions: input.predictions, gaps: [] };
   }
-  const proxy = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
+  const identity = commandResearchSubjectIdentity(input.command);
+  const proxy = identity.predictionProxySymbol;
   if (proxy === undefined) {
+    // Resolved subject with no proxy (e.g. ai-infrastructure): always emit an explicit gap.
+    // So the absence of predictions is disclosed, not implicit (Phase 2.4).
+    // Use registry resolution as the discriminator — identity.subjectKey is caller-provided
+    // And not proof that the subject actually matched a registry entry.
+    const resolution = resolveResearchSubjectProxy(input.command.subject);
+    if (resolution.subject !== undefined) {
+      return {
+        predictions: [],
+        gaps: [
+          `researchProxyForecastGate: subject ${resolution.subject.subjectKey} has no listed prediction proxy; predictions cannot be emitted`,
+        ],
+      };
+    }
+    // Unresolved subject: only emit gap if there were predictions to drop.
     return {
       predictions: [],
       gaps:
@@ -464,10 +533,18 @@ function normalizeGapNeedle(value: string): string {
 }
 
 function sourceGapNeedles(gap: SourceGap): readonly string[] {
-  return [gap.source, gap.provider]
+  return [gap.source, gap.provider, ...sourceGapAliasNeedles(gap)]
     .filter((value): value is string => value !== undefined && value.trim() !== "")
     .map((value) => normalizeGapNeedle(value))
     .filter((value) => value.length >= 4);
+}
+
+function sourceGapAliasNeedles(gap: SourceGap): readonly string[] {
+  const source = gap.source.toLowerCase();
+  return [
+    ...(source.includes("tradier") ? ["options iv", "options evidence"] : []),
+    ...(source.includes("supplemental-market") ? ["supplemental market"] : []),
+  ];
 }
 
 function mentionsSourceGap(modelGap: string, deterministicGap: SourceGap): boolean {
@@ -521,6 +598,92 @@ function withoutDeterministicGapRestatements(
   return modelGaps.filter(
     (modelGap) => !deterministicGapTexts.some((text) => restatesDeterministicGap(modelGap, text)),
   );
+}
+
+const NUMERIC_CLAIM_PATTERN = /(?:[$€£]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
+const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
+const CURRENT_SNAPSHOT_CLAIM_PATTERN =
+  /\b(?:current|latest|snapshot|traded|trading|price|priced|quote|volume|market cap|change|open|close|closed|previous close|average volume)\b/iu;
+
+function citesOnlyHistoryReports(sourceIds: readonly string[]): boolean {
+  return (
+    sourceIds.length > 0 && sourceIds.every((sourceId) => sourceId.startsWith("history-report-"))
+  );
+}
+
+function firstSnapshotSourceIdForText(input: {
+  readonly text: string;
+  readonly collectedSources: CollectedSources;
+}): string | undefined {
+  const text = input.text.toUpperCase();
+  const snapshots = [
+    ...input.collectedSources.marketSnapshots,
+    ...input.collectedSources.supplementalMarketSnapshots,
+  ];
+  const snapshot = snapshots.find((candidate) => text.includes(candidate.symbol.toUpperCase()));
+  if (snapshot !== undefined) {
+    return snapshot.sourceId;
+  }
+  const verified = input.collectedSources.verifiedMarketSnapshot;
+  if (
+    verified !== undefined &&
+    TECHNICAL_INDICATOR_PATTERN.test(input.text) &&
+    text.includes(verified.symbol.toUpperCase())
+  ) {
+    return verifiedSnapshotSourceId(verified.symbol);
+  }
+  return undefined;
+}
+
+function preferSnapshotCitationForFinding(input: {
+  readonly finding: KeyFinding;
+  readonly collectedSources: CollectedSources;
+}): KeyFinding {
+  if (
+    !NUMERIC_CLAIM_PATTERN.test(input.finding.text) ||
+    !(
+      CURRENT_SNAPSHOT_CLAIM_PATTERN.test(input.finding.text) ||
+      TECHNICAL_INDICATOR_PATTERN.test(input.finding.text)
+    ) ||
+    !citesOnlyHistoryReports(input.finding.sourceIds)
+  ) {
+    return input.finding;
+  }
+  const sourceId = firstSnapshotSourceIdForText({
+    text: input.finding.text,
+    collectedSources: input.collectedSources,
+  });
+  return sourceId === undefined ? input.finding : { ...input.finding, sourceIds: [sourceId] };
+}
+
+function preferSnapshotCitationsForFindings(
+  findings: readonly KeyFinding[],
+  collectedSources: CollectedSources,
+): readonly KeyFinding[] {
+  return findings.map((finding) => preferSnapshotCitationForFinding({ finding, collectedSources }));
+}
+
+function preferSnapshotCitationsForScenarios(
+  scenarios: readonly Scenario[],
+  collectedSources: CollectedSources,
+): readonly Scenario[] {
+  return scenarios.map((scenario) => {
+    if (
+      !NUMERIC_CLAIM_PATTERN.test(scenario.description) ||
+      !(
+        CURRENT_SNAPSHOT_CLAIM_PATTERN.test(scenario.description) ||
+        TECHNICAL_INDICATOR_PATTERN.test(scenario.description)
+      ) ||
+      !citesOnlyHistoryReports(scenario.sourceIds)
+    ) {
+      return scenario;
+    }
+    const sourceId = firstSnapshotSourceIdForText({
+      text: scenario.description,
+      collectedSources,
+    });
+    return sourceId === undefined ? scenario : { ...scenario, sourceIds: [sourceId] };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -591,7 +754,27 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
-  const catalysts = readFindings(payload.catalysts);
+  const keyFindings = preferSnapshotCitationsForFindings(
+    readFindings(payload.keyFindings),
+    collectedSources,
+  );
+  const bullCase = preferSnapshotCitationsForFindings(
+    readFindings(payload.bullCase),
+    collectedSources,
+  );
+  const bearCase = preferSnapshotCitationsForFindings(
+    readFindings(payload.bearCase),
+    collectedSources,
+  );
+  const risks = preferSnapshotCitationsForFindings(readFindings(payload.risks), collectedSources);
+  const catalysts = preferSnapshotCitationsForFindings(
+    readFindings(payload.catalysts),
+    collectedSources,
+  );
+  const scenarios = preferSnapshotCitationsForScenarios(
+    readScenarios(payload.scenarios),
+    collectedSources,
+  );
   const catalystCalendar =
     command.jobType === "market-overview"
       ? catalystCalendarExtra({
@@ -612,12 +795,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       : {}),
     generatedAt,
     summary: typeof payload.summary === "string" ? payload.summary : "",
-    keyFindings: readFindings(payload.keyFindings),
-    bullCase: readFindings(payload.bullCase),
-    bearCase: readFindings(payload.bearCase),
-    risks: readFindings(payload.risks),
+    keyFindings,
+    bullCase,
+    bearCase,
+    risks,
     catalysts,
-    scenarios: readScenarios(payload.scenarios),
+    scenarios,
     confidence,
     dataGaps,
     predictions: gatedPredictions.predictions,

@@ -1,7 +1,7 @@
 # ADR 0004 — Predictions as observable forecasts, not advice
 
 **Status:** Accepted  
-**Amended by:** [ADR 0020 (Prediction Claim Rendered From DSL)](./0020-claim-rendered-from-dsl.md), [ADR 0021 (Prediction Count Is a Soft Target)](./0021-prediction-count-soft-target.md)
+**Amended by:** [ADR 0020 (Prediction Claim Rendered From DSL)](./0020-claim-rendered-from-dsl.md), [ADR 0021 (Prediction Count Is a Soft Target)](./0021-prediction-count-soft-target.md), [Prediction-subject enforcement](#amendment-prediction-subject-enforcement)
 
 ## Context
 
@@ -47,6 +47,14 @@ The existing `TRADE_ACTION_PATTERN` regex already applies to all text fields. Pr
 - The calibration loop becomes possible: a `market-bot score` command resolves predictions after their horizon elapses and computes Brier scores.
 - The `confidence` label remains the existing evidence-quality cap. Calibration data is fed back as passive context in future runs.
 - Any future feature that **does** recommend a trade action (sizing, execution) must still live in a completely separate system per ADR 0001.
+
+## Amendment: prediction-subject enforcement
+
+Predictions must be about the run's own subject. `ObservableForecastPolicy` carries an `allowedSubjects` set (the run's declared Prediction Subjects) and rejects any prediction whose subject is not a member — for `relative` forecasts, the primary instrument named before the comparison. Rejected predictions trigger the standard validation retry path via a `disallowed-subject` issue code; they are not silently dropped.
+
+Ticker and Market Overview runs supply `allowedSubjects`. **Research runs deliberately do not**: they pass `allowedSubjects=undefined` so the existing research prediction gate remains the sole authority over subject membership. The asymmetry is intentional — thematic research can legitimately forecast a representative proxy that differs from the literal subject query, whereas a ticker or overview run forecasting an off-subject instrument is an error.
+
+This tightens what counts as a valid Prediction under this ADR; it adds no new prediction kind, scoring behavior, or report field, and does not touch the research-only boundary.
 
 ## Alternatives considered
 

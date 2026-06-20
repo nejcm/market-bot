@@ -527,6 +527,7 @@ describe("alpha-search workflow", () => {
         socialCandidateCount: 3,
         secCandidateCount: 0,
         validLeadCount: 1,
+        researchLeadCount: 1,
         rejectedCandidateCount: 2,
       },
     });
@@ -701,6 +702,11 @@ describe("alpha-search workflow", () => {
     expect(persistedLeads).toEqual(researchLeadRows);
     expect(JSON.stringify(persistedLeads)).not.toContain("candidate");
     expect(JSON.stringify(persistedLeads)).not.toContain("instrumentKind");
+    // More leads validated than the display limit: validLeadCount > researchLeadCount.
+    expect(result.analytics.alphaSearch.validLeadCount).toBeGreaterThan(
+      result.analytics.alphaSearch.researchLeadCount,
+    );
+    expect(result.analytics.alphaSearch.researchLeadCount).toBe(1);
   });
 
   test("persists SEC fundamentals in candidate profiles without changing report semantics", async () => {
@@ -764,7 +770,7 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).not.toMatch(/\b(buy|sell|hold)\b/iu);
   });
 
-  test("groups repeated unmapped SEC filing gaps in report and trace only", async () => {
+  test("groups repeated unmapped SEC filing gaps in report, trace, and sidecar", async () => {
     const requestedUrls: string[] = [];
     const result = await runAlphaSearchWorkflow({
       command: { jobType: "alpha-search", assetClass: "equity", depth: "brief" },
@@ -790,9 +796,16 @@ describe("alpha-search workflow", () => {
     const rawGaps = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "source-gaps.json"), "utf8"),
     ) as readonly { readonly message?: string }[];
+    // Sidecar is now compacted to match the report/trace: duplicates are merged
+    // To one entry with "(N filings)" appended.
+    expect(
+      rawGaps.filter(
+        (gap) => gap.message === "SEC filing S-1 2026-06-04 did not map to a ticker (2 filings)",
+      ),
+    ).toHaveLength(1);
     expect(
       rawGaps.filter((gap) => gap.message === "SEC filing S-1 2026-06-04 did not map to a ticker"),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
   });
 
   test("adds SEC-discovered leads and enriches ApeWisdom duplicates", async () => {

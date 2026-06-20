@@ -77,6 +77,9 @@ export interface NewsCollectionAnalytics {
   readonly canonicalDedupedNewsSourceCount: number;
   readonly canonicalDuplicateNewsSourceCount: number;
   readonly persistentSuppressedNewsSourceCount: number;
+  readonly relevantBeforeSeenFilterCount: number;
+  readonly relevantSuppressedBySeenFilterCount: number;
+  readonly relevantSelectedCount: number;
   readonly repeatFallbackKeptCount: number;
   readonly selectedNewsSourceCount: number;
   readonly selectedRelevantTickerNewsSourceCount?: number;

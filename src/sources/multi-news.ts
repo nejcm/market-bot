@@ -158,7 +158,14 @@ function relevanceTargets(ctx: CollectContext): readonly NewsRelevanceTarget[] {
   if (ctx.command.jobType !== "ticker") {
     return ctx.newsRelevanceTargets ?? [];
   }
-  return [{ symbol: ctx.command.symbol, allowLowercaseSymbolMention: true }];
+  const [target] = ctx.newsRelevanceTargets ?? [];
+  return [
+    {
+      symbol: ctx.command.symbol,
+      ...(target?.name !== undefined ? { name: target.name } : {}),
+      allowLowercaseSymbolMention: true,
+    },
+  ];
 }
 
 function normalizedSearchText(source: Source): string {
@@ -260,6 +267,13 @@ function selectedRelevanceAnalytics(
         selectedRelevantMoverNewsSourceCount: selectedRelevantCount,
         selectedGenericMoverNewsSourceCount: selectedGenericCount,
       };
+}
+
+function relevantNewsCount(
+  sources: readonly Source[],
+  targets: readonly NewsRelevanceTarget[],
+): number {
+  return sources.filter((source) => isNewsRelevant(source, targets)).length;
 }
 
 function selectRoundRobin(
@@ -371,6 +385,8 @@ export function createMultiNewsAdapter(
     const dedupedSources = dedupeByCanonicalUrlOrTitle(
       results.flatMap((result) => result.newsSources),
     );
+    const targets = relevanceTargets(ctx);
+    const relevantBeforeSeenFilterCount = relevantNewsCount(dedupedSources, targets);
     const filtered =
       ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
         ? await filterSeenNewsSources(dedupedSources, {
@@ -380,10 +396,11 @@ export function createMultiNewsAdapter(
             now: new Date(ctx.fetchedAt),
           })
         : { newsSources: dedupedSources, sourceGaps: [] };
-    const targets = relevanceTargets(ctx);
+    const relevantAfterSeenFilterCount = relevantNewsCount(filtered.newsSources, targets);
     const newsSources = assignSourceIds(
       selectRelevantFirst(filtered.newsSources, ctx.newsLimit, providerOrder, targets),
     );
+    const relevantSelectedCount = relevantNewsCount(newsSources, targets);
     const repeatFallbackUsed = filtered.sourceGaps.some((gap) => isRepeatFallbackGap(gap));
     const persistentSuppressedNewsSourceCount = dedupedSources.length - filtered.newsSources.length;
 
@@ -397,6 +414,12 @@ export function createMultiNewsAdapter(
         canonicalDedupedNewsSourceCount: dedupedSources.length,
         canonicalDuplicateNewsSourceCount: fetchedNewsSourceCount - dedupedSources.length,
         persistentSuppressedNewsSourceCount,
+        relevantBeforeSeenFilterCount,
+        relevantSuppressedBySeenFilterCount: Math.max(
+          0,
+          relevantBeforeSeenFilterCount - relevantAfterSeenFilterCount,
+        ),
+        relevantSelectedCount,
         repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
         selectedNewsSourceCount: newsSources.length,
         ...selectedRelevanceAnalytics(ctx.command, newsSources, targets),

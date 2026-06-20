@@ -75,9 +75,45 @@ describe("multi-news", () => {
       "Tech sector roundup",
     ]);
     expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 2,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 2,
       selectedNewsSourceCount: 4,
       selectedRelevantTickerNewsSourceCount: 2,
       selectedGenericTickerNewsSourceCount: 2,
+    });
+  });
+
+  test("uses ticker identity name terms for relevance", async () => {
+    const tickerContext: CollectContext = {
+      ...context(),
+      newsLimit: 1,
+      newsRelevanceTargets: [{ symbol: "AAPL", name: "Apple Inc." }],
+    };
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [
+          source("a-generic", "provider-a", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+          source(
+            "a-relevant",
+            "provider-a",
+            "Apple supplier demand rises",
+            "2026-06-01T11:00:00.000Z",
+          ),
+        ]),
+      ],
+      ["provider-a"],
+    );
+
+    const result = await multi.collect(tickerContext);
+
+    expect(result.newsSources.map((item) => item.title)).toEqual(["Apple supplier demand rises"]);
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 1,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 1,
+      selectedRelevantTickerNewsSourceCount: 1,
+      selectedGenericTickerNewsSourceCount: 0,
     });
   });
 

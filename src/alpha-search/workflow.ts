@@ -8,6 +8,7 @@ import {
 } from "../artifacts";
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
+import { readCodeVersion } from "../code-version";
 import type { KeyFinding, ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
 import {
   compactUnmappedSecFilingGaps,
@@ -72,6 +73,7 @@ export interface AlphaSearchRunAnalytics {
   readonly jobType: "alpha-search";
   readonly assetClass: "equity";
   readonly depth: AlphaSearchCommand["depth"];
+  readonly codeVersion?: RunTrace["codeVersion"];
   readonly sourceFunnel: {
     readonly reportSources: {
       readonly total: number;
@@ -348,6 +350,7 @@ function buildTrace(input: {
     assetClass: input.command.assetClass,
     depth: input.command.depth,
     provider: input.config.provider,
+    codeVersion: readCodeVersion(),
     quickModel: input.config.quickModel,
     synthesisModel: input.config.synthesisModel,
     startedAt: input.startedAt,
@@ -407,6 +410,7 @@ function buildAlphaSearchAnalytics(input: {
     jobType: "alpha-search",
     assetClass: "equity",
     depth: trace.depth,
+    ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
     sourceFunnel: {
       reportSources: {
         total: report.sources.length,

@@ -1851,12 +1851,20 @@ describe("runResearchJob", () => {
     ).resolves.toContain("market-aapl");
     expect(result.trace.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);
     expect(result.analytics.evidenceLanes?.coveredLaneCount).toBeGreaterThan(0);
+    expect(result.trace.codeVersion?.dirty).toEqual(expect.any(Boolean));
+    expect(result.analytics.codeVersion).toEqual(result.trace.codeVersion);
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "Equity market breadth",
     );
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
       "Research-only note",
     );
+    await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain(
+      "codeVersion",
+    );
+    await expect(
+      readFile(join(result.artifacts.runDir, "analytics.json"), "utf8"),
+    ).resolves.toContain("codeVersion");
     await expect(readFile(join(result.artifacts.runDir, "trace.json"), "utf8")).resolves.toContain(
       "quick-test",
     );

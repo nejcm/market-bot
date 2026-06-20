@@ -31,6 +31,7 @@ export interface RunAnalytics {
   readonly assetClass: ResearchReport["assetClass"];
   readonly symbol?: string;
   readonly depth: RunTrace["depth"];
+  readonly codeVersion?: RunTrace["codeVersion"];
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -239,6 +240,9 @@ function newsDedupe(input: BuildRunAnalyticsInput): RunAnalytics["newsDedupe"] {
     canonicalDedupedNewsSourceCount: selectedNewsSources.length,
     canonicalDuplicateNewsSourceCount: selectedAliasDuplicates,
     persistentSuppressedNewsSourceCount: 0,
+    relevantBeforeSeenFilterCount: 0,
+    relevantSuppressedBySeenFilterCount: 0,
+    relevantSelectedCount: 0,
     repeatFallbackKeptCount: 0,
     selectedNewsSourceCount: selectedNewsSources.length,
     repeatFallbackUsed: sourceGaps(input.collectedSources).some((gap) => isRepeatFallbackGap(gap)),
@@ -439,6 +443,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     assetClass: report.assetClass,
     ...(report.symbol !== undefined ? { symbol: report.symbol } : {}),
     depth: trace.depth,
+    ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,

@@ -422,6 +422,13 @@ export interface HistoricalContextAudit {
   readonly gapCount: number;
 }
 
+export interface CodeVersion {
+  readonly branch?: string;
+  readonly commit?: string;
+  readonly commitShort?: string;
+  readonly dirty: boolean;
+}
+
 export interface RunTrace {
   readonly runId: string;
   readonly jobType: JobType;
@@ -432,6 +439,7 @@ export interface RunTrace {
   readonly symbol?: string;
   readonly depth: Depth;
   readonly provider: string;
+  readonly codeVersion?: CodeVersion;
   readonly quickModel: string;
   readonly synthesisModel: string;
   readonly startedAt: string;

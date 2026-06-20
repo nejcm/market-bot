@@ -534,6 +534,89 @@ describe("collectSources", () => {
     });
   });
 
+  test("uses resolved ticker identity name for news relevance", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("quote")) {
+        const symbols = new URL(url).searchParams.get("symbols");
+        return jsonResponse({
+          quoteResponse: {
+            result:
+              symbols === "AAPL"
+                ? [
+                    {
+                      symbol: "AAPL",
+                      shortName: "Apple Inc.",
+                      regularMarketPrice: 190,
+                      regularMarketChangePercent: 2,
+                      regularMarketVolume: 80_000_000,
+                    },
+                  ]
+                : [
+                    {
+                      symbol: "SPY",
+                      regularMarketPrice: 510,
+                      regularMarketChangePercent: 0.4,
+                      regularMarketVolume: 70_000_000,
+                    },
+                  ],
+          },
+        });
+      }
+
+      if (url.includes("marketaux")) {
+        return jsonResponse({
+          data: [
+            {
+              title: "Macro rates update",
+              url: "https://example.test/macro",
+              source: "Example",
+              published_at: "2026-05-19T12:00:00.000Z",
+            },
+            {
+              title: "Apple supplier demand improves",
+              url: "https://example.test/apple",
+              source: "Example",
+              published_at: "2026-05-19T12:01:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("finnhub")) {
+        return jsonResponse([]);
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 1,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
+    expect(result.newsSources.map((source) => source.title)).toEqual([
+      "Apple supplier demand improves",
+    ]);
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 1,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantSelectedCount: 1,
+      selectedRelevantTickerNewsSourceCount: 1,
+      selectedGenericTickerNewsSourceCount: 0,
+    });
+  });
+
   test("collects weekly equity through market-update mover and regime sources", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -1888,6 +1971,11 @@ describe("collectSources", () => {
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["Fresh BTC story"]);
     expect(result.newsSources[0]?.id).toBe("news-crypto-1");
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 2,
+      relevantSuppressedBySeenFilterCount: 1,
+      relevantSelectedCount: 1,
+    });
     expect(result.sourceGaps.map((gap) => gap.source)).not.toContain("news-seen");
   });
 

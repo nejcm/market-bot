@@ -1,4 +1,5 @@
 import { marketSpotlightOptions, type AppConfig } from "../config";
+import { readCodeVersion } from "../code-version";
 import { resolveRunParams, type RunConfig } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import { join } from "node:path";
@@ -634,6 +635,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   }
   const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
   const { predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
+  const codeVersion = readCodeVersion();
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
@@ -652,6 +654,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(input.command.jobType === "ticker" ? { symbol: input.command.symbol } : {}),
     depth: input.command.depth,
     provider: input.provider.name,
+    codeVersion,
     quickModel: runParams.quickModel,
     synthesisModel: runParams.synthesisModel,
     startedAt: generatedAt,

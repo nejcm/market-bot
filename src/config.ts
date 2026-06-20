@@ -101,15 +101,28 @@ export interface AppConfig {
   readonly indexOptions?: RunArtifactIndexOptions;
 }
 
+export interface RunChatConfig {
+  readonly disabled: boolean;
+  readonly model?: string;
+  readonly contextBudgetChars: number;
+  readonly maxOutputTokens: number;
+  readonly historyTurnCap: number;
+}
+
 export interface ResearchConsoleConfig {
   readonly host: "127.0.0.1";
   readonly port: number;
   readonly dataDir: string;
+  readonly chat: RunChatConfig;
 }
 
 export interface ResolveConfigOptions {
   readonly validateAlphaSearchOptions?: boolean;
 }
+
+const DEFAULT_CHAT_CONTEXT_BUDGET_CHARS = 96_000;
+const DEFAULT_CHAT_MAX_OUTPUT_TOKENS = 1500;
+const DEFAULT_CHAT_HISTORY_TURNS = 20;
 
 const DEFAULT_QUICK_MODEL = "gpt-5.4-mini";
 const DEFAULT_SYNTHESIS_MODEL = "gpt-5.5";
@@ -596,6 +609,26 @@ export function resolveConfig(
   };
 }
 
+function resolveRunChatConfig(env: Record<string, string | undefined>): RunChatConfig {
+  const model = readOptionalString(env.MARKET_BOT_CONSOLE_CHAT_MODEL);
+  return {
+    disabled: readBoolean(env.MARKET_BOT_CONSOLE_CHAT_DISABLE),
+    ...(model !== undefined ? { model } : {}),
+    contextBudgetChars: readPositiveInteger(
+      env.MARKET_BOT_CONSOLE_CHAT_CONTEXT_TOKENS,
+      DEFAULT_CHAT_CONTEXT_BUDGET_CHARS,
+    ),
+    maxOutputTokens: readPositiveInteger(
+      env.MARKET_BOT_CONSOLE_CHAT_MAX_OUTPUT_TOKENS,
+      DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
+    ),
+    historyTurnCap: readPositiveInteger(
+      env.MARKET_BOT_CONSOLE_CHAT_HISTORY_TURNS,
+      DEFAULT_CHAT_HISTORY_TURNS,
+    ),
+  };
+}
+
 export function resolveResearchConsoleConfig(
   env: Record<string, string | undefined> = process.env,
 ): ResearchConsoleConfig {
@@ -603,5 +636,6 @@ export function resolveResearchConsoleConfig(
     host: "127.0.0.1",
     port: readPositiveInteger(env.MARKET_BOT_CONSOLE_PORT, DEFAULT_RESEARCH_CONSOLE_PORT),
     dataDir: env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR,
+    chat: resolveRunChatConfig(env),
   };
 }

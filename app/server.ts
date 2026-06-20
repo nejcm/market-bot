@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
-import { resolveResearchConsoleConfig } from "../src/config";
+import { resolveConfig, resolveResearchConsoleConfig } from "../src/config";
+import { createProvider } from "../src/model/factory";
 import {
   listRunSummaries,
   readCalibrationSummary,
@@ -10,6 +11,7 @@ import {
   readRunFile,
   searchRunReports,
 } from "./artifacts";
+import { handleRunChat, type ChatEndpointDeps } from "./chat";
 import { readInstrumentTimelineDetail } from "./instruments";
 import { createJobQueue, type ResearchConsoleJobQueue } from "./jobs";
 
@@ -27,6 +29,7 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 interface ResearchConsoleRequestOptions {
   readonly dataDir?: string;
   readonly jobQueue?: ResearchConsoleJobQueue;
+  readonly chatDeps?: ChatEndpointDeps;
 }
 
 const DEFAULT_JOB_QUEUE = createJobQueue();
@@ -200,7 +203,7 @@ async function handleJobRequest(
   }
 
   if (url.pathname === "/api/jobs" && request.method === "POST") {
-    if (!isAllowedJobPost(request, url)) {
+    if (!isSameOriginPost(request, url)) {
       return jsonResponse({ error: "Job request origin is not allowed" }, 403);
     }
 
@@ -221,7 +224,7 @@ async function handleJobRequest(
   return undefined;
 }
 
-function isAllowedJobPost(request: Request, url: URL): boolean {
+export function isSameOriginPost(request: Request, url: URL): boolean {
   if (request.headers.get("sec-fetch-site") === "cross-site") {
     return false;
   }
@@ -239,6 +242,29 @@ function isAllowedJobPost(request: Request, url: URL): boolean {
   }
 }
 
+function buildChatDeps(dataDir: string): ChatEndpointDeps | undefined {
+  const consoleConfig = resolveResearchConsoleConfig();
+  if (consoleConfig.chat.disabled) {
+    return {
+      provider: { name: "none", generate: () => Promise.reject(new Error("disabled")) },
+      chatConfig: consoleConfig.chat,
+      dataDir,
+    };
+  }
+
+  try {
+    const appConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+    if (appConfig.apiKey === undefined && appConfig.provider !== "codex") {
+      return undefined;
+    }
+    const provider = createProvider(appConfig);
+    const chatModel = consoleConfig.chat.model ?? appConfig.quickModel;
+    return { provider, chatConfig: { ...consoleConfig.chat, model: chatModel }, dataDir };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function handleResearchConsoleRequest(
   request: Request,
   options: ResearchConsoleRequestOptions = {},
@@ -250,7 +276,18 @@ export async function handleResearchConsoleRequest(
   }
 
   const config = resolveResearchConsoleConfig();
-  const apiResponse = await handleApiRequest(url, options.dataDir ?? config.dataDir);
+  const dataDir = options.dataDir ?? config.dataDir;
+
+  // Chat endpoint — before read-only API and static handler
+  const chatDeps = options.chatDeps ?? buildChatDeps(dataDir);
+  if (chatDeps !== undefined) {
+    const chatResponse = await handleRunChat(request, url, chatDeps);
+    if (chatResponse !== undefined) {
+      return chatResponse;
+    }
+  }
+
+  const apiResponse = await handleApiRequest(url, dataDir);
   if (apiResponse !== undefined) {
     return apiResponse;
   }

@@ -440,24 +440,36 @@ describe("resolveConfig", () => {
 
 describe("resolveResearchConsoleConfig", () => {
   test("uses localhost defaults", () => {
-    expect(resolveResearchConsoleConfig({})).toEqual({
-      host: "127.0.0.1",
-      port: 4173,
-      dataDir: "data/runs",
-    });
+    const config = resolveResearchConsoleConfig({});
+    expect(config.host).toBe("127.0.0.1");
+    expect(config.port).toBe(4173);
+    expect(config.dataDir).toBe("data/runs");
+    expect(config.chat.disabled).toBe(false);
+    expect(config.chat.maxOutputTokens).toBe(1500);
+    expect(config.chat.historyTurnCap).toBe(20);
   });
 
   test("reads console port and data directory", () => {
-    expect(
-      resolveResearchConsoleConfig({
-        MARKET_BOT_CONSOLE_PORT: "5123",
-        MARKET_BOT_DATA_DIR: "custom/runs",
-      }),
-    ).toEqual({
-      host: "127.0.0.1",
-      port: 5123,
-      dataDir: "custom/runs",
+    const config = resolveResearchConsoleConfig({
+      MARKET_BOT_CONSOLE_PORT: "5123",
+      MARKET_BOT_DATA_DIR: "custom/runs",
     });
+    expect(config.host).toBe("127.0.0.1");
+    expect(config.port).toBe(5123);
+    expect(config.dataDir).toBe("custom/runs");
+  });
+
+  test("reads chat config from env", () => {
+    const config = resolveResearchConsoleConfig({
+      MARKET_BOT_CONSOLE_CHAT_DISABLE: "1",
+      MARKET_BOT_CONSOLE_CHAT_MODEL: "gpt-test",
+      MARKET_BOT_CONSOLE_CHAT_MAX_OUTPUT_TOKENS: "2000",
+      MARKET_BOT_CONSOLE_CHAT_HISTORY_TURNS: "10",
+    });
+    expect(config.chat.disabled).toBe(true);
+    expect(config.chat.model).toBe("gpt-test");
+    expect(config.chat.maxOutputTokens).toBe(2000);
+    expect(config.chat.historyTurnCap).toBe(10);
   });
 
   test("rejects invalid console port", () => {

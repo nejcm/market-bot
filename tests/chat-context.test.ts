@@ -1,6 +1,33 @@
 import { describe, expect, test } from "bun:test";
 import { buildRunChatContext } from "../app/chat-context";
 import type { RunDetail, RunSummary } from "../app/types";
+import type { VerifiedMarketSnapshot } from "../src/domain/types";
+
+function testSnapshot(overrides: Partial<VerifiedMarketSnapshot> = {}): VerifiedMarketSnapshot {
+  return {
+    symbol: "X",
+    assetClass: "equity",
+    analysisDate: "2026-01-01",
+    fetchedAt: "2026-01-01T00:00:00.000Z",
+    latestSessionDate: "2026-01-01",
+    ohlcv: { date: "2026-01-01", open: 1, high: 1, low: 1, close: 1, volume: 1 },
+    indicators: {
+      ema10: null,
+      sma50: null,
+      sma200: null,
+      rsi14: null,
+      macd: null,
+      macdSignal: null,
+      macdHistogram: null,
+      bollUpper: null,
+      bollMiddle: null,
+      bollLower: null,
+      atr14: null,
+    },
+    recentCloses: [],
+    ...overrides,
+  };
+}
 
 function minimalSummary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -82,19 +109,24 @@ describe("buildRunChatContext", () => {
 
   test("includes verified market snapshot when present", () => {
     const detail = minimalDetail({
-      verifiedMarketSnapshot: {
+      verifiedMarketSnapshot: testSnapshot({
         symbol: "AAPL",
-        assetClass: "equity",
         analysisDate: "2026-06-05",
         fetchedAt: "2026-06-05T00:00:00.000Z",
         latestSessionDate: "2026-06-04",
-        ohlcv: { date: "2026-06-04", open: 190, high: 195, low: 189, close: 193, volume: 50_000_000 },
-        indicators: {},
+        ohlcv: {
+          date: "2026-06-04",
+          open: 190,
+          high: 195,
+          low: 189,
+          close: 193,
+          volume: 50_000_000,
+        },
         recentCloses: [
           { date: "2026-06-03", close: 191 },
           { date: "2026-06-04", close: 193 },
         ],
-      },
+      }),
     });
     const context = buildRunChatContext(detail);
 
@@ -142,16 +174,7 @@ describe("buildRunChatContext", () => {
       markdown: "# Report Markdown",
       score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
       report: { predictions: [{ claim: "Up", probability: 0.7 }], sources: [], dataGaps: [] },
-      verifiedMarketSnapshot: {
-        symbol: "X",
-        assetClass: "equity",
-        analysisDate: "2026-01-01",
-        fetchedAt: "2026-01-01T00:00:00.000Z",
-        latestSessionDate: "2026-01-01",
-        ohlcv: { date: "2026-01-01", open: 1, high: 1, low: 1, close: 1, volume: 1 },
-        indicators: {},
-        recentCloses: [],
-      },
+      verifiedMarketSnapshot: testSnapshot(),
       summary: minimalSummary({ availableFiles: ["normalized/movers.json"] }),
     });
     const context = buildRunChatContext(detail);
@@ -197,16 +220,7 @@ describe("buildRunChatContext", () => {
       markdown: "A".repeat(400),
       score: { scores: [{ predictionId: "p1", outcome: "hit", resolved: true }] },
       report: { predictions: [{ claim: "C", probability: 0.5 }], sources: [], dataGaps: [] },
-      verifiedMarketSnapshot: {
-        symbol: "X",
-        assetClass: "equity",
-        analysisDate: "2026-01-01",
-        fetchedAt: "2026-01-01T00:00:00.000Z",
-        latestSessionDate: "2026-01-01",
-        ohlcv: { date: "2026-01-01", open: 1, high: 1, low: 1, close: 1, volume: 1 },
-        indicators: {},
-        recentCloses: [],
-      },
+      verifiedMarketSnapshot: testSnapshot(),
       summary: minimalSummary({ availableFiles: ["normalized/movers.json"] }),
     });
 

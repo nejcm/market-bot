@@ -25,7 +25,6 @@
   import InstrumentTimeline from "./components/instrument-timeline.svelte";
   import JobsView from "./components/jobs-view.svelte";
   import RunSidebar from "./components/run-sidebar.svelte";
-  import RunChat from "./components/run-chat.svelte";
   import RunWorkspace from "./components/run-workspace.svelte";
   import SearchView from "./components/search-view.svelte";
   import type {
@@ -73,7 +72,6 @@
   let loadingInstrument = $state(false);
   let activeTab = $state<Tab>("report");
   let highlightSourceId = $state("");
-  let chatOpen = $state(false);
   let fileContent = $state("");
   let selectedFile = $state("");
   let providerHealth = $state<ProviderHealthDetail>({});
@@ -126,7 +124,6 @@
     selectedFile = "";
     fileContent = "";
     highlightSourceId = "";
-    chatOpen = false;
   }
 
   function clearSelectedInstrument(): void {
@@ -568,15 +565,7 @@
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
           onOpenInstrument={(assetClass, symbol) =>
             void openInstrument(assetClass, symbol)}
-          onOpenChat={() => (chatOpen = true)}
         />
-        {#if selectedRunId !== ""}
-          <RunChat
-            runId={selectedRunId}
-            open={chatOpen}
-            onOpenChange={(value) => (chatOpen = value)}
-          />
-        {/if}
       {:else if view === "instrument"}
         <InstrumentTimeline
           detail={instrumentDetail}

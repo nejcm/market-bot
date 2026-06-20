@@ -95,6 +95,23 @@ describe("chat endpoint", () => {
     expect(await response!.text()).toBe("Chat request origin is not allowed");
   });
 
+  test("allows same-origin Fetch Metadata even when the proxy origin host differs", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
+    setupRunDir(dataDir, "run-proxy");
+
+    // Dev proxy: the client is served on a different port than the API, so the
+    // Origin host never matches the request host. Fetch Metadata is authoritative.
+    const request = chatRequest("run-proxy", [{ role: "user", content: "test" }], {
+      "sec-fetch-site": "same-origin",
+      origin: "http://localhost:5173",
+    });
+    const url = new URL(request.url);
+    const response = await handleRunChat(request, url, chatDeps(dataDir));
+
+    expect(response).not.toBeUndefined();
+    expect(response!.status).toBe(200);
+  });
+
   test("returns 404 for unknown run", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
 

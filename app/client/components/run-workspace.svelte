@@ -24,8 +24,8 @@
     type SnapshotView,
   } from "../view-model";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
-  import MessageSquareIcon from "@lucide/svelte/icons/message-square";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
+  import RunChat from "./run-chat.svelte";
 
   interface Props {
     readonly activeTab: Tab;
@@ -40,7 +40,6 @@
     readonly onGoHome: () => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
-    readonly onOpenChat: () => void;
   }
 
   let {
@@ -56,7 +55,6 @@
     onGoHome,
     onHighlightSource,
     onOpenInstrument,
-    onOpenChat,
   }: Props = $props();
 
   interface CitePopover {
@@ -125,6 +123,7 @@
     sources: "Sources",
     data: "Data",
     files: "Files",
+    chat: "Chat",
   };
   const SEGMENT_LABELS: Record<DataSegment, string> = {
     analytics: "Analytics",
@@ -259,30 +258,19 @@
           {/if}
         </div>
       </div>
-      <div class="flex items-end gap-4">
-        <div class="flex gap-5.5">
-          {#each [
-            { value: detail.summary.confidence ?? "—", label: "Confidence" },
-            { value: String(detail.summary.sourceCount), label: "Sources" },
-            { value: String(detail.summary.availableFiles.length), label: "Files" },
-          ] as stat}
-            <div class="text-right">
-              <div class="font-mono text-[17px] font-medium">{stat.value}</div>
-              <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
-                {stat.label}
-              </div>
+      <div class="flex gap-5.5">
+        {#each [
+          { value: detail.summary.confidence ?? "—", label: "Confidence" },
+          { value: String(detail.summary.sourceCount), label: "Sources" },
+          { value: String(detail.summary.availableFiles.length), label: "Files" },
+        ] as stat}
+          <div class="text-right">
+            <div class="font-mono text-[17px] font-medium">{stat.value}</div>
+            <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+              {stat.label}
             </div>
-          {/each}
-        </div>
-        <button
-          class="rounded-md border border-border bg-card p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          type="button"
-          onclick={onOpenChat}
-          title="Chat with this run"
-          aria-label="Chat with this run"
-        >
-          <MessageSquareIcon class="h-4 w-4" />
-        </button>
+          </div>
+        {/each}
       </div>
     </div>
 
@@ -835,7 +823,7 @@
           <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{dataContent}</pre>
         </div>
       </div>
-    {:else}
+    {:else if activeTab === "files"}
       <div class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]">
         <div class="overflow-hidden rounded-lg border border-border bg-card">
           {#if detail.summary.availableFiles.length === 0}
@@ -876,6 +864,11 @@
         {/if}
       </div>
     {/if}
+
+    <!-- Kept mounted across tab switches so the conversation is not reset. -->
+    <div class={activeTab === "chat" ? "" : "hidden"}>
+      <RunChat runId={detail.summary.runId} />
+    </div>
   </div>
 
   {#if cite !== null}

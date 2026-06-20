@@ -230,6 +230,17 @@ describe("buildRunChatContext", () => {
     expect(context).toContain("[context truncated: 4 section(s) omitted]");
   });
 
+  test("truncates the highest-priority section when it alone exceeds the budget", () => {
+    const markdown = `# Big Report\n\n${"x".repeat(5000)}`;
+    const detail = minimalDetail({ markdown });
+    const budget = 500;
+    const context = buildRunChatContext(detail, budget);
+
+    expect(context.length).toBeLessThanOrEqual(budget);
+    expect(context).toContain("## Report (markdown)");
+    expect(context).toContain("[section truncated to fit context budget]");
+  });
+
   test("returns empty string for empty detail", () => {
     const detail = minimalDetail();
     const context = buildRunChatContext(detail);

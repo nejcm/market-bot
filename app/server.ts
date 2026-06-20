@@ -252,16 +252,23 @@ function buildChatDeps(dataDir: string): ChatEndpointDeps | undefined {
     };
   }
 
+  const unavailable: ChatEndpointDeps = {
+    provider: { name: "none", generate: () => Promise.reject(new Error("unavailable")) },
+    chatConfig: consoleConfig.chat,
+    dataDir,
+    unavailableReason: "Run chat is unavailable: no model provider is configured",
+  };
+
   try {
     const appConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
     if (appConfig.apiKey === undefined && appConfig.provider !== "codex") {
-      return undefined;
+      return unavailable;
     }
     const provider = createProvider(appConfig);
     const chatModel = consoleConfig.chat.model ?? appConfig.quickModel;
     return { provider, chatConfig: { ...consoleConfig.chat, model: chatModel }, dataDir };
   } catch {
-    return undefined;
+    return unavailable;
   }
 }
 

@@ -3,9 +3,16 @@ import type { RunDetail } from "./types";
 // ~24k tokens at ~4 chars/token
 const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000;
 
+const TRUNCATION_NOTICE = "\n\n[section truncated to fit context budget]";
+
 interface ContextSection {
   readonly label: string;
   readonly content: string;
+}
+
+function truncateToBudget(block: string, budgetChars: number): string {
+  const keep = Math.max(0, budgetChars - TRUNCATION_NOTICE.length);
+  return `${block.slice(0, keep)}${TRUNCATION_NOTICE}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -202,7 +209,16 @@ export function buildRunChatContext(
 
   for (const section of sections) {
     const block = `## ${section.label}\n\n${section.content}`;
-    if (totalChars + block.length > budgetChars && includedCount > 0) {
+    if (totalChars + block.length > budgetChars) {
+      // Once a section overflows, drop it and everything lower-priority after it.
+      // Exception: when even the highest-priority section alone exceeds the budget,
+      // Keep a truncated head rather than blow the budget entirely.
+      if (includedCount === 0) {
+        const truncated = truncateToBudget(block, budgetChars);
+        result.push(truncated);
+        totalChars += truncated.length;
+        includedCount += 1;
+      }
       break;
     }
     result.push(block);

@@ -225,6 +225,66 @@ describe("chat endpoint", () => {
     expect(capturedMessages[1]!.content).toBe("Hello world");
   });
 
+  test("maps AI SDK v6 message parts to flat text", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
+    setupRunDir(dataDir, "run-v6-parts");
+
+    let capturedMessages: readonly { role: string; content: string }[] = [];
+    const capturingProvider: ModelProvider = {
+      name: "capture",
+      generate: async (request) => {
+        capturedMessages = request.messages;
+        return { content: "ok", tokenEstimate: 10, costEstimateUsd: 0 };
+      },
+    };
+
+    // AI SDK v6 UIMessages carry text in `parts`, not `content`.
+    const messages = [
+      {
+        role: "user",
+        parts: [
+          { type: "text", text: "Summarize " },
+          { type: "text", text: "this run" },
+        ],
+      },
+    ];
+
+    const request = new Request("http://127.0.0.1/api/runs/run-v6-parts/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages }),
+    });
+    const url = new URL(request.url);
+    const response = await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, { provider: capturingProvider }),
+    );
+
+    expect(response!.status).toBe(200);
+    expect(capturedMessages.length).toBe(2);
+    expect(capturedMessages[1]!.content).toBe("Summarize this run");
+  });
+
+  test("returns 503 when no provider is configured", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
+    setupRunDir(dataDir, "run-unavailable");
+
+    const request = chatRequest("run-unavailable", [{ role: "user", content: "test" }]);
+    const url = new URL(request.url);
+    const response = await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, {
+        unavailableReason: "Run chat is unavailable: no model provider is configured",
+      }),
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response!.status).toBe(503);
+    expect(await response!.text()).toBe("Run chat is unavailable: no model provider is configured");
+  });
+
   test("returns undefined for non-chat routes", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
 

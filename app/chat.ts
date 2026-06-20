@@ -10,7 +10,9 @@ const SYSTEM_PROMPT_PATH = join(import.meta.dir, "../prompts/console-run-chat.md
 
 interface UIMessage {
   readonly role: string;
-  readonly content: unknown;
+  // AI SDK v6 UIMessages carry text in `parts`; hand-crafted/legacy payloads may use `content`.
+  readonly parts?: unknown;
+  readonly content?: unknown;
 }
 
 interface ChatRequestBody {
@@ -23,6 +25,8 @@ export interface ChatEndpointDeps {
   readonly chatConfig: RunChatConfig;
   readonly dataDir: string;
   readonly systemPromptPath?: string;
+  // When set, the route is matched but returns 503 with this reason (e.g. no provider configured).
+  readonly unavailableReason?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -46,25 +50,31 @@ function textResponse(text: string, status = 200): Response {
   });
 }
 
-function flattenMessageContent(content: unknown): string {
-  if (typeof content === "string") {
-    return content;
-  }
+function flattenTextParts(parts: readonly unknown[]): string {
+  return parts
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (isRecord(part) && typeof part.text === "string") {
+        return part.text;
+      }
+      return "";
+    })
+    .join("");
+}
 
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") {
-          return part;
-        }
-        if (isRecord(part) && typeof part.text === "string") {
-          return part.text;
-        }
-        return "";
-      })
-      .join("");
+function extractMessageText(message: UIMessage): string {
+  // Prefer AI SDK v6 `parts`; fall back to `content` for hand-crafted/legacy payloads.
+  if (Array.isArray(message.parts)) {
+    return flattenTextParts(message.parts);
   }
-
+  if (typeof message.content === "string") {
+    return message.content;
+  }
+  if (Array.isArray(message.content)) {
+    return flattenTextParts(message.content);
+  }
   return "";
 }
 
@@ -77,7 +87,7 @@ function mapUIMessages(messages: readonly UIMessage[], cap: number): readonly Mo
       continue;
     }
 
-    const content = flattenMessageContent(message.content);
+    const content = extractMessageText(message);
     if (content.trim() === "") {
       continue;
     }
@@ -112,6 +122,10 @@ export async function handleRunChat(
 
   if (deps.chatConfig.disabled) {
     return textResponse("Run chat is disabled", 503);
+  }
+
+  if (deps.unavailableReason !== undefined) {
+    return textResponse(deps.unavailableReason, 503);
   }
 
   const runId = decodeURIComponent(chatMatch[1] ?? "");

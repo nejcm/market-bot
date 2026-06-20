@@ -615,7 +615,7 @@ function resolveRunChatConfig(env: Record<string, string | undefined>): RunChatC
     disabled: readBoolean(env.MARKET_BOT_CONSOLE_CHAT_DISABLE),
     ...(model !== undefined ? { model } : {}),
     contextBudgetChars: readPositiveInteger(
-      env.MARKET_BOT_CONSOLE_CHAT_CONTEXT_TOKENS,
+      env.MARKET_BOT_CONSOLE_CHAT_CONTEXT_BUDGET_CHARS,
       DEFAULT_CHAT_CONTEXT_BUDGET_CHARS,
     ),
     maxOutputTokens: readPositiveInteger(

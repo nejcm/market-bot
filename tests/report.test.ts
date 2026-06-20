@@ -711,6 +711,109 @@ describe("report schema and rendering", () => {
     ]);
   });
 
+  test("keeps deterministic options and supplemental gaps over model restatements", () => {
+    const command = {
+      jobType: "ticker" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [
+          "Options IV evidence unavailable.",
+          "Supplemental market snapshots unavailable.",
+          "Issuer transcript unavailable.",
+        ],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [
+          {
+            id: "news-1",
+            title: "AAPL update",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+          sourceGap({
+            source: "massive-supplemental-market",
+            provider: "massive",
+            message: "supplemental market snapshot request failed with status 403",
+            capability: "market-data",
+            cause: "fetch-failed",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Issuer transcript unavailable.",
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "massive-supplemental-market: supplemental market snapshot request failed with status 403",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+    ]);
+  });
+
+  test("keeps deterministic mover-universe gap over model restatements", () => {
+    const command = {
+      jobType: "market-overview" as const,
+      assetClass: "equity" as const,
+      horizonTradingDays: 15,
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("SPY");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Mover universe is limited to a single day."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-spy", symbol: "SPY" })],
+        newsSources: [
+          {
+            id: "news-1",
+            title: "Market update",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+          },
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
+    ]);
+  });
+
   test("adds historical report sources to report source lists", () => {
     const history: HistoricalResearchContext = {
       generatedAt: "2026-05-19T00:00:00.000Z",

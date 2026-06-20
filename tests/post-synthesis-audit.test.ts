@@ -127,4 +127,19 @@ describe("auditPostSynthesisReport", () => {
       ["predictions[0]", "weak-evidence-posture-missing"],
     ]);
   });
+
+  test("does not treat historical forecast-outcome wording as a current numeric claim", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        keyFindings: [
+          {
+            text: "Prior forecast outcome: prior 5-day misses clustered around macro reversals.",
+            sourceIds: ["history-report-prior"],
+          },
+        ],
+      }),
+    );
+
+    expect(warnings).toEqual([]);
+  });
 });

@@ -685,6 +685,43 @@ describe("buildStagePrompt", () => {
     expect(parsed.evidence?.deterministicCitationGuidance).toContain("history-report-*");
   });
 
+  test("adds warn-only post-synthesis audit guidance to final synthesis", () => {
+    const command: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      contextWithHistory(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      ["market-aapl", "news-equity-1"],
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly postSynthesisAuditGuidance?: {
+        readonly status?: string;
+        readonly unsupportedNumericClaims?: string;
+      };
+    };
+
+    expect(parsed.postSynthesisAuditGuidance?.status).toContain("warning-only");
+    expect(parsed.postSynthesisAuditGuidance?.unsupportedNumericClaims).toContain(
+      "history-only numeric or technical claims",
+    );
+  });
+
   test("injects market-overview prompt as steering evidence only", () => {
     const command: ResearchCommand = {
       jobType: "market-overview",

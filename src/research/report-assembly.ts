@@ -533,10 +533,20 @@ function normalizeGapNeedle(value: string): string {
 }
 
 function sourceGapNeedles(gap: SourceGap): readonly string[] {
-  return [gap.source, gap.provider]
+  return [gap.source, gap.provider, ...sourceGapAliasNeedles(gap)]
     .filter((value): value is string => value !== undefined && value.trim() !== "")
     .map((value) => normalizeGapNeedle(value))
     .filter((value) => value.length >= 4);
+}
+
+function sourceGapAliasNeedles(gap: SourceGap): readonly string[] {
+  const source = gap.source.toLowerCase();
+  return [
+    ...(source.includes("tradier") ? ["options iv", "options evidence"] : []),
+    ...(source.includes("supplemental-market")
+      ? ["supplemental market", "supplemental market snapshot", "supplemental market snapshots"]
+      : []),
+  ];
 }
 
 function mentionsSourceGap(modelGap: string, deterministicGap: SourceGap): boolean {

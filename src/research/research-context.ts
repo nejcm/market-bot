@@ -1048,6 +1048,19 @@ function buildPredictionRepairInstruction(context: ResearchContext): string {
   return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
+function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> | undefined {
+  if (stage !== "final-synthesis") {
+    return undefined;
+  }
+  return {
+    status: "warning-only telemetry; do not retry or omit supported findings solely for this audit",
+    unsupportedNumericClaims:
+      "history-only numeric or technical claims need either a current non-history sourceId, an evidence-posture label such as prior forecast outcome or model inference, or softer non-current wording",
+    weakEvidencePosture:
+      "claims framed as assumptions, stale evidence, conflicts, unsupported inferences, source gaps, or data gaps should carry an explicit evidence-posture label",
+  };
+}
+
 export function buildStagePrompt(
   stage: StageLabel,
   command: ResearchCommand,
@@ -1076,6 +1089,7 @@ export function buildStagePrompt(
     stage === "final-synthesis"
       ? "Use only IDs from allowedSourceIds in any sourceIds array. Treat source gaps, provider names, provider capabilities, evidence lane names, source-plan, and source-ledger as non-citeable; disclose missing or absent evidence such as tradier-options in dataGaps instead."
       : undefined;
+  const auditGuidance = postSynthesisAuditGuidance(stage);
   const requiredShape = (() => {
     if (stage === "evidence-request") {
       return evidenceRequestShape();
@@ -1103,6 +1117,7 @@ export function buildStagePrompt(
         ? { predictionRepromptErrors, predictionRepair }
         : {}),
       ...(sourceIdGuidance !== undefined ? { allowedSourceIds, sourceIdGuidance } : {}),
+      ...(auditGuidance !== undefined ? { postSynthesisAuditGuidance: auditGuidance } : {}),
       ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
       requiredShape,
     },

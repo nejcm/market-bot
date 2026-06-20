@@ -17,9 +17,15 @@ const EVIDENCE_POSTURE_LABELS = [
   "stale evidence",
   "conflicting evidence",
   "missing required source",
+  "prior forecast outcome",
+  "historical forecast outcome",
 ] as const;
 const WEAK_POSTURE_CLAIM_PATTERN =
   /\b(?:assum(?:e|es|ed|ing|ption)|infer(?:s|red|ence)?|model-inferred|stale|conflict(?:s|ing|ed)?|unsupported|unverified|uncited|missing source|source gap|data gap)\b/iu;
+const HISTORICAL_OUTCOME_CONTEXT_PATTERN = /\b(?:prior|previous|historical|past|resolved)\b/iu;
+const FORECAST_OUTCOME_PATTERN =
+  /\b(?:forecast|prediction|miss(?:es|ed)?|hit(?:s)?|resolved|outcome)\b/iu;
+const FORECAST_HORIZON_PATTERN = /\b\d+\s*(?:-| )?(?:trading\s*)?day\b/iu;
 
 interface AuditClaim {
   readonly location: string;
@@ -74,7 +80,9 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
 
 function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
   return [
-    ...(isNumericOrTechnical(claim.text) && hasNoSupportingSource(claim.sourceIds)
+    ...(isNumericOrTechnical(claim.text) &&
+    !isHistoricalForecastOutcome(claim.text) &&
+    hasNoSupportingSource(claim.sourceIds)
       ? [unsupportedNumericWarning(claim)]
       : []),
     ...(shouldCarryPosture(claim) && !hasPostureLabel(claim.text)
@@ -85,6 +93,14 @@ function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
 
 function isNumericOrTechnical(text: string): boolean {
   return NUMERIC_CLAIM_PATTERN.test(text) || TECHNICAL_INDICATOR_PATTERN.test(text);
+}
+
+function isHistoricalForecastOutcome(text: string): boolean {
+  return (
+    HISTORICAL_OUTCOME_CONTEXT_PATTERN.test(text) &&
+    FORECAST_OUTCOME_PATTERN.test(text) &&
+    FORECAST_HORIZON_PATTERN.test(text)
+  );
 }
 
 function hasNoSupportingSource(sourceIds: readonly string[]): boolean {

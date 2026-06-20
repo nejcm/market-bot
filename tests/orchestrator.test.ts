@@ -2515,6 +2515,115 @@ describe("runResearchJob", () => {
     ]);
   });
 
+  test("discloses absent Tradier options as a data gap without source-id retry", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0,
+          };
+        }
+
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          const allowedSourceIds = Array.isArray(prompt.allowedSourceIds)
+            ? prompt.allowedSourceIds.filter((value): value is string => typeof value === "string")
+            : [];
+          const guidance =
+            typeof prompt.sourceIdGuidance === "string" ? prompt.sourceIdGuidance : "";
+          const hasGapGuidance =
+            allowedSourceIds.includes("market-aapl") &&
+            !allowedSourceIds.includes("tradier-options") &&
+            guidance.includes("tradier-options") &&
+            guidance.includes("dataGaps");
+
+          return {
+            content: JSON.stringify({
+              summary: "AAPL evidence is sourced.",
+              keyFindings: [
+                {
+                  text: "AAPL has a current market snapshot.",
+                  sourceIds: [hasGapGuidance ? "market-aapl" : "tradier-options"],
+                },
+              ],
+              bullCase: [
+                { text: "Market evidence supports the setup.", sourceIds: ["market-aapl"] },
+              ],
+              bearCase: [{ text: "Options IV evidence is absent.", sourceIds: ["market-aapl"] }],
+              risks: [
+                { text: "Options coverage remains unavailable.", sourceIds: ["market-aapl"] },
+              ],
+              catalysts: [
+                { text: "Market data is the visible input.", sourceIds: ["market-aapl"] },
+              ],
+              scenarios: [
+                {
+                  name: "Base",
+                  description: "Evidence remains limited without options IV.",
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+              confidence: "medium",
+              dataGaps: hasGapGuidance
+                ? ["tradier-options: missing MARKET_BOT_TRADIER_API_TOKEN"]
+                : [],
+              predictions: mockPredictions(2, "AAPL"),
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        return {
+          content: modelReport("AAPL"),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir: tempDataDir("market-bot-tradier-gap") },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-options",
+            message: "missing MARKET_BOT_TRADIER_API_TOKEN",
+            capability: "extended-evidence",
+            cause: "missing-credential",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const finalPrompt = finalPrompts[0] ?? {};
+
+    expect(finalCalls).toBe(1);
+    expect(finalPrompts).toHaveLength(1);
+    expect(finalPrompt.allowedSourceIds).toEqual(["market-aapl", "news-equity-1"]);
+    expect(finalPrompt.sourceIdGuidance).toContain("dataGaps");
+    expect(result.trace.reportValidationRetryErrors).toBeUndefined();
+    expect(result.report.dataGaps).toContain(
+      "tradier-options: missing MARKET_BOT_TRADIER_API_TOKEN",
+    );
+    expect(result.report.keyFindings[0]?.sourceIds).toEqual(["market-aapl"]);
+  });
+
   test("keeps prediction retry guidance when report validation also retries synthesis", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;

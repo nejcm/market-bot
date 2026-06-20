@@ -1072,6 +1072,10 @@ export function buildStagePrompt(
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
       ? { instruction: buildPredictionRepairInstruction(context) }
       : undefined;
+  const sourceIdGuidance =
+    stage === "final-synthesis"
+      ? "Use only IDs from allowedSourceIds in any sourceIds array. Treat source gaps, provider names, provider capabilities, evidence lane names, source-plan, and source-ledger as non-citeable; disclose missing or absent evidence such as tradier-options in dataGaps instead."
+      : undefined;
   const requiredShape = (() => {
     if (stage === "evidence-request") {
       return evidenceRequestShape();
@@ -1098,7 +1102,8 @@ export function buildStagePrompt(
       ...(predictionRepromptErrors.length > 0
         ? { predictionRepromptErrors, predictionRepair }
         : {}),
-      ...(reportValidationErrors.length > 0 ? { reportValidationErrors, allowedSourceIds } : {}),
+      ...(sourceIdGuidance !== undefined ? { allowedSourceIds, sourceIdGuidance } : {}),
+      ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
       requiredShape,
     },
     undefined,

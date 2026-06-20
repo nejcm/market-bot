@@ -155,7 +155,10 @@ async function runAndReadFinalSynthesis(
   input: SynthesizeReportUntilValidInput,
   reprompt?: StageReprompt,
 ): Promise<FinalSynthesisState> {
-  const output = await input.runFinalSynthesis(input.priorStages, reprompt);
+  const output = await input.runFinalSynthesis(input.priorStages, {
+    ...reprompt,
+    allowedSourceIds: [...input.knownSourceIds].toSorted(),
+  });
   const payload = parseModelPayload(output.content);
   const predResult = readPredictions(
     payload.predictions,

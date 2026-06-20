@@ -90,7 +90,6 @@ export async function synthesizeReportUntilValid(
   const validationState = await runAndReadFinalSynthesis(input, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
-    allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
@@ -106,7 +105,6 @@ export async function synthesizeReportUntilValid(
     const state = await runAndReadFinalSynthesis(input, {
       predictionErrors: postReportPredictionErrors,
       reportValidationErrors,
-      allowedSourceIds: [...input.knownSourceIds].toSorted(),
     });
     validationProgress = {
       state,

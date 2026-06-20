@@ -543,9 +543,7 @@ function sourceGapAliasNeedles(gap: SourceGap): readonly string[] {
   const source = gap.source.toLowerCase();
   return [
     ...(source.includes("tradier") ? ["options iv", "options evidence"] : []),
-    ...(source.includes("supplemental-market")
-      ? ["supplemental market", "supplemental market snapshot", "supplemental market snapshots"]
-      : []),
+    ...(source.includes("supplemental-market") ? ["supplemental market"] : []),
   ];
 }
 

@@ -3,9 +3,7 @@ import { parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { renderAlphaSearchAnalyticsConsole } from "./alpha-search/run-analytics-console";
-import { createAnthropicProvider } from "./model/anthropic";
-import { createCodexProvider } from "./model/codex";
-import { createOpenAIProvider } from "./model/openai";
+import { createProvider } from "./model/factory";
 import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
@@ -57,18 +55,6 @@ export function scorePassOptions(sourceOptions: SourceOptions): ScorePassOptions
   }
 
   return { closeCacheDir: sourceOptions.cacheDir, ...providerOptions };
-}
-
-function createProvider(config: AppConfig): ModelProvider {
-  if (config.provider === "codex") {
-    return createCodexProvider(config);
-  }
-
-  if (config.provider === "anthropic") {
-    return createAnthropicProvider(config);
-  }
-
-  return createOpenAIProvider(config);
 }
 
 async function updateRunArtifactIndex(

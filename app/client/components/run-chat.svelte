@@ -114,10 +114,9 @@
     {#each chat.messages as message (message.id)}
       {#if message.role === "user" || message.role === "assistant"}
         <div
-          class="mb-3 max-w-[80%] w-auto rounded-lg px-3.5 py-2.5 {message.role ===
-          'user'
-            ? 'ml-auto bg-primary text-primary-foreground'
-            : 'mr-auto border border-border bg-secondary'}"
+          class="mb-3 rounded-lg px-3.5 py-2.5 {message.role === 'user'
+            ? 'ml-auto w-auto max-w-[70%] bg-primary text-primary-foreground'
+            : 'w-full border border-border bg-secondary'}"
         >
           {#if message.role === "assistant"}
             <!-- Assistant output is markdown; renderMarkdown sanitizes before {@html}. -->
@@ -135,7 +134,7 @@
 
     {#if isBusy && (chat.messages.length === 0 || chat.messages[chat.messages.length - 1]?.role === "user")}
       <div
-        class="mb-3 mr-8 flex items-center gap-2 rounded-lg border border-border bg-secondary px-3.5 py-2.5"
+        class="mb-3 w-auto mr-auto flex items-center gap-2 rounded-lg border border-border bg-secondary px-3.5 py-2.5"
       >
         <LoaderIcon class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
         <span class="text-xs text-muted-foreground">Thinking…</span>

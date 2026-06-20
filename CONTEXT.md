@@ -30,6 +30,14 @@ A public market quantity value used to resolve a Prediction. An Observation can 
 
 A Prediction whose scored event is conditional on an earlier observable event. Its probability means the consequent probability after the condition occurs; if the condition does not occur, the Prediction is voided and excluded from Calibration.
 
+## Near-Base-Rate Prediction
+
+An emitted Prediction whose stated probability sits within a small fixed band of 0.5 (a coin flip), labeled as analytics-only forecast-quality telemetry. It measures stated confidence after generation and is distinct from forecast-kind priority, which shapes generation by favoring better-measured kinds over bare `direction`. It is never a rejection gate and does not change prediction-count or horizon policy; it is not investment conviction, model endorsement, or a trade signal.
+
+## Prediction Subject
+
+The instrument or instruments a run's scored Predictions are allowed to be about, declared per run. For `direction`, `range`, `volatility`, and `iv` forecasts it is the forecast subject; for `relative` forecasts it is the primary instrument named before the comparison. Ticker and Market Overview runs enforce that every emitted Prediction's subject belongs to this set, rejecting and retrying off-subject Predictions. Research runs do not apply this gate; their separate research prediction gate is the sole authority. See [ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md).
+
 ## Forecast Disagreement
 
 A research-only evidence signal that measures how much configured same-provider challenger models disagree with the canonical Prediction probabilities on an already-valid deep run. It summarizes unweighted probability spread, variance, and mean for the existing `measurableAs` set. It is an uncertainty signal, not the canonical scored probability, model endorsement, investment conviction, or a trade signal.
@@ -132,6 +140,10 @@ Benchmark evidence that compares a Mover against a sector ETF or broad index wit
 
 A label for how complete, recent, corroborated, and traceable the fetched evidence is. It is not investment conviction or expected return.
 
+## Post-Synthesis Audit
+
+A deterministic, no-model inspection of a finished Research View that flags weak-evidence hygiene in report claims — for example a numeric or technical claim cited only to prior reports, or a weak claim missing an evidence-posture label. It is warn-only telemetry: warnings are recorded in analytics and trace but do not block, rewrite, or trigger re-synthesis. It surfaces where synthesis discipline can improve; it is not a research-only boundary check, a correctness guarantee, model endorsement, or a trade signal. The hard research-only boundary remains enforced separately by report validation.
+
 ## Source
 
 A fetched data or news item saved with an ID so report claims can link back to evidence.
@@ -147,6 +159,14 @@ An optional Source Provider that contributes citeable evidence without driving d
 ## Source Gap
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.
+
+## Source Plan
+
+The deterministic, no-model set of Evidence Lanes a run intends to cover, each marked required or optional with the real provider path that would supply it. It records intended coverage before synthesis so actual evidence can be compared against it. It adds no provider calls, model calls, report fields, or scored Prediction behavior. See [ADR 0028](./docs/adr/0028-deterministic-source-plan-subsystem.md).
+
+## Evidence Lane
+
+An intended evidence channel within a Source Plan (for example market-data, news, verified-snapshot, sec-edgar). A lane is covered only when at least one backing Source exists; otherwise it is a lane gap. A lane gap is a coverage concept and is distinct from a Source Gap: a lane can be uncovered without any fetch having failed, and a Source Gap can occur in a lane that is still covered by other Sources. Missing coverage of a required lane is always a lane gap, never covered.
 
 ## Research Lead
 

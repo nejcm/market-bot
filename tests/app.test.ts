@@ -8,6 +8,24 @@ import type { ModelProvider } from "../src/model/types";
 import type { PersistedResearchJobResult } from "../src/research/orchestrator";
 import { collectedSources, researchReport } from "./support/fixtures";
 
+// Minimal run-quality analytics that renderRunAnalyticsConsole can summarize without
+// Throwing. These doubles cast the result through `unknown`, so full type fidelity is
+// Unnecessary; only the fields the stderr summary reads need to be present.
+const analyticsStub = {
+  jobType: "daily",
+  runId: "run-1",
+  evidenceQuality: { confidence: "low", dataGapCount: 0 },
+  predictions: {
+    count: 0,
+    targetCount: 0,
+    targetMet: true,
+    informativeCount: 0,
+    nearBaseRateCount: 0,
+    signalTargetMet: true,
+    mixWarnings: [],
+  },
+};
+
 const dataDirs: string[] = [];
 const originalDataDir = process.env.MARKET_BOT_DATA_DIR;
 const originalCacheDir = process.env.MARKET_BOT_CACHE_DIR;
@@ -118,7 +136,7 @@ describe("runCli", () => {
           report: researchReport({ runId: "run-1" }),
           markdown: "",
           trace: {},
-          analytics: {},
+          analytics: analyticsStub,
           stageOutputs: [],
           collectedSources: collectedSources(),
           historicalContext: {},
@@ -203,7 +221,7 @@ describe("runCli", () => {
           report: researchReport({ runId: "alpha-run", jobType: "alpha-search" }),
           markdown: "",
           trace: {},
-          analytics: {},
+          analytics: analyticsStub,
           artifacts: {
             runDir,
             rawDir: join(runDir, "raw"),
@@ -256,7 +274,7 @@ describe("runCli", () => {
           report: researchReport({ runId: "research-run", jobType: "research" }),
           markdown: "",
           trace: {},
-          analytics: {},
+          analytics: analyticsStub,
           stageOutputs: [],
           collectedSources: collectedSources(),
           historicalContext: {},
@@ -308,7 +326,7 @@ describe("runCli", () => {
           report: researchReport({ runId: "research-run", jobType: "research" }),
           markdown: "",
           trace: {},
-          analytics: {},
+          analytics: analyticsStub,
           stageOutputs: [],
           collectedSources: collectedSources(),
           historicalContext: {},
@@ -414,7 +432,7 @@ describe("runCli", () => {
           report: researchReport({ runId: "run-1" }),
           markdown: "",
           trace: {},
-          analytics: {},
+          analytics: analyticsStub,
           stageOutputs: [],
           collectedSources: collectedSources(),
           historicalContext: {},
@@ -480,7 +498,7 @@ describe("runCli", () => {
             report: researchReport({ runId: "run-1" }),
             markdown: "",
             trace: {},
-            analytics: {},
+            analytics: analyticsStub,
             stageOutputs: [],
             collectedSources: collectedSources(),
             historicalContext: {},

@@ -8,6 +8,7 @@ import { createOpenAIProvider } from "./model/openai";
 import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
+import { renderRunAnalyticsConsole } from "./research/run-analytics-console";
 import { resolveResearchSubjectProxy } from "./research/subject-registry";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
@@ -252,6 +253,16 @@ export async function runCli(
     dependencies,
     config.indexOptions?.dbPath,
   );
+
+  // Run-quality summary goes to stderr so stdout stays reserved for the run-dir path.
+  // The run is already persisted; a cosmetic summary must never abort a completed run.
+  try {
+    process.stderr.write(`${renderRunAnalyticsConsole(result.analytics)}\n`);
+  } catch (error: unknown) {
+    process.stderr.write(
+      `Run quality summary failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  }
 
   return result.artifacts.runDir;
 }

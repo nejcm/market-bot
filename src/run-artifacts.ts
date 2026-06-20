@@ -33,13 +33,14 @@ import type {
   PredictionScore,
   PredictionScoreStatus,
 } from "./scoring/types";
-import type {
-  EvidenceLane,
-  EvidenceLanesArtifact,
-  LaneCoverageStatus,
-  LaneRequirement,
-  SourceLedgerArtifact,
-  SourcePlanArtifact,
+import {
+  EVIDENCE_LANES,
+  type EvidenceLane,
+  type EvidenceLanesArtifact,
+  type LaneCoverageStatus,
+  type LaneRequirement,
+  type SourceLedgerArtifact,
+  type SourcePlanArtifact,
 } from "./research/source-plan";
 import {
   isRecord,
@@ -143,26 +144,14 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "options-iv",
   "on-chain",
 ]);
-const EVIDENCE_LANES: ReadonlySet<string> = new Set<EvidenceLane>([
-  "market-data",
-  "supplemental-market",
-  "news",
-  "macro-context",
-  "verified-snapshot",
-  "sec-edgar",
-  "equity-events",
-  "extended-fred-macro",
-  "options-iv",
-  "on-chain",
-  "valuation",
-]);
+const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set(EVIDENCE_LANES);
 const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);
 const LANE_COVERAGE_STATUSES: ReadonlySet<string> = new Set<LaneCoverageStatus>([
   "covered",
   "gap",
   "not-covered",
 ]);
-const SOURCE_KINDS: ReadonlySet<string> = new Set<Source["kind"]>([
+const SOURCE_KINDS = [
   "market-data",
   "news",
   "model",
@@ -170,7 +159,13 @@ const SOURCE_KINDS: ReadonlySet<string> = new Set<Source["kind"]>([
   "market-context",
   "discussion",
   "reference",
-]);
+] as const satisfies readonly Source["kind"][];
+
+type MissingSourceKinds = Exclude<Source["kind"], (typeof SOURCE_KINDS)[number]>;
+const EXHAUSTIVE_SOURCE_KINDS: MissingSourceKinds extends never ? true : never = true;
+void EXHAUSTIVE_SOURCE_KINDS;
+
+const SOURCE_KIND_SET: ReadonlySet<Source["kind"]> = new Set(SOURCE_KINDS);
 
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
@@ -204,7 +199,7 @@ function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCa
 }
 
 function isEvidenceLane(value: unknown): value is EvidenceLane {
-  return typeof value === "string" && EVIDENCE_LANES.has(value);
+  return typeof value === "string" && EVIDENCE_LANE_SET.has(value);
 }
 
 function isLaneRequirement(value: unknown): value is LaneRequirement {
@@ -216,7 +211,7 @@ function isLaneCoverageStatus(value: unknown): value is LaneCoverageStatus {
 }
 
 function isSourceKind(value: unknown): value is Source["kind"] {
-  return typeof value === "string" && SOURCE_KINDS.has(value);
+  return typeof value === "string" && SOURCE_KIND_SET.has(value as Source["kind"]);
 }
 
 // Distinguishes a missing file from a present-but-broken one: ENOENT returns

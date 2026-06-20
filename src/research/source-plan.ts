@@ -3,18 +3,21 @@ import type { AssetClass, Source, SourceGap } from "../domain/types";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
 
-export type EvidenceLane =
-  | "market-data"
-  | "supplemental-market"
-  | "news"
-  | "macro-context"
-  | "verified-snapshot"
-  | "sec-edgar"
-  | "equity-events"
-  | "extended-fred-macro"
-  | "options-iv"
-  | "on-chain"
-  | "valuation";
+export const EVIDENCE_LANES = [
+  "market-data",
+  "supplemental-market",
+  "news",
+  "macro-context",
+  "verified-snapshot",
+  "sec-edgar",
+  "equity-events",
+  "extended-fred-macro",
+  "options-iv",
+  "on-chain",
+  "valuation",
+] as const;
+
+export type EvidenceLane = (typeof EVIDENCE_LANES)[number];
 
 export type LaneRequirement = "required" | "optional";
 

@@ -1566,6 +1566,24 @@ describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
     expect(sources.filter((s) => s.kind === "reference")).toHaveLength(0);
   });
 
+  test("requires caller timestamp for resolved registry source provenance", () => {
+    expect(() =>
+      buildSourceList(
+        {
+          jobType: "research",
+          assetClass: "equity",
+          subject: "chip stocks",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+          depth: "brief",
+        },
+        collectedSources(),
+        undefined,
+        undefined as never,
+      ),
+    ).toThrow();
+  });
+
   test("omits registry sources for non-research job types", () => {
     const sources = buildSourceList(
       { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "brief" },

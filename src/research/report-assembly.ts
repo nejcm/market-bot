@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
@@ -162,6 +163,26 @@ function registryProvenanceSources(command: ResearchCommand, fetchedAt: string):
   );
 }
 
+function missingRegistryProvenanceFetchedAt(command: ResearchSubjectCommand): never {
+  throw new Error(
+    `buildSourceList requires fetchedAt for resolved research subject provenance: ${command.subject}`,
+  );
+}
+
+type NonResearchCommand = Exclude<ResearchCommand, ResearchSubjectCommand>;
+
+export function buildSourceList(
+  command: NonResearchCommand,
+  collectedSources: CollectedSources,
+  historicalContext?: HistoricalResearchContext,
+  fetchedAt?: string,
+): readonly Source[];
+export function buildSourceList(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  historicalContext: HistoricalResearchContext | undefined,
+  fetchedAt: string,
+): readonly Source[];
 export function buildSourceList(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -218,9 +239,10 @@ export function buildSourceList(
 
   // Registry provenance sources for research — kind:"reference" so the model can cite
   // Checked-in subject registry entries in findings/predictions (Phase 2.1).
-  const resolvedFetchedAt =
-    fetchedAt ?? collectedSources.marketSnapshots[0]?.observedAt ?? new Date().toISOString();
-  const registrySources = registryProvenanceSources(command, resolvedFetchedAt);
+  const registrySources =
+    command.jobType === "research"
+      ? registryProvenanceSources(command, fetchedAt ?? missingRegistryProvenanceFetchedAt(command))
+      : [];
 
   return [
     ...marketSources,

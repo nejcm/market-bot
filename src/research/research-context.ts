@@ -682,6 +682,65 @@ export function moverLimitFor(command: ResearchCommand, config: AppConfig): numb
     : config.sourceOptions.cryptoMoverLimit;
 }
 
+/*
+ * Each collected-source evidence kind projects itself into the stage prompt payload.
+ * A projector contributes its keys when its CollectedSources field is present and the
+ * command qualifies; otherwise it contributes nothing. Adding a new collected-source
+ * evidence kind means adding one projector to EVIDENCE_PROJECTORS — not editing the
+ * builder body.
+ */
+type EvidenceProjector = (
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+) => Record<string, unknown>;
+
+const projectMarketContext: EvidenceProjector = (_command, collectedSources) =>
+  collectedSources.marketContext !== undefined
+    ? { marketContext: collectedSources.marketContext }
+    : {};
+
+const projectExtendedEvidence: EvidenceProjector = (command, collectedSources) =>
+  command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
+    ? { extendedEvidence: collectedSources.extendedEvidence }
+    : {};
+
+const projectEarningsSetup: EvidenceProjector = (command, collectedSources) =>
+  command.jobType === "ticker" && collectedSources.earningsSetup !== undefined
+    ? { earningsSetup: collectedSources.earningsSetup }
+    : {};
+
+// Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
+// The full bar series stays on disk (rawSnapshots / normalized sidecar).
+const projectVerifiedMarketSnapshot: EvidenceProjector = (_command, collectedSources) =>
+  collectedSources.verifiedMarketSnapshot !== undefined
+    ? {
+        verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
+        verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(
+          collectedSources.verifiedMarketSnapshot.symbol,
+        ),
+        verifiedMarketSnapshotCitationRule: verifiedSnapshotCitationRule(
+          collectedSources.verifiedMarketSnapshot.symbol,
+        ),
+      }
+    : {};
+
+const projectResolvedInstrumentIdentity: EvidenceProjector = (_command, collectedSources) =>
+  collectedSources.resolvedInstrumentIdentity !== undefined
+    ? {
+        resolvedInstrumentIdentity: collectedSources.resolvedInstrumentIdentity,
+        resolvedIdentityInstruction:
+          "This is the canonical instrument identity for this run. Use this identity; do not substitute a different company.",
+      }
+    : {};
+
+const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
+  projectMarketContext,
+  projectExtendedEvidence,
+  projectEarningsSetup,
+  projectVerifiedMarketSnapshot,
+  projectResolvedInstrumentIdentity,
+];
+
 function buildEvidencePayload(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -704,29 +763,10 @@ function buildEvidencePayload(
   const deterministicCitationGuidance =
     "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, or verifiedMarketSnapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
-  // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
-  // The full bar series stays on disk (rawSnapshots / normalized sidecar).
-  const verifiedMarketSnapshotBlock =
-    collectedSources.verifiedMarketSnapshot !== undefined
-      ? {
-          verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
-          verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(
-            collectedSources.verifiedMarketSnapshot.symbol,
-          ),
-          verifiedMarketSnapshotCitationRule: verifiedSnapshotCitationRule(
-            collectedSources.verifiedMarketSnapshot.symbol,
-          ),
-        }
-      : {};
-
-  const resolvedIdentityBlock =
-    collectedSources.resolvedInstrumentIdentity !== undefined
-      ? {
-          resolvedInstrumentIdentity: collectedSources.resolvedInstrumentIdentity,
-          resolvedIdentityInstruction:
-            "This is the canonical instrument identity for this run. Use this identity; do not substitute a different company.",
-        }
-      : {};
+  const evidenceProjections = EVIDENCE_PROJECTORS.reduce(
+    (payload, project) => ({ ...payload, ...project(command, collectedSources) }),
+    {} as Record<string, unknown>,
+  );
 
   // Research subject: surface registry representatives + provenance in the evidence payload
   // So the model quotes named representatives instead of generic movers (Phase 2.2).
@@ -770,15 +810,7 @@ function buildEvidencePayload(
     marketSnapshots: collectedSources.marketSnapshots,
     supplementalMarketSnapshots: collectedSources.supplementalMarketSnapshots,
     newsSources: collectedSources.newsSources,
-    ...(collectedSources.marketContext !== undefined
-      ? { marketContext: collectedSources.marketContext }
-      : {}),
-    ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
-      ? { extendedEvidence: collectedSources.extendedEvidence }
-      : {}),
-    ...(command.jobType === "ticker" && collectedSources.earningsSetup !== undefined
-      ? { earningsSetup: collectedSources.earningsSetup }
-      : {}),
+    ...evidenceProjections,
     ...(context.historicalContext !== undefined
       ? { historicalContext: compactHistoricalContext(context.historicalContext) }
       : {}),
@@ -795,8 +827,6 @@ function buildEvidencePayload(
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
     ...(priorMarketForecastErrors !== undefined ? { priorMarketForecastErrors } : {}),
     ...(priorThematicForecastErrors !== undefined ? { priorThematicForecastErrors } : {}),
-    ...verifiedMarketSnapshotBlock,
-    ...resolvedIdentityBlock,
     ...registrySubjectBlock,
   };
 }

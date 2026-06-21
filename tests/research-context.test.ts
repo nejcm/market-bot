@@ -18,10 +18,12 @@ import type {
 } from "../src/research/historical-context";
 import type {
   ExtendedEvidence,
+  InstrumentIdentity,
   MarketContext,
   Prediction,
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
+import type { EarningsSetupCollected } from "../src/sources/types";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -1087,6 +1089,30 @@ describe("buildStagePrompt prior-thesis error correction", () => {
     expect(priorThesisErrorsFor(tickerCommand, context)).toBeUndefined();
   });
 
+  test("excludes same-run misses whose metadata does not match parseable DSL", () => {
+    const cases: readonly {
+      readonly name: string;
+      readonly overrides: Partial<HistoricalPredictionSummary>;
+    }[] = [
+      { name: "subject mismatch", overrides: { subject: "MSFT" } },
+      { name: "kind mismatch", overrides: { kind: "relative" } },
+      { name: "horizon mismatch", overrides: { horizonTradingDays: 10 } },
+    ];
+
+    for (const { name, overrides } of cases) {
+      const context = contextWithHistory(
+        tickerCommand,
+        historicalContextWith([
+          tickerRun(`run-aapl-${name.replaceAll(" ", "-")}`, "AAPL", [
+            missSummary("p-invalid", overrides),
+          ]),
+        ]),
+      );
+
+      expect(priorThesisErrorsFor(tickerCommand, context)).toBeUndefined();
+    }
+  });
+
   test("does not surface an instrument error block for market-update (daily) runs", () => {
     const dailyCommand: ResearchCommand = {
       jobType: "daily",
@@ -1828,6 +1854,17 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     items: [],
     gaps: [],
   };
+  const earningsSetupValue: EarningsSetupCollected = {
+    event: {
+      symbol: "AAPL",
+      date: "2026-07-30",
+      timing: "amc",
+      sourceIds: ["earnings-aapl"],
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+    },
+    gaps: [],
+  };
+  const resolvedIdentityValue: InstrumentIdentity = { displayName: "Apple Inc." };
   const verifiedSnapshotValue: VerifiedMarketSnapshot = {
     symbol: "AAPL",
     assetClass: "equity",
@@ -1912,5 +1949,45 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(
       evidenceFor(dailyCommand, { extendedEvidence: extendedEvidenceValue }).extendedEvidence,
     ).toBeUndefined();
+  });
+
+  test("earnings-setup projector is ticker-gated and contributes its key only when present", () => {
+    const tickerCommand: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const dailyCommand: ResearchCommand = {
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "brief",
+    };
+
+    expect(evidenceFor(tickerCommand, {}).earningsSetup).toBeUndefined();
+    expect(evidenceFor(tickerCommand, { earningsSetup: earningsSetupValue }).earningsSetup).toEqual(
+      earningsSetupValue,
+    );
+    expect(
+      evidenceFor(dailyCommand, { earningsSetup: earningsSetupValue }).earningsSetup,
+    ).toBeUndefined();
+  });
+
+  test("resolved-identity projector contributes both of its keys only when present", () => {
+    const command: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+
+    expect(evidenceFor(command, {}).resolvedInstrumentIdentity).toBeUndefined();
+    expect(evidenceFor(command, {}).resolvedIdentityInstruction).toBeUndefined();
+
+    const evidence = evidenceFor(command, {
+      resolvedInstrumentIdentity: resolvedIdentityValue,
+    });
+    expect(evidence.resolvedInstrumentIdentity).toEqual(resolvedIdentityValue);
+    expect(evidence.resolvedIdentityInstruction).toBeDefined();
   });
 });

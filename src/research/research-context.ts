@@ -19,8 +19,9 @@ import {
   verifiedSnapshotSourceId,
 } from "./verified-snapshot-contract";
 import {
-  instrumentsForMeasurableAs,
+  instrumentsForExpression,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  observableForecastFromPrediction,
 } from "../forecast/observable";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
@@ -433,7 +434,20 @@ function predictionInstrumentsInclude(
   prediction: HistoricalPredictionSummary,
   symbol: string,
 ): boolean {
-  return instrumentsForMeasurableAs(prediction.measurableAs).some(
+  const forecast = observableForecastFromPrediction({
+    id: prediction.id,
+    claim: prediction.claim,
+    kind: prediction.kind,
+    subject: prediction.subject,
+    measurableAs: prediction.measurableAs,
+    horizonTradingDays: prediction.horizonTradingDays,
+    probability: prediction.probability,
+    sourceIds: [],
+  });
+  if (!("expression" in forecast)) {
+    return false;
+  }
+  return instrumentsForExpression(forecast.expression).some(
     (instrument) => instrument.toUpperCase() === symbol,
   );
 }
@@ -763,9 +777,9 @@ function buildEvidencePayload(
   const deterministicCitationGuidance =
     "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, or verifiedMarketSnapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
-  const evidenceProjections = EVIDENCE_PROJECTORS.reduce(
+  const evidenceProjections = EVIDENCE_PROJECTORS.reduce<Record<string, unknown>>(
     (payload, project) => ({ ...payload, ...project(command, collectedSources) }),
-    {} as Record<string, unknown>,
+    {},
   );
 
   // Research subject: surface registry representatives + provenance in the evidence payload

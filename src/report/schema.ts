@@ -185,6 +185,16 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
       false,
     );
   }
+  // Validate source IDs on the deterministic implied move.
+  const impliedMove = isRecord(extra.impliedMove) ? extra.impliedMove : undefined;
+  if (impliedMove !== undefined) {
+    validateKnownSourceIds(
+      "Earnings Setup impliedMove",
+      readStringArray(impliedMove.sourceIds),
+      knownSourceIds,
+      false,
+    );
+  }
   // Validate source IDs on model-authored bullet sections.
   for (const key of ["expectationBar", "qualityLandmines", "guidanceCredibility"] as const) {
     const bullets = extra[key];

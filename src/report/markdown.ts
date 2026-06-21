@@ -458,7 +458,7 @@ function renderEarningsSetup(report: ResearchReport): string {
   if (!isRecord(setup) || !isRecord(setup.event)) {
     return "";
   }
-  const {event} = setup;
+  const { event } = setup;
   const symbol = typeof event.symbol === "string" ? event.symbol : "";
   const date = typeof event.date === "string" ? event.date : "";
   const timing = typeof event.timing === "string" ? event.timing : "unknown";
@@ -477,13 +477,13 @@ function renderEarningsSetup(report: ResearchReport): string {
     lines.push(`**Implied move:** ±${pct}% (ATM strike ${strike}, expiration ${expiration})`);
   }
 
+  const sectionNames = {
+    expectationBar: "Expectation Bar",
+    qualityLandmines: "Quality Landmines",
+    guidanceCredibility: "Guidance Credibility",
+  } as const;
   for (const key of ["expectationBar", "qualityLandmines", "guidanceCredibility"] as const) {
-    const sectionName =
-      key === "expectationBar"
-        ? "Expectation Bar"
-        : (key === "qualityLandmines"
-          ? "Quality Landmines"
-          : "Guidance Credibility");
+    const sectionName = sectionNames[key];
     const bullets = (setup as Record<string, unknown>)[key];
     if (!Array.isArray(bullets) || bullets.length === 0) {
       continue;

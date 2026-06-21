@@ -21,7 +21,7 @@ import {
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
-import type { CollectedSources } from "../sources/types";
+import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
 import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
@@ -387,6 +387,35 @@ function mergeSpotlightsExtra(modelSpotlights: unknown, defaultSpotlights: unkno
     ...defaultSpotlights,
     ...(typeof modelRationale === "string" ? { rationale: modelRationale } : {}),
     items,
+  };
+}
+
+const EARNINGS_BULLET_SECTIONS = [
+  "expectationBar",
+  "qualityLandmines",
+  "guidanceCredibility",
+] as const;
+
+// Deterministic event/impliedMove/gaps are code-owned and always win.
+// The model may only contribute the sourced analytical bullet sections.
+function mergeEarningsSetupExtra(
+  modelEarningsSetup: unknown,
+  collected: EarningsSetupCollected,
+): unknown {
+  const modelSections: Record<string, unknown> = {};
+  if (isRecord(modelEarningsSetup)) {
+    for (const key of EARNINGS_BULLET_SECTIONS) {
+      const bullets = modelEarningsSetup[key];
+      if (Array.isArray(bullets)) {
+        modelSections[key] = bullets;
+      }
+    }
+  }
+  return {
+    ...modelSections,
+    event: collected.event,
+    ...(collected.impliedMove !== undefined ? { impliedMove: collected.impliedMove } : {}),
+    gaps: collected.gaps,
   };
 }
 
@@ -828,7 +857,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         ? { marketContext: collectedSources.marketContext }
         : {}),
       ...(collectedSources.earningsSetup !== undefined
-        ? { earningsSetup: collectedSources.earningsSetup }
+        ? {
+            earningsSetup: mergeEarningsSetupExtra(
+              modelExtras.earningsSetup,
+              collectedSources.earningsSetup,
+            ),
+          }
         : {}),
     },
   });

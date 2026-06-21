@@ -330,14 +330,14 @@ function earningsMovePrediction(eventDate: string, threshold = 0.05): Prediction
 }
 
 describe("resolveOutcome — earnings scoring", () => {
-  // Use dates where May 15, 2026 is a Thursday (trading day).
-  // May 14 = Wednesday, May 13 = Tuesday, May 16 = Friday.
+  // May 15, 2026 is a Friday (trading day). May 14 = Thursday, May 16/17 are the
+  // Weekend, May 18 = Monday — so +1 trading day after Friday skips the weekend.
   const earningsDate = "2026-05-15";
   // Extend "now" well past the event so horizon checks pass.
   const now = new Date("2026-06-01T00:00:00.000Z");
 
   describe("BMO timing", () => {
-    // BMO on May 15 (Thu): origin = May 14 (Wed, prior trading day).
+    // BMO on May 15 (Fri): origin = May 14 (Thu, prior trading day).
     // Horizon: advance 1 trading day from May 14 = May 15.
     // Required closes: N+1 = 2 (origin + horizon).
     const report = earningsReport("bmo", earningsDate);
@@ -371,8 +371,8 @@ describe("resolveOutcome — earnings scoring", () => {
   });
 
   describe("AMC timing", () => {
-    // AMC on May 15 (Thu): origin = May 15 (event-date close).
-    // Horizon: advance 1 trading day from May 15 = May 16 (Fri).
+    // AMC on May 15 (Fri): origin = May 15 (event-date close).
+    // Horizon: advance 1 trading day from May 15 = May 18 (Mon, skips weekend).
     // Required closes: N+1 = 2.
     const report = earningsReport("amc", earningsDate);
     const pred = earningsDirectionPrediction(earningsDate);
@@ -383,7 +383,7 @@ describe("resolveOutcome — earnings scoring", () => {
         report,
         observationRepository([
           { subject: "AAPL", date: "2026-05-15", value: 190 },
-          { subject: "AAPL", date: "2026-05-16", value: 200 },
+          { subject: "AAPL", date: "2026-05-18", value: 200 },
         ]),
         now,
       );
@@ -396,17 +396,29 @@ describe("resolveOutcome — earnings scoring", () => {
         report,
         observationRepository([
           { subject: "AAPL", date: "2026-05-15", value: 200 },
-          { subject: "AAPL", date: "2026-05-16", value: 190 },
+          { subject: "AAPL", date: "2026-05-18", value: 190 },
         ]),
         now,
       );
       expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
+
+    test("keeps horizon unresolved over the weekend before the Monday session", async () => {
+      // Now is Saturday May 16: the +1 trading-day horizon is Monday May 18,
+      // Which has not elapsed. A naive calendar-day horizon would wrongly resolve.
+      const result = await resolveOutcome(
+        pred,
+        report,
+        observationRepository([{ subject: "AAPL", date: "2026-05-15", value: 190 }]),
+        new Date("2026-05-16T00:00:00.000Z"),
+      );
+      expect(result).toMatchObject({ status: "unresolved", reason: "horizon-not-elapsed" });
+    });
   });
 
   describe("unknown timing", () => {
-    // Unknown on May 15 (Thu): origin = May 14 (prior trading day).
-    // Horizon: advance 1 trading day from May 15 = May 16 (Fri).
+    // Unknown on May 15 (Fri): origin = May 14 (Thu, prior trading day).
+    // Horizon advances 1 trading day from May 15 to May 18 (Mon, skips weekend).
     // Required closes: N+2 = 3 (origin + event + 1 post-event).
     const report = earningsReport("unknown", earningsDate);
     const pred = earningsDirectionPrediction(earningsDate);
@@ -418,7 +430,7 @@ describe("resolveOutcome — earnings scoring", () => {
         observationRepository([
           { subject: "AAPL", date: "2026-05-14", value: 190 },
           { subject: "AAPL", date: "2026-05-15", value: 195 },
-          { subject: "AAPL", date: "2026-05-16", value: 200 },
+          { subject: "AAPL", date: "2026-05-18", value: 200 },
         ]),
         now,
       );
@@ -493,6 +505,41 @@ describe("resolveOutcome — earnings scoring", () => {
       expect(result).toMatchObject({
         status: "unresolved",
         reason: "horizon-not-elapsed",
+      });
+    });
+  });
+
+  describe("conditional with nested earnings expression", () => {
+    test("keeps the earnings antecedent event-anchored inside a conditional", async () => {
+      // AMC event Fri May 15; antecedent +1 trading day resolves Mon May 18.
+      // Report generatedAt is May 14, so a report-anchored gate would elapse by
+      // Sat May 16 (report-date +1 = May 15) and wrongly leave pending state.
+      const report = earningsReport("amc", "2026-05-15");
+      const pred = prediction({
+        id: "pred-cond-earnings",
+        kind: "conditional",
+        subject: "AAPL",
+        measurableAs:
+          "if (earningsReturn(AAPL, 2026-05-15, +1) > 0) then (close(AAPL, +5) > close(AAPL, 0))",
+        claim: "conditional earnings antecedent",
+        horizonTradingDays: 5,
+      });
+      const saturday = new Date("2026-05-16T00:00:00.000Z");
+
+      const repo: ObservationRepository = {
+        point: async () => {
+          throw new Error("unexpected point observation request");
+        },
+        window: async () => {
+          throw new Error("unexpected window observation request");
+        },
+      };
+
+      const result = await resolveOutcome(pred, report, repo, saturday);
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "horizon-not-elapsed",
+        scoreStatus: "pending-condition",
       });
     });
   });
@@ -611,6 +658,62 @@ describe("validateResearchReport — earningsSetup extras", () => {
             fetchedAt: "2026-05-14T00:00:00.000Z",
           },
           gaps: ["No Tradier credentials for implied move."],
+        },
+      },
+    };
+    expect(() => validateResearchReport(report)).not.toThrow();
+  });
+
+  test("rejects earningsSetup impliedMove with unknown source IDs", () => {
+    const report: ResearchReport = {
+      ...baseReport,
+      extras: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-24",
+            timing: "bmo",
+            sourceIds: ["src-1"],
+            fetchedAt: "2026-05-14T00:00:00.000Z",
+          },
+          impliedMove: {
+            expiration: "2026-07-31",
+            strike: 200,
+            spot: 198,
+            straddleMidpoint: 12,
+            impliedMovePct: 0.06,
+            sourceIds: ["orphan-implied-move"],
+            observedAt: "2026-05-14T00:00:00.000Z",
+          },
+          gaps: [],
+        },
+      },
+    };
+    expect(() => validateResearchReport(report)).toThrow("Unknown source ID: orphan-implied-move");
+  });
+
+  test("validates earningsSetup impliedMove with known source IDs", () => {
+    const report: ResearchReport = {
+      ...baseReport,
+      extras: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-24",
+            timing: "bmo",
+            sourceIds: ["src-1"],
+            fetchedAt: "2026-05-14T00:00:00.000Z",
+          },
+          impliedMove: {
+            expiration: "2026-07-31",
+            strike: 200,
+            spot: 198,
+            straddleMidpoint: 12,
+            impliedMovePct: 0.06,
+            sourceIds: ["src-1"],
+            observedAt: "2026-05-14T00:00:00.000Z",
+          },
+          gaps: [],
         },
       },
     };
@@ -1082,6 +1185,74 @@ describe("computeImpliedMove", () => {
     expect(result.impliedMove?.impliedMovePct).toBeCloseTo(13 / 198, 6);
     expect(result.impliedMove?.expiration).toBe("2026-07-25");
     expect(result.gaps).toHaveLength(0);
+  });
+
+  const atmChainPayload = {
+    options: {
+      option: [
+        { strike: 200, option_type: "call", bid: 6, ask: 8 },
+        { strike: 200, option_type: "put", bid: 5, ask: 7 },
+      ],
+    },
+  };
+
+  test("skips a same-day expiration for AMC events", async () => {
+    const requestedExpirations: string[] = [];
+    const ctx = {
+      tradierApiToken: "test-token",
+      request: {
+        json: async ({ adapter, url }: { adapter: string; url: string }) => {
+          if (adapter === "tradier-earnings-expirations") {
+            return {
+              ok: true,
+              rawSnapshot: { fetchedAt: "2026-07-24T00:00:00.000Z" },
+              // Same-day (event-date) expiration plus a later one.
+              payload: { expirations: { date: ["2026-07-24", "2026-07-27"] } },
+            };
+          }
+          requestedExpirations.push(url);
+          return {
+            ok: true,
+            rawSnapshot: { fetchedAt: "2026-07-24T00:00:00.000Z" },
+            payload: atmChainPayload,
+          };
+        },
+      },
+    } as unknown as CollectContext;
+
+    // AMC prints after close on 2026-07-24, so the same-day expiry settles before
+    // The reaction — selection must skip it for the 2026-07-27 expiration.
+    const result = await computeImpliedMove(ctx, makeEarningsEvent("AAPL", "2026-07-24"), 200);
+    expect(result.impliedMove?.expiration).toBe("2026-07-27");
+    expect(requestedExpirations.some((url) => url.includes("2026-07-27"))).toBe(true);
+  });
+
+  test("allows a same-day expiration for BMO events", async () => {
+    const ctx = {
+      tradierApiToken: "test-token",
+      request: {
+        json: async ({ adapter }: { adapter: string }) => {
+          if (adapter === "tradier-earnings-expirations") {
+            return {
+              ok: true,
+              rawSnapshot: { fetchedAt: "2026-07-24T00:00:00.000Z" },
+              payload: { expirations: { date: ["2026-07-24", "2026-07-27"] } },
+            };
+          }
+          return {
+            ok: true,
+            rawSnapshot: { fetchedAt: "2026-07-24T00:00:00.000Z" },
+            payload: atmChainPayload,
+          };
+        },
+      },
+    } as unknown as CollectContext;
+
+    // BMO prints before the open on 2026-07-24, so the same-day expiry captures
+    // The reaction and is the nearest valid expiration.
+    const bmoEvent: EarningsEvent = { ...makeEarningsEvent("AAPL", "2026-07-24"), timing: "bmo" };
+    const result = await computeImpliedMove(ctx, bmoEvent, 200);
+    expect(result.impliedMove?.expiration).toBe("2026-07-24");
   });
 
   test("returns gap when spot is zero", async () => {

@@ -1,6 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { MarketSnapshot, SourceGap } from "../domain/types";
+import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { withCache, type CacheOptions } from "./cache";
@@ -25,6 +25,7 @@ import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { resolveResearchSubjectProxy } from "../research/subject-registry";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
+import { evidenceSource } from "./extended-evidence/common";
 
 interface HostState {
   queue: Promise<void>;
@@ -49,6 +50,24 @@ const hostStates = new Map<string, HostState>();
 let hostMinDelayMs = DEFAULT_HOST_MIN_DELAY_MS;
 
 function noop(): void {}
+
+function buildImpliedMoveSource(
+  command: ResearchCommand,
+  impliedMove: EarningsSetupCollected["impliedMove"],
+): Source | undefined {
+  const sourceId = impliedMove?.sourceIds[0];
+  if (impliedMove === undefined || sourceId === undefined) {
+    return undefined;
+  }
+  const label = command.jobType === "ticker" ? command.symbol : "earnings";
+  return evidenceSource(
+    sourceId,
+    `${label} earnings implied move`,
+    "tradier",
+    command,
+    impliedMove.observedAt,
+  );
+}
 
 function hostForUrl(url: string): string {
   try {
@@ -613,6 +632,7 @@ export async function collectSources(
   // Earnings Setup: equity ticker deep only — parse Finnhub calendar for a
   // Near upcoming event, then compute deterministic implied move from Tradier.
   let earningsSetup: EarningsSetupCollected | undefined = undefined;
+  const earningsExtraSources: Source[] = [];
   if (isEquityTicker && command.depth === "deep") {
     const earningsCalendarSnapshot = extendedResult.rawSnapshots.find(
       (snapshot) => snapshot.adapter === "finnhub-events-1",
@@ -642,6 +662,11 @@ export async function collectSources(
               : {}),
             gaps: moveResult.gaps.map((gap) => gap.message),
           };
+          // Register a citeable Source for the implied move to avoid orphaned IDs.
+          const impliedMoveSource = buildImpliedMoveSource(command, moveResult.impliedMove);
+          earningsExtraSources.push(
+            ...(impliedMoveSource !== undefined ? [impliedMoveSource] : []),
+          );
           earningsSourceGaps.push(...moveResult.gaps);
         } else {
           earningsGaps.push("Spot price unavailable; implied move could not be computed");
@@ -667,7 +692,7 @@ export async function collectSources(
     marketSnapshots: resolvedMarketResult.marketSnapshots,
     supplementalMarketSnapshots,
     newsSources: newsResult.newsSources,
-    extendedSources: extendedResult.sources,
+    extendedSources: [...extendedResult.sources, ...earningsExtraSources],
     ...(valuationResult.extendedEvidence !== undefined
       ? { extendedEvidence: valuationResult.extendedEvidence }
       : {}),

@@ -214,6 +214,20 @@ async function observationsForStrategy(
   return nested.flat();
 }
 
+// Earnings expressions stay event-anchored even when nested in a conditional.
+// All other base expressions use the report-date horizon.
+function baseExpressionDueDate(expression: ObservableBaseExpression, report: ResearchReport): Date {
+  const strategy = observationStrategyForExpression(expression);
+  if (strategy.mode === "earnings-close-window") {
+    return earningsHorizonDate(
+      strategy.eventDate,
+      readEarningsEventTiming(report),
+      strategy.horizonTradingDays,
+    );
+  }
+  return resolutionDate(report.generatedAt, expression.horizonTradingDays);
+}
+
 function horizonPendingEvidence(reason: string): ResolveOutcomeUnresolved {
   return {
     status: "unresolved",
@@ -249,7 +263,7 @@ export async function resolveOutcome(
   }
   if (forecast.expression.kind === "conditional") {
     const { antecedent, consequent } = forecast.expression;
-    const antecedentDate = resolutionDate(report.generatedAt, antecedent.horizonTradingDays);
+    const antecedentDate = baseExpressionDueDate(antecedent, report);
     if (antecedentDate > now) {
       return {
         ...horizonPendingEvidence("conditional antecedent horizon not yet elapsed"),
@@ -287,7 +301,7 @@ export async function resolveOutcome(
       };
     }
 
-    const consequentDate = resolutionDate(report.generatedAt, consequent.horizonTradingDays);
+    const consequentDate = baseExpressionDueDate(consequent, report);
     if (consequentDate > now) {
       return {
         status: "unresolved",

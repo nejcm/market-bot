@@ -139,13 +139,19 @@ function selectNearestExpiration(
   expirations: readonly string[],
   eventDate: string,
   maxDaysAfter: number,
+  timing: EarningsEventTiming,
 ): string | undefined {
   const target = new Date(`${eventDate}T00:00:00Z`);
   const maxDate = new Date(target.getTime() + maxDaysAfter * 86_400_000);
+  // BMO prints before the open, so a same-day expiration captures the reaction.
+  // AMC and unknown reactions land in a later session, where a same-day option
+  // Settles before the move; require a strictly later expiration for those.
+  const allowsSameDay = timing === "bmo";
 
   return expirations.find((exp) => {
     const expDate = new Date(`${exp}T00:00:00Z`);
-    return expDate >= target && expDate <= maxDate;
+    const isAfterEvent = allowsSameDay ? expDate >= target : expDate > target;
+    return isAfterEvent && expDate <= maxDate;
   });
 }
 
@@ -197,6 +203,7 @@ export async function computeImpliedMove(
     expirations,
     event.date,
     MAX_EXPIRATION_DAYS_AFTER_EVENT,
+    event.timing,
   );
   if (expiration === undefined) {
     return {

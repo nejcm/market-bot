@@ -16,7 +16,12 @@ import type {
   HistoricalResearchContext,
   HistoricalRunContext,
 } from "../src/research/historical-context";
-import type { Prediction } from "../src/domain/types";
+import type {
+  ExtendedEvidence,
+  MarketContext,
+  Prediction,
+  VerifiedMarketSnapshot,
+} from "../src/domain/types";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -1813,5 +1818,99 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
     );
 
     expect(gaps.filter((g) => g.startsWith("researchRepresentative:"))).toHaveLength(0);
+  });
+});
+
+describe("#1 — evidence projectors in buildStagePrompt payload", () => {
+  const marketContextValue: MarketContext = { assetClass: "equity", items: [], gaps: [] };
+  const extendedEvidenceValue: ExtendedEvidence = {
+    instrument: { symbol: "AAPL", assetClass: "equity" },
+    items: [],
+    gaps: [],
+  };
+  const verifiedSnapshotValue: VerifiedMarketSnapshot = {
+    symbol: "AAPL",
+    assetClass: "equity",
+    analysisDate: "2026-06-01",
+    fetchedAt: "2026-06-01T00:00:00.000Z",
+    latestSessionDate: "2026-05-29",
+    ohlcv: { date: "2026-05-29", open: 100, high: 105, low: 99, close: 104, volume: 1_000_000 },
+    indicators: {
+      ema10: null,
+      sma50: null,
+      sma200: null,
+      rsi14: null,
+      macd: null,
+      macdSignal: null,
+      macdHistogram: null,
+      bollUpper: null,
+      bollMiddle: null,
+      bollLower: null,
+      atr14: null,
+    },
+    recentCloses: [],
+  };
+
+  function evidenceFor(
+    command: ResearchCommand,
+    sources: Partial<Parameters<typeof collectedSources>[0]>,
+  ): Record<string, unknown> {
+    const prompt = buildStagePrompt(
+      "specialist-analysis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        ...sources,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    return (JSON.parse(prompt) as { readonly evidence?: Record<string, unknown> }).evidence ?? {};
+  }
+
+  test("non-gated projector contributes its key only when its source is present", () => {
+    const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
+
+    expect(evidenceFor(command, {}).marketContext).toBeUndefined();
+    expect(evidenceFor(command, { marketContext: marketContextValue }).marketContext).toEqual(
+      marketContextValue,
+    );
+  });
+
+  test("verified-snapshot projector contributes all three of its keys", () => {
+    const command: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const evidence = evidenceFor(command, { verifiedMarketSnapshot: verifiedSnapshotValue });
+
+    expect(evidence.verifiedMarketSnapshot).toEqual(verifiedSnapshotValue);
+    expect(evidence.verifiedMarketSnapshotSourceId).toBeDefined();
+    expect(evidence.verifiedMarketSnapshotCitationRule).toBeDefined();
+  });
+
+  test("ticker-gated projector is suppressed for non-ticker runs even when its source is present", () => {
+    const tickerCommand: ResearchCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const dailyCommand: ResearchCommand = {
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "brief",
+    };
+
+    expect(
+      evidenceFor(tickerCommand, { extendedEvidence: extendedEvidenceValue }).extendedEvidence,
+    ).toEqual(extendedEvidenceValue);
+    expect(
+      evidenceFor(dailyCommand, { extendedEvidence: extendedEvidenceValue }).extendedEvidence,
+    ).toBeUndefined();
   });
 });

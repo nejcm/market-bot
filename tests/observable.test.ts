@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  instrumentsForMeasurableAs,
   observationStrategyForForecast,
   parseObservableExpression,
   renderClaim,
@@ -366,5 +367,35 @@ describe("observationStrategyForForecast", () => {
     for (const { expression, expected } of cases) {
       expect(observationStrategyForForecast(forecastFor(expression))).toEqual(expected);
     }
+  });
+});
+
+describe("instrumentsForMeasurableAs", () => {
+  test("extracts instruments from valid expressions across kinds", () => {
+    const cases: readonly {
+      readonly measurableAs: string;
+      readonly expected: readonly string[];
+    }[] = [
+      { measurableAs: "close(SPY, +5) > close(SPY, 0)", expected: ["SPY"] },
+      {
+        measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
+        expected: ["QQQ", "SPY"],
+      },
+      { measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)", expected: ["FRED:DGS10"] },
+      {
+        measurableAs: "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+        expected: ["SPY", "QQQ"],
+      },
+    ];
+
+    for (const { measurableAs, expected } of cases) {
+      expect(instrumentsForMeasurableAs(measurableAs)).toEqual(expected);
+    }
+  });
+
+  test("returns empty array for malformed or empty DSL instead of throwing", () => {
+    expect(instrumentsForMeasurableAs("")).toEqual([]);
+    expect(instrumentsForMeasurableAs("not a real expression")).toEqual([]);
+    expect(instrumentsForMeasurableAs("close(SPY,")).toEqual([]);
   });
 });

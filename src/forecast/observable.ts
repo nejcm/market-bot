@@ -798,6 +798,14 @@ export function instrumentsForExpression(expression: ObservableExpression): read
   return shapeForExpression(expression).instruments(expression);
 }
 
+export function instrumentsForMeasurableAs(measurableAs: string): readonly string[] {
+  try {
+    return instrumentsForExpression(parseObservableExpression(measurableAs));
+  } catch {
+    return [];
+  }
+}
+
 export function observationStrategyForExpression(
   expression: ObservableExpression,
 ): ObservationStrategy {

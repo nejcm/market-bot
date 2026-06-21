@@ -6,6 +6,7 @@ import {
   RUN_CHAT_INDEX_KEY,
   runChatStorageKey,
   saveRunChatMessages,
+  stampRunChatMessages,
   type RunChatStore,
 } from "../app/client/components/run-chat-storage";
 
@@ -178,6 +179,36 @@ describe("run chat storage", () => {
 
       const [loaded] = loadRunChatMessages("run-1", store);
       expect(createdAtOf(loaded as UIMessage)).toBe(100);
+    });
+
+    test("preserves user send time and stamps assistant completion time", () => {
+      const store = memoryStore();
+      const userMessage = {
+        id: "m1",
+        role: "user",
+        parts: [{ type: "text", text: "hi" }],
+        metadata: { createdAt: 10 },
+      } as unknown as UIMessage;
+      const assistantMessage = textMessage("m2", "assistant", "hello");
+
+      const stamped = stampRunChatMessages([userMessage, assistantMessage], 20);
+      saveRunChatMessages("run-1", stamped, store, { now: 30 });
+
+      const loaded = loadRunChatMessages("run-1", store);
+      expect(loaded.map((message) => createdAtOf(message))).toEqual([10, 20]);
+    });
+
+    test("returns the same array when all messages already have createdAt", () => {
+      const messages = [
+        {
+          id: "m1",
+          role: "user",
+          parts: [{ type: "text", text: "hi" }],
+          metadata: { createdAt: 10 },
+        },
+      ] as unknown as UIMessage[];
+
+      expect(stampRunChatMessages(messages, 20)).toBe(messages);
     });
   });
 

@@ -1,12 +1,24 @@
 <script lang="ts">
   import { Chat } from "@ai-sdk/svelte";
   import { TextStreamChatTransport } from "ai";
+  import CheckIcon from "@lucide/svelte/icons/check";
+  import CopyIcon from "@lucide/svelte/icons/copy";
   import MessageSquareIcon from "@lucide/svelte/icons/message-square";
   import SendHorizontalIcon from "@lucide/svelte/icons/send-horizontal";
   import LoaderIcon from "@lucide/svelte/icons/loader";
+  import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import { Button } from "$lib/components/ui/button";
-  import { loadRunChatMessages, saveRunChatMessages } from "./run-chat-storage";
+  import {
+    loadRunChatMessages,
+    saveRunChatMessages,
+    stampRunChatMessages,
+  } from "./run-chat-storage";
   import { renderMarkdown } from "./markdown";
+  import {
+    formatChatTimestamp,
+    messageCreatedAt,
+    textFromParts,
+  } from "./run-chat-message-utils";
 
   interface Props {
     readonly runId: string;
@@ -16,6 +28,10 @@
 
   let inputText = $state("");
   let messagesEndEl: HTMLElement | undefined = $state();
+  let copyFeedback:
+    | { readonly messageId: string; readonly status: "copied" | "failed" }
+    | undefined = $state();
+  let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   function createChat(id: string): Chat {
     return new Chat({
@@ -26,14 +42,19 @@
     });
   }
 
-  let chat = $state(createChat(runId));
-  let trackedRunId = runId;
+  function initialRunId(): string {
+    return runId;
+  }
+
+  let chat = $state(createChat(initialRunId()));
+  let trackedRunId = initialRunId();
 
   $effect(() => {
     if (runId !== trackedRunId) {
       trackedRunId = runId;
       chat = createChat(runId);
       inputText = "";
+      clearCopyFeedback();
     }
   });
 
@@ -48,27 +69,59 @@
     const { status, messages } = chat;
     void messages.length;
     if (status === "ready" || status === "error") {
-      saveRunChatMessages(trackedRunId, messages);
+      const stampedMessages = stampRunChatMessages(messages, Date.now());
+      if (stampedMessages !== messages) {
+        chat.messages = stampedMessages;
+      }
+      saveRunChatMessages(trackedRunId, stampedMessages);
     }
+  });
+
+  $effect(() => () => {
+    clearCopyFeedback();
   });
 
   const isBusy = $derived(
     chat.status === "submitted" || chat.status === "streaming",
   );
 
-  function textFromParts(parts: readonly unknown[]): string {
-    return parts
-      .filter(
-        (part): part is { type: "text"; text: string } =>
-          typeof part === "object" &&
-          part !== null &&
-          "type" in part &&
-          (part as Record<string, unknown>).type === "text" &&
-          "text" in part &&
-          typeof (part as Record<string, unknown>).text === "string",
-      )
-      .map((part) => part.text)
-      .join("");
+  function clearCopyFeedback(): void {
+    if (copyFeedbackTimer !== null) {
+      clearTimeout(copyFeedbackTimer);
+      copyFeedbackTimer = null;
+    }
+    copyFeedback = undefined;
+  }
+
+  function showCopyFeedback(messageId: string, status: "copied" | "failed"): void {
+    clearCopyFeedback();
+    copyFeedback = { messageId, status };
+    copyFeedbackTimer = setTimeout(() => {
+      copyFeedback = undefined;
+      copyFeedbackTimer = null;
+    }, 1600);
+  }
+
+  async function handleCopy(messageId: string, text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      showCopyFeedback(messageId, "copied");
+    } catch {
+      showCopyFeedback(messageId, "failed");
+    }
+  }
+
+  function handleClearChat(): void {
+    if (
+      chat.messages.length === 0 ||
+      !confirm("Clear the chat transcript for this run?")
+    ) {
+      return;
+    }
+    saveRunChatMessages(trackedRunId, []);
+    chat = createChat(trackedRunId);
+    inputText = "";
+    clearCopyFeedback();
   }
 
   async function handleSend(): Promise<void> {
@@ -77,7 +130,7 @@
       return;
     }
     inputText = "";
-    await chat.sendMessage({ text });
+    await chat.sendMessage({ text, metadata: { createdAt: Date.now() } });
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
@@ -91,17 +144,37 @@
 <div
   class="mt-6 flex flex-col overflow-hidden rounded-lg border border-border bg-card"
 >
-  <div class="flex items-center gap-2 border-b border-border px-4 py-3">
-    <MessageSquareIcon class="h-4 w-4 text-muted-foreground" />
-    <div>
-      <div class="text-sm font-semibold">Run chat</div>
-      <div class="text-xs text-muted-foreground">
-        Ask questions grounded in this run's artifacts
+  <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <div class="flex items-center gap-2">
+      <MessageSquareIcon class="h-4 w-4 text-muted-foreground" />
+      <div>
+        <div class="text-sm font-semibold">Run chat</div>
+        <div class="text-xs text-muted-foreground">
+          Ask questions grounded in this run's artifacts
+        </div>
       </div>
     </div>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label="Clear run chat"
+      title="Clear run chat"
+      onclick={handleClearChat}
+      disabled={isBusy || chat.messages.length === 0}
+    >
+      <Trash2Icon class="h-3.5 w-3.5" />
+    </Button>
   </div>
 
   <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+    <div class="sr-only" aria-live="polite" role="status">
+      {copyFeedback?.status === "copied"
+        ? "Message copied"
+        : copyFeedback?.status === "failed"
+          ? "Copy failed"
+          : ""}
+    </div>
+
     {#if chat.messages.length === 0}
       <div class="flex flex-1 items-center justify-center text-center">
         <div class="text-sm text-muted-foreground">
@@ -113,6 +186,11 @@
 
     {#each chat.messages as message (message.id)}
       {#if message.role === "user" || message.role === "assistant"}
+        {@const messageText = textFromParts(message.parts)}
+        {@const timestamp = formatChatTimestamp(messageCreatedAt(message))}
+        {@const feedback = copyFeedback?.messageId === message.id
+          ? copyFeedback.status
+          : undefined}
         <div
           class="mb-3 rounded-lg px-3.5 py-2.5 {message.role === 'user'
             ? 'ml-auto w-auto max-w-[70%] bg-primary text-primary-foreground'
@@ -121,13 +199,51 @@
           {#if message.role === "assistant"}
             <!-- Assistant output is markdown; renderMarkdown sanitizes before {@html}. -->
             <div class="markdown-body text-[13px] leading-relaxed">
-              {@html renderMarkdown(textFromParts(message.parts))}
+              {@html renderMarkdown(messageText)}
             </div>
           {:else}
             <div class="whitespace-pre-wrap text-[13px] leading-relaxed">
-              {textFromParts(message.parts)}
+              {messageText}
             </div>
           {/if}
+          <div
+            class="mt-2 flex items-center justify-end gap-2 text-[11px] {message.role ===
+            'user'
+              ? 'text-primary-foreground/75'
+              : 'text-muted-foreground'}"
+          >
+            {#if timestamp !== ""}
+              <time datetime={new Date(messageCreatedAt(message) ?? 0).toISOString()}>
+                {timestamp}
+              </time>
+            {/if}
+            <button
+              type="button"
+              class="inline-flex h-5 items-center gap-1 rounded px-1.5 transition-colors {message.role ===
+              'user'
+                ? 'hover:bg-white/15 focus-visible:outline focus-visible:outline-1 focus-visible:outline-primary-foreground/80'
+                : 'hover:bg-background focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring'}"
+              aria-label={feedback === "copied"
+                ? "Message copied"
+                : feedback === "failed"
+                  ? "Copy failed"
+                  : "Copy message"}
+              title={feedback === "copied"
+                ? "Copied"
+                : feedback === "failed"
+                  ? "Copy failed"
+                  : "Copy message"}
+              onclick={() => void handleCopy(message.id, messageText)}
+            >
+              {#if feedback === "copied"}
+                <CheckIcon class="h-3 w-3" />
+                <span>Copied</span>
+              {:else}
+                <CopyIcon class="h-3 w-3" />
+                <span>{feedback === "failed" ? "Failed" : "Copy"}</span>
+              {/if}
+            </button>
+          </div>
         </div>
       {/if}
     {/each}

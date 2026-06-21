@@ -108,14 +108,17 @@ export function loadRunChatMessages(
 
 // Stamp a creation time on messages that lack one, immutably.
 // Persisted as metadata.createdAt so it round-trips for recency display.
-function stampCreatedAt(messages: readonly UIMessage[], now: number): UIMessage[] {
-  return messages.map((message) => {
+export function stampRunChatMessages(messages: readonly UIMessage[], now: number): UIMessage[] {
+  let changed = false;
+  const stamped = messages.map((message) => {
     const metadata = isObject(message.metadata) ? message.metadata : undefined;
     if (metadata !== undefined && typeof metadata.createdAt === "number") {
       return message;
     }
+    changed = true;
     return { ...message, metadata: { ...metadata, createdAt: now } };
   });
+  return changed ? stamped : (messages as UIMessage[]);
 }
 
 function loadIndex(store: RunChatStore): RunChatIndex {
@@ -230,7 +233,7 @@ export function saveRunChatMessages(
   const envelope: StoredEnvelope = {
     v: SCHEMA_VERSION,
     updatedAt: now,
-    messages: stampCreatedAt(messages, now),
+    messages: stampRunChatMessages(messages, now),
   };
   const serialized = JSON.stringify(envelope);
 

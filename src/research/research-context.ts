@@ -19,9 +19,8 @@ import {
   verifiedSnapshotSourceId,
 } from "./verified-snapshot-contract";
 import {
-  instrumentsForExpression,
+  instrumentsForMeasurableAs,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
-  observableForecastFromPrediction,
 } from "../forecast/observable";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
@@ -434,20 +433,7 @@ function predictionInstrumentsInclude(
   prediction: HistoricalPredictionSummary,
   symbol: string,
 ): boolean {
-  const forecast = observableForecastFromPrediction({
-    id: prediction.id,
-    claim: prediction.claim,
-    kind: prediction.kind,
-    subject: prediction.subject,
-    measurableAs: prediction.measurableAs,
-    horizonTradingDays: prediction.horizonTradingDays,
-    probability: prediction.probability,
-    sourceIds: [],
-  });
-  if (!("expression" in forecast)) {
-    return false;
-  }
-  return instrumentsForExpression(forecast.expression).some(
+  return instrumentsForMeasurableAs(prediction.measurableAs).some(
     (instrument) => instrument.toUpperCase() === symbol,
   );
 }

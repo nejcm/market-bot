@@ -10,7 +10,7 @@ import type {
   Source,
   VerifiedMarketSnapshot,
 } from "../domain/types";
-import { instrumentsForExpression, parseObservableExpression } from "../forecast/observable";
+import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
 import type { ModelProvider } from "../model/types";
 import { violatesResearchOnly } from "../domain/research-language";
@@ -204,17 +204,12 @@ export function reportInstrumentKeys(
     }
   }
   for (const prediction of report.predictions) {
-    try {
-      for (const instrument of instrumentsForExpression(
-        parseObservableExpression(prediction.measurableAs),
-      )) {
-        const symbol = instrument.trim();
-        if (/^[A-Z0-9._-]+$/iu.test(symbol)) {
-          symbols.add(symbol.toUpperCase());
-        }
+    // Legacy malformed forecasts yield no instruments and must not poison timeline aggregation.
+    for (const instrument of instrumentsForMeasurableAs(prediction.measurableAs)) {
+      const symbol = instrument.trim();
+      if (/^[A-Z0-9._-]+$/iu.test(symbol)) {
+        symbols.add(symbol.toUpperCase());
       }
-    } catch {
-      // Legacy malformed forecasts must not poison timeline aggregation.
     }
   }
   return [...symbols].map((symbol) => ({ symbol, key: instrumentKey(report.assetClass, symbol) }));

@@ -83,6 +83,32 @@ describe("research console app jobs", () => {
     expect(queue.get(secondJob.id)?.stderr).toBe("failed\n");
   });
 
+  test("captures job output while the process is still running", async () => {
+    const running = deferred<JobRunResult>();
+    const queue = createJobQueue((_argv, onOutput) => {
+      onOutput?.("stderr", "collecting sources\n");
+      onOutput?.("stdout", "stage started\n");
+      return running.promise;
+    });
+
+    const job = queue.enqueue({ jobType: "provider-health" });
+    await waitFor(() => queue.get(job.id)?.stderr === "collecting sources\n");
+
+    expect(queue.get(job.id)).toMatchObject({
+      status: "running",
+      stdout: "stage started\n",
+      stderr: "collecting sources\n",
+    });
+
+    running.resolve({ exitCode: 0, stdout: "done\n", stderr: "complete\n" });
+    await waitFor(() => queue.get(job.id)?.status === "succeeded");
+
+    expect(queue.get(job.id)).toMatchObject({
+      stdout: "done\n",
+      stderr: "complete\n",
+    });
+  });
+
   test("caps retained jobs and captured output", async () => {
     const queue = createJobQueue(
       async () => ({ exitCode: 0, stdout: "1234567890", stderr: "abcdefghij" }),

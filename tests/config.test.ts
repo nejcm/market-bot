@@ -9,7 +9,7 @@ describe("resolveConfig", () => {
       quickModel: "gpt-5.4-mini",
       synthesisModel: "gpt-5.5",
       dataDir: "data/runs",
-      modelTimeoutMs: 120_000,
+      modelTimeoutMs: 300_000,
     });
   });
 

@@ -12,7 +12,12 @@ export interface JobRunResult {
   readonly stderr: string;
 }
 
-export type JobRunner = (argv: readonly string[]) => Promise<JobRunResult>;
+export type JobOutputStream = (stream: "stdout" | "stderr", chunk: string) => void;
+
+export type JobRunner = (
+  argv: readonly string[],
+  onOutput?: JobOutputStream,
+) => Promise<JobRunResult>;
 
 export interface ResearchConsoleJobQueueOptions {
   readonly maxRetainedJobs?: number;
@@ -162,7 +167,13 @@ export class ResearchConsoleJobQueue {
     job.startedAt = nowIso();
 
     try {
-      const result = await this.#runner(job.argv);
+      const result = await this.#runner(job.argv, (stream, chunk) => {
+        if (stream === "stdout") {
+          job.stdout = this.#trimOutput(`${job.stdout}${chunk}`);
+          return;
+        }
+        job.stderr = this.#trimOutput(`${job.stderr}${chunk}`);
+      });
       job.stdout = this.#trimOutput(result.stdout);
       job.stderr = this.#trimOutput(result.stderr);
       job.exitCode = result.exitCode;
@@ -181,11 +192,45 @@ export class ResearchConsoleJobQueue {
   }
 }
 
-async function streamText(stream: ReadableStream<Uint8Array> | null): Promise<string> {
-  return stream === null ? "" : await new Response(stream).text();
+async function streamText(
+  stream: ReadableStream<Uint8Array> | null,
+  onChunk?: (chunk: string) => void,
+): Promise<string> {
+  if (stream === null) {
+    return "";
+  }
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let output = "";
+
+  async function readNext(): Promise<void> {
+    const { done, value } = await reader.read();
+    if (done) {
+      return;
+    }
+
+    const chunk = decoder.decode(value, { stream: true });
+    output += chunk;
+    onChunk?.(chunk);
+    await readNext();
+  }
+
+  await readNext();
+
+  const tail = decoder.decode();
+  if (tail !== "") {
+    output += tail;
+    onChunk?.(tail);
+  }
+
+  return output;
 }
 
-export async function runCliJob(argv: readonly string[]): Promise<JobRunResult> {
+export async function runCliJob(
+  argv: readonly string[],
+  onOutput?: JobOutputStream,
+): Promise<JobRunResult> {
   // Anchor the spawned CLI at the project root so Bun auto-loads the root `.env`
   // (and resolves `src/cli.ts`) regardless of the cwd the console was launched from.
   const projectRoot = join(import.meta.dir, "..");
@@ -196,8 +241,8 @@ export async function runCliJob(argv: readonly string[]): Promise<JobRunResult> 
   });
 
   const [stdout, stderr, exitCode] = await Promise.all([
-    streamText(process.stdout),
-    streamText(process.stderr),
+    streamText(process.stdout, (chunk) => onOutput?.("stdout", chunk)),
+    streamText(process.stderr, (chunk) => onOutput?.("stderr", chunk)),
     process.exited,
   ]);
 

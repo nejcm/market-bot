@@ -14,7 +14,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_CODEX_QUICK_MODEL` | — | Overrides `MARKET_BOT_QUICK_MODEL` for the `codex` provider only. |
 | `MARKET_BOT_CODEX_SYNTHESIS_MODEL` | — | Overrides `MARKET_BOT_SYNTHESIS_MODEL` for the `codex` provider only. |
 | `MARKET_BOT_FORECAST_DISAGREEMENT_MODELS` | — | Comma-separated challenger model IDs for Forecast Disagreement on `--deep` runs. Uses the active provider only. When unset, the feature is disabled without report disclosure. |
-| `MARKET_BOT_MODEL_TIMEOUT_MS` | `120000` | Max ms to wait for a model response before aborting. |
+| `MARKET_BOT_MODEL_TIMEOUT_MS` | `300000` | Max ms to wait for a model response before aborting. |
 | `MARKET_BOT_DATA_DIR` | `data/runs` | Where run artifacts are written. Provider-health expects this run-artifact directory and reads sibling outputs such as `../calibration/summary.json`. |
 | `MARKET_BOT_INDEX_DB_PATH` | Derived from `MARKET_BOT_DATA_DIR` | Path for the derived SQLite Run Artifact Index. Defaults to `data/index.sqlite` for `data/runs`; if `MARKET_BOT_DATA_DIR` does not end in `runs`, defaults inside that directory. Run `index rebuild` once to create or fully repopulate the file. |
 | `MARKET_BOT_INDEX_DISABLE` | `false` | Set to `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through updates. This is a permanent recovery escape hatch. |

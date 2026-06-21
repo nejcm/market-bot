@@ -22,6 +22,14 @@ function readMetric(
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function readStringMetric(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+  key: string,
+): string | undefined {
+  const value = metrics?.[key];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
 function tickerSnapshot(
   command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
   marketSnapshots: readonly MarketSnapshot[],
@@ -124,6 +132,7 @@ export function addValuationEvidence(
   // Value can be a full-year 10-K, a year-to-date 10-Q, or a single quarter. Without
   // A known period we treat it as already annual rather than risk ~4x inflation.
   const revenuePeriodMonths = readMetric(secItem.metrics, "revenuePeriodMonths");
+  const revenuePeriodEnd = readStringMetric(secItem.metrics, "revenuePeriodEnd");
   const annualizationFactor =
     revenuePeriodMonths !== undefined && revenuePeriodMonths > 0 ? 12 / revenuePeriodMonths : 1;
   const annualizedRevenue = revenue * annualizationFactor;
@@ -156,6 +165,7 @@ export function addValuationEvidence(
       latestPeriodRevenue: revenue,
       annualizedRevenue,
       ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
+      ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
       ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),
       ...(marketCapToAnnualizedRevenue !== undefined ? { marketCapToAnnualizedRevenue } : {}),
       ...(debtToMarketCap !== undefined ? { debtToMarketCap } : {}),

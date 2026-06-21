@@ -1,7 +1,7 @@
 import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../guards";
-import { isFetchJsonResult, type CollectContext } from "../types";
+import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
 import { readArray } from "./utils";
 
@@ -31,9 +31,24 @@ interface SecMetricSelection {
   readonly prior?: SecFactValue;
 }
 
-interface SecFundamentalsSummary {
+export interface SecFundamentalsSummary {
   readonly summary: string;
-  readonly metrics: Record<string, number>;
+  readonly metrics: Record<string, number | string>;
+  readonly revenuePeriodEnd?: string;
+  readonly gaps: readonly SourceGap[];
+}
+
+export interface SecCompanyFactsResult {
+  readonly symbol: string;
+  readonly cik?: string;
+  readonly identity?: InstrumentIdentity;
+  readonly sourceId?: string;
+  readonly sourceUrl?: string;
+  readonly fetchedAt?: string;
+  readonly metrics?: Record<string, number | string>;
+  readonly summary?: string;
+  readonly revenuePeriodEnd?: string;
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
 }
 
@@ -359,7 +374,7 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
     return undefined;
   }
   const gaap = payload.facts["us-gaap"];
-  const metrics: Record<string, number> = {};
+  const metrics: Record<string, number | string> = {};
   const missingFacts: string[] = [];
   const missingDeltas: string[] = [];
   const summaryParts: string[] = [];
@@ -383,6 +398,9 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
       const months = periodMonths(latest);
       if (months !== undefined) {
         metrics.revenuePeriodMonths = months;
+      }
+      if (latest.end !== undefined) {
+        metrics.revenuePeriodEnd = latest.end;
       }
     }
     const delta = prior === undefined ? undefined : deltaPercent(latest.val, prior.val);
@@ -433,16 +451,17 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
   return {
     summary: `SEC Fundamental Evidence: ${summaryParts.join(", ")}.`,
     metrics,
+    ...(typeof metrics.revenuePeriodEnd === "string"
+      ? { revenuePeriodEnd: metrics.revenuePeriodEnd }
+      : {}),
     gaps,
   };
 }
 
-export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
-  const { command } = ctx;
-  if (command.jobType !== "ticker") {
-    return { rawSnapshots: [], items: [], gaps: [] };
-  }
-
+export async function fetchSecCompanyFactsForSymbol(
+  ctx: CollectContext,
+  symbol: string,
+): Promise<SecCompanyFactsResult> {
   const secInit = secRequestInit(ctx.secUserAgent);
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
   const tickers = await ctx.request.json({
@@ -451,17 +470,17 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     init: secInit,
   });
   if (!isFetchJsonResult(tickers)) {
-    return { rawSnapshots: [], items: [], gaps: [tickers] };
+    return { symbol: symbol.toUpperCase(), rawSnapshots: [], gaps: [tickers] };
   }
-  const match = findSecTicker(tickers.payload, command.symbol);
+  const match = findSecTicker(tickers.payload, symbol);
   if (match === undefined) {
     return {
+      symbol: symbol.toUpperCase(),
       rawSnapshots: [tickers.rawSnapshot],
-      items: [],
       gaps: [
         sourceGap({
           source: "sec-edgar",
-          message: `No SEC CIK match for ${command.symbol}`,
+          message: `No SEC CIK match for ${symbol}`,
           provider: "sec-edgar",
           capability: "extended-evidence",
           cause: "unsupported-coverage",
@@ -471,34 +490,92 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     };
   }
 
-  const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
   const factsUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${match.cik}.json`;
   const identity: InstrumentIdentity = {
     ...(match.name !== undefined ? { displayName: match.name } : {}),
     providerIds: [{ provider: "sec-edgar", idKind: "cik", value: match.cik }],
     aliases: [{ provider: "sec-edgar", idKind: "ticker", value: match.ticker }],
   };
-  const [submissions, facts] = await Promise.all([
-    ctx.request.json({
-      url: submissionsUrl,
-      adapter: "sec-submissions",
-      init: secInit,
-    }),
-    ctx.request.json({
-      url: factsUrl,
-      adapter: "sec-companyfacts",
-      init: secInit,
-    }),
-  ]);
+  const facts = await ctx.request.json({
+    url: factsUrl,
+    adapter: "sec-companyfacts",
+    init: secInit,
+  });
 
   const rawSnapshots = [
     tickers.rawSnapshot,
-    ...(isFetchJsonResult(submissions) ? [submissions.rawSnapshot] : []),
     ...(isFetchJsonResult(facts) ? [facts.rawSnapshot] : []),
   ];
-  const fetchGaps = [submissions, facts].filter(
-    (value): value is SourceGap => !isFetchJsonResult(value),
-  );
+  if (!isFetchJsonResult(facts)) {
+    return {
+      symbol: match.ticker,
+      cik: match.cik,
+      identity,
+      sourceUrl: factsUrl,
+      rawSnapshots,
+      gaps: [facts],
+    };
+  }
+
+  const fundamentals = summarizeSecFundamentals(facts.payload);
+  const emptyFactsGap =
+    fundamentals === undefined
+      ? [
+          sourceGap({
+            source: "sec-edgar",
+            message: `No SEC company facts found for ${symbol}`,
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ]
+      : [];
+
+  return {
+    symbol: match.ticker,
+    cik: match.cik,
+    identity,
+    sourceId: `extended-sec-edgar-${symbol.toLowerCase()}-fundamentals`,
+    sourceUrl: factsUrl,
+    fetchedAt: facts.rawSnapshot.fetchedAt,
+    ...(fundamentals !== undefined
+      ? {
+          metrics: fundamentals.metrics,
+          summary: fundamentals.summary,
+          ...(fundamentals.revenuePeriodEnd !== undefined
+            ? { revenuePeriodEnd: fundamentals.revenuePeriodEnd }
+            : {}),
+        }
+      : {}),
+    rawSnapshots,
+    gaps: [...(fundamentals?.gaps ?? []), ...emptyFactsGap],
+  };
+}
+
+export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
+  const { command } = ctx;
+  if (command.jobType !== "ticker") {
+    return { rawSnapshots: [], items: [], gaps: [] };
+  }
+
+  const factsResult = await fetchSecCompanyFactsForSymbol(ctx, command.symbol);
+  if (factsResult.cik === undefined || factsResult.identity === undefined) {
+    return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps: factsResult.gaps };
+  }
+
+  const secInit = secRequestInit(ctx.secUserAgent);
+  const submissionsUrl = `https://data.sec.gov/submissions/CIK${factsResult.cik}.json`;
+  const submissions = await ctx.request.json({
+    url: submissionsUrl,
+    adapter: "sec-submissions",
+    init: secInit,
+  });
+  const rawSnapshots = [
+    ...factsResult.rawSnapshots,
+    ...(isFetchJsonResult(submissions) ? [submissions.rawSnapshot] : []),
+  ];
+  const fetchGaps = isFetchJsonResult(submissions) ? [] : [submissions];
   const items: CollectedItem[] = [];
 
   const filingsSummary = isFetchJsonResult(submissions)
@@ -513,29 +590,28 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           command,
           submissions.rawSnapshot.fetchedAt,
           submissionsUrl,
-          identity,
+          factsResult.identity,
         )
       : undefined;
 
-  const fundamentals = isFetchJsonResult(facts)
-    ? summarizeSecFundamentals(facts.payload)
-    : undefined;
   const fundamentalsSource =
-    isFetchJsonResult(facts) && fundamentals !== undefined
+    factsResult.sourceId !== undefined &&
+    factsResult.summary !== undefined &&
+    factsResult.fetchedAt !== undefined
       ? evidenceSource(
-          `extended-sec-edgar-${command.symbol.toLowerCase()}-fundamentals`,
+          factsResult.sourceId,
           `${command.symbol} SEC fundamentals`,
           "sec-edgar",
           command,
-          facts.rawSnapshot.fetchedAt,
-          factsUrl,
-          identity,
+          factsResult.fetchedAt,
+          factsResult.sourceUrl,
+          factsResult.identity,
         )
       : undefined;
   const sources = [filingsSource, fundamentalsSource].filter(
     (source): source is Source => source !== undefined,
   );
-  const summaries = [filingsSummary, fundamentals?.summary].filter(
+  const summaries = [filingsSummary, factsResult.summary].filter(
     (summary): summary is string => summary !== undefined,
   );
   if (sources.length > 0 && summaries.length > 0) {
@@ -550,30 +626,16 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           summary: summaries.join(" "),
           sourceIds: sources.map((source) => source.id),
           observedAt: primarySource.fetchedAt,
-          ...(fundamentals !== undefined ? { metrics: fundamentals.metrics } : {}),
-          identity,
+          ...(factsResult.metrics !== undefined ? { metrics: factsResult.metrics } : {}),
+          identity: factsResult.identity,
         },
       });
     }
   }
 
-  const emptyFactsGap =
-    isFetchJsonResult(facts) && fundamentals === undefined
-      ? [
-          sourceGap({
-            source: "sec-edgar",
-            message: `No SEC company facts found for ${command.symbol}`,
-            provider: "sec-edgar",
-            capability: "extended-evidence",
-            cause: "provider-data-missing",
-            evidenceQualityImpact: "extended-evidence-cap",
-          }),
-        ]
-      : [];
-
   return {
     rawSnapshots,
     items,
-    gaps: [...fetchGaps, ...(fundamentals?.gaps ?? []), ...emptyFactsGap],
+    gaps: [...fetchGaps, ...factsResult.gaps],
   };
 }

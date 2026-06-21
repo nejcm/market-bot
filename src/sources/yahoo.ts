@@ -288,7 +288,7 @@ function symbolsFromQuoteUrl(url: string): readonly string[] {
   }
 }
 
-async function requestJsonWithQuoteFallback(
+export async function requestJsonWithQuoteFallback(
   ctx: CollectContext,
   request: SourceRequest,
 ): Promise<FetchJsonResult | SourceGap> {

@@ -6,7 +6,7 @@ import { marketSnapshot } from "./support/fixtures";
 const command = { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 
 function secEvidence(
-  metrics: Record<string, number>,
+  metrics: Record<string, number | string>,
   overrides: { readonly items?: ExtendedEvidence["items"] } = {},
 ): ExtendedEvidence {
   return {
@@ -28,6 +28,7 @@ function secEvidence(
 const baseExtendedEvidence: ExtendedEvidence = secEvidence({
   revenue: 100,
   revenuePeriodMonths: 3,
+  revenuePeriodEnd: "2026-06-29",
   cash: 30,
   debt: 50,
 });
@@ -62,6 +63,7 @@ describe("addValuationEvidence", () => {
         latestPeriodRevenue: 100,
         annualizedRevenue: 400,
         revenuePeriodMonths: 3,
+        revenuePeriodEnd: "2026-06-29",
         evToAnnualizedRevenue: 2.55,
         marketCapToAnnualizedRevenue: 2.5,
         debtToMarketCap: 0.05,

@@ -119,7 +119,7 @@ export async function collectAlphaSearchFundamentals(options: {
       symbol: entry.symbol,
       secCik: entry.cik,
       sourceIds: [entry.sourceId],
-      metrics: summary.metrics,
+      metrics: numericMetrics(summary.metrics),
     });
   }
 
@@ -128,4 +128,14 @@ export async function collectAlphaSearchFundamentals(options: {
     fundamentals,
     sourceGaps: [...missingMappingGaps, ...fetchGaps, ...missingFactsGaps, ...fundamentalGaps],
   };
+}
+
+function numericMetrics(
+  metrics: Readonly<Record<string, number | string>>,
+): Readonly<Record<string, number>> {
+  return Object.fromEntries(
+    Object.entries(metrics).filter(
+      (entry): entry is [string, number] => typeof entry[1] === "number",
+    ),
+  );
 }

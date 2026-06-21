@@ -1012,6 +1012,8 @@ describe("SEC fundamental evidence", () => {
 
     expect(result?.metrics.revenue).toBe(100);
     expect(result?.metrics.revenuePeriodMonths).toBe(3);
+    expect(result?.metrics.revenuePeriodEnd).toBe("2026-06-29");
+    expect(result?.revenuePeriodEnd).toBe("2026-06-29");
   });
 
   test("omits revenue period length when the latest fact has no reporting span", () => {
@@ -1019,6 +1021,7 @@ describe("SEC fundamental evidence", () => {
 
     expect(result?.metrics.revenue).toBe(100);
     expect(result?.metrics.revenuePeriodMonths).toBeUndefined();
+    expect(result?.metrics.revenuePeriodEnd).toBe("2026-06-29");
   });
 });
 
@@ -1085,6 +1088,7 @@ describe("extended evidence provider collection", () => {
     expect(secItem?.summary).toContain("SEC Fundamental Evidence");
     expect(secItem?.observedAt).toBe(secFactsCachedAt);
     expect(secItem?.metrics?.revenue).toBe(100);
+    expect(secItem?.metrics?.revenuePeriodEnd).toBe("2026-06-29");
     expect(secItem?.metrics?.revenuePrior).toBe(90);
     expect(secItem?.metrics?.revenueDeltaPercent).toBeCloseTo(11.11);
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("sec-edgar");

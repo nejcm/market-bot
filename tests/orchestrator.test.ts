@@ -1903,6 +1903,65 @@ describe("runResearchJob", () => {
     );
   });
 
+  test("persists ticker valuation comps sidecar", async () => {
+    const dataDir = join(tmpdir(), `market-bot-valuation-comps-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const result = await persistResearchJob({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+      },
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "AAPL valuation evidence is cited.",
+          keyFindings: [{ text: "AAPL valuation evidence is cited.", sourceIds: ["market-aapl"] }],
+          bullCase: [],
+          bearCase: [],
+          risks: [],
+          catalysts: [],
+          scenarios: [],
+          confidence: "medium",
+          dataGaps: [],
+        }),
+      ),
+      collectedSources: collectedSourceBundle({
+        marketSnapshots,
+        newsSources,
+        valuationComps: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          target: {
+            symbol: "AAPL",
+            sourceIds: ["market-aapl"],
+            usable: true,
+          },
+          peers: [],
+          excludedPeers: [],
+          peerUniverseSourceIds: [],
+          summary: {
+            corePeerCount: 0,
+            secondaryPeerCount: 0,
+            usablePeerCount: 0,
+            valuationSupportability: "screening-only",
+          },
+          sourceIds: ["market-aapl"],
+          freshnessFlags: {
+            targetQuoteFresh: true,
+            targetSecFresh: true,
+            peerQuoteFresh: true,
+            peerSecFresh: true,
+          },
+        },
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "valuation-comps.json"), "utf8"),
+    ).resolves.toContain('"valuationSupportability": "screening-only"');
+  });
+
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {
     const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-${Date.now()}`);
     dataDirs.push(dataDir);

@@ -23,6 +23,7 @@ import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils"
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addValuationEvidence } from "./extended-evidence/valuation";
+import { collectValuationComps } from "./extended-evidence/valuation-comps";
 import { resolveResearchSubjectProxy } from "../research/subject-registry";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
@@ -628,6 +629,19 @@ export async function collectSources(
     resolvedMarketResult.marketSnapshots,
     extendedResult.extendedEvidence,
   );
+  const valuationCompsResult =
+    isEquityTicker &&
+    command.depth === "deep" &&
+    valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
+      ? await collectValuationComps(
+          ctx,
+          command,
+          resolvedMarketResult.marketSnapshots,
+          valuationResult.extendedEvidence,
+        )
+      : undefined;
+  const finalExtendedEvidence =
+    valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
 
   // Earnings Setup: equity ticker deep only — parse Finnhub calendar for a
   // Near upcoming event, then compute deterministic implied move from Tradier.
@@ -683,6 +697,7 @@ export async function collectSources(
       ...resolvedMarketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
       ...extendedResult.rawSnapshots,
+      ...(valuationCompsResult?.rawSnapshots ?? []),
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
       ...(verifiedSnapshotResult?.rawSnapshot !== undefined
@@ -692,10 +707,12 @@ export async function collectSources(
     marketSnapshots: resolvedMarketResult.marketSnapshots,
     supplementalMarketSnapshots,
     newsSources: newsResult.newsSources,
-    extendedSources: [...extendedResult.sources, ...earningsExtraSources],
-    ...(valuationResult.extendedEvidence !== undefined
-      ? { extendedEvidence: valuationResult.extendedEvidence }
-      : {}),
+    extendedSources: [
+      ...extendedResult.sources,
+      ...(valuationCompsResult?.sources ?? []),
+      ...earningsExtraSources,
+    ],
+    ...(finalExtendedEvidence !== undefined ? { extendedEvidence: finalExtendedEvidence } : {}),
     ...(marketContextResult.marketContext !== undefined
       ? { marketContext: marketContextResult.marketContext }
       : {}),
@@ -708,11 +725,15 @@ export async function collectSources(
       ? { resolvedInstrumentIdentity: identityResult.identity }
       : {}),
     ...(earningsSetup !== undefined ? { earningsSetup } : {}),
+    ...(valuationCompsResult?.artifact !== undefined
+      ? { valuationComps: valuationCompsResult.artifact }
+      : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
       ...valuationResult.sourceGaps,
+      ...(valuationCompsResult?.gaps ?? []),
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

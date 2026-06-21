@@ -138,6 +138,70 @@ describe("source plan", () => {
     ).toMatchObject({ provider: "massive", lane: "supplemental-market" });
   });
 
+  test("maps valuation peer-comp source IDs and gaps into the valuation lane", () => {
+    const plan = buildSourcePlan(
+      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
+        extendedSources: [
+          {
+            id: "market-yahoo-equity-amd",
+            title: "AMD Yahoo valuation peer quote",
+            fetchedAt: generatedAt,
+            kind: "market-data",
+            assetClass: "equity",
+            symbol: "AMD",
+            provider: "yahoo",
+          },
+          {
+            id: "extended-sec-edgar-amd-fundamentals",
+            title: "AMD SEC fundamentals",
+            fetchedAt: generatedAt,
+            kind: "extended-evidence",
+            provider: "sec-edgar",
+          },
+        ],
+        extendedEvidence: {
+          instrument: { symbol: "NVDA", assetClass: "equity" },
+          items: [
+            {
+              category: "valuation",
+              title: "NVDA Valuation Evidence",
+              summary: "Peer comps supportability: screening-only.",
+              sourceIds: ["market-yahoo-equity-amd", "extended-sec-edgar-amd-fundamentals"],
+              observedAt: generatedAt,
+            },
+          ],
+          gaps: [],
+        },
+        sourceGaps: [
+          sourceGap({
+            source: "valuation",
+            message: "Valuation peer comps screening-only for NVDA: 2 usable peers",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+      }),
+      generatedAt,
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "valuation")).toMatchObject({
+      status: "covered",
+      coveredSourceIds: ["market-yahoo-equity-amd", "extended-sec-edgar-amd-fundamentals"],
+      gapText: ["valuation: Valuation peer comps screening-only for NVDA: 2 usable peers"],
+    });
+    expect(
+      plan.sourceLedger.sources.find((source) => source.id === "market-yahoo-equity-amd"),
+    ).toMatchObject({ lane: "valuation", kind: "market-data", provider: "yahoo" });
+    expect(
+      plan.sourceLedger.sources.find(
+        (source) => source.id === "extended-sec-edgar-amd-fundamentals",
+      ),
+    ).toMatchObject({ lane: "valuation", kind: "extended-evidence", provider: "sec-edgar" });
+  });
+
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {
     const plan = buildSourcePlan(
       { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" },

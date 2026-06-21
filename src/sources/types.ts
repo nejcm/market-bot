@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type {
   AssetClass,
   ExtendedEvidence,
@@ -125,6 +126,7 @@ export interface CollectedSources {
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly earningsSetup?: EarningsSetupCollected;
+  readonly valuationComps?: ValuationCompsArtifact;
 }
 
 export interface ExtendedEvidenceCollectionResult {

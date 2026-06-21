@@ -223,6 +223,11 @@ const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
   annualizedRevenue: "Annualized revenue",
   evToAnnualizedRevenue: "EV / annualized revenue",
   revenuePeriodMonths: "Revenue period (months)",
+  corePeerCount: "Core peers",
+  peerMedianEvToAnnualizedRevenue: "Peer median EV / annualized revenue",
+  peerP25EvToAnnualizedRevenue: "Peer P25 EV / annualized revenue",
+  peerP75EvToAnnualizedRevenue: "Peer P75 EV / annualized revenue",
+  valuationSupportability: "Supportability",
 };
 
 export function valuationMetricTiles(
@@ -238,19 +243,32 @@ export function valuationMetricTiles(
     "annualizedRevenue",
     "evToAnnualizedRevenue",
     "revenuePeriodMonths",
+    "corePeerCount",
+    "peerMedianEvToAnnualizedRevenue",
+    "peerP25EvToAnnualizedRevenue",
+    "peerP75EvToAnnualizedRevenue",
+    "valuationSupportability",
   ] as const;
 
   return keys.flatMap((key) => {
     const raw = metrics[key];
     const label = VALUATION_METRIC_LABELS[key] ?? key;
     if (typeof raw === "number" && Number.isFinite(raw)) {
-      if (key === "evToAnnualizedRevenue") {
+      if (
+        key === "evToAnnualizedRevenue" ||
+        key === "peerMedianEvToAnnualizedRevenue" ||
+        key === "peerP25EvToAnnualizedRevenue" ||
+        key === "peerP75EvToAnnualizedRevenue"
+      ) {
         return [{ label, value: formatMultiple(raw) }];
       }
-      if (key === "revenuePeriodMonths") {
+      if (key === "revenuePeriodMonths" || key === "corePeerCount") {
         return [{ label, value: String(raw) }];
       }
       return [{ label, value: formatUsdCompact(raw) }];
+    }
+    if (key === "valuationSupportability" && typeof raw === "string") {
+      return [{ label, value: raw }];
     }
     return [];
   });

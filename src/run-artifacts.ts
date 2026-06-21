@@ -127,6 +127,8 @@ const PREDICTION_KINDS: ReadonlySet<string> = new Set<PredictionKind>([
   "range",
   "macro",
   "iv",
+  "earnings-direction",
+  "earnings-move",
   "conditional",
 ]);
 

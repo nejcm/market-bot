@@ -212,6 +212,10 @@ Sourced issuer operating and financial facts used as Extended Evidence. It suppo
 
 Deterministic Extended Evidence that combines already-collected market capitalization with sourced issuer fundamentals to calculate supplemental valuation context such as enterprise value and revenue multiples. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal.
 
+## Earnings Setup
+
+Deterministic, event-anchored context assembled automatically inside `ticker --deep --asset equity` when a Finnhub earnings-calendar record exists within 30 calendar days. It persists as `extras.earningsSetup` on the Research View: event metadata (symbol, date, timing, source IDs), an optional implied-move bar (ATM straddle midpoint / spot from the nearest post-event Tradier expiration within 7 calendar days), model-authored sourced analytical bullets (expectation bar, quality landmines, guidance credibility), and gaps for unsupported or missing setup data. Earnings-specific Predictions use event-anchored horizons (`horizonTradingDays` = post-event trading days, not days from `generatedAt`) with `earnings-direction` and `earnings-move` prediction kinds, resolved against the `earningsReturn` DSL. IV crush is deferred in v1; IV remains setup context or a gap only.
+
 ## Peer Universe
 
 A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider or checked-in mapping with provenance, not model selection.

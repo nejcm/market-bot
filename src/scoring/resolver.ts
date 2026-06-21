@@ -10,9 +10,10 @@ import {
   resolveObservableExpression,
   resolveObservableForecast,
 } from "../forecast/observable";
-import { resolutionDate } from "./exchange-calendar";
+import { isExchangeTradingDay, resolutionDate } from "./exchange-calendar";
 import type { ObservationRepository } from "./observations";
 import type { ScoreOutcome } from "./types";
+import { isRecord } from "../sources/guards";
 
 export type { Observation };
 
@@ -83,6 +84,100 @@ async function pointObservations(
   );
 }
 
+type EarningsEventTiming = "bmo" | "amc" | "unknown";
+
+function readEarningsEventTiming(report: ResearchReport): EarningsEventTiming {
+  const setup = report.extras?.earningsSetup;
+  if (!isRecord(setup)) {
+    return "unknown";
+  }
+  const event = isRecord(setup.event) ? setup.event : undefined;
+  const timing = event?.timing;
+  if (timing === "bmo" || timing === "amc") {
+    return timing;
+  }
+  return "unknown";
+}
+
+function shiftCalendarDay(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 86_400_000);
+}
+
+function previousTradingDay(date: Date): Date {
+  let cursor = shiftCalendarDay(date, -1);
+  while (!isExchangeTradingDay(cursor)) {
+    cursor = shiftCalendarDay(cursor, -1);
+  }
+  return cursor;
+}
+
+function earningsOriginDate(eventDate: Date, timing: EarningsEventTiming): Date {
+  if (timing === "amc") {
+    // AMC: pre-reaction close is the event-date close.
+    // If eventDate is not a trading day, walk backwards to the last trading day.
+    let cursor = eventDate;
+    while (!isExchangeTradingDay(cursor)) {
+      cursor = shiftCalendarDay(cursor, -1);
+    }
+    return cursor;
+  }
+  // BMO / unknown: pre-reaction close is the prior session's close.
+  return previousTradingDay(eventDate);
+}
+
+function earningsHorizonDate(
+  eventDate: string,
+  timing: EarningsEventTiming,
+  horizonTradingDays: number,
+): Date {
+  if (timing === "bmo") {
+    // BMO: first post-event session is eventDate itself.
+    // Advance N trading days from the day before eventDate.
+    const dayBefore = new Date(`${eventDate}T00:00:00Z`);
+    dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+    return resolutionDate(dayBefore.toISOString(), horizonTradingDays);
+  }
+  // AMC / unknown: first post-event session is the next trading day.
+  return resolutionDate(`${eventDate}T00:00:00Z`, horizonTradingDays);
+}
+
+async function earningsCloseObservations(
+  report: ResearchReport,
+  now: Date,
+  repo: ObservationRepository,
+  subject: string,
+  eventDate: string,
+  horizonTradingDays: number,
+): Promise<readonly Observation[]> {
+  const timing = readEarningsEventTiming(report);
+  const originDate = earningsOriginDate(new Date(`${eventDate}T00:00:00Z`), timing);
+  const horizonDate = earningsHorizonDate(eventDate, timing, horizonTradingDays);
+
+  if (horizonDate > now) {
+    return [];
+  }
+
+  const window = await repo.window(subject, report.assetClass, originDate, now);
+
+  // Count how many trading days we need from origin to horizon.
+  // BMO: origin (prior day) + N event days = N+1 closes
+  // AMC: origin (event-date) + N post-event days = N+1 closes
+  // Unknown: origin (prior day) + event-date + N post-event days = N+2 closes
+  const required = timing === "unknown" ? horizonTradingDays + 2 : horizonTradingDays + 1;
+
+  if (window.length < required) {
+    return [];
+  }
+
+  // Return origin and horizon closes only — the DSL resolver compares first and last.
+  const [origin] = window;
+  const horizon = window[required - 1];
+  if (origin === undefined || horizon === undefined) {
+    return [];
+  }
+  return [origin, horizon];
+}
+
 async function observationsForStrategy(
   strategy: ObservationStrategy,
   report: ResearchReport,
@@ -99,6 +194,16 @@ async function observationsForStrategy(
       repo,
       strategy.requests,
       strategy.includeOrigin,
+    );
+  }
+  if (strategy.mode === "earnings-close-window") {
+    return earningsCloseObservations(
+      report,
+      now,
+      repo,
+      strategy.subject,
+      strategy.eventDate,
+      strategy.horizonTradingDays,
     );
   }
   const nested = await Promise.all(
@@ -217,17 +322,26 @@ export async function resolveOutcome(
     };
   }
 
-  const resDate = resolutionDate(report.generatedAt, prediction.horizonTradingDays);
+  const strategy = observationStrategyForForecast(forecast);
 
-  if (resDate > now) {
-    return {
-      status: "unresolved",
-      reason: "horizon-not-elapsed",
-      evidence: { reason: "horizon not yet elapsed" },
-    };
+  // Earnings kinds use event-anchored due-date checks; all others use report-anchored.
+  if (strategy.mode === "earnings-close-window") {
+    const timing = readEarningsEventTiming(report);
+    const horizonDate = earningsHorizonDate(
+      strategy.eventDate,
+      timing,
+      strategy.horizonTradingDays,
+    );
+    if (horizonDate > now) {
+      return horizonPendingEvidence("earnings event horizon not yet elapsed");
+    }
+  } else {
+    const resDate = resolutionDate(report.generatedAt, prediction.horizonTradingDays);
+    if (resDate > now) {
+      return horizonPendingEvidence("horizon not yet elapsed");
+    }
   }
 
-  const strategy = observationStrategyForForecast(forecast);
   const observations = await observationsForStrategy(strategy, report, now, repo);
 
   const result = resolveObservableForecast(forecast, observations);

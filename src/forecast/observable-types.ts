@@ -41,13 +41,30 @@ export interface ObservableIv {
   readonly threshold: number;
 }
 
+export interface ObservableEarningsDirection {
+  readonly kind: "earnings-direction";
+  readonly subject: string;
+  readonly eventDate: string;
+  readonly horizonTradingDays: number;
+}
+
+export interface ObservableEarningsMove {
+  readonly kind: "earnings-move";
+  readonly subject: string;
+  readonly eventDate: string;
+  readonly horizonTradingDays: number;
+  readonly threshold: number;
+}
+
 export type ObservableBaseExpression =
   | ObservableDirection
   | ObservableRelative
   | ObservableVolatility
   | ObservableRange
   | ObservableMacro
-  | ObservableIv;
+  | ObservableIv
+  | ObservableEarningsDirection
+  | ObservableEarningsMove;
 
 export interface ObservableConditional {
   readonly kind: "conditional";
@@ -157,6 +174,12 @@ export type ObservationStrategy =
       readonly mode: "point";
       readonly requests: readonly PointObservationRequest[];
       readonly includeOrigin: boolean;
+      readonly horizonTradingDays: number;
+    }
+  | {
+      readonly mode: "earnings-close-window";
+      readonly subject: string;
+      readonly eventDate: string;
       readonly horizonTradingDays: number;
     }
   | {

@@ -18,6 +18,8 @@ export type {
   ObservableBaseExpression,
   ObservableConditional,
   ObservableDirection,
+  ObservableEarningsDirection,
+  ObservableEarningsMove,
   ObservableExpression,
   ObservableForecast,
   ObservableForecastIssue,
@@ -58,6 +60,16 @@ const RANGE_RE = new RegExp(
 );
 const FRED_RE = new RegExp(String.raw`^fred\(([A-Z0-9_]+),\s*\+${N}\)\s*>\s*fred\(\1,\s*0\)$`, "u");
 const IV_RE = new RegExp(String.raw`^iv\(${SYMBOL},\s*\+${N}\)\s*>\s*${NUM}$`, "u");
+
+const DATE = String.raw`(\d{4}-\d{2}-\d{2})`;
+const EARNINGS_DIRECTION_RE = new RegExp(
+  String.raw`^earningsReturn\(${SYMBOL},\s*${DATE},\s*\+${N}\)\s*>\s*0$`,
+  "u",
+);
+const EARNINGS_MOVE_RE = new RegExp(
+  String.raw`^abs\(earningsReturn\(${SYMBOL},\s*${DATE},\s*\+${N}\)\)\s*>\s*${NUM}$`,
+  "u",
+);
 
 type ObservableExpressionOf<K extends PredictionKind> = Extract<
   ObservableExpression,
@@ -453,6 +465,118 @@ const ivShape: PredictionShape<"iv"> = {
   },
 };
 
+const earningsDirectionShape: PredictionShape<"earnings-direction"> = {
+  kind: "earnings-direction",
+
+  parse(expr) {
+    const match = EARNINGS_DIRECTION_RE.exec(expr);
+    if (match === null) {
+      return;
+    }
+    return {
+      kind: "earnings-direction",
+      subject: match[1] as string,
+      eventDate: match[2] as string,
+      horizonTradingDays: Number(match[3]),
+    };
+  },
+
+  measurableAs(expression) {
+    return `earningsReturn(${expression.subject}, ${expression.eventDate}, +${String(expression.horizonTradingDays)}) > 0`;
+  },
+
+  renderClaim(expression) {
+    return `${expression.subject} closes higher than its pre-earnings close ${String(expression.horizonTradingDays)} trading days after the ${expression.eventDate} earnings event`;
+  },
+
+  subject(expression) {
+    return expression.subject;
+  },
+
+  instruments(expression) {
+    return [expression.subject];
+  },
+
+  observationStrategy(expression) {
+    return {
+      mode: "earnings-close-window",
+      subject: expression.subject,
+      eventDate: expression.eventDate,
+      horizonTradingDays: expression.horizonTradingDays,
+    };
+  },
+
+  resolve(expression, observations) {
+    const closes = sortedObservations(observations, expression.subject);
+    const close0 = closes[0]?.value;
+    const closeN = closes.at(-1)?.value;
+    if (close0 === undefined || closeN === undefined) {
+      return unresolved("missing-horizon", [expression.subject]);
+    }
+    return resolvedForecast(closeN > close0 ? "hit" : "miss", { close0, closeN });
+  },
+};
+
+const earningsMoveShape: PredictionShape<"earnings-move"> = {
+  kind: "earnings-move",
+
+  parse(expr) {
+    const match = EARNINGS_MOVE_RE.exec(expr);
+    if (match === null) {
+      return;
+    }
+    return {
+      kind: "earnings-move",
+      subject: match[1] as string,
+      eventDate: match[2] as string,
+      horizonTradingDays: Number(match[3]),
+      threshold: Number(match[4]),
+    };
+  },
+
+  measurableAs(expression) {
+    return `abs(earningsReturn(${expression.subject}, ${expression.eventDate}, +${String(expression.horizonTradingDays)})) > ${String(expression.threshold)}`;
+  },
+
+  renderClaim(expression) {
+    const pct = (expression.threshold * 100).toFixed(1);
+    return `${expression.subject} moves more than ${pct}% from its pre-earnings close ${String(expression.horizonTradingDays)} trading days after the ${expression.eventDate} earnings event`;
+  },
+
+  subject(expression) {
+    return expression.subject;
+  },
+
+  instruments(expression) {
+    return [expression.subject];
+  },
+
+  observationStrategy(expression) {
+    return {
+      mode: "earnings-close-window",
+      subject: expression.subject,
+      eventDate: expression.eventDate,
+      horizonTradingDays: expression.horizonTradingDays,
+    };
+  },
+
+  resolve(expression, observations) {
+    const closes = sortedObservations(observations, expression.subject);
+    const close0 = closes[0]?.value;
+    const closeN = closes.at(-1)?.value;
+    if (close0 === undefined || closeN === undefined || close0 === 0) {
+      return unresolved("missing-horizon", [expression.subject]);
+    }
+    const returnPct = (closeN - close0) / close0;
+    return resolvedForecast(Math.abs(returnPct) > expression.threshold ? "hit" : "miss", {
+      close0,
+      closeN,
+      returnPct,
+      threshold: expression.threshold,
+    });
+  },
+};
+
 function uniqueStrings(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }
@@ -601,6 +725,8 @@ const BASE_PREDICTION_SHAPES: readonly AnyBasePredictionShape[] = [
   rangeShape,
   macroShape,
   ivShape,
+  earningsDirectionShape,
+  earningsMoveShape,
 ];
 
 const PREDICTION_SHAPES: readonly AnyPredictionShape[] = [
@@ -617,6 +743,8 @@ const PREDICTION_SHAPE_BY_KIND: {
   range: rangeShape,
   macro: macroShape,
   iv: ivShape,
+  "earnings-direction": earningsDirectionShape,
+  "earnings-move": earningsMoveShape,
   conditional: conditionalShape,
 };
 

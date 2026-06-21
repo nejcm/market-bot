@@ -341,6 +341,8 @@ export type PredictionKind =
   | "range"
   | "macro"
   | "iv"
+  | "earnings-direction"
+  | "earnings-move"
   | "conditional";
 
 export interface Prediction {

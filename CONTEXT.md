@@ -210,7 +210,7 @@ Sourced issuer operating and financial facts used as Extended Evidence. It suppo
 
 ## Valuation Evidence
 
-Deterministic Extended Evidence that combines already-collected market capitalization with sourced issuer fundamentals to calculate supplemental valuation context such as enterprise value and revenue multiples. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal.
+Deterministic Extended Evidence that combines market capitalization, sourced issuer fundamentals, and, for `ticker --deep --asset equity`, deterministic peer comps to calculate supplemental valuation context such as enterprise value, revenue multiples, peer median/IQR read-through, and a supportability label. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal. See [[ADR 0031]].
 
 ## Earnings Setup
 
@@ -218,4 +218,4 @@ Deterministic, event-anchored context assembled automatically inside `ticker --d
 
 ## Peer Universe
 
-A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider or checked-in mapping with provenance, not model selection.
+A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider, checked-in ticker mapping, or Research Subject Registry fallback with provenance, role, and rationale, not model selection. V1 runs only for `ticker --deep --asset equity`; unsupported tickers emit a visible valuation SourceGap. See [[ADR 0031]].

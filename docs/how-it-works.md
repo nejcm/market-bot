@@ -186,11 +186,12 @@ Ticker runs also collect Extended Evidence:
 
 | Asset class | Extended Evidence                                                                                                                                         |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, and Valuation Evidence when market cap and SEC fundamentals are both available. |
+| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, and Valuation Evidence when market cap and SEC fundamentals are both available. Deep equity ticker runs also collect deterministic peer comps when a checked-in Peer Universe resolves. |
 | `crypto`    | FRED macro observations and Glassnode on-chain metrics.                                                                                                   |
 
 Extended Evidence is not collected for market overview runs. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
 SEC/EDGAR Fundamental Evidence uses curated operating basics and comparable prior-year deltas when SEC company facts expose matching periods; missing facts or non-comparable deltas are disclosed as `SourceGap`s.
+Valuation peer comps run only for `ticker --deep --asset equity`. The resolver uses checked-in ticker peer mappings first, then Research Subject Registry listed-stock representatives. Peer quotes must come from the current run, SEC revenue period ends must be within 180 calendar days of the run timestamp, and at least three usable core/secondary peers are required for a median/IQR read-through. Unsupported, stale, or incomplete peer coverage is disclosed as `SourceGap`s and the valuation item is labeled `screening-only` or `not-supportable` instead of inventing peers.
 
 Fetch behavior:
 
@@ -245,7 +246,7 @@ The source registry in `src/sources/registry.ts` maps asset classes to adapters:
 - `src/sources/marketaux-news.ts`, `src/sources/finnhub-news.ts`, and `src/sources/multi-news.ts` collect multi-provider news, dedupe by canonical URL and by normalized title when the title carries enough signal, merge duplicates while preserving the first canonical URL and provider aliases, and suppress recently seen repeats.
 - `src/sources/massive.ts` normalizes Massive stock snapshots and equity news from `api.massive.com`. Massive was formerly Polygon.io.
 - `src/sources/market-context.ts` collects FRED macro Market Context for market overview runs.
-- `src/sources/extended-evidence.ts` composes ticker-only Extended Evidence from separate provider files under `src/sources/extended-evidence/` for SEC/EDGAR, Finnhub events, FRED, Tradier IV, Glassnode, and deterministic Valuation Evidence from market cap plus SEC fundamentals.
+- `src/sources/extended-evidence.ts` composes ticker-only Extended Evidence from separate provider files under `src/sources/extended-evidence/` for SEC/EDGAR, Finnhub events, FRED, Tradier IV, Glassnode, and deterministic Valuation Evidence from market cap plus SEC fundamentals and, for deep equity ticker runs, deterministic peer comps.
 - `src/sources/providers.ts` lists Source Provider modules and their optional capabilities.
 - `src/sources/fred.ts` and `src/sources/tradier.ts` support macro and IV scoring inputs.
 
@@ -380,6 +381,7 @@ data/runs/<run-id>/
   normalized/movers.json  # market overview only — ranked mover set, baseline for the next Market Update Delta
   normalized/news-sources.json
   normalized/source-gaps.json
+  normalized/valuation-comps.json  # ticker only — deterministic peer-comps sidecar or null
   normalized/sec-fundamentals.json  # alpha-search only
   normalized/sec-fundamentals-source-gaps.json  # alpha-search only
   normalized/candidate-profiles.json  # alpha-search only

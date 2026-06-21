@@ -38,8 +38,8 @@ V1 lanes are limited to current provider paths:
 - `extended-fred-macro`: FRED macro extended evidence on ticker runs.
 - `options-iv`: Tradier IV extended evidence on equity ticker runs.
 - `on-chain`: Glassnode extended evidence on crypto ticker runs.
-- `valuation`: deterministic valuation evidence derived from Yahoo market cap and SEC
-  fundamentals on equity ticker runs.
+- `valuation`: deterministic valuation evidence derived from Yahoo market cap, SEC fundamentals,
+  and any deterministic peer-comps sources on equity ticker runs.
 
 Only `market-data` and equity ticker `verified-snapshot` are required in V1. Optional lanes can be
 not covered without making the run invalid. A lane is marked covered only when it has at least one

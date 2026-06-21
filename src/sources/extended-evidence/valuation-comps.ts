@@ -132,7 +132,7 @@ export async function collectValuationComps(
     };
   }
 
-  const {universe} = resolution;
+  const { universe } = resolution;
   const quoteResult = await requestJsonWithQuoteFallback(
     ctx,
     yahooQuoteSourceRequest(
@@ -298,7 +298,7 @@ function targetRow(
 
 function peerRow(entry: PeerCollection, generatedAt: string): ValuationCompsRow {
   const { peer, quote, sec } = entry;
-  const {metrics} = sec;
+  const { metrics } = sec;
   const marketCap = quote?.marketCap;
   const cash = readNumberMetric(metrics, "cash");
   const debt = readNumberMetric(metrics, "debt");

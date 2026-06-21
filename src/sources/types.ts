@@ -89,6 +89,28 @@ export interface NewsCollectionAnalytics {
   readonly repeatFallbackUsed: boolean;
 }
 
+export interface EarningsSetupCollected {
+  readonly event: {
+    readonly symbol: string;
+    readonly date: string;
+    readonly timing: "bmo" | "amc" | "unknown";
+    readonly epsEstimate?: number;
+    readonly revenueEstimate?: number;
+    readonly sourceIds: readonly string[];
+    readonly fetchedAt: string;
+  };
+  readonly impliedMove?: {
+    readonly expiration: string;
+    readonly strike: number;
+    readonly spot: number;
+    readonly straddleMidpoint: number;
+    readonly impliedMovePct: number;
+    readonly sourceIds: readonly string[];
+    readonly observedAt: string;
+  };
+  readonly gaps: readonly string[];
+}
+
 export interface CollectedSources {
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly marketSnapshots: readonly MarketSnapshot[];
@@ -102,6 +124,7 @@ export interface CollectedSources {
   readonly newsAnalytics?: NewsCollectionAnalytics;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
+  readonly earningsSetup?: EarningsSetupCollected;
 }
 
 export interface ExtendedEvidenceCollectionResult {

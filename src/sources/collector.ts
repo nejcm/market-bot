@@ -7,6 +7,7 @@ import { withCache, type CacheOptions } from "./cache";
 import type {
   CollectContext,
   CollectedSources,
+  EarningsSetupCollected,
   FetchJsonRequestFn,
   FetchJsonResult,
   FetchLike,
@@ -23,6 +24,7 @@ import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { resolveResearchSubjectProxy } from "../research/subject-registry";
+import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 
 interface HostState {
   queue: Promise<void>;
@@ -608,6 +610,49 @@ export async function collectSources(
     extendedResult.extendedEvidence,
   );
 
+  // Earnings Setup: equity ticker deep only — parse Finnhub calendar for a
+  // Near upcoming event, then compute deterministic implied move from Tradier.
+  let earningsSetup: EarningsSetupCollected | undefined = undefined;
+  if (isEquityTicker && command.depth === "deep") {
+    const earningsCalendarSnapshot = extendedResult.rawSnapshots.find(
+      (snapshot) => snapshot.adapter === "finnhub-events-1",
+    );
+    if (earningsCalendarSnapshot !== undefined) {
+      const earningsSourceId = `extended-finnhub-events-${command.symbol.toLowerCase()}`;
+      const event = parseNearEarningsEvent(
+        earningsCalendarSnapshot.payload,
+        command.symbol,
+        earningsCalendarSnapshot.fetchedAt,
+        earningsSourceId,
+      );
+      if (event !== undefined) {
+        const tickerSnapshot = resolvedMarketResult.marketSnapshots.find(
+          (snapshot) => snapshot.symbol === command.symbol,
+        );
+        const spot = tickerSnapshot?.price;
+        const earningsGaps: string[] = [];
+        const earningsSourceGaps: SourceGap[] = [];
+
+        if (spot !== undefined && spot > 0) {
+          const moveResult = await computeImpliedMove(ctx, event, spot);
+          earningsSetup = {
+            event,
+            ...(moveResult.impliedMove !== undefined
+              ? { impliedMove: moveResult.impliedMove }
+              : {}),
+            gaps: moveResult.gaps.map((gap) => gap.message),
+          };
+          earningsSourceGaps.push(...moveResult.gaps);
+        } else {
+          earningsGaps.push("Spot price unavailable; implied move could not be computed");
+          earningsSetup = { event, gaps: earningsGaps };
+        }
+        // Push earnings source gaps into the main gap array below.
+        earningsSourceGaps.forEach((gap) => staleFallbackGaps.push(gap));
+      }
+    }
+  }
+
   return {
     rawSnapshots: [
       ...resolvedMarketResult.rawSnapshots,
@@ -637,6 +682,7 @@ export async function collectSources(
     ...(identityResult?.identity !== undefined
       ? { resolvedInstrumentIdentity: identityResult.identity }
       : {}),
+    ...(earningsSetup !== undefined ? { earningsSetup } : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,

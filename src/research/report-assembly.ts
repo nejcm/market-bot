@@ -827,6 +827,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(isMarketUpdateJobType(command.jobType) && collectedSources.marketContext !== undefined
         ? { marketContext: collectedSources.marketContext }
         : {}),
+      ...(collectedSources.earningsSetup !== undefined
+        ? { earningsSetup: collectedSources.earningsSetup }
+        : {}),
     },
   });
 }

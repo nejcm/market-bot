@@ -790,6 +790,9 @@ function buildEvidencePayload(
     ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
       : {}),
+    ...(command.jobType === "ticker" && collectedSources.earningsSetup !== undefined
+      ? { earningsSetup: collectedSources.earningsSetup }
+      : {}),
     ...(context.historicalContext !== undefined
       ? { historicalContext: compactHistoricalContext(context.historicalContext) }
       : {}),

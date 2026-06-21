@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence } from "../src/domain/types";
-import { collectValuationComps } from "../src/sources/extended-evidence/valuation-comps";
+import {
+  collectValuationComps,
+  type ValuationCompsOptions,
+} from "../src/sources/extended-evidence/valuation-comps";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 import { marketSnapshot } from "./support/fixtures";
 
@@ -209,6 +212,43 @@ function collectContext(request: SourceRequestExecutor): CollectContext {
   };
 }
 
+const threePeerOptions: ValuationCompsOptions = {
+  peerUniverseMappings: {
+    NVDA: {
+      targetSymbol: "NVDA",
+      provenance: "ticker-mapping",
+      peers: [
+        {
+          symbol: "AMD",
+          name: "Advanced Micro Devices",
+          role: "core",
+          rationale: "GPU peer",
+          sourceIds: ["nasdaq-amd"],
+        },
+        {
+          symbol: "AVGO",
+          name: "Broadcom",
+          role: "core",
+          rationale: "large semiconductor peer",
+          sourceIds: ["nasdaq-avgo"],
+        },
+        {
+          symbol: "ANET",
+          name: "Arista Networks",
+          role: "secondary",
+          rationale: "AI infrastructure peer",
+          sourceIds: ["nyse-anet"],
+        },
+      ],
+      sources: [
+        { sourceId: "nasdaq-amd", title: "Nasdaq listed symbol directory: AMD" },
+        { sourceId: "nasdaq-avgo", title: "Nasdaq listed symbol directory: AVGO" },
+        { sourceId: "nyse-anet", title: "NYSE listed symbol directory: ANET" },
+      ],
+    },
+  },
+};
+
 describe("collectValuationComps", () => {
   test("computes supported median and IQR for usable deterministic peers", async () => {
     const result = await collectValuationComps(
@@ -304,6 +344,31 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.valuationSupportability).toBe("not-supportable");
   });
 
+  test("labels comps not-supportable when target SEC period is future-dated", async () => {
+    const evidence = valuationEvidence();
+    const futureValuation = evidence.items.map((item) =>
+      item.category === "valuation"
+        ? { ...item, metrics: { ...item.metrics, revenuePeriodEnd: "2026-07-16" } }
+        : item,
+    );
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      { ...evidence, items: futureValuation },
+    );
+
+    expect(result.artifact.summary.valuationSupportability).toBe("not-supportable");
+    expect(result.artifact.freshnessFlags.targetSecFresh).toBe(false);
+  });
+
   test("excludes peers with stale quote data", async () => {
     const result = await collectValuationComps(
       collectContext(requestExecutor({ quoteFetchedAt: "2026-07-14T00:00:00.000Z" })),
@@ -322,6 +387,36 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.usablePeerCount).toBe(0);
     expect(result.artifact.excludedPeers).toHaveLength(4);
     expect(result.artifact.freshnessFlags.peerQuoteFresh).toBe(false);
+    expect(result.artifact.excludedPeers[0]?.reason).toBe("stale quote");
+  });
+
+  test("excludes peers with future-dated SEC periods", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          secOverrides: {
+            AMD: { end: "2026-07-16" },
+            AVGO: { end: "2026-07-16" },
+            ANET: { end: "2026-07-16" },
+            VRT: { end: "2026-07-16" },
+          },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    expect(result.artifact.summary.usablePeerCount).toBe(0);
+    expect(result.artifact.freshnessFlags.peerSecFresh).toBe(false);
+    expect(result.artifact.excludedPeers[0]?.reason).toBe("stale SEC revenue period");
   });
 
   test("excludes peers with missing required fields", async () => {
@@ -371,10 +466,32 @@ describe("collectValuationComps", () => {
 
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
     expect(result.artifact.peers).toEqual([]);
+    expect(result.artifact.freshnessFlags.peerQuoteFresh).toBe(false);
+    expect(result.artifact.freshnessFlags.peerSecFresh).toBe(false);
     expect(result.gaps[0]).toMatchObject({
       source: "valuation",
       cause: "unsupported-coverage",
       evidenceQualityImpact: "extended-evidence-cap",
     });
+  });
+
+  test("uses injected peer universe mappings", async () => {
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+      threePeerOptions,
+    );
+
+    expect(result.artifact.peers.map((peer) => peer.symbol)).toEqual(["AMD", "AVGO", "ANET"]);
+    expect(result.artifact.summary.usablePeerCount).toBe(3);
   });
 });

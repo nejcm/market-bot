@@ -42,6 +42,75 @@ function tempCacheDir(): string {
   return dir;
 }
 
+function collectorQuote(symbol: string, marketCap: number): Record<string, unknown> {
+  return {
+    symbol,
+    shortName: symbol,
+    regularMarketPrice: 100,
+    regularMarketChangePercent: 1,
+    regularMarketVolume: 1_000_000,
+    marketCap,
+  };
+}
+
+function collectorSecFact(
+  val: number,
+  overrides: Record<string, number | string> = {},
+): Record<string, number | string> {
+  return {
+    val,
+    form: "10-Q",
+    fp: "Q2",
+    fy: 2026,
+    filed: "2026-07-01",
+    start: "2026-04-01",
+    end: "2026-06-29",
+    ...overrides,
+  };
+}
+
+function collectorSecFactUnits(
+  current: number,
+  prior = current - 1,
+): { units: { USD: unknown[] } } {
+  return {
+    units: {
+      USD: [
+        collectorSecFact(prior, {
+          fy: 2025,
+          filed: "2025-07-01",
+          start: "2025-04-01",
+          end: "2025-06-29",
+        }),
+        collectorSecFact(current),
+      ],
+    },
+  };
+}
+
+function collectorSecPayload(revenue = 100): unknown {
+  return {
+    facts: {
+      "us-gaap": {
+        Revenues: { units: { USD: [collectorSecFact(revenue)] } },
+        GrossProfit: collectorSecFactUnits(40, 35),
+        OperatingIncomeLoss: collectorSecFactUnits(25, 20),
+        NetIncomeLoss: collectorSecFactUnits(20, 18),
+        EarningsPerShareDiluted: {
+          units: { "USD/shares": [collectorSecFact(2), collectorSecFact(1.8, { fy: 2025 })] },
+        },
+        CashAndCashEquivalentsAtCarryingValue: collectorSecFactUnits(10, 9),
+        LongTermDebt: collectorSecFactUnits(20, 19),
+        NetCashProvidedByUsedInOperatingActivities: collectorSecFactUnits(28, 22),
+        PaymentsToAcquirePropertyPlantAndEquipment: collectorSecFactUnits(6, 5),
+        WeightedAverageNumberOfDilutedSharesOutstanding: {
+          units: { shares: [collectorSecFact(9), collectorSecFact(10, { fy: 2025 })] },
+        },
+      },
+    },
+  };
+}
+
 describe("collectSources", () => {
   test("returns a gap when a cached text fetch hydrates a non-string payload", async () => {
     const cacheDir = tempCacheDir();
@@ -97,6 +166,96 @@ describe("collectSources", () => {
         cause: "fetch-failed",
       }),
     );
+  });
+
+  test("merges valuation comps artifacts, peer sources, raw snapshots, and gaps", async () => {
+    const marketCaps: Readonly<Record<string, number>> = {
+      NVDA: 1000,
+      AMD: 390,
+      AVGO: 590,
+      ANET: 790,
+      VRT: 990,
+    };
+    const cikBySymbol: Readonly<Record<string, number>> = {
+      NVDA: 1,
+      AMD: 2,
+      AVGO: 3,
+      ANET: 4,
+      VRT: 5,
+    };
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: {
+            result: symbols.map((symbol) =>
+              collectorQuote(symbol, marketCaps[symbol] ?? 100_000_000),
+            ),
+          },
+        });
+      }
+
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse(
+          Object.fromEntries(
+            Object.entries(cikBySymbol).map(([symbol, cik], index) => [
+              String(index),
+              { cik_str: cik, ticker: symbol, title: symbol },
+            ]),
+          ),
+        );
+      }
+
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+      },
+      new Date("2026-07-15T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.valuationComps?.summary).toMatchObject({
+      usablePeerCount: 4,
+      valuationSupportability: "supported",
+    });
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
+      "yahoo-valuation-peers",
+    );
+    expect(result.extendedSources.map((source) => source.id)).toContain("market-yahoo-equity-amd");
+    expect(result.extendedSources.map((source) => source.id)).toContain(
+      "extended-sec-edgar-amd-fundamentals",
+    );
+    expect(result.sourceGaps.map((gap) => gap.source)).toContain("yahoo-verified-chart");
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,
+    ).toMatchObject({
+      corePeerCount: 2,
+      valuationSupportability: "supported",
+    });
   });
 
   test("collects daily equity market data and news with injectable fetch", async () => {

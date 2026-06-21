@@ -10,8 +10,10 @@ import type {
 import {
   resolvePeerUniverse,
   type PeerUniverse,
+  type PeerUniverseMapping,
   type PeerUniversePeer,
 } from "../../research/peer-universe";
+import type { ResearchSubjectRegistryEntry } from "../../research/subject-registry";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import {
   normalizeYahooQuotePayload,
@@ -89,6 +91,11 @@ export interface ValuationCompsResult {
   readonly gaps: readonly SourceGap[];
 }
 
+export interface ValuationCompsOptions {
+  readonly peerUniverseMappings?: PeerUniverseMapping;
+  readonly subjectRegistry?: readonly ResearchSubjectRegistryEntry[];
+}
+
 interface PeerCollection {
   readonly peer: PeerUniversePeer;
   readonly quote: MarketSnapshot | undefined;
@@ -100,6 +107,7 @@ export async function collectValuationComps(
   command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
   marketSnapshots: readonly MarketSnapshot[],
   extendedEvidence: ExtendedEvidence,
+  options: ValuationCompsOptions = {},
 ): Promise<ValuationCompsResult> {
   const valuationItem = valuationEvidenceItem(extendedEvidence);
   if (valuationItem === undefined) {
@@ -112,7 +120,11 @@ export async function collectValuationComps(
       snapshot.symbol.toUpperCase() === command.symbol.toUpperCase(),
   );
   const target = targetRow(command.symbol, valuationItem, targetSnapshot, ctx.fetchedAt);
-  const resolution = resolvePeerUniverse(command.symbol);
+  const resolution = resolvePeerUniverse(
+    command.symbol,
+    options.peerUniverseMappings,
+    options.subjectRegistry,
+  );
   if (resolution.status !== "resolved" || resolution.universe === undefined) {
     const gap = valuationCompsGap(
       `Peer Universe unavailable for ${command.symbol}: ${resolution.reason}`,
@@ -122,7 +134,7 @@ export async function collectValuationComps(
     return {
       extendedEvidence: replaceValuationItem(
         extendedEvidence,
-        enrichValuationItem(valuationItem, artifact, [gap]),
+        enrichValuationItem(valuationItem, artifact),
         [gap],
       ),
       artifact,
@@ -161,7 +173,7 @@ export async function collectValuationComps(
   );
   const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
   const peers = peerSecResults.map((entry) => peerRow(entry, ctx.fetchedAt));
-  const excludedPeers = peers.flatMap((row) => excludedPeer(row, universe.peers));
+  const excludedPeers = peers.flatMap((row) => excludedPeer(row, universe.peers, ctx.fetchedAt));
   const peerGaps = [
     ...quoteGap,
     ...peerSecResults.flatMap((entry) => entry.sec.gaps),
@@ -187,18 +199,13 @@ export async function collectValuationComps(
           ),
         ];
   const allGaps = [...peerGaps, ...supportabilityGaps];
-  const finalArtifact =
-    supportabilityGaps.length === 0
-      ? artifact
-      : { ...artifact, sourceIds: unique([...artifact.sourceIds]) };
-
   return {
     extendedEvidence: replaceValuationItem(
       extendedEvidence,
-      enrichValuationItem(valuationItem, finalArtifact, allGaps),
+      enrichValuationItem(valuationItem, artifact),
       allGaps,
     ),
-    artifact: finalArtifact,
+    artifact,
     sources: peerSources,
     rawSnapshots: [
       ...(isFetchJsonResult(quoteResult) ? [quoteResult.rawSnapshot] : []),
@@ -358,6 +365,7 @@ function peerRow(entry: PeerCollection, generatedAt: string): ValuationCompsRow 
 function excludedPeer(
   row: ValuationCompsRow,
   peers: readonly PeerUniversePeer[],
+  generatedAt: string,
 ): readonly ExcludedValuationPeer[] {
   if (row.usable) {
     return [];
@@ -370,13 +378,13 @@ function excludedPeer(
     {
       symbol: row.symbol,
       role: peer.role,
-      reason: exclusionReason(row),
+      reason: exclusionReason(row, generatedAt),
       sourceIds: row.sourceIds,
     },
   ];
 }
 
-function exclusionReason(row: ValuationCompsRow): string {
+function exclusionReason(row: ValuationCompsRow, generatedAt: string): string {
   if (row.quoteObservedAt === undefined) {
     return "missing quote";
   }
@@ -398,7 +406,10 @@ function exclusionReason(row: ValuationCompsRow): string {
   if (row.evToAnnualizedRevenue === undefined) {
     return "missing EV/revenue multiple";
   }
-  return "stale quote or SEC revenue period";
+  if (!isFreshDate(row.quoteObservedAt, generatedAt)) {
+    return "stale quote";
+  }
+  return "stale SEC revenue period";
 }
 
 function buildArtifact(
@@ -450,15 +461,19 @@ function buildArtifact(
       targetSecFresh:
         target.revenuePeriodEnd !== undefined &&
         isFreshPeriodEnd(target.revenuePeriodEnd, generatedAt),
-      peerQuoteFresh: peers.every(
-        (peer) =>
-          peer.quoteObservedAt !== undefined && isFreshDate(peer.quoteObservedAt, generatedAt),
-      ),
-      peerSecFresh: peers.every(
-        (peer) =>
-          peer.revenuePeriodEnd !== undefined &&
-          isFreshPeriodEnd(peer.revenuePeriodEnd, generatedAt),
-      ),
+      peerQuoteFresh:
+        peers.length > 0 &&
+        peers.every(
+          (peer) =>
+            peer.quoteObservedAt !== undefined && isFreshDate(peer.quoteObservedAt, generatedAt),
+        ),
+      peerSecFresh:
+        peers.length > 0 &&
+        peers.every(
+          (peer) =>
+            peer.revenuePeriodEnd !== undefined &&
+            isFreshPeriodEnd(peer.revenuePeriodEnd, generatedAt),
+        ),
     },
   };
 }
@@ -476,7 +491,6 @@ function supportabilityFor(
 function enrichValuationItem(
   item: ExtendedEvidenceItem,
   artifact: ValuationCompsArtifact,
-  gaps: readonly SourceGap[],
 ): ExtendedEvidenceItem {
   const { summary } = artifact;
   const peerReadThrough =
@@ -500,7 +514,6 @@ function enrichValuationItem(
         ? { peerP75EvToAnnualizedRevenue: summary.peerP75EvToAnnualizedRevenue }
         : {}),
       valuationSupportability: summary.valuationSupportability,
-      valuationCompsGapCount: gaps.length,
     },
   };
 }
@@ -559,7 +572,8 @@ function isFreshPeriodEnd(periodEnd: string, generatedAt: string): boolean {
   if (!Number.isFinite(periodMs) || !Number.isFinite(generatedMs)) {
     return false;
   }
-  return generatedMs - periodMs <= SEC_FRESHNESS_DAYS * DAY_MS;
+  const ageMs = generatedMs - periodMs;
+  return ageMs >= 0 && ageMs <= SEC_FRESHNESS_DAYS * DAY_MS;
 }
 
 function percentile(values: readonly number[], p: number): number {

@@ -43,7 +43,7 @@ export interface PeerUniverseValidationResult {
   readonly errors: readonly string[];
 }
 
-type PeerUniverseMapping = Readonly<Record<string, PeerUniverse>>;
+export type PeerUniverseMapping = Readonly<Record<string, PeerUniverse>>;
 
 export const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse({
   NVDA: tickerUniverse("NVDA", [
@@ -88,12 +88,11 @@ export function resolvePeerUniverse(
   const target = normalizeSymbol(targetSymbol);
   const mapped = mappings[target];
   if (mapped !== undefined) {
-    return {
-      targetSymbol: target,
-      status: "resolved",
-      universe: { ...mapped, peers: mapped.peers.slice(0, MAX_PEERS) },
-      reason: "Resolved from checked-in ticker peer mapping",
-    };
+    return resolvedPeerUniverse(
+      target,
+      { ...mapped, peers: mapped.peers.slice(0, MAX_PEERS) },
+      "Resolved from checked-in ticker peer mapping",
+    );
   }
 
   const subject = registry.find((entry) =>
@@ -130,17 +129,16 @@ export function resolvePeerUniverse(
     };
   }
 
-  return {
-    targetSymbol: target,
-    status: "resolved",
-    universe: {
+  return resolvedPeerUniverse(
+    target,
+    {
       targetSymbol: target,
       provenance: "subject-registry",
       peers,
       sources: subject.sources.map(toPeerUniverseSource),
     },
-    reason: "Resolved from research subject registry representatives",
-  };
+    "Resolved from research subject registry representatives",
+  );
 }
 
 export function validatePeerUniverse(universe: PeerUniverse): PeerUniverseValidationResult {
@@ -203,6 +201,27 @@ function validateDefaultPeerUniverse(mappings: PeerUniverseMapping): PeerUnivers
     throw new Error(`Invalid peer universe mappings: ${errors.join("; ")}`);
   }
   return mappings;
+}
+
+function resolvedPeerUniverse(
+  targetSymbol: string,
+  universe: PeerUniverse,
+  reason: string,
+): PeerUniverseResolution {
+  const validation = validatePeerUniverse(universe);
+  if (!validation.valid) {
+    return {
+      targetSymbol,
+      status: "unresolved",
+      reason: `Invalid Peer Universe: ${validation.errors.join("; ")}`,
+    };
+  }
+  return {
+    targetSymbol,
+    status: "resolved",
+    universe,
+    reason,
+  };
 }
 
 function normalizeSymbol(symbol: string): string {

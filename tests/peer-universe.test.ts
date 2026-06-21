@@ -47,6 +47,36 @@ describe("peer universe", () => {
     expect(result.universe).toBeUndefined();
   });
 
+  test("rejects subject-registry peers without valid provenance", () => {
+    const result = resolvePeerUniverse("BAD", {}, [
+      {
+        subjectKey: "bad-subject",
+        displayName: "Bad Subject",
+        aliases: ["bad"],
+        assetClass: "equity",
+        representativeInstruments: [
+          {
+            symbol: "BAD",
+            instrumentType: "listed-stock",
+            sourceIds: ["known-source"],
+          },
+          {
+            symbol: "PEER",
+            instrumentType: "listed-stock",
+            sourceIds: [],
+          },
+        ],
+        sources: [{ sourceId: "known-source", title: "Known source" }],
+      },
+    ]);
+
+    expect(result).toMatchObject({
+      targetSymbol: "BAD",
+      status: "unresolved",
+    });
+    expect(result.reason).toContain("peer PEER must cite sourceIds");
+  });
+
   test("validates peer provenance and referenced source IDs", () => {
     const universe: PeerUniverse = {
       targetSymbol: "TEST",

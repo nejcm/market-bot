@@ -102,6 +102,7 @@ function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string,
     historicalContext: historicalContextText(extras.historicalContext),
     spotlights: spotlightsText(extras.spotlights),
     catalystCalendar: catalystCalendarText(extras.catalystCalendar),
+    earningsSetup: earningsSetupText(extras.earningsSetup),
   };
 }
 
@@ -149,6 +150,58 @@ function catalystCalendarText(extra: unknown): readonly string[] {
       typeof item.researchRelevance === "string" ? item.researchRelevance : undefined,
     ].filter((value): value is string => value !== undefined);
   });
+}
+
+function earningsSetupText(extra: unknown): readonly string[] {
+  if (!isRecord(extra)) {
+    return [];
+  }
+  const texts: string[] = [];
+  for (const key of ["expectationBar", "qualityLandmines", "guidanceCredibility"] as const) {
+    const bullets = extra[key];
+    if (Array.isArray(bullets)) {
+      for (const bullet of bullets) {
+        if (isRecord(bullet) && typeof bullet.text === "string") {
+          texts.push(bullet.text);
+        }
+      }
+    }
+  }
+  texts.push(...readStringArray(extra.gaps));
+  return texts;
+}
+
+function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+  if (extra === undefined || !isRecord(extra)) {
+    return;
+  }
+  // Validate source IDs on event.
+  const event = isRecord(extra.event) ? extra.event : undefined;
+  if (event !== undefined) {
+    validateKnownSourceIds(
+      "Earnings Setup event",
+      readStringArray(event.sourceIds),
+      knownSourceIds,
+      false,
+    );
+  }
+  // Validate source IDs on model-authored bullet sections.
+  for (const key of ["expectationBar", "qualityLandmines", "guidanceCredibility"] as const) {
+    const bullets = extra[key];
+    if (!Array.isArray(bullets)) {
+      continue;
+    }
+    for (const bullet of bullets) {
+      if (isRecord(bullet)) {
+        validateKnownSourceIds(
+          `Earnings Setup ${key}`,
+          readStringArray(bullet.sourceIds),
+          knownSourceIds,
+          typeof bullet.text === "string",
+        );
+      }
+    }
+  }
 }
 
 function validateHistoricalContextExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
@@ -254,6 +307,7 @@ function validateRenderedExtras(
   validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds);
   validateResearchSubjectExtra(extras.researchSubject);
   validateProxyResolutionExtra(extras.proxyResolution);
+  validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds);
 }
 
 export function validatePredictions(

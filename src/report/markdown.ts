@@ -450,6 +450,67 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   ].join("\n");
 }
 
+function renderEarningsSetup(report: ResearchReport): string {
+  if (report.jobType !== "ticker") {
+    return "";
+  }
+  const setup = report.extras?.earningsSetup;
+  if (!isRecord(setup) || !isRecord(setup.event)) {
+    return "";
+  }
+  const {event} = setup;
+  const symbol = typeof event.symbol === "string" ? event.symbol : "";
+  const date = typeof event.date === "string" ? event.date : "";
+  const timing = typeof event.timing === "string" ? event.timing : "unknown";
+  const lines = [
+    "## Earnings Setup",
+    "",
+    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})`,
+  ];
+
+  if (isRecord(setup.impliedMove)) {
+    const move = setup.impliedMove;
+    const pct =
+      typeof move.impliedMovePct === "number" ? (move.impliedMovePct * 100).toFixed(1) : "?";
+    const strike = typeof move.strike === "number" ? String(move.strike) : "?";
+    const expiration = typeof move.expiration === "string" ? move.expiration : "?";
+    lines.push(`**Implied move:** ±${pct}% (ATM strike ${strike}, expiration ${expiration})`);
+  }
+
+  for (const key of ["expectationBar", "qualityLandmines", "guidanceCredibility"] as const) {
+    const sectionName =
+      key === "expectationBar"
+        ? "Expectation Bar"
+        : (key === "qualityLandmines"
+          ? "Quality Landmines"
+          : "Guidance Credibility");
+    const bullets = (setup as Record<string, unknown>)[key];
+    if (!Array.isArray(bullets) || bullets.length === 0) {
+      continue;
+    }
+    lines.push("", `### ${sectionName}`, "");
+    for (const bullet of bullets) {
+      if (isRecord(bullet) && typeof bullet.text === "string") {
+        const sids = Array.isArray(bullet.sourceIds)
+          ? bullet.sourceIds.filter((sid): sid is string => typeof sid === "string")
+          : [];
+        lines.push(`- ${markdownText(bullet.text)}${sourceRefs(sids)}`);
+      }
+    }
+  }
+
+  const gaps = readStringArray(setup.gaps);
+  if (gaps.length > 0) {
+    lines.push("", "### Earnings Setup Gaps", "");
+    for (const gap of gaps) {
+      lines.push(`- ${markdownText(gap)}`);
+    }
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}
+
 function reportTitle(report: ResearchReport): string {
   if (report.jobType === "ticker") {
     return `${report.symbol} ${report.assetClass} Research View`;
@@ -493,6 +554,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
     renderExtendedEvidence(report),
+    renderEarningsSetup(report),
     renderHistoricalContext(report),
     renderSpotlights(report),
     renderPredictions(report.predictions),

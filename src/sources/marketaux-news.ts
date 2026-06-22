@@ -1,5 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
-import { sourceGap } from "../domain/source-gaps";
+import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
 import {
@@ -121,7 +121,17 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   });
 
   if (!isFetchJsonResult(fetched)) {
-    return { rawSnapshots: [], newsSources: [], sourceGaps: [fetched] };
+    return {
+      rawSnapshots: [],
+      newsSources: [],
+      sourceGaps: [
+        sourceGapWithContext(fetched, {
+          provider: "marketaux",
+          capability: "news",
+          evidenceQualityImpact: "no-cap",
+        }),
+      ],
+    };
   }
 
   return {

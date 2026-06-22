@@ -26,6 +26,7 @@ import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-sna
 import type { HistoricalResearchContext } from "./historical-context";
 import {
   deterministicSourceGaps,
+  EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP,
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
@@ -599,6 +600,21 @@ function gapTokens(value: string): Set<string> {
   );
 }
 
+function isMoverUniverseRestatement(modelGap: string, deterministicGap: string): boolean {
+  const model = normalizeGapNeedle(modelGap);
+  if (deterministicGap !== EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP) {
+    return false;
+  }
+  return (
+    model.includes("mover universe") &&
+    model.includes("yahoo") &&
+    model.includes("day gainers") &&
+    model.includes("day losers") &&
+    model.includes("most active") &&
+    model.includes("trailing horizon")
+  );
+}
+
 /*
  * True when the model gap restates a deterministic gap — most of its meaningful
  * tokens are already covered by the deterministic phrasing. Punctuation and
@@ -606,6 +622,9 @@ function gapTokens(value: string): Set<string> {
  * defeat the exact-text dedupe in uniqueDataGaps.
  */
 function restatesDeterministicGap(modelGap: string, deterministicGap: string): boolean {
+  if (isMoverUniverseRestatement(modelGap, deterministicGap)) {
+    return true;
+  }
   const modelTokens = gapTokens(modelGap);
   if (modelTokens.size === 0) {
     return false;

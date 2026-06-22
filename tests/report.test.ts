@@ -8,7 +8,7 @@ import { assembleResearchReport, buildSourceList } from "../src/research/report-
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
-import { collectedSources, marketSnapshot, prediction } from "./support/fixtures";
+import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
   runId: "run-1",
@@ -812,6 +812,119 @@ describe("report schema and rendering", () => {
     expect(assembled.dataGaps).toEqual([
       "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
     ]);
+  });
+
+  test("dedupes observed mover-universe restatement from recent runs", () => {
+    const command = {
+      jobType: "market-overview" as const,
+      assetClass: "equity" as const,
+      horizonTradingDays: 15,
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("SPY");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [
+          "The mover universe is seeded from Yahoo day gainers, day losers, and most active screens, not a trailing-horizon leadership dataset.",
+        ],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-spy", symbol: "SPY" })],
+        newsSources: [newsSource()],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
+    ]);
+  });
+
+  test("retains unrelated mover-universe caveat", () => {
+    const command = {
+      jobType: "market-overview" as const,
+      assetClass: "equity" as const,
+      horizonTradingDays: 15,
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("SPY");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["The mover universe excludes ADRs with limited U.S. session liquidity."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-spy", symbol: "SPY" })],
+        newsSources: [newsSource()],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "The mover universe excludes ADRs with limited U.S. session liquidity.",
+      "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
+    ]);
+  });
+
+  test("does not lower high confidence for optional news-provider gaps when usable news exists", () => {
+    const command = {
+      jobType: "ticker" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL coverage includes usable Yahoo news.",
+        confidence: "high",
+        dataGaps: [],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "finnhub-news",
+            provider: "finnhub",
+            capability: "news",
+            cause: "fetch-failed",
+            message: "finnhub-news source request failed with status 403",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.confidence).toBe("high");
+    expect(assembled.dataGaps).toContain(
+      "finnhub-news: finnhub-news source request failed with status 403",
+    );
   });
 
   test("adds historical report sources to report source lists", () => {

@@ -55,6 +55,14 @@ describe("parseObservableExpression", () => {
         horizonTradingDays: 10,
       });
     });
+
+    test("parses dotted exchange suffix symbols", () => {
+      expect(parseObservableExpression("close(RR.L, +5) > close(RR.L, 0)")).toEqual({
+        kind: "direction",
+        subject: "RR.L",
+        horizonTradingDays: 5,
+      });
+    });
   });
 
   describe("relative", () => {
@@ -67,6 +75,19 @@ describe("parseObservableExpression", () => {
         kind: "relative",
         subjectA: "QQQ",
         subjectB: "SPY",
+        horizonTradingDays: 5,
+      });
+    });
+
+    test("parses dotted primary symbols", () => {
+      expect(
+        parseObservableExpression(
+          "close(RR.L, +5) / close(RR.L, 0) > close(QQQ, +5) / close(QQQ, 0)",
+        ),
+      ).toEqual({
+        kind: "relative",
+        subjectA: "RR.L",
+        subjectB: "QQQ",
         horizonTradingDays: 5,
       });
     });
@@ -110,6 +131,16 @@ describe("parseObservableExpression", () => {
         horizonTradingDays: 5,
         lo: 1800.5,
         hi: 2200,
+      });
+    });
+
+    test("parses dotted symbols", () => {
+      expect(parseObservableExpression("close(RR.L, +5) outside [1360, 1460]")).toEqual({
+        kind: "range",
+        subject: "RR.L",
+        horizonTradingDays: 5,
+        lo: 1360,
+        hi: 1460,
       });
     });
   });
@@ -199,6 +230,12 @@ describe("parseObservableExpression", () => {
 
     test("throws on bare-dot numeric token", () => {
       expect(() => parseObservableExpression("max(close(^VIX), 0..+5) > .")).toThrow(
+        "Cannot parse measurableAs",
+      );
+    });
+
+    test("throws on double-dot symbol", () => {
+      expect(() => parseObservableExpression("close(SPY..QQQ, +5) > close(SPY..QQQ, 0)")).toThrow(
         "Cannot parse measurableAs",
       );
     });
@@ -377,9 +414,14 @@ describe("instrumentsForMeasurableAs", () => {
       readonly expected: readonly string[];
     }[] = [
       { measurableAs: "close(SPY, +5) > close(SPY, 0)", expected: ["SPY"] },
+      { measurableAs: "close(RR.L, +5) > close(RR.L, 0)", expected: ["RR.L"] },
       {
         measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
         expected: ["QQQ", "SPY"],
+      },
+      {
+        measurableAs: "close(RR.L, +5) / close(RR.L, 0) > close(QQQ, +5) / close(QQQ, 0)",
+        expected: ["RR.L", "QQQ"],
       },
       { measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)", expected: ["FRED:DGS10"] },
       {

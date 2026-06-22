@@ -50,6 +50,9 @@ export type { CalibrationContext, DepthProfile, EvidenceRequestContext, Research
 // Deterministic source gaps — disclosed in the prompt and in the final report
 // ---------------------------------------------------------------------------
 
+export const EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP =
+  "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener";
+
 export function deterministicSourceGaps(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -71,7 +74,7 @@ export function deterministicSourceGaps(
     marketUpdateHorizon !== undefined && marketUpdateHorizon > 5
       ? [
           command.assetClass === "equity"
-            ? "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener"
+            ? EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP
             : "Market overview crypto mover data uses CoinGecko 24h change fields; trailing horizon mover changes are not available in the current source payload",
         ]
       : [];

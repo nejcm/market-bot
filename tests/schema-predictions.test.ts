@@ -572,6 +572,25 @@ describe("allowedSubjects enforcement (3.1 — context-aware subject gate)", () 
     expect(result.errors).toHaveLength(0);
   });
 
+  test("accepts a dotted ticker prediction whose subject is in the allowed set", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-rrl",
+          subject: "RR.L",
+          measurableAs: "close(RR.L, +5) > close(RR.L, 0)",
+        },
+      ],
+      knownIds,
+      new Set(["RR.L"]),
+    );
+
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.subject).toBe("RR.L");
+    expect(result.errors).toHaveLength(0);
+  });
+
   test("accepts a macro prediction whose subject is a FRED series in the allowed set", () => {
     const result = validatePredictions(
       [
@@ -607,6 +626,26 @@ describe("allowedSubjects enforcement (3.1 — context-aware subject gate)", () 
       tickerAllowed,
     );
     expect(result.valid).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("accepts and normalizes a dotted ticker relative forecast", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-rrl-rel",
+          kind: "relative",
+          subject: "RR.L",
+          measurableAs: "close(RR.L, +5) / close(RR.L, 0) > close(QQQ, +5) / close(QQQ, 0)",
+        },
+      ],
+      knownIds,
+      new Set(["RR.L"]),
+    );
+
+    expect(result.valid).toHaveLength(1);
+    expect(result.valid[0]?.subject).toBe("RR.L:QQQ");
     expect(result.errors).toHaveLength(0);
   });
 

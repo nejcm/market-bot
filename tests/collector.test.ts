@@ -448,6 +448,90 @@ describe("collectSources", () => {
     });
   });
 
+  test("marks optional news provider fetch failures as no-cap news gaps", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("screener")) {
+        return jsonResponse({
+          finance: {
+            result: [
+              {
+                quotes: [
+                  {
+                    symbol: "ROKU",
+                    shortName: "Roku Inc",
+                    regularMarketPrice: 80,
+                    regularMarketChangePercent: 20,
+                    regularMarketVolume: 15_000_000,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("quote")) {
+        return jsonResponse({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "SPY",
+                regularMarketPrice: 510,
+                regularMarketChangePercent: 0.4,
+                regularMarketVolume: 70_000_000,
+              },
+            ],
+          },
+        });
+      }
+
+      if (url.includes("marketaux") || url.includes("finnhub")) {
+        return new Response("forbidden", { status: 403 });
+      }
+
+      return jsonResponse({
+        news: [
+          {
+            title: "Roku ad demand improves",
+            link: "https://example.test/roku-name",
+            publisher: "Example",
+            providerPublishTime: 1_779_120_000,
+          },
+        ],
+      });
+    };
+
+    const result = await collectSources(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        equityMoverLimit: 1,
+        cryptoMoverLimit: 2,
+        newsLimit: 3,
+        sourceTimeoutMs: 1000,
+        marketauxApiToken: "marketaux-token",
+        finnhubApiToken: "finnhub-token",
+      },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      [],
+    );
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.sourceGaps.find((gap) => gap.source === "marketaux-news")).toMatchObject({
+      provider: "marketaux",
+      capability: "news",
+      cause: "fetch-failed",
+      evidenceQualityImpact: "no-cap",
+    });
+    expect(result.sourceGaps.find((gap) => gap.source === "finnhub-news")).toMatchObject({
+      provider: "finnhub",
+      capability: "news",
+      cause: "fetch-failed",
+      evidenceQualityImpact: "no-cap",
+    });
+  });
+
   test("respects news limit when selecting mover-relevant headlines", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -2315,7 +2399,11 @@ describe("collectSources", () => {
     expect(marketAuxCalls).toBe(1);
     const circuitGap = second.sourceGaps.find((gap) => gap.cause === "circuit-open");
     expect(circuitGap?.message).toContain("circuit open");
-    expect(circuitGap?.evidenceQualityImpact).toBe("core-cap");
+    expect(circuitGap).toMatchObject({
+      provider: "marketaux",
+      capability: "news",
+      evidenceQualityImpact: "no-cap",
+    });
   });
 
   test("rejects invalid test host delay overrides", () => {

@@ -38,7 +38,7 @@ export type {
   PointObservationRequest,
 } from "./observable-types";
 
-const SYMBOL = String.raw`([\w\^]+(?::[.\w]+)*)`;
+const SYMBOL = String.raw`([\w\^]+(?:\.[\w]+)*(?::[.\w]+)*)`;
 const N = String.raw`(\d+)`;
 const NUM = String.raw`(-?\d+(?:\.\d+)?)`;
 

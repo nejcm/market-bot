@@ -147,6 +147,127 @@ describe("addFinancialLensEvidence", () => {
     expect(result.extendedEvidence?.gaps).toEqual(result.sourceGaps);
   });
 
+  test("reports insufficient-data, not criteria-not-supported, when SEC inputs are absent", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+      { instrument: { symbol: "AAPL", assetClass: "equity" }, items: [], gaps: [] },
+      undefined,
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const postureByName = Object.fromEntries(
+      (result.artifact?.lenses ?? []).map((lens) => [lens.name, lens.posture]),
+    );
+    expect(postureByName.Quality).toBe("insufficient-data");
+    expect(postureByName.Growth).toBe("insufficient-data");
+    expect(postureByName["Financial Strength"]).toBe("insufficient-data");
+    expect(postureByName.Value).toBe("insufficient-data");
+    expect(postureByName.Momentum).toBe("insufficient-data");
+  });
+
+  test("formats ratio margins and whole-percent deltas without guessing the scale", () => {
+    const partialPercents: ExtendedEvidence = {
+      ...evidence(),
+      items: evidence().items.map((item) =>
+        item.category === "sec-edgar"
+          ? {
+              ...item,
+              // Here 0.5 means +0.5% YoY: must render as 0.5%, never 50.0%.
+              metrics: { ...item.metrics, revenueDeltaPercent: 0.5 },
+            }
+          : item,
+      ),
+    };
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      partialPercents,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+    const lenses = Object.fromEntries(
+      (result.artifact?.lenses ?? []).map((lens) => [lens.name, lens]),
+    );
+
+    // Gross margin = 42/100 = 0.42 (ratio) -> 42.0%
+    expect(lenses.Quality?.metrics.find((m) => m.key === "grossMargin")).toMatchObject({
+      unit: "ratio-percent",
+    });
+    expect(
+      result.extendedEvidence?.items.find((i) => i.category === "financial-lens")?.summary,
+    ).toContain("Gross margin 42.0%");
+    // Revenue YoY = 0.5 (already whole-percent) -> 0.5%
+    expect(lenses.Growth?.metrics.find((m) => m.key === "revenueDeltaPercent")).toMatchObject({
+      unit: "whole-percent",
+    });
+    expect(
+      result.extendedEvidence?.items.find((i) => i.category === "financial-lens")?.summary,
+    ).toContain("Revenue YoY 0.5%");
+  });
+
+  test("returns evidence unchanged for non-equity / non-ticker commands", () => {
+    const overviewCommand = {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "deep",
+      horizonTradingDays: 5,
+    } as const;
+    const existing = evidence();
+    const result = addFinancialLensEvidence(
+      overviewCommand,
+      [],
+      existing,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(result.artifact).toBeUndefined();
+    expect(result.sourceGaps).toEqual([]);
+    expect(result.extendedEvidence).toBe(existing);
+  });
+
+  test("returns evidence unchanged for non-equity ticker commands", () => {
+    const cryptoCommand = {
+      jobType: "ticker",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+    } as const;
+    const existing = evidence();
+    const result = addFinancialLensEvidence(
+      cryptoCommand,
+      [],
+      existing,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(result.artifact).toBeUndefined();
+    expect(result.extendedEvidence).toBe(existing);
+  });
+
+  test("derives momentum posture from partial indicators", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      evidence(),
+      verifiedSnapshot({
+        indicators: {
+          ...verifiedSnapshot().indicators,
+          sma50: 180,
+          sma200: undefined as unknown as number,
+        },
+      }),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
+    // Close > sma50 and rsi in band and macd>=0 are known; sma50/sma200 cross is unknown.
+    expect(momentum?.posture).toBe("criteria-supported");
+    expect(momentum?.metrics.find((m) => m.key === "sma200")).toBeUndefined();
+  });
+
   test("renders financial lens evidence in ticker markdown with citations", () => {
     const result = addFinancialLensEvidence(
       command,

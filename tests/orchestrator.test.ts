@@ -1966,7 +1966,7 @@ describe("runResearchJob", () => {
                   key: "grossMargin",
                   label: "Gross margin",
                   value: 0.4,
-                  unit: "percent",
+                  unit: "ratio-percent",
                   sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
                 },
               ],

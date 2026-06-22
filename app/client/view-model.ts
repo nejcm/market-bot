@@ -291,9 +291,14 @@ export function valuationMetricTiles(
   });
 }
 
-function formatFinancialLensPercent(value: number): string {
-  const percent = Math.abs(value) > 1 ? value : value * 100;
-  return `${percent.toFixed(1)}%`;
+// Margins and *-to-market-cap ratios are stored as ratios (0.42 → 42%).
+function formatRatioPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+// SEC YoY deltas are already in whole-percent form (12 → 12%).
+function formatWholePercent(value: number): string {
+  return `${value.toFixed(1)}%`;
 }
 
 function formatPosture(value: string): string {
@@ -333,14 +338,11 @@ export function financialLensMetricTiles(
     if (typeof raw !== "number" || !Number.isFinite(raw)) {
       return [];
     }
-    if (
-      key === "grossMargin" ||
-      key === "netMargin" ||
-      key === "revenueDeltaPercent" ||
-      key === "operatingIncomeDeltaPercent" ||
-      key === "debtToMarketCap"
-    ) {
-      return [{ label, value: formatFinancialLensPercent(raw) }];
+    if (key === "grossMargin" || key === "netMargin" || key === "debtToMarketCap") {
+      return [{ label, value: formatRatioPercent(raw) }];
+    }
+    if (key === "revenueDeltaPercent" || key === "operatingIncomeDeltaPercent") {
+      return [{ label, value: formatWholePercent(raw) }];
     }
     if (key === "freeCashFlowProxy") {
       return [{ label, value: formatUsdCompact(raw) }];

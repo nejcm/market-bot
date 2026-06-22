@@ -1223,6 +1223,20 @@ describe("report artifact parsers", () => {
     ]);
   });
 
+  test("formats sub-1 percent values by convention, not by magnitude", () => {
+    const tiles = financialLensMetricTiles({
+      // Ratio convention: 0.005 -> 0.5%
+      grossMargin: 0.005,
+      // Whole-percent convention: 0.5 means +0.5% YoY, must stay 0.5% (never 50.0%)
+      revenueDeltaPercent: 0.5,
+    });
+
+    expect(tiles).toEqual([
+      { label: "Gross margin", value: "0.5%" },
+      { label: "Revenue YoY", value: "0.5%" },
+    ]);
+  });
+
   test("indexes extended evidence metrics in search candidates", () => {
     const candidates = reportSearchCandidates({
       extendedEvidence: {

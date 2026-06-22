@@ -472,6 +472,26 @@ describe("resolveResearchConsoleConfig", () => {
     expect(config.chat.historyTurnCap).toBe(10);
   });
 
+  test("chat webSearch defaults to true when env var is not set", () => {
+    const config = resolveResearchConsoleConfig({});
+    expect(config.chat.webSearch).toBe(true);
+  });
+
+  test("chat webSearch can be disabled with MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH=false", () => {
+    const config = resolveResearchConsoleConfig({ MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH: "false" });
+    expect(config.chat.webSearch).toBe(false);
+  });
+
+  test("chat webSearch can be disabled with MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH=0", () => {
+    const config = resolveResearchConsoleConfig({ MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH: "0" });
+    expect(config.chat.webSearch).toBe(false);
+  });
+
+  test("chat webSearch stays true when explicitly set to true", () => {
+    const config = resolveResearchConsoleConfig({ MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH: "true" });
+    expect(config.chat.webSearch).toBe(true);
+  });
+
   test("rejects invalid console port", () => {
     expect(() => resolveResearchConsoleConfig({ MARKET_BOT_CONSOLE_PORT: "0" })).toThrow(
       "Expected positive integer",

@@ -107,6 +107,7 @@ export interface RunChatConfig {
   readonly contextBudgetChars: number;
   readonly maxOutputTokens: number;
   readonly historyTurnCap: number;
+  readonly webSearch: boolean;
 }
 
 export interface ResearchConsoleConfig {
@@ -626,6 +627,11 @@ function resolveRunChatConfig(env: Record<string, string | undefined>): RunChatC
       env.MARKET_BOT_CONSOLE_CHAT_HISTORY_TURNS,
       DEFAULT_CHAT_HISTORY_TURNS,
     ),
+    // Default ON: explicitly set to "0" or "false" to disable.
+    webSearch:
+      env.MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH === undefined
+        ? true
+        : readBoolean(env.MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH),
   };
 }
 

@@ -30,6 +30,7 @@ function defaultChatConfig(overrides: Partial<RunChatConfig> = {}): RunChatConfi
     contextBudgetChars: 96_000,
     maxOutputTokens: 1500,
     historyTurnCap: 20,
+    webSearch: false,
     ...overrides,
   };
 }
@@ -325,6 +326,94 @@ describe("chat endpoint", () => {
     expect(response).not.toBeUndefined();
     expect(response!.status).toBe(502);
     expect(await response!.text()).toContain("Provider unavailable");
+  });
+
+  test("enables web search on codex provider when chatConfig.webSearch is true", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-ws-"));
+    setupRunDir(dataDir, "run-ws-codex");
+
+    const captured = { webSearch: false as boolean | undefined, systemContent: "" };
+    const codexProvider: ModelProvider = {
+      name: "codex",
+      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+        captured.webSearch = req.webSearch;
+        captured.systemContent = req.messages[0]?.content ?? "";
+        return { content: "searched", tokenEstimate: 10, costEstimateUsd: 0 };
+      },
+    };
+
+    const request = chatRequest("run-ws-codex", [{ role: "user", content: "latest news?" }]);
+    const url = new URL(request.url);
+    await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, {
+        provider: codexProvider,
+        chatConfig: defaultChatConfig({ webSearch: true }),
+      }),
+    );
+
+    expect(captured.webSearch).toBe(true);
+    expect(captured.systemContent).toContain("Web search");
+    expect(captured.systemContent).toContain("live web lookup");
+  });
+
+  test("does not enable web search on non-codex provider even when chatConfig.webSearch is true", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-ws-"));
+    setupRunDir(dataDir, "run-ws-openai");
+
+    const captured = { webSearch: false as boolean | undefined, systemContent: "" };
+    const openaiProvider: ModelProvider = {
+      name: "openai",
+      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+        captured.webSearch = req.webSearch;
+        captured.systemContent = req.messages[0]?.content ?? "";
+        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+      },
+    };
+
+    const request = chatRequest("run-ws-openai", [{ role: "user", content: "latest news?" }]);
+    const url = new URL(request.url);
+    await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, {
+        provider: openaiProvider,
+        chatConfig: defaultChatConfig({ webSearch: true }),
+      }),
+    );
+
+    expect(captured.webSearch).toBeFalsy();
+    expect(captured.systemContent).not.toContain("Web search");
+  });
+
+  test("does not enable web search when chatConfig.webSearch is false", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-ws-"));
+    setupRunDir(dataDir, "run-ws-off");
+
+    const captured = { webSearch: false as boolean | undefined, systemContent: "" };
+    const codexProvider: ModelProvider = {
+      name: "codex",
+      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+        captured.webSearch = req.webSearch;
+        captured.systemContent = req.messages[0]?.content ?? "";
+        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+      },
+    };
+
+    const request = chatRequest("run-ws-off", [{ role: "user", content: "hi" }]);
+    const url = new URL(request.url);
+    await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, {
+        provider: codexProvider,
+        chatConfig: defaultChatConfig({ webSearch: false }),
+      }),
+    );
+
+    expect(captured.webSearch).toBeFalsy();
+    expect(captured.systemContent).not.toContain("Web search");
   });
 });
 

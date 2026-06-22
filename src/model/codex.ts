@@ -257,6 +257,11 @@ export function createCodexProvider(
         ...(request.params?.reasoningEffort !== undefined
           ? ["-c", `model_reasoning_effort=${request.params.reasoningEffort}`]
           : []),
+        // Enable live web search when explicitly requested (chat path only).
+        // Sets live mode so fresh network fetches are used over the default cached snapshot.
+        ...(request.webSearch === true
+          ? ["-c", "tools.web_search=true", "-c", "web_search=live"]
+          : []),
         "-",
       ];
 

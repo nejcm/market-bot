@@ -19,6 +19,7 @@ export interface ModelRequest {
   readonly model: string;
   readonly messages: readonly ModelMessage[];
   readonly responseFormat?: "json";
+  readonly webSearch?: boolean;
   readonly params?: ModelParams;
 }
 

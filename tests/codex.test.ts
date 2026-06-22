@@ -322,6 +322,67 @@ describe("createCodexProvider — generate", () => {
     expect(capturedArgs[0]).not.toContain("-c");
   });
 
+  test("passes web search config args when webSearch is true", async () => {
+    const capturedArgs: string[][] = [];
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      capturedArgs.push(args);
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+    const provider = createCodexProvider(baseConfig, spawn);
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+      webSearch: true,
+    });
+
+    const args = capturedArgs[0] ?? [];
+    expect(args).toContain("-c");
+    // Must pass both enable flag and live mode.
+    const webSearchIdx = args.indexOf("tools.web_search=true");
+    expect(webSearchIdx).toBeGreaterThan(-1);
+    expect(args[webSearchIdx - 1]).toBe("-c");
+    const liveModeIdx = args.indexOf("web_search=live");
+    expect(liveModeIdx).toBeGreaterThan(-1);
+    expect(args[liveModeIdx - 1]).toBe("-c");
+  });
+
+  test("omits web search args when webSearch is false or unset", async () => {
+    const capturedArgs: string[][] = [];
+    const spawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      capturedArgs.push(args);
+      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
+    };
+    const provider = createCodexProvider(baseConfig, spawn);
+    // Explicit false
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+      webSearch: false,
+    });
+    // Unset (undefined)
+    await provider.generate({
+      model: "gpt-5.4-mini",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    for (const args of capturedArgs) {
+      expect(args).not.toContain("tools.web_search=true");
+      expect(args).not.toContain("web_search=live");
+    }
+  });
+
   test("ignores non-reasoningEffort params (temperature etc.) silently", async () => {
     const capturedArgs: string[][] = [];
     const spawn: SpawnImpl = async (args) => {

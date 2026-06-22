@@ -113,6 +113,18 @@ async function loadSystemPrompt(promptPath: string): Promise<string> {
   }
 }
 
+// Appended to the system prompt only when live web search is active (codex only).
+// Web findings are ephemeral conversational context — not persisted Sources/Evidence.
+const WEB_SEARCH_GUIDANCE = `
+# Web search
+
+You have access to live web search. Use it **only** when the run artifacts above do not contain sufficient information to answer the question. Prefer artifact-grounded answers at all times.
+
+When you do consult the web:
+- Cite the URL and title of each source inline (e.g. "According to [Title](URL), ...").
+- Make clear when a claim comes from a live web lookup rather than the run's artifacts.
+- Web findings are ephemeral context for this conversation only — they are not persisted research Sources and do not affect scored predictions or evidence quality.`.trimStart();
+
 export async function handleRunChat(
   request: Request,
   url: URL,
@@ -165,13 +177,20 @@ export async function handleRunChat(
       ? `${systemPrompt}\n\n# Run artifacts\n\n${contextBlock}`
       : systemPrompt;
 
+  // Web search is opt-in and restricted to the codex provider only.
+  const webSearchActive = deps.chatConfig.webSearch && deps.provider.name === "codex";
+  const finalSystemContent = webSearchActive
+    ? `${systemContent}\n\n${WEB_SEARCH_GUIDANCE}`
+    : systemContent;
+
   const model = deps.chatConfig.model ?? deps.provider.name;
-  const messages: ModelMessage[] = [{ role: "system", content: systemContent }, ...history];
+  const messages: ModelMessage[] = [{ role: "system", content: finalSystemContent }, ...history];
 
   try {
     const response = await deps.provider.generate({
       model,
       messages,
+      webSearch: webSearchActive,
       params: { max_completion_tokens: deps.chatConfig.maxOutputTokens },
     });
 

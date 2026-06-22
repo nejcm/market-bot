@@ -78,7 +78,11 @@ conversation are **ephemeral conversational context**. They:
 - Are never assigned an ID.
 - Never become domain *Sources*.
 - Never touch Evidence Lanes, Evidence Quality, or prediction scoring.
-- Disappear when the conversation ends.
+- Are never written to disk under `data/runs/` and never re-enter a research run.
+
+(The chat transcript itself may remain in the browser's `localStorage` so a
+conversation survives reloads — see `app/client/components/run-chat-storage.ts` — but
+that is browser-local UI state, not a server-side artifact or a Source.)
 
 The terms *Source*, *Evidence*, *Evidence Lane*, and *Source Provider* retain their
 glossary meanings (CONTEXT.md) and are unaffected by this feature.
@@ -95,6 +99,11 @@ glossary meanings (CONTEXT.md) and are unaffected by this feature.
 - Live web fetches introduce a network dependency inside an otherwise local-only chat
   path. The kill-switch (`MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH=false`) disables this
   if unwanted.
-- The exact codex config key form (`tools.web_search`, `web_search`) should be
-  verified against the installed codex version if behaviour is unexpected — these
-  keys have changed across codex CLI releases.
+- Both `-c` keys we pass (`tools.web_search=true` and `web_search=live`) are
+  recognized config fields in codex 0.141.0, verified via `codex exec --strict-config`
+  (which rejects unknown fields). `tools.web_search=true` activates the tool and
+  `web_search=live` selects live mode over the cached default; passing both yields
+  "enabled + live" regardless of which key drives which. The interactive `--search`
+  flag is TUI-only and cannot be used in `codex exec`. These config keys have changed
+  across codex releases, so re-verify with `--strict-config` if a future codex upgrade
+  changes web-search behaviour.

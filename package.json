@@ -35,7 +35,7 @@
     "fmt:staged": "oxfmt",
     "fmt:check": "oxfmt --check src tests scripts app/*.ts app/client",
     "commitlint": "commitlint",
-    "knip": "knip",
+    "knip": "knip --production",
     "audit": "bun audit --audit-level=high",
     "check": "bun run lint && bun run fmt:check && bun run typecheck && bun test"
   },

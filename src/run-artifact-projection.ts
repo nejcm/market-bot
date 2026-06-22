@@ -1,8 +1,9 @@
 import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } from "../app/types";
+import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
 import { isRecord, parseStringArrayJson } from "./sources/guards";
 
-const SCORE_FILE = "score.json";
+const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SNIPPET_RADIUS = 72;
 
 export interface ReportSearchCandidateProjection {

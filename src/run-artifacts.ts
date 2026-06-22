@@ -27,6 +27,7 @@ import {
   isSourceGapEvidenceQualityImpact,
 } from "./domain/source-gaps";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
+import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type {
   MissAutopsyCause,
   MissAutopsyEntry,
@@ -788,14 +789,14 @@ function scoreStatusFor(
   return parsed === undefined ? "malformed" : "ok";
 }
 
-const REPORT_FILE = "report.json";
-const SCORE_FILE = "score.json";
-const MISS_AUTOPSY_FILE = "miss-autopsy.json";
-const MARKET_SNAPSHOTS_FILE = join("normalized", "market-snapshots.json");
-const VERIFIED_MARKET_SNAPSHOT_FILE = join("normalized", "verified-market-snapshot.json");
-const SOURCE_PLAN_FILE = join("normalized", "source-plan.json");
-const EVIDENCE_LANES_FILE = join("normalized", "evidence-lanes.json");
-const SOURCE_LEDGER_FILE = join("normalized", "source-ledger.json");
+const REPORT_FILE = RUN_ARTIFACT_FILES.report;
+const SCORE_FILE = RUN_ARTIFACT_FILES.score;
+const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
+const MARKET_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.marketSnapshots;
+const VERIFIED_MARKET_SNAPSHOT_FILE = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
+const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
+const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
+const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical

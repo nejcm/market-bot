@@ -24,13 +24,14 @@ import {
   runSummaryMatchesFilters,
 } from "../src/run-artifact-projection";
 import { loadRunArtifact } from "../src/run-artifacts";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
-const REPORT_FILE = "report.json";
-const MARKDOWN_FILE = "report.md";
-const ANALYTICS_FILE = "analytics.json";
-const TRACE_FILE = "trace.json";
-const SCORE_FILE = "score.json";
-const MISS_AUTOPSY_FILE = "miss-autopsy.json";
+const REPORT_FILE = RUN_ARTIFACT_FILES.report;
+const MARKDOWN_FILE = RUN_ARTIFACT_FILES.reportMarkdown;
+const ANALYTICS_FILE = RUN_ARTIFACT_FILES.analytics;
+const TRACE_FILE = RUN_ARTIFACT_FILES.trace;
+const SCORE_FILE = RUN_ARTIFACT_FILES.score;
+const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const PROVIDER_HEALTH_DIR = "provider-health";
 const CALIBRATION_DIR = "calibration";
 const ALPHA_SEARCH_DIR = "alpha-search";

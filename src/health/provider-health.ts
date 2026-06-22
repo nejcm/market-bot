@@ -16,6 +16,7 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, numberAt } from "../sources/guards";
 import {
   buildValidation,
@@ -25,10 +26,10 @@ import {
 
 export type { ValidationCoverageItem, ValidationRouteClassification } from "./validation";
 
-const SOURCE_GAPS_FILE = "source-gaps.json";
-const REPORT_FILE = "report.json";
-const ANALYTICS_FILE = "analytics.json";
-const SCORE_FILE = "score.json";
+const SOURCE_GAPS_FILE = RUN_ARTIFACT_FILES.sourceGaps;
+const REPORT_FILE = RUN_ARTIFACT_FILES.report;
+const ANALYTICS_FILE = RUN_ARTIFACT_FILES.analytics;
+const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SAMPLE_MESSAGE_LIMIT = 3;
 
 type IssueClass = "missingCredential" | "fetchFailed" | "yahooAuth" | "other";
@@ -302,7 +303,7 @@ async function loadRunHealth(runDir: string): Promise<RunHealth> {
   const analyticsRaw = await readJson(join(runDir, ANALYTICS_FILE));
   const analytics = isRecord(analyticsRaw) ? analyticsRaw : undefined;
   const score = parseScoreCounts(await readJson(join(runDir, SCORE_FILE)));
-  const sourceGaps = parseSourceGaps(await readJson(join(runDir, "normalized", SOURCE_GAPS_FILE)));
+  const sourceGaps = parseSourceGaps(await readJson(join(runDir, SOURCE_GAPS_FILE)));
   const generatedAt = stringValue(report.generatedAt);
   const symbol = stringValue(report.symbol);
   const depth = depthFrom(report, analytics);

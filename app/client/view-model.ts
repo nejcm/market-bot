@@ -531,10 +531,16 @@ export interface SnapshotClose {
   readonly close: number;
 }
 
+export interface SnapshotOhlcv {
+  readonly date: string;
+  readonly close: number;
+}
+
 export interface SnapshotView {
   readonly symbol: string;
   readonly analysisDate?: string;
   readonly latestSessionDate?: string;
+  readonly ohlcv?: SnapshotOhlcv;
   readonly indicators: Readonly<Record<string, number>>;
   readonly recentCloses: readonly SnapshotClose[];
 }
@@ -565,13 +571,29 @@ export function verifiedSnapshotValue(value: unknown): SnapshotView | undefined 
   const analysisDate = typeof record.analysisDate === "string" ? record.analysisDate : undefined;
   const latestSessionDate =
     typeof record.latestSessionDate === "string" ? record.latestSessionDate : undefined;
+  const ohlcv = snapshotOhlcv(record.ohlcv);
   return {
     symbol,
     ...(analysisDate !== undefined ? { analysisDate } : {}),
     ...(latestSessionDate !== undefined ? { latestSessionDate } : {}),
+    ...(ohlcv !== undefined ? { ohlcv } : {}),
     indicators: snapshotIndicators(record.indicators),
     recentCloses,
   };
+}
+
+export function tradingViewSymbol(symbol: string, exchange?: string): string {
+  const cleanSymbol = symbol.trim().toUpperCase();
+  const cleanExchange = exchange?.trim().toUpperCase();
+  return cleanExchange === undefined || cleanExchange === ""
+    ? cleanSymbol
+    : `${cleanExchange}:${cleanSymbol}`;
+}
+
+export function tradingViewUrl(symbol: string, exchange?: string): string {
+  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(
+    tradingViewSymbol(symbol, exchange),
+  )}`;
 }
 
 export function instrumentPath(assetClass: string, symbol: string): string {
@@ -625,6 +647,18 @@ function snapshotCloses(value: unknown): readonly SnapshotClose[] {
       ? [{ date: record.date, close }]
       : [];
   });
+}
+
+function snapshotOhlcv(value: unknown): SnapshotOhlcv | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const close = readFiniteNumber(record.close);
+  return typeof record.date === "string" && close !== undefined
+    ? { date: record.date, close }
+    : undefined;
 }
 
 function snapshotIndicators(value: unknown): Readonly<Record<string, number>> {

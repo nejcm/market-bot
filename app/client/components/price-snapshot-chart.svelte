@@ -1,9 +1,20 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import {
-    closeLinePoints,
-    formatClose,
-    type SnapshotView,
-  } from "../view-model";
+    ColorType,
+    CrosshairMode,
+    LineSeries,
+    LineStyle,
+    createChart,
+    createSeriesMarkers,
+    type IChartApi,
+    type ISeriesApi,
+    type ISeriesMarkersPluginApi,
+    type LineData,
+    type SeriesMarker,
+    type Time,
+  } from "lightweight-charts";
+  import { formatClose, type SnapshotView } from "../view-model";
 
   interface Props {
     readonly snapshot: SnapshotView;
@@ -12,20 +23,11 @@
 
   let { snapshot, horizons }: Props = $props();
 
-  const WIDTH = 720;
-  const HEIGHT = 240;
-  const PADDING_LEFT = 56;
-  const PADDING_RIGHT = 64;
-  const PADDING_TOP = 18;
-  const PADDING_BOTTOM = 28;
-  const DATE_TICK_EVERY = 5;
+  const CHART_HEIGHT = 260;
   const MAX_HORIZON_TICKS = 4;
 
-  const plotWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
-  const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
-  const baselineY = HEIGHT - PADDING_BOTTOM;
-
   const GUIDE_KEYS = [
+    { key: "ema10", label: "ema10" },
     { key: "sma50", label: "sma50" },
     { key: "sma200", label: "sma200" },
     { key: "bollUpper", label: "boll+" },
@@ -42,58 +44,24 @@
     { key: "sma200", label: "SMA 200" },
   ] as const;
 
-  const points = $derived(
-    closeLinePoints(snapshot.recentCloses, PADDING_LEFT, plotWidth, PADDING_TOP, plotHeight),
+  let chartEl = $state<HTMLDivElement>();
+  let chart: IChartApi | null = null;
+  let lineSeries: ISeriesApi<"Line"> | null = null;
+  let seriesMarkers: ISeriesMarkersPluginApi<Time> | null = null;
+  let observer: ResizeObserver | null = null;
+
+  const lineData = $derived<readonly LineData<Time>[]>(
+    snapshot.recentCloses.map((entry) => ({ time: entry.date, value: entry.close })),
   );
-  const pathData = $derived(
-    points
-      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-      .join(" "),
+  const lastClose = $derived(snapshot.recentCloses.at(-1));
+  const lastCloseLabel = $derived(
+    lastClose === undefined ? "n/a" : `${lastClose.date} close ${formatClose(lastClose.close)}`,
   );
-  const lastPoint = $derived(points.at(-1));
-  const minClose = $derived(Math.min(...snapshot.recentCloses.map((entry) => entry.close)));
-  const maxClose = $derived(Math.max(...snapshot.recentCloses.map((entry) => entry.close)));
-
-  function yForValue(value: number): number | undefined {
-    if (value < minClose || value > maxClose || maxClose === minClose) {
-      return undefined;
-    }
-
-    return PADDING_TOP + ((maxClose - value) / (maxClose - minClose)) * plotHeight;
-  }
-
-  const guides = $derived(
-    GUIDE_KEYS.flatMap((guide) => {
-      const value = snapshot.indicators[guide.key];
-      if (value === undefined) {
-        return [];
-      }
-
-      const y = yForValue(value);
-      return y === undefined ? [] : [{ ...guide, value, y }];
-    }),
+  const latestSessionLabel = $derived(
+    snapshot.ohlcv === undefined
+      ? lastCloseLabel
+      : `${snapshot.ohlcv.date} OHLC close ${formatClose(snapshot.ohlcv.close)}`,
   );
-
-  const dateTicks = $derived(
-    points.filter(
-      (_, index) => index % DATE_TICK_EVERY === 0 || index === points.length - 1,
-    ),
-  );
-
-  const horizonTicks = $derived.by(() => {
-    const last = points.at(-1);
-    if (last === undefined || horizons.length === 0) {
-      return [];
-    }
-
-    const shown = horizons.slice(0, MAX_HORIZON_TICKS);
-    const maxHorizon = shown.at(-1) ?? 1;
-    const extension = WIDTH - 8 - last.x;
-    return shown.map((horizon) => ({
-      horizon,
-      x: last.x + (horizon / maxHorizon) * extension,
-    }));
-  });
 
   const tiles = $derived(
     INDICATOR_TILES.flatMap((tile) => {
@@ -101,100 +69,132 @@
       return value === undefined ? [] : [{ ...tile, value }];
     }),
   );
+
+  const guideRows = $derived(
+    GUIDE_KEYS.flatMap((guide) => {
+      const value = snapshot.indicators[guide.key];
+      return value === undefined ? [] : [{ ...guide, value }];
+    }),
+  );
+
+  const shownHorizons = $derived(horizons.slice(0, MAX_HORIZON_TICKS));
+
+  function markerForLastClose(): readonly SeriesMarker<Time>[] {
+    if (lastClose === undefined) {
+      return [];
+    }
+
+    return [
+      {
+        time: lastClose.date,
+        position: "inBar",
+        color: "#166e7d",
+        shape: "circle",
+        text: formatClose(lastClose.close),
+      },
+    ];
+  }
+
+  function updateChart(): void {
+    if (chart === null || lineSeries === null) {
+      return;
+    }
+
+    lineSeries.setData([...lineData]);
+    seriesMarkers?.setMarkers([...markerForLastClose()]);
+    chart.timeScale().fitContent();
+  }
+
+  onMount(() => {
+    if (chartEl === undefined) {
+      return;
+    }
+
+    chart = createChart(chartEl, {
+      autoSize: true,
+      height: CHART_HEIGHT,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#5c6066",
+      },
+      grid: {
+        vertLines: { color: "#f0ede7" },
+        horzLines: { color: "#f0ede7" },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
+      rightPriceScale: {
+        borderColor: "#d7e6e8",
+      },
+      timeScale: {
+        borderColor: "#d7e6e8",
+        timeVisible: false,
+      },
+    });
+
+    lineSeries = chart.addSeries(LineSeries, {
+      color: "#166e7d",
+      lineWidth: 2,
+      lastValueVisible: true,
+      priceLineVisible: true,
+    });
+
+    for (const guide of guideRows) {
+      lineSeries.createPriceLine({
+        price: guide.value,
+        color: "#c4942e",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: guide.label,
+      });
+    }
+
+    seriesMarkers = createSeriesMarkers(lineSeries, []);
+    observer = new ResizeObserver(() => chart?.timeScale().fitContent());
+    observer.observe(chartEl);
+    updateChart();
+
+    return () => {
+      observer?.disconnect();
+      chart?.remove();
+      chart = null;
+      lineSeries = null;
+      seriesMarkers = null;
+    };
+  });
+
+  $effect(() => {
+    updateChart();
+  });
 </script>
 
-<svg
-  class="mt-3 h-[240px] w-full"
-  viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-  role="img"
-  aria-label="Recent closes for {snapshot.symbol}"
->
-  <g stroke="currentColor" class="text-border">
-    <line x1={PADDING_LEFT} x2={WIDTH - 8} y1={baselineY} y2={baselineY} />
-    <line
-      x1={PADDING_LEFT}
-      x2={WIDTH - 8}
-      y1={PADDING_TOP}
-      y2={PADDING_TOP}
-      opacity="0.35"
-    />
-  </g>
-  <text
-    x={PADDING_LEFT - 8}
-    y={PADDING_TOP + 4}
-    text-anchor="end"
-    class="fill-muted-foreground font-mono text-[10px]"
-  >
-    {formatClose(maxClose)}
-  </text>
-  <text
-    x={PADDING_LEFT - 8}
-    y={baselineY + 4}
-    text-anchor="end"
-    class="fill-muted-foreground font-mono text-[10px]"
-  >
-    {formatClose(minClose)}
-  </text>
-  {#each guides as guide}
-    <line
-      x1={PADDING_LEFT}
-      x2={WIDTH - PADDING_RIGHT}
-      y1={guide.y}
-      y2={guide.y}
-      stroke="#c4b389"
-      stroke-dasharray="3 4"
-      opacity="0.8"
-    />
-    <text
-      x={WIDTH - PADDING_RIGHT + 4}
-      y={guide.y + 3}
-      class="fill-[#8a6116] font-mono text-[9.5px]"
-    >
-      {guide.label}
-    </text>
-  {/each}
-  {#if pathData !== ""}
-    <path d={pathData} fill="none" stroke="#4ba3b2" stroke-width="2.5" stroke-linecap="round" />
-  {/if}
-  {#if lastPoint !== undefined}
-    <circle cx={lastPoint.x} cy={lastPoint.y} r="4" fill="#166e7d" />
-    <text
-      x={lastPoint.x}
-      y={lastPoint.y - 9}
-      text-anchor="middle"
-      class="fill-foreground font-mono text-[10.5px] font-medium"
-    >
-      {formatClose(lastPoint.close)}
-    </text>
-  {/if}
-  {#each dateTicks as tick}
-    <text
-      x={tick.x}
-      y={HEIGHT - 10}
-      text-anchor="middle"
-      class="fill-muted-foreground font-mono text-[9.5px]"
-    >
-      {tick.date.slice(5)}
-    </text>
-  {/each}
-  {#each horizonTicks as tick}
-    <line
-      x1={tick.x}
-      x2={tick.x}
-      y1={baselineY - 5}
-      y2={baselineY + 5}
-      stroke="#8a8f96"
-    />
-    <text
-      x={tick.x}
-      y={HEIGHT - 10}
-      text-anchor="middle"
-      class="fill-[#8a8f96] font-mono text-[9.5px]"
-    >
-      +{tick.horizon}td
-    </text>
-  {/each}
-</svg>
+<div class="mt-3">
+  <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+    <div class="font-mono text-[10.5px] text-[#5c6066]">
+      {latestSessionLabel}
+    </div>
+    {#if shownHorizons.length > 0}
+      <div class="flex flex-wrap gap-1.5">
+        {#each shownHorizons as horizon}
+          <span
+            class="rounded border border-[#c9c4ba] bg-transparent px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
+          >
+            +{horizon}td
+          </span>
+        {/each}
+      </div>
+    {/if}
+  </div>
+
+  <div
+    bind:this={chartEl}
+    class="h-[260px] w-full overflow-hidden rounded-md border border-border bg-card"
+    role="img"
+    aria-label="Interactive recent closes chart for {snapshot.symbol}"
+  ></div>
+</div>
 
 {#if tiles.length > 0}
   <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-7">

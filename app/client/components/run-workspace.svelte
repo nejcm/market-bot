@@ -20,6 +20,7 @@
     splitDataGaps,
     stringArray,
     textItems,
+    tradingViewUrl,
     valuationMetricTiles,
     type SnapshotView,
   } from "../view-model";
@@ -102,6 +103,9 @@
     forecastItems.length > 0 ||
       splitGaps.shortfalls.length > 0 ||
       targetHealth !== undefined,
+  );
+  const snapshotTradingViewUrl = $derived(
+    snapshot === null ? undefined : tradingViewUrl(snapshot.symbol),
   );
 
   const CASE_STYLES = [
@@ -418,18 +422,29 @@
               class="mt-8.5 scroll-mt-5"
             >
               <div
-                class="flex items-baseline justify-between border-b border-border pb-2"
+                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2"
               >
                 <span
                   class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
                 >
                   Market snapshot · {snapshot.symbol}
                 </span>
-                <span class="font-mono text-[10px] text-[#a8acb1]">
-                  recent closes{snapshot.latestSessionDate === undefined
-                    ? ""
-                    : ` · last session ${snapshot.latestSessionDate}`} · ticks mark
-                  forecast horizons
+                <span class="flex flex-wrap items-center gap-2 font-mono text-[10px] text-[#a8acb1]">
+                  <span>
+                    artifact closes{snapshot.latestSessionDate === undefined
+                      ? ""
+                      : ` · last session ${snapshot.latestSessionDate}`}
+                  </span>
+                  {#if snapshotTradingViewUrl !== undefined}
+                    <a
+                      class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      href={snapshotTradingViewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      TradingView
+                    </a>
+                  {/if}
                 </span>
               </div>
               <PriceSnapshotChart {snapshot} horizons={forecastHorizons} />

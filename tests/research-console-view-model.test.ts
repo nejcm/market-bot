@@ -38,6 +38,8 @@ import {
   formatShortfallGap,
   splitDataGaps,
   textItems,
+  tradingViewSymbol,
+  tradingViewUrl,
   valuationMetricTiles,
   verifiedSnapshotView,
   instrumentFromPathname,
@@ -738,6 +740,7 @@ describe("verified market snapshot view model", () => {
       symbol: "AAPL",
       analysisDate: "2026-06-11",
       latestSessionDate: "2026-06-10",
+      ohlcv: { date: "2026-06-10", close: 1.5 },
       indicators: {
         ema10: 199.2,
         sma50: 195.8,
@@ -839,6 +842,15 @@ describe("verified market snapshot view model", () => {
       ]),
     ).toEqual([5, 10]);
     expect(horizonMarkers([])).toEqual([]);
+  });
+
+  test("builds TradingView symbols with exchange fallback", () => {
+    expect(tradingViewSymbol(" aapl ")).toBe("AAPL");
+    expect(tradingViewSymbol("nvda", "nasdaq")).toBe("NASDAQ:NVDA");
+    expect(tradingViewUrl("BRK.B")).toBe("https://www.tradingview.com/chart/?symbol=BRK.B");
+    expect(tradingViewUrl("nvda", "nasdaq")).toBe(
+      "https://www.tradingview.com/chart/?symbol=NASDAQ%3ANVDA",
+    );
   });
 });
 

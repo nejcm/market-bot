@@ -11,6 +11,7 @@ import {
   closeLinePoints,
   dashboardMetrics,
   extendedEvidenceItems,
+  financialLensMetricTiles,
   forecastDisagreements,
   forecastGroups,
   filterRuns,
@@ -1183,6 +1184,42 @@ describe("report artifact parsers", () => {
       { label: "Peer P25 EV / annualized revenue", value: "3.1x" },
       { label: "Peer P75 EV / annualized revenue", value: "5.6x" },
       { label: "Supportability", value: "supported" },
+    ]);
+  });
+
+  test("formats financial lens metric tiles for display", () => {
+    expect(
+      financialLensMetricTiles({
+        qualityPosture: "criteria-supported",
+        growthPosture: "criteria-mixed",
+        financialStrengthPosture: "criteria-supported",
+        valuePosture: "insufficient-data",
+        momentumPosture: "criteria-not-supported",
+        grossMargin: 0.42,
+        netMargin: 0.18,
+        freeCashFlowProxy: 25_000_000,
+        revenueDeltaPercent: 12,
+        operatingIncomeDeltaPercent: 8,
+        debtToMarketCap: 0.02,
+        currentRatio: 2,
+        evToAnnualizedRevenue: 2.46,
+        rsi14: 58,
+      }),
+    ).toEqual([
+      { label: "Quality", value: "criteria supported" },
+      { label: "Growth", value: "criteria mixed" },
+      { label: "Financial strength", value: "criteria supported" },
+      { label: "Value", value: "insufficient data" },
+      { label: "Momentum", value: "criteria not supported" },
+      { label: "Gross margin", value: "42.0%" },
+      { label: "Net margin", value: "18.0%" },
+      { label: "FCF proxy", value: "$25.0M" },
+      { label: "Revenue YoY", value: "12.0%" },
+      { label: "Operating income YoY", value: "8.0%" },
+      { label: "Debt / market cap", value: "2.0%" },
+      { label: "Current ratio", value: "2.0x" },
+      { label: "EV / revenue", value: "2.5x" },
+      { label: "RSI14", value: "58.0" },
     ]);
   });
 

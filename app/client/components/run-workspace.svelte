@@ -3,6 +3,7 @@
   import type { RunDetail } from "../../types";
   import {
     extendedEvidenceItems,
+    financialLensMetricTiles,
     forecastRollup,
     forecastGroups,
     formatClose,
@@ -500,6 +501,8 @@
                   {@const metricTiles =
                     item.category === "valuation"
                       ? valuationMetricTiles(item.metrics)
+                      : item.category === "financial-lens"
+                        ? financialLensMetricTiles(item.metrics)
                       : []}
                   <div
                     class="rounded-lg border border-border bg-card px-4 py-3.5"

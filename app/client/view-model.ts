@@ -230,6 +230,23 @@ const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
   valuationSupportability: "Supportability",
 };
 
+const FINANCIAL_LENS_METRIC_LABELS: Readonly<Record<string, string>> = {
+  qualityPosture: "Quality",
+  growthPosture: "Growth",
+  financialStrengthPosture: "Financial strength",
+  valuePosture: "Value",
+  momentumPosture: "Momentum",
+  grossMargin: "Gross margin",
+  netMargin: "Net margin",
+  freeCashFlowProxy: "FCF proxy",
+  revenueDeltaPercent: "Revenue YoY",
+  operatingIncomeDeltaPercent: "Operating income YoY",
+  debtToMarketCap: "Debt / market cap",
+  currentRatio: "Current ratio",
+  evToAnnualizedRevenue: "EV / revenue",
+  rsi14: "RSI14",
+};
+
 export function valuationMetricTiles(
   metrics: Readonly<Record<string, number | string>> | undefined,
 ): readonly ValuationMetricTile[] {
@@ -271,6 +288,67 @@ export function valuationMetricTiles(
       return [{ label, value: raw }];
     }
     return [];
+  });
+}
+
+function formatFinancialLensPercent(value: number): string {
+  const percent = Math.abs(value) > 1 ? value : value * 100;
+  return `${percent.toFixed(1)}%`;
+}
+
+function formatPosture(value: string): string {
+  return value.replaceAll("-", " ");
+}
+
+export function financialLensMetricTiles(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): readonly ValuationMetricTile[] {
+  if (metrics === undefined) {
+    return [];
+  }
+
+  const keys = [
+    "qualityPosture",
+    "growthPosture",
+    "financialStrengthPosture",
+    "valuePosture",
+    "momentumPosture",
+    "grossMargin",
+    "netMargin",
+    "freeCashFlowProxy",
+    "revenueDeltaPercent",
+    "operatingIncomeDeltaPercent",
+    "debtToMarketCap",
+    "currentRatio",
+    "evToAnnualizedRevenue",
+    "rsi14",
+  ] as const;
+
+  return keys.flatMap((key) => {
+    const raw = metrics[key];
+    const label = FINANCIAL_LENS_METRIC_LABELS[key] ?? key;
+    if (typeof raw === "string" && key.endsWith("Posture")) {
+      return [{ label, value: formatPosture(raw) }];
+    }
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      return [];
+    }
+    if (
+      key === "grossMargin" ||
+      key === "netMargin" ||
+      key === "revenueDeltaPercent" ||
+      key === "operatingIncomeDeltaPercent" ||
+      key === "debtToMarketCap"
+    ) {
+      return [{ label, value: formatFinancialLensPercent(raw) }];
+    }
+    if (key === "freeCashFlowProxy") {
+      return [{ label, value: formatUsdCompact(raw) }];
+    }
+    if (key === "currentRatio" || key === "evToAnnualizedRevenue") {
+      return [{ label, value: formatMultiple(raw) }];
+    }
+    return [{ label, value: raw.toFixed(1) }];
   });
 }
 

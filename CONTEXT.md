@@ -212,6 +212,10 @@ Sourced issuer operating and financial facts used as Extended Evidence. It suppo
 
 Deterministic Extended Evidence that combines market capitalization, sourced issuer fundamentals, and, for `ticker --deep --asset equity`, deterministic peer comps to calculate supplemental valuation context such as enterprise value, revenue multiples, peer median/IQR read-through, and a supportability label. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal. See [[ADR 0031]].
 
+## Financial Lens Evidence
+
+Deterministic Extended Evidence for `ticker --asset equity` runs that groups compact SEC/Yahoo-derived metrics into neutral Quality, Growth, Financial Strength, Value, and Momentum lenses. Each lens carries metric values and an evidence posture (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication. Deep ticker runs can include deterministic peer valuation supportability when available; brief ticker runs remain target-only.
+
 ## Earnings Setup
 
 Deterministic, event-anchored context assembled automatically inside `ticker --deep --asset equity` when a Finnhub earnings-calendar record exists within 30 calendar days. It persists as `extras.earningsSetup` on the Research View: event metadata (symbol, date, timing, source IDs), an optional implied-move bar (ATM straddle midpoint / spot from the nearest post-event Tradier expiration within 7 calendar days), model-authored sourced analytical bullets (expectation bar, quality landmines, guidance credibility), and gaps for unsupported or missing setup data. Earnings-specific Predictions use event-anchored horizons (`horizonTradingDays` = post-event trading days, not days from `generatedAt`) with `earnings-direction` and `earnings-move` prediction kinds, resolved against the `earningsReturn` DSL. IV crush is deferred in v1; IV remains setup context or a gap only.

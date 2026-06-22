@@ -125,6 +125,7 @@ describe("addFinancialLensEvidence", () => {
     expect(item?.summary).toContain("Financial Lens Evidence:");
     expect(item?.sourceIds).toContain("verified-snapshot-AAPL");
     expect(item?.metrics?.qualityPosture).toBe("criteria-supported");
+    expect(item?.metrics?.financialStrengthPosture).toBe("criteria-supported");
   });
 
   test("emits partial no-cap gap when derived inputs are missing", () => {

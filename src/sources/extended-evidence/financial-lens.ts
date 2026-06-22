@@ -413,6 +413,13 @@ function financialLensGap(symbol: string, missing: readonly string[]): SourceGap
   });
 }
 
+function postureMetricKey(name: FinancialLensName): string {
+  if (name === "Financial Strength") {
+    return "financialStrengthPosture";
+  }
+  return `${name.toLowerCase()}Posture`;
+}
+
 export function addFinancialLensEvidence(
   command: ResearchCommand,
   marketSnapshots: readonly MarketSnapshot[],
@@ -454,7 +461,7 @@ export function addFinancialLensEvidence(
         .at(-1) ?? generatedAt,
     metrics: Object.fromEntries(
       lenses.flatMap((lens) => [
-        [`${lens.name.replaceAll(" ", "").toLowerCase()}Posture`, lens.posture],
+        [postureMetricKey(lens.name), lens.posture],
         ...lens.metrics.map((metricValue) => [metricValue.key, metricValue.value] as const),
       ]),
     ),

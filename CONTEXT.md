@@ -12,7 +12,7 @@ A local research-only user interface for browsing run history, Research Views, S
 
 ## Run Chat
 
-An ephemeral, per-Run Artifact interactive question-and-answer surface in the Research Console, grounded in that run's artifacts. It is not a persisted artifact and is not bound by the research-only boundary that governs Research Views.
+An ephemeral, per-Run Artifact interactive question-and-answer surface in the Research Console, grounded in that run's artifacts. It is not a persisted artifact and is not bound by the research-only boundary that governs Research Views. When the codex provider is active, it may consult the web for additional *ephemeral context*; such web findings are not Sources and do not enter the Evidence subsystem.
 
 ## Instrument
 

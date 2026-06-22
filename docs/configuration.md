@@ -24,6 +24,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_CONSOLE_CHAT_CONTEXT_BUDGET_CHARS` | `96000` | Character budget for run artifact context assembled into the chat system prompt (~24k tokens at ~4 chars/token). |
 | `MARKET_BOT_CONSOLE_CHAT_MAX_OUTPUT_TOKENS` | `1500` | `max_completion_tokens` passed to the model for chat responses. |
 | `MARKET_BOT_CONSOLE_CHAT_HISTORY_TURNS` | `20` | Maximum conversation turns (user + assistant messages) sent to the model per request. |
+| `MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH` | enabled | Set to `0` or `false` to disable live web search in Run Chat. Web search is available only when the codex provider is active; it has no effect on openai or anthropic providers. |
 | `MARKET_BOT_PROMPT_DIR` | `prompts/` (repo root) | Directory containing `<stage>/base.md` prompt files. Override to point at a custom prompt tree without editing source code. |
 | `MARKET_BOT_EQUITY_MOVER_LIMIT` | `5` | Movers per equity update. |
 | `MARKET_BOT_CRYPTO_MOVER_LIMIT` | `5` | Movers per crypto update. |

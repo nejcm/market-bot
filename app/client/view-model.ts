@@ -7,6 +7,10 @@ import type {
   RunSummary,
 } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
+import {
+  formatRatioPercent,
+  formatWholePercent,
+} from "../../src/sources/extended-evidence/percent-format";
 
 export {
   extendedEvidenceItems,
@@ -291,11 +295,6 @@ export function valuationMetricTiles(
   });
 }
 
-function formatFinancialLensPercent(value: number): string {
-  const percent = Math.abs(value) > 1 ? value : value * 100;
-  return `${percent.toFixed(1)}%`;
-}
-
 function formatPosture(value: string): string {
   return value.replaceAll("-", " ");
 }
@@ -333,14 +332,11 @@ export function financialLensMetricTiles(
     if (typeof raw !== "number" || !Number.isFinite(raw)) {
       return [];
     }
-    if (
-      key === "grossMargin" ||
-      key === "netMargin" ||
-      key === "revenueDeltaPercent" ||
-      key === "operatingIncomeDeltaPercent" ||
-      key === "debtToMarketCap"
-    ) {
-      return [{ label, value: formatFinancialLensPercent(raw) }];
+    if (key === "grossMargin" || key === "netMargin" || key === "debtToMarketCap") {
+      return [{ label, value: formatRatioPercent(raw) }];
+    }
+    if (key === "revenueDeltaPercent" || key === "operatingIncomeDeltaPercent") {
+      return [{ label, value: formatWholePercent(raw) }];
     }
     if (key === "freeCashFlowProxy") {
       return [{ label, value: formatUsdCompact(raw) }];

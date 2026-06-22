@@ -8,6 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { formatRatioPercent, formatWholePercent } from "./percent-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -21,7 +22,8 @@ export interface FinancialLensMetric {
   readonly key: string;
   readonly label: string;
   readonly value: number | string;
-  readonly unit: "ratio" | "percent" | "usd" | "number" | "text";
+  // "ratio-percent": value is a ratio (0.42 → 42%). "whole-percent": value already in percent (12 → 12%).
+  readonly unit: "ratio" | "ratio-percent" | "whole-percent" | "usd" | "number" | "text";
   readonly sourceIds: readonly string[];
 }
 
@@ -98,8 +100,8 @@ function ratio(numerator: number | undefined, denominator: number | undefined): 
     : undefined;
 }
 
-function positive(value: number | undefined): boolean {
-  return value !== undefined && value > 0;
+function positive(value: number | undefined): boolean | undefined {
+  return value === undefined ? undefined : value > 0;
 }
 
 function postureFrom(
@@ -145,15 +147,21 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const freeCashFlowProxy =
     operatingCashFlow === undefined || capex === undefined ? undefined : operatingCashFlow - capex;
   const metrics = [
-    ...metric("grossMargin", "Gross margin", ratio(grossProfit, revenue), "percent", sourceIds),
+    ...metric(
+      "grossMargin",
+      "Gross margin",
+      ratio(grossProfit, revenue),
+      "ratio-percent",
+      sourceIds,
+    ),
     ...metric(
       "operatingMargin",
       "Operating margin",
       ratio(operatingIncome, revenue),
-      "percent",
+      "ratio-percent",
       sourceIds,
     ),
-    ...metric("netMargin", "Net margin", ratio(netIncome, revenue), "percent", sourceIds),
+    ...metric("netMargin", "Net margin", ratio(netIncome, revenue), "ratio-percent", sourceIds),
     ...metric("freeCashFlowProxy", "FCF proxy", freeCashFlowProxy, "usd", sourceIds),
     ...metric(
       "cashConversion",
@@ -183,42 +191,42 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       "revenueDeltaPercent",
       "Revenue YoY",
       readMetric(secItem?.metrics, "revenueDeltaPercent"),
-      "percent",
+      "whole-percent",
       sourceIds,
     ),
     ...metric(
       "grossProfitDeltaPercent",
       "Gross profit YoY",
       readMetric(secItem?.metrics, "grossProfitDeltaPercent"),
-      "percent",
+      "whole-percent",
       sourceIds,
     ),
     ...metric(
       "operatingIncomeDeltaPercent",
       "Operating income YoY",
       readMetric(secItem?.metrics, "operatingIncomeDeltaPercent"),
-      "percent",
+      "whole-percent",
       sourceIds,
     ),
     ...metric(
       "netIncomeDeltaPercent",
       "Net income YoY",
       readMetric(secItem?.metrics, "netIncomeDeltaPercent"),
-      "percent",
+      "whole-percent",
       sourceIds,
     ),
     ...metric(
       "dilutedEpsDeltaPercent",
       "Diluted EPS YoY",
       readMetric(secItem?.metrics, "dilutedEpsDeltaPercent"),
-      "percent",
+      "whole-percent",
       sourceIds,
     ),
     ...metric(
       "operatingCashFlowDeltaPercent",
       "Operating cash flow YoY",
       readMetric(secItem?.metrics, "operatingCashFlowDeltaPercent"),
-      "percent",
+      "whole-percent",
       sourceIds,
     ),
   ];
@@ -260,12 +268,12 @@ function strengthLens(
     ...metric("cash", "Cash", cash, "usd", secItem?.sourceIds ?? []),
     ...metric("debt", "Debt", debt, "usd", secItem?.sourceIds ?? []),
     ...metric("netDebt", "Net debt", netDebt, "usd", sourceIds),
-    ...metric("debtToMarketCap", "Debt/market cap", debtToMarketCap, "percent", sourceIds),
+    ...metric("debtToMarketCap", "Debt/market cap", debtToMarketCap, "ratio-percent", sourceIds),
     ...metric(
       "netDebtToMarketCap",
       "Net debt/market cap",
       netDebtToMarketCap,
-      "percent",
+      "ratio-percent",
       sourceIds,
     ),
     ...metric("currentRatio", "Current ratio", currentRatio, "ratio", secItem?.sourceIds ?? []),
@@ -288,11 +296,8 @@ function valueLens(valuationItem: ExtendedEvidenceItem | undefined): FinancialLe
   const supportability = valuationItem?.metrics?.valuationSupportability;
   return {
     name: "Value",
+    // Research-only: posture reports peer supportability, not a cheap/expensive judgement.
     posture: postureFrom([
-      readMetric(valuationItem?.metrics, "evToAnnualizedRevenue") === undefined ? undefined : true,
-      readMetric(valuationItem?.metrics, "marketCapToAnnualizedRevenue") === undefined
-        ? undefined
-        : true,
       supportability === undefined ? undefined : supportability === "supported",
     ]),
     metrics: [
@@ -375,9 +380,11 @@ function formatValue(lensMetric: FinancialLensMetric): string {
   if (typeof lensMetric.value === "string") {
     return lensMetric.value;
   }
-  if (lensMetric.unit === "percent") {
-    const percent = Math.abs(lensMetric.value) > 1 ? lensMetric.value : lensMetric.value * 100;
-    return `${percent.toFixed(1)}%`;
+  if (lensMetric.unit === "ratio-percent") {
+    return formatRatioPercent(lensMetric.value);
+  }
+  if (lensMetric.unit === "whole-percent") {
+    return formatWholePercent(lensMetric.value);
   }
   if (lensMetric.unit === "ratio") {
     return `${lensMetric.value.toFixed(2)}x`;

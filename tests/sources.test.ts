@@ -126,6 +126,8 @@ function secCompanyFactsPayload(): unknown {
         },
         CashAndCashEquivalentsAtCarryingValue: secFactUnits(30, 25),
         LongTermDebt: secFactUnits(50, 45),
+        AssetsCurrent: secFactUnits(80, 70),
+        LiabilitiesCurrent: secFactUnits(40, 35),
         NetCashProvidedByUsedInOperatingActivities: secFactUnits(28, 22),
         PaymentsToAcquirePropertyPlantAndEquipment: secFactUnits(6, 5),
         WeightedAverageNumberOfDilutedSharesOutstanding: {
@@ -931,6 +933,8 @@ describe("SEC fundamental evidence", () => {
       dilutedEps: 2,
       cash: 30,
       debt: 50,
+      currentAssets: 80,
+      currentLiabilities: 40,
       operatingCashFlow: 28,
       capex: 6,
       dilutedShares: 9,

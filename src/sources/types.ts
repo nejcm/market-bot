@@ -1,4 +1,5 @@
 import type { ResearchCommand } from "../cli/args";
+import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type {
   AssetClass,
@@ -127,6 +128,7 @@ export interface CollectedSources {
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly earningsSetup?: EarningsSetupCollected;
   readonly valuationComps?: ValuationCompsArtifact;
+  readonly financialLenses?: FinancialLensArtifact;
 }
 
 export interface ExtendedEvidenceCollectionResult {

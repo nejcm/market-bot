@@ -1953,6 +1953,28 @@ describe("runResearchJob", () => {
             peerSecFresh: true,
           },
         },
+        financialLenses: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          symbol: "AAPL",
+          lenses: [
+            {
+              name: "Quality",
+              posture: "criteria-supported",
+              metrics: [
+                {
+                  key: "grossMargin",
+                  label: "Gross margin",
+                  value: 0.4,
+                  unit: "percent",
+                  sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+                },
+              ],
+              sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+            },
+          ],
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+        },
       }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
@@ -1960,6 +1982,9 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "valuation-comps.json"), "utf8"),
     ).resolves.toContain('"valuationSupportability": "screening-only"');
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "financial-lenses.json"), "utf8"),
+    ).resolves.toContain('"posture": "criteria-supported"');
   });
 
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {

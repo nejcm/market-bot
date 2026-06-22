@@ -789,6 +789,10 @@ export async function persistResearchJob(
       join(artifacts.normalizedDir, "valuation-comps.json"),
       result.collectedSources.valuationComps ?? null,
     );
+    await writeJson(
+      join(artifacts.normalizedDir, "financial-lenses.json"),
+      result.collectedSources.financialLenses ?? null,
+    );
   }
   if (isMarketUpdateJobType(input.command.jobType)) {
     await writeJson(

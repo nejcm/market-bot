@@ -114,6 +114,18 @@ const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
     concepts: ["WeightedAverageNumberOfDilutedSharesOutstanding"],
     unitKeys: ["shares"],
   },
+  {
+    key: "currentAssets",
+    label: "current assets",
+    concepts: ["AssetsCurrent"],
+    unitKeys: ["USD"],
+  },
+  {
+    key: "currentLiabilities",
+    label: "current liabilities",
+    concepts: ["LiabilitiesCurrent"],
+    unitKeys: ["USD"],
+  },
 ];
 
 const DEBT_METRIC: SecMetricDefinition = {

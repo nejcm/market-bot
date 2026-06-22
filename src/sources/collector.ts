@@ -22,6 +22,7 @@ import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
+import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { collectValuationComps } from "./extended-evidence/valuation-comps";
 import { resolveResearchSubjectProxy } from "../research/subject-registry";
@@ -642,6 +643,13 @@ export async function collectSources(
       : undefined;
   const finalExtendedEvidence =
     valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
+  const financialLensResult = addFinancialLensEvidence(
+    command,
+    resolvedMarketResult.marketSnapshots,
+    finalExtendedEvidence,
+    verifiedSnapshotResult?.snapshot,
+    ctx.fetchedAt,
+  );
 
   // Earnings Setup: equity ticker deep only — parse Finnhub calendar for a
   // Near upcoming event, then compute deterministic implied move from Tradier.
@@ -712,7 +720,9 @@ export async function collectSources(
       ...(valuationCompsResult?.sources ?? []),
       ...earningsExtraSources,
     ],
-    ...(finalExtendedEvidence !== undefined ? { extendedEvidence: finalExtendedEvidence } : {}),
+    ...(financialLensResult.extendedEvidence !== undefined
+      ? { extendedEvidence: financialLensResult.extendedEvidence }
+      : {}),
     ...(marketContextResult.marketContext !== undefined
       ? { marketContext: marketContextResult.marketContext }
       : {}),
@@ -728,12 +738,16 @@ export async function collectSources(
     ...(valuationCompsResult?.artifact !== undefined
       ? { valuationComps: valuationCompsResult.artifact }
       : {}),
+    ...(financialLensResult.artifact !== undefined
+      ? { financialLenses: financialLensResult.artifact }
+      : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
       ...valuationResult.sourceGaps,
       ...(valuationCompsResult?.gaps ?? []),
+      ...financialLensResult.sourceGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

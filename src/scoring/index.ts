@@ -27,6 +27,7 @@ import {
 } from "../alpha-search/validation";
 import { marketUpdateHorizonBucketOf, type Prediction, type ResearchReport } from "../domain/types";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
 import {
@@ -49,11 +50,11 @@ import type {
 } from "./types";
 
 const MAX_SCORE_ATTEMPTS = 5;
-const SCORE_FILE = "score.json";
-const MISS_AUTOPSY_FILE = "miss-autopsy.json";
-const ALPHA_VALIDATION_FILE = "alpha-validation.json";
-const ALPHA_CANDIDATE_PROFILES_FILE = "candidate-profiles.json";
-const ALPHA_REJECTED_CANDIDATES_FILE = "rejected-candidates.json";
+const SCORE_FILE = RUN_ARTIFACT_FILES.score;
+const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
+const ALPHA_VALIDATION_FILE = RUN_ARTIFACT_FILES.alphaValidation;
+const ALPHA_CANDIDATE_PROFILES_FILE = RUN_ARTIFACT_FILES.candidateProfiles;
+const ALPHA_REJECTED_CANDIDATES_FILE = RUN_ARTIFACT_FILES.rejectedCandidates;
 const ZERO_CONDITIONAL_COUNTS: ConditionalCalibrationSummary = {
   activatedCount: 0,
   voidedCount: 0,
@@ -202,7 +203,7 @@ async function loadAlphaCandidateProfiles(
   runDir: string,
 ): Promise<readonly AlphaCandidateProfile[]> {
   try {
-    const raw = await readFile(join(runDir, "normalized", ALPHA_CANDIDATE_PROFILES_FILE), "utf8");
+    const raw = await readFile(join(runDir, ALPHA_CANDIDATE_PROFILES_FILE), "utf8");
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? parsed.filter((entry) => isAlphaCandidateProfile(entry)) : [];
   } catch {
@@ -212,7 +213,7 @@ async function loadAlphaCandidateProfiles(
 
 async function loadAlphaRejectedCandidates(runDir: string) {
   try {
-    const raw = await readFile(join(runDir, "normalized", ALPHA_REJECTED_CANDIDATES_FILE), "utf8");
+    const raw = await readFile(join(runDir, ALPHA_REJECTED_CANDIDATES_FILE), "utf8");
     return readAlphaRejectedCandidateFile(JSON.parse(raw) as unknown);
   } catch {
     return [];
@@ -297,7 +298,7 @@ async function writeAlphaCandidateProfilesRunDir(
   const normalizedDir = join(runDir, "normalized");
   await mkdir(normalizedDir, { recursive: true });
   await writeFile(
-    join(normalizedDir, ALPHA_CANDIDATE_PROFILES_FILE),
+    join(runDir, ALPHA_CANDIDATE_PROFILES_FILE),
     `${JSON.stringify(profiles, undefined, 2)}\n`,
     "utf8",
   );

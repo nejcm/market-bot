@@ -220,6 +220,14 @@ Deterministic Extended Evidence for `ticker --asset equity` runs that groups com
 
 Deterministic, event-anchored context assembled automatically inside `ticker --deep --asset equity` when a Finnhub earnings-calendar record exists within 30 calendar days. It persists as `extras.earningsSetup` on the Research View: event metadata (symbol, date, timing, source IDs), an optional implied-move bar (ATM straddle midpoint / spot from the nearest post-event Tradier expiration within 7 calendar days), model-authored sourced analytical bullets (expectation bar, quality landmines, guidance credibility), and gaps for unsupported or missing setup data. Earnings-specific Predictions use event-anchored horizons (`horizonTradingDays` = post-event trading days, not days from `generatedAt`) with `earnings-direction` and `earnings-move` prediction kinds, resolved against the `earningsReturn` DSL. IV crush is deferred in v1; IV remains setup context or a gap only.
 
+## Scored Catalyst
+
+A deterministic, dated event derived from structured Source Provider feeds (earnings, dividend, and split records, plus macro releases), scored on two research-only axes only: materiality (a fixed 1–5 weight assigned by event category, not by semantic judgment) and date confidence (primary source / credible secondary / historical cadence). It is distinct from the model-authored narrative catalysts in a Research Thesis and from the descriptive Catalyst Calendar. A Scored Catalyst carries a real resolution date only when its date is confirmed-exact; windowed or cadence-inferred catalysts are context only and cannot anchor a Prediction. It deliberately omits the position-change axes (actionability, priority/urgency) of its source rubric. It is not investment conviction, expected return, a recommendation, or a trade signal.
+
+## Catalyst Calendar
+
+A deterministic, descriptive listing of dated items auto-promoted into a Market Overview report — model-authored narrative catalysts, observed macro context, and prior Prediction resolution dates. It is a passive calendar surface, not a scored or prediction-anchoring layer; that role belongs to the Scored Catalyst.
+
 ## Peer Universe
 
 A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider, checked-in ticker mapping, or Research Subject Registry fallback with provenance, role, and rationale, not model selection. V1 runs only for `ticker --deep --asset equity`; unsupported tickers emit a visible valuation SourceGap. See [[ADR 0031]].

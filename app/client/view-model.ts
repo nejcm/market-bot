@@ -7,6 +7,10 @@ import type {
   RunSummary,
 } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
+import {
+  formatRatioPercent,
+  formatWholePercent,
+} from "../../src/sources/extended-evidence/percent-format";
 
 export {
   extendedEvidenceItems,
@@ -289,16 +293,6 @@ export function valuationMetricTiles(
     }
     return [];
   });
-}
-
-// Margins and *-to-market-cap ratios are stored as ratios (0.42 → 42%).
-function formatRatioPercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-// SEC YoY deltas are already in whole-percent form (12 → 12%).
-function formatWholePercent(value: number): string {
-  return `${value.toFixed(1)}%`;
 }
 
 function formatPosture(value: string): string {

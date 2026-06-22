@@ -8,6 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { formatRatioPercent, formatWholePercent } from "./percent-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -380,10 +381,10 @@ function formatValue(lensMetric: FinancialLensMetric): string {
     return lensMetric.value;
   }
   if (lensMetric.unit === "ratio-percent") {
-    return `${(lensMetric.value * 100).toFixed(1)}%`;
+    return formatRatioPercent(lensMetric.value);
   }
   if (lensMetric.unit === "whole-percent") {
-    return `${lensMetric.value.toFixed(1)}%`;
+    return formatWholePercent(lensMetric.value);
   }
   if (lensMetric.unit === "ratio") {
     return `${lensMetric.value.toFixed(2)}x`;

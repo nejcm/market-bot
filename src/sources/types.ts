@@ -83,6 +83,7 @@ export interface NewsCollectionAnalytics {
   readonly relevantSuppressedBySeenFilterCount: number;
   readonly relevantSelectedCount: number;
   readonly repeatFallbackKeptCount: number;
+  readonly relevantRepeatKeptCount?: number;
   readonly selectedNewsSourceCount: number;
   readonly selectedRelevantTickerNewsSourceCount?: number;
   readonly selectedGenericTickerNewsSourceCount?: number;

@@ -160,6 +160,14 @@ A deterministic, no-model inspection of a finished Research View that flags weak
 
 A fetched data or news item saved with an ID so report claims can link back to evidence.
 
+## Relevant News Source
+
+A news Source a ticker or research run classifies as on-subject for its News Relevance Target(s) — matching the instrument symbol, ticker tokens, or issuer company-name terms. Ticker lanes carry a min-relevant-keep guarantee: when the persistent seen-dedupe strips every relevant Source but leaves generic survivors, the most recent relevant repeat Source(s) are re-added (one per ticker lane) and disclosed with a `repeat-fallback` Source Gap so the issuer signal is not lost to repeat-dedupe. It is a relevance classification, not investment conviction or a trade signal.
+
+## News Relevance Target
+
+The instrument or subject a run scores news relevance against: the ticker symbol (and optional issuer name) for ticker runs, or the research subject's representative instruments and aliases for research runs. A news Source is a Relevant News Source when it matches at least one target. It is a deterministic matching surface, not investment conviction or a trade signal.
+
 ## Source Provider
 
 An external service that supplies market data, news, or reference data before it is normalized into Sources.

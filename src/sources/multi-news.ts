@@ -1,6 +1,6 @@
-import type { Source, SourceProviderAlias } from "../domain/types";
-import { isRepeatFallbackGap } from "../domain/source-gaps";
-import { filterSeenNewsSources } from "./news-seen";
+import type { Source, SourceGap, SourceProviderAlias } from "../domain/types";
+import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
+import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
 import {
   type CollectContext,
@@ -276,6 +276,70 @@ function relevantNewsCount(
   return sources.filter((source) => isNewsRelevant(source, targets)).length;
 }
 
+// Min-relevant-keep guarantee for ticker lanes. When the persistent seen-filter
+// Strips every relevant source but leaves generic survivors, re-add the most
+// Recent relevant deduped source(s) dropped as seen so the issuer signal is not
+// Lost to repeat-dedupe. Emits one repeat-fallback gap. Market-overview and
+// Mover lanes are unchanged.
+const MIN_RELEVANT_KEEP_TICKER = 1;
+
+function canonicalUrlOf(source: Source): string | undefined {
+  return source.canonicalUrl ?? canonicalizeUrl(source.url);
+}
+
+interface RelevantRepeatKeep {
+  readonly pool: readonly Source[];
+  readonly keptRelevantRepeat: readonly Source[];
+  readonly gap: SourceGap | undefined;
+}
+
+function keepRelevantSeenSources(args: {
+  readonly command: CollectContext["command"];
+  readonly dedupedSources: readonly Source[];
+  readonly survivors: readonly Source[];
+  readonly targets: readonly NewsRelevanceTarget[];
+}): RelevantRepeatKeep {
+  const { command, dedupedSources, survivors, targets } = args;
+  if (command.jobType !== "ticker" || targets.length === 0) {
+    return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
+  }
+  const relevantSurvivorCount = survivors.filter((source) =>
+    isNewsRelevant(source, targets),
+  ).length;
+  const deficit = Math.max(0, MIN_RELEVANT_KEEP_TICKER - relevantSurvivorCount);
+  if (deficit === 0) {
+    return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
+  }
+  const survivorCanonicals = new Set(
+    survivors
+      .map((source) => canonicalUrlOf(source))
+      .filter((value): value is string => value !== undefined),
+  );
+  const relevantDropped = dedupedSources
+    .filter((source) => {
+      const canonical = canonicalUrlOf(source);
+      return (
+        canonical !== undefined &&
+        !survivorCanonicals.has(canonical) &&
+        isNewsRelevant(source, targets)
+      );
+    })
+    .toSorted((left, right) => fetchedAtMs(right) - fetchedAtMs(left));
+  const kept = relevantDropped.slice(0, deficit);
+  if (kept.length === 0) {
+    return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
+  }
+  const lane = newsSeenLane(command);
+  const gap = sourceGap({
+    source: "news-seen",
+    message: `Persistent news dedupe suppressed ${String(kept.length)} relevant repeat source(s) for ${lane}; kept ${String(kept.length)} relevant repeat fallback(s)`,
+    capability: "news",
+    cause: "repeat-fallback",
+    evidenceQualityImpact: "no-cap",
+  });
+  return { pool: [...survivors, ...kept], keptRelevantRepeat: kept, gap };
+}
+
 function selectRoundRobin(
   sources: readonly Source[],
   limit: number,
@@ -397,8 +461,15 @@ export function createMultiNewsAdapter(
           })
         : { newsSources: dedupedSources, sourceGaps: [] };
     const relevantAfterSeenFilterCount = relevantNewsCount(filtered.newsSources, targets);
+    const relevantKeep = keepRelevantSeenSources({
+      command: ctx.command,
+      dedupedSources,
+      survivors: filtered.newsSources,
+      targets,
+    });
+    const repeatFallbackGaps = relevantKeep.gap === undefined ? [] : [relevantKeep.gap];
     const newsSources = assignSourceIds(
-      selectRelevantFirst(filtered.newsSources, ctx.newsLimit, providerOrder, targets),
+      selectRelevantFirst(relevantKeep.pool, ctx.newsLimit, providerOrder, targets),
     );
     const relevantSelectedCount = relevantNewsCount(newsSources, targets);
     const repeatFallbackUsed = filtered.sourceGaps.some((gap) => isRepeatFallbackGap(gap));
@@ -407,7 +478,11 @@ export function createMultiNewsAdapter(
     return {
       rawSnapshots: results.flatMap((result) => result.rawSnapshots),
       newsSources,
-      sourceGaps: [...results.flatMap((result) => result.sourceGaps), ...filtered.sourceGaps],
+      sourceGaps: [
+        ...results.flatMap((result) => result.sourceGaps),
+        ...filtered.sourceGaps,
+        ...repeatFallbackGaps,
+      ],
       newsAnalytics: {
         fetchedNewsSourcesByProvider: countNewsByProvider(results, adapters),
         fetchedNewsSourceCount,
@@ -421,6 +496,7 @@ export function createMultiNewsAdapter(
         ),
         relevantSelectedCount,
         repeatFallbackKeptCount: repeatFallbackUsed ? filtered.newsSources.length : 0,
+        relevantRepeatKeptCount: relevantKeep.keptRelevantRepeat.length,
         selectedNewsSourceCount: newsSources.length,
         ...selectedRelevanceAnalytics(ctx.command, newsSources, targets),
         repeatFallbackUsed,

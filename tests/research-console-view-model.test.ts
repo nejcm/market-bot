@@ -1238,19 +1238,22 @@ describe("report artifact parsers", () => {
   });
 
   test("indexes extended evidence metrics in search candidates", () => {
-    const candidates = reportSearchCandidates({
-      extendedEvidence: {
-        items: [
-          {
-            category: "valuation",
-            title: "AAPL Valuation Evidence",
-            summary: "Valuation summary",
-            sourceIds: ["s1"],
-            metrics: { evToAnnualizedRevenue: 5.4 },
-          },
-        ],
+    const candidates = reportSearchCandidates(
+      {
+        extendedEvidence: {
+          items: [
+            {
+              category: "valuation",
+              title: "AAPL Valuation Evidence",
+              summary: "Valuation summary",
+              sourceIds: ["s1"],
+              metrics: { evToAnnualizedRevenue: 5.4 },
+            },
+          ],
+        },
       },
-    });
+      "console",
+    );
 
     expect(candidates.some((candidate) => candidate.section === "extendedEvidence")).toBe(true);
     expect(

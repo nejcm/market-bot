@@ -48,7 +48,7 @@ interface TextWithSources {
   readonly sourceIds: readonly string[];
 }
 
-interface ExtendedEvidenceItemView {
+export interface ExtendedEvidenceItemView {
   readonly category: string;
   readonly title: string;
   readonly summary: string;
@@ -123,7 +123,7 @@ function readMetrics(
   return Object.keys(parsed).length === 0 ? undefined : parsed;
 }
 
-function textItems(
+export function textItems(
   report: Record<string, unknown> | undefined,
   key: string,
 ): readonly TextWithSources[] {
@@ -140,14 +140,17 @@ function textItems(
     });
 }
 
-function stringArray(report: Record<string, unknown> | undefined, key: string): readonly string[] {
+export function stringArray(
+  report: Record<string, unknown> | undefined,
+  key: string,
+): readonly string[] {
   const value = report?.[key];
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
 }
 
-function extendedEvidenceItems(
+export function extendedEvidenceItems(
   report?: Record<string, unknown>,
 ): readonly ExtendedEvidenceItemView[] {
   const block = report?.extendedEvidence;

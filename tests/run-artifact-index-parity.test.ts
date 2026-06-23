@@ -188,9 +188,6 @@ describe("run artifact index parity", () => {
     const indexSections = indexedSearch.map((result) => result.section);
     const diskSections = diskSearch.map((result) => result.section);
 
-    // The fixture has both dataGaps and extendedEvidence matching "needle".
-    // Index (typed) and disk (raw) builders historically emitted them in
-    // Opposite orders; the shared builder must reconcile to one sequence.
     expect(indexSections).toEqual(diskSections);
     expect(indexSections.indexOf("dataGaps")).toBeLessThan(
       indexSections.indexOf("extendedEvidence"),

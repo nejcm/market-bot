@@ -172,7 +172,7 @@ async function searchRun(
   }
 
   const normalizedQuery = filters.query.trim().toLowerCase();
-  return reportSearchCandidates(report)
+  return reportSearchCandidates(report, "console")
     .filter((candidate) => candidate.text.toLowerCase().includes(normalizedQuery))
     .map((candidate) => runSearchResultFromCandidate(summary, candidate, normalizedQuery));
 }

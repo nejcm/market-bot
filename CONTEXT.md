@@ -22,6 +22,14 @@ A tradable listed or quoted research target. In the current CLI it is still iden
 
 Provider-normalized metadata that helps relate Source Provider records to an Instrument without changing the research-only boundary.
 
+## Quote Currency
+
+The currency a market price is quoted in, carried on `InstrumentIdentity.quoteCurrency`. It denominates the `latestClose` Financial Lens metric and other price-level values. For LSE listings Yahoo returns `GBp` (pence), a Yahoo pseudo-code distinct from ISO 4217 `GBP` (pounds); the Financial Lens formatter renders GBp with a pence suffix and no K/M/B scaling. It is a labeling convention, not investment conviction.
+
+## Reporting Currency
+
+The currency an issuer reports fundamentals in (revenue, cash, debt, FCF), which differs from the Quote Currency for many international listings (for example LSE shares quote in GBp pence but report in GBP pounds, a 100× difference). Financial Lens metrics sourced from fundamentals use the reporting currency; threading it into the cash/debt/FCF metrics is deferred to P2. It is a labeling convention, not investment conviction.
+
 ## Observation
 
 A public market quantity value used to resolve a Prediction. An Observation can be point-in-time or part of a window. It is not advice, conviction, or a trade signal.

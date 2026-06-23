@@ -309,4 +309,69 @@ describe("addFinancialLensEvidence", () => {
     expect(markdown).toContain("AAPL Financial Lens Evidence");
     expect(markdown).toContain("[verified-snapshot-AAPL]");
   });
+
+  test("renders latestClose in quote currency for GBp tickers", () => {
+    const gbpCommand = {
+      jobType: "ticker",
+      assetClass: "equity",
+      symbol: "RR.L",
+      depth: "deep",
+    } as const;
+    const result = addFinancialLensEvidence(
+      gbpCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-rr",
+          symbol: "RR.L",
+          identity: { quoteCurrency: "GBp" },
+        }),
+      ],
+      { instrument: { symbol: "RR.L", assetClass: "equity" }, items: [], gaps: [] },
+      verifiedSnapshot({
+        symbol: "RR.L",
+        ohlcv: {
+          date: "2026-06-21",
+          open: 1400,
+          high: 1420,
+          low: 1395,
+          close: 1411.8,
+          volume: 1_000_000,
+        },
+      }),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
+    const latestClose = momentum?.metrics.find((m) => m.key === "latestClose");
+    expect(latestClose?.unit).toBe("currency");
+    expect(latestClose?.currency).toBe("GBp");
+    expect(latestClose?.value).toBe(1411.8);
+    const summary = result.extendedEvidence?.items.find(
+      (i) => i.category === "financial-lens",
+    )?.summary;
+    // Pence suffix, no K/M/B scaling, no $ symbol.
+    expect(summary).toContain("Latest close 1,411.8p");
+    expect(summary).not.toContain("$");
+  });
+
+  test("renders latestClose in USD for US tickers (regression guard)", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      evidence(),
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
+    const latestClose = momentum?.metrics.find((m) => m.key === "latestClose");
+    expect(latestClose?.unit).toBe("currency");
+    // US tickers carry no quoteCurrency on the snapshot; the fallback defaults to USD.
+    expect(latestClose?.currency).toBe("USD");
+    const summary = result.extendedEvidence?.items.find(
+      (i) => i.category === "financial-lens",
+    )?.summary;
+    // Close 196 -> $196 (no K scaling under 1000).
+    expect(summary).toContain("Latest close $196");
+  });
 });

@@ -27,7 +27,7 @@ import {
 } from "../alpha-search/validation";
 import { marketUpdateHorizonBucketOf, type Prediction, type ResearchReport } from "../domain/types";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
-import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { resolveOutcome } from "./resolver";
 import {
@@ -295,8 +295,7 @@ async function writeAlphaCandidateProfilesRunDir(
     return false;
   }
 
-  const normalizedDir = join(runDir, "normalized");
-  await mkdir(normalizedDir, { recursive: true });
+  await mkdir(join(runDir, NORMALIZED_DIR), { recursive: true });
   await writeFile(
     join(runDir, ALPHA_CANDIDATE_PROFILES_FILE),
     `${JSON.stringify(profiles, undefined, 2)}\n`,

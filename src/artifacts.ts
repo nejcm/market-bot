@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchReport, RunTrace } from "./domain/types";
-import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import { NORMALIZED_DIR, RAW_DIR, RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 
 export interface RunArtifactPaths {
   readonly runDir: string;
@@ -18,8 +18,8 @@ export async function prepareRunArtifacts(
   runId: string,
 ): Promise<RunArtifactPaths> {
   const runDir = join(dataDir, runId);
-  const rawDir = join(runDir, "raw");
-  const normalizedDir = join(runDir, "normalized");
+  const rawDir = join(runDir, RAW_DIR);
+  const normalizedDir = join(runDir, NORMALIZED_DIR);
 
   await mkdir(rawDir, { recursive: true });
   await mkdir(normalizedDir, { recursive: true });

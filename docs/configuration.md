@@ -77,6 +77,10 @@ Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The 
 
 For a free, high-value Extended Evidence setup, set `MARKET_BOT_FRED_API_KEY` and `MARKET_BOT_SEC_USER_AGENT`. FRED is also the provider-health v2 baseline macro expectation. Add `MARKET_BOT_TRADIER_API_TOKEN` only when you need equity options/IV evidence and have suitable Tradier API access. Leave `MARKET_BOT_GLASSNODE_API_KEY` blank unless you already pay for Glassnode API access.
 
+## International equities
+
+SEC EDGAR, Tradier IV, and Finnhub company/event endpoints are US-centric. Non-US listings (detected by exchange name or Yahoo symbol suffix such as `.L`, `.TO`, `.PA`, `.DE`, `.HK`) are short-circuited before any network call: the Evidence Request Loop is omitted (saving a model round) and each affected source emits a single `unsupported-coverage` Source Gap. Yahoo market data, Yahoo news, and Valuation Evidence still run for international tickers. Unclassifiable instruments default to attempting the fetch so coverage is never suppressed on weak signal.
+
 ## Secrets
 
 Never commit secrets or fixtures containing tokens. Required keys are read from the environment at startup; the process exits with a clear error if missing.

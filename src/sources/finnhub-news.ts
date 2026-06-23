@@ -2,6 +2,7 @@ import type { ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
+import { isUsListing } from "./instrument-capability";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays, ymd } from "./news-utils";
 import {
   isFetchJsonResult,
@@ -78,6 +79,27 @@ function normalizeNews(
 
 async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   const { command, fetchedAt, newsLimit } = ctx;
+
+  if (
+    command.jobType === "ticker" &&
+    command.assetClass === "equity" &&
+    !isUsListing(command.symbol)
+  ) {
+    return {
+      rawSnapshots: [],
+      newsSources: [],
+      sourceGaps: [
+        sourceGap({
+          source: "finnhub-news",
+          message: `finnhub company news does not support ${command.symbol} (non-US listing)`,
+          provider: "finnhub",
+          capability: "news",
+          cause: "unsupported-coverage",
+          evidenceQualityImpact: "no-cap",
+        }),
+      ],
+    };
+  }
 
   if (ctx.finnhubApiToken === undefined) {
     return {

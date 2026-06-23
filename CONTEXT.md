@@ -214,7 +214,7 @@ A declared minimum set of exercised research routes and source capabilities requ
 
 ## Provider Coverage Gap
 
-A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow. In provider-health validation it is usually expected or informational, not blocking.
+A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow. In provider-health validation it is usually expected or informational, not blocking. Non-US listings emit an `unsupported-coverage` gap without a network call when a US-only source (SEC EDGAR, Tradier IV, Finnhub company/event news) is gated off by the instrument-capability predicate; analytics classify these under the `unsupportedCoverage` source-gap class so they are isolated from `other` and `fetchFailed` gaps.
 
 ## Extended Evidence
 

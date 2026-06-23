@@ -166,7 +166,14 @@ export async function runEvidenceRequestLoop(
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
       const staleStart = collectContext.staleFallbackGaps.length;
-      const output = await executeEvidenceRequestTool(request.tool, collectContext.context);
+      const toolContext =
+        input.collectedSources.resolvedInstrumentIdentity !== undefined
+          ? {
+              ...collectContext.context,
+              instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
+            }
+          : collectContext.context;
+      const output = await executeEvidenceRequestTool(request.tool, toolContext);
       const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
       const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
       return {

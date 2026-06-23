@@ -222,7 +222,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
       }),
     ]);
   }
-  if (!isUsListing(command.symbol)) {
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return emptyOutput([unsupportedInstrumentGap("sec-edgar", "SEC EDGAR", command.symbol)]);
   }
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
@@ -432,7 +432,7 @@ async function collectTradierIvTermStructure(
       }),
     ]);
   }
-  if (!isUsListing(command.symbol)) {
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return emptyOutput([unsupportedInstrumentGap("tradier-options", "Tradier", command.symbol)]);
   }
   if (ctx.tradierApiToken === undefined) {

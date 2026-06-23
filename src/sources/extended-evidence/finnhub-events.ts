@@ -70,7 +70,7 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
-  if (!isUsListing(command.symbol)) {
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return {
       rawSnapshots: [],
       items: [],

@@ -571,7 +571,7 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
-  if (!isUsListing(command.symbol)) {
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return {
       rawSnapshots: [],
       items: [],

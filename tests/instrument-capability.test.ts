@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { isUsListing } from "../src/sources/instrument-capability";
+import type { InstrumentIdentity } from "../src/domain/types";
+import {
+  hasNonUsSuffix,
+  isInternationalIdentity,
+  isUsListing,
+} from "../src/sources/instrument-capability";
 
 describe("isUsListing", () => {
   test("classifies US symbols without a suffix as US", () => {
@@ -22,6 +27,21 @@ describe("isUsListing", () => {
     expect(isUsListing("7203.T")).toBe(false);
   });
 
+  test("covers suffixes that the prior capability set was missing (Copenhagen/Singapore/Taiwan)", () => {
+    // These were classified international by run-health validation but US by the capability
+    // Gate before the predicates were unified — they must now agree (non-US).
+    expect(isUsListing("NOVO-B.CO")).toBe(false);
+    expect(isUsListing("D05.SI")).toBe(false);
+    expect(isUsListing("2330.TW")).toBe(false);
+  });
+
+  test("uses a non-USD quote currency as the primary non-US signal (no suffix needed)", () => {
+    expect(isUsListing("VOD", { quoteCurrency: "GBp" })).toBe(false);
+    expect(isUsListing("SAP", { quoteCurrency: "EUR" })).toBe(false);
+    // USD quote currency does not by itself force a US classification away from a non-US suffix.
+    expect(isUsListing("AAPL", { quoteCurrency: "USD" })).toBe(true);
+  });
+
   test("uses a non-US exchange name from identity when present", () => {
     expect(isUsListing("VOD", { exchange: "London Stock Exchange" })).toBe(false);
     expect(isUsListing("RY", { exchange: "Toronto Stock Exchange" })).toBe(false);
@@ -34,5 +54,33 @@ describe("isUsListing", () => {
 
   test("defaults to US when neither exchange nor a non-US suffix is present", () => {
     expect(isUsListing("UNKNOWN")).toBe(true);
+  });
+});
+
+describe("hasNonUsSuffix", () => {
+  test("matches known non-US suffixes case-insensitively and ignores share-class dots", () => {
+    expect(hasNonUsSuffix("RR.L")).toBe(true);
+    expect(hasNonUsSuffix("rr.l")).toBe(true);
+    expect(hasNonUsSuffix("BRK.B")).toBe(false);
+    expect(hasNonUsSuffix("AAPL")).toBe(false);
+  });
+});
+
+describe("isInternationalIdentity", () => {
+  test("treats a non-USD quote currency as international", () => {
+    expect(isInternationalIdentity({ quoteCurrency: "GBp" })).toBe(true);
+    expect(isInternationalIdentity({ quoteCurrency: "USD" })).toBe(false);
+  });
+
+  test("aggressively treats any non-US exchange as international (unlike the capability gate)", () => {
+    expect(isInternationalIdentity({ exchange: "London Stock Exchange" })).toBe(true);
+    expect(isInternationalIdentity({ exchange: "Some New Venue" })).toBe(true);
+    expect(isInternationalIdentity({ exchange: "NASDAQ" })).toBe(false);
+  });
+
+  test("is not international when identity is absent or carries no signal", () => {
+    const absent: InstrumentIdentity | undefined = undefined;
+    expect(isInternationalIdentity(absent)).toBe(false);
+    expect(isInternationalIdentity({})).toBe(false);
   });
 });

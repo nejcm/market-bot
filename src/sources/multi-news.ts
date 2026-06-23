@@ -332,7 +332,7 @@ function keepRelevantSeenSources(args: {
   const lane = newsSeenLane(command);
   const gap = sourceGap({
     source: "news-seen",
-    message: `Persistent news dedupe suppressed ${String(kept.length)} relevant repeat source(s) for ${lane}; kept ${String(kept.length)} relevant repeat fallback(s)`,
+    message: `Persistent news dedupe suppressed ${String(relevantDropped.length)} relevant repeat source(s) for ${lane}; kept ${String(kept.length)} relevant repeat fallback(s)`,
     capability: "news",
     cause: "repeat-fallback",
     evidenceQualityImpact: "no-cap",

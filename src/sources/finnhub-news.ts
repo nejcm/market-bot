@@ -83,7 +83,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   if (
     command.jobType === "ticker" &&
     command.assetClass === "equity" &&
-    !isUsListing(command.symbol)
+    !isUsListing(command.symbol, ctx.instrumentIdentity)
   ) {
     return {
       rawSnapshots: [],

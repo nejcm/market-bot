@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { parseSections } from "./markdown-sections";
 
 export type StageLabel =
@@ -27,8 +27,8 @@ export interface LoadedPrompt {
 // ---------------------------------------------------------------------------
 
 function overrideKey(command: ResearchCommand): string {
-  if (command.jobType === "ticker") {
-    return "ticker";
+  if (isInstrumentCommand(command)) {
+    return command.jobType;
   }
   return `${command.jobType}-${command.assetClass}`;
 }

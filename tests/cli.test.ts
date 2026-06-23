@@ -41,13 +41,28 @@ describe("parseArgs", () => {
     });
   });
 
-  test("parses ticker crypto deep and normalizes symbol", () => {
-    expect(parseArgs(["ticker", "btc", "--asset", "crypto", "--deep"])).toEqual({
-      jobType: "ticker",
-      assetClass: "crypto",
-      symbol: "BTC",
+  test("parses equity deep and normalizes symbol", () => {
+    expect(parseArgs(["equity", "aapl", "--deep"])).toEqual({
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
       depth: "deep",
     });
+  });
+
+  test("parses crypto brief and normalizes symbol", () => {
+    expect(parseArgs(["crypto", "btc"])).toEqual({
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "brief",
+    });
+  });
+
+  test("rejects --asset flag on equity/crypto commands", () => {
+    expect(() => parseArgs(["equity", "AAPL", "--asset", "equity"])).toThrow(
+      "Unknown flag: --asset",
+    );
   });
 
   test("parses alpha-search equity deep", () => {
@@ -103,8 +118,11 @@ describe("parseArgs", () => {
 
   test("labels commands for CLI output", () => {
     expect(
-      commandLabel({ jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" }),
-    ).toBe("ticker AAPL equity deep");
+      commandLabel({ jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" }),
+    ).toBe("equity AAPL deep");
+    expect(
+      commandLabel({ jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" }),
+    ).toBe("crypto BTC");
     expect(
       commandLabel({
         jobType: "market-overview",
@@ -163,7 +181,7 @@ describe("parseArgs", () => {
         "--asset",
         "equity",
         "--job-type",
-        "ticker",
+        "equity",
         "--from",
         "2026-06-01",
         "--to",
@@ -180,7 +198,7 @@ describe("parseArgs", () => {
       query: "margin",
       symbol: "AAPL",
       assetClass: "equity",
-      sourceJobType: "ticker",
+      sourceJobType: "equity",
       from: "2026-06-01",
       to: "2026-06-05",
       section: "risks",
@@ -243,7 +261,8 @@ describe("parseArgs", () => {
       "daily",
       "weekly",
       "market-overview",
-      "ticker",
+      "equity",
+      "crypto",
       "research",
       "alpha-search",
       "score",
@@ -256,24 +275,29 @@ describe("parseArgs", () => {
       "market-overview",
       "daily",
       "weekly",
-      "ticker",
+      "equity",
+      "crypto",
       "alpha-search",
       "research",
     ]);
-    expect(jobSupportsAsset("ticker")).toBe(true);
+    expect(jobSupportsAsset("equity")).toBe(false);
+    expect(jobSupportsAsset("crypto")).toBe(false);
+    expect(jobSupportsAsset("market-overview")).toBe(true);
     expect(jobSupportsAsset("score")).toBe(false);
+    expect(jobSupportsDepth("equity")).toBe(true);
+    expect(jobSupportsDepth("crypto")).toBe(true);
     expect(jobSupportsDepth("alpha-search")).toBe(true);
     expect(jobSupportsDepth("research")).toBe(true);
     expect(jobSupportsDepth("provider-health")).toBe(false);
   });
 
   test("converts job requests from the shared registry", () => {
-    expect(jobRequestArgv({ jobType: "ticker", symbol: "aapl", assetClass: "equity" })).toEqual([
-      "ticker",
-      "aapl",
-      "--asset",
+    expect(jobRequestArgv({ jobType: "equity", symbol: "aapl", depth: "deep" })).toEqual([
       "equity",
+      "aapl",
+      "--deep",
     ]);
+    expect(jobRequestArgv({ jobType: "crypto", symbol: "btc" })).toEqual(["crypto", "btc"]);
     expect(jobRequestArgv({ jobType: "research", subject: "AI biotech", depth: "deep" })).toEqual([
       "research",
       "AI",

@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap } from "../../domain/source-gaps";
 import {
   buildFredMacroMetrics,
@@ -11,7 +12,7 @@ import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 
 export async function collectFred(ctx: CollectContext): Promise<ProviderResult> {
   const { command, fetchedAt } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
   if (ctx.fredApiKey === undefined) {

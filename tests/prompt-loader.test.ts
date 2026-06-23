@@ -41,7 +41,7 @@ const dailyEquityCommand = {
 };
 
 const tickerCommand = {
-  jobType: "ticker" as const,
+  jobType: "equity" as const,
   assetClass: "equity" as const,
   symbol: "AAPL",
   depth: "brief" as const,
@@ -147,20 +147,20 @@ Only instruction delta.
     expect(result.goal).toBe("Base goal text.");
   });
 
-  test("uses ticker.md override for ticker commands", async () => {
+  test("uses equity.md override for equity commands", async () => {
     const overrideContent = `## instruction
 
-Ticker-specific delta.
+Equity-specific delta.
 `;
     const { dir, cleanup } = await makePromptDir({
       "final-synthesis/base.md": BASE_CONTENT,
-      "final-synthesis/ticker.md": overrideContent,
+      "final-synthesis/equity.md": overrideContent,
     });
     cleanups.push(cleanup);
 
     const result = await loadStagePrompt("final-synthesis", tickerCommand, dir);
 
-    expect(result.instruction).toBe("Base instruction text.\n\nTicker-specific delta.");
+    expect(result.instruction).toBe("Base instruction text.\n\nEquity-specific delta.");
   });
 
   test("throws when override includes unsupported system section", async () => {

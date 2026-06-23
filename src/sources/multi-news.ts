@@ -1,4 +1,5 @@
 import type { Source, SourceGap, SourceProviderAlias } from "../domain/types";
+import { isInstrumentCommand } from "../cli/args";
 import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
 import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
@@ -155,7 +156,7 @@ function fetchedAtMs(source: Source): number {
 }
 
 function relevanceTargets(ctx: CollectContext): readonly NewsRelevanceTarget[] {
-  if (ctx.command.jobType !== "ticker") {
+  if (!isInstrumentCommand(ctx.command)) {
     return ctx.newsRelevanceTargets ?? [];
   }
   const [target] = ctx.newsRelevanceTargets ?? [];
@@ -258,7 +259,7 @@ function selectedRelevanceAnalytics(
   }
   const selectedRelevantCount = sources.filter((source) => isNewsRelevant(source, targets)).length;
   const selectedGenericCount = sources.length - selectedRelevantCount;
-  return command.jobType === "ticker"
+  return isInstrumentCommand(command)
     ? {
         selectedRelevantTickerNewsSourceCount: selectedRelevantCount,
         selectedGenericTickerNewsSourceCount: selectedGenericCount,
@@ -300,7 +301,7 @@ function keepRelevantSeenSources(args: {
   readonly targets: readonly NewsRelevanceTarget[];
 }): RelevantRepeatKeep {
   const { command, dedupedSources, survivors, targets } = args;
-  if (command.jobType !== "ticker" || targets.length === 0) {
+  if (!isInstrumentCommand(command) || targets.length === 0) {
     return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
   }
   const relevantSurvivorCount = survivors.filter((source) =>

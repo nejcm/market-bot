@@ -264,7 +264,8 @@ function asResearchCommand(command: ReturnType<typeof parseArgs>): ResearchComma
     command.jobType === "market-overview" ||
     command.jobType === "daily" ||
     command.jobType === "weekly" ||
-    command.jobType === "ticker" ||
+    command.jobType === "equity" ||
+    command.jobType === "crypto" ||
     command.jobType === "research"
   ) {
     return command;

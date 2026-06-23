@@ -12,7 +12,7 @@ import { collectedSources, marketSnapshot, newsSource, prediction } from "./supp
 
 const report: ResearchReport = {
   runId: "run-1",
-  jobType: "ticker",
+  jobType: "crypto",
   assetClass: "crypto",
   symbol: "BTC",
   generatedAt: "2026-05-19T00:00:00.000Z",
@@ -161,7 +161,7 @@ function assembleWithSpotlights(
   command?:
     | { readonly jobType: "daily"; readonly assetClass: "equity"; readonly depth: "brief" }
     | {
-        readonly jobType: "ticker";
+        readonly jobType: "equity";
         readonly assetClass: "equity";
         readonly symbol: "ROKU";
         readonly depth: "brief";
@@ -206,7 +206,7 @@ describe("report schema and rendering", () => {
     };
 
     const sources = buildSourceList(
-      { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: [snapshot],
@@ -230,7 +230,7 @@ describe("report schema and rendering", () => {
     };
 
     const sources = buildSourceList(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: [snapshot],
@@ -253,7 +253,7 @@ describe("report schema and rendering", () => {
     };
 
     const sources = buildSourceList(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       collectedSources({
         rawSnapshots: [],
         supplementalMarketSnapshots: [snapshot],
@@ -405,7 +405,7 @@ describe("report schema and rendering", () => {
         },
       },
       assemblyContext(depthProfile),
-      { jobType: "ticker", assetClass: "equity", symbol: "ROKU", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "ROKU", depth: "brief" },
     );
 
     expect(assembled.extras?.spotlights).toEqual({
@@ -618,7 +618,7 @@ describe("report schema and rendering", () => {
 
   test("dedupes model provider gap prose against deterministic source gaps", () => {
     const command = {
-      jobType: "ticker" as const,
+      jobType: "equity" as const,
       assetClass: "equity" as const,
       symbol: "AAPL",
       depth: "brief" as const,
@@ -713,7 +713,7 @@ describe("report schema and rendering", () => {
 
   test("keeps deterministic options and supplemental gaps over model restatements", () => {
     const command = {
-      jobType: "ticker" as const,
+      jobType: "equity" as const,
       assetClass: "equity" as const,
       symbol: "AAPL",
       depth: "brief" as const,
@@ -885,7 +885,7 @@ describe("report schema and rendering", () => {
 
   test("does not lower high confidence for optional news-provider gaps when usable news exists", () => {
     const command = {
-      jobType: "ticker" as const,
+      jobType: "equity" as const,
       assetClass: "equity" as const,
       symbol: "AAPL",
       depth: "brief" as const,
@@ -995,7 +995,7 @@ describe("report schema and rendering", () => {
         {
           runId: "prior-run",
           sourceId: "history-report-prior-run",
-          jobType: "ticker",
+          jobType: "equity",
           assetClass: "equity",
           symbol: "AAPL",
           generatedAt: "2026-05-01T00:00:00.000Z",
@@ -1044,7 +1044,7 @@ describe("report schema and rendering", () => {
       artifactDeltas: [],
     };
     const command = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "brief",
@@ -1090,7 +1090,7 @@ describe("report schema and rendering", () => {
   test("keeps prior forecast numeric narrative cited to history reports", () => {
     const historySourceId = "history-report-prior-run";
     const command = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "brief",
@@ -1157,7 +1157,7 @@ describe("report schema and rendering", () => {
           {
             runId: "prior-aapl",
             sourceId: historySource.id,
-            jobType: "ticker",
+            jobType: "equity",
             assetClass: "equity",
             symbol: "AAPL",
             generatedAt: "2026-05-01T00:00:00.000Z",
@@ -1199,7 +1199,7 @@ describe("report schema and rendering", () => {
     const assembled = assembleResearchReport({
       runId: "run-1",
       generatedAt: "2026-06-01T00:00:00.000Z",
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       payload: {
         summary: "History-informed report.",
         keyFindings: [{ text: "Prior context is relevant.", sourceIds: [historySource.id] }],
@@ -1894,7 +1894,7 @@ describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
 
   test("omits registry sources for non-research job types", () => {
     const sources = buildSourceList(
-      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "brief" },
       collectedSources(),
       undefined,
       "2026-06-01T00:00:00.000Z",

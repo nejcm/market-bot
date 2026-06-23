@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppConfig } from "../config";
 import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "../config/runs";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import {
@@ -65,7 +65,7 @@ export function deterministicSourceGaps(
   const newsGaps =
     collectedSources.newsSources.length === 0 ? ["No usable news sources were collected"] : [];
   const tickerGaps =
-    command.jobType === "ticker" &&
+    isInstrumentCommand(command) &&
     collectedSources.marketSnapshots.every((snapshot) => snapshot.symbol !== command.symbol)
       ? [`No market snapshot matched ticker ${command.symbol}`]
       : [];
@@ -80,7 +80,7 @@ export function deterministicSourceGaps(
       : [];
 
   const verifiedSnapshotGaps =
-    command.jobType === "ticker" &&
+    isInstrumentCommand(command) &&
     command.assetClass === "equity" &&
     collectedSources.verifiedMarketSnapshot === undefined
       ? [missingVerifiedSnapshotGapText(command.symbol)]
@@ -459,7 +459,7 @@ function collectPriorMisses(
   command: ResearchCommand,
   historicalContext: HistoricalResearchContext | undefined,
 ): readonly PriorMiss[] {
-  if (command.jobType !== "ticker" || historicalContext === undefined) {
+  if (!isInstrumentCommand(command) || historicalContext === undefined) {
     return [];
   }
   const symbol = command.symbol.toUpperCase();
@@ -503,7 +503,7 @@ function historicalRunHorizonBucket(run: HistoricalRunContext): string | undefin
 // Gathers resolved misses from prior same-horizon, same-asset market-update runs
 // Whose prediction subject is one of the command's configured market subjects
 // (index/macro), so the forecast can learn from prior market-scoped errors. The
-// JobType filter alone already excludes spotlight ticker misses (jobType "ticker").
+// JobType filter alone already excludes single-instrument misses (jobType "equity"/"crypto").
 function collectMarketForecastMisses(
   command: ResearchCommand,
   historicalContext: HistoricalResearchContext | undefined,
@@ -612,7 +612,7 @@ function buildPriorThesisErrorBlock(
   // Second jobType narrowing is deliberate, not a duplicate of collectPriorMisses: it lets TS prove
   // Command.symbol exists below, and guards command.symbol access if collectPriorMisses is ever
   // Relaxed to non-ticker runs. Do not remove.
-  if (misses.length === 0 || command.jobType !== "ticker") {
+  if (misses.length === 0 || !isInstrumentCommand(command)) {
     return undefined;
   }
   const symbol = command.symbol.toUpperCase();
@@ -717,12 +717,12 @@ const projectMarketContext: EvidenceProjector = (_command, collectedSources) =>
     : {};
 
 const projectExtendedEvidence: EvidenceProjector = (command, collectedSources) =>
-  command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
+  isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
     ? { extendedEvidence: collectedSources.extendedEvidence }
     : {};
 
 const projectEarningsSetup: EvidenceProjector = (command, collectedSources) =>
-  command.jobType === "ticker" && collectedSources.earningsSetup !== undefined
+  isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined
     ? { earningsSetup: collectedSources.earningsSetup }
     : {};
 
@@ -1130,7 +1130,7 @@ export function buildStagePrompt(
       ? " Deep runs may use Conditional Predictions with measurableAs syntax if (<existing expression>) then (<existing expression>) when evidence supports a conditional setup. For conditional predictions, kind is conditional, subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals."
       : "";
   const hasEarningsSetup =
-    command.jobType === "ticker" && collectedSources.earningsSetup !== undefined;
+    isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
   const earningsPredictionInstruction =
     stage === "final-synthesis" && hasEarningsSetup
       ? " An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today. You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps."

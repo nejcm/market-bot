@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readNumber, readString } from "./guards";
@@ -14,7 +14,7 @@ import {
 const FINNHUB_API_URL = "https://finnhub.io/api/v1";
 
 function buildFinnhubUrl(command: ResearchCommand, token: string, fetchedAt: string): string {
-  if (command.jobType === "ticker" && command.assetClass === "equity") {
+  if (isInstrumentCommand(command) && command.assetClass === "equity") {
     const from = ymd(dateDaysBefore(fetchedAt, recencyDays(command)));
     const to = ymd(new Date(fetchedAt));
     return `${FINNHUB_API_URL}/company-news?${encodeQuery({ symbol: command.symbol, from, to, token })}`;
@@ -81,7 +81,7 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   const { command, fetchedAt, newsLimit } = ctx;
 
   if (
-    command.jobType === "ticker" &&
+    isInstrumentCommand(command) &&
     command.assetClass === "equity" &&
     !isUsListing(command.symbol, ctx.instrumentIdentity)
   ) {

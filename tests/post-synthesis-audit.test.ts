@@ -12,7 +12,7 @@ function reportWith(
 ): ResearchReport {
   return {
     runId: "run-audit",
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     generatedAt: "2026-05-19T00:00:00.000Z",

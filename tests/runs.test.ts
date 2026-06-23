@@ -172,7 +172,7 @@ describe("resolveRunParams — run keys", () => {
 
   test("ticker brief uses command symbol as predictionSubjects", () => {
     const result = resolveRunParams(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       baseConfig,
     );
 
@@ -183,7 +183,7 @@ describe("resolveRunParams — run keys", () => {
 
   test("ticker deep uses command symbol and deep overrides", () => {
     const result = resolveRunParams(
-      { jobType: "ticker", assetClass: "equity", symbol: "TSLA", depth: "deep" },
+      { jobType: "equity", assetClass: "equity", symbol: "TSLA", depth: "deep" },
       baseConfig,
     );
 

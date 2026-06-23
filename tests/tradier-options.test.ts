@@ -18,7 +18,7 @@ function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): Source
 
 function baseCtx(overrides: Partial<CollectContext> = {}): CollectContext {
   return {
-    command: { jobType: "ticker", assetClass: "equity", symbol: "RR.L", depth: "deep" },
+    command: { jobType: "equity", assetClass: "equity", symbol: "RR.L", depth: "deep" },
     fetchedAt,
     newsLimit: 2,
     cryptoMoverLimit: 2,
@@ -45,7 +45,7 @@ describe("collectTradierIv non-US gating", () => {
   test("uses the resolved identity to gate a suffix-less non-US symbol", async () => {
     const result = await collectTradierIv(
       baseCtx({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "VOD", depth: "deep" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "VOD", depth: "deep" },
         instrumentIdentity: { exchange: "London Stock Exchange" },
       }),
     );
@@ -58,7 +58,7 @@ describe("collectTradierIv non-US gating", () => {
   test("does not gate a US ticker (falls through to the credential check)", async () => {
     const result = await collectTradierIv(
       baseCtx({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       }),
     );
 

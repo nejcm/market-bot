@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../../cli/args";
+import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
@@ -72,7 +72,7 @@ function readMetric(
 }
 
 function tickerSnapshot(
-  command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
+  command: InstrumentCommand,
   marketSnapshots: readonly MarketSnapshot[],
 ): MarketSnapshot | undefined {
   const symbol = command.symbol.toUpperCase();
@@ -460,7 +460,7 @@ export function addFinancialLensEvidence(
   verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined,
   generatedAt: string,
 ): FinancialLensResult {
-  if (command.jobType !== "ticker" || command.assetClass !== "equity") {
+  if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
   }
 

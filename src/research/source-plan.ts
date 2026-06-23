@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { AssetClass, Source, SourceGap } from "../domain/types";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
@@ -167,7 +167,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "verified-snapshot",
     requirement: "required",
     providerPath: "yahoo verified chart for equity ticker runs",
-    applies: (command) => command.jobType === "ticker" && command.assetClass === "equity",
+    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
     sourceIds: (sources) =>
       sources.verifiedMarketSnapshot === undefined
         ? []
@@ -178,7 +178,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "sec-edgar",
     requirement: "optional",
     providerPath: "SEC EDGAR extended evidence for equity ticker runs",
-    applies: (command) => command.jobType === "ticker" && command.assetClass === "equity",
+    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "sec-edgar"),
     gapMatches: (gap) => gap.source.startsWith("sec-"),
   },
@@ -186,7 +186,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "equity-events",
     requirement: "optional",
     providerPath: "Finnhub events extended evidence for equity ticker runs",
-    applies: (command) => command.jobType === "ticker" && command.assetClass === "equity",
+    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "equity-events"),
     gapMatches: (gap) => gap.source.startsWith("finnhub-events"),
   },
@@ -194,7 +194,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "extended-fred-macro",
     requirement: "optional",
     providerPath: "FRED macro extended evidence for ticker runs",
-    applies: (command) => command.jobType === "ticker",
+    applies: (command) => isInstrumentCommand(command),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "fred-macro"),
     gapMatches: (gap) => gap.capability === "extended-evidence" && gap.source.startsWith("fred-"),
   },
@@ -202,7 +202,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "options-iv",
     requirement: "optional",
     providerPath: "Tradier IV term structure for equity ticker runs",
-    applies: (command) => command.jobType === "ticker" && command.assetClass === "equity",
+    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "options-iv"),
     gapMatches: (gap) => gap.source.startsWith("tradier-"),
   },
@@ -210,7 +210,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "on-chain",
     requirement: "optional",
     providerPath: "Glassnode on-chain extended evidence for crypto ticker runs",
-    applies: (command) => command.jobType === "ticker" && command.assetClass === "crypto",
+    applies: (command) => isInstrumentCommand(command) && command.assetClass === "crypto",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "on-chain"),
     gapMatches: (gap) => gap.source.startsWith("glassnode-"),
   },
@@ -218,7 +218,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     lane: "valuation",
     requirement: "optional",
     providerPath: "derived from Yahoo market cap and SEC fundamentals for equity ticker runs",
-    applies: (command) => command.jobType === "ticker" && command.assetClass === "equity",
+    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "valuation"),
     gapMatches: (gap) => gap.source === "valuation",
   },
@@ -391,7 +391,7 @@ export function buildSourcePlan(
       run: {
         jobType: command.jobType,
         assetClass: command.assetClass,
-        ...(command.jobType === "ticker" ? { symbol: command.symbol } : {}),
+        ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
         ...(command.jobType === "research" ? { subject: command.subject } : {}),
         depth: command.depth,
       },

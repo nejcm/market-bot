@@ -50,7 +50,7 @@ function earningsReport(
   eventDate = "2026-05-15",
 ): ResearchReport {
   return researchReport({
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     generatedAt: "2026-05-14T00:00:00.000Z",
@@ -551,7 +551,7 @@ describe("resolveOutcome — earnings scoring", () => {
 
 describe("validateResearchReport — earningsSetup extras", () => {
   const baseReport: ResearchReport = researchReport({
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     sources: [
@@ -747,7 +747,7 @@ describe("validateResearchReport — earningsSetup extras", () => {
 
 describe("renderMarkdownReport — earnings setup section", () => {
   const baseReport: ResearchReport = researchReport({
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     sources: [

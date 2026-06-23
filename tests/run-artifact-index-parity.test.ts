@@ -101,7 +101,7 @@ function writeFixtureRun(dataDir: string, runId: string): void {
     join(runDir, "report.json"),
     researchReport({
       runId,
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       generatedAt: "2026-06-01T00:00:00.000Z",
@@ -222,7 +222,7 @@ describe("run artifact index parity", () => {
       query: "risk",
       symbol: "AAPL",
       assetClass: "equity",
-      jobType: "ticker",
+      jobType: "equity",
       section: "risks",
     });
 
@@ -231,7 +231,7 @@ describe("run artifact index parity", () => {
       query: "risk",
       symbol: "AAPL",
       assetClass: "equity",
-      jobType: "ticker",
+      jobType: "equity",
       section: "risks",
     });
 

@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import type {
   EvidenceRequestAuditEntry,
   EvidenceRequestLoopAudit,
@@ -66,7 +66,7 @@ interface ModelEvidenceRequest {
 }
 
 interface ValidationState {
-  readonly command: Extract<ResearchCommand, { readonly jobType: "ticker" }>;
+  readonly command: InstrumentCommand;
   readonly availableTools: ReadonlySet<EvidenceRequestToolName>;
   readonly seenKeys: Set<string>;
   readonly config: AppConfig;
@@ -100,7 +100,7 @@ export async function runEvidenceRequestLoop(
     // The instrument is a non-US listing (US equity always exposes sec_latest_filing).
     // Emit one deterministic unsupported-coverage gap so the skip is observable.
     if (
-      command.jobType === "ticker" &&
+      isInstrumentCommand(command) &&
       command.assetClass === "equity" &&
       !isUsListing(command.symbol, input.collectedSources.resolvedInstrumentIdentity)
     ) {
@@ -193,9 +193,9 @@ export async function runEvidenceRequestLoop(
 function isEvidenceRequestLoopEnabled(
   command: ResearchCommand,
   config: AppConfig,
-): command is Extract<ResearchCommand, { readonly jobType: "ticker" }> {
+): command is InstrumentCommand {
   return (
-    command.jobType === "ticker" &&
+    isInstrumentCommand(command) &&
     command.depth === "deep" &&
     command.assetClass === "equity" &&
     config.evidenceRequestOptions.maxRounds > 0 &&
@@ -409,7 +409,7 @@ function mergeExtendedEvidence(
   return {
     instrument:
       existing?.instrument ??
-      (command.jobType === "ticker"
+      (isInstrumentCommand(command)
         ? { assetClass: command.assetClass, symbol: command.symbol }
         : { assetClass: command.assetClass, symbol: "" }),
     items: [...(existing?.items ?? []), ...items],

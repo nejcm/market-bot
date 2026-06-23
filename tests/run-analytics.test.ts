@@ -13,7 +13,7 @@ import {
 
 const trace: RunTrace = {
   runId: "run-1",
-  jobType: "ticker",
+  jobType: "equity",
   assetClass: "equity",
   symbol: "AAPL",
   depth: "deep",
@@ -134,7 +134,7 @@ describe("run analytics", () => {
       },
     });
     const report = researchReport({
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       confidence: "medium",
@@ -195,7 +195,7 @@ describe("run analytics", () => {
         generatedAt: "2026-05-18T00:00:00.000Z",
         resolvedCount: 12,
         byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
-        byJobType: { ticker: { brierScore: 0.22, count: 6 } },
+        byJobType: { equity: { brierScore: 0.22, count: 6 } },
       },
     });
 
@@ -245,7 +245,7 @@ describe("run analytics", () => {
         brierSkillScore: 0.199_999_999_999_999_96,
         count: 8,
       },
-      jobType: { key: "ticker", brierScore: 0.22, brierSkillScore: 0.12, count: 6 },
+      jobType: { key: "equity", brierScore: 0.22, brierSkillScore: 0.12, count: 6 },
     });
     expect(analytics.verifiedMarketSnapshot).toEqual({
       symbol: "AAPL",
@@ -286,7 +286,7 @@ describe("run analytics", () => {
 describe("forecast quality telemetry (3.2)", () => {
   const baseTrace: RunTrace = {
     runId: "run-q",
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     depth: "brief",
@@ -316,7 +316,7 @@ describe("forecast quality telemetry (3.2)", () => {
   ): ReturnType<typeof buildRunAnalytics>["predictions"] {
     return buildRunAnalytics({
       report: researchReport({
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         predictions: preds,

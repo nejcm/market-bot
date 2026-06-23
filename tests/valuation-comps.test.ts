@@ -8,7 +8,7 @@ import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../
 import { marketSnapshot } from "./support/fixtures";
 
 const generatedAt = "2026-07-15T00:00:00.000Z";
-const command = { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "deep" } as const;
+const command = { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" } as const;
 
 function rawJson(adapter: string, payload: unknown, fetchedAt = generatedAt): FetchJsonResult {
   return {

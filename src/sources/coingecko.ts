@@ -1,4 +1,5 @@
 import type { InstrumentIdentity, MarketSnapshot } from "../domain/types";
+import { isInstrumentCommand } from "../cli/args";
 import type { Observation } from "../forecast/observable";
 import {
   isFetchJsonResult,
@@ -107,8 +108,9 @@ async function collectCrypto(ctx: CollectContext): Promise<MarketCollectionResul
   }
 
   const all = normalizeCoinGeckoMarketsPayload(fetched.payload, fetched.rawSnapshot.fetchedAt);
-  const marketSnapshots =
-    command.jobType === "ticker" ? all.filter((s) => s.symbol === command.symbol) : all;
+  const marketSnapshots = isInstrumentCommand(command)
+    ? all.filter((s) => s.symbol === command.symbol)
+    : all;
 
   return {
     rawSnapshots: [fetched.rawSnapshot],

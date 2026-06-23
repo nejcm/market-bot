@@ -1,4 +1,10 @@
-import type { AssetClass, Depth, LegacyMarketUpdateJobType } from "../domain/types";
+import {
+  isInstrumentJobType,
+  type AssetClass,
+  type Depth,
+  type InstrumentJobType,
+  type LegacyMarketUpdateJobType,
+} from "../domain/types";
 import type { HistorySection } from "../history/artifacts";
 import { isRecord } from "../sources/guards";
 
@@ -23,8 +29,8 @@ export interface WeeklyCommand {
   readonly depth: Depth;
 }
 
-export interface TickerCommand {
-  readonly jobType: "ticker";
+export interface InstrumentCommand {
+  readonly jobType: InstrumentJobType;
   readonly assetClass: AssetClass;
   readonly symbol: string;
   readonly depth: Depth;
@@ -78,7 +84,8 @@ export interface HistorySearchCommand {
     | "market-overview"
     | "daily"
     | "weekly"
-    | "ticker"
+    | "equity"
+    | "crypto"
     | "alpha-search"
     | "research";
   readonly from?: string;
@@ -101,7 +108,7 @@ export type ResearchCommand =
   | MarketOverviewCommand
   | DailyCommand
   | WeeklyCommand
-  | TickerCommand
+  | InstrumentCommand
   | ResearchSubjectCommand;
 export type CliCommand =
   | ResearchCommand
@@ -115,6 +122,11 @@ export type CliCommand =
   | HistorySearchCommand
   | HistoryThesisDeltaCommand;
 
+// Narrows a command to a single-instrument (equity / crypto) run, exposing `symbol`.
+export function isInstrumentCommand(command: ResearchCommand): command is InstrumentCommand {
+  return isInstrumentJobType(command.jobType);
+}
+
 export const ASSET_CLASS_OPTIONS = ["equity", "crypto"] as const;
 export const DEPTH_OPTIONS = ["brief", "deep"] as const;
 
@@ -122,7 +134,8 @@ export const CONSOLE_JOB_TYPES = [
   "daily",
   "weekly",
   "market-overview",
-  "ticker",
+  "equity",
+  "crypto",
   "research",
   "alpha-search",
   "score",
@@ -135,13 +148,14 @@ export const SEARCH_JOB_TYPE_OPTIONS = [
   "market-overview",
   "daily",
   "weekly",
-  "ticker",
+  "equity",
+  "crypto",
   "alpha-search",
   "research",
 ] as const;
 
 export const USAGE =
-  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot ticker <symbol> --asset equity|crypto [--deep] | market-bot research <subject> [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
+  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
@@ -184,12 +198,7 @@ function depthArg(depth: Depth): readonly string[] {
 }
 
 export function jobSupportsAsset(jobType: string): boolean {
-  return (
-    jobType === "daily" ||
-    jobType === "weekly" ||
-    jobType === "market-overview" ||
-    jobType === "ticker"
-  );
+  return jobType === "daily" || jobType === "weekly" || jobType === "market-overview";
 }
 
 export function jobSupportsDepth(jobType: string): boolean {
@@ -197,7 +206,8 @@ export function jobSupportsDepth(jobType: string): boolean {
     jobType === "daily" ||
     jobType === "weekly" ||
     jobType === "market-overview" ||
-    jobType === "ticker" ||
+    jobType === "equity" ||
+    jobType === "crypto" ||
     jobType === "alpha-search" ||
     jobType === "research"
   );
@@ -221,7 +231,9 @@ export function commandLabel(command: CliCommand): string {
     return `history thesis-delta ${command.assetClass}:${command.symbol}`;
   }
   const depthSuffix = command.depth === "deep" ? " deep" : "";
-  const symbolPart = command.jobType === "ticker" ? ` ${command.symbol}` : "";
+  if (command.jobType === "equity" || command.jobType === "crypto") {
+    return `${command.jobType} ${command.symbol}${depthSuffix}`;
+  }
   if (command.jobType === "market-overview") {
     const alias = command.legacyAlias === undefined ? "market-overview" : command.legacyAlias;
     return `${alias} ${command.assetClass} ${String(command.horizonTradingDays)}d${depthSuffix}`;
@@ -230,7 +242,7 @@ export function commandLabel(command: CliCommand): string {
     return `research ${command.subject}${depthSuffix}`;
   }
 
-  return `${command.jobType}${symbolPart} ${command.assetClass}${depthSuffix}`;
+  return `${command.jobType} ${command.assetClass}${depthSuffix}`;
 }
 
 export function jobRequestArgv(value: unknown): readonly string[] {
@@ -251,20 +263,13 @@ export function jobRequestArgv(value: unknown): readonly string[] {
     ];
   }
 
-  if (jobType === "ticker") {
+  if (jobType === "equity" || jobType === "crypto") {
     const symbol = readString(value, "symbol");
     if (symbol === undefined || symbol.trim() === "") {
-      throw new Error("Expected ticker symbol");
+      throw new Error(`Expected ${jobType} symbol`);
     }
 
-    const assetClass = readAssetClass(readString(value, "assetClass"));
-    return [
-      "ticker",
-      symbol,
-      "--asset",
-      assetClass,
-      ...depthArg(readDepth(readString(value, "depth"))),
-    ];
+    return [jobType, symbol, ...depthArg(readDepth(readString(value, "depth")))];
   }
 
   if (jobType === "alpha-search") {

@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 
 const TRACKING_PARAMS = new Set(["fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref", "spm"]);
 
@@ -7,7 +7,7 @@ export function encodeQuery(params: Record<string, string>): string {
 }
 
 export function newsQuery(command: ResearchCommand): string {
-  if (command.jobType === "ticker") {
+  if (isInstrumentCommand(command)) {
     return command.symbol;
   }
 

@@ -58,7 +58,7 @@ describe("research console app view model", () => {
   test("matches run summaries by searchable fields", () => {
     const run = {
       runId: "run-1",
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "deep",
@@ -73,7 +73,7 @@ describe("research console app view model", () => {
 
     expect(matchesQuery(run, "aapl")).toBe(true);
     expect(matchesQuery(run, "crypto")).toBe(false);
-    expect(runLabel(run)).toBe("ticker / AAPL");
+    expect(runLabel(run)).toBe("equity / AAPL");
   });
 
   test("formats sidebar run counts as a compact mono label", () => {
@@ -101,18 +101,18 @@ describe("research console app view model", () => {
       availableFiles: [],
     };
     const runs = [
-      { ...baseRun, runId: "ticker-aapl", jobType: "ticker", symbol: "AAPL" },
-      { ...baseRun, runId: "ticker-msft", jobType: "ticker", symbol: "MSFT" },
+      { ...baseRun, runId: "ticker-aapl", jobType: "equity", symbol: "AAPL" },
+      { ...baseRun, runId: "ticker-msft", jobType: "equity", symbol: "MSFT" },
       { ...baseRun, runId: "daily-1", jobType: "daily" },
       { ...baseRun, runId: "untyped-1" },
     ];
 
     expect(filterRuns(runs, "all", "")).toEqual(runs);
-    expect(filterRuns(runs, "ticker", "").map((run) => run.runId)).toEqual([
+    expect(filterRuns(runs, "equity", "").map((run) => run.runId)).toEqual([
       "ticker-aapl",
       "ticker-msft",
     ]);
-    expect(filterRuns(runs, "ticker", "aapl").map((run) => run.runId)).toEqual(["ticker-aapl"]);
+    expect(filterRuns(runs, "equity", "aapl").map((run) => run.runId)).toEqual(["ticker-aapl"]);
     expect(filterRuns(runs, "run", "").map((run) => run.runId)).toEqual(["untyped-1"]);
     expect(filterRuns(runs, "daily", "aapl")).toEqual([]);
   });
@@ -217,10 +217,10 @@ describe("research console app view model", () => {
 
     expect(
       groupedRunsByType([
-        { ...baseRun, runId: "ticker-1", jobType: "ticker" },
+        { ...baseRun, runId: "ticker-1", jobType: "equity" },
         { ...baseRun, runId: "daily-1", jobType: "daily" },
         { ...baseRun, runId: "weekly-1", jobType: "weekly" },
-        { ...baseRun, runId: "ticker-2", jobType: "ticker" },
+        { ...baseRun, runId: "ticker-2", jobType: "equity" },
         { ...baseRun, runId: "unknown-1" },
       ]),
     ).toEqual([
@@ -233,10 +233,10 @@ describe("research console app view model", () => {
         runs: [{ ...baseRun, runId: "weekly-1", jobType: "weekly" }],
       },
       {
-        type: "ticker",
+        type: "equity",
         runs: [
-          { ...baseRun, runId: "ticker-1", jobType: "ticker" },
-          { ...baseRun, runId: "ticker-2", jobType: "ticker" },
+          { ...baseRun, runId: "ticker-1", jobType: "equity" },
+          { ...baseRun, runId: "ticker-2", jobType: "equity" },
         ],
       },
       {
@@ -400,7 +400,7 @@ describe("research console app view model", () => {
           summary: {
             runId: "run-1",
             generatedAt: "2026-06-12T10:00:00Z",
-            jobType: "ticker",
+            jobType: "equity",
             assetClass: "equity",
             symbol: "AAPL",
             findingCount: 0,
@@ -418,7 +418,7 @@ describe("research console app view model", () => {
               shortfall: { missingCount: 1, disclosed: true },
             },
             calibrationAtGeneration: {
-              jobType: { key: "ticker", brierScore: 0.2, brierSkillScore: 0.2, count: 8 },
+              jobType: { key: "equity", brierScore: 0.2, brierSkillScore: 0.2, count: 8 },
             },
             verifiedMarketSnapshot: {
               symbol: "AAPL",
@@ -441,7 +441,7 @@ describe("research console app view model", () => {
     ).toEqual([
       {
         runId: "run-1",
-        label: "ticker / AAPL",
+        label: "equity / AAPL",
         generatedAt: expect.any(String),
         forecasts: "2/3",
         targetMet: false,

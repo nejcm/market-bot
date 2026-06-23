@@ -43,7 +43,7 @@ function adapter(provider: string, newsSources: readonly Source[]): NewsAdapter 
 
 function context(): CollectContext {
   return {
-    command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
     fetchedAt: "2026-06-01T00:00:00.000Z",
     newsLimit: 4,
     cryptoMoverLimit: 0,
@@ -266,7 +266,7 @@ describe("multi-news", () => {
     await recordSeenNewsSources({
       path: newsSeenPath,
       retentionDays: 30,
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       runId: "previous-run",
       seenAt: "2026-05-18T00:00:00.000Z",
       sources: [

@@ -126,7 +126,7 @@ function tempDataDir(prefix: string): string {
 async function writeHistoricalRun(input: {
   readonly dataDir: string;
   readonly runId: string;
-  readonly jobType: "daily" | "weekly" | "ticker";
+  readonly jobType: "daily" | "weekly" | "equity" | "crypto";
   readonly generatedAt: string;
   readonly symbol?: string;
   readonly snapshots?: readonly MarketSnapshot[];
@@ -264,7 +264,8 @@ describe("runResearchJob", () => {
       },
       "market-overview-crypto": {},
       "research-equity": {},
-      ticker: {},
+      equity: {},
+      crypto: {},
     };
     const provider: ModelProvider = {
       name: "mock",
@@ -490,7 +491,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: evidenceConfig,
       provider,
       collectedSources: collectedSourceBundle({
@@ -557,7 +558,7 @@ describe("runResearchJob", () => {
     await writeHistoricalRun({
       dataDir,
       runId: "prior-aapl-ticker",
-      jobType: "ticker",
+      jobType: "equity",
       symbol: "AAPL",
       generatedAt: "2026-05-01T00:00:00.000Z",
       snapshots: marketSnapshots,
@@ -587,7 +588,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: { ...evidenceConfig, dataDir },
       provider,
       collectedSources: collectedSourceBundle({
@@ -627,14 +628,14 @@ describe("runResearchJob", () => {
     await writeHistoricalRun({
       dataDir,
       runId: "prior-aapl-ticker",
-      jobType: "ticker",
+      jobType: "equity",
       symbol: "AAPL",
       generatedAt: "2026-05-01T00:00:00.000Z",
       snapshots: marketSnapshots,
     });
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { ...config, dataDir },
       provider: providerReturning(modelReport("AAPL", "history-report-prior-aapl-ticker")),
       collectedSources: collectedSourceBundle({
@@ -677,7 +678,7 @@ describe("runResearchJob", () => {
     const ALPHA_GAP = "Unable to read alpha-search watchlist for spotlight enrichment";
 
     const ticker = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { ...config, dataDir },
       provider,
       collectedSources: collected,
@@ -702,7 +703,7 @@ describe("runResearchJob", () => {
     await writeHistoricalRun({
       dataDir,
       runId: "prior-aapl-ticker",
-      jobType: "ticker",
+      jobType: "equity",
       symbol: "AAPL",
       generatedAt: "2026-05-01T00:00:00.000Z",
       snapshots: marketSnapshots,
@@ -813,7 +814,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...evidenceConfig,
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
@@ -894,7 +895,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...evidenceConfig,
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
@@ -1020,7 +1021,7 @@ describe("runResearchJob", () => {
     await writeHistoricalRun({
       dataDir,
       runId: "prior-aapl",
-      jobType: "ticker",
+      jobType: "equity",
       generatedAt: "2026-05-18T00:00:00.000Z",
       symbol: "AAPL",
     });
@@ -1063,7 +1064,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { ...config, dataDir },
       provider,
       collectedSources: collectedSourceBundle({
@@ -1119,7 +1120,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...evidenceConfig,
         sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
@@ -1175,7 +1176,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...evidenceConfig,
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
@@ -1230,7 +1231,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: evidenceConfig,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1268,7 +1269,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: evidenceConfig,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1294,13 +1295,13 @@ describe("runResearchJob", () => {
   test("skips evidence request loop outside deep equity ticker scope", async () => {
     const commands = [
       {
-        jobType: "ticker" as const,
+        jobType: "equity" as const,
         assetClass: "equity" as const,
         symbol: "AAPL",
         depth: "brief" as const,
       },
       {
-        jobType: "ticker" as const,
+        jobType: "crypto" as const,
         assetClass: "crypto" as const,
         symbol: "BTC",
         depth: "deep" as const,
@@ -1319,7 +1320,11 @@ describe("runResearchJob", () => {
           generate: async () => {
             calls += 1;
             return {
-              content: modelReport(command.jobType === "ticker" ? command.symbol : "SPY"),
+              content: modelReport(
+                command.jobType === "equity" || command.jobType === "crypto"
+                  ? command.symbol
+                  : "SPY",
+              ),
               tokenEstimate: 100,
               costEstimateUsd: 0.01,
             };
@@ -1340,7 +1345,7 @@ describe("runResearchJob", () => {
       }
       expect(calls).toBe(expectedCalls);
       expect(result.trace.stages).not.toContain("evidence-request");
-      if (command.jobType === "ticker" && command.assetClass === "crypto") {
+      if (command.jobType === "crypto") {
         expect(result.trace.stages).toEqual([
           "source-collection",
           "playbook-selection",
@@ -1536,7 +1541,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1788,7 +1793,7 @@ describe("runResearchJob", () => {
   test("rejects reports with trade-action language", async () => {
     await expect(
       runResearchJob({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
         config,
         provider: providerReturning(
           JSON.stringify({
@@ -1907,7 +1912,7 @@ describe("runResearchJob", () => {
     const dataDir = join(tmpdir(), `market-bot-valuation-comps-${Date.now()}`);
     dataDirs.push(dataDir);
     const result = await persistResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...config,
         dataDir,
@@ -2028,7 +2033,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await persistResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...config,
         dataDir,
@@ -2089,7 +2094,7 @@ describe("runResearchJob", () => {
     const dataDir = join(tmpdir(), `market-bot-ticker-movers-${Date.now()}`);
     dataDirs.push(dataDir);
     const result = await persistResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { ...config, dataDir },
       provider: providerReturning(
         JSON.stringify({
@@ -2253,7 +2258,7 @@ describe("runResearchJob", () => {
 
   test("caps Evidence Quality at medium when extended evidence is all gaps", async () => {
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -2713,7 +2718,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { ...config, dataDir: tempDataDir("market-bot-tradier-gap") },
       provider,
       collectedSources: collectedSourceBundle({

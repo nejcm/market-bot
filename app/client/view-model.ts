@@ -45,7 +45,7 @@ export type {
 const RUN_PATH_PREFIX = "/runs/";
 const INSTRUMENT_PATH_PREFIX = "/instruments/";
 const RECENT_RUN_LIMIT = 5;
-const RUN_TYPE_ORDER = ["market-overview", "daily", "weekly", "ticker"];
+const RUN_TYPE_ORDER = ["market-overview", "daily", "weekly", "equity", "crypto"];
 const PROVIDER_GAP_KEYS = ["missingCredential", "fetchFailed", "yahooAuth", "other"];
 
 export interface SearchResultGroup {

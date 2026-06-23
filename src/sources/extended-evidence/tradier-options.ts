@@ -1,4 +1,5 @@
 import { sourceGap } from "../../domain/source-gaps";
+import { isInstrumentCommand } from "../../cli/args";
 import { isUsListing } from "../instrument-capability";
 import { selectTradierExpiration, summarizeTradierIv, tradierRequestInit } from "../tradier";
 import { isFetchJsonResult, type CollectContext } from "../types";
@@ -7,7 +8,7 @@ import { daysFrom, encodeQuery } from "./utils";
 
 export async function collectTradierIv(ctx: CollectContext): Promise<ProviderResult> {
   const { command } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
   // Tradier serves US options only; skip the fetch for non-US listings and emit a single

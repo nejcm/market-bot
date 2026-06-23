@@ -3,7 +3,7 @@ import type { ExtendedEvidence } from "../src/domain/types";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { marketSnapshot } from "./support/fixtures";
 
-const command = { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
+const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 
 function secEvidence(
   metrics: Record<string, number | string>,

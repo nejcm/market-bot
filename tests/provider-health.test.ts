@@ -93,7 +93,10 @@ async function writeRun(fixture: RunFixture): Promise<void> {
     },
     evidenceQuality: {
       extendedEvidence: { itemCount: fixture.depth === "deep" ? 1 : 0, gapCount: 0 },
-      marketContext: { itemCount: fixture.jobType === "ticker" ? 0 : 1, gapCount: 0 },
+      marketContext: {
+        itemCount: fixture.jobType === "equity" || fixture.jobType === "crypto" ? 0 : 1,
+        gapCount: 0,
+      },
     },
   });
   await writeJson(join(dataDir, fixture.runId, "score.json"), {
@@ -115,18 +118,18 @@ async function writeBaselineRuns(
     { runId: "weekly-equity", jobType: "weekly", assetClass: "equity" },
     { runId: "daily-crypto", jobType: "daily", assetClass: "crypto" },
     { runId: "weekly-crypto", jobType: "weekly", assetClass: "crypto" },
-    { runId: "ticker-equity", jobType: "ticker", assetClass: "equity", symbol: "AAPL" },
-    { runId: "ticker-crypto", jobType: "ticker", assetClass: "crypto", symbol: "BTC" },
+    { runId: "ticker-equity", jobType: "equity", assetClass: "equity", symbol: "AAPL" },
+    { runId: "ticker-crypto", jobType: "crypto", assetClass: "crypto", symbol: "BTC" },
     {
       runId: "deep-equity",
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "MSFT",
       depth: "deep",
     },
     {
       runId: "international-equity",
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "VOD.L",
       sources: [

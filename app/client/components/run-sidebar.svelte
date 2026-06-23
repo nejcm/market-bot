@@ -37,7 +37,8 @@
     "market-overview": "Overview",
     daily: "Daily",
     weekly: "Weekly",
-    ticker: "Ticker",
+    equity: "Equity",
+    crypto: "Crypto",
     "alpha-search": "Alpha",
     research: "Research",
   };
@@ -192,10 +193,10 @@
       {:else}
         {#each runs as run}
           <button
-            class="mb-0.5 block w-full rounded-md border-l-2 px-2.5 py-2 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {view ===
+            class="mb-0.5 block w-full rounded-md px-2.5 py-2 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {view ===
               'run' && run.runId === selectedRunId
-              ? 'border-sidebar-primary bg-[#262c31]'
-              : 'border-transparent bg-transparent'}"
+              ? 'bg-[#262c31]'
+              : 'bg-transparent'}"
             type="button"
             onclick={() => selectAndClose(run.runId)}
           >

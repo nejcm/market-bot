@@ -4,7 +4,7 @@ import { renderMarkdownReport } from "../src/report/markdown";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
-const command = { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
+const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 
 function verifiedSnapshot(overrides: Partial<VerifiedMarketSnapshot> = {}): VerifiedMarketSnapshot {
   return {
@@ -229,7 +229,7 @@ describe("addFinancialLensEvidence", () => {
 
   test("returns evidence unchanged for non-equity ticker commands", () => {
     const cryptoCommand = {
-      jobType: "ticker",
+      jobType: "crypto",
       assetClass: "crypto",
       symbol: "BTC",
       depth: "deep",
@@ -280,7 +280,7 @@ describe("addFinancialLensEvidence", () => {
     expect(extendedEvidence).toBeDefined();
     const markdown = renderMarkdownReport(
       researchReport({
-        jobType: "ticker",
+        jobType: "equity",
         symbol: "AAPL",
         sources: [
           {
@@ -312,7 +312,7 @@ describe("addFinancialLensEvidence", () => {
 
   test("renders latestClose in quote currency for GBp tickers", () => {
     const gbpCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "RR.L",
       depth: "deep",

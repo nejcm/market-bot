@@ -48,7 +48,7 @@ An emitted Prediction whose stated probability sits within a small fixed band of
 
 ## Prediction Subject
 
-The instrument or instruments a run's scored Predictions are allowed to be about, declared per run. For `direction`, `range`, `volatility`, and `iv` forecasts it is the forecast subject; for `relative` forecasts it is the primary instrument named before the comparison. Ticker and Market Overview runs enforce that every emitted Prediction's subject belongs to this set, rejecting and retrying off-subject Predictions. Research runs do not apply this gate; their separate research prediction gate is the sole authority. See [ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md).
+The instrument or instruments a run's scored Predictions are allowed to be about, declared per run. For `direction`, `range`, `volatility`, and `iv` forecasts it is the forecast subject; for `relative` forecasts it is the primary instrument named before the comparison. Instrument and Market Overview runs enforce that every emitted Prediction's subject belongs to this set, rejecting and retrying off-subject Predictions. Research runs do not apply this gate; their separate research prediction gate is the sole authority. See [ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md).
 
 ## Forecast Disagreement
 
@@ -94,7 +94,7 @@ The research-only narrative state of a Research View, assembled from sourced sum
 
 ## Prior-Thesis Error Correction
 
-A ticker-run prompt block that surfaces prior Predictions on the current Instrument that resolved as misses — each with run ID, claim, stated probability, observed resolution values, and a source citation — framed as explicit error-correction signal rather than a passive citation pool. It steers research wording and probability calibration; it is not a recommendation, trade signal, or portfolio action. It fires for ticker runs only.
+An instrument-run prompt block that surfaces prior Predictions on the current Instrument that resolved as misses — each with run ID, claim, stated probability, observed resolution values, and a source citation — framed as explicit error-correction signal rather than a passive citation pool. It steers research wording and probability calibration; it is not a recommendation, trade signal, or portfolio action. It fires for instrument runs only.
 
 ## Miss Autopsy
 
@@ -106,7 +106,7 @@ A compact, deterministic "what changed since the last comparable overview" summa
 
 ## Verified Market Snapshot
 
-A deterministic, analysis-date-anchored OHLCV and technical-indicator ground-truth block for a single Instrument. It is citeable supplemental evidence for exact numeric claims in a Research View. It is not investment conviction, a trade signal, or a scoring Observation unless explicitly promoted later. Equity ticker runs only; v1 uses Yahoo daily bars with a ≥400 calendar day lookback. See [ADR 0019](./docs/adr/0019-verified-market-snapshot.md).
+A deterministic, analysis-date-anchored OHLCV and technical-indicator ground-truth block for a single Instrument. It is citeable supplemental evidence for exact numeric claims in a Research View. It is not investment conviction, a trade signal, or a scoring Observation unless explicitly promoted later. Equity instrument runs only; v1 uses Yahoo daily bars with a ≥400 calendar day lookback. See [ADR 0019](./docs/adr/0019-verified-market-snapshot.md).
 
 ## Instrument Accountability Timeline
 
@@ -118,7 +118,7 @@ A soft absence, parse failure, or mismatch in prior run artifacts. It is disclos
 
 ## Market Spotlight
 
-An optional Market Overview focus selected from the current collected market snapshot universe. The selected set is the validated `spotlight-selection` result for a Market Overview. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested ticker jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
+An optional Market Overview focus selected from the current collected market snapshot universe. The selected set is the validated `spotlight-selection` result for a Market Overview. Current market evidence is required; historical context and alpha-search artifacts can enrich selection, but cannot create a spotlight by themselves. Spotlights do not run nested instrument jobs, fetch extra sources, or auto-upgrade a run to `--deep`.
 
 ## Market Regime
 
@@ -126,7 +126,7 @@ The current market backdrop inferred from fetched evidence, such as broad direct
 
 ## Ticker Regime Context
 
-Live equity breadth and volatility proxy evidence collected alongside the covered Instrument on equity ticker runs, using the same proxy set as Market Overviews. It enables current-run Market Regime labeling in ticker Research Views without treating prior Market Overview artifacts as a substitute for missing live proxies.
+Live equity breadth and volatility proxy evidence collected alongside the covered Instrument on equity runs, using the same proxy set as Market Overviews. It enables current-run Market Regime labeling in instrument Research Views without treating prior Market Overview artifacts as a substitute for missing live proxies.
 
 ## Market Context
 
@@ -162,11 +162,11 @@ A fetched data or news item saved with an ID so report claims can link back to e
 
 ## Relevant News Source
 
-A news Source a ticker or research run classifies as on-subject for its News Relevance Target(s) — matching the instrument symbol, ticker tokens, or issuer company-name terms. Ticker lanes carry a min-relevant-keep guarantee: when the persistent seen-dedupe strips every relevant Source but leaves generic survivors, the most recent relevant repeat Source(s) are re-added (one per ticker lane) and disclosed with a `repeat-fallback` Source Gap so the issuer signal is not lost to repeat-dedupe. It is a relevance classification, not investment conviction or a trade signal.
+A news Source an instrument or research run classifies as on-subject for its News Relevance Target(s) — matching the instrument symbol, ticker tokens, or issuer company-name terms. Instrument lanes carry a min-relevant-keep guarantee: when the persistent seen-dedupe strips every relevant Source but leaves generic survivors, the most recent relevant repeat Source(s) are re-added (one per instrument lane) and disclosed with a `repeat-fallback` Source Gap so the issuer signal is not lost to repeat-dedupe. It is a relevance classification, not investment conviction or a trade signal.
 
 ## News Relevance Target
 
-The instrument or subject a run scores news relevance against: the ticker symbol (and optional issuer name) for ticker runs, or the research subject's representative instruments and aliases for research runs. A news Source is a Relevant News Source when it matches at least one target. It is a deterministic matching surface, not investment conviction or a trade signal.
+The instrument or subject a run scores news relevance against: the ticker symbol (and optional issuer name) for instrument runs, or the research subject's representative instruments and aliases for research runs. A news Source is a Relevant News Source when it matches at least one target. It is a deterministic matching surface, not investment conviction or a trade signal.
 
 ## Source Provider
 
@@ -218,23 +218,23 @@ A disclosed Source Gap caused by provider, account, region, or instrument limits
 
 ## Extended Evidence
 
-Optional, higher-specificity Source Provider evidence that enriches ticker Research Views without changing the research-only boundary.
+Optional, higher-specificity Source Provider evidence that enriches instrument Research Views without changing the research-only boundary.
 
 ## Fundamental Evidence
 
-Sourced issuer operating and financial facts used as Extended Evidence. It supports ticker Research Views but is not investment conviction, expected return, or a trade signal.
+Sourced issuer operating and financial facts used as Extended Evidence. It supports instrument Research Views but is not investment conviction, expected return, or a trade signal.
 
 ## Valuation Evidence
 
-Deterministic Extended Evidence that combines market capitalization, sourced issuer fundamentals, and, for `ticker --deep --asset equity`, deterministic peer comps to calculate supplemental valuation context such as enterprise value, revenue multiples, peer median/IQR read-through, and a supportability label. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal. See [[ADR 0031]].
+Deterministic Extended Evidence that combines market capitalization, sourced issuer fundamentals, and, for `equity --deep`, deterministic peer comps to calculate supplemental valuation context such as enterprise value, revenue multiples, peer median/IQR read-through, and a supportability label. It helps test narrative claims against observable scale and valuation, but it is not investment conviction, expected return, peer ranking, or a trade signal. See [[ADR 0031]].
 
 ## Financial Lens Evidence
 
-Deterministic Extended Evidence for `ticker --asset equity` runs that groups compact SEC/Yahoo-derived metrics into neutral Quality, Growth, Financial Strength, Value, and Momentum lenses. Each lens carries metric values and an evidence posture (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication. Deep ticker runs can include deterministic peer valuation supportability when available; brief ticker runs remain target-only.
+Deterministic Extended Evidence for `equity` runs that groups compact SEC/Yahoo-derived metrics into neutral Quality, Growth, Financial Strength, Value, and Momentum lenses. Each lens carries metric values and an evidence posture (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication. Deep equity runs can include deterministic peer valuation supportability when available; brief equity runs remain target-only.
 
 ## Earnings Setup
 
-Deterministic, event-anchored context assembled automatically inside `ticker --deep --asset equity` when a Finnhub earnings-calendar record exists within 30 calendar days. It persists as `extras.earningsSetup` on the Research View: event metadata (symbol, date, timing, source IDs), an optional implied-move bar (ATM straddle midpoint / spot from the nearest post-event Tradier expiration within 7 calendar days), model-authored sourced analytical bullets (expectation bar, quality landmines, guidance credibility), and gaps for unsupported or missing setup data. Earnings-specific Predictions use event-anchored horizons (`horizonTradingDays` = post-event trading days, not days from `generatedAt`) with `earnings-direction` and `earnings-move` prediction kinds, resolved against the `earningsReturn` DSL. IV crush is deferred in v1; IV remains setup context or a gap only.
+Deterministic, event-anchored context assembled automatically inside `equity --deep` when a Finnhub earnings-calendar record exists within 30 calendar days. It persists as `extras.earningsSetup` on the Research View: event metadata (symbol, date, timing, source IDs), an optional implied-move bar (ATM straddle midpoint / spot from the nearest post-event Tradier expiration within 7 calendar days), model-authored sourced analytical bullets (expectation bar, quality landmines, guidance credibility), and gaps for unsupported or missing setup data. Earnings-specific Predictions use event-anchored horizons (`horizonTradingDays` = post-event trading days, not days from `generatedAt`) with `earnings-direction` and `earnings-move` prediction kinds, resolved against the `earningsReturn` DSL. IV crush is deferred in v1; IV remains setup context or a gap only.
 
 ## Scored Catalyst
 
@@ -246,4 +246,4 @@ A deterministic, descriptive listing of dated items auto-promoted into a Market 
 
 ## Peer Universe
 
-A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider, checked-in ticker mapping, or Research Subject Registry fallback with provenance, role, and rationale, not model selection. V1 runs only for `ticker --deep --asset equity`; unsupported tickers emit a visible valuation SourceGap. See [[ADR 0031]].
+A deterministic, auditable set of comparable Instruments used for peer valuation context. It must come from a sourced provider, checked-in ticker mapping, or Research Subject Registry fallback with provenance, role, and rationale, not model selection. V1 runs only for `equity --deep`; unsupported tickers emit a visible valuation SourceGap. See [[ADR 0031]].

@@ -70,7 +70,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-recent",
       report: researchReport({
         runId: "ticker-recent",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-20T00:00:00.000Z",
@@ -94,7 +94,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-recent-over-cap",
       report: researchReport({
         runId: "ticker-recent-over-cap",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-10T00:00:00.000Z",
@@ -106,7 +106,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-anchor",
       report: researchReport({
         runId: "ticker-anchor",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-01-15T00:00:00.000Z",
@@ -133,7 +133,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "wrong-symbol",
       report: researchReport({
         runId: "wrong-symbol",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "MSFT",
         generatedAt: "2026-05-25T00:00:00.000Z",
@@ -146,7 +146,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "cache-run",
       report: researchReport({
         runId: "cache-run",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-30T00:00:00.000Z",
@@ -155,7 +155,7 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: { historyOptions: options() },
       now,
     });
@@ -194,7 +194,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-miss",
       report: researchReport({
         runId: "ticker-miss",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-20T00:00:00.000Z",
@@ -232,7 +232,7 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: { historyOptions: options() },
       now,
     });
@@ -330,7 +330,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-created-after-scan",
       report: researchReport({
         runId: "ticker-created-after-scan",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-25T00:00:00.000Z",
@@ -380,7 +380,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "spotlight-aapl",
       report: researchReport({
         runId: "spotlight-aapl",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-22T00:00:00.000Z",
@@ -415,7 +415,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-aapl",
       report: researchReport({
         runId: "ticker-aapl",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-20T00:00:00.000Z",
@@ -424,7 +424,7 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { historyOptions: options() },
       now,
     });
@@ -527,7 +527,7 @@ describe("loadHistoricalContext", () => {
       runDirName: "ticker-miss-run",
       report: researchReport({
         runId: "ticker-miss-run",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-20T00:00:00.000Z",
@@ -541,7 +541,7 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { historyOptions: options() },
       now,
     });

@@ -1,7 +1,7 @@
 import { marketSpotlightOptions, type AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
 import { resolveRunParams, type RunConfig } from "../config/runs";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { join } from "node:path";
 import {
   createRunId,
@@ -652,7 +652,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     jobType: input.command.jobType,
     ...marketUpdateTraceFields(input.command),
     assetClass: input.command.assetClass,
-    ...(input.command.jobType === "ticker" ? { symbol: input.command.symbol } : {}),
+    ...(isInstrumentCommand(input.command) ? { symbol: input.command.symbol } : {}),
     depth: input.command.depth,
     provider: input.provider.name,
     codeVersion,
@@ -780,7 +780,7 @@ export async function persistResearchJob(
     result.historicalContext,
   );
   // Verified Market Snapshot + Instrument Identity sidecars: ticker runs only (ADR 0019)
-  if (input.command.jobType === "ticker") {
+  if (isInstrumentCommand(input.command)) {
     await writeJson(
       join(artifacts.runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot),
       result.collectedSources.verifiedMarketSnapshot ?? null,

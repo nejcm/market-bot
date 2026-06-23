@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapStatusCode, sourceGapWithContext } from "../domain/source-gaps";
 import type {
   AssetClass,
@@ -216,7 +216,7 @@ function buildMassiveNewsUrl(
     "published_utc.gte": dateDaysBefore(fetchedAt, recencyDays(command)).toISOString(),
   };
 
-  if (command.jobType === "ticker") {
+  if (isInstrumentCommand(command)) {
     params.ticker = command.symbol;
   }
 

@@ -1,17 +1,11 @@
 import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } from "../app/types";
+import type { ReportSearchCandidate } from "./report-search-entries";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
 import { isRecord, parseStringArrayJson } from "./sources/guards";
 
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SNIPPET_RADIUS = 72;
-
-export interface ReportSearchCandidateProjection {
-  readonly section: RunSearchSection;
-  readonly label: string;
-  readonly text: string;
-  readonly sourceIds: readonly string[];
-}
 
 // Local, non-trimming string reader for summary projection.
 // Values are preserved verbatim, unlike guards.readString which drops empty/whitespace.
@@ -139,7 +133,7 @@ export function searchSnippet(text: string, query: string): string {
 
 export function runSearchResultFromCandidate(
   run: RunSummary,
-  candidate: ReportSearchCandidateProjection,
+  candidate: ReportSearchCandidate,
   query: string,
 ): RunSearchResult {
   return {

@@ -175,6 +175,26 @@ describe("run artifact index parity", () => {
     );
   });
 
+  test("console search section order matches disk fallback for dataGaps and extendedEvidence", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const indexedSearch = await searchRunReports(dataDir, { query: "needle" });
+
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const diskSearch = await searchRunReports(dataDir, { query: "needle" });
+
+    const indexSections = indexedSearch.map((result) => result.section);
+    const diskSections = diskSearch.map((result) => result.section);
+
+    expect(indexSections).toEqual(diskSections);
+    expect(indexSections.indexOf("dataGaps")).toBeLessThan(
+      indexSections.indexOf("extendedEvidence"),
+    );
+    expect(diskSections.indexOf("dataGaps")).toBeLessThan(diskSections.indexOf("extendedEvidence"));
+  });
+
   test("console search matches disk fallback for multi-word and partial queries", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeFixtureRun(dataDir, "run-a");

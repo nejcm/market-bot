@@ -1,10 +1,12 @@
-import type { RunSearchSection } from "./types";
 import { renderClaimForMeasurableAs } from "../src/forecast/observable";
 
-export interface TextWithSources {
-  readonly text: string;
-  readonly sourceIds: readonly string[];
-}
+export {
+  extendedEvidenceItems,
+  reportSearchCandidates,
+  stringArray,
+  textItems,
+  type ExtendedEvidenceItemView,
+} from "../src/report-search-entries";
 
 export interface ScenarioView {
   readonly name: string;
@@ -92,14 +94,6 @@ export interface SourceView {
   readonly url?: string;
 }
 
-export interface ExtendedEvidenceItemView {
-  readonly category: string;
-  readonly title: string;
-  readonly summary: string;
-  readonly sourceIds: readonly string[];
-  readonly metrics?: Readonly<Record<string, number | string>>;
-}
-
 export interface SplitDataGaps {
   readonly shortfalls: readonly string[];
   readonly otherGaps: readonly string[];
@@ -112,13 +106,6 @@ export interface PredictionTargetHealth {
 }
 
 const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
-
-export interface ReportSearchCandidate {
-  readonly section: RunSearchSection;
-  readonly label: string;
-  readonly text: string;
-  readonly sourceIds: readonly string[];
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -153,45 +140,6 @@ function readSourceIds(record: Record<string, unknown>): readonly string[] {
   return Array.isArray(sourceIds)
     ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
     : [];
-}
-
-function readMetrics(
-  record: Record<string, unknown>,
-): Readonly<Record<string, number | string>> | undefined {
-  const { metrics } = record;
-  if (!isRecord(metrics)) {
-    return undefined;
-  }
-
-  const parsed: Record<string, number | string> = {};
-  for (const [key, value] of Object.entries(metrics)) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      parsed[key] = value;
-      continue;
-    }
-    if (typeof value === "string" && value !== "") {
-      parsed[key] = value;
-    }
-  }
-
-  return Object.keys(parsed).length === 0 ? undefined : parsed;
-}
-
-export function textItems(
-  report: Record<string, unknown> | undefined,
-  key: string,
-): readonly TextWithSources[] {
-  const value = report?.[key];
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const text = readString(item, "text");
-      return text === undefined ? [] : [{ text, sourceIds: readSourceIds(item) }];
-    });
 }
 
 export function scenarios(report: Record<string, unknown> | undefined): readonly ScenarioView[] {
@@ -512,52 +460,6 @@ export function sources(report: Record<string, unknown> | undefined): readonly S
     });
 }
 
-export function stringArray(
-  report: Record<string, unknown> | undefined,
-  key: string,
-): readonly string[] {
-  const value = report?.[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-export function extendedEvidenceItems(
-  report?: Record<string, unknown>,
-): readonly ExtendedEvidenceItemView[] {
-  const block = report?.extendedEvidence;
-  if (!isRecord(block)) {
-    return [];
-  }
-
-  const value = block.items;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const category = readString(item, "category");
-      const title = readString(item, "title");
-      const summary = readString(item, "summary");
-      if (category === undefined || title === undefined || summary === undefined) {
-        return [];
-      }
-
-      const metrics = readMetrics(item);
-      return [
-        {
-          category,
-          title,
-          summary,
-          sourceIds: readSourceIds(item),
-          ...(metrics !== undefined ? { metrics } : {}),
-        },
-      ];
-    });
-}
-
 export function splitDataGaps(gaps: readonly string[]): SplitDataGaps {
   const shortfalls: string[] = [];
   const otherGaps: string[] = [];
@@ -580,14 +482,6 @@ export function formatShortfallGap(gap: string): string {
 
   const message = gap.slice(PREDICTION_SHORTFALL_PREFIX.length).trimStart();
   return message === "" ? gap : message;
-}
-
-function metricsSearchText(metrics: Readonly<Record<string, number | string>> | undefined): string {
-  if (metrics === undefined) {
-    return "";
-  }
-
-  return Object.values(metrics).map(String).join(" ");
 }
 
 function readDepthProfileTarget(report?: Record<string, unknown>): number | undefined {
@@ -638,125 +532,4 @@ export function predictionTargetHealth(
 function arrayCount(record: Record<string, unknown>, key: string): number {
   const value = record[key];
   return Array.isArray(value) ? value.length : 0;
-}
-
-function textItemCandidates(
-  report: Record<string, unknown>,
-  key: RunSearchSection,
-  label: string,
-): readonly ReportSearchCandidate[] {
-  return textItems(report, key).map((item, index) => ({
-    section: key,
-    label: `${label} ${String(index + 1)}`,
-    text: item.text,
-    sourceIds: item.sourceIds,
-  }));
-}
-
-function predictionCandidates(report: Record<string, unknown>): readonly ReportSearchCandidate[] {
-  const value = report.predictions;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const id = readString(item, "id");
-      const measurableAs = readString(item, "measurableAs");
-      const storedClaim = readString(item, "claim");
-      const claim =
-        measurableAs === undefined
-          ? storedClaim
-          : renderClaimForMeasurableAs(measurableAs, storedClaim);
-      if (claim === undefined) {
-        return [];
-      }
-
-      return [
-        {
-          section: "predictions",
-          label: id === undefined ? "Observable forecast" : `Observable forecast ${id}`,
-          text: [claim, measurableAs]
-            .filter((part): part is string => part !== undefined)
-            .join(" "),
-          sourceIds: readSourceIds(item),
-        },
-      ];
-    });
-}
-
-function sourceCandidates(report: Record<string, unknown>): readonly ReportSearchCandidate[] {
-  const value = report.sources;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const id = readString(item, "id");
-      const title = readString(item, "title");
-      if (id === undefined || title === undefined) {
-        return [];
-      }
-
-      const text = [
-        title,
-        readString(item, "publisher"),
-        readString(item, "provider"),
-        readString(item, "summary"),
-        readString(item, "snippet"),
-        readString(item, "url"),
-      ]
-        .filter((part): part is string => part !== undefined)
-        .join(" ");
-
-      return [{ section: "sources", label: `Source ${id}`, text, sourceIds: [id] }];
-    });
-}
-
-function dataGapCandidates(report: Record<string, unknown>): readonly ReportSearchCandidate[] {
-  return stringArray(report, "dataGaps").map((text, index) => ({
-    section: "dataGaps",
-    label: `Data gap ${String(index + 1)}`,
-    text,
-    sourceIds: [],
-  }));
-}
-
-export function extendedEvidenceCandidates(
-  report: Record<string, unknown>,
-): readonly ReportSearchCandidate[] {
-  return extendedEvidenceItems(report).map((item, index) => ({
-    section: "extendedEvidence",
-    label: item.title === "" ? `Extended evidence ${String(index + 1)}` : item.title,
-    text: [item.category, item.title, item.summary, metricsSearchText(item.metrics)]
-      .filter((part) => part !== "")
-      .join(" "),
-    sourceIds: item.sourceIds,
-  }));
-}
-
-export function reportSearchCandidates(
-  report: Record<string, unknown>,
-): readonly ReportSearchCandidate[] {
-  const summary = readString(report, "summary");
-  const summaryCandidates: readonly ReportSearchCandidate[] =
-    summary === undefined
-      ? []
-      : [{ section: "summary", label: "Summary", text: summary, sourceIds: [] }];
-
-  return [
-    ...summaryCandidates,
-    ...textItemCandidates(report, "keyFindings", "Key finding"),
-    ...textItemCandidates(report, "bullCase", "Bull case"),
-    ...textItemCandidates(report, "bearCase", "Bear case"),
-    ...textItemCandidates(report, "risks", "Risk"),
-    ...textItemCandidates(report, "catalysts", "Catalyst"),
-    ...predictionCandidates(report),
-    ...sourceCandidates(report),
-    ...extendedEvidenceCandidates(report),
-    ...dataGapCandidates(report),
-  ];
 }

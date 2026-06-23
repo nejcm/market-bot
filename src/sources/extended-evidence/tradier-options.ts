@@ -1,4 +1,5 @@
 import { sourceGap } from "../../domain/source-gaps";
+import { isUsListing } from "../instrument-capability";
 import { selectTradierExpiration, summarizeTradierIv, tradierRequestInit } from "../tradier";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
@@ -8,6 +9,24 @@ export async function collectTradierIv(ctx: CollectContext): Promise<ProviderRes
   const { command } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
+  }
+  // Tradier serves US options only; skip the fetch for non-US listings and emit a single
+  // Unsupported-coverage gap, mirroring sec-edgar / finnhub-events / the evidence-request tools.
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
+    return {
+      rawSnapshots: [],
+      items: [],
+      gaps: [
+        sourceGap({
+          source: "tradier-options",
+          message: `Tradier options do not support ${command.symbol} (non-US listing)`,
+          provider: "tradier",
+          capability: "extended-evidence",
+          cause: "unsupported-coverage",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
+    };
   }
   if (ctx.tradierApiToken === undefined) {
     return {

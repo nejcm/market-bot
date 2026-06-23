@@ -216,6 +216,7 @@ describe("run analytics", () => {
     expect(analytics.sourceFunnel.sourceGapClasses).toEqual({
       fetchFailed: 0,
       missingCredential: 1,
+      unsupportedCoverage: 0,
       other: 0,
     });
     expect(analytics.evidenceQuality.extendedEvidence.itemsByCategory).toEqual({ "sec-edgar": 1 });

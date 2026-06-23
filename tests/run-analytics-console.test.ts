@@ -15,7 +15,7 @@ function baseAnalytics(): RunAnalytics {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },
       sourceGaps: { total: 0, bySource: {} },
-      sourceGapClasses: { missingCredential: 0, fetchFailed: 0, other: 0 },
+      sourceGapClasses: { missingCredential: 0, fetchFailed: 0, unsupportedCoverage: 0, other: 0 },
       dataGaps: { total: 0 },
     },
     newsDedupe: {

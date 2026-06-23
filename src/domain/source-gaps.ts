@@ -5,7 +5,11 @@ import type {
   SourceGapEvidenceQualityImpact,
 } from "./types";
 
-export type SourceGapAnalyticsClass = "missingCredential" | "fetchFailed" | "other";
+export type SourceGapAnalyticsClass =
+  | "missingCredential"
+  | "fetchFailed"
+  | "unsupportedCoverage"
+  | "other";
 type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circuit-open">;
 
 // Exhaustive membership tables keyed by every union member.
@@ -193,8 +197,10 @@ export function sourceGapAnalyticsClass(gap: SourceGap): SourceGapAnalyticsClass
     case "circuit-open": {
       return "fetchFailed";
     }
+    case "unsupported-coverage": {
+      return "unsupportedCoverage";
+    }
     case "stale-fallback":
-    case "unsupported-coverage":
     case "repeat-fallback":
     case "malformed-response":
     case "validation-failed":

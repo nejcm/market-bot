@@ -586,14 +586,23 @@ export async function collectSources(
     isEquityTicker && marketResult !== undefined
       ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
       : undefined;
-  let newsContext: CollectContext = ctx;
+  // Thread resolved identity (exchange/quoteCurrency) into the source-collection context so
+  // US-only collectors can gate on the primary instrument-capability signal, not just the suffix.
+  const identityCtx: CollectContext =
+    preliminaryIdentityResult?.identity !== undefined
+      ? { ...ctx, instrumentIdentity: preliminaryIdentityResult.identity }
+      : ctx;
+  let newsContext: CollectContext = identityCtx;
   if (marketResult !== undefined) {
     const targets = isMarketUpdateCommand(command)
       ? moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots)
       : tickerNewsRelevanceTargets(command, preliminaryIdentityResult?.identity?.displayName);
-    newsContext = contextWithNewsRelevanceTargets(ctx, targets);
+    newsContext = contextWithNewsRelevanceTargets(identityCtx, targets);
   } else if (command.jobType === "research") {
-    newsContext = contextWithNewsRelevanceTargets(ctx, researchNewsRelevanceTargets(command));
+    newsContext = contextWithNewsRelevanceTargets(
+      identityCtx,
+      researchNewsRelevanceTargets(command),
+    );
   }
   const [
     resolvedMarketResult,
@@ -604,7 +613,7 @@ export async function collectSources(
   ] = await Promise.all([
     marketResult ?? marketAdapter.collect(ctx),
     newsAdapter.collect(newsContext),
-    extendedEvidenceAdapter.collect(ctx),
+    extendedEvidenceAdapter.collect(identityCtx),
     marketContextAdapter.collect(ctx),
     isEquityTicker
       ? collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))

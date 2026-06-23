@@ -8,6 +8,7 @@ import type {
 } from "../domain/types";
 import { sourceGap } from "../domain/source-gaps";
 import { isRecord, readNumber, stringArrayValue } from "./guards";
+import { isUsListing } from "./instrument-capability";
 import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
@@ -60,8 +61,12 @@ const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
 
 export function availableEvidenceRequestTools(
   ctx: CollectContext,
+  identity?: InstrumentIdentity,
 ): readonly EvidenceRequestToolName[] {
   if (ctx.command.jobType !== "ticker" || ctx.command.assetClass !== "equity") {
+    return [];
+  }
+  if (!isUsListing(ctx.command.symbol, identity)) {
     return [];
   }
   return [
@@ -85,6 +90,17 @@ function emptyOutput(
   rawSnapshots: readonly RawSourceSnapshot[] = [],
 ): EvidenceRequestToolOutput {
   return { rawSnapshots, sources: [], items: [], gaps };
+}
+
+function unsupportedInstrumentGap(source: string, provider: string, symbol: string): SourceGap {
+  return sourceGap({
+    source,
+    message: `${provider} does not support ${symbol} (non-US listing)`,
+    provider,
+    capability: "evidence-request",
+    cause: "unsupported-coverage",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
 }
 
 function secTextRequestInit(userAgent: string | undefined): RequestInit | undefined {
@@ -205,6 +221,9 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
         evidenceQualityImpact: "extended-evidence-cap",
       }),
     ]);
+  }
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
+    return emptyOutput([unsupportedInstrumentGap("sec-edgar", "SEC EDGAR", command.symbol)]);
   }
   const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
   const tickers = await ctx.request.json({
@@ -412,6 +431,9 @@ async function collectTradierIvTermStructure(
         evidenceQualityImpact: "extended-evidence-cap",
       }),
     ]);
+  }
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
+    return emptyOutput([unsupportedInstrumentGap("tradier-options", "Tradier", command.symbol)]);
   }
   if (ctx.tradierApiToken === undefined) {
     return emptyOutput([

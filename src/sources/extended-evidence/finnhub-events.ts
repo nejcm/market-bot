@@ -1,6 +1,7 @@
 import type { SourceGap } from "../../domain/types";
 import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
+import { isUsListing } from "../instrument-capability";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
 import { daysFrom, encodeQuery, readArray } from "./utils";
 
@@ -68,6 +69,22 @@ export async function collectFinnhubEvents(ctx: CollectContext): Promise<Provide
   const { command, fetchedAt } = ctx;
   if (command.jobType !== "ticker") {
     return { rawSnapshots: [], items: [], gaps: [] };
+  }
+  if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
+    return {
+      rawSnapshots: [],
+      items: [],
+      gaps: [
+        sourceGap({
+          source: "finnhub-events",
+          message: `Finnhub event endpoints do not support ${command.symbol} (non-US listing)`,
+          provider: "finnhub",
+          capability: "extended-evidence",
+          cause: "unsupported-coverage",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
+    };
   }
   if (ctx.finnhubApiToken === undefined) {
     return {

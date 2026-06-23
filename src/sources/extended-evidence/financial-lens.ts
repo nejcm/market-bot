@@ -23,8 +23,10 @@ export interface FinancialLensMetric {
   readonly label: string;
   readonly value: number | string;
   // "ratio-percent": value is a ratio (0.42 → 42%). "whole-percent": value already in percent (12 → 12%).
-  readonly unit: "ratio" | "ratio-percent" | "whole-percent" | "usd" | "number" | "text";
+  // "currency": monetary value in `currency` (defaults to USD); GBp is a Yahoo pence pseudo-code.
+  readonly unit: "ratio" | "ratio-percent" | "whole-percent" | "currency" | "number" | "text";
   readonly sourceIds: readonly string[];
+  readonly currency?: string;
 }
 
 export interface FinancialLens {
@@ -128,8 +130,11 @@ function metric(
   value: number | string | undefined,
   unit: FinancialLensMetric["unit"],
   sourceIds: readonly string[],
+  currency?: string,
 ): readonly FinancialLensMetric[] {
-  return value === undefined ? [] : [{ key, label, value, unit, sourceIds }];
+  return value === undefined
+    ? []
+    : [{ key, label, value, unit, sourceIds, ...(currency !== undefined ? { currency } : {}) }];
 }
 
 function percentChange(value: number | undefined): boolean | undefined {
@@ -162,7 +167,7 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       sourceIds,
     ),
     ...metric("netMargin", "Net margin", ratio(netIncome, revenue), "ratio-percent", sourceIds),
-    ...metric("freeCashFlowProxy", "FCF proxy", freeCashFlowProxy, "usd", sourceIds),
+    ...metric("freeCashFlowProxy", "FCF proxy", freeCashFlowProxy, "currency", sourceIds),
     ...metric(
       "cashConversion",
       "Cash conversion",
@@ -265,9 +270,9 @@ function strengthLens(
   const netDebtToMarketCap = readMetric(valuationItem?.metrics, "netDebtToMarketCap");
   const currentRatio = ratio(currentAssets, currentLiabilities);
   const metrics = [
-    ...metric("cash", "Cash", cash, "usd", secItem?.sourceIds ?? []),
-    ...metric("debt", "Debt", debt, "usd", secItem?.sourceIds ?? []),
-    ...metric("netDebt", "Net debt", netDebt, "usd", sourceIds),
+    ...metric("cash", "Cash", cash, "currency", secItem?.sourceIds ?? []),
+    ...metric("debt", "Debt", debt, "currency", secItem?.sourceIds ?? []),
+    ...metric("netDebt", "Net debt", netDebt, "currency", sourceIds),
     ...metric("debtToMarketCap", "Debt/market cap", debtToMarketCap, "ratio-percent", sourceIds),
     ...metric(
       "netDebtToMarketCap",
@@ -305,14 +310,14 @@ function valueLens(valuationItem: ExtendedEvidenceItem | undefined): FinancialLe
         "enterpriseValue",
         "Enterprise value",
         readMetric(valuationItem?.metrics, "enterpriseValue"),
-        "usd",
+        "currency",
         sourceIds,
       ),
       ...metric(
         "annualizedRevenue",
         "Annualized revenue",
         readMetric(valuationItem?.metrics, "annualizedRevenue"),
-        "usd",
+        "currency",
         sourceIds,
       ),
       ...metric(
@@ -341,7 +346,10 @@ function valueLens(valuationItem: ExtendedEvidenceItem | undefined): FinancialLe
   };
 }
 
-function momentumLens(snapshot: VerifiedMarketSnapshot | undefined): FinancialLens {
+function momentumLens(
+  snapshot: VerifiedMarketSnapshot | undefined,
+  quoteCurrency: string,
+): FinancialLens {
   const sourceIds = snapshot === undefined ? [] : [verifiedSnapshotSourceId(snapshot.symbol)];
   const indicators = snapshot?.indicators;
   const sma50 = indicators?.sma50 ?? undefined;
@@ -358,7 +366,7 @@ function momentumLens(snapshot: VerifiedMarketSnapshot | undefined): FinancialLe
       macdHistogram === undefined ? undefined : macdHistogram >= 0,
     ]),
     metrics: [
-      ...metric("latestClose", "Latest close", close, "usd", sourceIds),
+      ...metric("latestClose", "Latest close", close, "currency", sourceIds, quoteCurrency),
       ...metric("sma50", "SMA50", sma50 ?? undefined, "number", sourceIds),
       ...metric("sma200", "SMA200", sma200 ?? undefined, "number", sourceIds),
       ...metric("rsi14", "RSI14", rsi14 ?? undefined, "number", sourceIds),
@@ -389,24 +397,42 @@ function formatValue(lensMetric: FinancialLensMetric): string {
   if (lensMetric.unit === "ratio") {
     return `${lensMetric.value.toFixed(2)}x`;
   }
-  if (lensMetric.unit === "usd") {
-    return formatUsd(lensMetric.value);
+  if (lensMetric.unit === "currency") {
+    return formatCurrency(lensMetric.value, lensMetric.currency);
   }
   return lensMetric.value.toFixed(2);
 }
 
-function formatUsd(value: number): string {
+const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
+  USD: "$",
+  GBP: "£",
+  EUR: "€",
+};
+
+function scaleCurrency(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1_000_000_000) {
-    return `$${(value / 1_000_000_000).toFixed(1)}B`;
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
   }
   if (abs >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
+    return `${(value / 1_000_000).toFixed(1)}M`;
   }
   if (abs >= 1000) {
-    return `$${(value / 1000).toFixed(1)}K`;
+    return `${(value / 1000).toFixed(1)}K`;
   }
-  return `$${value.toFixed(0)}`;
+  return value.toFixed(0);
+}
+
+function formatCurrency(value: number, currency = "USD"): string {
+  // GBp is Yahoo's pence pseudo-code (not ISO 4217 GBP): render with a p suffix, no K/M/B scaling.
+  if (currency === "GBp") {
+    return `${value.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}p`;
+  }
+  const symbol = CURRENCY_SYMBOLS[currency];
+  if (symbol !== undefined) {
+    return `${symbol}${scaleCurrency(value)}`;
+  }
+  return `${currency} ${scaleCurrency(value)}`;
 }
 
 function financialLensGap(symbol: string, missing: readonly string[]): SourceGap {
@@ -441,12 +467,13 @@ export function addFinancialLensEvidence(
   const secItem = secFundamentalItem(extendedEvidence);
   const valuationItem = itemByCategory(extendedEvidence, "valuation");
   const snapshot = tickerSnapshot(command, marketSnapshots);
+  const quoteCurrency = snapshot?.identity?.quoteCurrency ?? "USD";
   const lenses = [
     qualityLens(secItem),
     growthLens(secItem),
     strengthLens(secItem, valuationItem),
     valueLens(valuationItem),
-    momentumLens(verifiedMarketSnapshot),
+    momentumLens(verifiedMarketSnapshot, quoteCurrency),
   ];
   const sourceIds = [
     ...new Set(lenses.flatMap((lens) => lens.sourceIds).filter((sourceId) => sourceId !== "")),

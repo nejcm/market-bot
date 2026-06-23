@@ -45,6 +45,9 @@ export interface CollectContext {
   readonly secUserAgent?: string;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
+  // Resolved canonical identity (exchange/quoteCurrency), when known before source collection.
+  // US-only collectors use it as the primary instrument-capability signal (see isUsListing).
+  readonly instrumentIdentity?: InstrumentIdentity;
   readonly request: SourceRequestExecutor;
 }
 
@@ -83,6 +86,7 @@ export interface NewsCollectionAnalytics {
   readonly relevantSuppressedBySeenFilterCount: number;
   readonly relevantSelectedCount: number;
   readonly repeatFallbackKeptCount: number;
+  readonly relevantRepeatKeptCount?: number;
   readonly selectedNewsSourceCount: number;
   readonly selectedRelevantTickerNewsSourceCount?: number;
   readonly selectedGenericTickerNewsSourceCount?: number;

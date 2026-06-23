@@ -22,6 +22,14 @@ A tradable listed or quoted research target. In the current CLI it is still iden
 
 Provider-normalized metadata that helps relate Source Provider records to an Instrument without changing the research-only boundary.
 
+## Quote Currency
+
+The currency a market price is quoted in, carried on `InstrumentIdentity.quoteCurrency`. It denominates the `latestClose` Financial Lens metric and other price-level values. For LSE listings Yahoo returns `GBp` (pence), a Yahoo pseudo-code distinct from ISO 4217 `GBP` (pounds); the Financial Lens formatter renders GBp with a pence suffix and no K/M/B scaling. It is a labeling convention, not investment conviction.
+
+## Reporting Currency
+
+The currency an issuer reports fundamentals in (revenue, cash, debt, FCF), which differs from the Quote Currency for many international listings (for example LSE shares quote in GBp pence but report in GBP pounds, a 100× difference). Financial Lens metrics sourced from fundamentals use the reporting currency; threading it into the cash/debt/FCF metrics is deferred to P2. It is a labeling convention, not investment conviction.
+
 ## Observation
 
 A public market quantity value used to resolve a Prediction. An Observation can be point-in-time or part of a window. It is not advice, conviction, or a trade signal.
@@ -152,6 +160,14 @@ A deterministic, no-model inspection of a finished Research View that flags weak
 
 A fetched data or news item saved with an ID so report claims can link back to evidence.
 
+## Relevant News Source
+
+A news Source a ticker or research run classifies as on-subject for its News Relevance Target(s) — matching the instrument symbol, ticker tokens, or issuer company-name terms. Ticker lanes carry a min-relevant-keep guarantee: when the persistent seen-dedupe strips every relevant Source but leaves generic survivors, the most recent relevant repeat Source(s) are re-added (one per ticker lane) and disclosed with a `repeat-fallback` Source Gap so the issuer signal is not lost to repeat-dedupe. It is a relevance classification, not investment conviction or a trade signal.
+
+## News Relevance Target
+
+The instrument or subject a run scores news relevance against: the ticker symbol (and optional issuer name) for ticker runs, or the research subject's representative instruments and aliases for research runs. A news Source is a Relevant News Source when it matches at least one target. It is a deterministic matching surface, not investment conviction or a trade signal.
+
 ## Source Provider
 
 An external service that supplies market data, news, or reference data before it is normalized into Sources.
@@ -198,7 +214,7 @@ A declared minimum set of exercised research routes and source capabilities requ
 
 ## Provider Coverage Gap
 
-A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow. In provider-health validation it is usually expected or informational, not blocking.
+A disclosed Source Gap caused by provider, account, region, or instrument limits rather than a failure of the research workflow. In provider-health validation it is usually expected or informational, not blocking. Non-US listings emit an `unsupported-coverage` gap without a network call when a US-only source (SEC EDGAR, Tradier IV, Finnhub company/event news) is gated off by the instrument-capability predicate; analytics classify these under the `unsupportedCoverage` source-gap class so they are isolated from `other` and `fetchFailed` gaps.
 
 ## Extended Evidence
 

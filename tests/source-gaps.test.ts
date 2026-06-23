@@ -36,6 +36,16 @@ describe("source gaps", () => {
     expect(sourceGapAnalyticsClass(circuitGap)).toBe("fetchFailed");
   });
 
+  test("classifies unsupported coverage separately from other gaps", () => {
+    const gap = sourceGap({
+      source: "sec-edgar",
+      message: "SEC EDGAR does not support RR.L (non-US listing)",
+      cause: "unsupported-coverage",
+    });
+
+    expect(sourceGapAnalyticsClass(gap)).toBe("unsupportedCoverage");
+  });
+
   test("keeps repeat fallback as typed meaning while preserving report text", () => {
     const gap = sourceGap({
       source: "news-seen",

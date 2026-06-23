@@ -1,7 +1,25 @@
-import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, test } from "bun:test";
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
+import { recordSeenNewsSources } from "../src/sources/news-seen";
 import type { CollectContext, NewsAdapter } from "../src/sources/types";
 import type { Source } from "../src/domain/types";
+
+const seenTmpDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of seenTmpDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function tempSeenPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), "multi-news-seen-test-"));
+  seenTmpDirs.push(dir);
+  return join(dir, "news-seen.json");
+}
 
 function source(id: string, provider: string, title: string, fetchedAt: string): Source {
   return {
@@ -240,5 +258,69 @@ describe("multi-news", () => {
       selectedRelevantMoverNewsSourceCount: 1,
       selectedGenericMoverNewsSourceCount: 1,
     });
+  });
+
+  test("keeps a seen relevant ticker source via min-relevant-keep when generic survivors remain", async () => {
+    const newsSeenPath = tempSeenPath();
+    // Seed the seen index with the one issuer-relevant article from a prior run.
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: [
+        {
+          id: "news-equity-seen",
+          title: "AAPL supplier demand rises",
+          url: "https://example.test/aapl-relevant",
+          fetchedAt: "2026-05-18T00:00:00.000Z",
+          kind: "news",
+          assetClass: "equity",
+          provider: "provider-a",
+        },
+      ],
+    });
+
+    const seenRelevant: Source = {
+      ...source(
+        "a-relevant",
+        "provider-a",
+        "AAPL supplier demand rises",
+        "2026-06-01T11:00:00.000Z",
+      ),
+      url: "https://example.test/aapl-relevant",
+    };
+    const generic: Source[] = Array.from({ length: 10 }, (_, index) => ({
+      ...source(
+        `g-${index}`,
+        "provider-b",
+        `Markets rise broadly ${index}`,
+        "2026-06-01T12:00:00.000Z",
+      ),
+      url: `https://example.test/generic-${index}`,
+    }));
+
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [seenRelevant]), adapter("provider-b", generic)],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({
+      ...context(),
+      newsLimit: 11,
+      newsSeenPath,
+      newsSeenRetentionDays: 30,
+    });
+
+    // The seen relevant article is re-added and selected alongside the generic survivors.
+    expect(result.newsSources.map((item) => item.title)).toContain("AAPL supplier demand rises");
+    expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBeGreaterThanOrEqual(1);
+    expect(result.newsAnalytics?.relevantRepeatKeptCount).toBeGreaterThanOrEqual(1);
+    // A repeat-fallback gap is emitted for the re-added relevant source.
+    expect(result.sourceGaps.some((gap) => gap.cause === "repeat-fallback")).toBe(true);
+    // The relevant article was suppressed by the seen filter, then re-added by the keep guarantee.
+    expect(result.newsAnalytics?.relevantSuppressedBySeenFilterCount).toBe(1);
+    expect(result.newsAnalytics?.repeatFallbackUsed).toBe(false);
   });
 });

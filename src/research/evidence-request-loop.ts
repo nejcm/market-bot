@@ -9,6 +9,7 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
+import { isUsListing } from "../sources/instrument-capability";
 import { isRecord } from "../sources/guards";
 import {
   availableEvidenceRequestTools,
@@ -90,8 +91,33 @@ export async function runEvidenceRequestLoop(
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
-  const availableTools = availableEvidenceRequestTools(collectContext.context);
+  const availableTools = availableEvidenceRequestTools(
+    collectContext.context,
+    input.collectedSources.resolvedInstrumentIdentity,
+  );
   if (availableTools.length === 0) {
+    // The loop is enabled only for deep equity tickers; an empty tool set here means
+    // The instrument is a non-US listing (US equity always exposes sec_latest_filing).
+    // Emit one deterministic unsupported-coverage gap so the skip is observable.
+    if (
+      command.jobType === "ticker" &&
+      command.assetClass === "equity" &&
+      !isUsListing(command.symbol, input.collectedSources.resolvedInstrumentIdentity)
+    ) {
+      const skipGap = extendedEvidenceGap(
+        sourceGap({
+          source: "evidence-request",
+          message: `evidence-request: no applicable tools for ${command.symbol} (non-US listing)`,
+          capability: "evidence-request",
+          cause: "unsupported-coverage",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      );
+      return {
+        collectedSources: mergeGaps(command, input.collectedSources, [skipGap]),
+        stageOutputs: [],
+      };
+    }
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
 
@@ -140,7 +166,14 @@ export async function runEvidenceRequestLoop(
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
       const staleStart = collectContext.staleFallbackGaps.length;
-      const output = await executeEvidenceRequestTool(request.tool, collectContext.context);
+      const toolContext =
+        input.collectedSources.resolvedInstrumentIdentity !== undefined
+          ? {
+              ...collectContext.context,
+              instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
+            }
+          : collectContext.context;
+      const output = await executeEvidenceRequestTool(request.tool, toolContext);
       const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
       const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
       return {

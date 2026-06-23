@@ -388,3 +388,64 @@ describe("Tradier IV term structure evidence tool", () => {
     ]);
   });
 });
+
+describe("non-US listing capability gating", () => {
+  function nonUsCtx(overrides: Partial<CollectContext> = {}): CollectContext {
+    return baseCtx({
+      command: { jobType: "ticker", assetClass: "equity", symbol: "RR.L", depth: "deep" },
+      ...overrides,
+    });
+  }
+
+  test("exposes no evidence request tools for a non-US ticker", () => {
+    expect(availableEvidenceRequestTools(nonUsCtx())).toEqual([]);
+    // A resolved non-US identity also suppresses tools even for a suffix-less symbol.
+    expect(availableEvidenceRequestTools(baseCtx(), { exchange: "London Stock Exchange" })).toEqual(
+      [],
+    );
+  });
+
+  test("sec_latest_filing emits unsupported-coverage gap without a fetch for non-US", async () => {
+    const ctx = nonUsCtx({
+      request: requestExecutor({
+        json: async () => {
+          throw new Error("must not fetch for a non-US listing");
+        },
+      }),
+    });
+
+    const result = await executeEvidenceRequestTool("sec_latest_filing", ctx);
+
+    expect(result.rawSnapshots).toEqual([]);
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "sec-edgar",
+        cause: "unsupported-coverage",
+        message: expect.stringContaining("RR.L"),
+      }),
+    ]);
+  });
+
+  test("tradier_iv_term_structure emits unsupported-coverage gap without a fetch for non-US", async () => {
+    const ctx = nonUsCtx({
+      tradierApiToken: "tradier-token",
+      request: requestExecutor({
+        json: async () => {
+          throw new Error("must not fetch for a non-US listing");
+        },
+      }),
+    });
+
+    const result = await executeEvidenceRequestTool("tradier_iv_term_structure", ctx);
+
+    expect(result.rawSnapshots).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "tradier-options",
+        cause: "unsupported-coverage",
+        message: expect.stringContaining("RR.L"),
+      }),
+    ]);
+  });
+});

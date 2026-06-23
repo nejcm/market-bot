@@ -49,6 +49,7 @@ export interface RunAnalytics {
     readonly sourceGapClasses: {
       readonly missingCredential: number;
       readonly fetchFailed: number;
+      readonly unsupportedCoverage: number;
       readonly other: number;
     };
     readonly dataGaps: {
@@ -215,6 +216,7 @@ function sourceGapClasses(
   return {
     missingCredential: classes.missingCredential ?? 0,
     fetchFailed: classes.fetchFailed ?? 0,
+    unsupportedCoverage: classes.unsupportedCoverage ?? 0,
     other: classes.other ?? 0,
   };
 }

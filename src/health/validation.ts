@@ -1,58 +1,7 @@
-import {
-  marketUpdateHorizonBucketOf,
-  type InstrumentIdentity,
-  type SourceGapCause,
-} from "../domain/types";
+import { marketUpdateHorizonBucketOf, type SourceGapCause } from "../domain/types";
 import { numberAt } from "../sources/guards";
+import { hasNonUsSuffix, isInternationalIdentity } from "../sources/instrument-capability";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";
-
-const US_EQUITY_EXCHANGES = new Set([
-  "AMEX",
-  "BATS",
-  "CBOE",
-  "NASDAQ",
-  "NASDAQCM",
-  "NASDAQGM",
-  "NASDAQGS",
-  "NYSE",
-  "NYSEAMERICAN",
-  "NYSEARCA",
-]);
-
-// Identity exchange/currency is the primary signal; suffixes cover common Yahoo-style fallbacks.
-const INTERNATIONAL_SUFFIXES = new Set([
-  "AS",
-  "AX",
-  "BR",
-  "CO",
-  "DE",
-  "F",
-  "HE",
-  "HK",
-  "IR",
-  "IS",
-  "JO",
-  "KQ",
-  "KS",
-  "L",
-  "MC",
-  "MI",
-  "MX",
-  "NZ",
-  "OL",
-  "PA",
-  "SA",
-  "SI",
-  "SS",
-  "ST",
-  "SW",
-  "SZ",
-  "T",
-  "TA",
-  "TO",
-  "VI",
-  "VX",
-]);
 
 export type ValidationStatus = "pass" | "warn" | "fail";
 export type ValidationIssueClassification = "blocking" | "expected" | "informational";
@@ -91,30 +40,11 @@ export interface ProviderValidationSummary {
   readonly routeClassifications: readonly ValidationRouteClassification[];
 }
 
-function exchangeKey(exchange: string): string {
-  return exchange.toUpperCase().replaceAll(/[^A-Z]/gu, "");
-}
-
-function hasInternationalSuffix(symbol: string | undefined): boolean {
-  const suffix = symbol?.match(/\.([A-Z]{1,3})$/u)?.[1];
-  return suffix !== undefined && INTERNATIONAL_SUFFIXES.has(suffix);
-}
-
-function isInternationalIdentity(identity: InstrumentIdentity | undefined): boolean {
-  if (identity?.quoteCurrency !== undefined && identity.quoteCurrency.toUpperCase() !== "USD") {
-    return true;
-  }
-  if (identity?.exchange === undefined) {
-    return false;
-  }
-  return !US_EQUITY_EXCHANGES.has(exchangeKey(identity.exchange));
-}
-
 function isInternationalEquityTicker(run: RunHealth): boolean {
   if (run.jobType !== "ticker" || run.assetClass !== "equity") {
     return false;
   }
-  if (hasInternationalSuffix(run.symbol)) {
+  if (run.symbol !== undefined && hasNonUsSuffix(run.symbol)) {
     return true;
   }
   return run.sources.some(

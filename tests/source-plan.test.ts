@@ -8,7 +8,7 @@ const generatedAt = "2026-05-19T00:00:00.000Z";
 describe("source plan", () => {
   test("covers only lanes backed by collected sources and records required gaps", () => {
     const plan = buildSourcePlan(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       collectedSources({
         marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
         newsSources: [newsSource({ id: "news-yahoo-aapl", provider: "yahoo-news", kind: "news" })],
@@ -140,7 +140,7 @@ describe("source plan", () => {
 
   test("maps valuation peer-comp source IDs and gaps into the valuation lane", () => {
     const plan = buildSourcePlan(
-      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
       collectedSources({
         marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
         extendedSources: [
@@ -204,7 +204,7 @@ describe("source plan", () => {
 
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {
     const plan = buildSourcePlan(
-      { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       collectedSources({
         marketSnapshots: [
           marketSnapshot({

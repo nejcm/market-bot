@@ -1,3 +1,4 @@
+import { isInstrumentCommand } from "../cli/args";
 import type {
   AssetClass,
   InstrumentIdentity,
@@ -247,7 +248,7 @@ function benchmarkFromSnapshot(
 function equityRequestsFor(
   command: CollectContext["command"],
 ): readonly { readonly role: EquityRole; readonly url: string }[] {
-  if (command.jobType === "ticker") {
+  if (isInstrumentCommand(command)) {
     return [
       { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
       { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },

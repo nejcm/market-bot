@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../../cli/args";
+import type { InstrumentCommand } from "../../cli/args";
 import { sourceGap, sourceGapWithContext } from "../../domain/source-gaps";
 import type {
   ExtendedEvidence,
@@ -104,7 +104,7 @@ interface PeerCollection {
 
 export async function collectValuationComps(
   ctx: CollectContext,
-  command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
+  command: InstrumentCommand,
   marketSnapshots: readonly MarketSnapshot[],
   extendedEvidence: ExtendedEvidence,
   options: ValuationCompsOptions = {},
@@ -217,7 +217,7 @@ export async function collectValuationComps(
 
 function emptyResult(
   ctx: CollectContext,
-  command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
+  command: InstrumentCommand,
   extendedEvidence: ExtendedEvidence,
   reason: string,
 ): ValuationCompsResult {
@@ -530,10 +530,7 @@ function replaceValuationItem(
   };
 }
 
-function sourcesForPeer(
-  command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
-  entry: PeerCollection,
-): readonly Source[] {
+function sourcesForPeer(command: InstrumentCommand, entry: PeerCollection): readonly Source[] {
   const quoteSource =
     entry.quote === undefined
       ? undefined

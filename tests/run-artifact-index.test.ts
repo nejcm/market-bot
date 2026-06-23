@@ -100,7 +100,7 @@ function writeRun(
     join(runDir, "report.json"),
     researchReport({
       runId,
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       generatedAt: "2026-06-01T00:00:00.000Z",
@@ -170,7 +170,7 @@ describe("run artifact index", () => {
       {
         runId: "run-a",
         generatedAt: "2026-06-01T00:00:00.000Z",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         depth: "deep",
@@ -199,7 +199,7 @@ describe("run artifact index", () => {
       query: "risk",
       symbol: "AAPL",
       assetClass: "equity",
-      jobType: "ticker",
+      jobType: "equity",
       section: "risks",
     });
     expect(historyResults?.map((entry) => entry.runId)).toEqual(["run-a"]);

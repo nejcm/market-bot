@@ -3,6 +3,7 @@ import { createInstrument } from "../domain/instrument";
 import { HISTORY_SECTIONS, type HistorySection } from "../history/artifacts";
 import {
   commandLabel,
+  isInstrumentCommand,
   USAGE,
   type CliCommand,
   type HistoryRebuildCommand,
@@ -13,7 +14,7 @@ import {
   type ResearchSubjectCommand,
 } from "./job-registry";
 
-export { commandLabel };
+export { commandLabel, isInstrumentCommand };
 export type {
   AlphaSearchCommand,
   CachePruneCommand,
@@ -25,10 +26,10 @@ export type {
   HistoryThesisDeltaCommand,
   IndexRebuildCommand,
   MarketOverviewCommand,
+  InstrumentCommand,
   ProviderHealthCommand,
   ResearchCommand,
   ScoreCommand,
-  TickerCommand,
   WeeklyCommand,
 } from "./job-registry";
 
@@ -153,6 +154,9 @@ function readSection(value: string | undefined): HistorySection | undefined {
   return value as HistorySection;
 }
 
+// Boolean flags stand alone; any other allowed flag consumes the next arg as its value.
+const BOOLEAN_FLAGS: ReadonlySet<string> = new Set(["--deep", "--narrative"]);
+
 function rejectUnknownHistoryArgs(
   args: readonly string[],
   allowedFlags: ReadonlySet<string>,
@@ -168,15 +172,17 @@ function rejectUnknownHistoryArgs(
     if (!allowedFlags.has(arg)) {
       throw new Error(`Unknown flag: ${arg}`);
     }
-    if (arg !== "--narrative") {
+    if (!BOOLEAN_FLAGS.has(arg)) {
       index += 1;
     }
   }
 }
 
-function rejectUnknownArgs(args: readonly string[], allowedPositionals: number): void {
-  const allowedFlags = new Set(["--asset", "--deep"]);
-
+function rejectUnknownArgs(
+  args: readonly string[],
+  allowedPositionals: number,
+  allowedFlags: ReadonlySet<string>,
+): void {
   for (let index = allowedPositionals; index < args.length; index += 1) {
     const arg = args[index];
 
@@ -192,7 +198,7 @@ function rejectUnknownArgs(args: readonly string[], allowedPositionals: number):
       throw new Error(`Unknown flag: ${arg}`);
     }
 
-    if (arg === "--asset") {
+    if (!BOOLEAN_FLAGS.has(arg)) {
       index += 1;
     }
   }
@@ -205,26 +211,25 @@ export function parseArgs(args: readonly string[]): CliCommand {
     return parseMarketOverviewArgs(command, args);
   }
 
-  if (command === "ticker") {
-    rejectUnknownArgs(args, 2);
+  if (command === "equity" || command === "crypto") {
+    rejectUnknownArgs(args, 2, new Set(["--deep"]));
 
     if (maybeSymbol === undefined || maybeSymbol.startsWith("--")) {
-      throw new Error("Expected symbol for ticker command");
+      throw new Error(`Expected symbol for ${command} command`);
     }
 
-    const assetClass = parseAsset(readFlagValue(args, "--asset"));
-    const instrument = createInstrument(maybeSymbol, assetClass);
+    const instrument = createInstrument(maybeSymbol, command);
 
     return {
-      jobType: "ticker",
-      assetClass,
+      jobType: command,
+      assetClass: command,
       symbol: instrument.symbol,
       depth: readDepth(args),
     };
   }
 
   if (command === "alpha-search") {
-    rejectUnknownArgs(args, 1);
+    rejectUnknownArgs(args, 1, new Set(["--asset", "--deep"]));
 
     const assetClass = parseAsset(readFlagValue(args, "--asset"));
     if (assetClass !== "equity") {
@@ -298,12 +303,13 @@ export function parseArgs(args: readonly string[]): CliCommand {
       jobType !== "market-overview" &&
       jobType !== "daily" &&
       jobType !== "weekly" &&
-      jobType !== "ticker" &&
+      jobType !== "equity" &&
+      jobType !== "crypto" &&
       jobType !== "alpha-search" &&
       jobType !== "research"
     ) {
       throw new Error(
-        "Expected --job-type market-overview|daily|weekly|ticker|alpha-search|research",
+        "Expected --job-type market-overview|daily|weekly|equity|crypto|alpha-search|research",
       );
     }
     return {

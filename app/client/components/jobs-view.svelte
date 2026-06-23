@@ -87,7 +87,7 @@
         />
       </label>
     {/if}
-    {#if jobForm.jobType === "ticker"}
+    {#if jobForm.jobType === "equity" || jobForm.jobType === "crypto"}
       <label class="space-y-1">
         <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
           Symbol

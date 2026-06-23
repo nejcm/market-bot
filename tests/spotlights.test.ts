@@ -26,7 +26,7 @@ function historyContext(): HistoricalResearchContext {
       {
         runId: "ticker-aapl",
         sourceId: "history-report-ticker-aapl",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-05-20T00:00:00.000Z",

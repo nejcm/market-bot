@@ -38,12 +38,12 @@ describe("research console app jobs", () => {
       "equity",
       "--deep",
     ]);
-    expect(jobRequestArgv({ jobType: "ticker", symbol: "aapl", assetClass: "equity" })).toEqual([
-      "ticker",
-      "aapl",
-      "--asset",
+    expect(jobRequestArgv({ jobType: "equity", symbol: "aapl", depth: "deep" })).toEqual([
       "equity",
+      "aapl",
+      "--deep",
     ]);
+    expect(jobRequestArgv({ jobType: "crypto", symbol: "btc" })).toEqual(["crypto", "btc"]);
     expect(jobRequestArgv({ jobType: "research", subject: "AI biotech", depth: "deep" })).toEqual([
       "research",
       "AI",

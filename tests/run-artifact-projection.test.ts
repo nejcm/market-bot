@@ -12,7 +12,7 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
     runId: "run-a",
     generatedAt: "2026-06-01T00:00:00.000Z",
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     findingCount: 0,
@@ -46,7 +46,7 @@ describe("run artifact projection", () => {
       runSummaryMatchesFilters(run, {
         symbol: "aapl",
         assetClass: "EQUITY",
-        jobType: "ticker",
+        jobType: "equity",
         from: "2026-06-01",
         to: "2026-06-01",
       }),
@@ -72,7 +72,7 @@ describe("run artifact projection", () => {
       id: "summary:0",
       run_id: "run-a",
       generated_at: "2026-06-01T00:00:00.000Z",
-      job_type: "ticker",
+      job_type: "equity",
       asset_class: "equity",
       symbol: "AAPL",
       section: "summary",

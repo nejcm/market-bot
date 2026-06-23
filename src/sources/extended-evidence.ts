@@ -1,4 +1,5 @@
 import type { AssetClass, ExtendedEvidence } from "../domain/types";
+import { isInstrumentCommand } from "../cli/args";
 import { extendedEvidenceGap } from "../domain/source-gaps";
 import type {
   CollectContext,
@@ -21,7 +22,7 @@ async function collectProviderEvidence(
   assetClass: AssetClass,
   provider: ProviderCollector,
 ): Promise<ExtendedEvidenceCollectionResult> {
-  if (ctx.command.jobType !== "ticker") {
+  if (!isInstrumentCommand(ctx.command)) {
     return emptyExtendedEvidence();
   }
 
@@ -58,7 +59,7 @@ export function createMultiExtendedEvidenceAdapter(
   return {
     name: `extended-evidence-${assetClass}`,
     collect: async (ctx) => {
-      if (ctx.command.jobType !== "ticker") {
+      if (!isInstrumentCommand(ctx.command)) {
         return emptyExtendedEvidence();
       }
 

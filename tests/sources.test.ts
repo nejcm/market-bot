@@ -653,7 +653,7 @@ describe("market context provider collection", () => {
   test("skips Market Context for ticker runs", async () => {
     const result = await marketContextAdapter.collect(
       collectContext({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
         fredApiKey: "fred-key",
       }),
     );
@@ -715,7 +715,7 @@ describe("news provider collection", () => {
 
     const result = await yahooMarketDataAdapter.collect(
       collectContext({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
         request: requestExecutor({
           json: async (request) => {
             const symbols = new URL(request.url).searchParams.get("symbols");
@@ -1038,7 +1038,7 @@ describe("extended evidence provider collection", () => {
     const tradierChainCachedAt = "2026-05-15T00:00:00.000Z";
     const result = await equityExtendedEvidenceAdapter.collect(
       collectContext({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "aapl", depth: "brief" },
         finnhubApiToken: "finnhub-token",
         fredApiKey: "fred-key",
         tradierApiToken: "tradier-token",
@@ -1150,7 +1150,7 @@ describe("extended evidence provider collection", () => {
   test("emits gaps for missing crypto extended evidence tokens", async () => {
     const result = await cryptoExtendedEvidenceAdapter.collect(
       collectContext({
-        command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+        command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
       }),
     );
 
@@ -1164,7 +1164,7 @@ describe("extended evidence provider collection", () => {
   test("marks inaccessible Finnhub event routes as unsupported coverage", async () => {
     const result = await collectFinnhubEvents(
       collectContext({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
         finnhubApiToken: "finnhub-token",
         request: requestExecutor({
           json: async ({ adapter }) => {
@@ -1201,7 +1201,7 @@ describe("extended evidence provider collection", () => {
   test("summarizes successful Finnhub event routes by route", async () => {
     const result = await collectFinnhubEvents(
       collectContext({
-        command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
         finnhubApiToken: "finnhub-token",
         request: requestExecutor({
           json: async ({ adapter }) => {
@@ -1227,7 +1227,7 @@ describe("extended evidence provider collection", () => {
     const adapters: string[] = [];
     const result = await cryptoExtendedEvidenceAdapter.collect(
       collectContext({
-        command: { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+        command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
         fredApiKey: "fred-key",
         glassnodeApiKey: "glassnode-key",
         request: requestExecutor({

@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap, sourceGapStatusCode } from "../../domain/source-gaps";
 import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { isUsListing } from "../instrument-capability";
@@ -67,7 +68,7 @@ function summarizeFinnhubEvents(results: readonly FinnhubEventRouteResult[]): st
 
 export async function collectFinnhubEvents(ctx: CollectContext): Promise<ProviderResult> {
   const { command, fetchedAt } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {

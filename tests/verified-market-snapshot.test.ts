@@ -211,7 +211,7 @@ describe("collectVerifiedMarketSnapshot", () => {
   function makeCtx(fetchImpl: (url: string) => Promise<Response>) {
     resetSourceResilienceForTests();
     const { context } = createCollectContext(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 5000 },
       new Date(analysisDate),
       async (input: string | URL | Request) => fetchImpl(String(input)),
@@ -378,7 +378,7 @@ describe("deriveCanonicalInstrumentIdentity", () => {
 describe("deterministicSourceGaps — verified snapshot gap", () => {
   test("adds missing-snapshot gap for equity ticker run when snapshot absent", () => {
     const gaps = deterministicSourceGaps(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       collectedSources({
         marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
         newsSources: [{ id: "n1", title: "news", fetchedAt: "2026-01-01", kind: "news" }],
@@ -392,7 +392,7 @@ describe("deterministicSourceGaps — verified snapshot gap", () => {
   test("no missing-snapshot gap when snapshot is present", () => {
     const snapshot = verifiedSnapshotFixture();
     const gaps = deterministicSourceGaps(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       collectedSources({
         marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
         newsSources: [{ id: "n1", title: "news", fetchedAt: "2026-01-01", kind: "news" }],
@@ -428,7 +428,7 @@ describe("buildSourceList — verified snapshot source", () => {
 
   test("includes verified-snapshot source for ticker run with snapshot", () => {
     const list = buildSourceList(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sources,
     );
     const snapshotSource = list.find((s) => s.id === "verified-snapshot-AAPL");
@@ -448,7 +448,7 @@ describe("buildSourceList — verified snapshot source", () => {
 
   test("snapshot source ID matches the shared helper and carries ISO fetchedAt", () => {
     const list = buildSourceList(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sources,
     );
     const snapshotSource = list.find((s) => s.id === verifiedSnapshotSourceId("AAPL"));
@@ -527,7 +527,7 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
   };
 
   const command: ResearchCommand = {
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     depth: "brief",
@@ -672,7 +672,7 @@ describe("collectSources — verified snapshot wiring", () => {
     resetSourceResilienceForTests();
     setSourceHostMinDelayMsForTests(0);
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sourceOptions,
       new Date("2026-05-20T00:00:00.000Z"),
       tickerFetch,
@@ -708,7 +708,7 @@ describe("collectSources — verified snapshot wiring", () => {
     resetSourceResilienceForTests();
     setSourceHostMinDelayMsForTests(0);
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sourceOptions,
       new Date("2026-05-20T00:00:00.000Z"),
       (input: string | URL | Request) => {

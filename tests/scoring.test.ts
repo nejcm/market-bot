@@ -547,7 +547,7 @@ describe("buildCalibrationSummary", () => {
         prediction: { ...basePrediction, kind: "volatility" as const, probability: 0.4 },
         score: makeScore("miss"),
         assetClass: "crypto" as const,
-        jobType: "ticker" as const,
+        jobType: "crypto" as const,
         runId: "r2",
       },
     ];
@@ -606,7 +606,7 @@ describe("buildCalibrationSummary", () => {
         prediction: { ...basePrediction, horizonTradingDays: 20 },
         score: makeScore("hit"),
         assetClass: "equity" as const,
-        jobType: "ticker" as const,
+        jobType: "equity" as const,
         runId: "r3",
       },
     ];
@@ -615,7 +615,7 @@ describe("buildCalibrationSummary", () => {
 
     expect(summary.byJobType["daily"]?.count).toBe(1);
     expect(summary.byJobType["weekly"]?.count).toBe(1);
-    expect(summary.byJobType["ticker"]?.count).toBe(1);
+    expect(summary.byJobType["equity"]?.count).toBe(1);
     expect(summary.byMarketUpdateHorizonBucket["1-5d"]?.count).toBe(1);
     expect(summary.byMarketUpdateHorizonBucket["11-15d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["1-5d"]?.count).toBe(1);
@@ -683,7 +683,7 @@ describe("buildCalibrationSummary", () => {
           prediction: { ...basePrediction, horizonTradingDays: 5 },
           score: makeScore("hit"),
           assetClass: "equity" as const,
-          jobType: "ticker" as const,
+          jobType: "equity" as const,
           runId: "r1",
         },
       ],

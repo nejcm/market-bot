@@ -7,7 +7,7 @@ function baseAnalytics(): RunAnalytics {
     version: 1,
     runId: "run-1",
     generatedAt: "2026-05-19T00:00:00.000Z",
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     depth: "deep",
@@ -67,7 +67,7 @@ describe("run analytics console", () => {
 
     expect(output).toBe(
       [
-        "Run quality — ticker AAPL (run-1)",
+        "Run quality — equity AAPL (run-1)",
         "  Predictions: 5/5 target met · 3 informative, 2 near base rate",
         "  Confidence: medium · 1 data gap(s)",
       ].join("\n"),

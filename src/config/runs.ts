@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { legacyMarketUpdateHorizon, type PredictionKind } from "../domain/types";
 import type { ModelParams } from "../model/types";
 import { cleanResearchProxySymbol } from "../research/research-subject-identity";
@@ -12,7 +12,8 @@ export type RunKey =
   | "market-overview-equity"
   | "market-overview-crypto"
   | "research-equity"
-  | "ticker";
+  | "equity"
+  | "crypto";
 
 /**
  * Audit finding #10 (prediction mix policy / emission policy): per-kind skill
@@ -92,7 +93,7 @@ const CRYPTO_MARKET_UPDATE_PREDICTION_SUBJECTS = ["BTC", "ETH"] as const;
 // |------------------------------|-----------------------------|--------------------------------|
 // | market-overview-equity | relative, macro, volatility | 1 → 2 |
 // | market-overview-crypto | relative, range             | 1 → 2 (macro/iv are equity-only — see src/scoring/observations.ts) |
-// | ticker                       | relative, range             | 1 → 2 |
+// | equity / crypto              | relative, range             | 1 → 2 |
 //
 // The `deep` override raises every floor to 2; brief profiles use 1.
 //
@@ -113,7 +114,7 @@ const CRYPTO_MARKET_UPDATE_KIND_MIX: ForecastKindMix = {
   minNonDirection: 1,
 };
 
-const TICKER_KIND_MIX: ForecastKindMix = {
+const INSTRUMENT_KIND_MIX: ForecastKindMix = {
   favored: ["relative", "range"],
   minNonDirection: 1,
 };
@@ -131,6 +132,24 @@ const CODE_DEFAULTS: Omit<ResolvedRunParams, "quickModel" | "synthesisModel" | "
   focus: ["market regime", "movers", "risks", "source gaps"],
   analystStyle: "concise brief",
   targetKindMix: EQUITY_MARKET_UPDATE_KIND_MIX,
+};
+
+const INSTRUMENT_RUN_PARAMS: RunParams = {
+  minimumKeyFindings: 4,
+  minimumScenarios: 1,
+  targetPredictions: 3,
+  defaultPredictionHorizon: 5,
+  analystStyle: "concise brief",
+  focus: ["thesis", "evidence", "risks", "data gaps"],
+  targetKindMix: INSTRUMENT_KIND_MIX,
+  deep: {
+    minimumKeyFindings: 6,
+    minimumScenarios: 3,
+    targetPredictions: 5,
+    analystStyle: "fuller analyst-style",
+    focus: ["thesis", "evidence", "catalysts", "bull case", "bear case", "scenarios", "data gaps"],
+    targetKindMix: { ...INSTRUMENT_KIND_MIX, minNonDirection: 2 },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -191,31 +210,9 @@ export const runConfig: RunConfig = {
       targetKindMix: { ...CRYPTO_MARKET_UPDATE_KIND_MIX, minNonDirection: 2 },
     },
   },
-  ticker: {
-    minimumKeyFindings: 4,
-    minimumScenarios: 1,
-    targetPredictions: 3,
-    defaultPredictionHorizon: 5,
-    analystStyle: "concise brief",
-    focus: ["thesis", "evidence", "risks", "data gaps"],
-    targetKindMix: TICKER_KIND_MIX,
-    deep: {
-      minimumKeyFindings: 6,
-      minimumScenarios: 3,
-      targetPredictions: 5,
-      analystStyle: "fuller analyst-style",
-      focus: [
-        "thesis",
-        "evidence",
-        "catalysts",
-        "bull case",
-        "bear case",
-        "scenarios",
-        "data gaps",
-      ],
-      targetKindMix: { ...TICKER_KIND_MIX, minNonDirection: 2 },
-    },
-  },
+  // Single-instrument runs (equity / crypto) share one profile.
+  equity: INSTRUMENT_RUN_PARAMS,
+  crypto: INSTRUMENT_RUN_PARAMS,
   "research-equity": {
     minimumKeyFindings: 3,
     minimumScenarios: 1,
@@ -255,8 +252,8 @@ export const runConfig: RunConfig = {
 // ---------------------------------------------------------------------------
 
 function toRunKey(command: ResearchCommand): RunKey {
-  if (command.jobType === "ticker") {
-    return "ticker";
+  if (isInstrumentCommand(command)) {
+    return command.jobType;
   }
   if (command.jobType === "research") {
     return "research-equity";
@@ -301,7 +298,7 @@ function predictionSubjectsFor(
   merged: RunBaseParams,
   proxy: string | undefined,
 ): readonly string[] {
-  if (command.jobType === "ticker") {
+  if (isInstrumentCommand(command)) {
     return [command.symbol];
   }
   if (command.jobType === "research") {

@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap } from "../../domain/source-gaps";
 import { isFetchJsonResult, latestRawSnapshotFetchedAt, type CollectContext } from "../types";
 import { collectedItem, evidenceSource, type ProviderResult } from "./common";
@@ -14,7 +15,7 @@ const GLASSNODE_METRICS = [
 
 export async function collectGlassnode(ctx: CollectContext): Promise<ProviderResult> {
   const { command, fetchedAt } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
   if (ctx.glassnodeApiKey === undefined) {

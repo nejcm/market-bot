@@ -1,4 +1,10 @@
-import type { KeyFinding, Prediction, ResearchReport, Scenario } from "../domain/types";
+import {
+  isInstrumentJobType,
+  type KeyFinding,
+  type Prediction,
+  type ResearchReport,
+  type Scenario,
+} from "../domain/types";
 import { renderClaimForMeasurableAs } from "../forecast/observable";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 import {
@@ -145,7 +151,7 @@ function renderPredictions(predictions: readonly Prediction[]): string {
 }
 
 function renderExtendedEvidence(report: ResearchReport): string {
-  if (report.jobType !== "ticker") {
+  if (!isInstrumentJobType(report.jobType)) {
     return "";
   }
   if (report.extendedEvidence === undefined) {
@@ -451,7 +457,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
 }
 
 function renderEarningsSetup(report: ResearchReport): string {
-  if (report.jobType !== "ticker") {
+  if (!isInstrumentJobType(report.jobType)) {
     return "";
   }
   const setup = report.extras?.earningsSetup;
@@ -512,7 +518,7 @@ function renderEarningsSetup(report: ResearchReport): string {
 }
 
 function reportTitle(report: ResearchReport): string {
-  if (report.jobType === "ticker") {
+  if (isInstrumentJobType(report.jobType)) {
     return `${report.symbol} ${report.assetClass} Research View`;
   }
   if (report.jobType === "research") {

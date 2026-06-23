@@ -31,7 +31,7 @@ function writeRun(
     join(runDir, "report.json"),
     researchReport({
       runId,
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       generatedAt,
@@ -134,7 +134,7 @@ describe("history artifacts", () => {
       query: "New risk",
       symbol: "AAPL",
       assetClass: "equity",
-      jobType: "ticker",
+      jobType: "equity",
       section: "risks",
       from: "2026-06-05",
       to: "2026-06-05",

@@ -205,7 +205,7 @@
     const { runId, jobType, availableFiles } = runDetail.summary;
     snapshot = null;
     if (
-      jobType !== "ticker" ||
+      (jobType !== "equity" && jobType !== "crypto") ||
       !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)
     ) {
       return;
@@ -438,7 +438,7 @@
     if (field === "jobType" && value !== "research") {
       jobForm.subject = "";
     }
-    if (field === "jobType" && value !== "ticker") {
+    if (field === "jobType" && value !== "equity" && value !== "crypto") {
       jobForm.symbol = "";
     }
   }

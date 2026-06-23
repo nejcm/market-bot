@@ -4,12 +4,19 @@ export type LegacyMarketUpdateJobType = "daily" | "weekly";
 
 export type MarketUpdateJobType = "market-overview" | LegacyMarketUpdateJobType;
 
-export type JobType = MarketUpdateJobType | "ticker" | "alpha-search" | "research";
+export type InstrumentJobType = "equity" | "crypto";
+
+export type JobType = MarketUpdateJobType | InstrumentJobType | "alpha-search" | "research";
 
 export type Depth = "brief" | "deep";
 
 export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdateJobType {
   return jobType === "market-overview" || jobType === "daily" || jobType === "weekly";
+}
+
+// Single-instrument runs (equity / crypto): jobType always equals assetClass.
+export function isInstrumentJobType(jobType: JobType | undefined): jobType is InstrumentJobType {
+  return jobType === "equity" || jobType === "crypto";
 }
 
 export function isLegacyMarketUpdateJobType(
@@ -37,7 +44,7 @@ export function marketUpdateHorizonBucket(horizonTradingDays: number): string {
 
 // Canonical market-update horizon resolution. Market-overview runs carry an
 // Explicit horizonTradingDays; legacy daily/weekly runs map to their fixed
-// Horizon. Non-market-update job types (ticker/alpha-search/research) have no
+// Horizon. Non-market-update job types (equity/crypto/alpha-search/research) have no
 // Market-update horizon. Callers with a richer fallback (e.g. an extras bucket
 // Or a prediction-horizon column) should resolve that first, then delegate.
 export function marketUpdateHorizonOf(source: {

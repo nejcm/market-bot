@@ -80,7 +80,7 @@ describe("research console app API", () => {
       join(runDir, "report.json"),
       researchReport({
         runId: "run-snapshot",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
       }),

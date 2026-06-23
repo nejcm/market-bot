@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap } from "../domain/source-gaps";
 import type { Source, SourceGap } from "../domain/types";
 import { isRecord } from "./guards";
@@ -48,7 +48,7 @@ const INDEX_VERSION = 1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function newsSeenLane(command: ResearchCommand): string {
-  if (command.jobType === "ticker") {
+  if (isInstrumentCommand(command)) {
     return `ticker:${command.assetClass}:${command.symbol.trim().toUpperCase()}`;
   }
 

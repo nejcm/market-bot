@@ -148,7 +148,7 @@ describe("loadRunArtifact", () => {
     await writeJson(join(runDir, "normalized", "source-plan.json"), {
       version: 1,
       generatedAt: "2026-05-19T00:00:00.000Z",
-      run: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      run: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       lanes: [
         {
           lane: "market-data",
@@ -217,7 +217,7 @@ describe("loadRunArtifact", () => {
     await writeJson(join(runDir, "normalized", "source-plan.json"), {
       version: 1,
       generatedAt: 42,
-      run: { jobType: "ticker", assetClass: "equity", symbol: 42, depth: "deep" },
+      run: { jobType: "equity", assetClass: "equity", symbol: 42, depth: "deep" },
       lanes: [
         {
           lane: "market-data",
@@ -282,7 +282,7 @@ describe("loadRunArtifact", () => {
     await writeJson(join(runDir, "normalized", "source-plan.json"), {
       version: 1,
       generatedAt: "2026-05-19T00:00:00.000Z",
-      run: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      run: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       lanes: [{ lane: "not-real", requirement: "required", appliesToRun: true, providerPath: "x" }],
     });
     await writeJson(join(runDir, "normalized", "evidence-lanes.json"), {

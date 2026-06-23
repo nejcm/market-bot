@@ -77,7 +77,8 @@ const SYNTHESIS_DISCIPLINE_JOB_TYPES: ReadonlySet<PlaybookJobType> = new Set([
   "market-overview",
   "daily",
   "weekly",
-  "ticker",
+  "equity",
+  "crypto",
   "research",
 ]);
 // Keep in sync with PlaybookStage; this runtime set validates checked-in JSON.
@@ -109,7 +110,8 @@ function assertJobTypes(values: readonly string[]): readonly PlaybookJobType[] {
       value !== "market-overview" &&
       value !== "daily" &&
       value !== "weekly" &&
-      value !== "ticker" &&
+      value !== "equity" &&
+      value !== "crypto" &&
       value !== "research"
     ) {
       throw new Error(`Playbook registry has invalid jobType: ${value}`);

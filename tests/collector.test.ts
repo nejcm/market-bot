@@ -115,7 +115,7 @@ describe("collectSources", () => {
   test("returns a gap when a cached text fetch hydrates a non-string payload", async () => {
     const cacheDir = tempCacheDir();
     const { context } = createCollectContext(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       {
         equityMoverLimit: 5,
         cryptoMoverLimit: 5,
@@ -144,7 +144,7 @@ describe("collectSources", () => {
 
   test("returns a gap when a provider response exceeds the byte cap", async () => {
     const { context } = createCollectContext(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 100 },
       new Date("2026-05-20T00:00:00.000Z"),
       async () =>
@@ -227,7 +227,7 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -757,7 +757,7 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -834,7 +834,7 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -945,7 +945,7 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1513,7 +1513,7 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -2471,7 +2471,7 @@ describe("researchNewsRelevanceTargets", () => {
 
   test("returns empty array for non-research job types", () => {
     const targets = researchNewsRelevanceTargets({
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "SMH",
       depth: "brief",

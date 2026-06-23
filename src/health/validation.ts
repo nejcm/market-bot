@@ -1,4 +1,8 @@
-import { marketUpdateHorizonBucketOf, type SourceGapCause } from "../domain/types";
+import {
+  isInstrumentJobType,
+  marketUpdateHorizonBucketOf,
+  type SourceGapCause,
+} from "../domain/types";
 import { numberAt } from "../sources/guards";
 import { hasNonUsSuffix, isInternationalIdentity } from "../sources/instrument-capability";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";
@@ -41,7 +45,7 @@ export interface ProviderValidationSummary {
 }
 
 function isInternationalEquityTicker(run: RunHealth): boolean {
-  if (run.jobType !== "ticker" || run.assetClass !== "equity") {
+  if (!isInstrumentJobType(run.jobType) || run.assetClass !== "equity") {
     return false;
   }
   if (run.symbol !== undefined && hasNonUsSuffix(run.symbol)) {
@@ -110,19 +114,20 @@ function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCovera
       "ticker-equity",
       "Ticker equity",
       runs,
-      (run) => run.jobType === "ticker" && run.assetClass === "equity",
+      (run) => isInstrumentJobType(run.jobType) && run.assetClass === "equity",
     ),
     coverageItem(
       "ticker-crypto",
       "Ticker crypto",
       runs,
-      (run) => run.jobType === "ticker" && run.assetClass === "crypto",
+      (run) => isInstrumentJobType(run.jobType) && run.assetClass === "crypto",
     ),
     coverageItem(
       "deep-equity-ticker",
       "Deep equity ticker",
       runs,
-      (run) => run.jobType === "ticker" && run.assetClass === "equity" && run.depth === "deep",
+      (run) =>
+        isInstrumentJobType(run.jobType) && run.assetClass === "equity" && run.depth === "deep",
     ),
     coverageItem(
       "international-equity-ticker",

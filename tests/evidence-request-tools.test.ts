@@ -49,7 +49,7 @@ function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): Source
 
 function baseCtx(overrides: Partial<CollectContext> = {}): CollectContext {
   return {
-    command: { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
     fetchedAt,
     newsLimit: 2,
     cryptoMoverLimit: 2,
@@ -392,7 +392,7 @@ describe("Tradier IV term structure evidence tool", () => {
 describe("non-US listing capability gating", () => {
   function nonUsCtx(overrides: Partial<CollectContext> = {}): CollectContext {
     return baseCtx({
-      command: { jobType: "ticker", assetClass: "equity", symbol: "RR.L", depth: "deep" },
+      command: { jobType: "equity", assetClass: "equity", symbol: "RR.L", depth: "deep" },
       ...overrides,
     });
   }

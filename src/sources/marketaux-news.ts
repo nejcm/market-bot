@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { AssetClass, Source } from "../domain/types";
 import { isRecord, optionalString, readString } from "./guards";
@@ -32,7 +32,7 @@ function buildMarketAuxUrl(
     published_after: ymd(dateDaysBefore(fetchedAt, recencyDays(command))),
   };
 
-  if (command.jobType === "ticker") {
+  if (isInstrumentCommand(command)) {
     params.symbols = command.symbol;
     params.filter_entities = "true";
   } else {

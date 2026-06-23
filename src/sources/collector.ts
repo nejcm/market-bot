@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
@@ -61,7 +61,7 @@ function buildImpliedMoveSource(
   if (impliedMove === undefined || sourceId === undefined) {
     return undefined;
   }
-  const label = command.jobType === "ticker" ? command.symbol : "earnings";
+  const label = isInstrumentCommand(command) ? command.symbol : "earnings";
   return evidenceSource(
     sourceId,
     `${label} earnings implied move`,
@@ -332,7 +332,7 @@ function tickerNewsRelevanceTargets(
   command: ResearchCommand,
   displayName: string | undefined,
 ): readonly NewsRelevanceTarget[] {
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return [];
   }
   return [
@@ -573,14 +573,14 @@ export async function collectSources(
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
 
   // Verified Market Snapshot: equity ticker only (ADR 0019); joins the parallel batch
-  const isEquityTicker = command.jobType === "ticker" && command.assetClass === "equity";
+  const isEquityTicker = isInstrumentCommand(command) && command.assetClass === "equity";
 
   // Market updates and ticker runs sequence market first so current ranked movers or resolved
   // Instrument identity can steer news selection.
   // Research runs resolve registry-based relevance targets without waiting on market data.
   // Other run types keep the parallel source collection path.
   const shouldCollectMarketBeforeNews =
-    isMarketUpdateCommand(command) || command.jobType === "ticker";
+    isMarketUpdateCommand(command) || isInstrumentCommand(command);
   const marketResult = shouldCollectMarketBeforeNews ? await marketAdapter.collect(ctx) : undefined;
   const preliminaryIdentityResult =
     isEquityTicker && marketResult !== undefined

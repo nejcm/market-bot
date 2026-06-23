@@ -152,7 +152,8 @@ function parseResearchCommand(args: readonly string[]): ResearchCommand {
     command.jobType === "market-overview" ||
     command.jobType === "daily" ||
     command.jobType === "weekly" ||
-    command.jobType === "ticker"
+    command.jobType === "equity" ||
+    command.jobType === "crypto"
   ) {
     return command;
   }
@@ -166,11 +167,11 @@ describe("mocked research workflows", () => {
       await runWorkflow({ jobType: "daily", assetClass: "crypto", depth: "brief" }, "BTC"),
       await runWorkflow({ jobType: "weekly", assetClass: "equity", depth: "brief" }, "AAPL"),
       await runWorkflow(
-        { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
         "AAPL",
       ),
       await runWorkflow(
-        { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+        { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
         "BTC",
       ),
     ];
@@ -210,8 +211,8 @@ describe("mocked research workflows", () => {
       "daily",
       "daily",
       "weekly",
-      "ticker",
-      "ticker",
+      "equity",
+      "crypto",
     ]);
     expect(workflows.map((workflow) => workflow.report.assetClass)).toEqual([
       "equity",

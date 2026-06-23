@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type InstrumentCommand } from "../cli/args";
 import type {
   EvidenceRequestToolName,
   ExtendedEvidenceItem,
@@ -52,8 +52,6 @@ interface TradierBucketIv extends TradierBucket {
   readonly medianIv: number;
 }
 
-type TickerResearchCommand = Extract<ResearchCommand, { readonly jobType: "ticker" }>;
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
 const SEC_FILING_SNIPPET_CHARS = 6000;
@@ -63,7 +61,7 @@ export function availableEvidenceRequestTools(
   ctx: CollectContext,
   identity?: InstrumentIdentity,
 ): readonly EvidenceRequestToolName[] {
-  if (ctx.command.jobType !== "ticker" || ctx.command.assetClass !== "equity") {
+  if (!isInstrumentCommand(ctx.command) || ctx.command.assetClass !== "equity") {
     return [];
   }
   if (!isUsListing(ctx.command.symbol, identity)) {
@@ -210,7 +208,7 @@ function secFilingExcerpt(normalized: string, form: SecFiling["form"]): string {
 
 async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
   const { command } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return emptyOutput([
       sourceGap({
         source: "sec-edgar",
@@ -300,7 +298,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
 }
 
 function secFilingOutput(
-  command: TickerResearchCommand,
+  command: InstrumentCommand,
   match: { cik: string; ticker: string; name?: string },
   filing: SecFiling,
   url: string,
@@ -420,7 +418,7 @@ async function collectTradierIvTermStructure(
   ctx: CollectContext,
 ): Promise<EvidenceRequestToolOutput> {
   const { command } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return emptyOutput([
       sourceGap({
         source: "tradier-options",
@@ -497,7 +495,7 @@ async function collectTradierIvTermStructure(
 }
 
 function tradierTermStructureOutput(
-  command: TickerResearchCommand,
+  command: InstrumentCommand,
   expirationsUrl: string,
   expirations: FetchJsonResult,
   chainResults: readonly {

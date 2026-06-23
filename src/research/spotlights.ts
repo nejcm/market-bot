@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import type { AssetClass, MarketSnapshot, MoverFeatures } from "../domain/types";
+import {
+  isInstrumentJobType,
+  type AssetClass,
+  type MarketSnapshot,
+  type MoverFeatures,
+} from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
 import type { HistoricalResearchContext } from "./historical-context";
@@ -188,7 +193,7 @@ function historyForSymbol(
   const normalized = symbol.toUpperCase();
   return {
     tickerRunIds: historicalContext.runs
-      .filter((run) => run.jobType === "ticker" && run.symbol?.toUpperCase() === normalized)
+      .filter((run) => isInstrumentJobType(run.jobType) && run.symbol?.toUpperCase() === normalized)
       .map((run) => run.runId),
     marketRunIds: historicalContext.runs
       .filter((run) =>

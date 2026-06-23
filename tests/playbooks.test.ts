@@ -27,7 +27,7 @@ const registry: readonly PlaybookMetadata[] = [
     title: "Critique Discipline",
     summary: "Critique weak claims.",
     file: "critique-discipline.md",
-    jobTypes: ["daily", "weekly", "ticker"],
+    jobTypes: ["daily", "weekly", "equity", "crypto"],
     assetClasses: ["equity", "crypto"],
     depths: ["brief", "deep"],
     stages: ["critique"],
@@ -37,7 +37,7 @@ const registry: readonly PlaybookMetadata[] = [
     title: "Synthesis Discipline",
     summary: "Synthesize evidence.",
     file: "synthesis-discipline.md",
-    jobTypes: ["market-overview", "daily", "weekly", "ticker", "research"],
+    jobTypes: ["market-overview", "daily", "weekly", "equity", "crypto", "research"],
     assetClasses: ["equity", "crypto"],
     depths: ["brief", "deep"],
     stages: ["final-synthesis"],
@@ -47,7 +47,7 @@ const registry: readonly PlaybookMetadata[] = [
     title: "Market Behavior",
     summary: "Behavior context.",
     file: "market-behavior.md",
-    jobTypes: ["ticker"],
+    jobTypes: ["equity", "crypto"],
     assetClasses: ["equity"],
     depths: ["deep"],
     stages: ["market-behavior-analysis", "critique", "final-synthesis"],
@@ -207,7 +207,7 @@ describe("loadPlaybookRegistry", () => {
 describe("eligiblePlaybookCandidates", () => {
   test("filters by command, depth, asset, and stage", () => {
     const result = eligiblePlaybookCandidates(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       ["specialist-analysis", "market-behavior-analysis", "critique", "final-synthesis"],
       registry,
     );
@@ -220,7 +220,7 @@ describe("eligiblePlaybookCandidates", () => {
 
   test("returns no candidates when no playbooks are eligible", () => {
     const result = eligiblePlaybookCandidates(
-      { jobType: "ticker", assetClass: "crypto", symbol: "BTC", depth: "brief" },
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" },
       ["instrument-evidence-analysis"],
       [registry[0]!],
     );
@@ -274,14 +274,14 @@ describe("mandatoryPlaybookSelections", () => {
 
   test("requires synthesis-discipline for eligible non-research final synthesis", () => {
     const candidates = eligiblePlaybookCandidates(
-      { jobType: "ticker", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       ["critique", "final-synthesis"],
       registry,
     );
 
     expect(
       mandatoryPlaybookSelections(
-        { jobType: "ticker", assetClass: "equity", depth: "deep" },
+        { jobType: "equity", assetClass: "equity", depth: "deep" },
         ["critique", "final-synthesis"],
         candidates,
       ),

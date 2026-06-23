@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../../cli/args";
+import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
@@ -31,7 +31,7 @@ function readStringMetric(
 }
 
 function tickerSnapshot(
-  command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
+  command: InstrumentCommand,
   marketSnapshots: readonly MarketSnapshot[],
 ): MarketSnapshot | undefined {
   const symbol = command.symbol.toUpperCase();
@@ -41,10 +41,7 @@ function tickerSnapshot(
   );
 }
 
-function valuationGap(
-  command: Extract<ResearchCommand, { readonly jobType: "ticker" }>,
-  missing: readonly string[],
-): SourceGap {
+function valuationGap(command: InstrumentCommand, missing: readonly string[]): SourceGap {
   return sourceGap({
     source: "valuation",
     message: `Valuation Evidence unavailable for ${command.symbol}: missing ${missing.join(", ")}`,
@@ -88,7 +85,7 @@ export function addValuationEvidence(
   marketSnapshots: readonly MarketSnapshot[],
   extendedEvidence: ExtendedEvidence | undefined,
 ): ValuationEvidenceResult {
-  if (command.jobType !== "ticker" || command.assetClass !== "equity") {
+  if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
   }
 

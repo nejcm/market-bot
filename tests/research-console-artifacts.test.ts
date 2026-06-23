@@ -251,7 +251,7 @@ describe("research console app artifacts", () => {
       join(runDir, "report.json"),
       researchReport({
         runId: "run-valuation",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         summary: "summary",
@@ -286,7 +286,7 @@ describe("research console app artifacts", () => {
       join(equityDir, "report.json"),
       researchReport({
         runId: "run-h",
-        jobType: "ticker",
+        jobType: "equity",
         assetClass: "equity",
         symbol: "AAPL",
         generatedAt: "2026-06-01T00:00:00.000Z",
@@ -308,7 +308,7 @@ describe("research console app artifacts", () => {
       query: "needle",
       symbol: "aapl",
       assetClass: "equity",
-      jobType: "ticker",
+      jobType: "equity",
       from: "2026-06-01",
       to: "2026-06-01",
     });

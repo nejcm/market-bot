@@ -1,6 +1,7 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
 import {
+  isInstrumentJobType,
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
   type AssetClass,
@@ -557,8 +558,8 @@ function computeArtifactDeltas(
 
 function comparableRunKey(run: HistoricalRunContext): string | undefined {
   const day = run.generatedAt.slice(0, 10);
-  if (run.jobType === "ticker" && run.symbol !== undefined) {
-    return ["ticker", run.assetClass, run.symbol.toUpperCase(), "none", day].join("|");
+  if (isInstrumentJobType(run.jobType) && run.symbol !== undefined) {
+    return [run.jobType, run.assetClass, run.symbol.toUpperCase(), "none", day].join("|");
   }
   if (run.jobType === "research") {
     const subject = run.predictionProxySymbol ?? run.subjectKey;
@@ -634,12 +635,12 @@ function buildHistoricalContext(
     candidateRunIds.add(artifact.report.runId);
   }
 
-  if (input.command.jobType === "ticker") {
+  if (isInstrumentCommand(input.command)) {
     const commandSymbol = input.command.symbol.toUpperCase();
     focusSymbols.add(commandSymbol);
     const sameTickerRuns = scan.artifacts.filter(
       (artifact) =>
-        artifact.report.jobType === "ticker" &&
+        isInstrumentJobType(artifact.report.jobType) &&
         artifact.report.assetClass === input.command.assetClass &&
         artifact.report.symbol?.toUpperCase() === commandSymbol,
     );
@@ -719,7 +720,7 @@ function buildHistoricalContext(
   for (const symbol of spotlightSymbols) {
     const sameTickerRuns = scan.artifacts.filter(
       (artifact) =>
-        artifact.report.jobType === "ticker" &&
+        isInstrumentJobType(artifact.report.jobType) &&
         artifact.report.assetClass === input.command.assetClass &&
         artifact.report.symbol?.toUpperCase() === symbol,
     );

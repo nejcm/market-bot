@@ -648,7 +648,7 @@ describe("buildStagePrompt", () => {
                 title: "Critique Discipline",
                 summary: "Stress-test weak claims.",
                 file: "critique-discipline.md",
-                jobTypes: ["daily", "weekly", "ticker"],
+                jobTypes: ["daily", "weekly", "equity", "crypto"],
                 assetClasses: ["equity", "crypto"],
                 depths: ["brief", "deep"],
                 stages: ["critique"],
@@ -694,7 +694,7 @@ describe("buildStagePrompt", () => {
 
   test("adds warn-only post-synthesis audit guidance to final synthesis", () => {
     const command: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "brief",
@@ -791,7 +791,7 @@ function tickerRun(
   return {
     runId,
     sourceId: `history-report-${runId}`,
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol,
     generatedAt,
@@ -951,7 +951,7 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
 
   test("ticker instruction favors its own mix (relative, range)", () => {
     const command: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "brief",
@@ -1000,7 +1000,7 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
 
 describe("buildStagePrompt prior-thesis error correction", () => {
   const tickerCommand: ResearchCommand = {
-    jobType: "ticker",
+    jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
     depth: "brief",
@@ -1345,7 +1345,7 @@ describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", 
 
   test("does not fire for ticker commands", () => {
     const tickerCommand: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "brief",
@@ -1918,7 +1918,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
 
   test("verified-snapshot projector contributes all three of its keys", () => {
     const command: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "deep",
@@ -1932,7 +1932,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
 
   test("ticker-gated projector is suppressed for non-ticker runs even when its source is present", () => {
     const tickerCommand: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "deep",
@@ -1953,7 +1953,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
 
   test("earnings-setup projector is ticker-gated and contributes its key only when present", () => {
     const tickerCommand: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "deep",
@@ -1975,7 +1975,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
 
   test("resolved-identity projector contributes both of its keys only when present", () => {
     const command: ResearchCommand = {
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
       depth: "deep",

@@ -163,7 +163,7 @@ describe("buildMarketUpdateDelta", () => {
     });
     writeRun(dataDir, {
       runId: "ticker-new",
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       generatedAt: "2026-05-09T12:00:00.000Z",
       regime: regime("risk-on", []),
@@ -359,7 +359,7 @@ describe("buildMarketUpdateDelta", () => {
     // A ticker run resolved after the baseline must be excluded (market flow only).
     writeRun(dataDir, {
       runId: "ticker-old",
-      jobType: "ticker",
+      jobType: "equity",
       assetClass: "equity",
       generatedAt: "2026-05-04T00:00:00.000Z",
       predictions: [{ id: "t1", claim: "AAPL closes higher.", probability: 0.7 }],

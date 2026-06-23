@@ -1,4 +1,5 @@
 import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
+import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
@@ -568,7 +569,7 @@ export async function fetchSecCompanyFactsForSymbol(
 
 export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   const { command } = ctx;
-  if (command.jobType !== "ticker") {
+  if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {

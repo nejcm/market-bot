@@ -183,7 +183,8 @@ function isJobType(value: unknown): value is JobType {
     value === "market-overview" ||
     value === "daily" ||
     value === "weekly" ||
-    value === "ticker" ||
+    value === "equity" ||
+    value === "crypto" ||
     value === "alpha-search" ||
     value === "research"
   );

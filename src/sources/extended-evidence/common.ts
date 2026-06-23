@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type {
   ExtendedEvidenceCategory,
   ExtendedEvidenceItem,
@@ -38,7 +38,7 @@ export function evidenceSource(
     fetchedAt,
     kind: "extended-evidence",
     assetClass: command.assetClass,
-    ...(command.jobType === "ticker" ? { symbol: command.symbol } : {}),
+    ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
     provider,
     ...(identity !== undefined ? { identity } : {}),
   };

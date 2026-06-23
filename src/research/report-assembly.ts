@@ -1,4 +1,4 @@
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
@@ -234,7 +234,7 @@ export function buildSourceList(
 
   // Verified Market Snapshot — citeable Source for exact numeric technical claims (ADR 0019)
   const verifiedSnapshotSources: Source[] =
-    command.jobType === "ticker" && collectedSources.verifiedMarketSnapshot !== undefined
+    isInstrumentCommand(command) && collectedSources.verifiedMarketSnapshot !== undefined
       ? [verifiedSnapshotSource(collectedSources.verifiedMarketSnapshot)]
       : [];
 
@@ -252,7 +252,7 @@ export function buildSourceList(
     ...verifiedSnapshotSources,
     ...collectedSources.newsSources,
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
-    ...(command.jobType === "ticker" ? collectedSources.extendedSources : []),
+    ...(isInstrumentCommand(command) ? collectedSources.extendedSources : []),
     ...(historicalContext?.sources ?? []),
     ...registrySources,
   ];
@@ -837,7 +837,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     runId,
     jobType: command.jobType,
     assetClass: command.assetClass,
-    ...(command.jobType === "ticker" ? { symbol: command.symbol } : {}),
+    ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
     ...(command.jobType === "market-overview"
       ? { horizonTradingDays: command.horizonTradingDays }
       : {}),
@@ -853,7 +853,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     dataGaps,
     predictions: gatedPredictions.predictions,
     sources,
-    ...(command.jobType === "ticker" && collectedSources.extendedEvidence !== undefined
+    ...(isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
       : {}),
     notFinancialAdvice: true,

@@ -25,7 +25,12 @@ import {
   type AlphaValidationPrerequisiteInput,
   type AlphaValidationFile,
 } from "../alpha-search/validation";
-import { marketUpdateHorizonBucketOf, type Prediction, type ResearchReport } from "../domain/types";
+import {
+  isInstrumentJobType,
+  marketUpdateHorizonBucketOf,
+  type Prediction,
+  type ResearchReport,
+} from "../domain/types";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, readNumber, readString } from "../sources/guards";
@@ -498,7 +503,7 @@ export async function buildAndWriteAlphaLeadCohorts(
 
   const tickerBriefSymbols = new Set(
     loadedRuns.flatMap(({ artifact }) =>
-      artifact?.report.jobType === "ticker" && artifact.report.symbol !== undefined
+      isInstrumentJobType(artifact?.report.jobType) && artifact.report.symbol !== undefined
         ? [artifact.report.symbol.toUpperCase()]
         : [],
     ),

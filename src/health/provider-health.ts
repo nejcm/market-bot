@@ -7,13 +7,14 @@ import {
   isSourceGapEvidenceQualityImpact,
   sourceGapStatusCode,
 } from "../domain/source-gaps";
-import type {
-  AssetClass,
-  Depth,
-  InstrumentIdentity,
-  JobType,
-  Source,
-  SourceGap,
+import {
+  isInstrumentJobType,
+  type AssetClass,
+  type Depth,
+  type InstrumentIdentity,
+  type JobType,
+  type Source,
+  type SourceGap,
 } from "../domain/types";
 import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
@@ -82,8 +83,8 @@ export interface ProviderHealthSummary {
   readonly runsByAssetClass: Readonly<Record<string, number>>;
   readonly realRunValidation: {
     readonly marketUpdateRuns: number;
-    readonly tickerRuns: number;
-    readonly deepTickerRuns: number;
+    readonly instrumentRuns: number;
+    readonly deepInstrumentRuns: number;
     readonly extendedEvidenceRuns: number;
     readonly marketContextRuns: number;
     readonly sourceGapRuns: number;
@@ -121,7 +122,11 @@ function numberValue(value: unknown): number {
 
 function isJobType(value: unknown): value is JobType {
   return (
-    value === "market-overview" || value === "daily" || value === "weekly" || value === "ticker"
+    value === "market-overview" ||
+    value === "daily" ||
+    value === "weekly" ||
+    value === "equity" ||
+    value === "crypto"
   );
 }
 
@@ -472,8 +477,10 @@ function validationSummary(
       (run) =>
         run.jobType === "market-overview" || run.jobType === "daily" || run.jobType === "weekly",
     ).length,
-    tickerRuns: runs.filter((run) => run.jobType === "ticker").length,
-    deepTickerRuns: runs.filter((run) => run.jobType === "ticker" && run.depth === "deep").length,
+    instrumentRuns: runs.filter((run) => isInstrumentJobType(run.jobType)).length,
+    deepInstrumentRuns: runs.filter(
+      (run) => isInstrumentJobType(run.jobType) && run.depth === "deep",
+    ).length,
     extendedEvidenceRuns: runs.filter(
       (run) =>
         numberAt(run.analytics, ["evidenceQuality", "extendedEvidence", "itemCount"]) +
@@ -667,8 +674,8 @@ export function renderProviderHealthMarkdown(summary: ProviderHealthSummary): st
     tableRow(["Metric", "Value"]),
     tableRow(["---", "---"]),
     tableRow(["Market update runs", String(summary.realRunValidation.marketUpdateRuns)]),
-    tableRow(["Ticker runs", String(summary.realRunValidation.tickerRuns)]),
-    tableRow(["Deep ticker runs", String(summary.realRunValidation.deepTickerRuns)]),
+    tableRow(["Instrument runs", String(summary.realRunValidation.instrumentRuns)]),
+    tableRow(["Deep instrument runs", String(summary.realRunValidation.deepInstrumentRuns)]),
     tableRow([
       "Extended Evidence exercised",
       String(summary.realRunValidation.extendedEvidenceRuns),

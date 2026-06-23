@@ -1,11 +1,16 @@
 <script lang="ts">
+  import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import {
     ASSET_CLASS_OPTIONS,
     SEARCH_JOB_TYPE_OPTIONS,
   } from "../../../src/cli/job-registry";
   import type { RunSearchResult } from "../../types";
-  import { formatDateMinute, groupedSearchResults, runLabel } from "../view-model";
+  import {
+    formatDateMinute,
+    groupedSearchResults,
+    runLabel,
+  } from "../view-model";
   import type { SearchFormField, SearchFormState } from "./console-types";
   import SelectField from "./select-field.svelte";
 
@@ -17,7 +22,10 @@
     readonly hasSearched: boolean;
     readonly onRunSearch: () => void;
     readonly onOpenSearchResult: (result: RunSearchResult) => void;
-    readonly onSearchFormChange: (field: SearchFormField, value: string) => void;
+    readonly onSearchFormChange: (
+      field: SearchFormField,
+      value: string,
+    ) => void;
   }
 
   let {
@@ -52,15 +60,12 @@
         class="flex-1 bg-background"
         value={searchForm.query}
         placeholder="e.g. capex, breadth, term premium…"
-        oninput={(event) => onSearchFormChange("query", event.currentTarget.value)}
+        oninput={(event) =>
+          onSearchFormChange("query", event.currentTarget.value)}
       />
-      <button
-        class="rounded-md bg-primary px-4.5 py-2 text-[12.5px] font-semibold text-primary-foreground transition hover:bg-[#135f6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
-        type="submit"
-        disabled={searchLoading}
+      <Button type="submit" class="min-w-20" disabled={searchLoading}
+        >Search</Button
       >
-        Search
-      </button>
     </div>
     <div class="mt-2.5 flex flex-wrap gap-2">
       <Input
@@ -68,7 +73,8 @@
         value={searchForm.symbol}
         placeholder="any symbol"
         aria-label="Symbol"
-        oninput={(event) => onSearchFormChange("symbol", event.currentTarget.value)}
+        oninput={(event) =>
+          onSearchFormChange("symbol", event.currentTarget.value)}
       />
       <SelectField
         label=""
@@ -87,7 +93,8 @@
         type="date"
         value={searchForm.from}
         aria-label="From date"
-        oninput={(event) => onSearchFormChange("from", event.currentTarget.value)}
+        oninput={(event) =>
+          onSearchFormChange("from", event.currentTarget.value)}
       />
       <Input
         class="h-8 w-36 bg-background text-xs"
@@ -100,11 +107,18 @@
   </form>
 
   {#if searchLoading}
-    <div class="mt-9 text-center text-[13px] text-muted-foreground">Searching reports…</div>
+    <div class="mt-9 text-center text-[13px] text-muted-foreground">
+      Searching reports…
+    </div>
   {:else if !hasSearched}
-    <div class="mt-9 text-center text-[13px] leading-relaxed text-muted-foreground">
+    <div
+      class="mt-9 text-center text-[13px] leading-relaxed text-muted-foreground"
+    >
       Type a query and press Enter.<br />
-      <span class="font-mono text-[11px]">search covers findings, cases, risks, catalysts, forecasts, extended evidence, and gaps</span>
+      <span class="font-mono text-[11px]"
+        >search covers findings, cases, risks, catalysts, forecasts, extended
+        evidence, and gaps</span
+      >
     </div>
   {:else if searchNotice !== ""}
     <div
@@ -125,7 +139,9 @@
             {group.results.length === 1 ? "hit" : "hits"}
           </span>
         </div>
-        <div class="mt-2 overflow-hidden rounded-lg border border-border bg-card">
+        <div
+          class="mt-2 overflow-hidden rounded-lg border border-border bg-card"
+        >
           {#each group.results as result}
             <div
               class="flex items-start gap-3.5 border-b border-[#f0ede7] px-4 py-3 last:border-b-0"
@@ -135,7 +151,9 @@
               >
                 {result.section}
               </span>
-              <div class="min-w-0 flex-1 font-serif text-[13.5px] leading-[1.55] text-[#2a2d30]">
+              <div
+                class="min-w-0 flex-1 font-serif text-[13.5px] leading-[1.55] text-[#2a2d30]"
+              >
                 {result.snippet}
               </div>
               <button

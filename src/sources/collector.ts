@@ -599,7 +599,10 @@ export async function collectSources(
       : tickerNewsRelevanceTargets(command, preliminaryIdentityResult?.identity?.displayName);
     newsContext = contextWithNewsRelevanceTargets(identityCtx, targets);
   } else if (command.jobType === "research") {
-    newsContext = contextWithNewsRelevanceTargets(ctx, researchNewsRelevanceTargets(command));
+    newsContext = contextWithNewsRelevanceTargets(
+      identityCtx,
+      researchNewsRelevanceTargets(command),
+    );
   }
   const [
     resolvedMarketResult,

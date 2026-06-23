@@ -1,4 +1,4 @@
-import type { AssetClass, JobType, Prediction, ResearchReport } from "./domain/types";
+import type { AssetClass, JobType, Prediction, ResearchReport, Source } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { PredictionScore } from "./scoring/types";
 
@@ -77,182 +77,12 @@ export function openQuestions(
   ];
 }
 
-function indexedSearchKeySuffix(key: string, index: number): string {
-  return `${key}:${String(index)}`;
-}
-
-function addEntry(
-  entries: ReportSearchEntry[],
-  report: ResearchReport,
-  section: ReportSearchSection,
-  label: string,
-  text: string,
-  keySuffix: string,
-  sequence: number,
-  sourceIds: readonly string[] = [],
-  extras: Pick<
-    Partial<ReportSearchEntry>,
-    "provider" | "sourceKind" | "predictionId" | "symbol"
-  > = {},
-): void {
-  if (text.trim() === "") {
-    return;
-  }
-  const symbol = extras.symbol ?? report.symbol?.toUpperCase();
-  entries.push({
-    runId: report.runId,
-    generatedAt: report.generatedAt,
-    jobType: report.jobType,
-    assetClass: report.assetClass,
-    section,
-    label,
-    text,
-    keySuffix,
-    sequence,
-    sourceIds,
-    ...(symbol !== undefined ? { symbol } : {}),
-    ...(extras.provider !== undefined ? { provider: extras.provider } : {}),
-    ...(extras.sourceKind !== undefined ? { sourceKind: extras.sourceKind } : {}),
-    ...(extras.predictionId !== undefined ? { predictionId: extras.predictionId } : {}),
-  });
-}
-
-function addFindingEntries(
-  entries: ReportSearchEntry[],
-  report: ResearchReport,
-  section: FindingSection,
-  label: string,
-): void {
-  for (const [index, finding] of report[section].entries()) {
-    addEntry(
-      entries,
-      report,
-      section,
-      `${label} ${String(index + 1)}`,
-      finding.text,
-      String(index),
-      index,
-      finding.sourceIds,
-    );
-  }
-}
-
-function addDataGapEntries(entries: ReportSearchEntry[], report: ResearchReport): void {
-  for (const [index, gap] of report.dataGaps.entries()) {
-    addEntry(
-      entries,
-      report,
-      "dataGaps",
-      `Data gap ${String(index + 1)}`,
-      gap,
-      String(index),
-      index,
-    );
-  }
-}
-
-function addPredictionEntries(
-  entries: ReportSearchEntry[],
-  report: ResearchReport,
-  scope: ReportSearchScope,
-): void {
-  for (const [index, prediction] of report.predictions.entries()) {
-    const label = scope === "console" ? `Observable forecast ${prediction.id}` : prediction.id;
-    const claim = predictionClaim(prediction);
-    const text = scope === "console" ? [claim, prediction.measurableAs].join(" ") : claim;
-    addEntry(
-      entries,
-      report,
-      "predictions",
-      label,
-      text,
-      indexedSearchKeySuffix(prediction.id, index),
-      index,
-      prediction.sourceIds,
-      { predictionId: prediction.id },
-    );
-  }
-}
-
-function addSourceEntries(
-  entries: ReportSearchEntry[],
-  report: ResearchReport,
-  scope: ReportSearchScope,
-): void {
-  for (const [index, source] of report.sources.entries()) {
-    const label = scope === "console" ? `Source ${source.id}` : source.id;
-    const text =
-      scope === "console"
-        ? [
-            source.title,
-            source.publisher,
-            source.provider,
-            source.summary,
-            source.snippet,
-            source.url,
-          ]
-            .filter((part): part is string => part !== undefined)
-            .join(" ")
-        : [source.title, source.summary, source.snippet].join(" ");
-    addEntry(
-      entries,
-      report,
-      "sources",
-      label,
-      text,
-      indexedSearchKeySuffix(source.id, index),
-      index,
-      [source.id],
-      {
-        ...(source.provider !== undefined ? { provider: source.provider } : {}),
-        sourceKind: source.kind,
-        ...(source.symbol !== undefined ? { symbol: source.symbol.toUpperCase() } : {}),
-      },
-    );
-  }
-}
-
 function metricsSearchText(metrics: Readonly<Record<string, number | string>> | undefined): string {
   if (metrics === undefined) {
     return "";
   }
 
   return Object.values(metrics).map(String).join(" ");
-}
-
-function addExtendedEvidenceEntries(entries: ReportSearchEntry[], report: ResearchReport): void {
-  for (const [index, item] of (report.extendedEvidence?.items ?? []).entries()) {
-    addEntry(
-      entries,
-      report,
-      "extendedEvidence",
-      item.title === "" ? `Extended evidence ${String(index + 1)}` : item.title,
-      [item.category, item.title, item.summary, metricsSearchText(item.metrics)]
-        .filter((part) => part !== "")
-        .join(" "),
-      String(index),
-      index,
-      item.sourceIds,
-    );
-  }
-}
-
-function addOpenQuestionEntries(
-  entries: ReportSearchEntry[],
-  report: ResearchReport,
-  scores: readonly PredictionScore[],
-): void {
-  for (const [index, question] of openQuestions(report, scores).entries()) {
-    addEntry(
-      entries,
-      report,
-      "openQuestions",
-      `Open question ${String(index + 1)}`,
-      question,
-      String(index),
-      index,
-    );
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -540,34 +370,135 @@ export function reportSearchCandidates(
   return out;
 }
 
+const OBSERVABLE_FORECAST_PREFIX = "Observable forecast ";
+
+function predictionIdFromCandidate(
+  candidate: ReportSearchCandidate,
+  scope: ReportSearchScope,
+): string | undefined {
+  if (scope === "history") {
+    return candidate.label;
+  }
+  return candidate.label.startsWith(OBSERVABLE_FORECAST_PREFIX)
+    ? candidate.label.slice(OBSERVABLE_FORECAST_PREFIX.length)
+    : undefined;
+}
+
+function keySuffixFor(
+  section: ReportSearchSection,
+  sequence: number,
+  identityId: string | undefined,
+): string {
+  if (section === "summary") {
+    return "summary";
+  }
+  return identityId !== undefined ? `${identityId}:${String(sequence)}` : String(sequence);
+}
+
+interface CandidateEnrichment {
+  readonly identityId?: string;
+  readonly provider?: string;
+  readonly sourceKind?: string;
+  readonly predictionId?: string;
+  readonly symbol?: string;
+}
+
+function sourceEnrichment(
+  candidate: ReportSearchCandidate,
+  sourceById: Map<string, Source>,
+): CandidateEnrichment {
+  const [sourceId] = candidate.sourceIds;
+  if (sourceId === undefined) {
+    return {};
+  }
+  const source = sourceById.get(sourceId);
+  if (source === undefined) {
+    return { identityId: sourceId };
+  }
+  return {
+    identityId: sourceId,
+    ...(source.provider !== undefined ? { provider: source.provider } : {}),
+    sourceKind: source.kind,
+    ...(source.symbol !== undefined ? { symbol: source.symbol.toUpperCase() } : {}),
+  };
+}
+
+function enrichCandidate(
+  candidate: ReportSearchCandidate,
+  scope: ReportSearchScope,
+  sourceById: Map<string, Source>,
+): CandidateEnrichment {
+  if (candidate.section === "sources") {
+    return sourceEnrichment(candidate, sourceById);
+  }
+  if (candidate.section === "predictions") {
+    const predictionId = predictionIdFromCandidate(candidate, scope);
+    if (predictionId === undefined) {
+      return {};
+    }
+    return { identityId: predictionId, predictionId };
+  }
+  return {};
+}
+
 export function buildReportSearchEntries(
   report: ResearchReport,
   scores: readonly PredictionScore[],
   scope: ReportSearchScope,
 ): readonly ReportSearchEntry[] {
+  const candidates = reportSearchCandidates(report as unknown as Record<string, unknown>, scope);
+
+  const sourceById = new Map<string, Source>();
+  for (const source of report.sources) {
+    sourceById.set(source.id, source);
+  }
+
+  const reportSymbol = report.symbol?.toUpperCase();
+  const sequenceBySection = new Map<ReportSearchSection, number>();
   const entries: ReportSearchEntry[] = [];
-  addEntry(entries, report, "summary", "Summary", report.summary, "summary", 0);
-  addFindingEntries(
-    entries,
-    report,
-    "keyFindings",
-    scope === "console" ? "Key finding" : "keyFindings",
-  );
-  addFindingEntries(entries, report, "bullCase", scope === "console" ? "Bull case" : "bullCase");
-  addFindingEntries(entries, report, "bearCase", scope === "console" ? "Bear case" : "bearCase");
-  addFindingEntries(entries, report, "risks", scope === "console" ? "Risk" : "risks");
-  addFindingEntries(entries, report, "catalysts", scope === "console" ? "Catalyst" : "catalysts");
+
+  for (const candidate of candidates) {
+    const sequence = sequenceBySection.get(candidate.section) ?? 0;
+    sequenceBySection.set(candidate.section, sequence + 1);
+
+    const enrichment = enrichCandidate(candidate, scope, sourceById);
+    const symbol = enrichment.symbol ?? reportSymbol;
+
+    entries.push({
+      runId: report.runId,
+      generatedAt: report.generatedAt,
+      jobType: report.jobType,
+      assetClass: report.assetClass,
+      section: candidate.section,
+      label: candidate.label,
+      text: candidate.text,
+      keySuffix: keySuffixFor(candidate.section, sequence, enrichment.identityId),
+      sequence,
+      sourceIds: candidate.sourceIds,
+      ...(symbol !== undefined ? { symbol } : {}),
+      ...(enrichment.provider !== undefined ? { provider: enrichment.provider } : {}),
+      ...(enrichment.sourceKind !== undefined ? { sourceKind: enrichment.sourceKind } : {}),
+      ...(enrichment.predictionId !== undefined ? { predictionId: enrichment.predictionId } : {}),
+    });
+  }
+
   if (scope === "history") {
-    addDataGapEntries(entries, report);
+    for (const [index, question] of openQuestions(report, scores).entries()) {
+      entries.push({
+        runId: report.runId,
+        generatedAt: report.generatedAt,
+        jobType: report.jobType,
+        assetClass: report.assetClass,
+        section: "openQuestions",
+        label: `Open question ${String(index + 1)}`,
+        text: question,
+        keySuffix: String(index),
+        sequence: index,
+        sourceIds: [],
+        ...(reportSymbol !== undefined ? { symbol: reportSymbol } : {}),
+      });
+    }
   }
-  addPredictionEntries(entries, report, scope);
-  addSourceEntries(entries, report, scope);
-  if (scope === "console") {
-    addDataGapEntries(entries, report);
-    addExtendedEvidenceEntries(entries, report);
-  }
-  if (scope === "history") {
-    addOpenQuestionEntries(entries, report, scores);
-  }
+
   return entries;
 }

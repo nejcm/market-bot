@@ -3,13 +3,7 @@ import { join } from "node:path";
 import type { Database } from "bun:sqlite";
 import { INDEX_SCHEMA_VERSION } from "./run-artifact-index-schema";
 import type { ArtifactFileRow, RunRow } from "./run-artifact-index-types";
-
-const MUTABLE_SIDECARS = new Set([
-  "score.json",
-  "miss-autopsy.json",
-  "alpha-validation.json",
-  "normalized/candidate-profiles.json",
-]);
+import { MUTABLE_SIDECARS } from "./run-artifact-layout";
 
 async function listRunDirNames(dataDir: string): Promise<readonly string[]> {
   const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
@@ -58,17 +52,18 @@ export async function indexIsFresh(
   }
 
   const runs = db.query("SELECT * FROM runs ORDER BY run_dir_name").all() as readonly RunRow[];
+  const placeholders = MUTABLE_SIDECARS.map(() => "?").join(", ");
   const sidecars = db
     .query(
       `SELECT run_id, path, size, modified_at
        FROM artifact_files
-       WHERE path IN ('score.json', 'miss-autopsy.json', 'alpha-validation.json', 'normalized/candidate-profiles.json')`,
+       WHERE path IN (${placeholders})`,
     )
-    .all() as readonly ArtifactFileRow[];
+    .all(...MUTABLE_SIDECARS) as readonly ArtifactFileRow[];
   const sidecarsByKey = new Map(sidecars.map((row) => [`${row.run_id}:${row.path}`, row]));
 
   const checks = runs.flatMap((run) =>
-    [...MUTABLE_SIDECARS].map(async (path) => {
+    MUTABLE_SIDECARS.map(async (path) => {
       const indexed = sidecarsByKey.get(`${run.run_id}:${path}`);
       const diskPath = join(dataDir, run.run_dir_name, path);
       const exists = await stat(diskPath)

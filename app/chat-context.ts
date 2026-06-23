@@ -1,4 +1,5 @@
 import type { RunDetail } from "./types";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 // ~24k tokens at ~4 chars/token
 const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000;
@@ -156,7 +157,7 @@ function formatNormalizedSidecars(availableFiles: readonly string[]): string | u
   const relevant = availableFiles.filter(
     (file) =>
       file.startsWith("normalized/") &&
-      file !== "normalized/verified-market-snapshot.json" &&
+      file !== RUN_ARTIFACT_FILES.verifiedMarketSnapshot &&
       file.endsWith(".json"),
   );
   if (relevant.length === 0) {

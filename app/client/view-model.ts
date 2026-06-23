@@ -11,6 +11,7 @@ import {
   formatRatioPercent,
   formatWholePercent,
 } from "../../src/sources/extended-evidence/percent-format";
+import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 
 export {
   extendedEvidenceItems,
@@ -598,7 +599,7 @@ export function alphaStaleLeadRows(detail: AlphaCohortDetail): readonly AlphaSta
     }));
 }
 
-export const VERIFIED_SNAPSHOT_PATH = "normalized/verified-market-snapshot.json";
+export const VERIFIED_SNAPSHOT_PATH = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
 
 export interface SnapshotClose {
   readonly date: string;

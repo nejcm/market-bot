@@ -23,6 +23,7 @@ import {
 } from "../report-search-entries";
 import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord } from "../sources/guards";
 
@@ -343,12 +344,12 @@ interface HistoryRunSidecars {
 // Are read here, not folded into the shared bundle.
 export async function loadRunSidecars(runDir: string): Promise<HistoryRunSidecars> {
   const supplementalSnapshots = recordArray(
-    await readJson(join(runDir, "normalized", "supplemental-market-snapshots.json")),
+    await readJson(join(runDir, RUN_ARTIFACT_FILES.supplementalMarketSnapshots)),
   );
   const fundamentals = recordArray(
-    await readJson(join(runDir, "normalized", "sec-fundamentals.json")),
+    await readJson(join(runDir, RUN_ARTIFACT_FILES.secFundamentals)),
   );
-  const validationFile = await readJson(join(runDir, "alpha-validation.json"));
+  const validationFile = await readJson(join(runDir, RUN_ARTIFACT_FILES.alphaValidation));
   const validation = isRecord(validationFile) ? [validationFile] : recordArray(validationFile);
   return {
     snapshots: supplementalSnapshots,

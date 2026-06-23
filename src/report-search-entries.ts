@@ -36,6 +36,26 @@ export interface ReportSearchEntry {
   readonly predictionId?: string;
 }
 
+export interface ReportSearchCandidate {
+  readonly section: ReportSearchSection;
+  readonly label: string;
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+}
+
+interface TextWithSources {
+  readonly text: string;
+  readonly sourceIds: readonly string[];
+}
+
+interface ExtendedEvidenceItemView {
+  readonly category: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly sourceIds: readonly string[];
+  readonly metrics?: Readonly<Record<string, number | string>>;
+}
+
 type FindingSection = "keyFindings" | "bullCase" | "bearCase" | "risks" | "catalysts";
 
 export function predictionClaim(prediction: Prediction): string {
@@ -233,6 +253,291 @@ function addOpenQuestionEntries(
       index,
     );
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readSourceIds(record: Record<string, unknown>): readonly string[] {
+  const { sourceIds } = record;
+  return Array.isArray(sourceIds)
+    ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
+    : [];
+}
+
+function readMetrics(
+  record: Record<string, unknown>,
+): Readonly<Record<string, number | string>> | undefined {
+  const { metrics } = record;
+  if (!isRecord(metrics)) {
+    return undefined;
+  }
+
+  const parsed: Record<string, number | string> = {};
+  for (const [key, value] of Object.entries(metrics)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      parsed[key] = value;
+      continue;
+    }
+    if (typeof value === "string" && value !== "") {
+      parsed[key] = value;
+    }
+  }
+
+  return Object.keys(parsed).length === 0 ? undefined : parsed;
+}
+
+function textItems(
+  report: Record<string, unknown> | undefined,
+  key: string,
+): readonly TextWithSources[] {
+  const value = report?.[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const text = readString(item, "text");
+      return text === undefined ? [] : [{ text, sourceIds: readSourceIds(item) }];
+    });
+}
+
+function stringArray(report: Record<string, unknown> | undefined, key: string): readonly string[] {
+  const value = report?.[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function extendedEvidenceItems(
+  report?: Record<string, unknown>,
+): readonly ExtendedEvidenceItemView[] {
+  const block = report?.extendedEvidence;
+  if (!isRecord(block)) {
+    return [];
+  }
+
+  const value = block.items;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const category = readString(item, "category");
+      const title = readString(item, "title");
+      const summary = readString(item, "summary");
+      if (category === undefined || title === undefined || summary === undefined) {
+        return [];
+      }
+
+      const metrics = readMetrics(item);
+      return [
+        {
+          category,
+          title,
+          summary,
+          sourceIds: readSourceIds(item),
+          ...(metrics !== undefined ? { metrics } : {}),
+        },
+      ];
+    });
+}
+
+function pushCandidate(
+  out: ReportSearchCandidate[],
+  section: ReportSearchSection,
+  label: string,
+  text: string,
+  sourceIds: readonly string[],
+): void {
+  if (text.trim() === "") {
+    return;
+  }
+  out.push({ section, label, text, sourceIds });
+}
+
+function findingLabel(section: FindingSection, scope: ReportSearchScope): string {
+  if (scope === "console") {
+    const consoleLabels: Record<FindingSection, string> = {
+      keyFindings: "Key finding",
+      bullCase: "Bull case",
+      bearCase: "Bear case",
+      risks: "Risk",
+      catalysts: "Catalyst",
+    };
+    return consoleLabels[section];
+  }
+  return section;
+}
+
+function textItemCandidates(
+  report: Record<string, unknown>,
+  section: FindingSection,
+  scope: ReportSearchScope,
+): readonly ReportSearchCandidate[] {
+  const base = findingLabel(section, scope);
+  return textItems(report, section).map((item, index) => ({
+    section,
+    label: `${base} ${String(index + 1)}`,
+    text: item.text,
+    sourceIds: item.sourceIds,
+  }));
+}
+
+function predictionLabel(scope: ReportSearchScope, id: string | undefined): string | undefined {
+  if (scope === "history") {
+    return id;
+  }
+  return id === undefined ? "Observable forecast" : `Observable forecast ${id}`;
+}
+
+function predictionCandidates(
+  report: Record<string, unknown>,
+  scope: ReportSearchScope,
+): readonly ReportSearchCandidate[] {
+  const value = report.predictions;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const id = readString(item, "id");
+      const measurableAs = readString(item, "measurableAs");
+      const storedClaim = readString(item, "claim");
+      const claim =
+        measurableAs === undefined
+          ? storedClaim
+          : renderClaimForMeasurableAs(measurableAs, storedClaim);
+      if (claim === undefined) {
+        return [];
+      }
+
+      const label = predictionLabel(scope, id);
+      if (label === undefined) {
+        return [];
+      }
+
+      const text =
+        scope === "console"
+          ? [claim, measurableAs].filter((part): part is string => part !== undefined).join(" ")
+          : claim;
+
+      return [{ section: "predictions", label, text, sourceIds: readSourceIds(item) }];
+    });
+}
+
+function sourceCandidates(
+  report: Record<string, unknown>,
+  scope: ReportSearchScope,
+): readonly ReportSearchCandidate[] {
+  const value = report.sources;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const id = readString(item, "id");
+      const title = readString(item, "title");
+      if (id === undefined || title === undefined) {
+        return [];
+      }
+
+      const label = scope === "console" ? `Source ${id}` : id;
+      const text =
+        scope === "console"
+          ? [
+              title,
+              readString(item, "publisher"),
+              readString(item, "provider"),
+              readString(item, "summary"),
+              readString(item, "snippet"),
+              readString(item, "url"),
+            ]
+              .filter((part): part is string => part !== undefined)
+              .join(" ")
+          : [title, readString(item, "summary"), readString(item, "snippet")].join(" ");
+
+      return [{ section: "sources", label, text, sourceIds: [id] }];
+    });
+}
+
+function dataGapCandidates(report: Record<string, unknown>): readonly ReportSearchCandidate[] {
+  return stringArray(report, "dataGaps").map((text, index) => ({
+    section: "dataGaps",
+    label: `Data gap ${String(index + 1)}`,
+    text,
+    sourceIds: [],
+  }));
+}
+
+function extendedEvidenceCandidates(
+  report: Record<string, unknown>,
+): readonly ReportSearchCandidate[] {
+  return extendedEvidenceItems(report).map((item, index) => ({
+    section: "extendedEvidence",
+    label: item.title === "" ? `Extended evidence ${String(index + 1)}` : item.title,
+    text: [item.category, item.title, item.summary, metricsSearchText(item.metrics)]
+      .filter((part) => part !== "")
+      .join(" "),
+    sourceIds: item.sourceIds,
+  }));
+}
+
+export function reportSearchCandidates(
+  report: Record<string, unknown>,
+  scope: ReportSearchScope,
+): readonly ReportSearchCandidate[] {
+  const out: ReportSearchCandidate[] = [];
+
+  const summary = readString(report, "summary");
+  if (summary !== undefined) {
+    pushCandidate(out, "summary", "Summary", summary, []);
+  }
+
+  for (const section of ["keyFindings", "bullCase", "bearCase", "risks", "catalysts"] as const) {
+    for (const candidate of textItemCandidates(report, section, scope)) {
+      pushCandidate(out, section, candidate.label, candidate.text, candidate.sourceIds);
+    }
+  }
+
+  if (scope === "history") {
+    for (const candidate of dataGapCandidates(report)) {
+      pushCandidate(out, "dataGaps", candidate.label, candidate.text, candidate.sourceIds);
+    }
+  }
+
+  for (const candidate of predictionCandidates(report, scope)) {
+    pushCandidate(out, "predictions", candidate.label, candidate.text, candidate.sourceIds);
+  }
+
+  for (const candidate of sourceCandidates(report, scope)) {
+    pushCandidate(out, "sources", candidate.label, candidate.text, candidate.sourceIds);
+  }
+
+  if (scope === "console") {
+    for (const candidate of dataGapCandidates(report)) {
+      pushCandidate(out, "dataGaps", candidate.label, candidate.text, candidate.sourceIds);
+    }
+    for (const candidate of extendedEvidenceCandidates(report)) {
+      pushCandidate(out, "extendedEvidence", candidate.label, candidate.text, candidate.sourceIds);
+    }
+  }
+
+  return out;
 }
 
 export function buildReportSearchEntries(

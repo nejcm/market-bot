@@ -43,7 +43,7 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 | Capability | Summary |
 | --- | --- |
 | **Market overview** | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
-| **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation) |
+| **Ticker briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation, financial lens, deep-run earnings setup) |
 | **Thematic research** | Equity subject research via `research <subject>` with checked-in subject/proxy identity |
 | **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
 | **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)); thematic research forecasts only score a resolved listed proxy |

@@ -186,10 +186,11 @@ Ticker runs also collect Extended Evidence:
 
 | Asset class | Extended Evidence                                                                                                                                         |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, and Valuation Evidence when market cap and SEC fundamentals are both available. Deep equity ticker runs also collect deterministic peer comps when a checked-in Peer Universe resolves. |
+| `equity`    | SEC/EDGAR recent filings and Fundamental Evidence from company facts, Finnhub earnings/dividends/splits, FRED macro observations, Tradier options IV, deterministic Financial Lens Evidence (SEC/Yahoo metrics grouped into neutral Quality/Growth/Financial Strength/Value/Momentum lenses, each with an evidence posture and no composite score), and Valuation Evidence when market cap and SEC fundamentals are both available. Deep equity ticker runs also collect deterministic peer comps when a checked-in Peer Universe resolves, plus an event-anchored Earnings Setup when a Finnhub earnings record falls within 30 calendar days. |
 | `crypto`    | FRED macro observations and Glassnode on-chain metrics.                                                                                                   |
 
 Extended Evidence is not collected for market overview runs. Missing optional provider credentials are reported as `SourceGap`s instead of failing the run.
+SEC/EDGAR, Tradier IV, and Finnhub company/event endpoints are US-centric. For a non-US listing — detected by quote currency, exchange name, or Yahoo symbol suffix (`.L`, `.TO`, `.PA`, `.DE`, `.HK`, ...) via `src/sources/instrument-capability.ts` — those collectors are short-circuited before any network call and each emits a single `unsupported-coverage` `SourceGap` (classified under the `unsupportedCoverage` analytics class). For a deep equity ticker the Evidence Request Loop is also skipped before any model round. Classification is conservative: an instrument that cannot be definitively classified still attempts the fetch, so coverage is never suppressed on a weak signal.
 SEC/EDGAR Fundamental Evidence uses curated operating basics and comparable prior-year deltas when SEC company facts expose matching periods; missing facts or non-comparable deltas are disclosed as `SourceGap`s.
 Valuation peer comps run only for `ticker --deep --asset equity`. The resolver uses checked-in ticker peer mappings first, then Research Subject Registry listed-stock representatives. Peer quotes must come from the current run, SEC revenue period ends must be within 180 calendar days of the run timestamp, and at least three usable core/secondary peers are required for a median/IQR read-through. Unsupported, stale, or incomplete peer coverage is disclosed as `SourceGap`s and the valuation item is labeled `screening-only` or `not-supportable` instead of inventing peers.
 
@@ -206,7 +207,7 @@ Fetch behavior:
 - Missing MarketAux or Finnhub tokens are reported as `no-cap` `SourceGap`s. Yahoo news still runs.
 - Missing Massive keys are silent because Massive is supplemental-only; configured Massive failures are reported as `SourceGap`s with no evidence-quality cap.
 - Finnhub news is capped after normalization because the used Finnhub news endpoints do not expose a count-limit parameter.
-- Ticker news prefers sources whose title, summary, snippet, or source symbol mentions the ticker before provider round-robin selection. News is also checked against a persistent seen-news index at `data/news-seen.json` by default, or `MARKET_BOT_NEWS_SEEN_PATH` when set. Exact canonical-URL repeats are suppressed only within the same research lane for 30 days by default. The index is updated after report artifacts are written, so failed runs do not hide future news. If every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`.
+- Ticker news prefers sources whose title, summary, snippet, or source symbol mentions the ticker before provider round-robin selection. News is also checked against a persistent seen-news index at `data/news-seen.json` by default, or `MARKET_BOT_NEWS_SEEN_PATH` when set. Exact canonical-URL repeats are suppressed only within the same research lane for 30 days by default. The index is updated after report artifacts are written, so failed runs do not hide future news. If every news item is a repeat, one repeat fallback is kept and disclosed as a `SourceGap`. Ticker lanes additionally guarantee at least one issuer-relevant source survives the seen-filter: when the filter would leave only generic survivors, the most recent relevant repeat is re-added and disclosed with a `repeat-fallback` `SourceGap`.
 
 ## Historical context and Market Spotlights
 
@@ -334,8 +335,12 @@ max(close(SUBJECT), 0..+N) > T
 close(SUBJECT, +N) outside [Lo, Hi]
 fred(SERIES, +N) > fred(SERIES, 0)
 iv(SUBJECT, +N) > T
+earningsReturn(SUBJECT, DATE, +N) > 0
+abs(earningsReturn(SUBJECT, DATE, +N)) > T
 if (<existing expression>) then (<existing expression>)
 ```
+
+The two `earningsReturn` forms (`earnings-direction` and `earnings-move`) are event-anchored: `+N` counts trading days after the named earnings `DATE`, not days from `generatedAt`, and they resolve against the post-event return ([ADR 0030](./adr/0030-earnings-event-anchored-horizons.md)). They are emitted only from the deep-equity-ticker Earnings Setup.
 
 Prediction validation checks:
 

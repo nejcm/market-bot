@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssetClass } from "../domain/types";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { scanRunArtifacts } from "../run-artifacts";
 import { isRecord } from "../sources/guards";
 import {
@@ -21,10 +22,10 @@ export interface InstrumentTimelineReadResult {
 }
 
 const TIMELINE_FRESHNESS_FILES = [
-  "report.json",
-  "score.json",
-  "miss-autopsy.json",
-  join("normalized", "verified-market-snapshot.json"),
+  RUN_ARTIFACT_FILES.report,
+  RUN_ARTIFACT_FILES.score,
+  RUN_ARTIFACT_FILES.missAutopsy,
+  RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
 ] as const;
 
 function emptyInstrumentTimeline(

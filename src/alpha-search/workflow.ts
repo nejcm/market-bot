@@ -18,6 +18,7 @@ import {
 } from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
 import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
@@ -583,7 +584,7 @@ export async function runAlphaSearchWorkflow(input: {
   const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
 
   await writeJson(
-    join(artifacts.rawDir, "snapshots.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.rawSnapshots),
     compactOversizedRawSnapshots([
       ...apeWisdom.rawSnapshots,
       ...secDiscovery.rawSnapshots,
@@ -592,32 +593,38 @@ export async function runAlphaSearchWorkflow(input: {
       ...yahoo.rawSnapshots,
     ]),
   );
-  await writeJson(join(artifacts.normalizedDir, "social-candidates.json"), rankedCandidates);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.socialCandidates), rankedCandidates);
   await writeJson(
-    join(artifacts.normalizedDir, "sec-discovery-candidates.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.secDiscoveryCandidates),
     secDiscovery.candidates,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "alpha-search-candidates.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.alphaSearchCandidates),
     validationCandidates,
   );
-  await writeJson(join(artifacts.normalizedDir, "listed-universe.json"), listedUniverse.entries);
-  await writeJson(join(artifacts.normalizedDir, "research-leads.json"), researchLeads);
   await writeJson(
-    join(artifacts.normalizedDir, "sec-fundamentals.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.listedUniverse),
+    listedUniverse.entries,
+  );
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.researchLeads), researchLeads);
+  await writeJson(
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.secFundamentals),
     fundamentals.fundamentals,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "sec-fundamentals-source-gaps.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.secFundamentalsSourceGaps),
     fundamentals.sourceGaps,
   );
-  await writeJson(join(artifacts.normalizedDir, "candidate-profiles.json"), candidateProfiles);
-  await writeJson(join(artifacts.normalizedDir, "rejected-candidates.json"), rejectedCandidates);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.candidateProfiles), candidateProfiles);
   await writeJson(
-    join(artifacts.normalizedDir, "source-gaps.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.rejectedCandidates),
+    rejectedCandidates,
+  );
+  await writeJson(
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceGaps),
     compactUnmappedSecFilingGaps(sourceGaps),
   );
-  await writeJson(join(artifacts.runDir, "analytics.json"), analytics);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.analytics), analytics);
   await writeRunOutputs(artifacts, report, markdown, trace);
 
   return { report, markdown, trace, analytics, artifacts };

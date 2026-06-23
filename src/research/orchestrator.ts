@@ -17,6 +17,7 @@ import {
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
+import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { rankMovers } from "../movers/ranking";
 import { buildMarketUpdateDelta } from "./market-update-delta";
 import type { ModelProvider } from "../model/types";
@@ -739,78 +740,84 @@ export async function persistResearchJob(
   const result = await runResearchJob(input);
   const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
 
-  await writeJson(join(artifacts.rawDir, "snapshots.json"), result.collectedSources.rawSnapshots);
   await writeJson(
-    join(artifacts.normalizedDir, "market-snapshots.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.rawSnapshots),
+    result.collectedSources.rawSnapshots,
+  );
+  await writeJson(
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.marketSnapshots),
     result.collectedSources.marketSnapshots,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "supplemental-market-snapshots.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.supplementalMarketSnapshots),
     result.collectedSources.supplementalMarketSnapshots,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "news-sources.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.newsSources),
     result.collectedSources.newsSources,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "extended-sources.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.extendedSources),
     result.collectedSources.extendedSources,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "extended-evidence.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.extendedEvidence),
     result.collectedSources.extendedEvidence ?? null,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "market-context.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.marketContext),
     result.collectedSources.marketContext ?? null,
   );
   await writeJson(
-    join(artifacts.normalizedDir, "source-gaps.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceGaps),
     result.collectedSources.sourceGaps,
   );
-  await writeJson(join(artifacts.normalizedDir, "source-plan.json"), result.sourcePlan);
-  await writeJson(join(artifacts.normalizedDir, "evidence-lanes.json"), result.evidenceLanes);
-  await writeJson(join(artifacts.normalizedDir, "source-ledger.json"), result.sourceLedger);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.sourcePlan), result.sourcePlan);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.evidenceLanes), result.evidenceLanes);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceLedger), result.sourceLedger);
   await writeJson(
-    join(artifacts.normalizedDir, "historical-context.json"),
+    join(artifacts.runDir, RUN_ARTIFACT_FILES.historicalContext),
     result.historicalContext,
   );
   // Verified Market Snapshot + Instrument Identity sidecars: ticker runs only (ADR 0019)
   if (input.command.jobType === "ticker") {
     await writeJson(
-      join(artifacts.normalizedDir, "verified-market-snapshot.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot),
       result.collectedSources.verifiedMarketSnapshot ?? null,
     );
     await writeJson(
-      join(artifacts.normalizedDir, "instrument-identity.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.instrumentIdentity),
       result.collectedSources.resolvedInstrumentIdentity ?? null,
     );
     await writeJson(
-      join(artifacts.normalizedDir, "valuation-comps.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.valuationComps),
       result.collectedSources.valuationComps ?? null,
     );
     await writeJson(
-      join(artifacts.normalizedDir, "financial-lenses.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.financialLenses),
       result.collectedSources.financialLenses ?? null,
     );
   }
   if (isMarketUpdateJobType(input.command.jobType)) {
     await writeJson(
-      join(artifacts.normalizedDir, "spotlight-candidates.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.spotlightCandidates),
       result.spotlightCandidates ?? [],
     );
     await writeJson(
-      join(artifacts.normalizedDir, "spotlight-selection.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.spotlightSelection),
       result.spotlightSelection ??
         emptySpotlightSelection(spotlightCap(input.command, input.config), 0),
     );
-    await writeJson(join(artifacts.normalizedDir, "movers.json"), result.marketUpdateMovers ?? []);
+    await writeJson(
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.movers),
+      result.marketUpdateMovers ?? [],
+    );
   }
-  await writeJson(join(artifacts.runDir, "stages.json"), result.stageOutputs);
-  await writeJson(join(artifacts.runDir, "analytics.json"), result.analytics);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.stages), result.stageOutputs);
+  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.analytics), result.analytics);
   if (result.forecastDisagreement !== undefined) {
     await writeJson(
-      join(artifacts.normalizedDir, "forecast-disagreement.json"),
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.forecastDisagreement),
       result.forecastDisagreement,
     );
   }

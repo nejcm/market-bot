@@ -7,6 +7,7 @@ import {
   type ReportSearchScope,
 } from "./report-search-entries";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
+import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { PredictionScore } from "./scoring/types";
 import { isRecord } from "./sources/guards";
 import type {
@@ -118,7 +119,7 @@ function runRowFor(
       prediction_count: 0,
       source_count: 0,
       data_gap_count: 0,
-      has_score: files.some((file) => file.path === "score.json") ? 1 : 0,
+      has_score: files.some((file) => file.path === RUN_ARTIFACT_FILES.score) ? 1 : 0,
       report_status: loaded.status.report,
       score_status: loaded.status.score,
     };
@@ -139,7 +140,7 @@ function runRowFor(
     prediction_count: report.predictions.length,
     source_count: report.sources.length,
     data_gap_count: report.dataGaps.length,
-    has_score: files.some((file) => file.path === "score.json") ? 1 : 0,
+    has_score: files.some((file) => file.path === RUN_ARTIFACT_FILES.score) ? 1 : 0,
     report_status: loaded.status.report,
     score_status: loaded.status.score,
   };

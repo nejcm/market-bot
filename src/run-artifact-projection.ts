@@ -138,7 +138,7 @@ export function runSearchResultFromCandidate(
 ): RunSearchResult {
   return {
     run,
-    section: candidate.section as RunSearchSection,
+    section: candidate.section,
     label: candidate.label,
     snippet: searchSnippet(candidate.text, query),
     sourceIds: candidate.sourceIds,

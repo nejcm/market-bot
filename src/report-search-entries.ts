@@ -36,11 +36,19 @@ export interface ReportSearchEntry {
   readonly predictionId?: string;
 }
 
+// Sections a raw-record candidate can carry. `openQuestions` is layered on later by
+// `buildReportSearchEntries` (it needs scores), so it is never a candidate section — which
+// Makes this set structurally identical to the app's `RunSearchSection`.
+export type ReportSearchCandidateSection = Exclude<ReportSearchSection, "openQuestions">;
+
 export interface ReportSearchCandidate {
-  readonly section: ReportSearchSection;
+  readonly section: ReportSearchCandidateSection;
   readonly label: string;
   readonly text: string;
   readonly sourceIds: readonly string[];
+  // Stable identity (prediction id / source id) known at build time, carried so the typed
+  // Path can enrich without reverse-engineering it from the display label.
+  readonly identityId?: string;
 }
 
 interface TextWithSources {
@@ -186,31 +194,23 @@ export function extendedEvidenceItems(
     });
 }
 
-function pushCandidate(
-  out: ReportSearchCandidate[],
-  section: ReportSearchSection,
-  label: string,
-  text: string,
-  sourceIds: readonly string[],
-): void {
-  if (text.trim() === "") {
+function pushCandidate(out: ReportSearchCandidate[], candidate: ReportSearchCandidate): void {
+  if (candidate.text.trim() === "") {
     return;
   }
-  out.push({ section, label, text, sourceIds });
+  out.push(candidate);
 }
 
+const CONSOLE_FINDING_LABELS: Record<FindingSection, string> = {
+  keyFindings: "Key finding",
+  bullCase: "Bull case",
+  bearCase: "Bear case",
+  risks: "Risk",
+  catalysts: "Catalyst",
+};
+
 function findingLabel(section: FindingSection, scope: ReportSearchScope): string {
-  if (scope === "console") {
-    const consoleLabels: Record<FindingSection, string> = {
-      keyFindings: "Key finding",
-      bullCase: "Bull case",
-      bearCase: "Bear case",
-      risks: "Risk",
-      catalysts: "Catalyst",
-    };
-    return consoleLabels[section];
-  }
-  return section;
+  return scope === "console" ? CONSOLE_FINDING_LABELS[section] : section;
 }
 
 function textItemCandidates(
@@ -267,7 +267,15 @@ function predictionCandidates(
           ? [claim, measurableAs].filter((part): part is string => part !== undefined).join(" ")
           : claim;
 
-      return [{ section: "predictions", label, text, sourceIds: readSourceIds(item) }];
+      return [
+        {
+          section: "predictions",
+          label,
+          text,
+          sourceIds: readSourceIds(item),
+          ...(id !== undefined ? { identityId: id } : {}),
+        },
+      ];
     });
 }
 
@@ -304,7 +312,7 @@ function sourceCandidates(
               .join(" ")
           : [title, readString(item, "summary"), readString(item, "snippet")].join(" ");
 
-      return [{ section: "sources", label, text, sourceIds: [id] }];
+      return [{ section: "sources", label, text, sourceIds: [id], identityId: id }];
     });
 }
 
@@ -338,57 +346,43 @@ export function reportSearchCandidates(
 
   const summary = readString(report, "summary");
   if (summary !== undefined) {
-    pushCandidate(out, "summary", "Summary", summary, []);
+    pushCandidate(out, { section: "summary", label: "Summary", text: summary, sourceIds: [] });
   }
 
   for (const section of ["keyFindings", "bullCase", "bearCase", "risks", "catalysts"] as const) {
     for (const candidate of textItemCandidates(report, section, scope)) {
-      pushCandidate(out, section, candidate.label, candidate.text, candidate.sourceIds);
+      pushCandidate(out, candidate);
     }
   }
 
   if (scope === "history") {
     for (const candidate of dataGapCandidates(report)) {
-      pushCandidate(out, "dataGaps", candidate.label, candidate.text, candidate.sourceIds);
+      pushCandidate(out, candidate);
     }
   }
 
   for (const candidate of predictionCandidates(report, scope)) {
-    pushCandidate(out, "predictions", candidate.label, candidate.text, candidate.sourceIds);
+    pushCandidate(out, candidate);
   }
 
   for (const candidate of sourceCandidates(report, scope)) {
-    pushCandidate(out, "sources", candidate.label, candidate.text, candidate.sourceIds);
+    pushCandidate(out, candidate);
   }
 
   if (scope === "console") {
     for (const candidate of dataGapCandidates(report)) {
-      pushCandidate(out, "dataGaps", candidate.label, candidate.text, candidate.sourceIds);
+      pushCandidate(out, candidate);
     }
     for (const candidate of extendedEvidenceCandidates(report)) {
-      pushCandidate(out, "extendedEvidence", candidate.label, candidate.text, candidate.sourceIds);
+      pushCandidate(out, candidate);
     }
   }
 
   return out;
 }
 
-const OBSERVABLE_FORECAST_PREFIX = "Observable forecast ";
-
-function predictionIdFromCandidate(
-  candidate: ReportSearchCandidate,
-  scope: ReportSearchScope,
-): string | undefined {
-  if (scope === "history") {
-    return candidate.label;
-  }
-  return candidate.label.startsWith(OBSERVABLE_FORECAST_PREFIX)
-    ? candidate.label.slice(OBSERVABLE_FORECAST_PREFIX.length)
-    : undefined;
-}
-
 function keySuffixFor(
-  section: ReportSearchSection,
+  section: ReportSearchCandidateSection,
   sequence: number,
   identityId: string | undefined,
 ): string {
@@ -399,7 +393,6 @@ function keySuffixFor(
 }
 
 interface CandidateEnrichment {
-  readonly identityId?: string;
   readonly provider?: string;
   readonly sourceKind?: string;
   readonly predictionId?: string;
@@ -410,16 +403,14 @@ function sourceEnrichment(
   candidate: ReportSearchCandidate,
   sourceById: Map<string, Source>,
 ): CandidateEnrichment {
-  const [sourceId] = candidate.sourceIds;
-  if (sourceId === undefined) {
+  if (candidate.identityId === undefined) {
     return {};
   }
-  const source = sourceById.get(sourceId);
+  const source = sourceById.get(candidate.identityId);
   if (source === undefined) {
-    return { identityId: sourceId };
+    return {};
   }
   return {
-    identityId: sourceId,
     ...(source.provider !== undefined ? { provider: source.provider } : {}),
     sourceKind: source.kind,
     ...(source.symbol !== undefined ? { symbol: source.symbol.toUpperCase() } : {}),
@@ -428,18 +419,13 @@ function sourceEnrichment(
 
 function enrichCandidate(
   candidate: ReportSearchCandidate,
-  scope: ReportSearchScope,
   sourceById: Map<string, Source>,
 ): CandidateEnrichment {
   if (candidate.section === "sources") {
     return sourceEnrichment(candidate, sourceById);
   }
-  if (candidate.section === "predictions") {
-    const predictionId = predictionIdFromCandidate(candidate, scope);
-    if (predictionId === undefined) {
-      return {};
-    }
-    return { identityId: predictionId, predictionId };
+  if (candidate.section === "predictions" && candidate.identityId !== undefined) {
+    return { predictionId: candidate.identityId };
   }
   return {};
 }
@@ -449,6 +435,8 @@ export function buildReportSearchEntries(
   scores: readonly PredictionScore[],
   scope: ReportSearchScope,
 ): readonly ReportSearchEntry[] {
+  // The typed report is reinterpreted as a raw record so it can share the single lenient
+  // Candidate builder; identity/enrichment below is recovered from the typed report itself.
   const candidates = reportSearchCandidates(report as unknown as Record<string, unknown>, scope);
 
   const sourceById = new Map<string, Source>();
@@ -464,7 +452,7 @@ export function buildReportSearchEntries(
     const sequence = sequenceBySection.get(candidate.section) ?? 0;
     sequenceBySection.set(candidate.section, sequence + 1);
 
-    const enrichment = enrichCandidate(candidate, scope, sourceById);
+    const enrichment = enrichCandidate(candidate, sourceById);
     const symbol = enrichment.symbol ?? reportSymbol;
 
     entries.push({
@@ -475,7 +463,7 @@ export function buildReportSearchEntries(
       section: candidate.section,
       label: candidate.label,
       text: candidate.text,
-      keySuffix: keySuffixFor(candidate.section, sequence, enrichment.identityId),
+      keySuffix: keySuffixFor(candidate.section, sequence, candidate.identityId),
       sequence,
       sourceIds: candidate.sourceIds,
       ...(symbol !== undefined ? { symbol } : {}),

@@ -262,6 +262,69 @@ describe("source normalization", () => {
     expect(snapshot).not.toHaveProperty("averageVolume");
   });
 
+  test("captures Yahoo fundamental fields on the snapshot at the parse point", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              regularMarketPrice: 298.01,
+              regularMarketChangePercent: 0.3,
+              regularMarketVolume: 40_000_000,
+              trailingPE: 36.08,
+              forwardPE: 31.06,
+              priceToBook: 41.05,
+              bookValue: 7.26,
+              // Whole-percent unit (0.36 -> 0.36%), verified against captured fixture.
+              dividendYield: 0.36,
+              epsTrailingTwelveMonths: 8.26,
+              epsForward: 9.595,
+              sharesOutstanding: 14_687_356_000,
+              trailingAnnualDividendRate: 1.04,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot?.fundamentals).toEqual({
+      trailingPE: 36.08,
+      forwardPE: 31.06,
+      priceToBook: 41.05,
+      bookValue: 7.26,
+      dividendYield: 0.36,
+      epsTrailingTwelveMonths: 8.26,
+      epsForward: 9.595,
+      sharesOutstanding: 14_687_356_000,
+      trailingAnnualDividendRate: 1.04,
+    });
+  });
+
+  test("omits fundamentals when the Yahoo quote carries no fundamental fields (Massive fallback)", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              regularMarketPrice: 298.01,
+              regularMarketChangePercent: 0.3,
+              regularMarketVolume: 40_000_000,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot?.fundamentals).toBeUndefined();
+    expect(snapshot).not.toHaveProperty("fundamentals");
+  });
+
   test("normalizes CoinGecko market payloads for crypto", () => {
     const snapshots = normalizeCoinGeckoMarketsPayload(
       [
@@ -1026,6 +1089,118 @@ describe("SEC fundamental evidence", () => {
     expect(result?.metrics.revenue).toBe(100);
     expect(result?.metrics.revenuePeriodMonths).toBeUndefined();
     expect(result?.metrics.revenuePeriodEnd).toBe("2026-06-29");
+  });
+
+  test("exposes each flow metric's own period months and keeps netIncome aligned with revenue", () => {
+    // A 10-Q reports both revenue and netIncome for the same 3-month span. The
+    // Selector must expose each metric's own periodMonths so ROE/ROA annualize by
+    // NetIncome's period, not a borrowed revenuePeriodMonths. Guards revision 2.
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(90, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-29",
+                }),
+                secFact(100, { start: "2026-04-01", end: "2026-06-29" }),
+              ],
+            },
+          },
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                secFact(18, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-29",
+                }),
+                secFact(20, { start: "2026-04-01", end: "2026-06-29" }),
+              ],
+            },
+          },
+          NetCashProvidedByUsedInOperatingActivities: {
+            units: {
+              USD: [
+                secFact(22, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-29",
+                }),
+                secFact(28, { start: "2026-04-01", end: "2026-06-29" }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.revenuePeriodMonths).toBe(3);
+    expect(result?.metrics.netIncomePeriodMonths).toBe(3);
+    expect(result?.metrics.operatingCashFlowPeriodMonths).toBe(3);
+    expect(result?.metrics.netIncomePeriodMonths).toBe(result?.metrics.revenuePeriodMonths);
+  });
+
+  test("emits optional stockholdersEquity, assets, and dividendsPaid when present", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(90, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-29",
+                }),
+                secFact(100, { start: "2026-04-01", end: "2026-06-29" }),
+              ],
+            },
+          },
+          StockholdersEquity: secFactUnits(50, 45),
+          Assets: secFactUnits(120, 110),
+          PaymentsForDividends: {
+            units: {
+              USD: [
+                secFact(-4, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-29",
+                }),
+                secFact(-5, { start: "2026-04-01", end: "2026-06-29" }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.stockholdersEquity).toBe(50);
+    expect(result?.metrics.assets).toBe(120);
+    expect(result?.metrics.dividendsPaid).toBe(-5);
+    expect(result?.metrics.dividendsPaidPeriodMonths).toBe(3);
+    // Balance-sheet instants have no start/end span -> no periodMonths key.
+    expect(result?.metrics.stockholdersEquityPeriodMonths).toBeUndefined();
+    // Optional metrics absent do not cap evidence quality.
+    expect(result?.gaps.some((gap) => gap.message.includes("stockholdersEquity"))).toBe(false);
+    expect(result?.gaps.some((gap) => gap.message.includes("dividendsPaid"))).toBe(false);
+  });
+
+  test("does not cap evidence quality when optional balance-sheet/dividend metrics are absent", () => {
+    const result = summarizeSecFundamentals(secCompanyFactsPayload());
+
+    expect(result?.metrics.stockholdersEquity).toBeUndefined();
+    expect(result?.metrics.assets).toBeUndefined();
+    expect(result?.metrics.dividendsPaid).toBeUndefined();
+    expect(result?.gaps).toEqual([]);
   });
 });
 

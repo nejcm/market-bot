@@ -502,7 +502,7 @@
                     item.category === "valuation"
                       ? valuationMetricTiles(item.metrics)
                       : item.category === "financial-lens"
-                        ? financialLensMetricTiles(item.metrics)
+                        ? financialLensMetricTiles(detail?.financialLenses)
                       : []}
                   <div
                     class="rounded-lg border border-border bg-card px-4 py-3.5"

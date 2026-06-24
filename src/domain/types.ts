@@ -217,7 +217,26 @@ export interface MarketSnapshot {
   readonly previousClose?: number;
   readonly averageVolume?: number;
   readonly fiftyDayAverage?: number;
+  // Pre-computed issuer fundamentals captured once from the Yahoo quote payload
+  // At the single normalize point. Optional: absent for Massive fallback quotes,
+  // ETFs/ADRs, or any payload lacking these fields. See ADR 0033.
+  readonly fundamentals?: MarketFundamentals;
   readonly observedAt: string;
+}
+
+export interface MarketFundamentals {
+  readonly trailingPE?: number;
+  readonly forwardPE?: number;
+  readonly priceToBook?: number;
+  readonly bookValue?: number;
+  // Yahoo quote dividendYield is in whole-percent units (0.36 -> 0.36%), verified
+  // Against captured RR.L/AAPL fixtures. Do not confuse with trailingAnnualDividendYield
+  // (a fraction). See plan revision 4.
+  readonly dividendYield?: number;
+  readonly epsTrailingTwelveMonths?: number;
+  readonly epsForward?: number;
+  readonly sharesOutstanding?: number;
+  readonly trailingAnnualDividendRate?: number;
 }
 
 export interface MarketBenchmark {
@@ -259,6 +278,7 @@ export type ExtendedEvidenceCategory =
   | "sec-edgar"
   | "valuation"
   | "financial-lens"
+  | "yahoo-fundamentals"
   | "equity-events"
   | "fred-macro"
   | "options-iv"

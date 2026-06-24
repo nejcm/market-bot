@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtendedEvidence, VerifiedMarketSnapshot } from "../src/domain/types";
+import type {
+  ExtendedEvidence,
+  ExtendedEvidenceItem,
+  VerifiedMarketSnapshot,
+} from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -373,5 +378,425 @@ describe("addFinancialLensEvidence", () => {
     )?.summary;
     // Close 196 -> $196 (no K scaling under 1000).
     expect(summary).toContain("Latest close $196");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Forbes/Investopedia ratio expansion: SEC + Yahoo two-tier provenance.
+// See plan: financial-lens-ratio-expansion. ADR 0033.
+// ---------------------------------------------------------------------------
+
+function secEvidenceWithRatios(
+  overrides: Record<string, number | string> = {},
+): ExtendedEvidenceItem {
+  return {
+    category: "sec-edgar",
+    title: "AAPL SEC Fundamental Evidence",
+    summary: "SEC Fundamental Evidence.",
+    sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    observedAt: "2026-06-20T00:00:00.000Z",
+    metrics: {
+      revenue: 100,
+      grossProfit: 42,
+      operatingIncome: 24,
+      netIncome: 18,
+      operatingCashFlow: 30,
+      capex: 5,
+      cash: 35,
+      debt: 20,
+      currentAssets: 80,
+      currentLiabilities: 40,
+      stockholdersEquity: 50,
+      assets: 120,
+      dividendsPaid: -5,
+      ...overrides,
+    },
+  };
+}
+
+function yahooFundamentalsEvidence(
+  overrides: Record<string, number | string> = {},
+): ExtendedEvidenceItem {
+  return {
+    category: "yahoo-fundamentals",
+    title: "AAPL Yahoo Fundamentals Evidence",
+    summary: "Yahoo Fundamentals.",
+    sourceIds: ["market-yahoo-equity-aapl"],
+    observedAt: "2026-06-21T00:00:00.000Z",
+    metrics: {
+      trailingPE: 36.08,
+      forwardPE: 31.06,
+      priceToBook: 41.05,
+      dividendYield: 0.36,
+      epsTrailingTwelveMonths: 8.26,
+      epsForward: 9.595,
+      trailingAnnualDividendRate: 1.04,
+      ...overrides,
+    },
+  };
+}
+
+function valuationEvidence(): ExtendedEvidenceItem {
+  return {
+    category: "valuation",
+    title: "AAPL Valuation Evidence",
+    summary: "Valuation Evidence.",
+    sourceIds: ["market-yahoo-equity-aapl", "extended-sec-edgar-aapl-fundamentals"],
+    observedAt: "2026-06-21T00:00:00.000Z",
+    metrics: {
+      marketCap: 1000,
+      enterpriseValue: 985,
+      annualizedRevenue: 400,
+      evToAnnualizedRevenue: 2.46,
+      marketCapToAnnualizedRevenue: 2.5,
+      debtToMarketCap: 0.02,
+      netDebt: -15,
+      netDebtToMarketCap: -0.015,
+      valuationSupportability: "supported",
+    },
+  };
+}
+
+function lensByName(result: ReturnType<typeof addFinancialLensEvidence>, name: string) {
+  return result.artifact?.lenses.find((lens) => lens.name === name);
+}
+
+function metricByKey(
+  result: ReturnType<typeof addFinancialLensEvidence>,
+  lensName: string,
+  key: string,
+) {
+  return lensByName(result, lensName)?.metrics.find((metric) => metric.key === key);
+}
+
+describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
+  test("SEC ROE/ROA are annualized by net income's own period and display-only", () => {
+    // 9-month netIncome 71.7 annualized by netIncomePeriodMonths=9 -> 95.6.
+    // ROE = 95.6 / 50 = 1.912 (191.2%), not 71.7/50 = 143.4%.
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            netIncome: 71.7,
+            netIncomePeriodMonths: 9,
+            stockholdersEquity: 50,
+            assets: 120,
+          }),
+          valuationEvidence(),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const roe = metricByKey(result, "Quality", "roe");
+    const roa = metricByKey(result, "Quality", "roa");
+    expect(roe).toMatchObject({
+      unit: "ratio-percent",
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    });
+    expect(roe?.value).toBeCloseTo((71.7 * (12 / 9)) / 50, 5);
+    expect(roa?.value).toBeCloseTo((71.7 * (12 / 9)) / 120, 5);
+    // Display-only: Quality posture is unaffected by ROE/ROA (no threshold).
+    expect(lensByName(result, "Quality")?.posture).not.toBe("insufficient-data");
+  });
+
+  test("SEC debt-to-equity is display-only", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios(), valuationEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const debtToEquity = metricByKey(result, "Financial Strength", "debtToEquity");
+    expect(debtToEquity).toMatchObject({ unit: "ratio", value: 20 / 50 });
+  });
+
+  test("SEC payout <= 0.8 supports Financial Strength; dividendsPaid sign handled via abs()", () => {
+    // DividendsPaid -5 (XBRL outflow), netIncome 18 -> payout = 5/18 = 0.278 (<= 0.8).
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios(), valuationEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const payout = metricByKey(result, "Financial Strength", "payoutRatio");
+    expect(payout).toMatchObject({
+      unit: "ratio-percent",
+      value: Math.abs(-5) / 18,
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    });
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+  });
+
+  test("SEC payout > 0.8 does not support Financial Strength", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios({ dividendsPaid: -20, netIncome: 20 }), valuationEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    // Payout = 20/20 = 1.0 (> 0.8). Existing strength criteria all support, so the
+    // Payout criterion flips the lens to criteria-mixed.
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")?.value).toBe(1);
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-mixed");
+  });
+
+  test("Yahoo PE/Forward PE/PBV appear in Value lens and are display-only", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios(), valuationEvidence(), yahooFundamentalsEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const value = lensByName(result, "Value");
+    const pe = value?.metrics.find((metric) => metric.key === "peRatio");
+    const forwardPe = value?.metrics.find((metric) => metric.key === "forwardPe");
+    const pbv = value?.metrics.find((metric) => metric.key === "priceToBook");
+    expect(pe).toMatchObject({
+      value: 36.08,
+      unit: "ratio",
+      sourceIds: ["market-yahoo-equity-aapl"],
+    });
+    expect(forwardPe?.value).toBe(31.06);
+    expect(pbv?.value).toBe(41.05);
+    // Value posture is driven only by peer supportability — PE/PBV do not change it.
+    expect(value?.posture).toBe("criteria-supported");
+  });
+
+  test("Yahoo dividendYield is whole-percent (verified against captured fixture) and display-only", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios(), valuationEvidence(), yahooFundamentalsEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const divYield = metricByKey(result, "Financial Strength", "dividendYield");
+    // Captured AAPL fixture: dividendYield 0.36 means 0.36% (whole-percent), NOT 36%.
+    // A fraction unit would be ratio-percent and render as 36.0% in the tile.
+    expect(divYield).toMatchObject({ value: 0.36, unit: "whole-percent" });
+    expect(divYield?.sourceIds).toEqual(["market-yahoo-equity-aapl"]);
+    // Display-only: dividendYield does not add a posture criterion.
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+  });
+
+  test("SEC PCF = marketCap / annualized operating cash flow, display-only", () => {
+    // OperatingCashFlow 30 over 9 months -> annualized 40. PCF = 1000 / 40 = 25.
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({ operatingCashFlow: 30, operatingCashFlowPeriodMonths: 9 }),
+          valuationEvidence(),
+          yahooFundamentalsEvidence(),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const pcf = metricByKey(result, "Value", "pcfRatio");
+    expect(pcf?.value).toBeCloseTo(1000 / (30 * (12 / 9)), 5);
+  });
+
+  test("mixed sources: PE from Yahoo, ROE from SEC, each carrying its own sourceIds", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios(), valuationEvidence(), yahooFundamentalsEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Value", "peRatio")?.sourceIds).toEqual([
+      "market-yahoo-equity-aapl",
+    ]);
+    expect(metricByKey(result, "Quality", "roe")?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-fundamentals",
+    ]);
+  });
+
+  test("Yahoo-fallback payout is display-only and does not flip Financial Strength from insufficient-data", () => {
+    // No SEC item at all (non-US listing). Yahoo payout = 1.04 / 8.26 = 0.126.
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [yahooFundamentalsEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const payout = metricByKey(result, "Financial Strength", "payoutRatio");
+    expect(payout).toMatchObject({
+      value: 1.04 / 8.26,
+      sourceIds: ["market-yahoo-equity-aapl"],
+    });
+    // No SEC -> all strength criteria undefined -> insufficient-data, even with a
+    // Yahoo-sourced payout present (revision 3).
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+  });
+
+  test("non-US listing: only Yahoo + Momentum, SEC-dependent lenses insufficient-data", () => {
+    const rrlCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "RR.L",
+      depth: "deep",
+    } as const;
+    const result = addFinancialLensEvidence(
+      rrlCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-rr",
+          symbol: "RR.L",
+          identity: { quoteCurrency: "GBp" },
+        }),
+      ],
+      {
+        instrument: { symbol: "RR.L", assetClass: "equity" },
+        items: [
+          yahooFundamentalsEvidence({
+            trailingPE: 20.46,
+            forwardPE: 32.62,
+            priceToBook: 43.31,
+            dividendYield: 0.67,
+            epsTrailingTwelveMonths: 0.69,
+            trailingAnnualDividendRate: 0.095,
+          }),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot({ symbol: "RR.L" }),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const postureByName = Object.fromEntries(
+      (result.artifact?.lenses ?? []).map((lens) => [lens.name, lens.posture]),
+    );
+    expect(postureByName.Quality).toBe("insufficient-data");
+    expect(postureByName.Growth).toBe("insufficient-data");
+    expect(postureByName["Financial Strength"]).toBe("insufficient-data");
+    // Value has Yahoo PE/PBV but no SEC EV metrics; supportability undefined -> insufficient-data.
+    expect(postureByName.Value).toBe("insufficient-data");
+    // Momentum derives from the verified snapshot indicators.
+    expect(postureByName.Momentum).not.toBe("insufficient-data");
+    const value = lensByName(result, "Value");
+    expect(value?.metrics.find((metric) => metric.key === "peRatio")?.value).toBe(20.46);
+    expect(value?.metrics.find((metric) => metric.key === "priceToBook")?.value).toBe(43.31);
+    // No SEC -> no ROE/ROA/D-E/PCF metrics.
+    expect(metricByKey(result, "Quality", "roe")).toBeUndefined();
+    expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
+  });
+});
+
+describe("buildYahooFundamentals", () => {
+  test("derives the item from snapshot.fundamentals with the snapshot source id", () => {
+    const item = buildYahooFundamentals(
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-aapl",
+          fundamentals: {
+            trailingPE: 36.08,
+            forwardPE: 31.06,
+            priceToBook: 41.05,
+            bookValue: 7.26,
+            dividendYield: 0.36,
+            epsTrailingTwelveMonths: 8.26,
+            epsForward: 9.595,
+            sharesOutstanding: 14_687_356_000,
+            trailingAnnualDividendRate: 1.04,
+          },
+        }),
+      ],
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(item?.category).toBe("yahoo-fundamentals");
+    expect(item?.sourceIds).toEqual(["market-yahoo-equity-aapl"]);
+    expect(item?.metrics).toMatchObject({
+      trailingPE: 36.08,
+      forwardPE: 31.06,
+      priceToBook: 41.05,
+      bookValue: 7.26,
+      dividendYield: 0.36,
+      epsTrailingTwelveMonths: 8.26,
+      epsForward: 9.595,
+      sharesOutstanding: 14_687_356_000,
+      trailingAnnualDividendRate: 1.04,
+    });
+    expect(item?.summary).toContain("trailing PE 36.08x");
+    expect(item?.summary).toContain("dividend yield 0.36%");
+  });
+
+  test("returns undefined when the ticker snapshot has no fundamentals (Massive fallback)", () => {
+    const item = buildYahooFundamentals(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(item).toBeUndefined();
+  });
+
+  test("returns undefined when the ticker snapshot is absent", () => {
+    const item = buildYahooFundamentals(command, [], "2026-06-22T00:00:00.000Z");
+    expect(item).toBeUndefined();
+  });
+
+  test("returns undefined for non-equity commands", () => {
+    const cryptoCommand = {
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+    } as const;
+    const item = buildYahooFundamentals(cryptoCommand, [], "2026-06-22T00:00:00.000Z");
+    expect(item).toBeUndefined();
   });
 });

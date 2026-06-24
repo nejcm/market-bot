@@ -270,6 +270,9 @@ export async function readRunDetail(
     ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
       ? { verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot }
       : {}),
+    ...(artifact.artifact?.financialLenses !== undefined
+      ? { financialLenses: artifact.artifact.financialLenses }
+      : {}),
   };
 }
 

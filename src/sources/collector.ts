@@ -24,6 +24,7 @@ import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
 import { addValuationEvidence } from "./extended-evidence/valuation";
+import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import { collectValuationComps } from "./extended-evidence/valuation-comps";
 import { resolveResearchSubjectProxy } from "../research/subject-registry";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
@@ -652,10 +653,27 @@ export async function collectSources(
       : undefined;
   const finalExtendedEvidence =
     valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
+  // Yahoo Fundamentals: derive from the normalized ticker snapshot's fundamentals
+  // (captured at the single Yahoo parse point) before the financial lens runs, so
+  // The lens can mix SEC + Yahoo sources. Returns undefined for Massive fallback /
+  // Non-equity / payloads with no fundamental fields — no item, no crash. See ADR 0033.
+  const yahooFundamentalsItem = buildYahooFundamentals(
+    command,
+    resolvedMarketResult.marketSnapshots,
+    ctx.fetchedAt,
+  );
+  const evidenceWithYahooFundamentals =
+    yahooFundamentalsItem === undefined || finalExtendedEvidence === undefined
+      ? finalExtendedEvidence
+      : {
+          instrument: finalExtendedEvidence.instrument,
+          items: [...finalExtendedEvidence.items, yahooFundamentalsItem],
+          gaps: finalExtendedEvidence.gaps,
+        };
   const financialLensResult = addFinancialLensEvidence(
     command,
     resolvedMarketResult.marketSnapshots,
-    finalExtendedEvidence,
+    evidenceWithYahooFundamentals,
     verifiedSnapshotResult?.snapshot,
     ctx.fetchedAt,
   );

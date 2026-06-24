@@ -43,6 +43,7 @@ import {
   type SourceLedgerArtifact,
   type SourcePlanArtifact,
 } from "./research/source-plan";
+import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -94,6 +95,7 @@ export interface RunArtifact {
   readonly sourcePlan?: SourcePlanArtifact;
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
+  readonly financialLenses?: FinancialLensArtifact;
   readonly status: RunArtifactStatus;
 }
 
@@ -146,6 +148,7 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "fred-macro",
   "options-iv",
   "on-chain",
+  "yahoo-fundamentals",
 ]);
 const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set(EVIDENCE_LANES);
 const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);
@@ -753,6 +756,72 @@ function readEvidenceLanes(value: unknown): EvidenceLanesArtifact | undefined {
   return value as unknown as EvidenceLanesArtifact;
 }
 
+const FINANCIAL_LENS_NAMES: ReadonlySet<string> = new Set([
+  "Quality",
+  "Growth",
+  "Financial Strength",
+  "Value",
+  "Momentum",
+]);
+const FINANCIAL_LENS_POSTURES: ReadonlySet<string> = new Set([
+  "criteria-supported",
+  "criteria-mixed",
+  "criteria-not-supported",
+  "insufficient-data",
+]);
+const FINANCIAL_LENS_UNITS: ReadonlySet<string> = new Set([
+  "ratio",
+  "ratio-percent",
+  "whole-percent",
+  "currency",
+  "number",
+  "text",
+]);
+
+function hasFinancialLensMetricShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.label === "string" &&
+    (typeof value.value === "number" || typeof value.value === "string") &&
+    typeof value.unit === "string" &&
+    FINANCIAL_LENS_UNITS.has(value.unit) &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    (value.currency === undefined || typeof value.currency === "string")
+  );
+}
+
+function hasFinancialLensShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    FINANCIAL_LENS_NAMES.has(value.name) &&
+    typeof value.posture === "string" &&
+    FINANCIAL_LENS_POSTURES.has(value.posture) &&
+    Array.isArray(value.metrics) &&
+    value.metrics.every(hasFinancialLensMetricShape) &&
+    readStringArray(value, "sourceIds") !== undefined
+  );
+}
+
+// Reads the structured financial-lenses.json artifact so the console can render
+// Lens tiles dynamically from lenses[].metrics[] (label/value/unit) instead of a
+// Hardcoded key list. Returns undefined when the file is absent or malformed.
+function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
+    readString(value, "symbol") === undefined ||
+    !Array.isArray(value.lenses) ||
+    !value.lenses.every(hasFinancialLensShape) ||
+    readStringArray(value, "sourceIds") === undefined
+  ) {
+    return undefined;
+  }
+  return value as unknown as FinancialLensArtifact;
+}
+
 function hasSourceLedgerEntryShape(value: unknown): boolean {
   return (
     isRecord(value) &&
@@ -798,6 +867,7 @@ const VERIFIED_MARKET_SNAPSHOT_FILE = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
 const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
+const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -821,6 +891,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const sourcePlanFile = await readJsonFile(join(runDir, SOURCE_PLAN_FILE));
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
+  const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
@@ -835,6 +906,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     evidenceLanesFile.status === "ok" ? readEvidenceLanes(evidenceLanesFile.value) : undefined;
   const sourceLedger =
     sourceLedgerFile.status === "ok" ? readSourceLedger(sourceLedgerFile.value) : undefined;
+  const financialLenses =
+    financialLensesFile.status === "ok"
+      ? readFinancialLensesArtifact(financialLensesFile.value)
+      : undefined;
 
   return {
     artifact: {
@@ -847,6 +922,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(sourcePlan !== undefined ? { sourcePlan } : {}),
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
+      ...(financialLenses !== undefined ? { financialLenses } : {}),
       status,
     },
     status,

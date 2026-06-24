@@ -8,7 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
-import { formatRatioPercent, formatWholePercent } from "./percent-format";
+import { formatLensValue, type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -24,7 +24,7 @@ export interface FinancialLensMetric {
   readonly value: number | string;
   // "ratio-percent": value is a ratio (0.42 → 42%). "whole-percent": value already in percent (12 → 12%).
   // "currency": monetary value in `currency` (defaults to USD); GBp is a Yahoo pence pseudo-code.
-  readonly unit: "ratio" | "ratio-percent" | "whole-percent" | "currency" | "number" | "text";
+  readonly unit: LensValueUnit;
   readonly sourceIds: readonly string[];
   readonly currency?: string;
 }
@@ -102,8 +102,28 @@ function ratio(numerator: number | undefined, denominator: number | undefined): 
     : undefined;
 }
 
+// Annualizes a flow-fact value by its own reporting-period length (months),
+// Matching valuation.ts revenue annualization. Undefined period -> already
+// Annual (factor 1); period > 0 -> 12/period. Used for ROE/ROA/PCF so a 9-month
+// 10-Q netIncome is scaled to a year before dividing by an instant balance, and
+// Crucially uses netIncome's own periodMonths, not revenue's. See plan revision 2.
+function annualize(
+  value: number | undefined,
+  periodMonths: number | undefined,
+): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const factor = periodMonths !== undefined && periodMonths > 0 ? 12 / periodMonths : 1;
+  return value * factor;
+}
+
 function positive(value: number | undefined): boolean | undefined {
   return value === undefined ? undefined : value > 0;
+}
+
+function atOrBelow(value: number | undefined, threshold: number): boolean | undefined {
+  return value === undefined ? undefined : value <= threshold;
 }
 
 function postureFrom(
@@ -147,10 +167,17 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const grossProfit = readMetric(secItem?.metrics, "grossProfit");
   const operatingIncome = readMetric(secItem?.metrics, "operatingIncome");
   const netIncome = readMetric(secItem?.metrics, "netIncome");
+  const netIncomePeriodMonths = readMetric(secItem?.metrics, "netIncomePeriodMonths");
   const operatingCashFlow = readMetric(secItem?.metrics, "operatingCashFlow");
   const capex = readMetric(secItem?.metrics, "capex");
+  const stockholdersEquity = readMetric(secItem?.metrics, "stockholdersEquity");
+  const assets = readMetric(secItem?.metrics, "assets");
   const freeCashFlowProxy =
     operatingCashFlow === undefined || capex === undefined ? undefined : operatingCashFlow - capex;
+  // ROE/ROA are industry-relative (display-only): no universal threshold, no posture.
+  // Annualized by net income's own periodMonths so a partial-year filing does not
+  // Understate the return. See plan revision 2 / Q6.
+  const annualizedNetIncome = annualize(netIncome, netIncomePeriodMonths);
   const metrics = [
     ...metric(
       "grossMargin",
@@ -175,6 +202,14 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       "ratio",
       sourceIds,
     ),
+    ...metric(
+      "roe",
+      "ROE",
+      ratio(annualizedNetIncome, stockholdersEquity),
+      "ratio-percent",
+      sourceIds,
+    ),
+    ...metric("roa", "ROA", ratio(annualizedNetIncome, assets), "ratio-percent", sourceIds),
   ];
   return {
     name: "Quality",
@@ -256,19 +291,52 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
 function strengthLens(
   secItem: ExtendedEvidenceItem | undefined,
   valuationItem: ExtendedEvidenceItem | undefined,
+  yahooFundamentalsItem: ExtendedEvidenceItem | undefined,
 ): FinancialLens {
   const sourceIds = [
-    ...new Set([...(secItem?.sourceIds ?? []), ...(valuationItem?.sourceIds ?? [])]),
+    ...new Set([
+      ...(secItem?.sourceIds ?? []),
+      ...(valuationItem?.sourceIds ?? []),
+      ...(yahooFundamentalsItem?.sourceIds ?? []),
+    ]),
   ];
   const cash = readMetric(secItem?.metrics, "cash");
   const debt = readMetric(secItem?.metrics, "debt");
   const currentAssets = readMetric(secItem?.metrics, "currentAssets");
   const currentLiabilities = readMetric(secItem?.metrics, "currentLiabilities");
+  const stockholdersEquity = readMetric(secItem?.metrics, "stockholdersEquity");
+  const netIncome = readMetric(secItem?.metrics, "netIncome");
+  const dividendsPaid = readMetric(secItem?.metrics, "dividendsPaid");
   const fallbackNetDebt = debt === undefined || cash === undefined ? undefined : debt - cash;
   const netDebt = readMetric(valuationItem?.metrics, "netDebt") ?? fallbackNetDebt;
   const debtToMarketCap = readMetric(valuationItem?.metrics, "debtToMarketCap");
   const netDebtToMarketCap = readMetric(valuationItem?.metrics, "netDebtToMarketCap");
   const currentRatio = ratio(currentAssets, currentLiabilities);
+  // Debt-to-equity is industry-relative (display-only): no universal threshold.
+  const debtToEquity = ratio(debt, stockholdersEquity);
+  // Dividend Payout: SEC-preferred (abs(dividendsPaid)/netIncome) contributes the
+  // Forbes <= 0.8 posture criterion; the Yahoo fallback (trailingAnnualDividendRate
+  // / epsTtm) is display-only so a non-US listing with no SEC data does not flip
+  // Financial Strength out of insufficient-data on one Yahoo-sourced criterion.
+  // See plan revisions 3 / Q4. dividendsPaid is negative in XBRL (cash outflow);
+  // The lens uses abs() to handle both signs. See plan risk "Dividend Payout sign".
+  const secPayout =
+    dividendsPaid !== undefined && netIncome !== undefined
+      ? ratio(Math.abs(dividendsPaid), netIncome)
+      : undefined;
+  const yahooDividendRate = readMetric(
+    yahooFundamentalsItem?.metrics,
+    "trailingAnnualDividendRate",
+  );
+  const yahooEpsTtm = readMetric(yahooFundamentalsItem?.metrics, "epsTrailingTwelveMonths");
+  const yahooPayout = ratio(yahooDividendRate, yahooEpsTtm);
+  const payoutFromSec = secPayout !== undefined;
+  const payoutRatio = payoutFromSec ? secPayout : yahooPayout;
+  const payoutSourceIds = payoutFromSec
+    ? (secItem?.sourceIds ?? [])
+    : (yahooFundamentalsItem?.sourceIds ?? []);
+  // Dividend yield is whole-percent (verified against captured RR.L/AAPL fixtures).
+  const dividendYield = readMetric(yahooFundamentalsItem?.metrics, "dividendYield");
   const metrics = [
     ...metric("cash", "Cash", cash, "currency", secItem?.sourceIds ?? []),
     ...metric("debt", "Debt", debt, "currency", secItem?.sourceIds ?? []),
@@ -282,6 +350,15 @@ function strengthLens(
       sourceIds,
     ),
     ...metric("currentRatio", "Current ratio", currentRatio, "ratio", secItem?.sourceIds ?? []),
+    ...metric("debtToEquity", "Debt/equity", debtToEquity, "ratio", secItem?.sourceIds ?? []),
+    ...metric("payoutRatio", "Payout ratio", payoutRatio, "ratio-percent", payoutSourceIds),
+    ...metric(
+      "dividendYield",
+      "Dividend yield",
+      dividendYield,
+      "whole-percent",
+      yahooFundamentalsItem?.sourceIds ?? [],
+    ),
   ];
   return {
     name: "Financial Strength",
@@ -290,18 +367,43 @@ function strengthLens(
       netDebtToMarketCap === undefined ? undefined : netDebtToMarketCap <= 0.25,
       debtToMarketCap === undefined ? undefined : debtToMarketCap <= 0.5,
       currentRatio === undefined ? undefined : currentRatio >= 1,
+      // SEC-derived payout only: <= 0.8 supports (Forbes "below 80%"). Yahoo-fallback
+      // Payout is display-only and contributes no criterion (revision 3).
+      payoutFromSec ? atOrBelow(payoutRatio, 0.8) : undefined,
     ]),
     metrics,
     sourceIds,
   };
 }
 
-function valueLens(valuationItem: ExtendedEvidenceItem | undefined): FinancialLens {
-  const sourceIds = valuationItem?.sourceIds ?? [];
+function valueLens(
+  valuationItem: ExtendedEvidenceItem | undefined,
+  secItem: ExtendedEvidenceItem | undefined,
+  yahooFundamentalsItem: ExtendedEvidenceItem | undefined,
+  snapshot: MarketSnapshot | undefined,
+): FinancialLens {
+  const sourceIds = [
+    ...new Set([...(valuationItem?.sourceIds ?? []), ...(yahooFundamentalsItem?.sourceIds ?? [])]),
+  ];
   const supportability = valuationItem?.metrics?.valuationSupportability;
+  const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
+  // PCF = marketCap / annualized operating cash flow. marketCap comes from the
+  // Ticker snapshot (market data); operatingCashFlow from SEC, annualized by its
+  // Own periodMonths. Display-only (industry-relative). Valuation sourceIds carry
+  // Both market + SEC provenance, which fits the mixed inputs.
+  const marketCap = snapshot?.marketCap ?? readMetric(valuationItem?.metrics, "marketCap");
+  const operatingCashFlow = readMetric(secItem?.metrics, "operatingCashFlow");
+  const operatingCashFlowPeriodMonths = readMetric(
+    secItem?.metrics,
+    "operatingCashFlowPeriodMonths",
+  );
+  const pcfRatio = ratio(marketCap, annualize(operatingCashFlow, operatingCashFlowPeriodMonths));
+  // New Value metrics are appended AFTER the existing EV metrics so summarizeLens's
+  // First-4 slice keeps EV/revenue in the summary text (plan revision 6).
   return {
     name: "Value",
     // Research-only: posture reports peer supportability, not a cheap/expensive judgement.
+    // PE/Forward PE/PBV/PCF are display-only (industry-relative, no threshold).
     posture: postureFrom([
       supportability === undefined ? undefined : supportability === "supported",
     ]),
@@ -311,36 +413,58 @@ function valueLens(valuationItem: ExtendedEvidenceItem | undefined): FinancialLe
         "Enterprise value",
         readMetric(valuationItem?.metrics, "enterpriseValue"),
         "currency",
-        sourceIds,
+        valuationItem?.sourceIds ?? [],
       ),
       ...metric(
         "annualizedRevenue",
         "Annualized revenue",
         readMetric(valuationItem?.metrics, "annualizedRevenue"),
         "currency",
-        sourceIds,
+        valuationItem?.sourceIds ?? [],
       ),
       ...metric(
         "evToAnnualizedRevenue",
         "EV/revenue",
         readMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
         "ratio",
-        sourceIds,
+        valuationItem?.sourceIds ?? [],
       ),
       ...metric(
         "marketCapToAnnualizedRevenue",
         "Market cap/revenue",
         readMetric(valuationItem?.metrics, "marketCapToAnnualizedRevenue"),
         "ratio",
-        sourceIds,
+        valuationItem?.sourceIds ?? [],
       ),
       ...metric(
         "valuationSupportability",
         "Peer supportability",
         typeof supportability === "string" ? supportability : undefined,
         "text",
-        sourceIds,
+        valuationItem?.sourceIds ?? [],
       ),
+      ...metric(
+        "peRatio",
+        "PE",
+        readMetric(yahooFundamentalsItem?.metrics, "trailingPE"),
+        "ratio",
+        yahooSourceIds,
+      ),
+      ...metric(
+        "forwardPe",
+        "Forward PE",
+        readMetric(yahooFundamentalsItem?.metrics, "forwardPE"),
+        "ratio",
+        yahooSourceIds,
+      ),
+      ...metric(
+        "priceToBook",
+        "Price/book",
+        readMetric(yahooFundamentalsItem?.metrics, "priceToBook"),
+        "ratio",
+        yahooSourceIds,
+      ),
+      ...metric("pcfRatio", "PCF", pcfRatio, "ratio", valuationItem?.sourceIds ?? []),
     ],
     sourceIds,
   };
@@ -388,51 +512,7 @@ function formatValue(lensMetric: FinancialLensMetric): string {
   if (typeof lensMetric.value === "string") {
     return lensMetric.value;
   }
-  if (lensMetric.unit === "ratio-percent") {
-    return formatRatioPercent(lensMetric.value);
-  }
-  if (lensMetric.unit === "whole-percent") {
-    return formatWholePercent(lensMetric.value);
-  }
-  if (lensMetric.unit === "ratio") {
-    return `${lensMetric.value.toFixed(2)}x`;
-  }
-  if (lensMetric.unit === "currency") {
-    return formatCurrency(lensMetric.value, lensMetric.currency);
-  }
-  return lensMetric.value.toFixed(2);
-}
-
-const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
-  USD: "$",
-  GBP: "£",
-  EUR: "€",
-};
-
-function scaleCurrency(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (abs >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (abs >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  return value.toFixed(0);
-}
-
-function formatCurrency(value: number, currency = "USD"): string {
-  // GBp is Yahoo's pence pseudo-code (not ISO 4217 GBP): render with a p suffix, no K/M/B scaling.
-  if (currency === "GBp") {
-    return `${value.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}p`;
-  }
-  const symbol = CURRENCY_SYMBOLS[currency];
-  if (symbol !== undefined) {
-    return `${symbol}${scaleCurrency(value)}`;
-  }
-  return `${currency} ${scaleCurrency(value)}`;
+  return formatLensValue(lensMetric.value, lensMetric.unit, lensMetric.currency);
 }
 
 function financialLensGap(symbol: string, missing: readonly string[]): SourceGap {
@@ -466,13 +546,14 @@ export function addFinancialLensEvidence(
 
   const secItem = secFundamentalItem(extendedEvidence);
   const valuationItem = itemByCategory(extendedEvidence, "valuation");
+  const yahooFundamentalsItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
   const snapshot = tickerSnapshot(command, marketSnapshots);
   const quoteCurrency = snapshot?.identity?.quoteCurrency ?? "USD";
   const lenses = [
     qualityLens(secItem),
     growthLens(secItem),
-    strengthLens(secItem, valuationItem),
-    valueLens(valuationItem),
+    strengthLens(secItem, valuationItem, yahooFundamentalsItem),
+    valueLens(valuationItem, secItem, yahooFundamentalsItem, snapshot),
     momentumLens(verifiedMarketSnapshot, quoteCurrency),
   ];
   const sourceIds = [

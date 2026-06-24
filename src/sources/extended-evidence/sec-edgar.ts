@@ -26,6 +26,10 @@ interface SecMetricDefinition {
   readonly label: string;
   readonly concepts: readonly string[];
   readonly unitKeys: readonly string[];
+  // Optional metrics are emitted when present but their absence is not a data
+  // Gap (e.g. dividendsPaid is absent for non-dividend-paying issuers). Required
+  // Metrics add to missingFacts/missingDeltas and cap evidence quality when absent.
+  readonly optional?: boolean;
 }
 
 interface SecMetricSelection {
@@ -127,6 +131,32 @@ const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
     label: "current liabilities",
     concepts: ["LiabilitiesCurrent"],
     unitKeys: ["USD"],
+  },
+  {
+    key: "stockholdersEquity",
+    label: "stockholders' equity",
+    concepts: [
+      "StockholdersEquity",
+      "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+    unitKeys: ["USD"],
+    optional: true,
+  },
+  {
+    key: "assets",
+    label: "total assets",
+    concepts: ["Assets"],
+    unitKeys: ["USD"],
+    optional: true,
+  },
+  {
+    key: "dividendsPaid",
+    label: "dividends paid",
+    // PaymentsForDividends is the cash-flow-statement outflow (negative in XBRL);
+    // DividendsPaid is an alternative some issuers use. The lens handles sign via abs().
+    concepts: ["PaymentsForDividends", "DividendsPaid"],
+    unitKeys: ["USD"],
+    optional: true,
   },
 ];
 
@@ -403,23 +433,29 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
 
   for (const { definition, selection } of metricSelections) {
     if (selection === undefined) {
-      missingFacts.push(definition.key);
+      if (!definition.optional) {
+        missingFacts.push(definition.key);
+      }
       continue;
     }
     const { latest, prior } = selection;
     metrics[definition.key] = latest.val;
-    if (definition.key === "revenue") {
-      const months = periodMonths(latest);
-      if (months !== undefined) {
-        metrics.revenuePeriodMonths = months;
-      }
-      if (latest.end !== undefined) {
-        metrics.revenuePeriodEnd = latest.end;
-      }
+    // Expose each flow fact's own reporting-period length so downstream ratios
+    // (ROE/ROA/PCF) annualize by the metric's own period, not revenue's. Instant
+    // Facts (no start/end span) yield undefined and emit no key. Revenue keeps its
+    // Dedicated revenuePeriodEnd sidecar for the valuation module.
+    const months = periodMonths(latest);
+    if (months !== undefined) {
+      metrics[`${definition.key}PeriodMonths`] = months;
+    }
+    if (definition.key === "revenue" && latest.end !== undefined) {
+      metrics.revenuePeriodEnd = latest.end;
     }
     const delta = prior === undefined ? undefined : deltaPercent(latest.val, prior.val);
     if (prior === undefined) {
-      missingDeltas.push(definition.key);
+      if (!definition.optional) {
+        missingDeltas.push(definition.key);
+      }
     } else {
       metrics[`${definition.key}Prior`] = prior.val;
       if (delta !== undefined) {

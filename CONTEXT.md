@@ -230,7 +230,11 @@ Deterministic Extended Evidence that combines market capitalization, sourced iss
 
 ## Financial Lens Evidence
 
-Deterministic Extended Evidence for `equity` runs that groups compact SEC/Yahoo-derived metrics into neutral Quality, Growth, Financial Strength, Value, and Momentum lenses. Each lens carries metric values and an evidence posture (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication. Deep equity runs can include deterministic peer valuation supportability when available; brief equity runs remain target-only.
+Deterministic Extended Evidence for `equity` runs that groups compact SEC/Yahoo-derived metrics into neutral Quality, Growth, Financial Strength, Value, and Momentum lenses. Each lens carries metric values and an evidence posture (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication. Deep equity runs can include deterministic peer valuation supportability when available; brief equity runs remain target-only. Industry-relative ratios (PE, PBV, ROE, ROA, D/E, PCF) are display-only and do not contribute to lens posture; only ratios with article-sourced sustainability thresholds (Dividend Payout ≤ 0.8) contribute. See [ADR 0033](./docs/adr/0033-two-tier-fundamental-provenance.md).
+
+## Yahoo Fundamentals Evidence
+
+Pre-computed issuer fundamental fields extracted from the Yahoo quote endpoint payload (already fetched for market data) into an ExtendedEvidenceItem with `category: "yahoo-fundamentals"`. It carries `trailingPE`, `forwardPE`, `priceToBook`, `dividendYield`, `epsTrailingTwelveMonths`, `epsForward`, `sharesOutstanding`, `trailingAnnualDividendRate`, and `bookValue`. It is the fallback source for ratios unavailable from SEC EDGAR (non-US listings) and the preferred source for price-relative ratios (PE, PBV) where Yahoo's TTM-based definition is more accurate than a partial-year SEC computation. It is Yahoo-sourced, not deterministic from raw facts, and carries the Yahoo snapshot source ID for provenance. See [ADR 0033](./docs/adr/0033-two-tier-fundamental-provenance.md).
 
 ## Earnings Setup
 

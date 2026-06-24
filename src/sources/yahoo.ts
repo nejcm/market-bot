@@ -3,6 +3,7 @@ import type {
   AssetClass,
   InstrumentIdentity,
   MarketBenchmark,
+  MarketFundamentals,
   MarketSnapshot,
   OhlcvBar,
   SourceGap,
@@ -82,6 +83,11 @@ function normalizeYahooQuote(
   const fiftyDayAverage = readNumber(value, "fiftyDayAverage");
   const exchange = optionalString(value, "fullExchangeName") ?? optionalString(value, "exchange");
   const quoteCurrency = optionalString(value, "currency");
+  // Capture Yahoo fundamental fields once at the single parse point so downstream
+  // Evidence can derive ratios from the normalized snapshot rather than re-reading
+  // The raw payload (immune to the Massive quote fallback, which replaces the
+  // Yahoo payload with a non-Yahoo shape carrying none of these fields). See ADR 0033.
+  const fundamentals = readYahooFundamentals(value);
   const identity: InstrumentIdentity = {
     ...(exchange !== undefined ? { exchange } : {}),
     ...(quoteCurrency !== undefined ? { quoteCurrency } : {}),
@@ -103,8 +109,38 @@ function normalizeYahooQuote(
     ...(previousClose !== undefined ? { previousClose } : {}),
     ...(averageVolume !== undefined ? { averageVolume } : {}),
     ...(fiftyDayAverage !== undefined ? { fiftyDayAverage } : {}),
+    ...(fundamentals !== undefined ? { fundamentals } : {}),
     observedAt: fetchedAt,
   };
+}
+
+// Reads the pre-computed fundamental fields the Yahoo quote endpoint carries
+// Alongside price/volume. dividendYield is whole-percent (verified against captured
+// RR.L/AAPL fixtures); trailingAnnualDividendRate is in the quote currency per share.
+// Returns undefined when no fundamental field is present, so the snapshot omits the
+// Key entirely (no fundamentals for Massive fallback / ETF / ADR payloads).
+function readYahooFundamentals(value: Record<string, unknown>): MarketFundamentals | undefined {
+  const trailingPE = readNumber(value, "trailingPE");
+  const forwardPE = readNumber(value, "forwardPE");
+  const priceToBook = readNumber(value, "priceToBook");
+  const bookValue = readNumber(value, "bookValue");
+  const dividendYield = readNumber(value, "dividendYield");
+  const epsTrailingTwelveMonths = readNumber(value, "epsTrailingTwelveMonths");
+  const epsForward = readNumber(value, "epsForward");
+  const sharesOutstanding = readNumber(value, "sharesOutstanding");
+  const trailingAnnualDividendRate = readNumber(value, "trailingAnnualDividendRate");
+  const fundamentals: MarketFundamentals = {
+    ...(trailingPE !== undefined ? { trailingPE } : {}),
+    ...(forwardPE !== undefined ? { forwardPE } : {}),
+    ...(priceToBook !== undefined ? { priceToBook } : {}),
+    ...(bookValue !== undefined ? { bookValue } : {}),
+    ...(dividendYield !== undefined ? { dividendYield } : {}),
+    ...(epsTrailingTwelveMonths !== undefined ? { epsTrailingTwelveMonths } : {}),
+    ...(epsForward !== undefined ? { epsForward } : {}),
+    ...(sharesOutstanding !== undefined ? { sharesOutstanding } : {}),
+    ...(trailingAnnualDividendRate !== undefined ? { trailingAnnualDividendRate } : {}),
+  };
+  return Object.keys(fundamentals).length > 0 ? fundamentals : undefined;
 }
 
 interface EquityMoverSnapshot {

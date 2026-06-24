@@ -146,6 +146,7 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "fred-macro",
   "options-iv",
   "on-chain",
+  "yahoo-fundamentals",
 ]);
 const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set(EVIDENCE_LANES);
 const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);

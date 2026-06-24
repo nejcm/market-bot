@@ -1,0 +1,3 @@
+# Two-tier fundamental provenance for Financial Lens
+
+Financial Lens ratios are sourced from two tiers: SEC EDGAR facts (US listings, deterministic from raw XBRL) and Yahoo quote fields (all listings, pre-computed by Yahoo). SEC is preferred for filing-intrinsic ratios (ROE, ROA, D/E, Dividend Payout) where it is authoritative; Yahoo is preferred for price-relative ratios (PE, PBV) where its TTM-based definition is more accurate than a partial-year SEC computation. Yahoo also serves as the fallback for non-US listings where SEC EDGAR is gated off. Each metric's `sourceIds` record which tier supplied it.

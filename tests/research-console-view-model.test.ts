@@ -1391,6 +1391,36 @@ describe("report artifact parsers", () => {
     expect(tiles).toContainEqual({ label: "Latest close", value: "1,411.8p" });
   });
 
+  test("renders Yahoo dividendYield as whole-percent, never as a fraction (fixture guard)", () => {
+    // Captured AAPL fixture: dividendYield 0.36 -> 0.4% (whole-percent). A wrong
+    // Fraction unit (ratio-percent) would render 36.0% and silently 100x the tile.
+    const tiles = financialLensMetricTiles({
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Financial Strength",
+          posture: "insufficient-data",
+          sourceIds: ["market-yahoo-equity-aapl"],
+          metrics: [
+            {
+              key: "dividendYield",
+              label: "Dividend yield",
+              value: 0.36,
+              unit: "whole-percent",
+              sourceIds: ["market-yahoo-equity-aapl"],
+            },
+          ],
+        },
+      ],
+      sourceIds: ["market-yahoo-equity-aapl"],
+    });
+
+    expect(tiles).toContainEqual({ label: "Dividend yield", value: "0.4%" });
+    expect(tiles.find((tile) => tile.label === "Dividend yield")?.value).not.toContain("36");
+  });
+
   test("returns no tiles when the artifact is absent (sparse rendering)", () => {
     expect(financialLensMetricTiles()).toEqual([]);
   });

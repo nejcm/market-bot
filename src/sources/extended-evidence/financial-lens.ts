@@ -388,9 +388,12 @@ function valueLens(
   const supportability = valuationItem?.metrics?.valuationSupportability;
   const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
   // PCF = marketCap / annualized operating cash flow. marketCap comes from the
-  // Ticker snapshot (market data); operatingCashFlow from SEC, annualized by its
-  // Own periodMonths. Display-only (industry-relative). Valuation sourceIds carry
-  // Both market + SEC provenance, which fits the mixed inputs.
+  // Ticker snapshot (market data) or, failing that, the valuation item; the cash
+  // Flow comes from SEC, annualized by its own periodMonths. Display-only
+  // (industry-relative). Provenance is derived from the actual inputs: SEC (for the
+  // Cash flow) plus the source that supplied marketCap — not the valuation item's
+  // IDs unconditionally, which would be empty when PCF computes without a valuation
+  // Item (US listing with SEC cash flow but no valuation comps).
   const marketCap = snapshot?.marketCap ?? readMetric(valuationItem?.metrics, "marketCap");
   const operatingCashFlow = readMetric(secItem?.metrics, "operatingCashFlow");
   const operatingCashFlowPeriodMonths = readMetric(
@@ -398,6 +401,9 @@ function valueLens(
     "operatingCashFlowPeriodMonths",
   );
   const pcfRatio = ratio(marketCap, annualize(operatingCashFlow, operatingCashFlowPeriodMonths));
+  const marketCapSourceIds =
+    snapshot?.marketCap !== undefined ? [snapshot.sourceId] : (valuationItem?.sourceIds ?? []);
+  const pcfSourceIds = [...new Set([...(secItem?.sourceIds ?? []), ...marketCapSourceIds])];
   // New Value metrics are appended AFTER the existing EV metrics so summarizeLens's
   // First-4 slice keeps EV/revenue in the summary text (plan revision 6).
   return {
@@ -464,7 +470,7 @@ function valueLens(
         "ratio",
         yahooSourceIds,
       ),
-      ...metric("pcfRatio", "PCF", pcfRatio, "ratio", valuationItem?.sourceIds ?? []),
+      ...metric("pcfRatio", "PCF", pcfRatio, "ratio", pcfSourceIds),
     ],
     sourceIds,
   };

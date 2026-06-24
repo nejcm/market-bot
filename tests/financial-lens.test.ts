@@ -634,6 +634,36 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
 
     const pcf = metricByKey(result, "Value", "pcfRatio");
     expect(pcf?.value).toBeCloseTo(1000 / (30 * (12 / 9)), 5);
+    // Provenance reflects PCF's actual inputs: SEC (operating cash flow) + the
+    // Market snapshot that supplied marketCap.
+    expect(pcf?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-fundamentals",
+      "market-yahoo-equity-aapl",
+    ]);
+  });
+
+  test("PCF sourceIds reflect SEC + market snapshot even with no valuation item", () => {
+    // Regression guard: PCF computes from snapshot marketCap + SEC operating cash
+    // Flow without any valuation item. Provenance must not fall back to the (absent)
+    // Valuation item's sourceIds, which would leave the metric with empty provenance.
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios({ operatingCashFlow: 30, operatingCashFlowPeriodMonths: 9 })],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const pcf = metricByKey(result, "Value", "pcfRatio");
+    expect(pcf?.value).toBeCloseTo(1000 / (30 * (12 / 9)), 5);
+    expect(pcf?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-fundamentals",
+      "market-yahoo-equity-aapl",
+    ]);
   });
 
   test("mixed sources: PE from Yahoo, ROE from SEC, each carrying its own sourceIds", () => {

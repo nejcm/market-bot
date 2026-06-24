@@ -1187,54 +1187,212 @@ describe("report artifact parsers", () => {
     ]);
   });
 
-  test("formats financial lens metric tiles for display", () => {
+  test("formats financial lens metric tiles dynamically from the artifact", () => {
+    // Dynamic rendering: posture tile first per lens, then every metric the
+    // Artifact carries, formatted by unit via the shared value-format module.
+    // No hardcoded key list — every metric present renders, absent ones don't.
     expect(
       financialLensMetricTiles({
-        qualityPosture: "criteria-supported",
-        growthPosture: "criteria-mixed",
-        financialStrengthPosture: "criteria-supported",
-        valuePosture: "insufficient-data",
-        momentumPosture: "criteria-not-supported",
-        grossMargin: 0.42,
-        netMargin: 0.18,
-        freeCashFlowProxy: 25_000_000,
-        revenueDeltaPercent: 12,
-        operatingIncomeDeltaPercent: 8,
-        debtToMarketCap: 0.02,
-        currentRatio: 2,
-        evToAnnualizedRevenue: 2.46,
-        rsi14: 58,
+        version: 1,
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        symbol: "AAPL",
+        lenses: [
+          {
+            name: "Quality",
+            posture: "criteria-supported",
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+            metrics: [
+              {
+                key: "grossMargin",
+                label: "Gross margin",
+                value: 0.42,
+                unit: "ratio-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+              {
+                key: "netMargin",
+                label: "Net margin",
+                value: 0.18,
+                unit: "ratio-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+              {
+                key: "freeCashFlowProxy",
+                label: "FCF proxy",
+                value: 25_000_000,
+                unit: "currency",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+            ],
+          },
+          {
+            name: "Growth",
+            posture: "criteria-mixed",
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+            metrics: [
+              {
+                key: "revenueDeltaPercent",
+                label: "Revenue YoY",
+                value: 12,
+                unit: "whole-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+              {
+                key: "operatingIncomeDeltaPercent",
+                label: "Operating income YoY",
+                value: 8,
+                unit: "whole-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+            ],
+          },
+          {
+            name: "Financial Strength",
+            posture: "criteria-supported",
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+            metrics: [
+              {
+                key: "debtToMarketCap",
+                label: "Debt/market cap",
+                value: 0.02,
+                unit: "ratio-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+              {
+                key: "currentRatio",
+                label: "Current ratio",
+                value: 2,
+                unit: "ratio",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+            ],
+          },
+          {
+            name: "Value",
+            posture: "insufficient-data",
+            sourceIds: ["market-yahoo-equity-aapl"],
+            metrics: [
+              {
+                key: "evToAnnualizedRevenue",
+                label: "EV/revenue",
+                value: 2.46,
+                unit: "ratio",
+                sourceIds: ["market-yahoo-equity-aapl"],
+              },
+              {
+                key: "peRatio",
+                label: "PE",
+                value: 36.08,
+                unit: "ratio",
+                sourceIds: ["market-yahoo-equity-aapl"],
+              },
+            ],
+          },
+          {
+            name: "Momentum",
+            posture: "criteria-not-supported",
+            sourceIds: ["verified-snapshot-AAPL"],
+            metrics: [
+              {
+                key: "rsi14",
+                label: "RSI14",
+                value: 58,
+                unit: "number",
+                sourceIds: ["verified-snapshot-AAPL"],
+              },
+            ],
+          },
+        ],
+        sourceIds: ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
       }),
     ).toEqual([
       { label: "Quality", value: "criteria supported" },
-      { label: "Growth", value: "criteria mixed" },
-      { label: "Financial strength", value: "criteria supported" },
-      { label: "Value", value: "insufficient data" },
-      { label: "Momentum", value: "criteria not supported" },
       { label: "Gross margin", value: "42.0%" },
       { label: "Net margin", value: "18.0%" },
       { label: "FCF proxy", value: "$25.0M" },
+      { label: "Growth", value: "criteria mixed" },
       { label: "Revenue YoY", value: "12.0%" },
       { label: "Operating income YoY", value: "8.0%" },
-      { label: "Debt / market cap", value: "2.0%" },
-      { label: "Current ratio", value: "2.0x" },
-      { label: "EV / revenue", value: "2.5x" },
-      { label: "RSI14", value: "58.0" },
+      { label: "Financial Strength", value: "criteria supported" },
+      { label: "Debt/market cap", value: "2.0%" },
+      { label: "Current ratio", value: "2.00x" },
+      { label: "Value", value: "insufficient data" },
+      { label: "EV/revenue", value: "2.46x" },
+      { label: "PE", value: "36.08x" },
+      { label: "Momentum", value: "criteria not supported" },
+      { label: "RSI14", value: "58.00" },
     ]);
   });
 
   test("formats sub-1 percent values by convention, not by magnitude", () => {
+    // Ratio convention: 0.005 -> 0.5%. Whole-percent convention: 0.5 -> 0.5%.
     const tiles = financialLensMetricTiles({
-      // Ratio convention: 0.005 -> 0.5%
-      grossMargin: 0.005,
-      // Whole-percent convention: 0.5 means +0.5% YoY, must stay 0.5% (never 50.0%)
-      revenueDeltaPercent: 0.5,
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Quality",
+          posture: "insufficient-data",
+          sourceIds: ["s"],
+          metrics: [
+            {
+              key: "grossMargin",
+              label: "Gross margin",
+              value: 0.005,
+              unit: "ratio-percent",
+              sourceIds: ["s"],
+            },
+            {
+              key: "revenueDeltaPercent",
+              label: "Revenue YoY",
+              value: 0.5,
+              unit: "whole-percent",
+              sourceIds: ["s"],
+            },
+          ],
+        },
+      ],
+      sourceIds: ["s"],
     });
 
     expect(tiles).toEqual([
+      { label: "Quality", value: "insufficient data" },
       { label: "Gross margin", value: "0.5%" },
       { label: "Revenue YoY", value: "0.5%" },
     ]);
+  });
+
+  test("renders currency metrics with GBp pence suffix via shared value-format", () => {
+    const tiles = financialLensMetricTiles({
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "RR.L",
+      lenses: [
+        {
+          name: "Momentum",
+          posture: "insufficient-data",
+          sourceIds: ["market-yahoo-equity-rr"],
+          metrics: [
+            {
+              key: "latestClose",
+              label: "Latest close",
+              value: 1411.8,
+              unit: "currency",
+              sourceIds: ["market-yahoo-equity-rr"],
+              currency: "GBp",
+            },
+          ],
+        },
+      ],
+      sourceIds: ["market-yahoo-equity-rr"],
+    });
+
+    expect(tiles).toContainEqual({ label: "Latest close", value: "1,411.8p" });
+  });
+
+  test("returns no tiles when the artifact is absent (sparse rendering)", () => {
+    expect(financialLensMetricTiles()).toEqual([]);
   });
 
   test("indexes extended evidence metrics in search candidates", () => {

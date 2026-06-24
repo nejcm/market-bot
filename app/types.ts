@@ -1,4 +1,5 @@
 import type { VerifiedMarketSnapshot } from "../src/domain/types";
+import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 
 export interface RunSummary {
   readonly runId: string;
@@ -25,6 +26,7 @@ export interface RunDetail {
   readonly score?: Record<string, unknown>;
   readonly missAutopsy?: Record<string, unknown>;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly financialLenses?: FinancialLensArtifact;
 }
 
 export interface RunFile {

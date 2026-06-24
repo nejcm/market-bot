@@ -7,10 +7,8 @@ import type {
   RunSummary,
 } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
-import {
-  formatRatioPercent,
-  formatWholePercent,
-} from "../../src/sources/extended-evidence/percent-format";
+import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
+import type { FinancialLensArtifact } from "../../src/sources/extended-evidence/financial-lens";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 
 export {
@@ -235,23 +233,6 @@ const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
   valuationSupportability: "Supportability",
 };
 
-const FINANCIAL_LENS_METRIC_LABELS: Readonly<Record<string, string>> = {
-  qualityPosture: "Quality",
-  growthPosture: "Growth",
-  financialStrengthPosture: "Financial strength",
-  valuePosture: "Value",
-  momentumPosture: "Momentum",
-  grossMargin: "Gross margin",
-  netMargin: "Net margin",
-  freeCashFlowProxy: "FCF proxy",
-  revenueDeltaPercent: "Revenue YoY",
-  operatingIncomeDeltaPercent: "Operating income YoY",
-  debtToMarketCap: "Debt / market cap",
-  currentRatio: "Current ratio",
-  evToAnnualizedRevenue: "EV / revenue",
-  rsi14: "RSI14",
-};
-
 export function valuationMetricTiles(
   metrics: Readonly<Record<string, number | string>> | undefined,
 ): readonly ValuationMetricTile[] {
@@ -300,52 +281,31 @@ function formatPosture(value: string): string {
   return value.replaceAll("-", " ");
 }
 
+// Renders financial-lens tiles dynamically from the structured artifact's
+// Lenses[].metrics[] (label/value/unit) instead of a hardcoded key list. For each
+// Lens a posture tile is emitted first, then every metric the artifact carries,
+// Formatted via the shared value-format module so server summary and client tiles
+// Stay identical. Metrics absent from the artifact are absent from the grid
+// (sparse for non-US, rich for US). See plan Q7 / revision 5.
 export function financialLensMetricTiles(
-  metrics: Readonly<Record<string, number | string>> | undefined,
+  artifact?: FinancialLensArtifact,
 ): readonly ValuationMetricTile[] {
-  if (metrics === undefined) {
+  if (artifact === undefined) {
     return [];
   }
-
-  const keys = [
-    "qualityPosture",
-    "growthPosture",
-    "financialStrengthPosture",
-    "valuePosture",
-    "momentumPosture",
-    "grossMargin",
-    "netMargin",
-    "freeCashFlowProxy",
-    "revenueDeltaPercent",
-    "operatingIncomeDeltaPercent",
-    "debtToMarketCap",
-    "currentRatio",
-    "evToAnnualizedRevenue",
-    "rsi14",
-  ] as const;
-
-  return keys.flatMap((key) => {
-    const raw = metrics[key];
-    const label = FINANCIAL_LENS_METRIC_LABELS[key] ?? key;
-    if (typeof raw === "string" && key.endsWith("Posture")) {
-      return [{ label, value: formatPosture(raw) }];
-    }
-    if (typeof raw !== "number" || !Number.isFinite(raw)) {
-      return [];
-    }
-    if (key === "grossMargin" || key === "netMargin" || key === "debtToMarketCap") {
-      return [{ label, value: formatRatioPercent(raw) }];
-    }
-    if (key === "revenueDeltaPercent" || key === "operatingIncomeDeltaPercent") {
-      return [{ label, value: formatWholePercent(raw) }];
-    }
-    if (key === "freeCashFlowProxy") {
-      return [{ label, value: formatUsdCompact(raw) }];
-    }
-    if (key === "currentRatio" || key === "evToAnnualizedRevenue") {
-      return [{ label, value: formatMultiple(raw) }];
-    }
-    return [{ label, value: raw.toFixed(1) }];
+  return artifact.lenses.flatMap((lens) => {
+    const postureTile: ValuationMetricTile = {
+      label: lens.name,
+      value: formatPosture(lens.posture),
+    };
+    const metricTiles = lens.metrics.map((metric): ValuationMetricTile => {
+      const value =
+        typeof metric.value === "string"
+          ? metric.value
+          : formatLensValue(metric.value, metric.unit, metric.currency);
+      return { label: metric.label, value };
+    });
+    return [postureTile, ...metricTiles];
   });
 }
 

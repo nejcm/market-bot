@@ -77,6 +77,17 @@ function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
       }
     });
   }
+  const framework = report.extras?.businessFramework;
+  if (isRecord(framework)) {
+    add(knownSourceIds(report, framework.sourceIds));
+    if (Array.isArray(framework.sections)) {
+      framework.sections.forEach((section) => {
+        if (isRecord(section)) {
+          add(knownSourceIds(report, section.sourceIds));
+        }
+      });
+    }
+  }
 
   return ids;
 }
@@ -456,6 +467,50 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   ].join("\n");
 }
 
+function renderBusinessFramework(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType)) {
+    return "";
+  }
+  const framework = report.extras?.businessFramework;
+  if (!isRecord(framework) || !Array.isArray(framework.sections)) {
+    return "";
+  }
+  const phase = typeof framework.phase === "string" ? framework.phase : "insufficient-data";
+  const rows = framework.sections.flatMap((section) => {
+    if (!isRecord(section) || typeof section.name !== "string") {
+      return [];
+    }
+    const posture =
+      section.name !== "Phase" && typeof section.posture === "string"
+        ? ` (${markdownText(section.posture)})`
+        : "";
+    let text = "";
+    const { text: sectionText, summary } = section;
+    if (typeof sectionText === "string") {
+      text = sectionText;
+    } else if (typeof summary === "string") {
+      text = summary;
+    }
+    if (text === "") {
+      return [];
+    }
+    const refs = sourceRefs(knownSourceIds(report, section.sourceIds));
+    return [
+      `- **${markdownText(section.name)}**${posture}: ${markdownText(text)}${refs === "" ? "" : ` ${refs}`}`,
+    ];
+  });
+  const gaps = readStringArray(framework.gaps).map((gap) => `- ${markdownText(gap)}`);
+  return [
+    "## Business Framework",
+    "",
+    `Phase: ${markdownText(phase)}`,
+    "",
+    ...rows,
+    ...(gaps.length > 0 ? ["", "### Framework Data Gaps", "", ...gaps] : []),
+    "",
+  ].join("\n");
+}
+
 function renderEarningsSetup(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType)) {
     return "";
@@ -559,6 +614,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Catalysts", report.catalysts),
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
+    renderBusinessFramework(report),
     renderExtendedEvidence(report),
     renderEarningsSetup(report),
     renderHistoricalContext(report),

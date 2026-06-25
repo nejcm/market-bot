@@ -41,6 +41,7 @@ describe("run-artifact-layout", () => {
     );
     expect(RUN_ARTIFACT_FILES.valuationComps).toBe(`${NORMALIZED_DIR}/valuation-comps.json`);
     expect(RUN_ARTIFACT_FILES.financialLenses).toBe(`${NORMALIZED_DIR}/financial-lenses.json`);
+    expect(RUN_ARTIFACT_FILES.businessFramework).toBe(`${NORMALIZED_DIR}/business-framework.json`);
     expect(RUN_ARTIFACT_FILES.spotlightCandidates).toBe(
       `${NORMALIZED_DIR}/spotlight-candidates.json`,
     );

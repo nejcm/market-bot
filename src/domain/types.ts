@@ -278,6 +278,7 @@ export type ExtendedEvidenceCategory =
   | "sec-edgar"
   | "valuation"
   | "financial-lens"
+  | "business-framework"
   | "yahoo-fundamentals"
   | "equity-events"
   | "fred-macro"

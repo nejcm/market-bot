@@ -158,6 +158,17 @@ const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
     unitKeys: ["USD"],
     optional: true,
   },
+  {
+    key: "shareRepurchases",
+    label: "share repurchases",
+    concepts: [
+      "PaymentsForRepurchaseOfCommonStock",
+      "PaymentsForRepurchaseOfEquity",
+      "PaymentsForRepurchaseOfCommonStockAndPreferredStock",
+    ],
+    unitKeys: ["USD"],
+    optional: true,
+  },
 ];
 
 const DEBT_METRIC: SecMetricDefinition = {

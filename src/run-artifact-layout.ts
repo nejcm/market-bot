@@ -40,6 +40,7 @@ export const RUN_ARTIFACT_FILES = {
   instrumentIdentity: `${NORMALIZED_DIR}/instrument-identity.json`,
   valuationComps: `${NORMALIZED_DIR}/valuation-comps.json`,
   financialLenses: `${NORMALIZED_DIR}/financial-lenses.json`,
+  businessFramework: `${NORMALIZED_DIR}/business-framework.json`,
   spotlightCandidates: `${NORMALIZED_DIR}/spotlight-candidates.json`,
   spotlightSelection: `${NORMALIZED_DIR}/spotlight-selection.json`,
   movers: `${NORMALIZED_DIR}/movers.json`,

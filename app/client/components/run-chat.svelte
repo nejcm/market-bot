@@ -93,7 +93,10 @@
     copyFeedback = undefined;
   }
 
-  function showCopyFeedback(messageId: string, status: "copied" | "failed"): void {
+  function showCopyFeedback(
+    messageId: string,
+    status: "copied" | "failed",
+  ): void {
     clearCopyFeedback();
     copyFeedback = { messageId, status };
     copyFeedbackTimer = setTimeout(() => {
@@ -144,7 +147,9 @@
 <div
   class="mt-6 flex flex-col overflow-hidden rounded-lg border border-border bg-card"
 >
-  <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+  <div
+    class="flex items-center justify-between gap-3 border-b border-border px-4 py-3"
+  >
     <div class="flex items-center gap-2">
       <MessageSquareIcon class="h-4 w-4 text-muted-foreground" />
       <div>
@@ -188,9 +193,10 @@
       {#if message.role === "user" || message.role === "assistant"}
         {@const messageText = textFromParts(message.parts)}
         {@const timestamp = formatChatTimestamp(messageCreatedAt(message))}
-        {@const feedback = copyFeedback?.messageId === message.id
-          ? copyFeedback.status
-          : undefined}
+        {@const feedback =
+          copyFeedback?.messageId === message.id
+            ? copyFeedback.status
+            : undefined}
         <div
           class="mb-3 rounded-lg px-3.5 py-2.5 {message.role === 'user'
             ? 'ml-auto w-auto max-w-[70%] bg-primary text-primary-foreground'
@@ -213,7 +219,11 @@
               : 'text-muted-foreground'}"
           >
             {#if timestamp !== ""}
-              <time datetime={new Date(messageCreatedAt(message) ?? 0).toISOString()}>
+              <time
+                datetime={new Date(
+                  messageCreatedAt(message) ?? 0,
+                ).toISOString()}
+              >
                 {timestamp}
               </time>
             {/if}
@@ -221,8 +231,8 @@
               type="button"
               class="inline-flex h-5 items-center gap-1 rounded px-1.5 transition-colors {message.role ===
               'user'
-                ? 'hover:bg-white/15 focus-visible:outline focus-visible:outline-1 focus-visible:outline-primary-foreground/80'
-                : 'hover:bg-background focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring'}"
+                ? 'hover:bg-white/15 focus-visible:outline-1 focus-visible:outline-primary-foreground/80'
+                : 'hover:bg-background focus-visible:outline-1 focus-visible:outline-ring'}"
               aria-label={feedback === "copied"
                 ? "Message copied"
                 : feedback === "failed"

@@ -1227,6 +1227,74 @@ describe("report schema and rendering", () => {
     });
   });
 
+  test("merges model-authored business framework text into deterministic sections", () => {
+    const source: Source = {
+      id: "market-aapl",
+      title: "AAPL market snapshot",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "market-data",
+      assetClass: "equity",
+      symbol: "AAPL",
+    };
+    const assembled = assembleResearchReport({
+      runId: "framework-run",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      payload: {
+        summary: "AAPL framework evidence is cited.",
+        confidence: "medium",
+        extras: {
+          businessFramework: {
+            sections: [
+              {
+                name: "Business",
+                text: "AAPL has cited revenue evidence and disclosed segment gaps.",
+                sourceIds: ["market-aapl"],
+              },
+            ],
+          },
+        },
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+        businessFramework: {
+          version: 1,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          symbol: "AAPL",
+          phase: "capital-return",
+          sections: [
+            {
+              name: "Business",
+              posture: "criteria-supported",
+              summary: "Business criteria-supported.",
+              metrics: [],
+              sourceIds: ["market-aapl"],
+              gaps: ["Segment mix unavailable"],
+            },
+          ],
+          sourceIds: ["market-aapl"],
+          gaps: ["Segment mix unavailable"],
+        },
+      }),
+      depthProfile: assemblyDepthProfile("AAPL"),
+      context: assemblyContext(assemblyDepthProfile("AAPL")),
+      sources: [source],
+    });
+
+    expect(assembled.extras?.businessFramework).toMatchObject({
+      phase: "capital-return",
+      sections: [
+        {
+          name: "Business",
+          posture: "criteria-supported",
+          text: "AAPL has cited revenue evidence and disclosed segment gaps.",
+          sourceIds: ["market-aapl"],
+        },
+      ],
+    });
+  });
+
   test("writes canonical research subject extras", () => {
     const depthProfile = assemblyDepthProfile("SMH");
     const assembled = assembleResearchReport({
@@ -1711,6 +1779,78 @@ describe("report schema and rendering", () => {
         },
       }),
     ).toThrow("trade-action language");
+
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        extras: {
+          businessFramework: {
+            sections: [{ name: "Business", text: "Framework evidence.", sourceIds: ["missing"] }],
+          },
+        },
+      }),
+    ).toThrow("Unknown source ID");
+
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        extras: {
+          businessFramework: {
+            sections: [
+              { name: "Valuation", text: "Buy after the rerating.", sourceIds: ["source-1"] },
+            ],
+          },
+        },
+      }),
+    ).toThrow("trade-action language");
+  });
+
+  test("renders business framework extras in markdown", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      sources: [
+        {
+          id: "source-1",
+          title: "AAPL framework source",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "market-data",
+          assetClass: "equity",
+          symbol: "AAPL",
+        },
+      ],
+      extras: {
+        businessFramework: {
+          phase: "capital-return",
+          gaps: ["Management evidence unavailable"],
+          sections: [
+            {
+              name: "Business",
+              posture: "criteria-supported",
+              text: "Revenue evidence is available.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Phase",
+              posture: "criteria-supported",
+              summary: "Phase classification (Phase capital-return)",
+              sourceIds: ["source-1"],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(markdown).toContain("## Business Framework");
+    expect(markdown).toContain("Phase: capital-return");
+    expect(markdown).toContain("Revenue evidence is available. [source-1]");
+    expect(markdown).toContain(
+      String.raw`- **Phase**: Phase classification \(Phase capital-return\) [source-1]`,
+    );
+    expect(markdown).not.toContain("**Phase** (criteria-supported)");
+    expect(markdown).toContain("Management evidence unavailable");
   });
 
   test("renders only well-shaped alpha-search extras", () => {

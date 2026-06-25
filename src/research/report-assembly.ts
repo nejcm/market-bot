@@ -391,6 +391,67 @@ function mergeSpotlightsExtra(modelSpotlights: unknown, defaultSpotlights: unkno
   };
 }
 
+const BUSINESS_FRAMEWORK_SECTION_NAMES = new Set([
+  "Business",
+  "Phase",
+  "Moat",
+  "Growth",
+  "Management",
+  "Risk",
+  "Valuation",
+]);
+
+function modelBusinessFrameworkSections(
+  extra: unknown,
+): ReadonlyMap<string, { readonly text: string; readonly sourceIds: readonly string[] }> {
+  if (!isRecord(extra) || !Array.isArray(extra.sections)) {
+    return new Map();
+  }
+  const sections = new Map<
+    string,
+    { readonly text: string; readonly sourceIds: readonly string[] }
+  >();
+  for (const item of extra.sections) {
+    if (!isRecord(item) || typeof item.name !== "string" || typeof item.text !== "string") {
+      continue;
+    }
+    if (!BUSINESS_FRAMEWORK_SECTION_NAMES.has(item.name)) {
+      continue;
+    }
+    sections.set(item.name, {
+      text: item.text,
+      sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+    });
+  }
+  return sections;
+}
+
+function businessFrameworkExtra(modelExtra: unknown, collectedSources: CollectedSources): unknown {
+  const artifact = collectedSources.businessFramework;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const modelSections = modelBusinessFrameworkSections(modelExtra);
+  return {
+    version: artifact.version,
+    phase: artifact.phase,
+    sourceIds: artifact.sourceIds,
+    gaps: artifact.gaps,
+    sections: artifact.sections.map((section) => {
+      const modelSection = modelSections.get(section.name);
+      return {
+        name: section.name,
+        posture: section.posture,
+        summary: section.summary,
+        metrics: section.metrics,
+        sourceIds: modelSection?.sourceIds ?? section.sourceIds,
+        gaps: section.gaps,
+        ...(modelSection !== undefined ? { text: modelSection.text } : {}),
+      };
+    }),
+  };
+}
+
 const EARNINGS_BULLET_SECTIONS = [
   "expectationBar",
   "qualityLandmines",
@@ -802,6 +863,10 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
+  const resolvedBusinessFramework = businessFrameworkExtra(
+    modelExtras.businessFramework,
+    collectedSources,
+  );
   const keyFindings = preferSnapshotCitationsForFindings(
     readFindings(payload.keyFindings),
     collectedSources,
@@ -864,6 +929,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         : {}),
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
       ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
+      ...(resolvedBusinessFramework !== undefined
+        ? { businessFramework: resolvedBusinessFramework }
+        : {}),
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),

@@ -103,6 +103,7 @@ function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string,
     spotlights: spotlightsText(extras.spotlights),
     catalystCalendar: catalystCalendarText(extras.catalystCalendar),
     earningsSetup: earningsSetupText(extras.earningsSetup),
+    businessFramework: businessFrameworkText(extras.businessFramework),
   };
 }
 
@@ -171,6 +172,26 @@ function earningsSetupText(extra: unknown): readonly string[] {
   return texts;
 }
 
+function businessFrameworkText(extra: unknown): readonly string[] {
+  if (!isRecord(extra)) {
+    return [];
+  }
+  return [
+    ...readStringArray(extra.gaps),
+    ...(Array.isArray(extra.sections)
+      ? extra.sections.flatMap((section) => {
+          if (!isRecord(section)) {
+            return [];
+          }
+          return [
+            typeof section.text === "string" ? section.text : undefined,
+            ...readStringArray(section.gaps),
+          ].filter((value): value is string => value !== undefined);
+        })
+      : []),
+  ];
+}
+
 function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
   if (extra === undefined || !isRecord(extra)) {
     return;
@@ -211,6 +232,32 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
         );
       }
     }
+  }
+}
+
+function validateBusinessFrameworkExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+  if (!isRecord(extra)) {
+    return;
+  }
+  validateKnownSourceIds(
+    "Business Framework",
+    readStringArray(extra.sourceIds),
+    knownSourceIds,
+    false,
+  );
+  if (!Array.isArray(extra.sections)) {
+    return;
+  }
+  for (const section of extra.sections) {
+    if (!isRecord(section)) {
+      continue;
+    }
+    validateKnownSourceIds(
+      "Business Framework",
+      readStringArray(section.sourceIds),
+      knownSourceIds,
+      typeof section.text === "string",
+    );
   }
 }
 
@@ -318,6 +365,7 @@ function validateRenderedExtras(
   validateResearchSubjectExtra(extras.researchSubject);
   validateProxyResolutionExtra(extras.proxyResolution);
   validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds);
+  validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds);
 }
 
 export function validatePredictions(

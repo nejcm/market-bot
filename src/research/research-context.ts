@@ -878,6 +878,7 @@ function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<
 function finalReportShape(
   depthProfile: DepthProfile,
   hasEarningsSetup: boolean,
+  hasBusinessFramework: boolean,
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
   const predictionKinds = hasEarningsSetup
@@ -889,6 +890,19 @@ function finalReportShape(
           expectationBar: [{ text: "string", sourceIds: ["source-id"] }],
           qualityLandmines: [{ text: "string", sourceIds: ["source-id"] }],
           guidanceCredibility: [{ text: "string", sourceIds: ["source-id"] }],
+        },
+      }
+    : {};
+  const businessFrameworkShape = hasBusinessFramework
+    ? {
+        businessFramework: {
+          sections: [
+            {
+              name: "Business|Phase|Moat|Growth|Management|Risk|Valuation",
+              text: "string",
+              sourceIds: ["source-id"],
+            },
+          ],
         },
       }
     : {};
@@ -922,6 +936,7 @@ function finalReportShape(
         items: [{ symbol: "string", rationale: "string", sourceIds: ["source-id"] }],
       },
       ...earningsSetupShape,
+      ...businessFrameworkShape,
     },
   };
 }
@@ -1131,13 +1146,19 @@ export function buildStagePrompt(
       : "";
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
+  const hasBusinessFramework =
+    isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const earningsPredictionInstruction =
     stage === "final-synthesis" && hasEarningsSetup
       ? " An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today. You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps."
       : "";
+  const businessFrameworkInstruction =
+    stage === "final-synthesis" && hasBusinessFramework
+      ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
+      : "";
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
+      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
@@ -1153,7 +1174,7 @@ export function buildStagePrompt(
       return evidenceRequestShape();
     }
     if (stage === "final-synthesis") {
-      return finalReportShape(context.depthProfile, hasEarningsSetup);
+      return finalReportShape(context.depthProfile, hasEarningsSetup, hasBusinessFramework);
     }
     return {
       findings: [{ text: "string", sourceIds: ["source-id"] }],

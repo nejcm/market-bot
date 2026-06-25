@@ -390,6 +390,75 @@ describe("buildStagePrompt", () => {
     expect(parsed.requiredShape?.predictions?.[0]).not.toHaveProperty("claim");
   });
 
+  test("final-synthesis shape includes business framework extras when sidecar exists", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+        businessFramework: {
+          version: 1,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          symbol: "AAPL",
+          phase: "capital-return",
+          sections: [],
+          sourceIds: [],
+          gaps: [],
+        },
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          targetPredictions: 2,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["AAPL"],
+          focus: ["ticker research"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "insufficient-data",
+          proxyCount: 0,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly requiredShape?: {
+        readonly extras?: {
+          readonly businessFramework?: {
+            readonly sections?: readonly Record<string, unknown>[];
+          };
+        };
+      };
+    };
+
+    expect(parsed.instruction).toContain("deterministic Business Framework");
+    expect(parsed.requiredShape?.extras?.businessFramework?.sections?.[0]).toEqual({
+      name: "Business|Phase|Moat|Growth|Management|Risk|Valuation",
+      text: "string",
+      sourceIds: ["source-id"],
+    });
+  });
+
   test("renders prior calibration from real CalibrationSummary JSON without undefined", () => {
     const command: ResearchCommand = { jobType: "daily", assetClass: "equity", depth: "brief" };
     const summary = buildCalibrationSummary([

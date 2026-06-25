@@ -8,7 +8,11 @@ import type {
 } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
-import type { FinancialLensArtifact } from "../../src/sources/extended-evidence/financial-lens";
+import type {
+  FinancialLensArtifact,
+  FinancialLensMetric,
+  FinancialLensName,
+} from "../../src/sources/extended-evidence/financial-lens";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 
 export {
@@ -100,6 +104,15 @@ export interface CalibrationSampleWarning {
 export interface ValuationMetricTile {
   readonly label: string;
   readonly value: string;
+}
+
+export type FinancialLensStatTone = "strong" | "healthy" | "watch" | "weak" | "neutral";
+
+export interface FinancialLensStatTile extends ValuationMetricTile {
+  readonly key: string;
+  readonly lens: FinancialLensName;
+  readonly tone: FinancialLensStatTone;
+  readonly assessment?: "Strong" | "Healthy" | "Watch" | "Weak";
 }
 
 export interface ReliabilityBin {
@@ -307,6 +320,210 @@ export function financialLensMetricTiles(
     });
     return [postureTile, ...metricTiles];
   });
+}
+
+function assessment(
+  value: number,
+  strong: (input: number) => boolean,
+  healthy: (input: number) => boolean,
+  watch: (input: number) => boolean,
+): Pick<FinancialLensStatTile, "tone" | "assessment"> {
+  if (strong(value)) {
+    return { tone: "strong", assessment: "Strong" };
+  }
+  if (healthy(value)) {
+    return { tone: "healthy", assessment: "Healthy" };
+  }
+  if (watch(value)) {
+    return { tone: "watch", assessment: "Watch" };
+  }
+  return { tone: "weak", assessment: "Weak" };
+}
+
+function assessFinancialLensMetric(
+  metric: FinancialLensMetric,
+): Pick<FinancialLensStatTile, "tone" | "assessment"> {
+  const { key, value: rawValue } = metric;
+  if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+    if (key === "valuationSupportability") {
+      if (rawValue === "supported") {
+        return { tone: "strong", assessment: "Strong" };
+      }
+      if (rawValue === "screening-only") {
+        return { tone: "watch", assessment: "Watch" };
+      }
+      if (rawValue === "not-supportable") {
+        return { tone: "weak", assessment: "Weak" };
+      }
+    }
+    return { tone: "neutral" };
+  }
+
+  switch (key) {
+    case "grossMargin": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0.4,
+        (v) => v >= 0.3,
+        (v) => v >= 0.2,
+      );
+    }
+    case "operatingMargin": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0.15,
+        (v) => v >= 0.1,
+        (v) => v >= 0.05,
+      );
+    }
+    case "netMargin": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0.1,
+        (v) => v >= 0.06,
+        (v) => v >= 0.03,
+      );
+    }
+    case "cashConversion": {
+      return assessment(
+        rawValue,
+        (v) => v >= 1,
+        (v) => v >= 0.75,
+        (v) => v >= 0.5,
+      );
+    }
+    case "roe": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0.15,
+        (v) => v >= 0.1,
+        (v) => v >= 0.05,
+      );
+    }
+    case "roa": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0.07,
+        (v) => v >= 0.04,
+        (v) => v >= 0.02,
+      );
+    }
+    case "revenueDeltaPercent":
+    case "grossProfitDeltaPercent":
+    case "operatingIncomeDeltaPercent":
+    case "netIncomeDeltaPercent":
+    case "dilutedEpsDeltaPercent":
+    case "operatingCashFlowDeltaPercent": {
+      return assessment(
+        rawValue,
+        (v) => v >= 10,
+        (v) => v >= 3,
+        (v) => v >= 0,
+      );
+    }
+    case "debtToMarketCap":
+    case "netDebtToMarketCap": {
+      return assessment(
+        rawValue,
+        (v) => v <= 0.25,
+        (v) => v <= 0.4,
+        (v) => v <= 0.5,
+      );
+    }
+    case "currentRatio": {
+      return assessment(
+        rawValue,
+        (v) => v >= 1.5 && v <= 3,
+        (v) => v >= 1.2 && v <= 4,
+        (v) => v >= 1 && v <= 4,
+      );
+    }
+    case "debtToEquity": {
+      return assessment(
+        rawValue,
+        (v) => v <= 0.5,
+        (v) => v <= 1,
+        (v) => v <= 1.5,
+      );
+    }
+    case "payoutRatio": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0 && v <= 0.6,
+        (v) => v >= 0 && v <= 0.75,
+        (v) => v >= 0 && v <= 0.8,
+      );
+    }
+    case "evToAnnualizedRevenue":
+    case "marketCapToAnnualizedRevenue": {
+      return assessment(
+        rawValue,
+        (v) => v > 0 && v <= 3,
+        (v) => v > 0 && v <= 5,
+        (v) => v > 0 && v <= 8,
+      );
+    }
+    case "peRatio":
+    case "forwardPe":
+    case "pcfRatio": {
+      return assessment(
+        rawValue,
+        (v) => v > 0 && v <= 15,
+        (v) => v > 0 && v <= 20,
+        (v) => v > 0 && v <= 25,
+      );
+    }
+    case "priceToBook": {
+      return assessment(
+        rawValue,
+        (v) => v > 0 && v <= 3,
+        (v) => v > 0 && v <= 4.5,
+        (v) => v > 0 && v <= 6,
+      );
+    }
+    case "rsi14": {
+      return assessment(
+        rawValue,
+        (v) => v >= 40 && v <= 70,
+        (v) => (v >= 30 && v < 40) || (v > 70 && v <= 80),
+        (v) => (v >= 20 && v < 30) || (v > 80 && v <= 90),
+      );
+    }
+    case "macdHistogram": {
+      return assessment(
+        rawValue,
+        (v) => v >= 0,
+        (v) => v > -0.25,
+        (v) => v > -0.5,
+      );
+    }
+    default: {
+      return { tone: "neutral" };
+    }
+  }
+}
+
+export function financialLensStatTiles(
+  artifact?: FinancialLensArtifact,
+): readonly FinancialLensStatTile[] {
+  if (artifact === undefined) {
+    return [];
+  }
+  return artifact.lenses.flatMap((lens) =>
+    lens.metrics.map((metric): FinancialLensStatTile => {
+      const value =
+        typeof metric.value === "string"
+          ? metric.value
+          : formatLensValue(metric.value, metric.unit, metric.currency);
+      return {
+        key: metric.key,
+        lens: lens.name,
+        label: metric.label,
+        value,
+        ...assessFinancialLensMetric(metric),
+      };
+    }),
+  );
 }
 
 export function reliabilityBins(detail: CalibrationDetail): readonly ReliabilityBin[] {

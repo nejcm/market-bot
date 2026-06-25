@@ -12,6 +12,7 @@ import {
   dashboardMetrics,
   extendedEvidenceItems,
   financialLensMetricTiles,
+  financialLensStatTiles,
   forecastDisagreements,
   forecastGroups,
   filterRuns,
@@ -1321,6 +1322,115 @@ describe("report artifact parsers", () => {
       { label: "PE", value: "36.08x" },
       { label: "Momentum", value: "criteria not supported" },
       { label: "RSI14", value: "58.00" },
+    ]);
+  });
+
+  test("assesses financial lens stats where standalone thresholds are meaningful", () => {
+    const tiles = financialLensStatTiles({
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Quality",
+          posture: "criteria-supported",
+          sourceIds: ["s"],
+          metrics: [
+            {
+              key: "grossMargin",
+              label: "Gross margin",
+              value: 0.42,
+              unit: "ratio-percent",
+              sourceIds: ["s"],
+            },
+            {
+              key: "operatingMargin",
+              label: "Operating margin",
+              value: 0.08,
+              unit: "ratio-percent",
+              sourceIds: ["s"],
+            },
+            {
+              key: "netMargin",
+              label: "Net margin",
+              value: 0.07,
+              unit: "ratio-percent",
+              sourceIds: ["s"],
+            },
+          ],
+        },
+        {
+          name: "Financial Strength",
+          posture: "criteria-not-supported",
+          sourceIds: ["s"],
+          metrics: [
+            {
+              key: "debtToMarketCap",
+              label: "Debt/market cap",
+              value: 0.65,
+              unit: "ratio-percent",
+              sourceIds: ["s"],
+            },
+          ],
+        },
+        {
+          name: "Momentum",
+          posture: "criteria-supported",
+          sourceIds: ["s"],
+          metrics: [
+            {
+              key: "latestClose",
+              label: "Latest close",
+              value: 180,
+              unit: "currency",
+              sourceIds: ["s"],
+            },
+          ],
+        },
+      ],
+      sourceIds: ["s"],
+    });
+
+    expect(tiles).toEqual([
+      {
+        key: "grossMargin",
+        lens: "Quality",
+        label: "Gross margin",
+        value: "42.0%",
+        tone: "strong",
+        assessment: "Strong",
+      },
+      {
+        key: "operatingMargin",
+        lens: "Quality",
+        label: "Operating margin",
+        value: "8.0%",
+        tone: "watch",
+        assessment: "Watch",
+      },
+      {
+        key: "netMargin",
+        lens: "Quality",
+        label: "Net margin",
+        value: "7.0%",
+        tone: "healthy",
+        assessment: "Healthy",
+      },
+      {
+        key: "debtToMarketCap",
+        lens: "Financial Strength",
+        label: "Debt/market cap",
+        value: "65.0%",
+        tone: "weak",
+        assessment: "Weak",
+      },
+      {
+        key: "latestClose",
+        lens: "Momentum",
+        label: "Latest close",
+        value: "$180",
+        tone: "neutral",
+      },
     ]);
   });
 

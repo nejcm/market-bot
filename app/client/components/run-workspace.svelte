@@ -3,7 +3,7 @@
   import type { RunDetail } from "../../types";
   import {
     extendedEvidenceItems,
-    financialLensMetricTiles,
+    financialLensStatTiles,
     forecastRollup,
     forecastGroups,
     formatClose,
@@ -23,6 +23,7 @@
     textItems,
     tradingViewUrl,
     valuationMetricTiles,
+    type FinancialLensStatTone,
     type SnapshotView,
   } from "../view-model";
   import {
@@ -96,6 +97,9 @@
   const gapItems = $derived(stringArray(report, "dataGaps"));
   const splitGaps = $derived(splitDataGaps(gapItems));
   const extendedEvidence = $derived(extendedEvidenceItems(report));
+  const financialLensStats = $derived(
+    financialLensStatTiles(detail?.financialLenses),
+  );
   const targetHealth = $derived(
     predictionTargetHealth(detail?.analytics, report),
   );
@@ -110,8 +114,8 @@
   );
 
   const CASE_STYLES = [
-    { key: "bullCase", title: "Bull case", edge: "#4ba3b2", fg: "#166e7d" },
-    { key: "bearCase", title: "Bear case", edge: "#8a8f96", fg: "#5c6066" },
+    { key: "bullCase", title: "Bull case", edge: "#0F9D58", fg: "#0F9D58" },
+    { key: "bearCase", title: "Bear case", edge: "#9B0F06", fg: "#9B0F06" },
     { key: "risks", title: "Risks", edge: "#c4b389", fg: "#8a6116" },
     { key: "catalysts", title: "Catalysts", edge: "#9fc2c8", fg: "#166e7d" },
   ] as const;
@@ -125,6 +129,11 @@
 
   const tocEntries = $derived([
     ["summary", "Summary", reportSummary !== ""],
+    [
+      "financialLensStats",
+      "Financial lens stats",
+      financialLensStats.length > 0,
+    ],
     ["findings", "Key findings", findingItems.length > 0],
     ["cases", "Cases & risks", caseSections.length > 0],
     ["scenarios", "Scenarios", scenarioItems.length > 0],
@@ -157,6 +166,20 @@
     low: "border-[#cfe0e3] bg-accent text-primary",
     medium: "border-[#d9c89a] bg-[#f5ecd6] text-[#8a6116]",
     high: "border-[#b8bdc3] bg-[#eef0f2] text-[#3f454b]",
+  };
+  const FINANCIAL_LENS_TILE_CLASSES: Record<FinancialLensStatTone, string> = {
+    strong: "bg-[#dff2e7]",
+    healthy: "bg-[#e1f0f2]",
+    watch: "bg-[#f7ebcd]",
+    weak: "bg-[#f2dfdc]",
+    neutral: "bg-secondary",
+  };
+  const FINANCIAL_LENS_VALUE_CLASSES: Record<FinancialLensStatTone, string> = {
+    strong: "text-[#0F7E48]",
+    healthy: "text-primary",
+    watch: "text-[#8a6116]",
+    weak: "text-[#9B0F06]",
+    neutral: "text-foreground",
   };
 
   function percent(value: number): string {
@@ -321,7 +344,7 @@
     </div>
 
     {#if activeTab === "report"}
-      <div class="mt-6 grid gap-11 xl:grid-cols-[minmax(0,720px)_200px]">
+      <div class="mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]">
         <article class="min-w-0">
           {#if reportSummary !== ""}
             <div
@@ -330,6 +353,59 @@
             >
               {reportSummary}
             </div>
+          {/if}
+
+          {#if financialLensStats.length > 0}
+            <section
+              {@attach bindSection("financialLensStats")}
+              class="mt-5 scroll-mt-5"
+            >
+              <div
+                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2"
+              >
+                <span
+                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary"
+                >
+                  Financial Lens stats
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]">
+                  normalized evidence metrics
+                </span>
+              </div>
+              <div
+                class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
+              >
+                {#each financialLensStats as tile}
+                  <div
+                    class="px-3 py-2.5 {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}"
+                  >
+                    <div class="flex items-start justify-between gap-2">
+                      <div
+                        class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[
+                          tile.tone
+                        ]}"
+                      >
+                        {tile.value}
+                      </div>
+                      {#if tile.assessment !== undefined}
+                        <span
+                          class="rounded border border-current uppercase font-medium px-1 py-px font-mono text-[10px] leading-tight {FINANCIAL_LENS_VALUE_CLASSES[
+                            tile.tone
+                          ]}"
+                        >
+                          {tile.assessment}
+                        </span>
+                      {/if}
+                    </div>
+                    <div
+                      class="mt-1 text-[10px] uppercase tracking-wider text-[#5c6066]"
+                    >
+                      {tile.label}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </section>
           {/if}
 
           {#if findingItems.length > 0}
@@ -366,7 +442,7 @@
               {#each caseSections as section}
                 <div
                   class="rounded-lg border border-border bg-card px-4.5 py-4"
-                  style="border-top: 2px solid {section.edge}"
+                  style="border-top: 3px solid {section.edge}"
                 >
                   <div
                     class="text-xs font-semibold uppercase tracking-wider"
@@ -430,7 +506,9 @@
                 >
                   Market snapshot · {snapshot.symbol}
                 </span>
-                <span class="flex flex-wrap items-center gap-2 font-mono text-[10px] text-[#a8acb1]">
+                <span
+                  class="flex flex-wrap items-center gap-2 font-mono text-[10px] text-[#a8acb1]"
+                >
                   <span>
                     artifact closes{snapshot.latestSessionDate === undefined
                       ? ""
@@ -501,8 +579,6 @@
                   {@const metricTiles =
                     item.category === "valuation"
                       ? valuationMetricTiles(item.metrics)
-                      : item.category === "financial-lens"
-                        ? financialLensMetricTiles(detail?.financialLenses)
                       : []}
                   <div
                     class="rounded-lg border border-border bg-card px-4 py-3.5"

@@ -378,7 +378,10 @@ export function validatePredictions(
     requireSourceIds: true,
     ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
   });
-  return { valid: result.predictions, errors: result.promptErrors, issues: result.issues };
+  const errors = result.issues
+    .filter((issue) => issue.code !== "redundant-prediction")
+    .map((issue) => issue.message);
+  return { valid: result.predictions, errors, issues: result.issues };
 }
 
 export function validateResearchReport(report: ResearchReport): ResearchReport {

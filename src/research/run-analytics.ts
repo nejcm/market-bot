@@ -85,6 +85,7 @@ export interface RunAnalytics {
     readonly count: number;
     readonly retryErrorCount: number;
     readonly validationErrorCount: number;
+    readonly trimWarningCount: number;
     readonly byKind: Readonly<Record<string, number>>;
     readonly horizonTradingDays: {
       readonly min?: number;
@@ -487,6 +488,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       count: report.predictions.length,
       retryErrorCount: trace.predictionRetryErrors?.length ?? 0,
       validationErrorCount: trace.predictionErrors?.length ?? 0,
+      trimWarningCount: trace.predictionTrimWarnings?.length ?? 0,
       byKind: countBy(report.predictions, (prediction) => prediction.kind),
       horizonTradingDays: horizonStats(
         report.predictions.map((prediction) => prediction.horizonTradingDays),

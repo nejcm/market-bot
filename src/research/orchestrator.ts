@@ -635,7 +635,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     });
   }
   const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
-  const { predictionErrors, predictionRetryErrors, reportValidationErrors } = synthesis;
+  const {
+    predictionErrors,
+    predictionRetryErrors,
+    predictionTrimWarnings,
+    reportValidationErrors,
+  } = synthesis;
   const codeVersion = readCodeVersion();
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
@@ -669,6 +674,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(spotlightSelection !== undefined ? { spotlightSelection: spotlightSelection.audit } : {}),
     domainPlaybooks: playbookSelection.audit,
     ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
+    ...(predictionTrimWarnings.length > 0 ? { predictionTrimWarnings } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
     ...(reportValidationErrors.length > 0
       ? { reportValidationRetryErrors: reportValidationErrors }

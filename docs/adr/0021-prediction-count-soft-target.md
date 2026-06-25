@@ -27,9 +27,9 @@ quality. A weekly equity run on 2026-06-14 shipped two such coin-flip prediction
 The prediction count is a **soft target**, not a hard floor.
 
 - `DepthProfile.minimumPredictions` is renamed to `targetPredictions` to remove the misnomer.
-- Final synthesis no longer re-prompts merely to raise the count. Reprompts still fire for
-  genuine validation errors and redundant predictions, but a clean below-target result ships
-  as-is.
+- Final synthesis no longer re-prompts merely to raise the count. Reprompts fire only for
+  hard prediction validation errors and report validation errors. Redundant predictions are
+  prediction trims: dropped from the emitted report and recorded as telemetry, not retried.
 - Prompt guidance instructs the model to emit a prediction only where evidence supports a
   directional lean, to prefer fewer high-conviction forecasts over padding, and to never emit
   a coin-flip just to reach a count.

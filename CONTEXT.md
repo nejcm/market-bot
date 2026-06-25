@@ -38,6 +38,10 @@ A public market quantity value used to resolve a Prediction. An Observation can 
 
 - `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event. The public `claim` is rendered from `measurableAs`, not model-authored ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)). Depth profiles set a soft `targetPredictions` count; below-target runs disclose `predictionShortfall` rather than padding ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)).
 
+## Prediction Trim
+
+An otherwise valid Prediction dropped from the emitted Research View because redundancy rules removed it. It is telemetry, not a validation failure or a retry reason.
+
 ## Conditional Prediction
 
 A Prediction whose scored event is conditional on an earlier observable event. Its probability means the consequent probability after the condition occurs; if the condition does not occur, the Prediction is voided and excluded from Calibration.

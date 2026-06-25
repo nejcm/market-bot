@@ -490,6 +490,7 @@ export interface RunTrace {
   };
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionRetryErrors?: readonly string[];
+  readonly predictionTrimWarnings?: readonly string[];
   readonly predictionErrors?: readonly string[];
   readonly reportValidationRetryErrors?: readonly string[];
   readonly postSynthesisAudit?: {

@@ -43,7 +43,8 @@ const trace: RunTrace = {
   },
   domainPlaybooks: { selected: [], rejected: [] },
   predictionErrors: ["Unknown source ID: missing"],
-  predictionRetryErrors: ["predictionShortfall: required 2, received 1"],
+  predictionRetryErrors: ["Unknown source ID: missing"],
+  predictionTrimWarnings: ["Prediction pred-adjacent: redundant direction forecast"],
 };
 
 describe("run analytics", () => {
@@ -224,6 +225,7 @@ describe("run analytics", () => {
       count: 2,
       retryErrorCount: 1,
       validationErrorCount: 1,
+      trimWarningCount: 1,
       byKind: { direction: 1, iv: 1 },
       citedCount: 1,
       uncitedCount: 1,
@@ -313,6 +315,7 @@ describe("forecast quality telemetry (3.2)", () => {
 
   function predictionsFor(
     preds: ReturnType<typeof prediction>[],
+    traceOverride: RunTrace = baseTrace,
   ): ReturnType<typeof buildRunAnalytics>["predictions"] {
     return buildRunAnalytics({
       report: researchReport({
@@ -322,12 +325,23 @@ describe("forecast quality telemetry (3.2)", () => {
         predictions: preds,
         sources: [aaplSource],
       }),
-      trace: baseTrace,
+      trace: traceOverride,
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: preds.length,
     }).predictions;
   }
+
+  test("counts redundancy trims separately from validation and retry errors", () => {
+    const result = predictionsFor([prediction({ id: "pred-1", sourceIds: ["src-1"] })], {
+      ...baseTrace,
+      predictionTrimWarnings: ["Prediction pred-2: redundant direction forecast"],
+    });
+
+    expect(result.trimWarningCount).toBe(1);
+    expect(result.validationErrorCount).toBe(0);
+    expect(result.retryErrorCount).toBe(0);
+  });
 
   test("straddling set produces correct nearBaseRateCount and informativeCount", () => {
     // P1 and p2 are near base rate (within 0.05 of 0.5); p3 and p4 are informative.

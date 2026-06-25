@@ -58,6 +58,7 @@ export interface SynthesizeReportUntilValidResult {
   readonly report: ResearchReport;
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
+  readonly predictionTrimWarnings: readonly string[];
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
 }
@@ -79,6 +80,7 @@ export async function synthesizeReportUntilValid(
       report,
       stageOutputs: predictionProgress.stageOutputs,
       predictionRetryErrors: predictionProgress.predictionRetryErrors,
+      predictionTrimWarnings: predictionTrimWarnings(predictionProgress.state.predResult),
       predictionErrors: predictionProgress.state.predResult.errors,
       reportValidationErrors,
     };
@@ -121,6 +123,7 @@ export async function synthesizeReportUntilValid(
     report,
     stageOutputs: validationProgress.stageOutputs,
     predictionRetryErrors: validationProgress.predictionRetryErrors,
+    predictionTrimWarnings: predictionTrimWarnings(validationProgress.state.predResult),
     predictionErrors: validationProgress.state.predResult.errors,
     reportValidationErrors,
   };
@@ -187,13 +190,16 @@ function predictionRetryReasons(predResult: ReturnType<typeof readPredictions>):
   /*
    * The prediction count is a soft target (ADR 0021), not a hard floor: a
    * below-target result is disclosed as a predictionShortfall data gap during
-   * report assembly, never repaired by reprompting for more. Only genuine
-   * validation errors and redundant predictions warrant a retry.
+   * report assembly, never repaired by reprompting for more. Prediction trims
+   * are telemetry, not retryable validation errors.
    */
-  const redundancyReasons = predResult.issues
+  return predResult.errors;
+}
+
+function predictionTrimWarnings(predResult: ReturnType<typeof readPredictions>): readonly string[] {
+  return predResult.issues
     .filter((issue) => issue.code === "redundant-prediction")
     .map((issue) => issue.message);
-  return [...predResult.errors, ...redundancyReasons];
 }
 
 function uniqueStrings(values: readonly string[]): readonly string[] {

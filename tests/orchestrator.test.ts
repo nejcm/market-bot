@@ -2395,7 +2395,7 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
-  test("re-prompts deep synthesis with coverage panel prior stages when predictions are trimmed for redundancy", async () => {
+  test("records redundancy trims without reprompting deep synthesis", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;
     const provider: ModelProvider = {
@@ -2453,11 +2453,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        return {
-          content: modelReport("SPY"),
-          tokenEstimate: 100,
-          costEstimateUsd: 0.01,
-        };
+        throw new Error("redundancy-only trims must not retry final synthesis");
       },
     };
 
@@ -2478,16 +2474,14 @@ describe("runResearchJob", () => {
     const redundancyReason =
       "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)";
 
-    // Redundancy still triggers a single reprompt; a shortfall alone never would (ADR 0021).
-    expect(finalPrompts).toHaveLength(2);
-    expect(finalPrompts[1]?.predictionRepromptErrors).toContain(redundancyReason);
-    expect(
-      (finalPrompts[1]?.predictionRepromptErrors as readonly string[] | undefined)?.some((reason) =>
-        reason.includes("predictionShortfall"),
-      ),
-    ).toBe(false);
-    expect(result.trace.predictionRetryErrors).toContain(redundancyReason);
-    expect(priorStageNames(finalPrompts[1] ?? {})).toEqual([
+    expect(finalPrompts).toHaveLength(1);
+    expect(finalPrompts[0]?.predictionRepromptErrors).toBeUndefined();
+    expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
+    expect(result.trace.predictionTrimWarnings).toContain(redundancyReason);
+    expect(result.report.predictions).toHaveLength(1);
+    expect(result.report.predictions[0]?.id).toBe("pred-1");
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+    expect(priorStageNames(finalPrompts[0] ?? {})).toEqual([
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
@@ -2495,7 +2489,7 @@ describe("runResearchJob", () => {
     ]);
   });
 
-  test("re-prompts synthesis when adjacent direction forecasts are trimmed", async () => {
+  test("ships non-redundant forecasts when adjacent direction forecasts are trimmed", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;
     const provider: ModelProvider = {
@@ -2563,11 +2557,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        return {
-          content: modelReport("SPY"),
-          tokenEstimate: 100,
-          costEstimateUsd: 0.01,
-        };
+        throw new Error("redundancy-only trims must not retry final synthesis");
       },
     };
 
@@ -2584,21 +2574,18 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
-    const retryPrompt = finalPrompts[1] ?? {};
+    const redundancyReason =
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)";
 
-    expect(finalPrompts).toHaveLength(2);
-    expect(retryPrompt.predictionRepromptErrors).toContain(
-      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)",
-    );
-    expect(retryPrompt.predictionRepromptErrors).not.toContain(
-      "predictionShortfall: required 2, received 2",
-    );
-    expect(
-      (retryPrompt.predictionRepair as { readonly instruction?: string } | undefined)?.instruction,
-    ).toContain("at least 2 trading days apart");
-    expect(result.trace.predictionRetryErrors).toContain(
-      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)",
-    );
+    expect(finalPrompts).toHaveLength(1);
+    expect(finalPrompts[0]?.predictionRepromptErrors).toBeUndefined();
+    expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
+    expect(result.trace.predictionTrimWarnings).toContain(redundancyReason);
+    expect(result.report.predictions.map((prediction) => prediction.id)).toEqual([
+      "pred-1",
+      "pred-distinct",
+    ]);
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
   });
 
   test("re-prompts synthesis once when report findings omit source IDs", async () => {

@@ -119,7 +119,8 @@ describe("validatePredictions", () => {
     );
 
     expect(result.valid).toHaveLength(1);
-    expect(result.errors).toEqual([
+    expect(result.errors).toEqual([]);
+    expect(result.issues.map((issue) => issue.message)).toEqual([
       expect.stringContaining("duplicate measurableAs"),
       expect.stringContaining("duplicate measurableAs"),
     ]);
@@ -147,7 +148,10 @@ describe("validatePredictions", () => {
 
     expect(result.valid).toHaveLength(1);
     expect(result.valid[0]?.horizonTradingDays).toBe(5);
-    expect(result.errors[0]).toContain("redundant direction forecast for AAPL at 6 trading days");
+    expect(result.errors).toEqual([]);
+    expect(result.issues[0]?.message).toContain(
+      "redundant direction forecast for AAPL at 6 trading days",
+    );
   });
 
   test("prefers the shorter direction horizon when adjacent forecasts arrive reversed", () => {
@@ -247,7 +251,10 @@ describe("validatePredictions", () => {
     );
 
     expect(result.valid).toHaveLength(1);
-    expect(result.errors[0]).toContain("redundant range forecast for AAPL at 5 trading days");
+    expect(result.errors).toEqual([]);
+    expect(result.issues[0]?.message).toContain(
+      "redundant range forecast for AAPL at 5 trading days",
+    );
   });
 
   test("accepts a valid relative prediction", () => {

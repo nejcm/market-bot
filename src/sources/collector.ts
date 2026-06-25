@@ -23,6 +23,7 @@ import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils"
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
+import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import { collectValuationComps } from "./extended-evidence/valuation-comps";
@@ -677,6 +678,13 @@ export async function collectSources(
     verifiedSnapshotResult?.snapshot,
     ctx.fetchedAt,
   );
+  const businessFrameworkResult = addBusinessFrameworkEvidence(
+    command,
+    resolvedMarketResult.marketSnapshots,
+    financialLensResult.extendedEvidence,
+    verifiedSnapshotResult?.snapshot,
+    ctx.fetchedAt,
+  );
 
   // Earnings Setup: equity ticker deep only — parse Finnhub calendar for a
   // Near upcoming event, then compute deterministic implied move from Tradier.
@@ -747,8 +755,8 @@ export async function collectSources(
       ...(valuationCompsResult?.sources ?? []),
       ...earningsExtraSources,
     ],
-    ...(financialLensResult.extendedEvidence !== undefined
-      ? { extendedEvidence: financialLensResult.extendedEvidence }
+    ...(businessFrameworkResult.extendedEvidence !== undefined
+      ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
       : {}),
     ...(marketContextResult.marketContext !== undefined
       ? { marketContext: marketContextResult.marketContext }
@@ -768,6 +776,9 @@ export async function collectSources(
     ...(financialLensResult.artifact !== undefined
       ? { financialLenses: financialLensResult.artifact }
       : {}),
+    ...(businessFrameworkResult.artifact !== undefined
+      ? { businessFramework: businessFrameworkResult.artifact }
+      : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
@@ -775,6 +786,7 @@ export async function collectSources(
       ...valuationResult.sourceGaps,
       ...(valuationCompsResult?.gaps ?? []),
       ...financialLensResult.sourceGaps,
+      ...businessFrameworkResult.sourceGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

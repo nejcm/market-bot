@@ -1980,6 +1980,32 @@ describe("runResearchJob", () => {
           ],
           sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
         },
+        businessFramework: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          symbol: "AAPL",
+          phase: "capital-return",
+          sections: [
+            {
+              name: "Phase",
+              posture: "criteria-supported",
+              summary: "Phase criteria-supported (Phase capital-return)",
+              metrics: [
+                {
+                  key: "phase",
+                  label: "Phase",
+                  value: "capital-return",
+                  unit: "text",
+                  sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+                },
+              ],
+              sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              gaps: [],
+            },
+          ],
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          gaps: [],
+        },
       }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
@@ -1990,6 +2016,9 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "financial-lenses.json"), "utf8"),
     ).resolves.toContain('"posture": "criteria-supported"');
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "business-framework.json"), "utf8"),
+    ).resolves.toContain('"phase": "capital-return"');
   });
 
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {

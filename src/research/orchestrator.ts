@@ -797,6 +797,10 @@ export async function persistResearchJob(
       join(artifacts.runDir, RUN_ARTIFACT_FILES.financialLenses),
       result.collectedSources.financialLenses ?? null,
     );
+    await writeJson(
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.businessFramework),
+      result.collectedSources.businessFramework ?? null,
+    );
   }
   if (isMarketUpdateJobType(input.command.jobType)) {
     await writeJson(

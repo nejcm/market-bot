@@ -9,6 +9,13 @@ import type {
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
 import type {
+  BusinessFrameworkArtifact,
+  BusinessFrameworkMetric,
+  BusinessFrameworkPosture,
+  BusinessFrameworkSectionName,
+  BusinessLifecyclePhase,
+} from "../../src/sources/extended-evidence/business-framework";
+import type {
   FinancialLensArtifact,
   FinancialLensMetric,
   FinancialLensName,
@@ -113,6 +120,28 @@ export interface FinancialLensStatTile extends ValuationMetricTile {
   readonly lens: FinancialLensName;
   readonly tone: FinancialLensStatTone;
   readonly assessment?: "Strong" | "Healthy" | "Watch" | "Weak";
+}
+
+export interface BusinessFrameworkMetricTile extends ValuationMetricTile {
+  readonly key: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface BusinessFrameworkSectionView {
+  readonly name: BusinessFrameworkSectionName;
+  readonly posture: BusinessFrameworkPosture;
+  readonly summary: string;
+  readonly text?: string;
+  readonly metrics: readonly BusinessFrameworkMetricTile[];
+  readonly sourceIds: readonly string[];
+  readonly gaps: readonly string[];
+}
+
+export interface BusinessFrameworkView {
+  readonly phase: BusinessLifecyclePhase;
+  readonly sections: readonly BusinessFrameworkSectionView[];
+  readonly sourceIds: readonly string[];
+  readonly gaps: readonly string[];
 }
 
 export interface ReliabilityBin {
@@ -523,6 +552,132 @@ export function financialLensStatTiles(
         ...assessFinancialLensMetric(metric),
       };
     }),
+  );
+}
+
+const BUSINESS_FRAMEWORK_SECTION_NAMES: ReadonlySet<string> = new Set<BusinessFrameworkSectionName>(
+  ["Business", "Phase", "Moat", "Growth", "Management", "Risk", "Valuation"],
+);
+const BUSINESS_FRAMEWORK_PHASES: ReadonlySet<string> = new Set<BusinessLifecyclePhase>([
+  "startup",
+  "hyper-growth",
+  "operating-leverage",
+  "capital-return",
+  "decline",
+]);
+const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFrameworkPosture>([
+  "criteria-supported",
+  "criteria-mixed",
+  "criteria-not-supported",
+  "insufficient-data",
+]);
+const BUSINESS_FRAMEWORK_UNITS: ReadonlySet<string> = new Set<BusinessFrameworkMetric["unit"]>([
+  "ratio",
+  "ratio-percent",
+  "whole-percent",
+  "currency",
+  "number",
+  "text",
+]);
+
+function sourceIdArray(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function businessFrameworkMetricTile(value: unknown): BusinessFrameworkMetricTile | undefined {
+  const record = readRecord(value);
+  if (record === undefined) {
+    return undefined;
+  }
+  const key = readStringField(record, "key");
+  const label = readStringField(record, "label");
+  const unit = readStringField(record, "unit");
+  const raw = record.value;
+  if (
+    key === undefined ||
+    label === undefined ||
+    unit === undefined ||
+    !BUSINESS_FRAMEWORK_UNITS.has(unit) ||
+    (typeof raw !== "number" && typeof raw !== "string")
+  ) {
+    return undefined;
+  }
+  const currency = readStringField(record, "currency");
+  const typedUnit = unit as BusinessFrameworkMetric["unit"];
+  return {
+    key,
+    label,
+    value: typeof raw === "string" ? raw : formatLensValue(raw, typedUnit, currency),
+    sourceIds: sourceIdArray(record.sourceIds),
+  };
+}
+
+function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | undefined {
+  const record = readRecord(value);
+  if (record === undefined) {
+    return undefined;
+  }
+  const phase = readStringField(record, "phase");
+  if (phase === undefined || !BUSINESS_FRAMEWORK_PHASES.has(phase)) {
+    return undefined;
+  }
+  const typedPhase = phase as BusinessLifecyclePhase;
+  const rawSections = Array.isArray(record.sections) ? record.sections : [];
+  const sections = rawSections.flatMap((item): readonly BusinessFrameworkSectionView[] => {
+    const section = readRecord(item);
+    if (section === undefined) {
+      return [];
+    }
+    const name = readStringField(section, "name");
+    const posture = readStringField(section, "posture");
+    const summary = readStringField(section, "summary");
+    if (
+      name === undefined ||
+      posture === undefined ||
+      summary === undefined ||
+      !BUSINESS_FRAMEWORK_SECTION_NAMES.has(name) ||
+      !BUSINESS_FRAMEWORK_POSTURES.has(posture)
+    ) {
+      return [];
+    }
+    const typedName = name as BusinessFrameworkSectionName;
+    const typedPosture = posture as BusinessFrameworkPosture;
+    const text = readStringField(section, "text");
+    const metrics = Array.isArray(section.metrics)
+      ? section.metrics.flatMap((metric) => {
+          const tile = businessFrameworkMetricTile(metric);
+          return tile === undefined ? [] : [tile];
+        })
+      : [];
+    return [
+      {
+        name: typedName,
+        posture: typedPosture,
+        summary,
+        ...(text !== undefined ? { text } : {}),
+        metrics,
+        sourceIds: sourceIdArray(section.sourceIds),
+        gaps: sourceIdArray(section.gaps),
+      },
+    ];
+  });
+  return {
+    phase: typedPhase,
+    sections,
+    sourceIds: sourceIdArray(record.sourceIds),
+    gaps: sourceIdArray(record.gaps),
+  };
+}
+
+export function businessFrameworkView(
+  report: Record<string, unknown> | undefined,
+  artifact?: BusinessFrameworkArtifact,
+): BusinessFrameworkView | undefined {
+  const extras = readRecord(report?.extras);
+  return (
+    businessFrameworkFromValue(extras?.businessFramework) ?? businessFrameworkFromValue(artifact)
   );
 }
 

@@ -141,6 +141,43 @@ describe("loadRunArtifact", () => {
     ]);
   });
 
+  test("loads business framework sidecar through the run artifact seam", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "business-framework");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "business-framework" }));
+    await writeJson(join(runDir, "normalized", "business-framework.json"), {
+      version: 1,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      symbol: "AAPL",
+      phase: "capital-return",
+      sections: [
+        {
+          name: "Business",
+          posture: "criteria-supported",
+          summary: "Business criteria-supported.",
+          metrics: [
+            {
+              key: "revenue",
+              label: "Revenue",
+              value: 100,
+              unit: "currency",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          sourceIds: ["market-aapl"],
+          gaps: ["Segment mix unavailable"],
+        },
+      ],
+      sourceIds: ["market-aapl"],
+      gaps: ["Management evidence unavailable"],
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.businessFramework?.phase).toBe("capital-return");
+    expect(artifact?.businessFramework?.sections[0]?.name).toBe("Business");
+  });
+
   test("loads source-plan sidecars through the run artifact seam", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "source-plan");

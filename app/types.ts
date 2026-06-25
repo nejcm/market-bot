@@ -1,4 +1,5 @@
 import type { VerifiedMarketSnapshot } from "../src/domain/types";
+import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 
 export interface RunSummary {
@@ -27,6 +28,7 @@ export interface RunDetail {
   readonly missAutopsy?: Record<string, unknown>;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly businessFramework?: BusinessFrameworkArtifact;
 }
 
 export interface RunFile {

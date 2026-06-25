@@ -8,6 +8,7 @@ import {
   alphaCohortHeadline,
   alphaRejectionBucketRows,
   alphaStaleLeadRows,
+  businessFrameworkView,
   closeLinePoints,
   dashboardMetrics,
   extendedEvidenceItems,
@@ -1323,6 +1324,121 @@ describe("report artifact parsers", () => {
       { label: "Momentum", value: "criteria not supported" },
       { label: "RSI14", value: "58.00" },
     ]);
+  });
+
+  test("parses business framework from report extras before sidecar fallback", () => {
+    const artifact = {
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      phase: "operating-leverage",
+      sections: [
+        {
+          name: "Business",
+          posture: "criteria-supported",
+          summary: "Fallback summary.",
+          metrics: [],
+          sourceIds: ["sidecar-source"],
+          gaps: [],
+        },
+      ],
+      sourceIds: ["sidecar-source"],
+      gaps: [],
+    } as const;
+
+    expect(
+      businessFrameworkView(
+        {
+          extras: {
+            businessFramework: {
+              phase: "capital-return",
+              sourceIds: ["report-source"],
+              gaps: ["Management evidence unavailable"],
+              sections: [
+                {
+                  name: "Business",
+                  posture: "criteria-supported",
+                  summary: "Deterministic summary.",
+                  text: "Model-authored framework text.",
+                  metrics: [
+                    {
+                      key: "grossMargin",
+                      label: "Gross margin",
+                      value: 0.42,
+                      unit: "ratio-percent",
+                      sourceIds: ["report-source"],
+                    },
+                  ],
+                  sourceIds: ["report-source"],
+                  gaps: ["Segment mix unavailable"],
+                },
+              ],
+            },
+          },
+        },
+        artifact,
+      ),
+    ).toEqual({
+      phase: "capital-return",
+      sourceIds: ["report-source"],
+      gaps: ["Management evidence unavailable"],
+      sections: [
+        {
+          name: "Business",
+          posture: "criteria-supported",
+          summary: "Deterministic summary.",
+          text: "Model-authored framework text.",
+          metrics: [
+            {
+              key: "grossMargin",
+              label: "Gross margin",
+              value: "42.0%",
+              sourceIds: ["report-source"],
+            },
+          ],
+          sourceIds: ["report-source"],
+          gaps: ["Segment mix unavailable"],
+        },
+      ],
+    });
+  });
+
+  test("falls back to business framework sidecar and rejects malformed phase", () => {
+    const artifact = {
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      phase: "hyper-growth",
+      sections: [
+        {
+          name: "Growth",
+          posture: "criteria-mixed",
+          summary: "Growth criteria-mixed.",
+          metrics: [
+            {
+              key: "revenueDeltaPercent",
+              label: "Revenue YoY",
+              value: 12,
+              unit: "whole-percent",
+              sourceIds: ["s"],
+            },
+          ],
+          sourceIds: ["s"],
+          gaps: [],
+        },
+      ],
+      sourceIds: ["s"],
+      gaps: [],
+    } as const;
+
+    expect(businessFrameworkView(undefined, artifact)?.sections[0]?.metrics[0]?.value).toBe(
+      "12.0%",
+    );
+    expect(
+      businessFrameworkView({
+        extras: { businessFramework: { phase: "invalid", sections: [] } },
+      }),
+    ).toBeUndefined();
   });
 
   test("assesses financial lens stats where standalone thresholds are meaningful", () => {

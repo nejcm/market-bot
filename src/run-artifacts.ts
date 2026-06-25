@@ -44,6 +44,12 @@ import {
   type SourcePlanArtifact,
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
+import type {
+  BusinessFrameworkArtifact,
+  BusinessFrameworkPosture,
+  BusinessFrameworkSectionName,
+  BusinessLifecyclePhase,
+} from "./sources/extended-evidence/business-framework";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -96,6 +102,7 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly businessFramework?: BusinessFrameworkArtifact;
   readonly status: RunArtifactStatus;
 }
 
@@ -777,6 +784,22 @@ const FINANCIAL_LENS_UNITS: ReadonlySet<string> = new Set([
   "number",
   "text",
 ]);
+const BUSINESS_FRAMEWORK_SECTION_NAMES: ReadonlySet<string> = new Set<BusinessFrameworkSectionName>(
+  ["Business", "Phase", "Moat", "Growth", "Management", "Risk", "Valuation"],
+);
+const BUSINESS_FRAMEWORK_PHASES: ReadonlySet<string> = new Set<BusinessLifecyclePhase>([
+  "startup",
+  "hyper-growth",
+  "operating-leverage",
+  "capital-return",
+  "decline",
+]);
+const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFrameworkPosture>([
+  "criteria-supported",
+  "criteria-mixed",
+  "criteria-not-supported",
+  "insufficient-data",
+]);
 
 function hasFinancialLensMetricShape(value: unknown): boolean {
   return (
@@ -820,6 +843,43 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
     return undefined;
   }
   return value as unknown as FinancialLensArtifact;
+}
+
+function hasBusinessFrameworkMetricShape(value: unknown): boolean {
+  return hasFinancialLensMetricShape(value);
+}
+
+function hasBusinessFrameworkSectionShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    BUSINESS_FRAMEWORK_SECTION_NAMES.has(value.name) &&
+    typeof value.posture === "string" &&
+    BUSINESS_FRAMEWORK_POSTURES.has(value.posture) &&
+    typeof value.summary === "string" &&
+    Array.isArray(value.metrics) &&
+    value.metrics.every(hasBusinessFrameworkMetricShape) &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    readStringArray(value, "gaps") !== undefined
+  );
+}
+
+function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
+    readString(value, "symbol") === undefined ||
+    typeof value.phase !== "string" ||
+    !BUSINESS_FRAMEWORK_PHASES.has(value.phase) ||
+    !Array.isArray(value.sections) ||
+    !value.sections.every(hasBusinessFrameworkSectionShape) ||
+    readStringArray(value, "sourceIds") === undefined ||
+    readStringArray(value, "gaps") === undefined
+  ) {
+    return undefined;
+  }
+  return value as unknown as BusinessFrameworkArtifact;
 }
 
 function hasSourceLedgerEntryShape(value: unknown): boolean {
@@ -868,6 +928,7 @@ const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
+const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -892,6 +953,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
+  const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
@@ -910,6 +972,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     financialLensesFile.status === "ok"
       ? readFinancialLensesArtifact(financialLensesFile.value)
       : undefined;
+  const businessFramework =
+    businessFrameworkFile.status === "ok"
+      ? readBusinessFrameworkArtifact(businessFrameworkFile.value)
+      : undefined;
 
   return {
     artifact: {
@@ -923,6 +989,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
+      ...(businessFramework !== undefined ? { businessFramework } : {}),
       status,
     },
     status,

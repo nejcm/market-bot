@@ -845,10 +845,6 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
   return value as unknown as FinancialLensArtifact;
 }
 
-function hasBusinessFrameworkMetricShape(value: unknown): boolean {
-  return hasFinancialLensMetricShape(value);
-}
-
 function hasBusinessFrameworkSectionShape(value: unknown): boolean {
   return (
     isRecord(value) &&
@@ -858,7 +854,7 @@ function hasBusinessFrameworkSectionShape(value: unknown): boolean {
     BUSINESS_FRAMEWORK_POSTURES.has(value.posture) &&
     typeof value.summary === "string" &&
     Array.isArray(value.metrics) &&
-    value.metrics.every(hasBusinessFrameworkMetricShape) &&
+    value.metrics.every(hasFinancialLensMetricShape) &&
     readStringArray(value, "sourceIds") !== undefined &&
     readStringArray(value, "gaps") !== undefined
   );

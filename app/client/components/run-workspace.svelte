@@ -596,11 +596,13 @@
                     class="rounded-lg border border-border bg-card px-4 py-3.5"
                   >
                     <div class="flex flex-wrap items-center gap-2">
-                      <span
-                        class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary"
-                      >
-                        {section.posture.replaceAll("-", " ")}
-                      </span>
+                      {#if section.name !== "Phase"}
+                        <span
+                          class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary"
+                        >
+                          {section.posture.replaceAll("-", " ")}
+                        </span>
+                      {/if}
                       <div class="text-[12.5px] font-semibold text-foreground">
                         {section.name}
                       </div>

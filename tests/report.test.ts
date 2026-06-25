@@ -1832,6 +1832,12 @@ describe("report schema and rendering", () => {
               text: "Revenue evidence is available.",
               sourceIds: ["source-1"],
             },
+            {
+              name: "Phase",
+              posture: "criteria-supported",
+              summary: "Phase classification (Phase capital-return)",
+              sourceIds: ["source-1"],
+            },
           ],
         },
       },
@@ -1840,6 +1846,10 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("## Business Framework");
     expect(markdown).toContain("Phase: capital-return");
     expect(markdown).toContain("Revenue evidence is available. [source-1]");
+    expect(markdown).toContain(
+      String.raw`- **Phase**: Phase classification \(Phase capital-return\) [source-1]`,
+    );
+    expect(markdown).not.toContain("**Phase** (criteria-supported)");
     expect(markdown).toContain("Management evidence unavailable");
   });
 

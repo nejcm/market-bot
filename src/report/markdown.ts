@@ -481,7 +481,9 @@ function renderBusinessFramework(report: ResearchReport): string {
       return [];
     }
     const posture =
-      typeof section.posture === "string" ? ` (${markdownText(section.posture)})` : "";
+      section.name !== "Phase" && typeof section.posture === "string"
+        ? ` (${markdownText(section.posture)})`
+        : "";
     let text = "";
     const { text: sectionText, summary } = section;
     if (typeof sectionText === "string") {

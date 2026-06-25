@@ -580,7 +580,7 @@ const BUSINESS_FRAMEWORK_UNITS: ReadonlySet<string> = new Set<BusinessFrameworkM
   "text",
 ]);
 
-function sourceIdArray(value: unknown): readonly string[] {
+function stringArray(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
@@ -610,7 +610,7 @@ function businessFrameworkMetricTile(value: unknown): BusinessFrameworkMetricTil
     key,
     label,
     value: typeof raw === "string" ? raw : formatLensValue(raw, typedUnit, currency),
-    sourceIds: sourceIdArray(record.sourceIds),
+    sourceIds: stringArray(record.sourceIds),
   };
 }
 
@@ -658,16 +658,16 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
         summary,
         ...(text !== undefined ? { text } : {}),
         metrics,
-        sourceIds: sourceIdArray(section.sourceIds),
-        gaps: sourceIdArray(section.gaps),
+        sourceIds: stringArray(section.sourceIds),
+        gaps: stringArray(section.gaps),
       },
     ];
   });
   return {
     phase: typedPhase,
     sections,
-    sourceIds: sourceIdArray(record.sourceIds),
-    gaps: sourceIdArray(record.gaps),
+    sourceIds: stringArray(record.sourceIds),
+    gaps: stringArray(record.gaps),
   };
 }
 

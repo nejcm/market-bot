@@ -175,6 +175,9 @@ function sectionSummary(
     .slice(0, 3)
     .map((item) => `${item.label} ${formatMetricValue(item)}`)
     .join(", ");
+  if (name === "Phase") {
+    return `Phase classification${metricText === "" ? "" : ` (${metricText})`}`;
+  }
   return `${name} ${posture}${metricText === "" ? "" : ` (${metricText})`}`;
 }
 

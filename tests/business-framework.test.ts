@@ -69,16 +69,49 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
 }
 
 describe("business framework evidence", () => {
-  test("classifies capital return from SEC share repurchases", () => {
-    expect(
-      classifyBusinessLifecyclePhase({
-        revenueDeltaPercent: 5,
-        operatingIncome: 20,
-        netIncome: 15,
-        shareRepurchases: 100,
-      }),
-    ).toBe("capital-return");
-  });
+  const phaseCases = [
+    {
+      name: "decline when revenue and income are contracting",
+      input: { revenueDeltaPercent: -4, operatingIncomeDeltaPercent: -2 },
+      expected: "decline",
+    },
+    {
+      name: "hyper-growth at the 30 percent revenue threshold",
+      input: { revenueDeltaPercent: 30, operatingIncome: -2, netIncome: -1 },
+      expected: "hyper-growth",
+    },
+    {
+      name: "capital return from SEC share repurchases",
+      input: { revenueDeltaPercent: 5, operatingIncome: 20, netIncome: 15, shareRepurchases: 100 },
+      expected: "capital-return",
+    },
+    {
+      name: "capital return from dividends paid at the 15 percent growth boundary",
+      input: { revenueDeltaPercent: 15, operatingIncome: 20, netIncome: 15, dividendsPaid: -8 },
+      expected: "capital-return",
+    },
+    {
+      name: "capital return from Yahoo dividend yield",
+      input: { revenueDeltaPercent: 0, operatingIncome: 20, netIncome: 15, dividendYield: 0.01 },
+      expected: "capital-return",
+    },
+    {
+      name: "startup when income metrics are not yet positive",
+      input: { revenueDeltaPercent: 20, operatingIncome: 0, netIncome: -1 },
+      expected: "startup",
+    },
+    {
+      name: "operating leverage as the mature fallback",
+      input: { revenueDeltaPercent: 16, operatingIncome: 20, netIncome: 15 },
+      expected: "operating-leverage",
+    },
+  ] as const;
+
+  for (const phaseCase of phaseCases) {
+    test(`classifies ${phaseCase.name}`, () => {
+      expect(classifyBusinessLifecyclePhase(phaseCase.input)).toBe(phaseCase.expected);
+    });
+  }
 
   test("derives seven neutral framework sections and a sidecar artifact", () => {
     const result = addBusinessFrameworkEvidence(
@@ -104,6 +137,9 @@ describe("business framework evidence", () => {
     ).toBe("insufficient-data");
     expect(result.extendedEvidence?.items.at(-1)?.category).toBe("business-framework");
     expect(result.extendedEvidence?.items.at(-1)?.metrics?.phase).toBe("capital-return");
+    expect(result.artifact?.sections.find((section) => section.name === "Phase")?.summary).toBe(
+      "Phase classification (Phase capital-return, Revenue YoY 6.0%, Share repurchases $10)",
+    );
     expect(result.sourceGaps).toEqual([
       expect.objectContaining({
         source: "business-framework",

@@ -88,7 +88,7 @@ export async function synthesizeReportUntilValid(
     reportValidationErrors = [errorMessage(error)];
   }
 
-  const reportRetryPredictionErrors = predictionRetryReasons(predictionProgress.state.predResult);
+  const reportRetryPredictionErrors = predictionProgress.state.predResult.errors;
   const validationState = await runAndReadFinalSynthesis(input, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
@@ -102,7 +102,7 @@ export async function synthesizeReportUntilValid(
     ]),
   };
 
-  const postReportPredictionErrors = predictionRetryReasons(validationProgress.state.predResult);
+  const postReportPredictionErrors = validationProgress.state.predResult.errors;
   if (postReportPredictionErrors.length > 0) {
     const state = await runAndReadFinalSynthesis(input, {
       predictionErrors: postReportPredictionErrors,
@@ -136,7 +136,13 @@ async function runPredictionReprompts(
   return Array.from({ length: input.maxPredictionReprompts }).reduce<Promise<SynthesisProgress>>(
     async (progressPromise) => {
       const progress = await progressPromise;
-      const retryErrors = predictionRetryReasons(progress.state.predResult);
+      /*
+       * The prediction count is a soft target (ADR 0021), not a hard floor: a
+       * below-target result is disclosed as a predictionShortfall data gap during
+       * report assembly, never repaired by reprompting for more. Prediction trims
+       * are telemetry, not retryable validation errors.
+       */
+      const retryErrors = progress.state.predResult.errors;
       if (retryErrors.length === 0) {
         return progress;
       }
@@ -184,16 +190,6 @@ function buildReport(
     context: input.context,
     sources: input.sources,
   });
-}
-
-function predictionRetryReasons(predResult: ReturnType<typeof readPredictions>): readonly string[] {
-  /*
-   * The prediction count is a soft target (ADR 0021), not a hard floor: a
-   * below-target result is disclosed as a predictionShortfall data gap during
-   * report assembly, never repaired by reprompting for more. Prediction trims
-   * are telemetry, not retryable validation errors.
-   */
-  return predResult.errors;
 }
 
 function predictionTrimWarnings(predResult: ReturnType<typeof readPredictions>): readonly string[] {

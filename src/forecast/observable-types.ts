@@ -121,7 +121,6 @@ export interface ObservableForecastReadResult {
   readonly forecasts: readonly ObservableForecast[];
   readonly predictions: readonly Prediction[];
   readonly issues: readonly ObservableForecastIssue[];
-  readonly promptErrors: readonly string[];
 }
 
 export interface Observation {

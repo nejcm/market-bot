@@ -1207,7 +1207,6 @@ export function readObservableForecasts(
     forecasts: accepted.forecasts,
     predictions: accepted.forecasts.map((forecast) => forecast.prediction),
     issues: allIssues,
-    promptErrors: allIssues.map((item) => item.message),
   };
 }
 

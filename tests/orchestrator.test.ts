@@ -1980,6 +1980,17 @@ describe("runResearchJob", () => {
           ],
           sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
         },
+        extendedSources: [
+          {
+            id: "extended-sec-edgar-aapl-fundamentals",
+            title: "AAPL SEC fundamentals",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "extended-evidence",
+            assetClass: "equity",
+            symbol: "AAPL",
+            provider: "sec-edgar",
+          },
+        ],
         businessFramework: {
           version: 1,
           generatedAt: "2026-05-19T00:00:00.000Z",

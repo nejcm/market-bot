@@ -64,6 +64,14 @@ export interface ExtendedEvidenceItemView {
 }
 
 type FindingSection = "keyFindings" | "bullCase" | "bearCase" | "risks" | "catalysts";
+type ReportSearchInputKey =
+  | "summary"
+  | FindingSection
+  | "dataGaps"
+  | "predictions"
+  | "sources"
+  | "extendedEvidence";
+type ReportSearchInput = Partial<Readonly<Record<ReportSearchInputKey, unknown>>>;
 
 export function predictionClaim(prediction: Prediction): string {
   return renderClaimForMeasurableAs(prediction.measurableAs, prediction.claim) ?? prediction.claim;
@@ -101,6 +109,11 @@ function readString(record: Record<string, unknown>, key: string): string | unde
   return typeof value === "string" ? value : undefined;
 }
 
+function readInputString(record: ReportSearchInput, key: ReportSearchInputKey): string | undefined {
+  const value = record[key];
+  return typeof value === "string" ? value : undefined;
+}
+
 function readSourceIds(record: Record<string, unknown>): readonly string[] {
   const { sourceIds } = record;
   return Array.isArray(sourceIds)
@@ -131,8 +144,8 @@ function readMetrics(
 }
 
 export function textItems(
-  report: Record<string, unknown> | undefined,
-  key: string,
+  report: ReportSearchInput | undefined,
+  key: FindingSection,
 ): readonly TextWithSources[] {
   const value = report?.[key];
   if (!Array.isArray(value)) {
@@ -148,8 +161,8 @@ export function textItems(
 }
 
 export function stringArray(
-  report: Record<string, unknown> | undefined,
-  key: string,
+  report: ReportSearchInput | undefined,
+  key: "dataGaps",
 ): readonly string[] {
   const value = report?.[key];
   return Array.isArray(value)
@@ -158,7 +171,7 @@ export function stringArray(
 }
 
 export function extendedEvidenceItems(
-  report?: Record<string, unknown>,
+  report?: ReportSearchInput,
 ): readonly ExtendedEvidenceItemView[] {
   const block = report?.extendedEvidence;
   if (!isRecord(block)) {
@@ -213,7 +226,7 @@ function findingLabel(section: FindingSection, scope: ReportSearchScope): string
 }
 
 function textItemCandidates(
-  report: Record<string, unknown>,
+  report: ReportSearchInput,
   section: FindingSection,
   scope: ReportSearchScope,
 ): readonly ReportSearchCandidate[] {
@@ -234,7 +247,7 @@ function predictionLabel(scope: ReportSearchScope, id: string | undefined): stri
 }
 
 function predictionCandidates(
-  report: Record<string, unknown>,
+  report: ReportSearchInput,
   scope: ReportSearchScope,
 ): readonly ReportSearchCandidate[] {
   const value = report.predictions;
@@ -279,7 +292,7 @@ function predictionCandidates(
 }
 
 function sourceCandidates(
-  report: Record<string, unknown>,
+  report: ReportSearchInput,
   scope: ReportSearchScope,
 ): readonly ReportSearchCandidate[] {
   const value = report.sources;
@@ -315,7 +328,7 @@ function sourceCandidates(
     });
 }
 
-function dataGapCandidates(report: Record<string, unknown>): readonly ReportSearchCandidate[] {
+function dataGapCandidates(report: ReportSearchInput): readonly ReportSearchCandidate[] {
   return stringArray(report, "dataGaps").map((text, index) => ({
     section: "dataGaps",
     label: `Data gap ${String(index + 1)}`,
@@ -324,9 +337,7 @@ function dataGapCandidates(report: Record<string, unknown>): readonly ReportSear
   }));
 }
 
-function extendedEvidenceCandidates(
-  report: Record<string, unknown>,
-): readonly ReportSearchCandidate[] {
+function extendedEvidenceCandidates(report: ReportSearchInput): readonly ReportSearchCandidate[] {
   return extendedEvidenceItems(report).map((item, index) => ({
     section: "extendedEvidence",
     label: item.title === "" ? `Extended evidence ${String(index + 1)}` : item.title,
@@ -338,12 +349,12 @@ function extendedEvidenceCandidates(
 }
 
 export function reportSearchCandidates(
-  report: Record<string, unknown>,
+  report: ReportSearchInput,
   scope: ReportSearchScope,
 ): readonly ReportSearchCandidate[] {
   const out: ReportSearchCandidate[] = [];
 
-  const summary = readString(report, "summary");
+  const summary = readInputString(report, "summary");
   if (summary !== undefined) {
     pushCandidate(out, { section: "summary", label: "Summary", text: summary, sourceIds: [] });
   }
@@ -429,27 +440,12 @@ function enrichCandidate(
   return {};
 }
 
-function reportCandidateRecord(report: ResearchReport): Record<string, unknown> {
-  return {
-    summary: report.summary,
-    keyFindings: report.keyFindings,
-    bullCase: report.bullCase,
-    bearCase: report.bearCase,
-    risks: report.risks,
-    catalysts: report.catalysts,
-    dataGaps: report.dataGaps,
-    predictions: report.predictions,
-    sources: report.sources,
-    extendedEvidence: report.extendedEvidence,
-  };
-}
-
 export function buildReportSearchEntries(
   report: ResearchReport,
   scores: readonly PredictionScore[],
   scope: ReportSearchScope,
 ): readonly ReportSearchEntry[] {
-  const candidates = reportSearchCandidates(reportCandidateRecord(report), scope);
+  const candidates = reportSearchCandidates(report, scope);
 
   const sourceById = new Map<string, Source>();
   for (const source of report.sources) {

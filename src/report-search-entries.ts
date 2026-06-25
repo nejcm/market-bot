@@ -37,8 +37,7 @@ export interface ReportSearchEntry {
 }
 
 // Sections a raw-record candidate can carry. `openQuestions` is layered on later by
-// `buildReportSearchEntries` (it needs scores), so it is never a candidate section — which
-// Makes this set structurally identical to the app's `RunSearchSection`.
+// `buildReportSearchEntries` (it needs scores), so it is never a candidate section.
 export type ReportSearchCandidateSection = Exclude<ReportSearchSection, "openQuestions">;
 
 export interface ReportSearchCandidate {
@@ -46,8 +45,8 @@ export interface ReportSearchCandidate {
   readonly label: string;
   readonly text: string;
   readonly sourceIds: readonly string[];
-  // Stable identity (prediction id / source id) known at build time, carried so the typed
-  // Path can enrich without reverse-engineering it from the display label.
+  // Stable identity (prediction id / source id) known at build time.
+  // The typed path can enrich without reverse-engineering it from the display label.
   readonly identityId?: string;
 }
 
@@ -430,14 +429,27 @@ function enrichCandidate(
   return {};
 }
 
+function reportCandidateRecord(report: ResearchReport): Record<string, unknown> {
+  return {
+    summary: report.summary,
+    keyFindings: report.keyFindings,
+    bullCase: report.bullCase,
+    bearCase: report.bearCase,
+    risks: report.risks,
+    catalysts: report.catalysts,
+    dataGaps: report.dataGaps,
+    predictions: report.predictions,
+    sources: report.sources,
+    extendedEvidence: report.extendedEvidence,
+  };
+}
+
 export function buildReportSearchEntries(
   report: ResearchReport,
   scores: readonly PredictionScore[],
   scope: ReportSearchScope,
 ): readonly ReportSearchEntry[] {
-  // The typed report is reinterpreted as a raw record so it can share the single lenient
-  // Candidate builder; identity/enrichment below is recovered from the typed report itself.
-  const candidates = reportSearchCandidates(report as unknown as Record<string, unknown>, scope);
+  const candidates = reportSearchCandidates(reportCandidateRecord(report), scope);
 
   const sourceById = new Map<string, Source>();
   for (const source of report.sources) {
@@ -449,6 +461,7 @@ export function buildReportSearchEntries(
   const entries: ReportSearchEntry[] = [];
 
   for (const candidate of candidates) {
+    // Sequence is the compacted ordinal after empty candidates are filtered.
     const sequence = sequenceBySection.get(candidate.section) ?? 0;
     sequenceBySection.set(candidate.section, sequence + 1);
 

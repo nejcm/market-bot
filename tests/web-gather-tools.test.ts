@@ -177,6 +177,72 @@ describe("web gather tools", () => {
     ]);
   });
 
+  test("validates web_search args before fetching", async () => {
+    const ctx = baseCtx({
+      request: requestExecutor({
+        json: async () => {
+          throw new Error("must not fetch invalid search args");
+        },
+      }),
+    });
+
+    const nonObject = await executeWebGatherTool("web_search", "AAPL", ctx, new Set());
+    const blankQuery = await executeWebGatherTool("web_search", { query: "   " }, ctx, new Set());
+
+    expect(nonObject.gaps).toEqual([
+      expect.objectContaining({
+        source: "exa",
+        cause: "validation-failed",
+        message: "web_search args must be an object",
+      }),
+    ]);
+    expect(blankQuery.gaps).toEqual([
+      expect.objectContaining({
+        source: "exa",
+        cause: "validation-failed",
+        message: "web_search requires a non-empty query",
+      }),
+    ]);
+  });
+
+  test("validates web_fetch args before fetching", async () => {
+    const ctx = baseCtx({
+      request: requestExecutor({
+        json: async () => {
+          throw new Error("must not fetch invalid fetch args");
+        },
+      }),
+    });
+
+    const nonObject = await executeWebGatherTool(
+      "web_fetch",
+      ["https://example.test/apple"],
+      ctx,
+      new Set(["https://example.test/apple"]),
+    );
+    const blankUrl = await executeWebGatherTool(
+      "web_fetch",
+      { url: "   " },
+      ctx,
+      new Set(["https://example.test/apple"]),
+    );
+
+    expect(nonObject.gaps).toEqual([
+      expect.objectContaining({
+        source: "exa",
+        cause: "validation-failed",
+        message: "web_fetch args must be an object",
+      }),
+    ]);
+    expect(blankUrl.gaps).toEqual([
+      expect.objectContaining({
+        source: "exa",
+        cause: "validation-failed",
+        message: "web_fetch requires a non-empty url",
+      }),
+    ]);
+  });
+
   test("executes Exa contents fetch only for surfaced URLs", async () => {
     const requests: {
       readonly adapter: string;
@@ -253,6 +319,52 @@ describe("web gather tools", () => {
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) => jsonResult(adapter, { notResults: [] }),
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(result.rawSnapshots).toHaveLength(1);
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "exa",
+        cause: "malformed-response",
+        message: "Exa search response was malformed",
+      }),
+    ]);
+  });
+
+  test("classifies empty Exa results as provider data missing", async () => {
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model" },
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) => jsonResult(adapter, { results: [] }),
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(result.rawSnapshots).toHaveLength(1);
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "exa",
+        cause: "provider-data-missing",
+        message: 'Exa returned no usable web search results for "AAPL business model"',
+      }),
+    ]);
+  });
+
+  test("classifies unparseable Exa result entries as malformed", async () => {
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model" },
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) => jsonResult(adapter, { results: [{ title: "Missing URL" }] }),
         }),
       }),
       new Set(),

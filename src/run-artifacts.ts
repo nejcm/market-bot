@@ -2,6 +2,7 @@ import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
+  SOURCE_KINDS,
   isMarketRegimeLabel,
   type AssetClass,
   type ExtendedEvidence,
@@ -155,6 +156,9 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "fred-macro",
   "options-iv",
   "on-chain",
+  "financial-lens",
+  "business-framework",
+  "web-company-profile",
   "yahoo-fundamentals",
 ]);
 const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set(EVIDENCE_LANES);
@@ -164,20 +168,6 @@ const LANE_COVERAGE_STATUSES: ReadonlySet<string> = new Set<LaneCoverageStatus>(
   "gap",
   "not-covered",
 ]);
-const SOURCE_KINDS = [
-  "market-data",
-  "news",
-  "model",
-  "extended-evidence",
-  "market-context",
-  "discussion",
-  "reference",
-] as const satisfies readonly Source["kind"][];
-
-type MissingSourceKinds = Exclude<Source["kind"], (typeof SOURCE_KINDS)[number]>;
-const EXHAUSTIVE_SOURCE_KINDS: MissingSourceKinds extends never ? true : never = true;
-void EXHAUSTIVE_SOURCE_KINDS;
-
 const SOURCE_KIND_SET: ReadonlySet<Source["kind"]> = new Set(SOURCE_KINDS);
 
 function isAssetClass(value: unknown): value is AssetClass {

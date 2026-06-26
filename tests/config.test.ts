@@ -200,6 +200,13 @@ describe("resolveConfig", () => {
       maxToolCalls: 8,
       sourceBudget: 24,
     });
+    expect(resolveConfig({}).webGatherOptions).toEqual({
+      maxRounds: 2,
+      maxToolCalls: 4,
+      sourceBudget: 8,
+    });
+    expect(resolveConfig({}).webGatherDisabled).toBe(false);
+    expect(resolveConfig({}).webProfileReuseDays).toBe(30);
   });
 
   test("uses history and market spotlight defaults", () => {
@@ -280,6 +287,23 @@ describe("resolveConfig", () => {
       maxToolCalls: 5,
       sourceBudget: 21,
     });
+    expect(
+      resolveConfig({
+        MARKET_BOT_WEB_GATHER_MAX_ROUNDS: "0",
+        MARKET_BOT_WEB_GATHER_MAX_TOOL_CALLS: "3",
+        MARKET_BOT_WEB_GATHER_SOURCE_BUDGET: "13",
+        MARKET_BOT_WEB_GATHER_DISABLE: "true",
+        MARKET_BOT_WEB_PROFILE_REUSE_DAYS: "45",
+      }),
+    ).toMatchObject({
+      webGatherOptions: {
+        maxRounds: 0,
+        maxToolCalls: 3,
+        sourceBudget: 13,
+      },
+      webGatherDisabled: true,
+      webProfileReuseDays: 45,
+    });
   });
 
   test("rejects invalid evidence request loop settings", () => {
@@ -288,6 +312,12 @@ describe("resolveConfig", () => {
     );
     expect(() => resolveConfig({ MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "-1" })).toThrow(
       "Expected non-negative integer",
+    );
+    expect(() => resolveConfig({ MARKET_BOT_WEB_GATHER_SOURCE_BUDGET: "-1" })).toThrow(
+      "Expected non-negative integer",
+    );
+    expect(() => resolveConfig({ MARKET_BOT_WEB_PROFILE_REUSE_DAYS: "0" })).toThrow(
+      "Expected positive integer",
     );
   });
 
@@ -332,12 +362,14 @@ describe("resolveConfig", () => {
         MARKET_BOT_FRED_API_KEY: "fred-key",
         MARKET_BOT_TRADIER_API_TOKEN: "tradier-token",
         MARKET_BOT_GLASSNODE_API_KEY: "glassnode-key",
+        MARKET_BOT_EXA_API_KEY: "exa-key",
         MARKET_BOT_SEC_USER_AGENT: "market-bot test@example.test",
       }).sourceOptions,
     ).toMatchObject({
       fredApiKey: "fred-key",
       tradierApiToken: "tradier-token",
       glassnodeApiKey: "glassnode-key",
+      exaApiKey: "exa-key",
       secUserAgent: "market-bot test@example.test",
     });
   });

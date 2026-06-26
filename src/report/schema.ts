@@ -1,9 +1,10 @@
-import type {
-  EvidenceQuality,
-  KeyFinding,
-  Prediction,
-  ResearchReport,
-  Scenario,
+import {
+  SOURCE_KINDS,
+  type EvidenceQuality,
+  type KeyFinding,
+  type Prediction,
+  type ResearchReport,
+  type Scenario,
 } from "../domain/types";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
@@ -21,6 +22,16 @@ export interface PredictionValidationResult {
 function assertEvidenceQuality(value: string): asserts value is EvidenceQuality {
   if (value !== "high" && value !== "medium" && value !== "low") {
     throw new Error(`Invalid Evidence Quality: ${value}`);
+  }
+}
+
+const SOURCE_KIND_SET: ReadonlySet<string> = new Set(SOURCE_KINDS);
+
+function assertSourceKinds(sources: ResearchReport["sources"]): void {
+  for (const source of sources) {
+    if (!SOURCE_KIND_SET.has(source.kind)) {
+      throw new Error(`Invalid Source kind: ${source.kind}`);
+    }
   }
 }
 
@@ -393,6 +404,7 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));
 
+  assertSourceKinds(report.sources);
   validateFindings(report.keyFindings, knownSourceIds);
   validateFindings(report.bullCase, knownSourceIds);
   validateFindings(report.bearCase, knownSourceIds);

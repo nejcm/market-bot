@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { reportSearchCandidates, type ReportSearchCandidate } from "../src/report-search-entries";
+import {
+  buildReportSearchEntries,
+  reportSearchCandidates,
+  type ReportSearchCandidate,
+} from "../src/report-search-entries";
+import { researchReport } from "./support/fixtures";
 
 const MEASURABLE_AS = "close(SPY, +5) > close(SPY, 0)";
 
@@ -128,6 +133,31 @@ describe("reportSearchCandidates", () => {
 
     expect(find(candidates, "predictions").text).not.toContain(MEASURABLE_AS);
     expect(find(candidates, "sources").text).toBe("title summ snip");
+  });
+
+  test("threads web source kind into search entries", () => {
+    const entries = buildReportSearchEntries(
+      researchReport({
+        sources: [
+          {
+            id: "web-aapl-12345678",
+            title: "AAPL web evidence",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "web",
+            provider: "exa",
+            symbol: "AAPL",
+          },
+        ],
+      }),
+      [],
+      "console",
+    );
+
+    expect(entries.find((entry) => entry.section === "sources")).toMatchObject({
+      provider: "exa",
+      sourceKind: "web",
+      symbol: "AAPL",
+    });
   });
 
   test("skips empty summary and empty-text sections", () => {

@@ -15,6 +15,7 @@ export interface SourceOptions {
   readonly tradierApiToken?: string;
   readonly glassnodeApiKey?: string;
   readonly massiveApiKey?: string;
+  readonly exaApiKey?: string;
   readonly secUserAgent?: string;
   readonly cacheDir?: string;
   readonly cacheDisabled?: boolean;
@@ -30,6 +31,12 @@ export interface EvidenceRequestOptions {
 }
 
 export interface ResearchGatherOptions {
+  readonly maxRounds: number;
+  readonly maxToolCalls: number;
+  readonly sourceBudget: number;
+}
+
+export interface WebGatherOptions {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
@@ -94,6 +101,9 @@ export interface AppConfig {
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
   readonly researchGatherOptions: ResearchGatherOptions;
+  readonly webGatherOptions: WebGatherOptions;
+  readonly webGatherDisabled: boolean;
+  readonly webProfileReuseDays: number;
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
   readonly forecastDisagreementOptions?: ForecastDisagreementOptions;
@@ -153,6 +163,10 @@ const DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT = 40;
 const DEFAULT_RESEARCH_GATHER_MAX_ROUNDS = 4;
 const DEFAULT_RESEARCH_GATHER_MAX_TOOL_CALLS = 8;
 const DEFAULT_RESEARCH_GATHER_SOURCE_BUDGET = 24;
+const DEFAULT_WEB_GATHER_MAX_ROUNDS = 2;
+const DEFAULT_WEB_GATHER_MAX_TOOL_CALLS = 4;
+const DEFAULT_WEB_GATHER_SOURCE_BUDGET = 8;
+const DEFAULT_WEB_PROFILE_REUSE_DAYS = 30;
 const DEFAULT_HISTORY_TICKER_RECENT_LIMIT = 3;
 const DEFAULT_HISTORY_MARKET_RECENT_LIMIT = 5;
 const DEFAULT_HISTORY_RECENT_DAYS = 90;
@@ -557,6 +571,9 @@ export function resolveConfig(
         ? { glassnodeApiKey: readOptionalString(env.MARKET_BOT_GLASSNODE_API_KEY) as string }
         : {}),
       ...(massiveApiKey !== undefined ? { massiveApiKey } : {}),
+      ...(readOptionalString(env.MARKET_BOT_EXA_API_KEY) !== undefined
+        ? { exaApiKey: readOptionalString(env.MARKET_BOT_EXA_API_KEY) as string }
+        : {}),
       secUserAgent: readOptionalString(env.MARKET_BOT_SEC_USER_AGENT) ?? DEFAULT_SEC_USER_AGENT,
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",
       cacheDisabled: readBoolean(env.MARKET_BOT_CACHE_DISABLE),
@@ -587,6 +604,25 @@ export function resolveConfig(
         DEFAULT_RESEARCH_GATHER_SOURCE_BUDGET,
       ),
     },
+    webGatherOptions: {
+      maxRounds: readNonNegativeInteger(
+        env.MARKET_BOT_WEB_GATHER_MAX_ROUNDS,
+        DEFAULT_WEB_GATHER_MAX_ROUNDS,
+      ),
+      maxToolCalls: readNonNegativeInteger(
+        env.MARKET_BOT_WEB_GATHER_MAX_TOOL_CALLS,
+        DEFAULT_WEB_GATHER_MAX_TOOL_CALLS,
+      ),
+      sourceBudget: readNonNegativeInteger(
+        env.MARKET_BOT_WEB_GATHER_SOURCE_BUDGET,
+        DEFAULT_WEB_GATHER_SOURCE_BUDGET,
+      ),
+    },
+    webGatherDisabled: readBoolean(env.MARKET_BOT_WEB_GATHER_DISABLE),
+    webProfileReuseDays: readPositiveInteger(
+      env.MARKET_BOT_WEB_PROFILE_REUSE_DAYS,
+      DEFAULT_WEB_PROFILE_REUSE_DAYS,
+    ),
     alphaSearchOptions:
       options.validateAlphaSearchOptions === false
         ? defaultAlphaSearchOptions()

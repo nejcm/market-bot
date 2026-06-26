@@ -2143,6 +2143,127 @@ describe("runResearchJob", () => {
     );
   });
 
+  test("persists empty web company profile when extraction stage fails", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile-failure");
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: { query: "AAPL Apple business model customers" },
+                  rationale: "company profile evidence",
+                },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-company-profile") {
+          throw new Error("profile timeout");
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: async () =>
+        Response.json({
+          results: [
+            {
+              id: "exa-search-1",
+              url: "https://example.com/apple-profile",
+              title: "Apple business profile",
+              summary: "Apple sells hardware and services.",
+            },
+          ],
+        }),
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile).toMatchObject({
+      sourceIds: [],
+      factLedger: [],
+      openGaps: [expect.stringContaining("profile timeout")],
+    });
+    expect(result.collectedSources.extendedEvidence?.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-company-profile",
+        cause: "malformed-response",
+      }),
+    );
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
+    ).resolves.toContain("profile timeout");
+  });
+
+  test("skips web company profile extraction when web gather produces no web sources", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({ requests: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-gather");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile).toBeUndefined();
+  });
+
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {
     const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-${Date.now()}`);
     dataDirs.push(dataDir);

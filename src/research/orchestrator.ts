@@ -57,14 +57,16 @@ import {
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
 import { validateResearchReport } from "../report/schema";
-import { sourceGap } from "../domain/source-gaps";
 import {
   runForecastDisagreement,
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
 import { runWebGatherLoop } from "./web-gather-loop";
-import { buildWebCompanyProfileEvidence } from "../sources/extended-evidence/web-company-profile";
+import {
+  buildWebCompanyProfileEvidence,
+  buildWebCompanyProfileFailureEvidence,
+} from "../sources/extended-evidence/web-company-profile";
 import {
   buildSpotlightCandidates,
   loadAlphaWatchlistForSpotlights,
@@ -412,27 +414,21 @@ async function runWebCompanyProfileExtraction(input: {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const gap = sourceGap({
-      source: "web-company-profile",
+    const result = buildWebCompanyProfileFailureEvidence({
+      command: input.jobInput.command,
+      generatedAt: input.generatedAt,
       message: `Web Company Profile stage failed (${message})`,
-      provider: "market-bot",
-      capability: "extended-evidence",
       cause: "malformed-response",
-      evidenceQualityImpact: "extended-evidence-cap",
+      extendedEvidence: input.collectedSources.extendedEvidence,
     });
-    const existingExtendedEvidence = input.collectedSources.extendedEvidence;
     return {
       collectedSources: {
         ...input.collectedSources,
-        extendedEvidence: {
-          instrument: existingExtendedEvidence?.instrument ?? {
-            assetClass: input.jobInput.command.assetClass,
-            symbol: input.jobInput.command.symbol,
-          },
-          items: existingExtendedEvidence?.items ?? [],
-          gaps: [...(existingExtendedEvidence?.gaps ?? []), gap],
-        },
-        sourceGaps: [...input.collectedSources.sourceGaps, gap],
+        ...(result.extendedEvidence !== undefined
+          ? { extendedEvidence: result.extendedEvidence }
+          : {}),
+        ...(result.artifact !== undefined ? { webCompanyProfile: result.artifact } : {}),
+        sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
       },
     };
   }

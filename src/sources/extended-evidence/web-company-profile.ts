@@ -171,6 +171,34 @@ export function buildWebCompanyProfileEvidence(input: {
   };
 }
 
+export function buildWebCompanyProfileFailureEvidence(input: {
+  readonly command: InstrumentCommand;
+  readonly generatedAt: string;
+  readonly message: string;
+  readonly cause: NonNullable<SourceGap["cause"]>;
+  readonly extendedEvidence: ExtendedEvidence | undefined;
+  readonly secFilingBasisDate?: string;
+}): WebCompanyProfileResult {
+  const artifact = emptyArtifact(
+    input.command,
+    input.generatedAt,
+    input.message,
+    input.secFilingBasisDate,
+  );
+  const gap = profileGap(input.message, input.cause);
+  return {
+    extendedEvidence: mergeExtendedEvidence(
+      input.command,
+      input.extendedEvidence,
+      artifact,
+      [],
+      [gap],
+    ),
+    artifact,
+    sourceGaps: [gap],
+  };
+}
+
 function parseProfile(
   content: string,
   webSourceIds: ReadonlySet<string>,

@@ -232,6 +232,52 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
   });
 
+  test("rejects unknown source IDs in web-company-profile extras", () => {
+    const answer = { answer: "Apple sells devices and services.", sourceIds: ["unknown-web"] };
+    const webReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      keyFindings: [{ text: "AAPL web profile is cited.", sourceIds: ["web-aapl-12345678"] }],
+      risks: [],
+      scenarios: [],
+      sources: [
+        {
+          id: "web-aapl-12345678",
+          title: "AAPL company page",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "exa",
+        },
+      ],
+      extras: {
+        webCompanyProfile: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: answer,
+            howItMakesMoney: answer,
+            customers: answer,
+            geography: answer,
+            purchaseRecurrence: answer,
+            pricingPower: answer,
+            recessionCyclicality: answer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [{ claim: "Apple sells devices.", sourceIds: ["web-aapl-12345678"] }],
+          openGaps: [],
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
+    };
+
+    expect(() => validateResearchReport(webReport)).toThrow("Unknown source ID: unknown-web");
+  });
+
   test("rejects unknown source kinds", () => {
     expect(() =>
       validateResearchReport({

@@ -13,6 +13,7 @@ import {
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import { webCompanyProfileRequiredShape } from "../sources/extended-evidence/web-company-profile";
 import {
   missingVerifiedSnapshotGapText,
   verifiedSnapshotCitationRule,
@@ -757,12 +758,30 @@ const projectResolvedInstrumentIdentity: EvidenceProjector = (_command, collecte
       }
     : {};
 
+const projectWebSources: EvidenceProjector = (command, collectedSources) =>
+  isInstrumentCommand(command)
+    ? {
+        webSources: collectedSources.extendedSources
+          .filter((source) => source.kind === "web")
+          .map((source) => ({
+            id: source.id,
+            title: source.title,
+            ...(source.url !== undefined ? { url: source.url } : {}),
+            ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
+            fetchedAt: source.fetchedAt,
+            ...(source.summary !== undefined ? { summary: source.summary } : {}),
+            ...(source.snippet !== undefined ? { snippet: source.snippet } : {}),
+          })),
+      }
+    : {};
+
 const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectMarketContext,
   projectExtendedEvidence,
   projectEarningsSetup,
   projectVerifiedMarketSnapshot,
   projectResolvedInstrumentIdentity,
+  projectWebSources,
 ];
 
 function buildEvidencePayload(
@@ -887,6 +906,7 @@ function finalReportShape(
   depthProfile: DepthProfile,
   hasEarningsSetup: boolean,
   hasBusinessFramework: boolean,
+  hasWebCompanyProfile: boolean,
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
   const predictionKinds = hasEarningsSetup
@@ -912,6 +932,11 @@ function finalReportShape(
             },
           ],
         },
+      }
+    : {};
+  const webCompanyProfileShape = hasWebCompanyProfile
+    ? {
+        webCompanyProfile: webCompanyProfileRequiredShape(),
       }
     : {};
   return {
@@ -945,6 +970,7 @@ function finalReportShape(
       },
       ...earningsSetupShape,
       ...businessFrameworkShape,
+      ...webCompanyProfileShape,
     },
   };
 }
@@ -1001,6 +1027,7 @@ function stagePlaybooks(
   if (
     stage === "evidence-request" ||
     stage === "web-gather" ||
+    stage === "web-company-profile" ||
     stage === "playbook-selection" ||
     stage === "spotlight-selection"
   ) {
@@ -1174,6 +1201,8 @@ export function buildStagePrompt(
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
+  const hasWebCompanyProfile =
+    isInstrumentCommand(command) && collectedSources.webCompanyProfile !== undefined;
   const earningsPredictionInstruction =
     stage === "final-synthesis" && hasEarningsSetup
       ? " An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today. You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps."
@@ -1182,9 +1211,13 @@ export function buildStagePrompt(
     stage === "final-synthesis" && hasBusinessFramework
       ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
       : "";
+  const webCompanyProfileInstruction =
+    stage === "final-synthesis" && hasWebCompanyProfile
+      ? " A cited Web Company Profile is in evidence.extendedEvidence as category web-company-profile and extras.webCompanyProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative business-model facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
+      : "";
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
+      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webCompanyProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
@@ -1202,8 +1235,16 @@ export function buildStagePrompt(
     if (stage === "web-gather") {
       return webGatherShape();
     }
+    if (stage === "web-company-profile") {
+      return webCompanyProfileRequiredShape();
+    }
     if (stage === "final-synthesis") {
-      return finalReportShape(context.depthProfile, hasEarningsSetup, hasBusinessFramework);
+      return finalReportShape(
+        context.depthProfile,
+        hasEarningsSetup,
+        hasBusinessFramework,
+        hasWebCompanyProfile,
+      );
     }
     return {
       findings: [{ text: "string", sourceIds: ["source-id"] }],

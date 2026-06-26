@@ -2039,6 +2039,110 @@ describe("runResearchJob", () => {
     ).resolves.toContain('"phase": "capital-return"');
   });
 
+  test("extracts and persists web company profile after web gather", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile");
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: { query: "AAPL Apple business model customers" },
+                  rationale: "company profile evidence",
+                },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-company-profile") {
+          const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
+          const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
+          const source = sources.find((item) => isRecord(item)) ?? {};
+          const sourceId = typeof source.id === "string" ? source.id : "missing-source";
+          const answer = {
+            answer: "Apple sells hardware, software, and services.",
+            sourceIds: [sourceId],
+          };
+          return {
+            content: JSON.stringify({
+              companyName: "Apple Inc.",
+              questions: {
+                whatItDoes: answer,
+                howItMakesMoney: answer,
+                customers: answer,
+                geography: answer,
+                purchaseRecurrence: answer,
+                pricingPower: answer,
+                recessionCyclicality: answer,
+              },
+              recentMaterialEvents: [
+                { claim: "Apple reports services revenue.", sourceIds: [sourceId] },
+              ],
+              factLedger: [{ claim: "Apple sells hardware and services.", sourceIds: [sourceId] }],
+              openGaps: [],
+            }),
+            tokenEstimate: 12,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: async () =>
+        Response.json({
+          results: [
+            {
+              id: "exa-search-1",
+              url: "https://example.com/apple-profile",
+              title: "Apple business profile",
+              summary: "Apple sells hardware and services.",
+            },
+          ],
+        }),
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-company-profile");
+    expect(result.trace.webGatherLoop?.acceptedRequests).toHaveLength(1);
+    expect(result.report.extras?.webCompanyProfile).toMatchObject({
+      companyName: "Apple Inc.",
+      factLedger: [expect.objectContaining({ claim: "Apple sells hardware and services." })],
+    });
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
+    ).resolves.toContain('"companyName": "Apple Inc."');
+    await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
+      "## Web Company Profile",
+    );
+  });
+
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {
     const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-${Date.now()}`);
     dataDirs.push(dataDir);

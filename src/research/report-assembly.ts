@@ -22,6 +22,7 @@ import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
+import type { WebCompanyProfileArtifact } from "../sources/extended-evidence/web-company-profile";
 import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
@@ -452,6 +453,25 @@ function businessFrameworkExtra(modelExtra: unknown, collectedSources: Collected
   };
 }
 
+function webCompanyProfileExtra(artifact: WebCompanyProfileArtifact | undefined): unknown {
+  if (artifact === undefined) {
+    return undefined;
+  }
+  return {
+    version: artifact.version,
+    symbol: artifact.symbol,
+    ...(artifact.companyName !== undefined ? { companyName: artifact.companyName } : {}),
+    questions: artifact.questions,
+    recentMaterialEvents: artifact.recentMaterialEvents,
+    factLedger: artifact.factLedger,
+    openGaps: artifact.openGaps,
+    sourceIds: artifact.sourceIds,
+    ...(artifact.secFilingBasisDate !== undefined
+      ? { secFilingBasisDate: artifact.secFilingBasisDate }
+      : {}),
+  };
+}
+
 const EARNINGS_BULLET_SECTIONS = [
   "expectationBar",
   "qualityLandmines",
@@ -867,6 +887,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     modelExtras.businessFramework,
     collectedSources,
   );
+  const resolvedWebCompanyProfile = webCompanyProfileExtra(collectedSources.webCompanyProfile);
   const keyFindings = preferSnapshotCitationsForFindings(
     readFindings(payload.keyFindings),
     collectedSources,
@@ -931,6 +952,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
       ...(resolvedBusinessFramework !== undefined
         ? { businessFramework: resolvedBusinessFramework }
+        : {}),
+      ...(resolvedWebCompanyProfile !== undefined
+        ? { webCompanyProfile: resolvedWebCompanyProfile }
         : {}),
       depth: command.depth,
       depthProfile,

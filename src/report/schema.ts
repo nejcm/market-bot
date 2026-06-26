@@ -115,6 +115,7 @@ function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string,
     catalystCalendar: catalystCalendarText(extras.catalystCalendar),
     earningsSetup: earningsSetupText(extras.earningsSetup),
     businessFramework: businessFrameworkText(extras.businessFramework),
+    webCompanyProfile: webCompanyProfileText(extras.webCompanyProfile),
   };
 }
 
@@ -203,6 +204,31 @@ function businessFrameworkText(extra: unknown): readonly string[] {
   ];
 }
 
+function webCompanyProfileFactTexts(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.flatMap((fact) =>
+        isRecord(fact) && typeof fact.claim === "string" ? [fact.claim] : [],
+      )
+    : [];
+}
+
+function webCompanyProfileText(extra: unknown): readonly string[] {
+  if (!isRecord(extra)) {
+    return [];
+  }
+  const questionTexts = isRecord(extra.questions)
+    ? Object.values(extra.questions).flatMap((question) =>
+        isRecord(question) && typeof question.answer === "string" ? [question.answer] : [],
+      )
+    : [];
+  return [
+    ...questionTexts,
+    ...webCompanyProfileFactTexts(extra.recentMaterialEvents),
+    ...webCompanyProfileFactTexts(extra.factLedger),
+    ...readStringArray(extra.openGaps),
+  ];
+}
+
 function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
   if (extra === undefined || !isRecord(extra)) {
     return;
@@ -269,6 +295,46 @@ function validateBusinessFrameworkExtra(extra: unknown, knownSourceIds: Readonly
       knownSourceIds,
       typeof section.text === "string",
     );
+  }
+}
+
+function validateWebCompanyProfileExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+  if (!isRecord(extra)) {
+    return;
+  }
+  validateKnownSourceIds(
+    "Web Company Profile",
+    readStringArray(extra.sourceIds),
+    knownSourceIds,
+    false,
+  );
+  if (isRecord(extra.questions)) {
+    for (const question of Object.values(extra.questions)) {
+      if (isRecord(question)) {
+        validateKnownSourceIds(
+          "Web Company Profile",
+          readStringArray(question.sourceIds),
+          knownSourceIds,
+          typeof question.answer === "string" && question.answer !== "",
+        );
+      }
+    }
+  }
+  for (const key of ["recentMaterialEvents", "factLedger"] as const) {
+    const facts = extra[key];
+    if (!Array.isArray(facts)) {
+      continue;
+    }
+    for (const fact of facts) {
+      if (isRecord(fact)) {
+        validateKnownSourceIds(
+          "Web Company Profile",
+          readStringArray(fact.sourceIds),
+          knownSourceIds,
+          typeof fact.claim === "string" && fact.claim !== "",
+        );
+      }
+    }
   }
 }
 
@@ -377,6 +443,7 @@ function validateRenderedExtras(
   validateProxyResolutionExtra(extras.proxyResolution);
   validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds);
   validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds);
+  validateWebCompanyProfileExtra(extras.webCompanyProfile, knownSourceIds);
 }
 
 export function validatePredictions(

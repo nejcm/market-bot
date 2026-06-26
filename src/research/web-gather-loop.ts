@@ -15,6 +15,7 @@ import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collec
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   executeWebGatherTool,
+  MAX_WEB_GATHER_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
   type WebGatherToolOutput,
 } from "../sources/web-gather-tools";
@@ -385,6 +386,9 @@ function webSearchArgs(
       args.numResults <= 0)
   ) {
     return "web_search numResults must be a positive integer";
+  }
+  if (typeof args.numResults === "number" && args.numResults > MAX_WEB_GATHER_SEARCH_RESULTS) {
+    return `web_search numResults must be at most ${MAX_WEB_GATHER_SEARCH_RESULTS}`;
   }
   return {
     query,

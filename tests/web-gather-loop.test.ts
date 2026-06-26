@@ -273,6 +273,147 @@ describe("runWebGatherLoop", () => {
     ]);
   });
 
+  test("rejects duplicate web gather requests after normalization", async () => {
+    let round = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () => {
+        round += 1;
+        return stage({
+          requests:
+            round === 1
+              ? [
+                  {
+                    tool: "web_search",
+                    args: { query: "Apple business model" },
+                    rationale: "find relevant urls",
+                  },
+                  {
+                    tool: "web_search",
+                    args: { query: "  apple   BUSINESS   model  " },
+                    rationale: "duplicate query",
+                  },
+                ]
+              : [
+                  {
+                    tool: "web_fetch",
+                    args: { url: "https://example.com/aapl-business" },
+                    rationale: "fetch surfaced url",
+                  },
+                  {
+                    tool: "web_fetch",
+                    args: { url: "https://example.com/aapl-business?utm_source=feed" },
+                    rationale: "duplicate canonical url",
+                  },
+                ],
+        });
+      },
+    });
+
+    expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual([
+      "web_search",
+      "web_fetch",
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        reason: "duplicate web gather request",
+      }),
+      expect.objectContaining({
+        tool: "web_fetch",
+        reason: "duplicate web gather request",
+      }),
+    ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "web_search: duplicate web gather request",
+      }),
+    );
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "web_fetch: duplicate web gather request",
+      }),
+    );
+  });
+
+  test("rejects web search when asymmetric source budget is exhausted", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 4, sourceBudget: 3 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model" },
+              rationale: "first search",
+            },
+            {
+              tool: "web_search",
+              args: { query: "AAPL revenue segments" },
+              rationale: "second search",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toHaveLength(1);
+    expect(result.audit?.sourceUnitsUsed).toBe(2);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        reason: "web gather source budget exceeded",
+      }),
+    ]);
+  });
+
+  test("rejects web search numResults above executor maximum", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 4, sourceBudget: 8 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model", numResults: 9 },
+              rationale: "oversized search",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        reason: "web_search numResults must be at most 8",
+      }),
+    ]);
+  });
+
   test("emits a malformed gap and stops on invalid JSON", async () => {
     const result = await runWebGatherLoop({
       command,

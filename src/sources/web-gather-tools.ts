@@ -28,7 +28,7 @@ const EXA_PROVIDER = "exa";
 const EXA_SEARCH_ADAPTER = "exa-search";
 const EXA_CONTENTS_ADAPTER = "exa-contents";
 const DEFAULT_SEARCH_RESULTS = 5;
-const MAX_SEARCH_RESULTS = 8;
+export const MAX_WEB_GATHER_SEARCH_RESULTS = 8;
 const MAX_TEXT_CHARS = 5000;
 const MAX_SNIPPET_CHARS = 1200;
 const MAX_SUMMARY_CHARS = 1200;
@@ -132,7 +132,7 @@ function searchArgs(
   const requested = readPositiveInteger(args.numResults);
   return {
     query,
-    numResults: Math.min(requested ?? DEFAULT_SEARCH_RESULTS, MAX_SEARCH_RESULTS),
+    numResults: Math.min(requested ?? DEFAULT_SEARCH_RESULTS, MAX_WEB_GATHER_SEARCH_RESULTS),
   };
 }
 

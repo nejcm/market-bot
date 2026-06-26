@@ -62,7 +62,7 @@ import {
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
-import { runWebGatherLoop } from "./web-gather-loop";
+import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
 import {
   buildWebCompanyProfileEvidence,
   buildWebCompanyProfileFailureEvidence,
@@ -502,56 +502,58 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   });
   ({ collectedSources } = evidenceLoop);
   const currentSecFilingDate = latestSecFilingDate(collectedSources.extendedEvidence);
-  const reusableWebCompanyProfile = await findReusableWebCompanyProfile({
-    dataDir: input.config.dataDir,
-    command: input.command,
-    now,
-    reuseDays: input.config.webProfileReuseDays,
-    ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
-  });
   let webGatherLoop: Awaited<ReturnType<typeof runWebGatherLoop>> = {
     collectedSources,
     stageOutputs: [],
   };
   let webCompanyProfile: Awaited<ReturnType<typeof runWebCompanyProfileExtraction>> | undefined =
     undefined;
-  if (reusableWebCompanyProfile !== undefined && isInstrumentCommand(input.command)) {
-    collectedSources = attachReusableWebCompanyProfile({
+  if (isWebGatherLoopEnabled(input.command, input.config)) {
+    const reusableWebCompanyProfile = await findReusableWebCompanyProfile({
+      dataDir: input.config.dataDir,
       command: input.command,
-      collectedSources,
-      reuse: reusableWebCompanyProfile,
-    });
-  } else {
-    webGatherLoop = await runWebGatherLoop({
-      command: input.command,
-      config: input.config,
-      collectedSources,
-      context,
       now,
-      ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
-      ...(input.sourceRetryDelaysMs !== undefined
-        ? { retryDelaysMs: input.sourceRetryDelaysMs }
-        : {}),
-      generateRound: (currentSources, roundContext, priorStages) =>
-        runStage(
-          "web-gather",
-          runParams.quickModel,
-          input,
-          currentSources,
-          roundContext,
-          priorStages,
-        ) as Promise<StageOutput & { readonly stage: "web-gather" }>,
+      reuseDays: input.config.webProfileReuseDays,
+      ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
     });
-    ({ collectedSources } = webGatherLoop);
-    webCompanyProfile = await runWebCompanyProfileExtraction({
-      jobInput: input,
-      collectedSources,
-      context,
-      generatedAt,
-      runParams,
-      ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
-    });
-    ({ collectedSources } = webCompanyProfile);
+    if (reusableWebCompanyProfile !== undefined) {
+      collectedSources = attachReusableWebCompanyProfile({
+        command: input.command,
+        collectedSources,
+        reuse: reusableWebCompanyProfile,
+      });
+    } else {
+      webGatherLoop = await runWebGatherLoop({
+        command: input.command,
+        config: input.config,
+        collectedSources,
+        context,
+        now,
+        ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
+        ...(input.sourceRetryDelaysMs !== undefined
+          ? { retryDelaysMs: input.sourceRetryDelaysMs }
+          : {}),
+        generateRound: (currentSources, roundContext, priorStages) =>
+          runStage(
+            "web-gather",
+            runParams.quickModel,
+            input,
+            currentSources,
+            roundContext,
+            priorStages,
+          ) as Promise<StageOutput & { readonly stage: "web-gather" }>,
+      });
+      ({ collectedSources } = webGatherLoop);
+      webCompanyProfile = await runWebCompanyProfileExtraction({
+        jobInput: input,
+        collectedSources,
+        context,
+        generatedAt,
+        runParams,
+        ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
+      });
+      ({ collectedSources } = webCompanyProfile);
+    }
   }
   let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;
   let spotlightSelection: SpotlightSelectionResult | undefined = undefined;

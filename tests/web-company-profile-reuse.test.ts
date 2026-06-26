@@ -51,11 +51,17 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function profile(sourceIds: readonly string[] = [webSource.id]): WebCompanyProfileArtifact {
+function profile(
+  input: {
+    readonly sourceIds?: readonly string[];
+    readonly generatedAt?: string;
+  } = {},
+): WebCompanyProfileArtifact {
+  const sourceIds = input.sourceIds ?? [webSource.id];
   const answer = { answer: "Apple sells devices and services.", sourceIds };
   return {
     version: 1,
-    generatedAt: "2026-05-01T00:00:00.000Z",
+    generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
     symbol: "AAPL",
     companyName: "Apple Inc.",
     questions: {
@@ -81,6 +87,7 @@ async function writePriorRun(input: {
   readonly symbol: string;
   readonly sourceIds?: readonly string[];
   readonly sources?: readonly Source[];
+  readonly generatedAt?: string;
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
   await writeJson(join(runDir, "report.json"), {
@@ -88,7 +95,7 @@ async function writePriorRun(input: {
     jobType: "equity",
     assetClass: "equity",
     symbol: input.symbol,
-    generatedAt: "2026-05-01T00:00:00.000Z",
+    generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
     summary: "Prior profile run.",
     keyFindings: [],
     bullCase: [],
@@ -103,7 +110,13 @@ async function writePriorRun(input: {
     notFinancialAdvice: true,
     extras: { depth: "deep" },
   });
-  await writeJson(join(runDir, "normalized", "web-company-profile.json"), profile(input.sourceIds));
+  await writeJson(
+    join(runDir, "normalized", "web-company-profile.json"),
+    profile({
+      ...(input.sourceIds !== undefined ? { sourceIds: input.sourceIds } : {}),
+      ...(input.generatedAt !== undefined ? { generatedAt: input.generatedAt } : {}),
+    }),
+  );
 }
 
 describe("web company profile reuse", () => {
@@ -139,9 +152,58 @@ describe("web company profile reuse", () => {
     expect(reuse).toBeUndefined();
   });
 
-  test("rejects different symbols and profiles with unresolved source IDs", async () => {
+  test("rejects profiles older than the reuse TTL", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
+
+    const reuse = await findReusableWebCompanyProfile({
+      dataDir,
+      command,
+      now: new Date("2026-06-02T00:00:00.000Z"),
+      reuseDays: 30,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
+  test("rejects profiles generated in the future", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+    });
+
+    const reuse = await findReusableWebCompanyProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDays: 30,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
+  test("rejects different symbols", async () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-msft", symbol: "MSFT" });
+
+    const reuse = await findReusableWebCompanyProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDays: 30,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
+  test("rejects profiles with unresolved source IDs", async () => {
+    const dataDir = tempRunsDir();
     await writePriorRun({
       dataDir,
       runId: "prior-aapl-bad-source",

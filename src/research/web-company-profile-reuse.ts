@@ -36,12 +36,12 @@ export async function findReusableWebCompanyProfile(input: {
   readonly reuseDays: number;
   readonly currentSecFilingDate?: string;
 }): Promise<WebCompanyProfileReuse | undefined> {
-  const {command} = input;
+  const { command, currentSecFilingDate } = input;
   if (
     !isInstrumentCommand(command) ||
     command.assetClass !== "equity" ||
     command.depth !== "deep" ||
-    input.currentSecFilingDate === undefined
+    currentSecFilingDate === undefined
   ) {
     return;
   }
@@ -60,7 +60,15 @@ export async function findReusableWebCompanyProfile(input: {
 
   for (const artifact of candidates) {
     const profile = artifact.webCompanyProfile;
-    if (profile === undefined || !isReusableProfile(profile, { ...input, command })) {
+    if (
+      profile === undefined ||
+      !isReusableProfile(profile, {
+        command,
+        now: input.now,
+        reuseDays: input.reuseDays,
+        currentSecFilingDate,
+      })
+    ) {
       continue;
     }
     const sources = resolvedProfileSources(profile, artifact.report.sources);
@@ -75,7 +83,7 @@ export async function findReusableWebCompanyProfile(input: {
       sources,
       gap: sourceGap({
         source: "web-company-profile",
-        message: `Reused web company profile from ${profile.generatedAt} (${String(ageDays)} days old); latest SEC filing basis ${input.currentSecFilingDate}.`,
+        message: `Reused web company profile from ${profile.generatedAt} (${String(ageDays)} days old); latest SEC filing basis ${currentSecFilingDate}.`,
         provider: "market-bot",
         capability: "extended-evidence",
         cause: "stale-fallback",
@@ -112,14 +120,13 @@ function isReusableProfile(
     readonly command: InstrumentCommand;
     readonly now: Date;
     readonly reuseDays: number;
-    readonly currentSecFilingDate?: string;
+    readonly currentSecFilingDate: string;
   },
 ): boolean {
   if (
     profile.sourceIds.length === 0 ||
     profile.symbol.toUpperCase() !== input.command.symbol.toUpperCase() ||
     profile.secFilingBasisDate === undefined ||
-    input.currentSecFilingDate === undefined ||
     !ISO_DATE_RE.test(profile.secFilingBasisDate) ||
     profile.secFilingBasisDate < input.currentSecFilingDate
   ) {

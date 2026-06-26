@@ -183,7 +183,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   };
 }
 
-function isWebGatherLoopEnabled(
+export function isWebGatherLoopEnabled(
   command: ResearchCommand,
   config: AppConfig,
 ): command is InstrumentCommand {

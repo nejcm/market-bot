@@ -2271,6 +2271,129 @@ describe("runResearchJob", () => {
     });
   });
 
+  test("does not reuse web company profile when web gather is disabled", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile-reuse-disabled");
+    const priorRunDir = join(dataDir, "prior-aapl");
+    const priorWebSource: Source = {
+      id: "web-aapl-prior",
+      title: "Apple prior web profile",
+      url: "https://example.com/apple-prior",
+      fetchedAt: "2026-05-01T00:00:00.000Z",
+      kind: "web",
+      assetClass: "equity",
+      symbol: "AAPL",
+      provider: "exa",
+    };
+    const answer = {
+      answer: "Apple sells hardware and services.",
+      sourceIds: [priorWebSource.id],
+    };
+    await mkdir(join(priorRunDir, "normalized"), { recursive: true });
+    await writeFile(
+      join(priorRunDir, "report.json"),
+      JSON.stringify({
+        runId: "prior-aapl",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        summary: "Prior Apple web profile.",
+        keyFindings: [],
+        bullCase: [],
+        bearCase: [],
+        risks: [],
+        catalysts: [],
+        scenarios: [],
+        confidence: "medium",
+        dataGaps: [],
+        predictions: [],
+        sources: [priorWebSource],
+        notFinancialAdvice: true,
+        extras: { depth: "deep" },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(priorRunDir, "normalized", "web-company-profile.json"),
+      JSON.stringify({
+        version: 1,
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        symbol: "AAPL",
+        companyName: "Apple Inc.",
+        questions: {
+          whatItDoes: answer,
+          howItMakesMoney: answer,
+          customers: answer,
+          geography: answer,
+          purchaseRecurrence: answer,
+          pricingPower: answer,
+          recessionCyclicality: answer,
+        },
+        recentMaterialEvents: [],
+        factLedger: [
+          { claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] },
+        ],
+        openGaps: [],
+        sourceIds: [priorWebSource.id],
+        secFilingBasisDate: "2026-05-01",
+      }),
+      "utf8",
+    );
+
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "evidence-request") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-gather" || prompt.stage === "web-company-profile") {
+          throw new Error(`unexpected ${String(prompt.stage)}`);
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        dataDir,
+        sourceOptions: { ...evidenceConfig.sourceOptions, exaApiKey: "exa-key" },
+        webGatherDisabled: true,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile).toBeUndefined();
+    expect(result.collectedSources.extendedSources).not.toContainEqual(priorWebSource);
+    expect(result.report.extras?.webCompanyProfile).toBeUndefined();
+  });
+
   test("persists empty web company profile when extraction stage fails", async () => {
     const dataDir = tempDataDir("market-bot-web-company-profile-failure");
     const prompts: Record<string, unknown>[] = [];

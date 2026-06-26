@@ -199,6 +199,25 @@ export function buildWebCompanyProfileFailureEvidence(input: {
   };
 }
 
+export function buildWebCompanyProfileReuseEvidence(input: {
+  readonly command: InstrumentCommand;
+  readonly artifact: WebCompanyProfileArtifact;
+  readonly extendedEvidence: ExtendedEvidence | undefined;
+  readonly freshnessGap: SourceGap;
+}): WebCompanyProfileResult {
+  return {
+    extendedEvidence: mergeExtendedEvidence(
+      input.command,
+      input.extendedEvidence,
+      input.artifact,
+      input.artifact.sourceIds,
+      [input.freshnessGap],
+    ),
+    artifact: input.artifact,
+    sourceGaps: [input.freshnessGap],
+  };
+}
+
 function parseProfile(
   content: string,
   webSourceIds: ReadonlySet<string>,

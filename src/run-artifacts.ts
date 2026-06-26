@@ -51,6 +51,12 @@ import type {
   BusinessFrameworkSectionName,
   BusinessLifecyclePhase,
 } from "./sources/extended-evidence/business-framework";
+import type {
+  WebCompanyProfileAnswer,
+  WebCompanyProfileArtifact,
+  WebCompanyProfileFact,
+  WebCompanyProfileQuestionKey,
+} from "./sources/extended-evidence/web-company-profile";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -104,6 +110,7 @@ export interface RunArtifact {
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
+  readonly webCompanyProfile?: WebCompanyProfileArtifact;
   readonly status: RunArtifactStatus;
 }
 
@@ -790,6 +797,15 @@ const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFramewo
   "criteria-not-supported",
   "insufficient-data",
 ]);
+const WEB_COMPANY_PROFILE_QUESTIONS: readonly WebCompanyProfileQuestionKey[] = [
+  "whatItDoes",
+  "howItMakesMoney",
+  "customers",
+  "geography",
+  "purchaseRecurrence",
+  "pricingPower",
+  "recessionCyclicality",
+];
 
 function hasFinancialLensMetricShape(value: unknown): boolean {
   return (
@@ -868,6 +884,87 @@ function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifac
   return value as unknown as BusinessFrameworkArtifact;
 }
 
+function readWebCompanyProfileAnswer(value: unknown): WebCompanyProfileAnswer | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const answer = readString(value, "answer");
+  const sourceIds = readStringArray(value, "sourceIds");
+  return answer === undefined || sourceIds === undefined ? undefined : { answer, sourceIds };
+}
+
+function readWebCompanyProfileQuestions(
+  value: unknown,
+): Readonly<Record<WebCompanyProfileQuestionKey, WebCompanyProfileAnswer>> | undefined {
+  if (!isRecord(value)) {
+    return;
+  }
+  const entries: [WebCompanyProfileQuestionKey, WebCompanyProfileAnswer][] = [];
+  for (const key of WEB_COMPANY_PROFILE_QUESTIONS) {
+    const answer = readWebCompanyProfileAnswer(value[key]);
+    if (answer === undefined) {
+      return;
+    }
+    entries.push([key, answer]);
+  }
+  return Object.fromEntries(entries) as Readonly<
+    Record<WebCompanyProfileQuestionKey, WebCompanyProfileAnswer>
+  >;
+}
+
+function readWebCompanyProfileFacts(value: unknown): readonly WebCompanyProfileFact[] | undefined {
+  if (!Array.isArray(value)) {
+    return;
+  }
+  const facts = value.flatMap((item): readonly WebCompanyProfileFact[] => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const claim = readString(item, "claim");
+    const sourceIds = readStringArray(item, "sourceIds");
+    return claim === undefined || sourceIds === undefined ? [] : [{ claim, sourceIds }];
+  });
+  return facts.length === value.length ? facts : undefined;
+}
+
+function readWebCompanyProfileArtifact(value: unknown): WebCompanyProfileArtifact | undefined {
+  if (!isRecord(value) || value.version !== 1) {
+    return;
+  }
+  const generatedAt = readString(value, "generatedAt");
+  const symbol = readString(value, "symbol");
+  const questions = readWebCompanyProfileQuestions(value.questions);
+  const recentMaterialEvents = readWebCompanyProfileFacts(value.recentMaterialEvents);
+  const factLedger = readWebCompanyProfileFacts(value.factLedger);
+  const openGaps = readStringArray(value, "openGaps");
+  const sourceIds = readStringArray(value, "sourceIds");
+  const companyName = readString(value, "companyName");
+  const secFilingBasisDate = readString(value, "secFilingBasisDate");
+  if (
+    generatedAt === undefined ||
+    symbol === undefined ||
+    questions === undefined ||
+    recentMaterialEvents === undefined ||
+    factLedger === undefined ||
+    openGaps === undefined ||
+    sourceIds === undefined
+  ) {
+    return;
+  }
+  return {
+    version: 1,
+    generatedAt,
+    symbol: symbol.toUpperCase(),
+    ...(companyName !== undefined ? { companyName } : {}),
+    questions,
+    recentMaterialEvents,
+    factLedger,
+    openGaps,
+    sourceIds,
+    ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
+  };
+}
+
 function hasSourceLedgerEntryShape(value: unknown): boolean {
   return (
     isRecord(value) &&
@@ -915,6 +1012,7 @@ const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
+const WEB_COMPANY_PROFILE_FILE = RUN_ARTIFACT_FILES.webCompanyProfile;
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -940,6 +1038,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
+  const webCompanyProfileFile = await readJsonFile(join(runDir, WEB_COMPANY_PROFILE_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
@@ -962,6 +1061,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     businessFrameworkFile.status === "ok"
       ? readBusinessFrameworkArtifact(businessFrameworkFile.value)
       : undefined;
+  const webCompanyProfile =
+    webCompanyProfileFile.status === "ok"
+      ? readWebCompanyProfileArtifact(webCompanyProfileFile.value)
+      : undefined;
 
   return {
     artifact: {
@@ -976,6 +1079,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
+      ...(webCompanyProfile !== undefined ? { webCompanyProfile } : {}),
       status,
     },
     status,

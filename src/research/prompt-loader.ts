@@ -5,6 +5,7 @@ import { parseSections } from "./markdown-sections";
 
 export type StageLabel =
   | "evidence-request"
+  | "web-gather"
   | "playbook-selection"
   | "spotlight-selection"
   | "specialist-analysis"

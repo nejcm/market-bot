@@ -36,6 +36,7 @@ import type {
   DepthProfile,
   EvidenceRequestContext,
   ResearchContext,
+  WebGatherContext,
 } from "./research-context-types";
 import {
   commandResearchSubjectIdentity,
@@ -44,7 +45,13 @@ import {
 import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
-export type { CalibrationContext, DepthProfile, EvidenceRequestContext, ResearchContext };
+export type {
+  CalibrationContext,
+  DepthProfile,
+  EvidenceRequestContext,
+  ResearchContext,
+  WebGatherContext,
+};
 
 // ---------------------------------------------------------------------------
 // Deterministic source gaps — disclosed in the prompt and in the final report
@@ -838,6 +845,7 @@ function buildEvidencePayload(
       ? { spotlightSelection: compactSpotlightSelection(context.spotlightSelection) }
       : {}),
     ...(context.evidenceRequest !== undefined ? { evidenceRequest: context.evidenceRequest } : {}),
+    ...(context.webGather !== undefined ? { webGather: context.webGather } : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
     deterministicCitationGuidance,
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
@@ -953,6 +961,23 @@ function evidenceRequestShape(): Record<string, unknown> {
   };
 }
 
+function webGatherShape(): Record<string, unknown> {
+  return {
+    requests: [
+      {
+        tool: "web_search",
+        args: { query: "must mention run symbol or company name" },
+        rationale: "string",
+      },
+      {
+        tool: "web_fetch",
+        args: { url: "search-result URL only" },
+        rationale: "string",
+      },
+    ],
+  };
+}
+
 function playbookSelectionShape(): Record<string, unknown> {
   return {
     rationale: "short string",
@@ -975,6 +1000,7 @@ function stagePlaybooks(
 ): readonly LoadedPlaybook[] | undefined {
   if (
     stage === "evidence-request" ||
+    stage === "web-gather" ||
     stage === "playbook-selection" ||
     stage === "spotlight-selection"
   ) {
@@ -1172,6 +1198,9 @@ export function buildStagePrompt(
   const requiredShape = (() => {
     if (stage === "evidence-request") {
       return evidenceRequestShape();
+    }
+    if (stage === "web-gather") {
+      return webGatherShape();
     }
     if (stage === "final-synthesis") {
       return finalReportShape(context.depthProfile, hasEarningsSetup, hasBusinessFramework);

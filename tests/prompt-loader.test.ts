@@ -200,6 +200,7 @@ describe("loadStagePrompt — real prompt files", () => {
   test("loads all real base.md files without error", async () => {
     const stages = [
       "evidence-request",
+      "web-gather",
       "playbook-selection",
       "spotlight-selection",
       "specialist-analysis",

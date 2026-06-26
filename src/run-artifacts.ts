@@ -128,6 +128,12 @@ export interface RunArtifactScan {
   readonly entries: readonly RunScanEntry[];
 }
 
+export interface WebCompanyProfileRunArtifact {
+  readonly runDirName: string;
+  readonly report: ResearchReport;
+  readonly webCompanyProfile: WebCompanyProfileArtifact;
+}
+
 export interface LoadedRunArtifact {
   readonly artifact?: RunArtifact;
   readonly status: RunArtifactStatus;
@@ -1115,4 +1121,61 @@ export async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArti
 // Full artifact scans always read from disk until the index can hydrate RunArtifact payloads.
 export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan> {
   return await scanRunArtifactsFromDisk(dataDir);
+}
+
+export async function scanWebCompanyProfileRunArtifacts(
+  dataDir: string,
+  input: { readonly symbol: string; readonly depth: "deep" },
+): Promise<readonly WebCompanyProfileRunArtifact[]> {
+  const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
+    if (isRecord(error) && error.code === "ENOENT") {
+      return [] as Dirent[];
+    }
+    throw error;
+  });
+
+  const reportCandidates = await Promise.all(
+    dirEntries
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) => {
+        const runDir = join(dataDir, entry.name);
+        const reportFile = await readJsonFile(join(runDir, REPORT_FILE));
+        const report = reportFile.status === "ok" ? readReport(reportFile.value) : undefined;
+        if (
+          report?.jobType !== "equity" ||
+          report.symbol?.toUpperCase() !== input.symbol.toUpperCase() ||
+          report.extras?.depth !== input.depth
+        ) {
+          return;
+        }
+        return { runDir, runDirName: entry.name, report };
+      }),
+  );
+
+  const profileCandidates = await Promise.all(
+    reportCandidates.flatMap((candidate) =>
+      candidate === undefined
+        ? []
+        : [
+            (async () => {
+              const profileFile = await readJsonFile(
+                join(candidate.runDir, WEB_COMPANY_PROFILE_FILE),
+              );
+              const webCompanyProfile =
+                profileFile.status === "ok"
+                  ? readWebCompanyProfileArtifact(profileFile.value)
+                  : undefined;
+              return webCompanyProfile === undefined
+                ? undefined
+                : {
+                    runDirName: candidate.runDirName,
+                    report: candidate.report,
+                    webCompanyProfile,
+                  };
+            })(),
+          ],
+    ),
+  );
+
+  return profileCandidates.flatMap((candidate) => (candidate === undefined ? [] : [candidate]));
 }

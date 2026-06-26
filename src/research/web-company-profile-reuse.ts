@@ -1,7 +1,7 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap } from "../domain/source-gaps";
 import type { ExtendedEvidence, Source, SourceGap } from "../domain/types";
-import { scanRunArtifacts } from "../run-artifacts";
+import { scanWebCompanyProfileRunArtifacts } from "../run-artifacts";
 import {
   buildWebCompanyProfileReuseEvidence,
   type WebCompanyProfileArtifact,
@@ -45,18 +45,13 @@ export async function findReusableWebCompanyProfile(input: {
   ) {
     return;
   }
-  const scan = await scanRunArtifacts(input.dataDir);
-  const candidates = scan.artifacts
-    .filter((artifact) => {
-      const depth = artifact.report.extras?.depth;
-      return (
-        artifact.report.jobType === "equity" &&
-        artifact.report.symbol?.toUpperCase() === command.symbol.toUpperCase() &&
-        depth === "deep" &&
-        artifact.webCompanyProfile !== undefined
-      );
-    })
-    .toSorted((left, right) => right.report.generatedAt.localeCompare(left.report.generatedAt));
+  const reusableArtifacts = await scanWebCompanyProfileRunArtifacts(input.dataDir, {
+    symbol: command.symbol,
+    depth: "deep",
+  });
+  const candidates = reusableArtifacts.toSorted((left, right) =>
+    right.report.generatedAt.localeCompare(left.report.generatedAt),
+  );
 
   for (const artifact of candidates) {
     const profile = artifact.webCompanyProfile;

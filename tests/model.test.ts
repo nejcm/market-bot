@@ -22,6 +22,12 @@ const researchGatherOptions = {
   sourceBudget: 0,
 };
 
+const webGatherOptions = {
+  maxRounds: 0,
+  maxToolCalls: 0,
+  sourceBudget: 0,
+};
+
 describe("createOpenAIProvider", () => {
   test("posts chat completion requests and reads content", async () => {
     const requests: Request[] = [];
@@ -57,6 +63,9 @@ describe("createOpenAIProvider", () => {
           sourceBudget: 0,
         },
         researchGatherOptions,
+        webGatherOptions,
+        webGatherDisabled: false,
+        webProfileReuseDays: 30,
         alphaSearchOptions,
       },
       fetchImpl,
@@ -110,6 +119,9 @@ describe("createOpenAIProvider", () => {
           sourceBudget: 0,
         },
         researchGatherOptions,
+        webGatherOptions,
+        webGatherDisabled: false,
+        webProfileReuseDays: 30,
         alphaSearchOptions,
       },
       fetchImpl,
@@ -154,6 +166,9 @@ describe("createOpenAIProvider", () => {
           sourceBudget: 0,
         },
         researchGatherOptions,
+        webGatherOptions,
+        webGatherDisabled: false,
+        webProfileReuseDays: 30,
         alphaSearchOptions,
       },
       fetchImpl,
@@ -218,6 +233,9 @@ describe("createOpenAIProvider", () => {
           sourceBudget: 0,
         },
         researchGatherOptions,
+        webGatherOptions,
+        webGatherDisabled: false,
+        webProfileReuseDays: 30,
         alphaSearchOptions,
       },
       fetchImpl,

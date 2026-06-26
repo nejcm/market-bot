@@ -47,6 +47,11 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS` | `2` | Max evidence-request model rounds for `equity --deep`. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS` | `2` | Max accepted evidence tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET` | `8` | Max declared source units per eligible run. SEC latest filing costs 3 units; Tradier IV term structure costs 5. Set to `0` to disable the loop. |
+| `MARKET_BOT_WEB_GATHER_MAX_ROUNDS` | `2` | Max web-gather model rounds for future Exa-backed `equity --deep` web evidence. Set to `0` to disable the loop. |
+| `MARKET_BOT_WEB_GATHER_MAX_TOOL_CALLS` | `4` | Max accepted web tool executions per eligible run. Set to `0` to disable the loop. |
+| `MARKET_BOT_WEB_GATHER_SOURCE_BUDGET` | `8` | Max declared web source units per eligible run. Set to `0` to disable the loop. |
+| `MARKET_BOT_WEB_GATHER_DISABLE` | `false` | Set to `1` or `true` to disable Exa-backed web evidence gathering even when configured. |
+| `MARKET_BOT_WEB_PROFILE_REUSE_DAYS` | `30` | Reuse TTL for same-symbol web-company-profile artifacts before regathering, subject to filing freshness checks. |
 | `MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS` | `4` | Max JSON-loop gather rounds for `research` run-type gathering. Set to `0` to disable gathering. |
 | `MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS` | `8` | Max accepted gather tool executions for `research` run-type gathering. Set to `0` to disable gathering. |
 | `MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET` | `24` | Max declared source units for `research` run-type gathering. Set to `0` to disable gathering. |
@@ -64,6 +69,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_TRADIER_API_TOKEN` | — | Optional equity options/IV provider. Enables Tradier options/IV Extended Evidence and IV forecast scoring. Free/delayed access depends on Tradier account/API access. Missing token, account limits, or unsupported international coverage emit expected provider coverage gaps. |
 | `MARKET_BOT_GLASSNODE_API_KEY` | — | Optional paid crypto on-chain provider. Glassnode API access requires a paid/API-add-on plan. Missing token emits instrument `SourceGap`s for on-chain evidence. |
 | `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY` | — | Enables Massive, formerly Polygon.io, as a supplemental equity source provider using `api.massive.com`. `MARKET_BOT_POLYGON_API_KEY` is accepted as a legacy alias. Missing key silently disables Massive. When set, failed Massive news/supplemental requests emit no-cap `SourceGap`s. Massive contributes equity news and supplemental equity market snapshots. When set and Yahoo equity quote/chart routes fail after retries, Massive also serves as an opportunistic fallback for quotes, benchmarks, alpha-search validation, and scoring closes. Massive does not affect mover ranking, market regime labels, crypto, or replace Yahoo screeners/news. |
+| `MARKET_BOT_EXA_API_KEY` | — | Enables future Exa-backed web evidence gathering. Missing key skips web gather without committing credentials to artifacts or cache. |
 | `MARKET_BOT_SEC_USER_AGENT` | `market-bot research contact@example.invalid` | Recommended free provider. User-Agent sent to SEC EDGAR. Set to an app name plus real contact email for live SEC access. SEC coverage is US-centric; unsupported international ticker coverage is an expected provider coverage gap. |
 | `MARKET_BOT_CACHE_DIR` | `data/cache` | Directory for raw-source cache entries and scorer close cache entries. Raw-source cache keys are v2 canonical request hashes; request URLs and credential query params are not persisted. |
 | `MARKET_BOT_CACHE_DISABLE` | `false` | Set to `1` or `true` to bypass cache reads and writes entirely. |

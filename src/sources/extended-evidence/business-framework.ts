@@ -50,6 +50,11 @@ export interface BusinessFrameworkSection {
   readonly gaps: readonly string[];
 }
 
+export interface BusinessFrameworkReconciliation {
+  readonly resolvedGaps: readonly string[];
+  readonly profileSourceIds: readonly string[];
+}
+
 export interface BusinessFrameworkArtifact {
   readonly version: 1;
   readonly generatedAt: string;
@@ -58,6 +63,7 @@ export interface BusinessFrameworkArtifact {
   readonly sections: readonly BusinessFrameworkSection[];
   readonly sourceIds: readonly string[];
   readonly gaps: readonly string[];
+  readonly reconciliation?: BusinessFrameworkReconciliation;
 }
 
 interface BusinessFrameworkResult {
@@ -87,7 +93,7 @@ const SECTION_ORDER: readonly BusinessFrameworkSectionName[] = [
   "Valuation",
 ];
 
-const QUALITATIVE_GAPS = [
+export const QUALITATIVE_GAPS = [
   "Segment mix, customer concentration, and purchase recurrence are not available from current normalized sources",
   "Management track record and capital allocation commentary are not available from current normalized sources",
   "Analyst estimates, company-specific KPIs, and risk bucket evidence are not available from current normalized sources",
@@ -232,7 +238,7 @@ function section(
   };
 }
 
-function frameworkGap(symbol: string, gaps: readonly string[]): SourceGap {
+export function frameworkGap(symbol: string, gaps: readonly string[]): SourceGap {
   return sourceGap({
     source: "business-framework",
     message: `Business Framework partial for ${symbol}: ${gaps.join("; ")}`,

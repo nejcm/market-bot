@@ -450,6 +450,7 @@ function businessFrameworkExtra(modelExtra: unknown, collectedSources: Collected
         ...(modelSection !== undefined ? { text: modelSection.text } : {}),
       };
     }),
+    ...(artifact.reconciliation !== undefined ? { reconciliation: artifact.reconciliation } : {}),
   };
 }
 

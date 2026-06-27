@@ -73,6 +73,7 @@ import {
   findReusableWebSubjectProfile,
   latestSecFilingDate,
 } from "./web-subject-profile-reuse";
+import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
 import {
   buildSpotlightCandidates,
   loadAlphaWatchlistForSpotlights,
@@ -450,6 +451,38 @@ async function runWebSubjectProfileExtraction(input: {
   }
 }
 
+/**
+ * Post-web evidence reconciliation: when a non-empty Web Subject Profile exists
+ * alongside a Business Framework, reconcile GAP[0] if the profile carries cited
+ * answers for howItMakesMoney/customers/purchaseRecurrence.
+ *
+ * Swaps the reconciled artifact and regenerated framework SourceGap onto
+ * collectedSources. Postures and phase are never changed.
+ *
+ * @param {CollectedSources} collectedSources - The collected sources to reconcile.
+ * @returns {CollectedSources} Updated collected sources with reconciled framework.
+ */
+function reconcileBusinessFrameworkEvidence(collectedSources: CollectedSources): CollectedSources {
+  const framework = collectedSources.businessFramework;
+  const profile = collectedSources.webSubjectProfile;
+  if (framework === undefined || profile === undefined || profile.sourceIds.length === 0) {
+    return collectedSources;
+  }
+  const result = reconcileBusinessFramework(framework, profile);
+  if (result.artifact === framework) {
+    // No change — reconciliation was a no-op.
+    return collectedSources;
+  }
+  // Replace the framework artifact and swap the old frameworkGap for the new one (or drop it).
+  const oldGapSource = "business-framework";
+  const otherGaps = collectedSources.sourceGaps.filter((gap) => gap.source !== oldGapSource);
+  return {
+    ...collectedSources,
+    businessFramework: result.artifact,
+    sourceGaps: result.sourceGap !== undefined ? [...otherGaps, result.sourceGap] : otherGaps,
+  };
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
@@ -558,6 +591,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       });
       ({ collectedSources } = webSubjectProfile);
     }
+    collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
   }
   let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;
   let spotlightSelection: SpotlightSelectionResult | undefined = undefined;

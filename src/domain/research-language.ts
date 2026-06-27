@@ -1,10 +1,20 @@
 export const TRADE_ACTION_PATTERN =
-  /\b(buy|sell|hold|go long|go short|short this|accumulate|reduce exposure|increase exposure|trim exposure|add exposure|rebalance|take profit|stop loss|position size|position sizing|open (?:a |the )?position|take (?:a |the )?position|add shares|trim shares|scale in|scale out|set (?:an? )?entry|entry point|exit at|exit point|execute|execution instruction|portfolio change|allocation change)\b/iu;
+  /\b((?:buy|sell|hold|accumulate)\s+(?:(?:this|that|the|a|an)\s+)?(?:shares?|stocks?|securit(?:y|ies)|instrument|position)|go long|go short|short this|reduce exposure|increase exposure|trim exposure|add exposure|rebalance (?:of )?(?:the |your )?(?:portfolio|account)|take profit|stop loss|position size|position sizing|open (?:a |the )?position|take (?:a |the )?position|add shares|trim shares|scale in|scale out|set (?:an? )?entry|entry point|exit at|exit point|execute (?:a |the )?(?:trade|order)|execution instruction|portfolio change|allocation change)\b/iu;
+
+const TICKER_TRADE_ACTION_PATTERN =
+  /\b(?:buy|Buy|BUY|sell|Sell|SELL|hold|Hold|HOLD|accumulate|Accumulate|ACCUMULATE)\s+(?:this\s+)?[A-Z]{1,5}\b/u;
+
+const IMPERATIVE_TRADE_ACTION_PATTERN =
+  /\b(?:Buy|Sell|Hold|Accumulate)\s+(?:after|before|on|at|if|when)\b/u;
 
 export const READER_DIRECTED_ADVICE_PATTERN =
   /\b(?:investors|traders|readers|you)\s+(?:should|could|may want to|might want to|need to|must)\b|\b(?:should|must|need to)\s+(?:buy|sell|hold|open|trim|add|exit|enter|reduce|increase|rebalance)\b/iu;
 
 export function violatesResearchOnly(text: string): { match: string } | null {
-  const m = TRADE_ACTION_PATTERN.exec(text) ?? READER_DIRECTED_ADVICE_PATTERN.exec(text);
+  const m =
+    TRADE_ACTION_PATTERN.exec(text) ??
+    TICKER_TRADE_ACTION_PATTERN.exec(text) ??
+    IMPERATIVE_TRADE_ACTION_PATTERN.exec(text) ??
+    READER_DIRECTED_ADVICE_PATTERN.exec(text);
   return m !== null ? { match: m[0] } : null;
 }

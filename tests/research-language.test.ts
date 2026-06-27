@@ -7,16 +7,16 @@ import {
 
 describe("TRADE_ACTION_PATTERN", () => {
   const banned = [
-    "buy",
-    "sell",
-    "hold",
+    "buy the stock",
+    "sell the shares",
+    "hold this position",
     "go long",
     "go short",
     "short this",
-    "accumulate",
+    "accumulate shares",
     "reduce exposure",
     "increase exposure",
-    "rebalance",
+    "rebalance the portfolio",
     "take profit",
     "stop loss",
     "position size",
@@ -28,7 +28,7 @@ describe("TRADE_ACTION_PATTERN", () => {
     "scale in",
     "set an entry",
     "exit at",
-    "execute",
+    "execute the trade",
     "execution instruction",
     "portfolio change",
     "allocation change",
@@ -41,12 +41,12 @@ describe("TRADE_ACTION_PATTERN", () => {
   }
 
   test("matches in sentence context", () => {
-    expect(TRADE_ACTION_PATTERN.test("You should buy SPY given the trend.")).toBe(true);
+    expect(TRADE_ACTION_PATTERN.test("You should buy the stock given the trend.")).toBe(true);
   });
 
   test("is case-insensitive", () => {
-    expect(TRADE_ACTION_PATTERN.test("BUY")).toBe(true);
-    expect(TRADE_ACTION_PATTERN.test("SELL")).toBe(true);
+    expect(TRADE_ACTION_PATTERN.test("BUY THE STOCK")).toBe(true);
+    expect(TRADE_ACTION_PATTERN.test("SELL THE SHARES")).toBe(true);
     expect(TRADE_ACTION_PATTERN.test("Rebalance your portfolio")).toBe(true);
   });
 });
@@ -74,6 +74,11 @@ describe("violatesResearchOnly", () => {
     "The probability of a breakout above resistance is moderate.",
     "Inflation should decline if shelter data cools.",
     "close(SPY, +5) > close(SPY, 0)",
+    "Customers buy devices through Apple's retail and online stores.",
+    "Apple sells devices, software, and services.",
+    "The company holds substantial cash and marketable securities.",
+    "Management may execute the product launch in September.",
+    "The distributor accumulates inventory before launches.",
   ];
 
   for (const text of research) {
@@ -85,7 +90,11 @@ describe("violatesResearchOnly", () => {
   test("returns match object for banned phrase", () => {
     const result = violatesResearchOnly("Investors may want to buy SPY here.");
     expect(result).not.toBeNull();
-    expect(result?.match.toLowerCase()).toBe("buy");
+    expect(result?.match.toLowerCase()).toBe("buy spy");
+  });
+
+  test("blocks direct ticker trade actions", () => {
+    expect(violatesResearchOnly("buy AAPL")).not.toBeNull();
   });
 
   test("returns null for empty string", () => {
@@ -94,7 +103,7 @@ describe("violatesResearchOnly", () => {
 
   test("captures the matched word in the result", () => {
     const result = violatesResearchOnly("A rebalance of the portfolio is warranted.");
-    expect(result?.match.toLowerCase()).toBe("rebalance");
+    expect(result?.match.toLowerCase()).toBe("rebalance of the portfolio");
   });
 
   test("blocks reader-directed advice without explicit buy/sell wording", () => {

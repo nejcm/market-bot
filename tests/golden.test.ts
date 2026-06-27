@@ -57,4 +57,12 @@ describe("golden report contracts", () => {
       assertSafeReportLanguage(report("Investors should open a position in SPY.")),
     ).toThrow("trade-action language");
   });
+
+  test("safety scanner allows neutral business uses of trade-action verbs", () => {
+    expect(() =>
+      assertSafeReportLanguage(
+        report("Apple sells devices and holds cash while customers buy services."),
+      ),
+    ).not.toThrow();
+  });
 });

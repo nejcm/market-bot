@@ -364,6 +364,8 @@ Accepted predictions are canonicalized so the stored `measurableAs` matches the 
 - source IDs on major findings, scenarios, bull case, bear case, risks, and catalysts;
 - no trade-action language in report narrative.
 
+Trade-action validation is context-aware: it rejects security-directed calls and portfolio or execution instructions while allowing the same verbs in neutral business descriptions, such as a company selling products or holding cash. Rejections include the matched phrase in the error message.
+
 `src/report/markdown.ts` renders the validated report into a readable `report.md` with summary, findings, cases, risks, catalysts, scenarios, predictions, data gaps, and sources.
 
 Historical Context and Market Spotlights render from `report.extras.historicalContext` and `report.extras.spotlights`. The renderer parses them defensively, escapes markdown text, and only includes item-level source references that exist in the final source list.

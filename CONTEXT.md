@@ -22,6 +22,10 @@ A bounded deep-run evidence loop that lets the model request on-subject Exa `web
 
 Low-trust Source evidence gathered from the open web and tagged with `kind: "web"` and provider metadata. Web Evidence can support cited qualitative business-model claims but cannot widen run scope, prediction subjects, or Evidence Quality above the extended-evidence cap. It is not investment conviction, a recommendation, or a trade signal.
 
+## Web Source Roles
+
+The accounting roles a gathered web [[source]] can hold on a run that builds a [[web-subject-profile]], tracked as separate counts so raw web volume is not mistaken for evidence coverage. **Accepted**: web Sources that survived into the run (`kind: "web"`). **Profile-used**: accepted web Sources the Web Subject Profile cited. **Report-cited**: accepted web Sources referenced in the final Research View's claim or Prediction citations. **Unused**: accepted web Sources that are neither profile-used nor report-cited — the honest noise count. They are descriptive accounting only, not investment conviction, evidence-lane coverage, or a trade signal.
+
 ## Web Subject Profile
 
 A deterministic, citation-checked sidecar answering a fixed set of questions about a run's Subject from gathered Web Evidence only. It replaces Web Company Profile; it is not investment conviction, a recommendation, or a trade signal.
@@ -260,7 +264,11 @@ Deterministic Extended Evidence for `equity` runs that groups compact SEC/Yahoo-
 
 ## Business Framework Evidence
 
-Deterministic Extended Evidence for `equity` runs that organizes already-collected SEC/Yahoo facts into research-only Business, Phase, Moat, Growth, Management, Risk, and Valuation sections. It persists a `normalized/business-framework.json` sidecar, emits a compact `business-framework` Extended Evidence item, and carries neutral section postures (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) plus lifecycle phase labels (`startup`, `hyper-growth`, `operating-leverage`, `capital-return`, or `decline`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication.
+Deterministic Extended Evidence for `equity` runs that organizes already-collected SEC/Yahoo facts into research-only Business, Phase, Moat, Growth, Management, Risk, and Valuation sections. It persists a `normalized/business-framework.json` sidecar, emits a compact `business-framework` Extended Evidence item, and carries neutral section postures (`criteria-supported`, `criteria-mixed`, `criteria-not-supported`, or `insufficient-data`) plus lifecycle phase labels (`startup`, `hyper-growth`, `operating-leverage`, `capital-return`, or `decline`) without a composite score, rank, recommendation, expected-return claim, or trade-action implication. On `equity --deep` runs that gather web evidence, its qualitative gaps may be cleared by [[evidence-reconciliation]] after [[web-subject-profile]] extraction; its numeric postures and phase never change.
+
+## Evidence Reconciliation
+
+A deterministic, no-model pass that runs after [[web-subject-profile]] extraction on `equity --deep` runs and clears a [[business-framework-evidence]] qualitative gap only when the profile's corresponding *structured* answers are present and carry cited web `sourceId`s. It removes resolved gap strings from the framework artifact and from the matching Source Gap disclosure so the report no longer discloses a gap its own profile resolved. It only ever removes gaps and records which profile facts resolved them; it never injects profile prose into framework summaries or metrics, never moves a section posture or lifecycle phase (those stay on normalized provider data), and never clears a gap with no structured profile question behind it. It is not investment conviction, a recommendation, or a trade signal.
 
 ## Yahoo Fundamentals Evidence
 

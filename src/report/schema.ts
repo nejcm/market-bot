@@ -100,8 +100,9 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     renderedExtras: researchOnlyExtraText(report.extras),
   });
 
-  if (violatesResearchOnly(text) !== null) {
-    throw new Error("Report contains trade-action language");
+  const violation = violatesResearchOnly(text);
+  if (violation !== null) {
+    throw new Error(`Report contains trade-action language: "${violation.match}"`);
   }
 }
 
@@ -297,6 +298,14 @@ function validateBusinessFrameworkExtra(extra: unknown, knownSourceIds: Readonly
       readStringArray(section.sourceIds),
       knownSourceIds,
       typeof section.text === "string",
+    );
+  }
+  if (isRecord(extra.reconciliation)) {
+    validateKnownSourceIds(
+      "Business Framework reconciliation",
+      readStringArray(extra.reconciliation.profileSourceIds),
+      knownSourceIds,
+      false,
     );
   }
 }

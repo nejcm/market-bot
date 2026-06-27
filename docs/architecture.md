@@ -119,7 +119,7 @@ Adding a new prediction shape means updating: the parser in `forecast/observable
 
 ### Report (`src/report/`)
 
-Schema is the contract. Validation enforces the research-only boundary ([ADR 0001](./adr/0001-research-only-boundary.md)) and the observable-prediction rule ([ADR 0004](./adr/0004-predictions-as-observable-forecasts.md)).
+Schema is the contract. Validation enforces the research-only boundary ([ADR 0001](./adr/0001-research-only-boundary.md)) with context-aware trade-action matching that permits neutral business descriptions, and enforces the observable-prediction rule ([ADR 0004](./adr/0004-predictions-as-observable-forecasts.md)).
 
 ### Research Console App (`app/`)
 

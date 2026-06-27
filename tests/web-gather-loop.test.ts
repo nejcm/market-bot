@@ -242,6 +242,11 @@ describe("runWebGatherLoop", () => {
             },
             {
               tool: "web_search",
+              args: { query: "AI market news" },
+              rationale: "generic single-token subject drift",
+            },
+            {
+              tool: "web_search",
               args: { query: "AI infrastructure buildout power constraints" },
               rationale: "on subject",
             },
@@ -253,6 +258,7 @@ describe("runWebGatherLoop", () => {
       expect.objectContaining({ tool: "web_search" }),
     ]);
     expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({ reason: "web_search query must mention the run subject" }),
       expect.objectContaining({ reason: "web_search query must mention the run subject" }),
     ]);
   });

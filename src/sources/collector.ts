@@ -667,7 +667,12 @@ export async function collectSources(
     yahooFundamentalsItem === undefined || finalExtendedEvidence === undefined
       ? finalExtendedEvidence
       : {
-          instrument: finalExtendedEvidence.instrument,
+          ...(finalExtendedEvidence.instrument !== undefined
+            ? { instrument: finalExtendedEvidence.instrument }
+            : {}),
+          ...(finalExtendedEvidence.subject !== undefined
+            ? { subject: finalExtendedEvidence.subject }
+            : {}),
           items: [...finalExtendedEvidence.items, yahooFundamentalsItem],
           gaps: finalExtendedEvidence.gaps,
         };

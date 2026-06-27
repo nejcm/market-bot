@@ -565,14 +565,30 @@ function mergeExtendedEvidence(
     sourceIds,
     observedAt: artifact.generatedAt,
   };
+  const scope =
+    existing?.instrument !== undefined
+      ? { instrument: existing.instrument }
+      : evidenceScopeForSubject(command, subject);
   return {
-    instrument:
-      existing?.instrument ??
-      (isInstrumentCommand(command)
-        ? { assetClass: command.assetClass, symbol: command.symbol }
-        : { assetClass: command.assetClass, symbol: subject.subjectId }),
+    ...scope,
     items: [...(existing?.items ?? []).filter((entry) => entry.category !== item.category), item],
     gaps: [...(existing?.gaps ?? []), ...gaps],
+  };
+}
+
+function evidenceScopeForSubject(
+  command: ResearchCommand,
+  subject: WebSubjectProfileSubject,
+): Pick<ExtendedEvidence, "instrument" | "subject"> {
+  if (isInstrumentCommand(command)) {
+    return { instrument: { assetClass: command.assetClass, symbol: command.symbol } };
+  }
+  return {
+    subject: {
+      subjectKind: subject.subjectKind,
+      subjectId: subject.subjectId,
+      ...(subject.subjectLabel !== undefined ? { subjectLabel: subject.subjectLabel } : {}),
+    },
   };
 }
 

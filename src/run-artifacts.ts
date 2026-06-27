@@ -216,6 +216,10 @@ function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCa
   return typeof value === "string" && EXTENDED_EVIDENCE_CATEGORIES.has(value);
 }
 
+function isSubjectKind(value: unknown): value is SubjectKind {
+  return value === "company" || value === "crypto-asset" || value === "theme";
+}
+
 function isEvidenceLane(value: unknown): value is EvidenceLane {
   return typeof value === "string" && EVIDENCE_LANE_SET.has(value);
 }
@@ -434,11 +438,24 @@ function readExtendedEvidence(value: unknown): ExtendedEvidence | undefined {
     return;
   }
   const instrument = readInstrument(value.instrument);
-  if (instrument === undefined) {
+  const subject =
+    isRecord(value.subject) &&
+    isSubjectKind(value.subject.subjectKind) &&
+    typeof value.subject.subjectId === "string"
+      ? {
+          subjectKind: value.subject.subjectKind,
+          subjectId: value.subject.subjectId,
+          ...(typeof value.subject.subjectLabel === "string"
+            ? { subjectLabel: value.subject.subjectLabel }
+            : {}),
+        }
+      : undefined;
+  if (instrument === undefined && subject === undefined) {
     return;
   }
   return {
-    instrument,
+    ...(instrument !== undefined ? { instrument } : {}),
+    ...(subject !== undefined ? { subject } : {}),
     items: readExtendedEvidenceItems(value.items),
     gaps: readSourceGaps(value.gaps),
   };

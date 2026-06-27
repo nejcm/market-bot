@@ -945,7 +945,8 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     dataGaps,
     predictions: gatedPredictions.predictions,
     sources,
-    ...(isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
+    ...((isInstrumentCommand(command) || command.jobType === "research") &&
+    collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
       : {}),
     notFinancialAdvice: true,

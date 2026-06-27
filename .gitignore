@@ -9,6 +9,6 @@ app/dist/
 .lefthook-local.yml
 .firecrawl
 
-plans/
-research/
+/plans/
+/research/
 TODO.md

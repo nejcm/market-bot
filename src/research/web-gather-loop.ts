@@ -71,6 +71,7 @@ type ModelWebGatherRequest =
 interface ValidationState {
   readonly seenKeys: Set<string>;
   readonly surfacedUrls: Set<string>;
+  readonly subject: WebGatherSubject;
   readonly subjectTerms: readonly string[];
   readonly config: AppConfig;
   readonly round: number;
@@ -168,6 +169,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         {
           seenKeys,
           surfacedUrls,
+          subject,
           subjectTerms,
           config: input.config,
           round: roundState.round,
@@ -319,7 +321,7 @@ function validateRequest(
     if (typeof parsedArgs === "string") {
       return reject(state.round, tool, args, rationale, parsedArgs);
     }
-    if (!isOnSubjectQuery(parsedArgs.query, state.subjectTerms)) {
+    if (!isOnSubjectQuery(parsedArgs.query, state.subject, state.subjectTerms)) {
       return reject(
         state.round,
         tool,
@@ -505,9 +507,23 @@ function normalizeTerm(value: string): string {
     .replaceAll(/\s+/gu, " ");
 }
 
-function isOnSubjectQuery(query: string, subjectTerms: readonly string[]): boolean {
+function isOnSubjectQuery(
+  query: string,
+  subject: WebGatherSubject,
+  subjectTerms: readonly string[],
+): boolean {
   const normalized = normalizeTerm(query);
   const tokens = new Set(normalized.split(" "));
+  if (subject.subjectKind === "theme") {
+    const label = normalizeTerm(subject.subjectLabel ?? subject.subjectId);
+    const significant = label
+      .split(" ")
+      .filter((token) => token.length > 1 && !THEME_STOPWORDS.has(token));
+    if (label.includes(" ") && ` ${normalized} `.includes(` ${label} `)) {
+      return true;
+    }
+    return significant.length > 0 && significant.every((term) => tokens.has(term));
+  }
   return subjectTerms.some((term) =>
     term.includes(" ") ? ` ${normalized} `.includes(` ${term} `) : tokens.has(term),
   );

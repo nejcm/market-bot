@@ -429,7 +429,7 @@ describe("loadRunArtifact", () => {
 
     const { artifact } = await loadRunArtifact(runDir);
 
-    expect(artifact?.report.extendedEvidence?.instrument.identity).toEqual({
+    expect(artifact?.report.extendedEvidence?.instrument?.identity).toEqual({
       exchange: "NASDAQ",
       quoteCurrency: "USD",
       displayName: "Apple Inc.",
@@ -448,6 +448,45 @@ describe("loadRunArtifact", () => {
       cause: "provider-data-missing",
       evidenceQualityImpact: "extended-evidence-cap",
     });
+  });
+
+  test("preserves subject-scoped extended evidence without an instrument", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "theme-extended-evidence");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "theme-extended-evidence",
+        jobType: "research",
+        extendedEvidence: {
+          subject: {
+            subjectKind: "theme",
+            subjectId: "ai-infrastructure-buildout",
+            subjectLabel: "AI infrastructure buildout",
+          },
+          items: [
+            {
+              category: "web-subject-profile",
+              title: "Web Subject Profile",
+              summary: "Cited web subject profile captured.",
+              sourceIds: ["web-ai-infrastructure-buildout-12345678"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      }),
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.report.extendedEvidence?.instrument).toBeUndefined();
+    expect(artifact?.report.extendedEvidence?.subject).toEqual({
+      subjectKind: "theme",
+      subjectId: "ai-infrastructure-buildout",
+      subjectLabel: "AI infrastructure buildout",
+    });
+    expect(artifact?.report.extendedEvidence?.items[0]?.category).toBe("web-subject-profile");
   });
 
   test("reports an absent report directory (ENOENT) without an artifact", async () => {

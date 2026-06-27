@@ -308,7 +308,12 @@ export interface ExtendedEvidenceItem {
 }
 
 export interface ExtendedEvidence {
-  readonly instrument: Instrument;
+  readonly instrument?: Instrument;
+  readonly subject?: {
+    readonly subjectKind: SubjectKind;
+    readonly subjectId: string;
+    readonly subjectLabel?: string;
+  };
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
 }

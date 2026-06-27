@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
-import type { RunTrace } from "../src/domain/types";
+import type { RunTrace, Source } from "../src/domain/types";
 import type { CollectedSources } from "../src/sources/types";
+import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
 import {
   collectedSources as collectedSourceBundle,
   marketSnapshot,
@@ -440,5 +441,102 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.informativeCount).toBe(0);
     expect(result.signalTargetMet).toBe(true);
     expect(result.mixWarnings).toHaveLength(0);
+  });
+});
+
+function webSource(id: string): Source {
+  return { id, title: `Web source ${id}`, fetchedAt: "2026-06-28T00:00:00.000Z", kind: "web" };
+}
+
+describe("web source roles accounting", () => {
+  const webProfile: WebSubjectProfileArtifact = {
+    version: 2,
+    generatedAt: "2026-06-28T00:00:00.000Z",
+    subjectKind: "company",
+    subjectId: "AAPL",
+    symbol: "AAPL",
+    subjectSummary: { answer: "Apple makes devices", sourceIds: ["web-1"] },
+    questions: {
+      whatItDoes: { answer: "Electronics", sourceIds: ["web-1"] },
+      howItMakesMoney: { answer: "Hardware + services", sourceIds: ["web-1", "web-2"] },
+      customers: { answer: "Consumers", sourceIds: ["web-2"] },
+      geography: { answer: "Worldwide", sourceIds: ["web-1"] },
+      purchaseRecurrence: { answer: "High", sourceIds: ["web-3"] },
+      pricingPower: { answer: "Premium", sourceIds: ["web-1"] },
+      recessionCyclicality: { answer: "Moderate", sourceIds: ["web-1"] },
+    },
+    recentMaterialEvents: [],
+    factLedger: [{ claim: "Revenue grew", sourceIds: ["web-1"] }],
+    openGaps: [],
+    sourceIds: ["web-1", "web-2", "web-3"],
+  };
+
+  test("counts accepted, profileUsed, reportCited, and unused correctly", () => {
+    const report = researchReport({
+      sources: [
+        webSource("web-1"),
+        webSource("web-2"),
+        webSource("web-3"),
+        webSource("web-4"),
+        webSource("web-5"),
+        { id: "news-1", title: "News", fetchedAt: "2026-06-28T00:00:00.000Z", kind: "news" },
+      ],
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1", "web-4"] }],
+      predictions: [prediction({ sourceIds: ["web-2"] })],
+    });
+    const collected = collectedSourceBundle({ webSubjectProfile: webProfile });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeDefined();
+    // 5 web sources accepted (news-1 excluded)
+    expect(analytics.webSources!.accepted).toBe(5);
+    // Profile cited web-1, web-2, web-3 → 3 of those are accepted
+    expect(analytics.webSources!.profileUsed).toBe(3);
+    // Report cited web-1, web-4, web-2 → 3 unique accepted web ids
+    expect(analytics.webSources!.reportCited).toBe(3);
+    // Union of profile+report: web-1, web-2, web-3, web-4 → web-5 unused
+    expect(analytics.webSources!.unused).toBe(1);
+  });
+
+  test("omits webSources block when no web sources are accepted", () => {
+    const report = researchReport({
+      sources: [
+        { id: "news-1", title: "News", fetchedAt: "2026-06-28T00:00:00.000Z", kind: "news" },
+      ],
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeUndefined();
+  });
+
+  test("all web sources unused when no profile and no report citations", () => {
+    const report = researchReport({
+      sources: [webSource("web-1"), webSource("web-2")],
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeDefined();
+    expect(analytics.webSources!.accepted).toBe(2);
+    expect(analytics.webSources!.profileUsed).toBe(0);
+    expect(analytics.webSources!.reportCited).toBe(0);
+    expect(analytics.webSources!.unused).toBe(2);
   });
 });

@@ -149,6 +149,12 @@ export interface RunAnalytics {
     readonly fetchedAt: string;
     readonly latestSessionAgeDays: number;
   };
+  readonly webSources?: {
+    readonly accepted: number;
+    readonly profileUsed: number;
+    readonly reportCited: number;
+    readonly unused: number;
+  };
   readonly runShape: {
     readonly traceStages: readonly string[];
     readonly stages: readonly {
@@ -367,6 +373,43 @@ function verifiedMarketSnapshotFreshness(
       };
 }
 
+function webSourceRoles(
+  report: ResearchReport,
+  collectedSources: CollectedSources,
+): { webSources: NonNullable<RunAnalytics["webSources"]> } | Record<string, never> {
+  const acceptedIds = new Set(
+    report.sources.filter((source) => source.kind === "web").map((source) => source.id),
+  );
+  if (acceptedIds.size === 0) {
+    return {};
+  }
+  const profileUsedIds = new Set(
+    (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => acceptedIds.has(id)),
+  );
+  const reportCitedIds = new Set(
+    [
+      ...report.keyFindings,
+      ...report.bullCase,
+      ...report.bearCase,
+      ...report.risks,
+      ...report.catalysts,
+      ...report.scenarios,
+      ...report.predictions,
+    ]
+      .flatMap((item) => item.sourceIds)
+      .filter((id) => acceptedIds.has(id)),
+  );
+  const usedUnion = new Set([...profileUsedIds, ...reportCitedIds]);
+  return {
+    webSources: {
+      accepted: acceptedIds.size,
+      profileUsed: profileUsedIds.size,
+      reportCited: reportCitedIds.size,
+      unused: acceptedIds.size - usedUnion.size,
+    },
+  };
+}
+
 export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   const { collectedSources, report, sourcePlanSummary, trace } = input;
   const gaps = sourceGaps(collectedSources);
@@ -526,6 +569,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       : {}),
     ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
+    ...webSourceRoles(report, collectedSources),
     runShape: {
       traceStages: trace.stages,
       stages: input.stageOutputs.map((output) => ({

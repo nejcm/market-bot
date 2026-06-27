@@ -778,6 +778,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionErrors,
     predictionRetryErrors,
     predictionTrimWarnings,
+    predictionReplacementAttempted,
     reportValidationErrors,
   } = synthesis;
   const codeVersion = readCodeVersion();
@@ -817,6 +818,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     domainPlaybooks: playbookSelection.audit,
     ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
     ...(predictionTrimWarnings.length > 0 ? { predictionTrimWarnings } : {}),
+    ...(predictionReplacementAttempted ? { predictionReplacementAttempted } : {}),
     ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
     ...(reportValidationErrors.length > 0
       ? { reportValidationRetryErrors: reportValidationErrors }

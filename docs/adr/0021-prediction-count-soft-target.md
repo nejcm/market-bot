@@ -29,7 +29,15 @@ The prediction count is a **soft target**, not a hard floor.
 - `DepthProfile.minimumPredictions` is renamed to `targetPredictions` to remove the misnomer.
 - Final synthesis no longer re-prompts merely to raise the count. Reprompts fire only for
   hard prediction validation errors and report validation errors. Redundant predictions are
-  prediction trims: dropped from the emitted report and recorded as telemetry, not retried.
+  prediction trims: dropped from the emitted report and recorded as telemetry.
+- **Replacement-only retry carve-out:** when a redundant trim drops the emitted prediction
+  count **below** `targetPredictions`, exactly **one** replacement-only retry fires. The
+  retry carries the trim reasons as `predictionErrors`, triggering the existing
+  `predictionRepair` guidance (replace the dropped near-duplicate with a distinct forecast —
+  different subject, kind, benchmark, or sufficiently separated horizon). This retry never
+  raises the count above target. If the replacement re-introduces redundancy or doesn't
+  improve the count, the result is accepted as-is — no oscillation. A clean below-target
+  result with no redundant trim still ships unrepaired.
 - Prompt guidance instructs the model to emit a prediction only where evidence supports a
   directional lean, to prefer fewer high-conviction forecasts over padding, and to never emit
   a coin-flip just to reach a count.

@@ -42,6 +42,7 @@ function baseAnalytics(): RunAnalytics {
       retryErrorCount: 0,
       validationErrorCount: 0,
       trimWarningCount: 0,
+      replacementAttempted: false,
       byKind: { direction: 3, relative: 2 },
       horizonTradingDays: { min: 5, max: 10, average: 7 },
       citedCount: 5,

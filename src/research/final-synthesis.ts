@@ -59,6 +59,7 @@ export interface SynthesizeReportUntilValidResult {
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
+  readonly predictionReplacementAttempted: boolean;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
 }
@@ -72,32 +73,40 @@ export async function synthesizeReportUntilValid(
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
   });
+
+  /*
+   * After hard-error retries settle, check whether a redundant trim dropped the
+   * prediction count below target. If so, fire exactly one replacement attempt
+   * through the existing predictionRepair path (ADR 0021 carve-out).
+   */
+  const replacementResult = await runRedundantTrimReplacement(input, predictionProgress);
   let reportValidationErrors: readonly string[] = [];
 
   try {
-    const report = buildReport(input, predictionProgress.state);
+    const report = buildReport(input, replacementResult.progress.state);
     return {
       report,
-      stageOutputs: predictionProgress.stageOutputs,
-      predictionRetryErrors: predictionProgress.predictionRetryErrors,
-      predictionTrimWarnings: predictionTrimWarnings(predictionProgress.state.predResult),
-      predictionErrors: predictionProgress.state.predResult.errors,
+      stageOutputs: replacementResult.progress.stageOutputs,
+      predictionRetryErrors: replacementResult.progress.predictionRetryErrors,
+      predictionTrimWarnings: predictionTrimWarnings(replacementResult.progress.state.predResult),
+      predictionReplacementAttempted: replacementResult.attempted,
+      predictionErrors: replacementResult.progress.state.predResult.errors,
       reportValidationErrors,
     };
   } catch (error: unknown) {
     reportValidationErrors = [errorMessage(error)];
   }
 
-  const reportRetryPredictionErrors = predictionProgress.state.predResult.errors;
+  const reportRetryPredictionErrors = replacementResult.progress.state.predResult.errors;
   const validationState = await runAndReadFinalSynthesis(input, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
-    stageOutputs: [...predictionProgress.stageOutputs, validationState.output],
+    stageOutputs: [...replacementResult.progress.stageOutputs, validationState.output],
     predictionRetryErrors: uniqueStrings([
-      ...predictionProgress.predictionRetryErrors,
+      ...replacementResult.progress.predictionRetryErrors,
       ...reportRetryPredictionErrors,
     ]),
   };
@@ -124,6 +133,7 @@ export async function synthesizeReportUntilValid(
     stageOutputs: validationProgress.stageOutputs,
     predictionRetryErrors: validationProgress.predictionRetryErrors,
     predictionTrimWarnings: predictionTrimWarnings(validationProgress.state.predResult),
+    predictionReplacementAttempted: replacementResult.attempted,
     predictionErrors: validationProgress.state.predResult.errors,
     reportValidationErrors,
   };
@@ -173,6 +183,47 @@ async function runAndReadFinalSynthesis(
     input.allowedSubjects,
   );
   return { output, payload, predResult };
+}
+
+interface RedundantTrimReplacementResult {
+  readonly progress: SynthesisProgress;
+  readonly attempted: boolean;
+}
+
+/*
+ * After hard-error retries settle, fire at most one replacement attempt when a
+ * redundant trim dropped the emitted prediction count below targetPredictions.
+ *
+ * Rules (ADR 0021 carve-out):
+ * - At most one attempt — separate from maxPredictionReprompts (hard errors).
+ * - Redundant trim warnings are passed as predictionErrors to trigger the
+ *   existing buildPredictionRepairInstruction guidance.
+ * - If the replacement re-introduces redundancy or doesn't improve, accept and stop.
+ * - A clean below-target result (no redundant trim) is never retried here.
+ */
+async function runRedundantTrimReplacement(
+  input: SynthesizeReportUntilValidInput,
+  progress: SynthesisProgress,
+): Promise<RedundantTrimReplacementResult> {
+  const trimWarnings = predictionTrimWarnings(progress.state.predResult);
+  const emittedCount = progress.state.predResult.predictions.length;
+  const target = input.context.depthProfile.targetPredictions;
+
+  if (trimWarnings.length === 0 || emittedCount >= target) {
+    return { progress, attempted: false };
+  }
+
+  const state = await runAndReadFinalSynthesis(input, {
+    predictionErrors: [...trimWarnings],
+  });
+  return {
+    progress: {
+      state,
+      stageOutputs: [...progress.stageOutputs, state.output],
+      predictionRetryErrors: uniqueStrings([...progress.predictionRetryErrors, ...trimWarnings]),
+    },
+    attempted: true,
+  };
 }
 
 function buildReport(

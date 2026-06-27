@@ -2948,7 +2948,7 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
-  test("records redundancy trims without reprompting deep synthesis", async () => {
+  test("records redundancy trims without reprompting when post-trim count meets target", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;
     const provider: ModelProvider = {
@@ -2967,6 +2967,8 @@ describe("runResearchJob", () => {
 
         finalCalls += 1;
         if (finalCalls === 1) {
+          // Emit 4 predictions; one is a redundant adjacent → trimmed to 3.
+          // Deep market-overview-equity target is 3, so 3 >= 3 — no replacement retry.
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
@@ -2999,6 +3001,26 @@ describe("runResearchJob", () => {
                   probability: 0.6,
                   sourceIds: ["market-aapl"],
                 },
+                {
+                  id: "pred-range",
+                  claim: "SPY breaks out of range.",
+                  kind: "range",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +10) outside [520, 560]",
+                  horizonTradingDays: 10,
+                  probability: 0.65,
+                  sourceIds: ["market-aapl"],
+                },
+                {
+                  id: "pred-vol",
+                  claim: "VIX spikes above 20.",
+                  kind: "volatility",
+                  subject: "^VIX",
+                  measurableAs: "max(close(^VIX), 0..+10) > 20",
+                  horizonTradingDays: 10,
+                  probability: 0.55,
+                  sourceIds: ["market-aapl"],
+                },
               ],
             }),
             tokenEstimate: 100,
@@ -3006,7 +3028,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        throw new Error("redundancy-only trims must not retry final synthesis");
+        throw new Error("at-target redundancy trims must not retry final synthesis");
       },
     };
 
@@ -3031,9 +3053,14 @@ describe("runResearchJob", () => {
     expect(finalPrompts[0]?.predictionRepromptErrors).toBeUndefined();
     expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
     expect(result.trace.predictionTrimWarnings).toContain(redundancyReason);
-    expect(result.report.predictions).toHaveLength(1);
-    expect(result.report.predictions[0]?.id).toBe("pred-1");
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+    expect(result.trace.predictionReplacementAttempted).toBeUndefined();
+    expect(result.report.predictions).toHaveLength(3);
+    expect(result.report.predictions.map((p) => p.id)).toEqual([
+      "pred-1",
+      "pred-range",
+      "pred-vol",
+    ]);
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
     expect(priorStageNames(finalPrompts[0] ?? {})).toEqual([
       "specialist-analysis",
       "regime-context-analysis",
@@ -3139,6 +3166,285 @@ describe("runResearchJob", () => {
       "pred-distinct",
     ]);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
+  });
+
+  test("fires exactly one replacement retry when redundant trim drops below target", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        finalCalls += 1;
+        if (finalCalls === 1) {
+          // Emit 2 predictions; one is redundant-adjacent → trimmed to 1.
+          // Deep market-overview-equity target is 3, so 1 < 3 → replacement fires.
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [
+                {
+                  id: "pred-1",
+                  claim: "SPY closes higher over 5 trading days.",
+                  kind: "direction",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +5) > close(SPY, 0)",
+                  horizonTradingDays: 5,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+                {
+                  id: "pred-adjacent",
+                  claim: "SPY closes higher over 6 trading days.",
+                  kind: "direction",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +6) > close(SPY, 0)",
+                  horizonTradingDays: 6,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        if (finalCalls === 2) {
+          // Replacement attempt returns 3 distinct predictions → reaches target.
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: mockPredictions(3),
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        throw new Error("replacement retry must fire at most once");
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const redundancyReason =
+      "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)";
+
+    // Exactly one replacement attempt (2 total final-synthesis calls).
+    expect(finalPrompts).toHaveLength(2);
+    // First call has no repair prompt.
+    expect(finalPrompts[0]?.predictionRepromptErrors).toBeUndefined();
+    // Second call carries the trim reasons and predictionRepair instruction.
+    expect(finalPrompts[1]?.predictionRepromptErrors).toContainEqual(redundancyReason);
+    expect(finalPrompts[1]?.predictionRepair).toBeDefined();
+    // Result ships the broadened replacement set.
+    expect(result.report.predictions).toHaveLength(3);
+    expect(result.trace.predictionRetryErrors).toContainEqual(redundancyReason);
+    expect(result.trace.predictionReplacementAttempted).toBe(true);
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
+  });
+
+  test("accepts replacement result without second retry when still below target", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        finalCalls += 1;
+        if (finalCalls === 1) {
+          // 2 predictions, 1 redundant → 1 after trim < 3 target → replacement fires.
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: [
+                {
+                  id: "pred-1",
+                  claim: "SPY closes higher over 5 trading days.",
+                  kind: "direction",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +5) > close(SPY, 0)",
+                  horizonTradingDays: 5,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+                {
+                  id: "pred-adjacent",
+                  claim: "SPY closes higher over 6 trading days.",
+                  kind: "direction",
+                  subject: "SPY",
+                  measurableAs: "close(SPY, +6) > close(SPY, 0)",
+                  horizonTradingDays: 6,
+                  probability: 0.6,
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        if (finalCalls === 2) {
+          // Replacement emits 2 (no redundancy) — still below target 3 but accepted.
+          return {
+            content: JSON.stringify({
+              summary: "Evidence is sourced.",
+              keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              confidence: "medium",
+              dataGaps: [],
+              predictions: mockPredictions(2),
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        throw new Error("residual shortfall must not trigger a second replacement retry");
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+
+    // Exactly one replacement attempt, no second retry.
+    expect(finalPrompts).toHaveLength(2);
+    expect(result.trace.predictionReplacementAttempted).toBe(true);
+    expect(result.report.predictions).toHaveLength(2);
+    // Shortfall gap present because 2 < 3 target.
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+  });
+
+  test("does not retry replacement when below target without redundant trim", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+
+        // Emit 1 prediction — below deep target 3 but no redundancy.
+        return {
+          content: JSON.stringify({
+            summary: "Evidence is sourced.",
+            keyFindings: [{ text: "SPY moved.", sourceIds: ["market-aapl"] }],
+            bullCase: [],
+            bearCase: [],
+            risks: [],
+            catalysts: [],
+            scenarios: [],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: mockPredictions(1),
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+
+    // Clean below-target: no redundancy → no replacement retry (ADR 0021).
+    expect(finalPrompts).toHaveLength(1);
+    expect(result.trace.predictionReplacementAttempted).toBeUndefined();
+    expect(result.report.predictions).toHaveLength(1);
+    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
   test("re-prompts synthesis once when report findings omit source IDs", async () => {

@@ -761,22 +761,50 @@ const projectResolvedInstrumentIdentity: EvidenceProjector = (_command, collecte
       }
     : {};
 
-const projectWebSources: EvidenceProjector = (command, collectedSources) =>
-  isInstrumentCommand(command)
-    ? {
-        webSources: collectedSources.extendedSources
-          .filter((source) => source.kind === "web")
-          .map((source) => ({
-            id: source.id,
-            title: source.title,
-            ...(source.url !== undefined ? { url: source.url } : {}),
-            ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
-            fetchedAt: source.fetchedAt,
-            ...(source.summary !== undefined ? { summary: source.summary } : {}),
-            ...(source.snippet !== undefined ? { snippet: source.snippet } : {}),
-          })),
-      }
-    : {};
+function hasNonEmptyWebSubjectProfile(collectedSources: CollectedSources): boolean {
+  const profile = collectedSources.webSubjectProfile;
+  return profile !== undefined && profile.sourceIds.length > 0;
+}
+
+const projectWebSources: EvidenceProjector = (command, collectedSources) => {
+  if (!isInstrumentCommand(command)) {
+    return {};
+  }
+  const hasProfile = hasNonEmptyWebSubjectProfile(collectedSources);
+  return {
+    webSources: collectedSources.extendedSources
+      .filter((source) => source.kind === "web")
+      .map((source) => ({
+        id: source.id,
+        title: source.title,
+        ...(source.url !== undefined ? { url: source.url } : {}),
+        ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
+        fetchedAt: source.fetchedAt,
+        // Strip raw content when a non-empty profile distils the same information.
+        ...(!hasProfile && source.summary !== undefined ? { summary: source.summary } : {}),
+        ...(!hasProfile && source.snippet !== undefined ? { snippet: source.snippet } : {}),
+      })),
+  };
+};
+
+const projectWebSubjectProfile: EvidenceProjector = (command, collectedSources) => {
+  if (!isInstrumentCommand(command)) {
+    return {};
+  }
+  const profile = collectedSources.webSubjectProfile;
+  if (profile === undefined || profile.sourceIds.length === 0) {
+    return {};
+  }
+  return {
+    webSubjectProfile: {
+      subjectSummary: profile.subjectSummary,
+      questions: profile.questions,
+      factLedger: profile.factLedger,
+      recentMaterialEvents: profile.recentMaterialEvents,
+      openGaps: profile.openGaps,
+    },
+  };
+};
 
 const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectMarketContext,
@@ -785,6 +813,7 @@ const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectVerifiedMarketSnapshot,
   projectResolvedInstrumentIdentity,
   projectWebSources,
+  projectWebSubjectProfile,
 ];
 
 function buildEvidencePayload(

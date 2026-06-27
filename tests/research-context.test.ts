@@ -24,6 +24,7 @@ import type {
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
 import type { EarningsSetupCollected } from "../src/sources/types";
+import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -2060,5 +2061,151 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     });
     expect(evidence.resolvedInstrumentIdentity).toEqual(resolvedIdentityValue);
     expect(evidence.resolvedIdentityInstruction).toBeDefined();
+  });
+
+  const webProfileForProjection: WebSubjectProfileArtifact = {
+    version: 2,
+    generatedAt: "2026-06-28T00:00:00.000Z",
+    subjectKind: "company",
+    subjectId: "AAPL",
+    symbol: "AAPL",
+    subjectSummary: { answer: "Apple sells devices", sourceIds: ["web-1"] },
+    questions: {
+      whatItDoes: { answer: "Consumer electronics", sourceIds: ["web-1"] },
+      howItMakesMoney: { answer: "Hardware + services", sourceIds: ["web-1"] },
+      customers: { answer: "Global consumers", sourceIds: ["web-1"] },
+      geography: { answer: "Worldwide", sourceIds: ["web-1"] },
+      purchaseRecurrence: { answer: "High", sourceIds: ["web-1"] },
+      pricingPower: { answer: "Premium", sourceIds: ["web-1"] },
+      recessionCyclicality: { answer: "Moderate", sourceIds: ["web-1"] },
+    },
+    recentMaterialEvents: [],
+    factLedger: [{ claim: "Revenue grew", sourceIds: ["web-1"] }],
+    openGaps: [],
+    sourceIds: ["web-1"],
+  };
+
+  test("web sources strip summary/snippet when a non-empty profile exists", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const webSource = {
+      id: "web-1",
+      title: "Apple analysis",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Long summary text",
+      snippet: "Long snippet text",
+    };
+    const evidence = evidenceFor(command, {
+      extendedSources: [webSource],
+      webSubjectProfile: webProfileForProjection,
+    });
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    expect(sources).toHaveLength(1);
+    expect(sources[0]!.id).toBe("web-1");
+    expect(sources[0]!.summary).toBeUndefined();
+    expect(sources[0]!.snippet).toBeUndefined();
+  });
+
+  test("web sources keep summary/snippet when no profile exists", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const webSource = {
+      id: "web-1",
+      title: "Apple analysis",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Long summary text",
+      snippet: "Long snippet text",
+    };
+    const evidence = evidenceFor(command, { extendedSources: [webSource] });
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    expect(sources).toHaveLength(1);
+    expect(sources[0]!.summary).toBe("Long summary text");
+    expect(sources[0]!.snippet).toBe("Long snippet text");
+  });
+
+  test("web sources keep summary/snippet when profile is empty (failed)", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const emptyProfile: WebSubjectProfileArtifact = {
+      ...webProfileForProjection,
+      sourceIds: [],
+    };
+    const webSource = {
+      id: "web-1",
+      title: "Apple analysis",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Long summary text",
+      snippet: "Long snippet text",
+    };
+    const evidence = evidenceFor(command, {
+      extendedSources: [webSource],
+      webSubjectProfile: emptyProfile,
+    });
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    expect(sources).toHaveLength(1);
+    expect(sources[0]!.summary).toBe("Long summary text");
+    expect(sources[0]!.snippet).toBe("Long snippet text");
+  });
+
+  test("structured profile projected when non-empty profile exists", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const evidence = evidenceFor(command, {
+      webSubjectProfile: webProfileForProjection,
+    });
+    const projected = evidence.webSubjectProfile as Record<string, unknown>;
+    expect(projected).toBeDefined();
+    expect(projected.subjectSummary).toEqual(webProfileForProjection.subjectSummary);
+    expect(projected.questions).toEqual(webProfileForProjection.questions);
+    expect(projected.factLedger).toEqual(webProfileForProjection.factLedger);
+    expect(projected.openGaps).toEqual(webProfileForProjection.openGaps);
+  });
+
+  test("no structured profile projected when profile is empty", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const emptyProfile: WebSubjectProfileArtifact = {
+      ...webProfileForProjection,
+      sourceIds: [],
+    };
+    const evidence = evidenceFor(command, {
+      webSubjectProfile: emptyProfile,
+    });
+    expect(evidence.webSubjectProfile).toBeUndefined();
+  });
+
+  test("no structured profile projected for non-instrument runs", () => {
+    const command: ResearchCommand = {
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "brief",
+    };
+    const evidence = evidenceFor(command, {
+      webSubjectProfile: webProfileForProjection,
+    });
+    expect(evidence.webSubjectProfile).toBeUndefined();
   });
 });

@@ -2835,6 +2835,70 @@ describe("runResearchJob", () => {
     expect(result.report.confidence).toBe("medium");
   });
 
+  test("allows web company profile evidence to offset one extended evidence gap", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Ticker evidence has core and web profile sources.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports the ticker.", sourceIds: ["news-equity-1"] }],
+          bearCase: [
+            { text: "Optional macro evidence is unavailable.", sourceIds: ["market-aapl"] },
+          ],
+          risks: [{ text: "Macro context is incomplete.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "high",
+          dataGaps: [],
+          predictions: mockPredictions(3, "AAPL"),
+        }),
+      ),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        extendedSources: [],
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items: [
+            {
+              category: "web-company-profile",
+              title: "Web Company Profile",
+              summary: "Cited web company profile captured for AAPL.",
+              sourceIds: ["web-aapl-profile"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+          gaps: [
+            {
+              source: "fred-macro",
+              message: "MARKET_BOT_FRED_API_KEY is not set",
+              evidenceQualityImpact: "extended-evidence-cap",
+            },
+          ],
+        },
+        sourceGaps: [
+          {
+            source: "fred-macro",
+            message: "MARKET_BOT_FRED_API_KEY is not set",
+            evidenceQualityImpact: "extended-evidence-cap",
+          },
+        ],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.confidence).toBe("high");
+  });
+
   test("ships with a shortfall gap without reprompting when predictions fall below target", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {

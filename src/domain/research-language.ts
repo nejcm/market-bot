@@ -7,6 +7,16 @@ const TICKER_TRADE_ACTION_PATTERN =
 const IMPERATIVE_TRADE_ACTION_PATTERN =
   /\b(?:Buy|Sell|Hold|Accumulate)\s+(?:after|before|on|at|if|when)\b/u;
 
+/*
+ * Sentence-initial imperative advice: a capitalized trade verb at the start of the
+ * text or a clause ("Buy now", "Sell immediately", "Hold for upside", "Buy the dip").
+ * Descriptive prose keeps these verbs lowercase and mid-sentence ("customers buy
+ * devices", "Apple sells services"), so it stays clear. The `(?!-)` guard spares
+ * finance compounds like "Sell-side"/"Buy-side".
+ */
+const SENTENCE_INITIAL_TRADE_ACTION_PATTERN =
+  /(?:^|[.!?;:\n])[\s*•-]*(?:Buy|Sell|Hold|Accumulate)\b(?!-)/u;
+
 export const READER_DIRECTED_ADVICE_PATTERN =
   /\b(?:investors|traders|readers|you)\s+(?:should|could|may want to|might want to|need to|must)\b|\b(?:should|must|need to)\s+(?:buy|sell|hold|open|trim|add|exit|enter|reduce|increase|rebalance)\b/iu;
 
@@ -15,6 +25,7 @@ export function violatesResearchOnly(text: string): { match: string } | null {
     TRADE_ACTION_PATTERN.exec(text) ??
     TICKER_TRADE_ACTION_PATTERN.exec(text) ??
     IMPERATIVE_TRADE_ACTION_PATTERN.exec(text) ??
+    SENTENCE_INITIAL_TRADE_ACTION_PATTERN.exec(text) ??
     READER_DIRECTED_ADVICE_PATTERN.exec(text);
-  return m !== null ? { match: m[0] } : null;
+  return m !== null ? { match: m[0].trim() } : null;
 }

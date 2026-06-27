@@ -112,4 +112,41 @@ describe("violatesResearchOnly", () => {
     );
     expect(result).not.toBeNull();
   });
+
+  const terseImperatives = [
+    "Buy now",
+    "Sell immediately",
+    "Hold for upside",
+    "Accumulate gradually",
+    "Buy the dip",
+    "Sell into strength",
+    "Buy more",
+    "Hold indefinitely",
+  ];
+
+  for (const phrase of terseImperatives) {
+    test(`blocks terse imperative trade advice: "${phrase}"`, () => {
+      expect(violatesResearchOnly(phrase)).not.toBeNull();
+    });
+  }
+
+  test("blocks imperative advice mid-paragraph after sentence boundary", () => {
+    expect(
+      violatesResearchOnly("The setup is compelling. Buy now before earnings."),
+    ).not.toBeNull();
+  });
+
+  const safeCompoundsAndProse = [
+    "Sell-side analysts raised their revenue estimates.",
+    "Buy-side demand for the new issue was strong.",
+    "Sellers raised prices across the channel.",
+    "Buyers flocked to the latest model.",
+    "Holding company structure simplifies reporting.",
+  ];
+
+  for (const text of safeCompoundsAndProse) {
+    test(`allows non-advice prose: "${text.slice(0, 50)}"`, () => {
+      expect(violatesResearchOnly(text)).toBeNull();
+    });
+  }
 });

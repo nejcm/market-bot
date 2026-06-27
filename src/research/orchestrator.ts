@@ -462,7 +462,9 @@ async function runWebSubjectProfileExtraction(input: {
  * @param {CollectedSources} collectedSources - The collected sources to reconcile.
  * @returns {CollectedSources} Updated collected sources with reconciled framework.
  */
-function reconcileBusinessFrameworkEvidence(collectedSources: CollectedSources): CollectedSources {
+export function reconcileBusinessFrameworkEvidence(
+  collectedSources: CollectedSources,
+): CollectedSources {
   const framework = collectedSources.businessFramework;
   const profile = collectedSources.webSubjectProfile;
   if (framework === undefined || profile === undefined || profile.sourceIds.length === 0) {
@@ -473,13 +475,34 @@ function reconcileBusinessFrameworkEvidence(collectedSources: CollectedSources):
     // No change — reconciliation was a no-op.
     return collectedSources;
   }
-  // Replace the framework artifact and swap the old frameworkGap for the new one (or drop it).
+  /*
+   * The collector writes the framework gap to both collectedSources.sourceGaps and
+   * collectedSources.extendedEvidence.gaps, and extendedEvidence is projected wholesale
+   * into the synthesis prompt. Swap the old gap for the regenerated one (or drop it) in
+   * BOTH places so synthesis never sees a gap reconciliation already cleared.
+   */
   const oldGapSource = "business-framework";
-  const otherGaps = collectedSources.sourceGaps.filter((gap) => gap.source !== oldGapSource);
+  const withoutOldGap = <T extends { readonly source: string }>(gaps: readonly T[]): readonly T[] =>
+    gaps.filter((gap) => gap.source !== oldGapSource);
+  const sourceGaps =
+    result.sourceGap !== undefined
+      ? [...withoutOldGap(collectedSources.sourceGaps), result.sourceGap]
+      : withoutOldGap(collectedSources.sourceGaps);
+  const extendedEvidence =
+    collectedSources.extendedEvidence === undefined
+      ? undefined
+      : {
+          ...collectedSources.extendedEvidence,
+          gaps:
+            result.sourceGap !== undefined
+              ? [...withoutOldGap(collectedSources.extendedEvidence.gaps), result.sourceGap]
+              : withoutOldGap(collectedSources.extendedEvidence.gaps),
+        };
   return {
     ...collectedSources,
     businessFramework: result.artifact,
-    sourceGaps: result.sourceGap !== undefined ? [...otherGaps, result.sourceGap] : otherGaps,
+    sourceGaps,
+    ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
   };
 }
 

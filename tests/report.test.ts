@@ -191,6 +191,10 @@ describe("report schema and rendering", () => {
   });
 
   test("validates web sources and web-company-profile extended evidence", () => {
+    const answer = {
+      answer: "Apple sells devices and services.",
+      sourceIds: ["web-aapl-12345678"],
+    };
     const webReport: ResearchReport = {
       ...report,
       jobType: "equity",
@@ -223,12 +227,39 @@ describe("report schema and rendering", () => {
         ],
         gaps: [],
       },
+      extras: {
+        webCompanyProfile: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: answer,
+            howItMakesMoney: answer,
+            customers: answer,
+            geography: answer,
+            purchaseRecurrence: answer,
+            pricingPower: answer,
+            recessionCyclicality: answer,
+          },
+          recentMaterialEvents: [
+            { claim: "Apple reports services revenue.", sourceIds: ["web-aapl-12345678"] },
+          ],
+          factLedger: [
+            { claim: "Apple sells devices and services.", sourceIds: ["web-aapl-12345678"] },
+          ],
+          openGaps: [],
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
     };
 
     const markdown = renderMarkdownReport(validateResearchReport(webReport));
 
     expect(markdown).toContain("AAPL web profile is cited. [web-aapl-12345678]");
     expect(markdown).toContain("## Extended Evidence");
+    expect(markdown).toContain("## Web Company Profile");
+    expect(markdown).toContain("### Fact Ledger");
+    expect(markdown).toContain("Apple sells devices and services. [web-aapl-12345678]");
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
   });
 

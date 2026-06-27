@@ -92,13 +92,35 @@ describe("research console app artifacts", () => {
   test("reads structured run detail and markdown fallback", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-c");
-    mkdirSync(runDir, { recursive: true });
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    const webSourceId = "web-aapl-12345678";
+    const webAnswer = { answer: "Apple sells devices and services.", sourceIds: [webSourceId] };
     writeJson(join(runDir, "report.json"), researchReport({ runId: "run-c", summary: "Summary" }));
     writeFileSync(join(runDir, "report.md"), "# Markdown\n", "utf8");
     writeJson(join(runDir, "analytics.json"), { version: 1 });
     writeJson(join(runDir, "trace.json"), { stages: ["source-collection"] });
     writeJson(join(runDir, "score.json"), { scores: [] });
     writeJson(join(runDir, "miss-autopsy.json"), { version: 1, autopsies: [] });
+    writeJson(join(runDir, "normalized", "web-company-profile.json"), {
+      version: 1,
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      symbol: "AAPL",
+      companyName: "Apple Inc.",
+      questions: {
+        whatItDoes: webAnswer,
+        howItMakesMoney: webAnswer,
+        customers: webAnswer,
+        geography: webAnswer,
+        purchaseRecurrence: webAnswer,
+        pricingPower: webAnswer,
+        recessionCyclicality: webAnswer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: "Apple sells devices and services.", sourceIds: [webSourceId] }],
+      openGaps: [],
+      sourceIds: [webSourceId],
+      secFilingBasisDate: "2026-05-01",
+    });
 
     const detail = await readRunDetail(dataDir, "run-c");
 
@@ -109,6 +131,7 @@ describe("research console app artifacts", () => {
     expect(detail?.trace).toEqual({ stages: ["source-collection"] });
     expect(detail?.score).toEqual({ scores: [] });
     expect(detail?.missAutopsy).toEqual({ version: 1, autopsies: [] });
+    expect(detail?.webCompanyProfile?.companyName).toBe("Apple Inc.");
   });
 
   test("reads run files inside the run directory", async () => {

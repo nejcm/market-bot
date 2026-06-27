@@ -2138,6 +2138,9 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
     ).resolves.toContain('"companyName": "Apple Inc."');
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
+    ).resolves.toContain('"tool": "web_search"');
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
       "## Web Company Profile",
     );

@@ -923,6 +923,12 @@ export async function persistResearchJob(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.historicalContext),
     result.historicalContext,
   );
+  if (result.trace.webGatherLoop !== undefined) {
+    await writeJson(
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit),
+      result.trace.webGatherLoop,
+    );
+  }
   // Verified Market Snapshot + Instrument Identity sidecars: ticker runs only (ADR 0019)
   if (isInstrumentCommand(input.command)) {
     await writeJson(

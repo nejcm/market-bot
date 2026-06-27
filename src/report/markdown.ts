@@ -567,8 +567,17 @@ function renderWebCompanyProfile(report: ResearchReport): string {
         return [`- ${markdownText(event.claim)}${refs === "" ? "" : ` ${refs}`}`];
       })
     : [];
+  const facts = Array.isArray(profile.factLedger)
+    ? profile.factLedger.flatMap((fact) => {
+        if (!isRecord(fact) || typeof fact.claim !== "string") {
+          return [];
+        }
+        const refs = sourceRefs(knownSourceIds(report, fact.sourceIds));
+        return [`- ${markdownText(fact.claim)}${refs === "" ? "" : ` ${refs}`}`];
+      })
+    : [];
   const gaps = readStringArray(profile.openGaps).map((gap) => `- ${markdownText(gap)}`);
-  if (rows.length === 0 && events.length === 0 && gaps.length === 0) {
+  if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
     return "";
   }
   return [
@@ -576,6 +585,7 @@ function renderWebCompanyProfile(report: ResearchReport): string {
     "",
     ...rows,
     ...(events.length > 0 ? ["", "### Recent Material Events", "", ...events] : []),
+    ...(facts.length > 0 ? ["", "### Fact Ledger", "", ...facts] : []),
     ...(gaps.length > 0 ? ["", "### Profile Gaps", "", ...gaps] : []),
     "",
   ].join("\n");

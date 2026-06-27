@@ -8,6 +8,7 @@ import {
   sourceGapStatusCode,
 } from "../domain/source-gaps";
 import {
+  SOURCE_KINDS,
   isInstrumentJobType,
   type AssetClass,
   type Depth,
@@ -133,23 +134,6 @@ function isJobType(value: unknown): value is JobType {
 function isAssetClass(value: unknown): value is AssetClass {
   return value === "equity" || value === "crypto";
 }
-
-// Listed kinds must stay in sync with Source["kind"]. The `satisfies` guard rejects invalid
-// Entries, and EXHAUSTIVE_SOURCE_KINDS below fails the build if a new kind is added to the
-// Union without being added here — the omission that previously dropped "reference" sources.
-const SOURCE_KINDS = [
-  "market-data",
-  "news",
-  "model",
-  "extended-evidence",
-  "market-context",
-  "discussion",
-  "reference",
-] as const satisfies readonly Source["kind"][];
-
-type MissingSourceKinds = Exclude<Source["kind"], (typeof SOURCE_KINDS)[number]>;
-const EXHAUSTIVE_SOURCE_KINDS: MissingSourceKinds extends never ? true : never = true;
-void EXHAUSTIVE_SOURCE_KINDS;
 
 const SOURCE_KIND_SET: ReadonlySet<Source["kind"]> = new Set(SOURCE_KINDS);
 

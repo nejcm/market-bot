@@ -88,6 +88,27 @@ function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
       });
     }
   }
+  const profile = report.extras?.webCompanyProfile;
+  if (isRecord(profile)) {
+    add(knownSourceIds(report, profile.sourceIds));
+    if (isRecord(profile.questions)) {
+      Object.values(profile.questions).forEach((question) => {
+        if (isRecord(question)) {
+          add(knownSourceIds(report, question.sourceIds));
+        }
+      });
+    }
+    for (const key of ["recentMaterialEvents", "factLedger"] as const) {
+      const facts = profile[key];
+      if (Array.isArray(facts)) {
+        facts.forEach((fact) => {
+          if (isRecord(fact)) {
+            add(knownSourceIds(report, fact.sourceIds));
+          }
+        });
+      }
+    }
+  }
 
   return ids;
 }
@@ -511,6 +532,65 @@ function renderBusinessFramework(report: ResearchReport): string {
   ].join("\n");
 }
 
+function renderWebCompanyProfile(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType)) {
+    return "";
+  }
+  const profile = report.extras?.webCompanyProfile;
+  if (!isRecord(profile) || !isRecord(profile.questions)) {
+    return "";
+  }
+  const { questions } = profile;
+  const labels: readonly [string, string][] = [
+    ["whatItDoes", "What It Does"],
+    ["howItMakesMoney", "How It Makes Money"],
+    ["customers", "Customers"],
+    ["geography", "Geography"],
+    ["purchaseRecurrence", "Purchase Recurrence"],
+    ["pricingPower", "Pricing Power"],
+    ["recessionCyclicality", "Recession Cyclicality"],
+  ];
+  const rows = labels.flatMap(([key, label]) => {
+    const answer = questions[key];
+    if (!isRecord(answer) || typeof answer.answer !== "string" || answer.answer === "") {
+      return [];
+    }
+    const refs = sourceRefs(knownSourceIds(report, answer.sourceIds));
+    return [`- **${label}:** ${markdownText(answer.answer)}${refs === "" ? "" : ` ${refs}`}`];
+  });
+  const events = Array.isArray(profile.recentMaterialEvents)
+    ? profile.recentMaterialEvents.flatMap((event) => {
+        if (!isRecord(event) || typeof event.claim !== "string") {
+          return [];
+        }
+        const refs = sourceRefs(knownSourceIds(report, event.sourceIds));
+        return [`- ${markdownText(event.claim)}${refs === "" ? "" : ` ${refs}`}`];
+      })
+    : [];
+  const facts = Array.isArray(profile.factLedger)
+    ? profile.factLedger.flatMap((fact) => {
+        if (!isRecord(fact) || typeof fact.claim !== "string") {
+          return [];
+        }
+        const refs = sourceRefs(knownSourceIds(report, fact.sourceIds));
+        return [`- ${markdownText(fact.claim)}${refs === "" ? "" : ` ${refs}`}`];
+      })
+    : [];
+  const gaps = readStringArray(profile.openGaps).map((gap) => `- ${markdownText(gap)}`);
+  if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
+    return "";
+  }
+  return [
+    "## Web Company Profile",
+    "",
+    ...rows,
+    ...(events.length > 0 ? ["", "### Recent Material Events", "", ...events] : []),
+    ...(facts.length > 0 ? ["", "### Fact Ledger", "", ...facts] : []),
+    ...(gaps.length > 0 ? ["", "### Profile Gaps", "", ...gaps] : []),
+    "",
+  ].join("\n");
+}
+
 function renderEarningsSetup(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType)) {
     return "";
@@ -615,6 +695,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
     renderBusinessFramework(report),
+    renderWebCompanyProfile(report),
     renderExtendedEvidence(report),
     renderEarningsSetup(report),
     renderHistoricalContext(report),

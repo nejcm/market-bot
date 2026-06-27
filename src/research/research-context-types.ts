@@ -1,5 +1,9 @@
 import type { ForecastKindMix, ResolvedRunParams } from "../config/runs";
-import type { EvidenceRequestToolName, MarketRegimeSummary } from "../domain/types";
+import type {
+  EvidenceRequestToolName,
+  MarketRegimeSummary,
+  WebGatherToolName,
+} from "../domain/types";
 import type { CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { MarketUpdateDelta } from "./market-update-delta";
@@ -31,6 +35,7 @@ export interface ResearchContext {
   readonly marketRegime: MarketRegimeSummary;
   readonly calibrationContext: CalibrationContext | undefined;
   readonly evidenceRequest?: EvidenceRequestContext;
+  readonly webGather?: WebGatherContext;
   readonly domainPlaybooks?: readonly StagePlaybooks[];
   readonly historicalContext?: HistoricalResearchContext;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
@@ -48,4 +53,17 @@ export interface EvidenceRequestContext {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
+}
+
+export interface WebGatherContext {
+  readonly round: number;
+  readonly availableTools: readonly WebGatherToolName[];
+  readonly toolUnits: Readonly<Record<WebGatherToolName, number>>;
+  readonly sourceUnitsUsed: number;
+  readonly toolCallsUsed: number;
+  readonly maxRounds: number;
+  readonly maxToolCalls: number;
+  readonly sourceBudget: number;
+  readonly surfacedUrls: readonly string[];
+  readonly subjectTerms: readonly string[];
 }

@@ -45,6 +45,7 @@ import {
   tradingViewUrl,
   valuationMetricTiles,
   verifiedSnapshotView,
+  webCompanyProfileView,
   instrumentFromPathname,
   instrumentPath,
 } from "../app/client/view-model";
@@ -1439,6 +1440,183 @@ describe("report artifact parsers", () => {
         extras: { businessFramework: { phase: "invalid", sections: [] } },
       }),
     ).toBeUndefined();
+  });
+
+  test("parses web company profile from report extras before sidecar fallback", () => {
+    const answer = { answer: "Apple sells devices and services.", sourceIds: ["report-source"] };
+    const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
+
+    expect(
+      webCompanyProfileView(
+        {
+          extras: {
+            webCompanyProfile: {
+              companyName: "Apple Inc.",
+              generatedAt: "2026-06-22T00:00:00.000Z",
+              sourceIds: ["report-source"],
+              questions: {
+                whatItDoes: answer,
+                howItMakesMoney: answer,
+                customers: answer,
+                geography: answer,
+                purchaseRecurrence: answer,
+                pricingPower: answer,
+                recessionCyclicality: answer,
+              },
+              recentMaterialEvents: [
+                { claim: "Apple reports services revenue.", sourceIds: ["report-source"] },
+              ],
+              factLedger: [
+                { claim: "Apple sells devices and services.", sourceIds: ["report-source"] },
+              ],
+              openGaps: ["Customer concentration not fully quantified."],
+            },
+          },
+        },
+        {
+          version: 1,
+          generatedAt: "2026-06-21T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: sidecarAnswer,
+            howItMakesMoney: sidecarAnswer,
+            customers: sidecarAnswer,
+            geography: sidecarAnswer,
+            purchaseRecurrence: sidecarAnswer,
+            pricingPower: sidecarAnswer,
+            recessionCyclicality: sidecarAnswer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [{ claim: "Fallback fact.", sourceIds: ["sidecar-source"] }],
+          openGaps: [],
+          sourceIds: ["sidecar-source"],
+        },
+      ),
+    ).toEqual({
+      companyName: "Apple Inc.",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      sourceIds: ["report-source"],
+      questions: [
+        {
+          key: "whatItDoes",
+          label: "What it does",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+        {
+          key: "howItMakesMoney",
+          label: "How it makes money",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+        {
+          key: "customers",
+          label: "Customers",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+        {
+          key: "geography",
+          label: "Geography",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+        {
+          key: "purchaseRecurrence",
+          label: "Purchase recurrence",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+        {
+          key: "pricingPower",
+          label: "Pricing power",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+        {
+          key: "recessionCyclicality",
+          label: "Recession cyclicality",
+          answer: "Apple sells devices and services.",
+          sourceIds: ["report-source"],
+        },
+      ],
+      recentMaterialEvents: [
+        { claim: "Apple reports services revenue.", sourceIds: ["report-source"] },
+      ],
+      factLedger: [{ claim: "Apple sells devices and services.", sourceIds: ["report-source"] }],
+      openGaps: ["Customer concentration not fully quantified."],
+    });
+  });
+
+  test("falls back to web company profile sidecar", () => {
+    const answer = { answer: "Apple sells devices and services.", sourceIds: ["sidecar-source"] };
+
+    expect(
+      webCompanyProfileView(undefined, {
+        version: 1,
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        symbol: "AAPL",
+        questions: {
+          whatItDoes: answer,
+          howItMakesMoney: answer,
+          customers: answer,
+          geography: answer,
+          purchaseRecurrence: answer,
+          pricingPower: answer,
+          recessionCyclicality: answer,
+        },
+        recentMaterialEvents: [],
+        factLedger: [{ claim: "Apple sells devices and services.", sourceIds: ["sidecar-source"] }],
+        openGaps: [],
+        sourceIds: ["sidecar-source"],
+      })?.questions[0],
+    ).toEqual({
+      key: "whatItDoes",
+      label: "What it does",
+      answer: "Apple sells devices and services.",
+      sourceIds: ["sidecar-source"],
+    });
+    expect(
+      webCompanyProfileView({ extras: { webCompanyProfile: { questions: {} } } }),
+    ).toBeUndefined();
+  });
+
+  test("drops uncited web company profile answers and facts", () => {
+    const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
+
+    expect(
+      webCompanyProfileView(
+        {
+          extras: {
+            webCompanyProfile: {
+              questions: {
+                whatItDoes: { answer: "Uncited answer.", sourceIds: [] },
+              },
+              recentMaterialEvents: [{ claim: "Uncited event.", sourceIds: [] }],
+              factLedger: [{ claim: "Uncited fact.", sourceIds: [] }],
+            },
+          },
+        },
+        {
+          version: 1,
+          generatedAt: "2026-06-22T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: sidecarAnswer,
+            howItMakesMoney: sidecarAnswer,
+            customers: sidecarAnswer,
+            geography: sidecarAnswer,
+            purchaseRecurrence: sidecarAnswer,
+            pricingPower: sidecarAnswer,
+            recessionCyclicality: sidecarAnswer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [{ claim: "Fallback fact.", sourceIds: ["sidecar-source"] }],
+          openGaps: [],
+          sourceIds: ["sidecar-source"],
+        },
+      )?.sourceIds,
+    ).toEqual(["sidecar-source"]);
   });
 
   test("assesses financial lens stats where standalone thresholds are meaningful", () => {

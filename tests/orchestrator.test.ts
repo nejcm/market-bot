@@ -45,6 +45,13 @@ const config: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
+  webGatherOptions: {
+    maxRounds: 0,
+    maxToolCalls: 0,
+    sourceBudget: 0,
+  },
+  webGatherDisabled: false,
+  webProfileReuseDays: 30,
   alphaSearchOptions: {
     apeWisdomFilter: "all-stocks",
     apeWisdomBriefPageLimit: 5,
@@ -2032,6 +2039,485 @@ describe("runResearchJob", () => {
     ).resolves.toContain('"phase": "capital-return"');
   });
 
+  test("extracts and persists web company profile after web gather", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile");
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: { query: "AAPL Apple business model customers" },
+                  rationale: "company profile evidence",
+                },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-company-profile") {
+          const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
+          const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
+          const source = sources.find((item) => isRecord(item)) ?? {};
+          const sourceId = typeof source.id === "string" ? source.id : "missing-source";
+          const answer = {
+            answer: "Apple sells hardware, software, and services.",
+            sourceIds: [sourceId],
+          };
+          return {
+            content: JSON.stringify({
+              companyName: "Apple Inc.",
+              questions: {
+                whatItDoes: answer,
+                howItMakesMoney: answer,
+                customers: answer,
+                geography: answer,
+                purchaseRecurrence: answer,
+                pricingPower: answer,
+                recessionCyclicality: answer,
+              },
+              recentMaterialEvents: [
+                { claim: "Apple reports services revenue.", sourceIds: [sourceId] },
+              ],
+              factLedger: [{ claim: "Apple sells hardware and services.", sourceIds: [sourceId] }],
+              openGaps: [],
+            }),
+            tokenEstimate: 12,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: async () =>
+        Response.json({
+          results: [
+            {
+              id: "exa-search-1",
+              url: "https://example.com/apple-profile",
+              title: "Apple business profile",
+              summary: "Apple sells hardware and services.",
+            },
+          ],
+        }),
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-company-profile");
+    expect(result.trace.webGatherLoop?.acceptedRequests).toHaveLength(1);
+    expect(result.report.extras?.webCompanyProfile).toMatchObject({
+      companyName: "Apple Inc.",
+      factLedger: [expect.objectContaining({ claim: "Apple sells hardware and services." })],
+    });
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
+    ).resolves.toContain('"companyName": "Apple Inc."');
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
+    ).resolves.toContain('"tool": "web_search"');
+    await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
+      "## Web Company Profile",
+    );
+  });
+
+  test("reuses fresh web company profile and skips web gather", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile-reuse");
+    const priorRunDir = join(dataDir, "prior-aapl");
+    const priorWebSource: Source = {
+      id: "web-aapl-prior",
+      title: "Apple prior web profile",
+      url: "https://example.com/apple-prior",
+      fetchedAt: "2026-05-01T00:00:00.000Z",
+      kind: "web",
+      assetClass: "equity",
+      symbol: "AAPL",
+      provider: "exa",
+    };
+    const answer = {
+      answer: "Apple sells hardware and services.",
+      sourceIds: [priorWebSource.id],
+    };
+    await mkdir(join(priorRunDir, "normalized"), { recursive: true });
+    await writeFile(
+      join(priorRunDir, "report.json"),
+      JSON.stringify({
+        runId: "prior-aapl",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        summary: "Prior Apple web profile.",
+        keyFindings: [],
+        bullCase: [],
+        bearCase: [],
+        risks: [],
+        catalysts: [],
+        scenarios: [],
+        confidence: "medium",
+        dataGaps: [],
+        predictions: [],
+        sources: [priorWebSource],
+        notFinancialAdvice: true,
+        extras: { depth: "deep" },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(priorRunDir, "normalized", "web-company-profile.json"),
+      JSON.stringify({
+        version: 1,
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        symbol: "AAPL",
+        companyName: "Apple Inc.",
+        questions: {
+          whatItDoes: answer,
+          howItMakesMoney: answer,
+          customers: answer,
+          geography: answer,
+          purchaseRecurrence: answer,
+          pricingPower: answer,
+          recessionCyclicality: answer,
+        },
+        recentMaterialEvents: [],
+        factLedger: [
+          { claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] },
+        ],
+        openGaps: [],
+        sourceIds: [priorWebSource.id],
+        secFilingBasisDate: "2026-05-01",
+      }),
+      "utf8",
+    );
+
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "evidence-request") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-gather" || prompt.stage === "web-company-profile") {
+          throw new Error(`unexpected ${String(prompt.stage)}`);
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        dataDir,
+        sourceOptions: { ...evidenceConfig.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile?.companyName).toBe("Apple Inc.");
+    expect(result.collectedSources.extendedSources).toContainEqual(priorWebSource);
+    expect(result.report.dataGaps).toContain(
+      "web-company-profile: Reused web company profile from 2026-05-01T00:00:00.000Z (18 days old); latest SEC filing basis 2026-05-01.",
+    );
+    expect(result.report.extras?.webCompanyProfile).toMatchObject({
+      companyName: "Apple Inc.",
+      sourceIds: [priorWebSource.id],
+    });
+  });
+
+  test("does not reuse web company profile when web gather is disabled", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile-reuse-disabled");
+    const priorRunDir = join(dataDir, "prior-aapl");
+    const priorWebSource: Source = {
+      id: "web-aapl-prior",
+      title: "Apple prior web profile",
+      url: "https://example.com/apple-prior",
+      fetchedAt: "2026-05-01T00:00:00.000Z",
+      kind: "web",
+      assetClass: "equity",
+      symbol: "AAPL",
+      provider: "exa",
+    };
+    const answer = {
+      answer: "Apple sells hardware and services.",
+      sourceIds: [priorWebSource.id],
+    };
+    await mkdir(join(priorRunDir, "normalized"), { recursive: true });
+    await writeFile(
+      join(priorRunDir, "report.json"),
+      JSON.stringify({
+        runId: "prior-aapl",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        summary: "Prior Apple web profile.",
+        keyFindings: [],
+        bullCase: [],
+        bearCase: [],
+        risks: [],
+        catalysts: [],
+        scenarios: [],
+        confidence: "medium",
+        dataGaps: [],
+        predictions: [],
+        sources: [priorWebSource],
+        notFinancialAdvice: true,
+        extras: { depth: "deep" },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(priorRunDir, "normalized", "web-company-profile.json"),
+      JSON.stringify({
+        version: 1,
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        symbol: "AAPL",
+        companyName: "Apple Inc.",
+        questions: {
+          whatItDoes: answer,
+          howItMakesMoney: answer,
+          customers: answer,
+          geography: answer,
+          purchaseRecurrence: answer,
+          pricingPower: answer,
+          recessionCyclicality: answer,
+        },
+        recentMaterialEvents: [],
+        factLedger: [
+          { claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] },
+        ],
+        openGaps: [],
+        sourceIds: [priorWebSource.id],
+        secFilingBasisDate: "2026-05-01",
+      }),
+      "utf8",
+    );
+
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "evidence-request") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-gather" || prompt.stage === "web-company-profile") {
+          throw new Error(`unexpected ${String(prompt.stage)}`);
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        dataDir,
+        sourceOptions: { ...evidenceConfig.sourceOptions, exaApiKey: "exa-key" },
+        webGatherDisabled: true,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile).toBeUndefined();
+    expect(result.collectedSources.extendedSources).not.toContainEqual(priorWebSource);
+    expect(result.report.extras?.webCompanyProfile).toBeUndefined();
+  });
+
+  test("persists empty web company profile when extraction stage fails", async () => {
+    const dataDir = tempDataDir("market-bot-web-company-profile-failure");
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: { query: "AAPL Apple business model customers" },
+                  rationale: "company profile evidence",
+                },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-company-profile") {
+          throw new Error("profile timeout");
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      sourceFetchImpl: async () =>
+        Response.json({
+          results: [
+            {
+              id: "exa-search-1",
+              url: "https://example.com/apple-profile",
+              title: "Apple business profile",
+              summary: "Apple sells hardware and services.",
+            },
+          ],
+        }),
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile).toMatchObject({
+      sourceIds: [],
+      factLedger: [],
+      openGaps: [expect.stringContaining("profile timeout")],
+    });
+    expect(result.collectedSources.extendedEvidence?.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-company-profile",
+        cause: "malformed-response",
+      }),
+    );
+    await expect(
+      readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
+    ).resolves.toContain("profile timeout");
+  });
+
+  test("skips web company profile extraction when web gather produces no web sources", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({ requests: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-gather");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
+    expect(result.collectedSources.webCompanyProfile).toBeUndefined();
+  });
+
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {
     const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-${Date.now()}`);
     dataDirs.push(dataDir);
@@ -2347,6 +2833,70 @@ describe("runResearchJob", () => {
     });
 
     expect(result.report.confidence).toBe("medium");
+  });
+
+  test("allows web company profile evidence to offset one extended evidence gap", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Ticker evidence has core and web profile sources.",
+          keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+          bullCase: [{ text: "Supplier news supports the ticker.", sourceIds: ["news-equity-1"] }],
+          bearCase: [
+            { text: "Optional macro evidence is unavailable.", sourceIds: ["market-aapl"] },
+          ],
+          risks: [{ text: "Macro context is incomplete.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "Supplier demand is visible.", sourceIds: ["news-equity-1"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Momentum continues if liquidity persists.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "high",
+          dataGaps: [],
+          predictions: mockPredictions(3, "AAPL"),
+        }),
+      ),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        extendedSources: [],
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items: [
+            {
+              category: "web-company-profile",
+              title: "Web Company Profile",
+              summary: "Cited web company profile captured for AAPL.",
+              sourceIds: ["web-aapl-profile"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+          gaps: [
+            {
+              source: "fred-macro",
+              message: "MARKET_BOT_FRED_API_KEY is not set",
+              evidenceQualityImpact: "extended-evidence-cap",
+            },
+          ],
+        },
+        sourceGaps: [
+          {
+            source: "fred-macro",
+            message: "MARKET_BOT_FRED_API_KEY is not set",
+            evidenceQualityImpact: "extended-evidence-cap",
+          },
+        ],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.confidence).toBe("high");
   });
 
   test("ships with a shortfall gap without reprompting when predictions fall below target", async () => {

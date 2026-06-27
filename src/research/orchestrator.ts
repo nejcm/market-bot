@@ -1,6 +1,6 @@
 import { marketSpotlightOptions, type AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
-import { resolveRunParams, type RunConfig } from "../config/runs";
+import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { join } from "node:path";
 import {
@@ -62,6 +62,16 @@ import {
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
+import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
+import {
+  buildWebCompanyProfileEvidence,
+  buildWebCompanyProfileFailureEvidence,
+} from "../sources/extended-evidence/web-company-profile";
+import {
+  attachReusableWebCompanyProfile,
+  findReusableWebCompanyProfile,
+  latestSecFilingDate,
+} from "./web-company-profile-reuse";
 import {
   buildSpotlightCandidates,
   loadAlphaWatchlistForSpotlights,
@@ -365,6 +375,77 @@ function refreshSpotlightSelection(
   };
 }
 
+async function runWebCompanyProfileExtraction(input: {
+  readonly jobInput: RunResearchJobInput;
+  readonly collectedSources: CollectedSources;
+  readonly context: ResearchContext;
+  readonly generatedAt: string;
+  readonly runParams: ResolvedRunParams;
+  readonly secFilingBasisDate?: string;
+}): Promise<{
+  readonly collectedSources: CollectedSources;
+  readonly output?: StageOutput;
+}> {
+  const webSources = input.collectedSources.extendedSources.filter(
+    (source) => source.kind === "web",
+  );
+  if (!isInstrumentCommand(input.jobInput.command) || webSources.length === 0) {
+    return { collectedSources: input.collectedSources };
+  }
+  try {
+    const output = (await runStage(
+      "web-company-profile",
+      input.runParams.quickModel,
+      input.jobInput,
+      input.collectedSources,
+      input.context,
+    )) as StageOutput & { readonly stage: "web-company-profile" };
+    const result = buildWebCompanyProfileEvidence({
+      command: input.jobInput.command,
+      generatedAt: input.generatedAt,
+      modelContent: output.content,
+      webSources,
+      extendedEvidence: input.collectedSources.extendedEvidence,
+      ...(input.secFilingBasisDate !== undefined
+        ? { secFilingBasisDate: input.secFilingBasisDate }
+        : {}),
+    });
+    return {
+      collectedSources: {
+        ...input.collectedSources,
+        ...(result.extendedEvidence !== undefined
+          ? { extendedEvidence: result.extendedEvidence }
+          : {}),
+        ...(result.artifact !== undefined ? { webCompanyProfile: result.artifact } : {}),
+        sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
+      },
+      output,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const result = buildWebCompanyProfileFailureEvidence({
+      command: input.jobInput.command,
+      generatedAt: input.generatedAt,
+      message: `Web Company Profile stage failed (${message})`,
+      cause: "malformed-response",
+      extendedEvidence: input.collectedSources.extendedEvidence,
+      ...(input.secFilingBasisDate !== undefined
+        ? { secFilingBasisDate: input.secFilingBasisDate }
+        : {}),
+    });
+    return {
+      collectedSources: {
+        ...input.collectedSources,
+        ...(result.extendedEvidence !== undefined
+          ? { extendedEvidence: result.extendedEvidence }
+          : {}),
+        ...(result.artifact !== undefined ? { webCompanyProfile: result.artifact } : {}),
+        sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
+      },
+    };
+  }
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
@@ -420,6 +501,60 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
+  const currentSecFilingDate = latestSecFilingDate(collectedSources.extendedEvidence);
+  let webGatherLoop: Awaited<ReturnType<typeof runWebGatherLoop>> = {
+    collectedSources,
+    stageOutputs: [],
+  };
+  let webCompanyProfile: Awaited<ReturnType<typeof runWebCompanyProfileExtraction>> | undefined =
+    undefined;
+  if (isWebGatherLoopEnabled(input.command, input.config)) {
+    const reusableWebCompanyProfile = await findReusableWebCompanyProfile({
+      dataDir: input.config.dataDir,
+      command: input.command,
+      now,
+      reuseDays: input.config.webProfileReuseDays,
+      ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
+    });
+    if (reusableWebCompanyProfile !== undefined) {
+      collectedSources = attachReusableWebCompanyProfile({
+        command: input.command,
+        collectedSources,
+        reuse: reusableWebCompanyProfile,
+      });
+    } else {
+      webGatherLoop = await runWebGatherLoop({
+        command: input.command,
+        config: input.config,
+        collectedSources,
+        context,
+        now,
+        ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
+        ...(input.sourceRetryDelaysMs !== undefined
+          ? { retryDelaysMs: input.sourceRetryDelaysMs }
+          : {}),
+        generateRound: (currentSources, roundContext, priorStages) =>
+          runStage(
+            "web-gather",
+            runParams.quickModel,
+            input,
+            currentSources,
+            roundContext,
+            priorStages,
+          ) as Promise<StageOutput & { readonly stage: "web-gather" }>,
+      });
+      ({ collectedSources } = webGatherLoop);
+      webCompanyProfile = await runWebCompanyProfileExtraction({
+        jobInput: input,
+        collectedSources,
+        context,
+        generatedAt,
+        runParams,
+        ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
+      });
+      ({ collectedSources } = webCompanyProfile);
+    }
+  }
   let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;
   let spotlightSelection: SpotlightSelectionResult | undefined = undefined;
   let spotlightOutput: StageOutput | undefined = undefined;
@@ -644,6 +779,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const codeVersion = readCodeVersion();
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
+    ...webGatherLoop.stageOutputs,
+    ...(webCompanyProfile?.output === undefined ? [] : [webCompanyProfile.output]),
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
     playbookSelection.output,
     ...analysisOutputs,
@@ -670,6 +807,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
+    ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),
     historicalContext: historicalContext.audit,
     ...(spotlightSelection !== undefined ? { spotlightSelection: spotlightSelection.audit } : {}),
     domainPlaybooks: playbookSelection.audit,
@@ -785,6 +923,12 @@ export async function persistResearchJob(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.historicalContext),
     result.historicalContext,
   );
+  if (result.trace.webGatherLoop !== undefined) {
+    await writeJson(
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit),
+      result.trace.webGatherLoop,
+    );
+  }
   // Verified Market Snapshot + Instrument Identity sidecars: ticker runs only (ADR 0019)
   if (isInstrumentCommand(input.command)) {
     await writeJson(
@@ -806,6 +950,10 @@ export async function persistResearchJob(
     await writeJson(
       join(artifacts.runDir, RUN_ARTIFACT_FILES.businessFramework),
       result.collectedSources.businessFramework ?? null,
+    );
+    await writeJson(
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.webCompanyProfile),
+      result.collectedSources.webCompanyProfile ?? null,
     );
   }
   if (isMarketUpdateJobType(input.command.jobType)) {

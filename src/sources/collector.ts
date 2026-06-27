@@ -872,6 +872,7 @@ export function createCollectContext(
       ...(sourceOptions.massiveApiKey !== undefined
         ? { massiveApiKey: sourceOptions.massiveApiKey }
         : {}),
+      ...(sourceOptions.exaApiKey !== undefined ? { exaApiKey: sourceOptions.exaApiKey } : {}),
       ...(sourceOptions.secUserAgent !== undefined
         ? { secUserAgent: sourceOptions.secUserAgent }
         : {}),

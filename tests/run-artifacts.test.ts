@@ -2,7 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { loadRunArtifact, scanRunArtifacts } from "../src/run-artifacts";
+import {
+  loadRunArtifact,
+  scanRunArtifacts,
+  scanWebCompanyProfileRunArtifacts,
+} from "../src/run-artifacts";
 import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -24,6 +28,31 @@ function tempRunsDir(): string {
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function webCompanyProfile(symbol: string): unknown {
+  const sourceId = `web-${symbol.toLowerCase()}-12345678`;
+  const answer = { answer: `${symbol} business profile.`, sourceIds: [sourceId] };
+  return {
+    version: 1,
+    generatedAt: "2026-05-19T00:00:00.000Z",
+    symbol,
+    companyName: `${symbol} Inc.`,
+    questions: {
+      whatItDoes: answer,
+      howItMakesMoney: answer,
+      customers: answer,
+      geography: answer,
+      purchaseRecurrence: answer,
+      pricingPower: answer,
+      recessionCyclicality: answer,
+    },
+    recentMaterialEvents: [],
+    factLedger: [{ claim: `${symbol} sells products.`, sourceIds: [sourceId] }],
+    openGaps: [],
+    sourceIds: [sourceId],
+    secFilingBasisDate: "2026-05-01",
+  };
 }
 
 describe("loadRunArtifact", () => {
@@ -590,5 +619,77 @@ describe("scanRunArtifacts", () => {
   test("returns an empty scan for a missing data directory", async () => {
     const scan = await scanRunArtifacts(join(tempRunsDir(), "does-not-exist"));
     expect(scan).toEqual({ artifacts: [], entries: [] });
+  });
+});
+
+describe("scanWebCompanyProfileRunArtifacts", () => {
+  test("returns only same-symbol deep equity profiles", async () => {
+    const dataDir = tempRunsDir();
+    await writeJson(
+      join(dataDir, "aapl-deep", "report.json"),
+      researchReport({
+        runId: "aapl-deep",
+        jobType: "equity",
+        symbol: "AAPL",
+        extras: { depth: "deep" },
+      }),
+    );
+    await writeJson(
+      join(dataDir, "aapl-deep", "normalized", "web-company-profile.json"),
+      webCompanyProfile("AAPL"),
+    );
+    await writeJson(
+      join(dataDir, "aapl-brief", "report.json"),
+      researchReport({
+        runId: "aapl-brief",
+        jobType: "equity",
+        symbol: "AAPL",
+        extras: { depth: "brief" },
+      }),
+    );
+    await writeJson(
+      join(dataDir, "aapl-brief", "normalized", "web-company-profile.json"),
+      webCompanyProfile("AAPL"),
+    );
+    await writeJson(
+      join(dataDir, "msft-deep", "report.json"),
+      researchReport({
+        runId: "msft-deep",
+        jobType: "equity",
+        symbol: "MSFT",
+        extras: { depth: "deep" },
+      }),
+    );
+    await writeJson(
+      join(dataDir, "msft-deep", "normalized", "web-company-profile.json"),
+      webCompanyProfile("MSFT"),
+    );
+    await writeJson(
+      join(dataDir, "crypto-deep", "report.json"),
+      researchReport({
+        runId: "crypto-deep",
+        jobType: "crypto",
+        assetClass: "crypto",
+        symbol: "AAPL",
+        extras: { depth: "deep" },
+      }),
+    );
+    await writeJson(
+      join(dataDir, "crypto-deep", "normalized", "web-company-profile.json"),
+      webCompanyProfile("AAPL"),
+    );
+    await writeJson(
+      join(dataDir, "profile-only", "normalized", "web-company-profile.json"),
+      webCompanyProfile("AAPL"),
+    );
+
+    const artifacts = await scanWebCompanyProfileRunArtifacts(dataDir, {
+      symbol: "aapl",
+      depth: "deep",
+    });
+
+    expect(artifacts.map((artifact) => artifact.runDirName)).toEqual(["aapl-deep"]);
+    expect(artifacts[0]?.report.runId).toBe("aapl-deep");
+    expect(artifacts[0]?.webCompanyProfile.symbol).toBe("AAPL");
   });
 });

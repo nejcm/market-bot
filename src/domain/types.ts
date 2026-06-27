@@ -88,20 +88,26 @@ export interface InstrumentIdentity {
   readonly aliases?: readonly ProviderInstrumentId[];
 }
 
+export const SOURCE_KINDS = [
+  "market-data",
+  "news",
+  "model",
+  "extended-evidence",
+  "market-context",
+  "discussion",
+  "reference",
+  "web",
+] as const;
+
+export type SourceKind = (typeof SOURCE_KINDS)[number];
+
 export interface Source {
   readonly id: string;
   readonly title: string;
   readonly url?: string;
   readonly publisher?: string;
   readonly fetchedAt: string;
-  readonly kind:
-    | "market-data"
-    | "news"
-    | "model"
-    | "extended-evidence"
-    | "market-context"
-    | "discussion"
-    | "reference";
+  readonly kind: SourceKind;
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
   readonly rawRef?: string;
@@ -155,6 +161,8 @@ export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap
 
 export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
 
+export type WebGatherToolName = "web_search" | "web_fetch";
+
 export interface JsonToolLoopAuditEntry {
   readonly round: number;
   readonly tool: string;
@@ -177,6 +185,8 @@ export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonT
 export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
 
 export type EvidenceRequestLoopAudit = JsonToolLoopAudit<EvidenceRequestToolName>;
+
+export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName>;
 
 export interface DomainPlaybookSelectionAudit {
   readonly selected: readonly {
@@ -279,6 +289,7 @@ export type ExtendedEvidenceCategory =
   | "valuation"
   | "financial-lens"
   | "business-framework"
+  | "web-company-profile"
   | "yahoo-fundamentals"
   | "equity-events"
   | "fred-macro"
@@ -480,6 +491,7 @@ export interface RunTrace {
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
+  readonly webGatherLoop?: WebGatherLoopAudit;
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;

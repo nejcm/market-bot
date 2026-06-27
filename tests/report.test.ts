@@ -190,6 +190,134 @@ describe("report schema and rendering", () => {
     expect(validateResearchReport(report)).toEqual(report);
   });
 
+  test("validates web sources and web-company-profile extended evidence", () => {
+    const answer = {
+      answer: "Apple sells devices and services.",
+      sourceIds: ["web-aapl-12345678"],
+    };
+    const webReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      keyFindings: [{ text: "AAPL web profile is cited.", sourceIds: ["web-aapl-12345678"] }],
+      risks: [],
+      scenarios: [],
+      sources: [
+        {
+          id: "web-aapl-12345678",
+          title: "AAPL company page",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "exa",
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "web-company-profile",
+            title: "Web Company Profile",
+            summary: "Public web evidence captured for AAPL.",
+            sourceIds: ["web-aapl-12345678"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+          },
+        ],
+        gaps: [],
+      },
+      extras: {
+        webCompanyProfile: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: answer,
+            howItMakesMoney: answer,
+            customers: answer,
+            geography: answer,
+            purchaseRecurrence: answer,
+            pricingPower: answer,
+            recessionCyclicality: answer,
+          },
+          recentMaterialEvents: [
+            { claim: "Apple reports services revenue.", sourceIds: ["web-aapl-12345678"] },
+          ],
+          factLedger: [
+            { claim: "Apple sells devices and services.", sourceIds: ["web-aapl-12345678"] },
+          ],
+          openGaps: [],
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
+    };
+
+    const markdown = renderMarkdownReport(validateResearchReport(webReport));
+
+    expect(markdown).toContain("AAPL web profile is cited. [web-aapl-12345678]");
+    expect(markdown).toContain("## Extended Evidence");
+    expect(markdown).toContain("## Web Company Profile");
+    expect(markdown).toContain("### Fact Ledger");
+    expect(markdown).toContain("Apple sells devices and services. [web-aapl-12345678]");
+    expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
+  });
+
+  test("rejects unknown source IDs in web-company-profile extras", () => {
+    const answer = { answer: "Apple sells devices and services.", sourceIds: ["unknown-web"] };
+    const webReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      keyFindings: [{ text: "AAPL web profile is cited.", sourceIds: ["web-aapl-12345678"] }],
+      risks: [],
+      scenarios: [],
+      sources: [
+        {
+          id: "web-aapl-12345678",
+          title: "AAPL company page",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "exa",
+        },
+      ],
+      extras: {
+        webCompanyProfile: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: answer,
+            howItMakesMoney: answer,
+            customers: answer,
+            geography: answer,
+            purchaseRecurrence: answer,
+            pricingPower: answer,
+            recessionCyclicality: answer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [{ claim: "Apple sells devices.", sourceIds: ["web-aapl-12345678"] }],
+          openGaps: [],
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
+    };
+
+    expect(() => validateResearchReport(webReport)).toThrow("Unknown source ID: unknown-web");
+  });
+
+  test("rejects unknown source kinds", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        sources: [{ ...report.sources[0]!, kind: "unknown-kind" as never }],
+      }),
+    ).toThrow("Invalid Source kind: unknown-kind");
+  });
+
   test("copies market snapshot identity into report sources", () => {
     const snapshot: MarketSnapshot = {
       sourceId: "market-coingecko-crypto-btc",

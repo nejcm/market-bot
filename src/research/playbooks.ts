@@ -9,7 +9,11 @@ export type PlaybookJobType = Exclude<JobType, "alpha-search"> | "research";
 
 export type PlaybookStage = Exclude<
   StageLabel,
-  "evidence-request" | "playbook-selection" | "spotlight-selection" | "forecast-disagreement"
+  | "evidence-request"
+  | "web-gather"
+  | "playbook-selection"
+  | "spotlight-selection"
+  | "forecast-disagreement"
 >;
 
 export interface PlaybookCommandScope {

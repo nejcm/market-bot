@@ -20,6 +20,7 @@ import {
   type ResearchReport,
   type Source,
   type SourceGap,
+  type SubjectKind,
   type VerifiedMarketSnapshot,
 } from "./domain/types";
 import {
@@ -52,11 +53,11 @@ import type {
   BusinessLifecyclePhase,
 } from "./sources/extended-evidence/business-framework";
 import type {
-  WebCompanyProfileAnswer,
-  WebCompanyProfileArtifact,
-  WebCompanyProfileFact,
-  WebCompanyProfileQuestionKey,
-} from "./sources/extended-evidence/web-company-profile";
+  WebSubjectProfileAnswer,
+  WebSubjectProfileArtifact,
+  WebSubjectProfileFact,
+  WebSubjectProfileQuestionKey,
+} from "./sources/extended-evidence/web-subject-profile";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -110,7 +111,7 @@ export interface RunArtifact {
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
-  readonly webCompanyProfile?: WebCompanyProfileArtifact;
+  readonly webSubjectProfile?: WebSubjectProfileArtifact;
   readonly status: RunArtifactStatus;
 }
 
@@ -128,10 +129,10 @@ export interface RunArtifactScan {
   readonly entries: readonly RunScanEntry[];
 }
 
-export interface WebCompanyProfileRunArtifact {
+export interface WebSubjectProfileRunArtifact {
   readonly runDirName: string;
   readonly report: ResearchReport;
-  readonly webCompanyProfile: WebCompanyProfileArtifact;
+  readonly webSubjectProfile: WebSubjectProfileArtifact;
 }
 
 export interface LoadedRunArtifact {
@@ -171,7 +172,7 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "on-chain",
   "financial-lens",
   "business-framework",
-  "web-company-profile",
+  "web-subject-profile",
   "yahoo-fundamentals",
 ]);
 const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set(EVIDENCE_LANES);
@@ -803,15 +804,29 @@ const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFramewo
   "criteria-not-supported",
   "insufficient-data",
 ]);
-const WEB_COMPANY_PROFILE_QUESTIONS: readonly WebCompanyProfileQuestionKey[] = [
-  "whatItDoes",
-  "howItMakesMoney",
-  "customers",
-  "geography",
-  "purchaseRecurrence",
-  "pricingPower",
-  "recessionCyclicality",
-];
+const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
+  Record<SubjectKind, readonly WebSubjectProfileQuestionKey[]>
+> = {
+  company: [
+    "whatItDoes",
+    "howItMakesMoney",
+    "customers",
+    "geography",
+    "purchaseRecurrence",
+    "pricingPower",
+    "recessionCyclicality",
+  ],
+  "crypto-asset": [
+    "whatItDoes",
+    "valueAccrual",
+    "supplyIssuance",
+    "usageAdoption",
+    "governanceBuilders",
+    "competitionMoat",
+    "keyRisks",
+  ],
+  theme: ["whatItIs", "whyNow", "beneficiaries", "headwinds", "keyDebates", "howItPlaysOut"],
+};
 
 function hasFinancialLensMetricShape(value: unknown): boolean {
   return (
@@ -890,7 +905,7 @@ function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifac
   return value as unknown as BusinessFrameworkArtifact;
 }
 
-function readWebCompanyProfileAnswer(value: unknown): WebCompanyProfileAnswer | undefined {
+function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAnswer | undefined {
   if (!isRecord(value)) {
     return;
   }
@@ -899,30 +914,29 @@ function readWebCompanyProfileAnswer(value: unknown): WebCompanyProfileAnswer | 
   return answer === undefined || sourceIds === undefined ? undefined : { answer, sourceIds };
 }
 
-function readWebCompanyProfileQuestions(
+function readWebSubjectProfileQuestions(
   value: unknown,
-): Readonly<Record<WebCompanyProfileQuestionKey, WebCompanyProfileAnswer>> | undefined {
+  subjectKind: SubjectKind,
+): Readonly<Record<string, WebSubjectProfileAnswer>> | undefined {
   if (!isRecord(value)) {
     return;
   }
-  const entries: [WebCompanyProfileQuestionKey, WebCompanyProfileAnswer][] = [];
-  for (const key of WEB_COMPANY_PROFILE_QUESTIONS) {
-    const answer = readWebCompanyProfileAnswer(value[key]);
+  const entries: [string, WebSubjectProfileAnswer][] = [];
+  for (const key of WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind]) {
+    const answer = readWebSubjectProfileAnswer(value[key]);
     if (answer === undefined) {
       return;
     }
     entries.push([key, answer]);
   }
-  return Object.fromEntries(entries) as Readonly<
-    Record<WebCompanyProfileQuestionKey, WebCompanyProfileAnswer>
-  >;
+  return Object.fromEntries(entries);
 }
 
-function readWebCompanyProfileFacts(value: unknown): readonly WebCompanyProfileFact[] | undefined {
+function readWebSubjectProfileFacts(value: unknown): readonly WebSubjectProfileFact[] | undefined {
   if (!Array.isArray(value)) {
     return;
   }
-  const facts = value.flatMap((item): readonly WebCompanyProfileFact[] => {
+  const facts = value.flatMap((item): readonly WebSubjectProfileFact[] => {
     if (!isRecord(item)) {
       return [];
     }
@@ -933,22 +947,29 @@ function readWebCompanyProfileFacts(value: unknown): readonly WebCompanyProfileF
   return facts.length === value.length ? facts : undefined;
 }
 
-function readWebCompanyProfileArtifact(value: unknown): WebCompanyProfileArtifact | undefined {
-  if (!isRecord(value) || value.version !== 1) {
+function readWebSubjectProfileArtifact(value: unknown): WebSubjectProfileArtifact | undefined {
+  if (!isRecord(value) || value.version !== 2) {
     return;
   }
   const generatedAt = readString(value, "generatedAt");
-  const symbol = readString(value, "symbol");
-  const questions = readWebCompanyProfileQuestions(value.questions);
-  const recentMaterialEvents = readWebCompanyProfileFacts(value.recentMaterialEvents);
-  const factLedger = readWebCompanyProfileFacts(value.factLedger);
+  const subjectKind = readSubjectKind(value.subjectKind);
+  const subjectId = readString(value, "subjectId");
+  if (subjectKind === undefined || subjectId === undefined) {
+    return;
+  }
+  const questions = readWebSubjectProfileQuestions(value.questions, subjectKind);
+  const subjectSummary = readWebSubjectProfileAnswer(value.subjectSummary);
+  const recentMaterialEvents = readWebSubjectProfileFacts(value.recentMaterialEvents);
+  const factLedger = readWebSubjectProfileFacts(value.factLedger);
   const openGaps = readStringArray(value, "openGaps");
   const sourceIds = readStringArray(value, "sourceIds");
+  const symbol = readString(value, "symbol");
+  const subjectLabel = readString(value, "subjectLabel");
   const companyName = readString(value, "companyName");
   const secFilingBasisDate = readString(value, "secFilingBasisDate");
   if (
     generatedAt === undefined ||
-    symbol === undefined ||
+    subjectSummary === undefined ||
     questions === undefined ||
     recentMaterialEvents === undefined ||
     factLedger === undefined ||
@@ -957,18 +978,51 @@ function readWebCompanyProfileArtifact(value: unknown): WebCompanyProfileArtifac
   ) {
     return;
   }
-  return {
-    version: 1,
+  const base = {
+    version: 2 as const,
     generatedAt,
-    symbol: symbol.toUpperCase(),
-    ...(companyName !== undefined ? { companyName } : {}),
-    questions,
+    subjectKind,
+    subjectId,
+    ...(subjectLabel !== undefined ? { subjectLabel } : {}),
+    subjectSummary,
     recentMaterialEvents,
     factLedger,
     openGaps,
     sourceIds,
-    ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
   };
+  if (subjectKind === "company") {
+    if (symbol === undefined) {
+      return;
+    }
+    return {
+      ...base,
+      subjectKind,
+      symbol: symbol.toUpperCase(),
+      ...(companyName !== undefined ? { companyName } : {}),
+      questions: questions as WebSubjectProfileArtifact["questions"],
+      ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
+    } as WebSubjectProfileArtifact;
+  }
+  if (subjectKind === "crypto-asset") {
+    if (symbol === undefined) {
+      return;
+    }
+    return {
+      ...base,
+      subjectKind,
+      symbol: symbol.toUpperCase(),
+      questions: questions as WebSubjectProfileArtifact["questions"],
+    } as WebSubjectProfileArtifact;
+  }
+  return {
+    ...base,
+    subjectKind,
+    questions: questions as WebSubjectProfileArtifact["questions"],
+  } as WebSubjectProfileArtifact;
+}
+
+function readSubjectKind(value: unknown): SubjectKind | undefined {
+  return value === "company" || value === "crypto-asset" || value === "theme" ? value : undefined;
 }
 
 function hasSourceLedgerEntryShape(value: unknown): boolean {
@@ -1018,7 +1072,7 @@ const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
-const WEB_COMPANY_PROFILE_FILE = RUN_ARTIFACT_FILES.webCompanyProfile;
+const WEB_SUBJECT_PROFILE_FILE = RUN_ARTIFACT_FILES.webSubjectProfile;
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -1044,7 +1098,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
-  const webCompanyProfileFile = await readJsonFile(join(runDir, WEB_COMPANY_PROFILE_FILE));
+  const webSubjectProfileFile = await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
@@ -1067,9 +1121,9 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     businessFrameworkFile.status === "ok"
       ? readBusinessFrameworkArtifact(businessFrameworkFile.value)
       : undefined;
-  const webCompanyProfile =
-    webCompanyProfileFile.status === "ok"
-      ? readWebCompanyProfileArtifact(webCompanyProfileFile.value)
+  const webSubjectProfile =
+    webSubjectProfileFile.status === "ok"
+      ? readWebSubjectProfileArtifact(webSubjectProfileFile.value)
       : undefined;
 
   return {
@@ -1085,7 +1139,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
-      ...(webCompanyProfile !== undefined ? { webCompanyProfile } : {}),
+      ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),
       status,
     },
     status,
@@ -1123,10 +1177,10 @@ export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan
   return await scanRunArtifactsFromDisk(dataDir);
 }
 
-export async function scanWebCompanyProfileRunArtifacts(
+export async function scanWebSubjectProfileRunArtifacts(
   dataDir: string,
-  input: { readonly symbol: string; readonly depth: "deep" },
-): Promise<readonly WebCompanyProfileRunArtifact[]> {
+  input: { readonly subjectKind: SubjectKind; readonly subjectId: string; readonly depth: "deep" },
+): Promise<readonly WebSubjectProfileRunArtifact[]> {
   const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
     if (isRecord(error) && error.code === "ENOENT") {
       return [] as Dirent[];
@@ -1142,9 +1196,9 @@ export async function scanWebCompanyProfileRunArtifacts(
         const reportFile = await readJsonFile(join(runDir, REPORT_FILE));
         const report = reportFile.status === "ok" ? readReport(reportFile.value) : undefined;
         if (
-          report?.jobType !== "equity" ||
-          report.symbol?.toUpperCase() !== input.symbol.toUpperCase() ||
-          report.extras?.depth !== input.depth
+          report === undefined ||
+          report.extras?.depth !== input.depth ||
+          !reportMatchesWebSubjectKind(report, input.subjectKind)
         ) {
           return;
         }
@@ -1159,18 +1213,20 @@ export async function scanWebCompanyProfileRunArtifacts(
         : [
             (async () => {
               const profileFile = await readJsonFile(
-                join(candidate.runDir, WEB_COMPANY_PROFILE_FILE),
+                join(candidate.runDir, WEB_SUBJECT_PROFILE_FILE),
               );
-              const webCompanyProfile =
+              const webSubjectProfile =
                 profileFile.status === "ok"
-                  ? readWebCompanyProfileArtifact(profileFile.value)
+                  ? readWebSubjectProfileArtifact(profileFile.value)
                   : undefined;
-              return webCompanyProfile === undefined
+              return webSubjectProfile === undefined ||
+                webSubjectProfile.subjectKind !== input.subjectKind ||
+                webSubjectProfile.subjectId.toUpperCase() !== input.subjectId.toUpperCase()
                 ? undefined
                 : {
                     runDirName: candidate.runDirName,
                     report: candidate.report,
-                    webCompanyProfile,
+                    webSubjectProfile,
                   };
             })(),
           ],
@@ -1178,4 +1234,14 @@ export async function scanWebCompanyProfileRunArtifacts(
   );
 
   return profileCandidates.flatMap((candidate) => (candidate === undefined ? [] : [candidate]));
+}
+
+function reportMatchesWebSubjectKind(report: ResearchReport, subjectKind: SubjectKind): boolean {
+  if (subjectKind === "company") {
+    return report.jobType === "equity";
+  }
+  if (subjectKind === "crypto-asset") {
+    return report.jobType === "crypto";
+  }
+  return report.jobType === "research";
 }

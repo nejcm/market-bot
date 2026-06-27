@@ -101,11 +101,15 @@ describe("research console app artifacts", () => {
     writeJson(join(runDir, "trace.json"), { stages: ["source-collection"] });
     writeJson(join(runDir, "score.json"), { scores: [] });
     writeJson(join(runDir, "miss-autopsy.json"), { version: 1, autopsies: [] });
-    writeJson(join(runDir, "normalized", "web-company-profile.json"), {
-      version: 1,
+    writeJson(join(runDir, "normalized", "web-subject-profile.json"), {
+      version: 2,
       generatedAt: "2026-06-01T00:00:00.000Z",
+      subjectKind: "company",
+      subjectId: "AAPL",
+      subjectLabel: "Apple Inc.",
       symbol: "AAPL",
       companyName: "Apple Inc.",
+      subjectSummary: webAnswer,
       questions: {
         whatItDoes: webAnswer,
         howItMakesMoney: webAnswer,
@@ -131,7 +135,10 @@ describe("research console app artifacts", () => {
     expect(detail?.trace).toEqual({ stages: ["source-collection"] });
     expect(detail?.score).toEqual({ scores: [] });
     expect(detail?.missAutopsy).toEqual({ version: 1, autopsies: [] });
-    expect(detail?.webCompanyProfile?.companyName).toBe("Apple Inc.");
+    expect(detail?.webSubjectProfile).toMatchObject({
+      subjectKind: "company",
+      companyName: "Apple Inc.",
+    });
   });
 
   test("reads run files inside the run directory", async () => {

@@ -131,6 +131,44 @@ describe("web gather tools", () => {
     expect(surfacedUrls.has("https://apple.com/newsroom/article")).toBe(true);
   });
 
+  test("builds theme web Sources without instrument fields", async () => {
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AI infrastructure buildout demand", numResults: 1 },
+      baseCtx({
+        command: {
+          jobType: "research",
+          assetClass: "equity",
+          subject: "AI infrastructure",
+          depth: "deep",
+        },
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            jsonResult(adapter, {
+              results: [
+                { url: "https://example.com/ai-infrastructure", title: "AI infrastructure" },
+              ],
+            }),
+        }),
+      }),
+      new Set(),
+      {
+        subjectKind: "theme",
+        subjectId: "ai-infrastructure-12345678",
+        subjectLabel: "AI infrastructure",
+      },
+    );
+
+    expect(result.gaps).toEqual([]);
+    expect(result.sources[0]).toMatchObject({
+      id: webId("ai-infrastructure-12345678", "https://example.com/ai-infrastructure"),
+      kind: "web",
+      provider: "exa",
+    });
+    expect(result.sources[0]?.symbol).toBeUndefined();
+    expect(result.sources[0]?.assetClass).toBeUndefined();
+  });
+
   test("emits missing credential gap without fetching", async () => {
     const { exaApiKey: _exaApiKey, ...ctxWithoutExa } = baseCtx({
       request: requestExecutor({

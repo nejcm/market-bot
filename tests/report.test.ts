@@ -190,7 +190,7 @@ describe("report schema and rendering", () => {
     expect(validateResearchReport(report)).toEqual(report);
   });
 
-  test("validates web sources and web-company-profile extended evidence", () => {
+  test("validates web sources and web-subject-profile extended evidence", () => {
     const answer = {
       answer: "Apple sells devices and services.",
       sourceIds: ["web-aapl-12345678"],
@@ -218,8 +218,8 @@ describe("report schema and rendering", () => {
         instrument: { assetClass: "equity", symbol: "AAPL" },
         items: [
           {
-            category: "web-company-profile",
-            title: "Web Company Profile",
+            category: "web-subject-profile",
+            title: "Web Subject Profile",
             summary: "Public web evidence captured for AAPL.",
             sourceIds: ["web-aapl-12345678"],
             observedAt: "2026-05-19T00:00:00.000Z",
@@ -228,7 +228,7 @@ describe("report schema and rendering", () => {
         gaps: [],
       },
       extras: {
-        webCompanyProfile: {
+        webSubjectProfile: {
           version: 1,
           generatedAt: "2026-05-19T00:00:00.000Z",
           symbol: "AAPL",
@@ -257,13 +257,13 @@ describe("report schema and rendering", () => {
 
     expect(markdown).toContain("AAPL web profile is cited. [web-aapl-12345678]");
     expect(markdown).toContain("## Extended Evidence");
-    expect(markdown).toContain("## Web Company Profile");
+    expect(markdown).toContain("## Web Subject Profile");
     expect(markdown).toContain("### Fact Ledger");
     expect(markdown).toContain("Apple sells devices and services. [web-aapl-12345678]");
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
   });
 
-  test("rejects unknown source IDs in web-company-profile extras", () => {
+  test("rejects unknown source IDs in web-subject-profile extras", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: ["unknown-web"] };
     const webReport: ResearchReport = {
       ...report,
@@ -285,7 +285,7 @@ describe("report schema and rendering", () => {
         },
       ],
       extras: {
-        webCompanyProfile: {
+        webSubjectProfile: {
           version: 1,
           generatedAt: "2026-05-19T00:00:00.000Z",
           symbol: "AAPL",

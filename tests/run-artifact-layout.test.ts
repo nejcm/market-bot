@@ -42,7 +42,7 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.valuationComps).toBe(`${NORMALIZED_DIR}/valuation-comps.json`);
     expect(RUN_ARTIFACT_FILES.financialLenses).toBe(`${NORMALIZED_DIR}/financial-lenses.json`);
     expect(RUN_ARTIFACT_FILES.businessFramework).toBe(`${NORMALIZED_DIR}/business-framework.json`);
-    expect(RUN_ARTIFACT_FILES.webCompanyProfile).toBe(`${NORMALIZED_DIR}/web-company-profile.json`);
+    expect(RUN_ARTIFACT_FILES.webSubjectProfile).toBe(`${NORMALIZED_DIR}/web-subject-profile.json`);
     expect(RUN_ARTIFACT_FILES.webGatherAudit).toBe(`${NORMALIZED_DIR}/web-gather-audit.json`);
     expect(RUN_ARTIFACT_FILES.spotlightCandidates).toBe(
       `${NORMALIZED_DIR}/spotlight-candidates.json`,

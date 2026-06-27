@@ -16,12 +16,6 @@ const alphaSearchOptions = {
   maxMarketCap: 10_000_000_000,
 };
 
-const researchGatherOptions = {
-  maxRounds: 0,
-  maxToolCalls: 0,
-  sourceBudget: 0,
-};
-
 const webGatherOptions = {
   maxRounds: 0,
   maxToolCalls: 0,
@@ -62,7 +56,6 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
-        researchGatherOptions,
         webGatherOptions,
         webGatherDisabled: false,
         webProfileReuseDays: 30,
@@ -118,7 +111,6 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
-        researchGatherOptions,
         webGatherOptions,
         webGatherDisabled: false,
         webProfileReuseDays: 30,
@@ -165,7 +157,6 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
-        researchGatherOptions,
         webGatherOptions,
         webGatherDisabled: false,
         webProfileReuseDays: 30,
@@ -232,7 +223,6 @@ describe("createOpenAIProvider", () => {
           maxToolCalls: 0,
           sourceBudget: 0,
         },
-        researchGatherOptions,
         webGatherOptions,
         webGatherDisabled: false,
         webProfileReuseDays: 30,

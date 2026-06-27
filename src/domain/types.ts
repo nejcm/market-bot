@@ -162,6 +162,7 @@ export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap
 export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
 
 export type WebGatherToolName = "web_search" | "web_fetch";
+export type SubjectKind = "company" | "crypto-asset" | "theme";
 
 export interface JsonToolLoopAuditEntry {
   readonly round: number;
@@ -289,7 +290,7 @@ export type ExtendedEvidenceCategory =
   | "valuation"
   | "financial-lens"
   | "business-framework"
-  | "web-company-profile"
+  | "web-subject-profile"
   | "yahoo-fundamentals"
   | "equity-events"
   | "fred-macro"

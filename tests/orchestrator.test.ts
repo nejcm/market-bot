@@ -40,11 +40,6 @@ const config: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
-  researchGatherOptions: {
-    maxRounds: 0,
-    maxToolCalls: 0,
-    sourceBudget: 0,
-  },
   webGatherOptions: {
     maxRounds: 0,
     maxToolCalls: 0,
@@ -2039,8 +2034,8 @@ describe("runResearchJob", () => {
     ).resolves.toContain('"phase": "capital-return"');
   });
 
-  test("extracts and persists web company profile after web gather", async () => {
-    const dataDir = tempDataDir("market-bot-web-company-profile");
+  test("extracts and persists Web Subject Profile after web gather", async () => {
+    const dataDir = tempDataDir("market-bot-web-subject-profile");
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -2062,7 +2057,7 @@ describe("runResearchJob", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "web-company-profile") {
+        if (prompt.stage === "web-subject-profile") {
           const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
           const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
           const source = sources.find((item) => isRecord(item)) ?? {};
@@ -2074,6 +2069,7 @@ describe("runResearchJob", () => {
           return {
             content: JSON.stringify({
               companyName: "Apple Inc.",
+              subjectSummary: answer,
               questions: {
                 whatItDoes: answer,
                 howItMakesMoney: answer,
@@ -2129,25 +2125,25 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(prompts.map((prompt) => prompt.stage)).toContain("web-company-profile");
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-subject-profile");
     expect(result.trace.webGatherLoop?.acceptedRequests).toHaveLength(1);
-    expect(result.report.extras?.webCompanyProfile).toMatchObject({
+    expect(result.report.extras?.webSubjectProfile).toMatchObject({
       companyName: "Apple Inc.",
       factLedger: [expect.objectContaining({ claim: "Apple sells hardware and services." })],
     });
     await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
+      readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
     ).resolves.toContain('"companyName": "Apple Inc."');
     await expect(
       readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
     ).resolves.toContain('"tool": "web_search"');
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
-      "## Web Company Profile",
+      "## Web Subject Profile",
     );
   });
 
-  test("reuses fresh web company profile and skips web gather", async () => {
-    const dataDir = tempDataDir("market-bot-web-company-profile-reuse");
+  test("reuses fresh Web Subject Profile and skips web gather", async () => {
+    const dataDir = tempDataDir("market-bot-web-subject-profile-reuse");
     const priorRunDir = join(dataDir, "prior-aapl");
     const priorWebSource: Source = {
       id: "web-aapl-prior",
@@ -2189,12 +2185,16 @@ describe("runResearchJob", () => {
       "utf8",
     );
     await writeFile(
-      join(priorRunDir, "normalized", "web-company-profile.json"),
+      join(priorRunDir, "normalized", "web-subject-profile.json"),
       JSON.stringify({
-        version: 1,
+        version: 2,
         generatedAt: "2026-05-01T00:00:00.000Z",
+        subjectKind: "company",
+        subjectId: "AAPL",
+        subjectLabel: "Apple Inc.",
         symbol: "AAPL",
         companyName: "Apple Inc.",
+        subjectSummary: answer,
         questions: {
           whatItDoes: answer,
           howItMakesMoney: answer,
@@ -2232,7 +2232,7 @@ describe("runResearchJob", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "web-gather" || prompt.stage === "web-company-profile") {
+        if (prompt.stage === "web-gather" || prompt.stage === "web-subject-profile") {
           throw new Error(`unexpected ${String(prompt.stage)}`);
         }
         if (prompt.stage === "playbook-selection") {
@@ -2262,20 +2262,23 @@ describe("runResearchJob", () => {
     });
 
     expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
-    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
-    expect(result.collectedSources.webCompanyProfile?.companyName).toBe("Apple Inc.");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toMatchObject({
+      subjectKind: "company",
+      companyName: "Apple Inc.",
+    });
     expect(result.collectedSources.extendedSources).toContainEqual(priorWebSource);
     expect(result.report.dataGaps).toContain(
-      "web-company-profile: Reused web company profile from 2026-05-01T00:00:00.000Z (18 days old); latest SEC filing basis 2026-05-01.",
+      "web-subject-profile: Reused web subject profile from 2026-05-01T00:00:00.000Z (18 days old); latest SEC filing basis 2026-05-01.",
     );
-    expect(result.report.extras?.webCompanyProfile).toMatchObject({
+    expect(result.report.extras?.webSubjectProfile).toMatchObject({
       companyName: "Apple Inc.",
       sourceIds: [priorWebSource.id],
     });
   });
 
-  test("does not reuse web company profile when web gather is disabled", async () => {
-    const dataDir = tempDataDir("market-bot-web-company-profile-reuse-disabled");
+  test("does not reuse Web Subject Profile when web gather is disabled", async () => {
+    const dataDir = tempDataDir("market-bot-web-subject-profile-reuse-disabled");
     const priorRunDir = join(dataDir, "prior-aapl");
     const priorWebSource: Source = {
       id: "web-aapl-prior",
@@ -2317,7 +2320,7 @@ describe("runResearchJob", () => {
       "utf8",
     );
     await writeFile(
-      join(priorRunDir, "normalized", "web-company-profile.json"),
+      join(priorRunDir, "normalized", "web-subject-profile.json"),
       JSON.stringify({
         version: 1,
         generatedAt: "2026-05-01T00:00:00.000Z",
@@ -2360,7 +2363,7 @@ describe("runResearchJob", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "web-gather" || prompt.stage === "web-company-profile") {
+        if (prompt.stage === "web-gather" || prompt.stage === "web-subject-profile") {
           throw new Error(`unexpected ${String(prompt.stage)}`);
         }
         if (prompt.stage === "playbook-selection") {
@@ -2391,14 +2394,14 @@ describe("runResearchJob", () => {
     });
 
     expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
-    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
-    expect(result.collectedSources.webCompanyProfile).toBeUndefined();
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toBeUndefined();
     expect(result.collectedSources.extendedSources).not.toContainEqual(priorWebSource);
-    expect(result.report.extras?.webCompanyProfile).toBeUndefined();
+    expect(result.report.extras?.webSubjectProfile).toBeUndefined();
   });
 
-  test("persists empty web company profile when extraction stage fails", async () => {
-    const dataDir = tempDataDir("market-bot-web-company-profile-failure");
+  test("persists empty Web Subject Profile when extraction stage fails", async () => {
+    const dataDir = tempDataDir("market-bot-web-subject-profile-failure");
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -2420,7 +2423,7 @@ describe("runResearchJob", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "web-company-profile") {
+        if (prompt.stage === "web-subject-profile") {
           throw new Error("profile timeout");
         }
         if (prompt.stage === "playbook-selection") {
@@ -2459,24 +2462,24 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(prompts.map((prompt) => prompt.stage)).toContain("web-company-profile");
-    expect(result.collectedSources.webCompanyProfile).toMatchObject({
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toMatchObject({
       sourceIds: [],
       factLedger: [],
       openGaps: [expect.stringContaining("profile timeout")],
     });
     expect(result.collectedSources.extendedEvidence?.gaps).toContainEqual(
       expect.objectContaining({
-        source: "web-company-profile",
+        source: "web-subject-profile",
         cause: "malformed-response",
       }),
     );
     await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-company-profile.json"), "utf8"),
+      readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
     ).resolves.toContain("profile timeout");
   });
 
-  test("skips web company profile extraction when web gather produces no web sources", async () => {
+  test("skips Web Subject Profile extraction when web gather produces no web sources", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -2514,8 +2517,8 @@ describe("runResearchJob", () => {
     });
 
     expect(prompts.map((prompt) => prompt.stage)).toContain("web-gather");
-    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-company-profile");
-    expect(result.collectedSources.webCompanyProfile).toBeUndefined();
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toBeUndefined();
   });
 
   test("persists configured deep Forecast Disagreement as partial non-fatal evidence", async () => {
@@ -2835,7 +2838,7 @@ describe("runResearchJob", () => {
     expect(result.report.confidence).toBe("medium");
   });
 
-  test("allows web company profile evidence to offset one extended evidence gap", async () => {
+  test("allows Web Subject Profile evidence to offset one extended evidence gap", async () => {
     const result = await runResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config,
@@ -2870,9 +2873,9 @@ describe("runResearchJob", () => {
           instrument: { assetClass: "equity", symbol: "AAPL" },
           items: [
             {
-              category: "web-company-profile",
-              title: "Web Company Profile",
-              summary: "Cited web company profile captured for AAPL.",
+              category: "web-subject-profile",
+              title: "Web Subject Profile",
+              summary: "Cited Web Subject Profile captured for AAPL.",
               sourceIds: ["web-aapl-profile"],
               observedAt: "2026-05-19T00:00:00.000Z",
             },

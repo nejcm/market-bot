@@ -1,7 +1,7 @@
 import type { VerifiedMarketSnapshot } from "../src/domain/types";
 import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
-import type { WebCompanyProfileArtifact } from "../src/sources/extended-evidence/web-company-profile";
+import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
 
 export interface RunSummary {
   readonly runId: string;
@@ -30,7 +30,7 @@ export interface RunDetail {
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly financialLenses?: FinancialLensArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
-  readonly webCompanyProfile?: WebCompanyProfileArtifact;
+  readonly webSubjectProfile?: WebSubjectProfileArtifact;
 }
 
 export interface RunFile {

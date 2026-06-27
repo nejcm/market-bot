@@ -45,7 +45,7 @@ import {
   tradingViewUrl,
   valuationMetricTiles,
   verifiedSnapshotView,
-  webCompanyProfileView,
+  webSubjectProfileView,
   instrumentFromPathname,
   instrumentPath,
 } from "../app/client/view-model";
@@ -1442,18 +1442,21 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
-  test("parses web company profile from report extras before sidecar fallback", () => {
+  test("parses Web Subject Profile from report extras before sidecar fallback", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: ["report-source"] };
     const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
 
     expect(
-      webCompanyProfileView(
+      webSubjectProfileView(
         {
           extras: {
-            webCompanyProfile: {
-              companyName: "Apple Inc.",
+            webSubjectProfile: {
+              subjectKind: "company",
+              subjectId: "AAPL",
+              subjectLabel: "Apple Inc.",
               generatedAt: "2026-06-22T00:00:00.000Z",
               sourceIds: ["report-source"],
+              subjectSummary: answer,
               questions: {
                 whatItDoes: answer,
                 howItMakesMoney: answer,
@@ -1474,9 +1477,13 @@ describe("report artifact parsers", () => {
           },
         },
         {
-          version: 1,
+          version: 2,
           generatedAt: "2026-06-21T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
           symbol: "AAPL",
+          subjectSummary: sidecarAnswer,
           questions: {
             whatItDoes: sidecarAnswer,
             howItMakesMoney: sidecarAnswer,
@@ -1493,7 +1500,14 @@ describe("report artifact parsers", () => {
         },
       ),
     ).toEqual({
-      companyName: "Apple Inc.",
+      subjectKind: "company",
+      subjectLabel: "Apple Inc.",
+      subjectSummary: {
+        key: "subjectSummary",
+        label: "Summary",
+        answer: "Apple sells devices and services.",
+        sourceIds: ["report-source"],
+      },
       generatedAt: "2026-06-22T00:00:00.000Z",
       sourceIds: ["report-source"],
       questions: [
@@ -1548,14 +1562,18 @@ describe("report artifact parsers", () => {
     });
   });
 
-  test("falls back to web company profile sidecar", () => {
+  test("falls back to Web Subject Profile sidecar", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: ["sidecar-source"] };
 
     expect(
-      webCompanyProfileView(undefined, {
-        version: 1,
+      webSubjectProfileView(undefined, {
+        version: 2,
         generatedAt: "2026-06-22T00:00:00.000Z",
+        subjectKind: "company",
+        subjectId: "AAPL",
+        subjectLabel: "Apple Inc.",
         symbol: "AAPL",
+        subjectSummary: answer,
         questions: {
           whatItDoes: answer,
           howItMakesMoney: answer,
@@ -1577,18 +1595,18 @@ describe("report artifact parsers", () => {
       sourceIds: ["sidecar-source"],
     });
     expect(
-      webCompanyProfileView({ extras: { webCompanyProfile: { questions: {} } } }),
+      webSubjectProfileView({ extras: { webSubjectProfile: { questions: {} } } }),
     ).toBeUndefined();
   });
 
-  test("drops uncited web company profile answers and facts", () => {
+  test("drops uncited Web Subject Profile answers and facts", () => {
     const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
 
     expect(
-      webCompanyProfileView(
+      webSubjectProfileView(
         {
           extras: {
-            webCompanyProfile: {
+            webSubjectProfile: {
               questions: {
                 whatItDoes: { answer: "Uncited answer.", sourceIds: [] },
               },
@@ -1598,9 +1616,13 @@ describe("report artifact parsers", () => {
           },
         },
         {
-          version: 1,
+          version: 2,
           generatedAt: "2026-06-22T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
           symbol: "AAPL",
+          subjectSummary: sidecarAnswer,
           questions: {
             whatItDoes: sidecarAnswer,
             howItMakesMoney: sidecarAnswer,

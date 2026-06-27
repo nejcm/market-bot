@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import {
   loadRunArtifact,
   scanRunArtifacts,
-  scanWebCompanyProfileRunArtifacts,
+  scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
 import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
 
@@ -30,14 +30,18 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function webCompanyProfile(symbol: string): unknown {
+function webSubjectProfile(symbol: string): unknown {
   const sourceId = `web-${symbol.toLowerCase()}-12345678`;
   const answer = { answer: `${symbol} business profile.`, sourceIds: [sourceId] };
   return {
-    version: 1,
+    version: 2,
     generatedAt: "2026-05-19T00:00:00.000Z",
+    subjectKind: "company",
+    subjectId: symbol,
+    subjectLabel: `${symbol} Inc.`,
     symbol,
     companyName: `${symbol} Inc.`,
+    subjectSummary: answer,
     questions: {
       whatItDoes: answer,
       howItMakesMoney: answer,
@@ -622,7 +626,7 @@ describe("scanRunArtifacts", () => {
   });
 });
 
-describe("scanWebCompanyProfileRunArtifacts", () => {
+describe("scanWebSubjectProfileRunArtifacts", () => {
   test("returns only same-symbol deep equity profiles", async () => {
     const dataDir = tempRunsDir();
     await writeJson(
@@ -635,8 +639,8 @@ describe("scanWebCompanyProfileRunArtifacts", () => {
       }),
     );
     await writeJson(
-      join(dataDir, "aapl-deep", "normalized", "web-company-profile.json"),
-      webCompanyProfile("AAPL"),
+      join(dataDir, "aapl-deep", "normalized", "web-subject-profile.json"),
+      webSubjectProfile("AAPL"),
     );
     await writeJson(
       join(dataDir, "aapl-brief", "report.json"),
@@ -648,8 +652,8 @@ describe("scanWebCompanyProfileRunArtifacts", () => {
       }),
     );
     await writeJson(
-      join(dataDir, "aapl-brief", "normalized", "web-company-profile.json"),
-      webCompanyProfile("AAPL"),
+      join(dataDir, "aapl-brief", "normalized", "web-subject-profile.json"),
+      webSubjectProfile("AAPL"),
     );
     await writeJson(
       join(dataDir, "msft-deep", "report.json"),
@@ -661,8 +665,8 @@ describe("scanWebCompanyProfileRunArtifacts", () => {
       }),
     );
     await writeJson(
-      join(dataDir, "msft-deep", "normalized", "web-company-profile.json"),
-      webCompanyProfile("MSFT"),
+      join(dataDir, "msft-deep", "normalized", "web-subject-profile.json"),
+      webSubjectProfile("MSFT"),
     );
     await writeJson(
       join(dataDir, "crypto-deep", "report.json"),
@@ -675,21 +679,25 @@ describe("scanWebCompanyProfileRunArtifacts", () => {
       }),
     );
     await writeJson(
-      join(dataDir, "crypto-deep", "normalized", "web-company-profile.json"),
-      webCompanyProfile("AAPL"),
+      join(dataDir, "crypto-deep", "normalized", "web-subject-profile.json"),
+      webSubjectProfile("AAPL"),
     );
     await writeJson(
-      join(dataDir, "profile-only", "normalized", "web-company-profile.json"),
-      webCompanyProfile("AAPL"),
+      join(dataDir, "profile-only", "normalized", "web-subject-profile.json"),
+      webSubjectProfile("AAPL"),
     );
 
-    const artifacts = await scanWebCompanyProfileRunArtifacts(dataDir, {
-      symbol: "aapl",
+    const artifacts = await scanWebSubjectProfileRunArtifacts(dataDir, {
+      subjectKind: "company",
+      subjectId: "aapl",
       depth: "deep",
     });
 
     expect(artifacts.map((artifact) => artifact.runDirName)).toEqual(["aapl-deep"]);
     expect(artifacts[0]?.report.runId).toBe("aapl-deep");
-    expect(artifacts[0]?.webCompanyProfile.symbol).toBe("AAPL");
+    expect(artifacts[0]?.webSubjectProfile).toMatchObject({
+      subjectKind: "company",
+      symbol: "AAPL",
+    });
   });
 });

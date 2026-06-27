@@ -29,7 +29,6 @@ const config: AppConfig = {
     exaApiKey: "exa-key",
   },
   evidenceRequestOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
-  researchGatherOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
   webGatherOptions: { maxRounds: 2, maxToolCalls: 4, sourceBudget: 8 },
   webGatherDisabled: false,
   webProfileReuseDays: 30,
@@ -190,6 +189,8 @@ describe("runWebGatherLoop", () => {
       }),
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
       generateRound: async () =>
         stage({
           requests: [
@@ -206,15 +207,54 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.rejectedRequests).toEqual([
       expect.objectContaining({
         tool: "web_search",
-        reason: "web_search query must mention the run symbol or company name",
+        reason: "web_search query must mention the run subject",
       }),
     ]);
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "web-gather",
-        message: "web_search: web_search query must mention the run symbol or company name",
+        message: "web_search: web_search query must mention the run subject",
       }),
     );
+  });
+
+  test("enforces subject terms for research themes", async () => {
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "AI infrastructure buildout",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "restaurant payment terminals" },
+              rationale: "off subject",
+            },
+            {
+              tool: "web_search",
+              args: { query: "AI infrastructure buildout power constraints" },
+              rationale: "on subject",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({ reason: "web_search query must mention the run subject" }),
+    ]);
   });
 
   test("allows web fetch only for URLs surfaced by prior search", async () => {

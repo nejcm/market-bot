@@ -88,7 +88,7 @@ function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
       });
     }
   }
-  const profile = report.extras?.webCompanyProfile;
+  const profile = report.extras?.webSubjectProfile;
   if (isRecord(profile)) {
     add(knownSourceIds(report, profile.sourceIds));
     if (isRecord(profile.questions)) {
@@ -532,16 +532,8 @@ function renderBusinessFramework(report: ResearchReport): string {
   ].join("\n");
 }
 
-function renderWebCompanyProfile(report: ResearchReport): string {
-  if (!isInstrumentJobType(report.jobType)) {
-    return "";
-  }
-  const profile = report.extras?.webCompanyProfile;
-  if (!isRecord(profile) || !isRecord(profile.questions)) {
-    return "";
-  }
-  const { questions } = profile;
-  const labels: readonly [string, string][] = [
+const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = {
+  company: [
     ["whatItDoes", "What It Does"],
     ["howItMakesMoney", "How It Makes Money"],
     ["customers", "Customers"],
@@ -549,7 +541,47 @@ function renderWebCompanyProfile(report: ResearchReport): string {
     ["purchaseRecurrence", "Purchase Recurrence"],
     ["pricingPower", "Pricing Power"],
     ["recessionCyclicality", "Recession Cyclicality"],
-  ];
+  ],
+  "crypto-asset": [
+    ["whatItDoes", "What It Does"],
+    ["valueAccrual", "Value Accrual"],
+    ["supplyIssuance", "Supply And Issuance"],
+    ["usageAdoption", "Usage And Adoption"],
+    ["governanceBuilders", "Governance And Builders"],
+    ["competitionMoat", "Competition And Moat"],
+    ["keyRisks", "Key Risks"],
+  ],
+  theme: [
+    ["whatItIs", "What It Is"],
+    ["whyNow", "Why Now"],
+    ["beneficiaries", "Beneficiaries"],
+    ["headwinds", "Headwinds"],
+    ["keyDebates", "Key Debates"],
+    ["howItPlaysOut", "How It Plays Out"],
+  ],
+};
+
+function renderWebSubjectProfile(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType) && report.jobType !== "research") {
+    return "";
+  }
+  const profile = report.extras?.webSubjectProfile;
+  if (!isRecord(profile) || !isRecord(profile.questions)) {
+    return "";
+  }
+  const { questions } = profile;
+  const subjectKind = typeof profile.subjectKind === "string" ? profile.subjectKind : "company";
+  const labels =
+    WEB_SUBJECT_PROFILE_LABELS[subjectKind] ?? WEB_SUBJECT_PROFILE_LABELS.company ?? [];
+  const subjectSummary = isRecord(profile.subjectSummary) ? profile.subjectSummary : undefined;
+  const summary =
+    subjectSummary !== undefined && typeof subjectSummary.answer === "string"
+      ? [
+          `${markdownText(subjectSummary.answer)}${sourceRefs(
+            knownSourceIds(report, subjectSummary.sourceIds),
+          )}`,
+        ]
+      : [];
   const rows = labels.flatMap(([key, label]) => {
     const answer = questions[key];
     if (!isRecord(answer) || typeof answer.answer !== "string" || answer.answer === "") {
@@ -581,8 +613,10 @@ function renderWebCompanyProfile(report: ResearchReport): string {
     return "";
   }
   return [
-    "## Web Company Profile",
+    "## Web Subject Profile",
     "",
+    ...summary,
+    ...(summary.length > 0 ? [""] : []),
     ...rows,
     ...(events.length > 0 ? ["", "### Recent Material Events", "", ...events] : []),
     ...(facts.length > 0 ? ["", "### Fact Ledger", "", ...facts] : []),
@@ -695,7 +729,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
     renderBusinessFramework(report),
-    renderWebCompanyProfile(report),
+    renderWebSubjectProfile(report),
     renderExtendedEvidence(report),
     renderEarningsSetup(report),
     renderHistoricalContext(report),

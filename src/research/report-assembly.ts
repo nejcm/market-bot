@@ -22,7 +22,7 @@ import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
-import type { WebCompanyProfileArtifact } from "../sources/extended-evidence/web-company-profile";
+import type { WebSubjectProfileArtifact } from "../sources/extended-evidence/web-subject-profile";
 import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
@@ -453,20 +453,26 @@ function businessFrameworkExtra(modelExtra: unknown, collectedSources: Collected
   };
 }
 
-function webCompanyProfileExtra(artifact: WebCompanyProfileArtifact | undefined): unknown {
+function webSubjectProfileExtra(artifact: WebSubjectProfileArtifact | undefined): unknown {
   if (artifact === undefined) {
     return undefined;
   }
   return {
     version: artifact.version,
-    symbol: artifact.symbol,
-    ...(artifact.companyName !== undefined ? { companyName: artifact.companyName } : {}),
+    subjectKind: artifact.subjectKind,
+    subjectId: artifact.subjectId,
+    ...(artifact.subjectLabel !== undefined ? { subjectLabel: artifact.subjectLabel } : {}),
+    ...("symbol" in artifact ? { symbol: artifact.symbol } : {}),
+    ...("companyName" in artifact && artifact.companyName !== undefined
+      ? { companyName: artifact.companyName }
+      : {}),
+    subjectSummary: artifact.subjectSummary,
     questions: artifact.questions,
     recentMaterialEvents: artifact.recentMaterialEvents,
     factLedger: artifact.factLedger,
     openGaps: artifact.openGaps,
     sourceIds: artifact.sourceIds,
-    ...(artifact.secFilingBasisDate !== undefined
+    ...("secFilingBasisDate" in artifact && artifact.secFilingBasisDate !== undefined
       ? { secFilingBasisDate: artifact.secFilingBasisDate }
       : {}),
   };
@@ -887,7 +893,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     modelExtras.businessFramework,
     collectedSources,
   );
-  const resolvedWebCompanyProfile = webCompanyProfileExtra(collectedSources.webCompanyProfile);
+  const resolvedWebSubjectProfile = webSubjectProfileExtra(collectedSources.webSubjectProfile);
   const keyFindings = preferSnapshotCitationsForFindings(
     readFindings(payload.keyFindings),
     collectedSources,
@@ -953,8 +959,8 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(resolvedBusinessFramework !== undefined
         ? { businessFramework: resolvedBusinessFramework }
         : {}),
-      ...(resolvedWebCompanyProfile !== undefined
-        ? { webCompanyProfile: resolvedWebCompanyProfile }
+      ...(resolvedWebSubjectProfile !== undefined
+        ? { webSubjectProfile: resolvedWebSubjectProfile }
         : {}),
       depth: command.depth,
       depthProfile,

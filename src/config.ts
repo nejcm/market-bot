@@ -30,12 +30,6 @@ export interface EvidenceRequestOptions {
   readonly sourceBudget: number;
 }
 
-export interface ResearchGatherOptions {
-  readonly maxRounds: number;
-  readonly maxToolCalls: number;
-  readonly sourceBudget: number;
-}
-
 export interface WebGatherOptions {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
@@ -100,7 +94,6 @@ export interface AppConfig {
   readonly promptDir: string;
   readonly sourceOptions: SourceOptions;
   readonly evidenceRequestOptions: EvidenceRequestOptions;
-  readonly researchGatherOptions: ResearchGatherOptions;
   readonly webGatherOptions: WebGatherOptions;
   readonly webGatherDisabled: boolean;
   readonly webProfileReuseDays: number;
@@ -160,9 +153,6 @@ const DEFAULT_ALPHA_SEARCH_MAX_MARKET_CAP = 10_000_000_000;
 const DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT = 2;
 const DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT = 4;
 const DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT = 40;
-const DEFAULT_RESEARCH_GATHER_MAX_ROUNDS = 4;
-const DEFAULT_RESEARCH_GATHER_MAX_TOOL_CALLS = 8;
-const DEFAULT_RESEARCH_GATHER_SOURCE_BUDGET = 24;
 const DEFAULT_WEB_GATHER_MAX_ROUNDS = 2;
 const DEFAULT_WEB_GATHER_MAX_TOOL_CALLS = 4;
 const DEFAULT_WEB_GATHER_SOURCE_BUDGET = 8;
@@ -589,20 +579,6 @@ export function resolveConfig(
       maxRounds: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_ROUNDS, 2),
       maxToolCalls: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_MAX_TOOL_CALLS, 2),
       sourceBudget: readNonNegativeInteger(env.MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET, 8),
-    },
-    researchGatherOptions: {
-      maxRounds: readNonNegativeInteger(
-        env.MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS,
-        DEFAULT_RESEARCH_GATHER_MAX_ROUNDS,
-      ),
-      maxToolCalls: readNonNegativeInteger(
-        env.MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS,
-        DEFAULT_RESEARCH_GATHER_MAX_TOOL_CALLS,
-      ),
-      sourceBudget: readNonNegativeInteger(
-        env.MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET,
-        DEFAULT_RESEARCH_GATHER_SOURCE_BUDGET,
-      ),
     },
     webGatherOptions: {
       maxRounds: readNonNegativeInteger(

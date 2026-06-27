@@ -21,11 +21,6 @@ const baseConfig: AppConfig = {
     maxToolCalls: 0,
     sourceBudget: 0,
   },
-  researchGatherOptions: {
-    maxRounds: 0,
-    maxToolCalls: 0,
-    sourceBudget: 0,
-  },
   webGatherOptions: {
     maxRounds: 0,
     maxToolCalls: 0,

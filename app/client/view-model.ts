@@ -15,10 +15,7 @@ import type {
   BusinessFrameworkSectionName,
   BusinessLifecyclePhase,
 } from "../../src/sources/extended-evidence/business-framework";
-import type {
-  WebCompanyProfileArtifact,
-  WebCompanyProfileQuestionKey,
-} from "../../src/sources/extended-evidence/web-company-profile";
+import type { WebSubjectProfileArtifact } from "../../src/sources/extended-evidence/web-subject-profile";
 import type {
   FinancialLensArtifact,
   FinancialLensMetric,
@@ -148,24 +145,26 @@ export interface BusinessFrameworkView {
   readonly gaps: readonly string[];
 }
 
-export interface WebCompanyProfileQuestionView {
-  readonly key: WebCompanyProfileQuestionKey;
+export interface WebSubjectProfileQuestionView {
+  readonly key: string;
   readonly label: string;
   readonly answer: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface WebCompanyProfileFactView {
+export interface WebSubjectProfileFactView {
   readonly claim: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface WebCompanyProfileView {
-  readonly companyName?: string;
+export interface WebSubjectProfileView {
+  readonly subjectKind?: string;
+  readonly subjectLabel?: string;
+  readonly subjectSummary?: WebSubjectProfileQuestionView;
   readonly generatedAt?: string;
-  readonly questions: readonly WebCompanyProfileQuestionView[];
-  readonly recentMaterialEvents: readonly WebCompanyProfileFactView[];
-  readonly factLedger: readonly WebCompanyProfileFactView[];
+  readonly questions: readonly WebSubjectProfileQuestionView[];
+  readonly recentMaterialEvents: readonly WebSubjectProfileFactView[];
+  readonly factLedger: readonly WebSubjectProfileFactView[];
   readonly openGaps: readonly string[];
   readonly sourceIds: readonly string[];
 }
@@ -707,19 +706,38 @@ export function businessFrameworkView(
   );
 }
 
-const WEB_COMPANY_PROFILE_QUESTIONS: readonly [WebCompanyProfileQuestionKey, string][] = [
-  ["whatItDoes", "What it does"],
-  ["howItMakesMoney", "How it makes money"],
-  ["customers", "Customers"],
-  ["geography", "Geography"],
-  ["purchaseRecurrence", "Purchase recurrence"],
-  ["pricingPower", "Pricing power"],
-  ["recessionCyclicality", "Recession cyclicality"],
-];
+const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<Record<string, readonly [string, string][]>> = {
+  company: [
+    ["whatItDoes", "What it does"],
+    ["howItMakesMoney", "How it makes money"],
+    ["customers", "Customers"],
+    ["geography", "Geography"],
+    ["purchaseRecurrence", "Purchase recurrence"],
+    ["pricingPower", "Pricing power"],
+    ["recessionCyclicality", "Recession cyclicality"],
+  ],
+  "crypto-asset": [
+    ["whatItDoes", "What it does"],
+    ["valueAccrual", "Value accrual"],
+    ["supplyIssuance", "Supply and issuance"],
+    ["usageAdoption", "Usage and adoption"],
+    ["governanceBuilders", "Governance and builders"],
+    ["competitionMoat", "Competition and moat"],
+    ["keyRisks", "Key risks"],
+  ],
+  theme: [
+    ["whatItIs", "What it is"],
+    ["whyNow", "Why now"],
+    ["beneficiaries", "Beneficiaries"],
+    ["headwinds", "Headwinds"],
+    ["keyDebates", "Key debates"],
+    ["howItPlaysOut", "How it plays out"],
+  ],
+};
 
-function webProfileFacts(value: unknown): readonly WebCompanyProfileFactView[] {
+function webProfileFacts(value: unknown): readonly WebSubjectProfileFactView[] {
   return Array.isArray(value)
-    ? value.flatMap((item): readonly WebCompanyProfileFactView[] => {
+    ? value.flatMap((item): readonly WebSubjectProfileFactView[] => {
         const record = readRecord(item);
         const claim = readStringField(record, "claim");
         const sourceIds = stringArray(record?.sourceIds);
@@ -728,25 +746,40 @@ function webProfileFacts(value: unknown): readonly WebCompanyProfileFactView[] {
     : [];
 }
 
-function webCompanyProfileFromValue(value: unknown): WebCompanyProfileView | undefined {
+function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | undefined {
   const record = readRecord(value);
   if (record === undefined) {
     return undefined;
   }
   const rawQuestions = readRecord(record.questions);
+  const subjectKind = readStringField(record, "subjectKind");
+  const labels =
+    WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind ?? "company"] ??
+    WEB_SUBJECT_PROFILE_QUESTIONS.company ??
+    [];
   const questions =
     rawQuestions === undefined
       ? []
-      : WEB_COMPANY_PROFILE_QUESTIONS.flatMap(
-          ([key, label]): readonly WebCompanyProfileQuestionView[] => {
-            const question = readRecord(rawQuestions[key]);
-            const answer = readStringField(question, "answer");
-            const sourceIds = stringArray(question?.sourceIds);
-            return answer === undefined || answer === "" || sourceIds.length === 0
-              ? []
-              : [{ key, label, answer, sourceIds }];
-          },
-        );
+      : labels.flatMap(([key, label]): readonly WebSubjectProfileQuestionView[] => {
+          const question = readRecord(rawQuestions[key]);
+          const answer = readStringField(question, "answer");
+          const sourceIds = stringArray(question?.sourceIds);
+          return answer === undefined || answer === "" || sourceIds.length === 0
+            ? []
+            : [{ key, label, answer, sourceIds }];
+        });
+  const rawSummary = readRecord(record.subjectSummary);
+  const summaryAnswer = readStringField(rawSummary, "answer");
+  const summarySourceIds = stringArray(rawSummary?.sourceIds);
+  const subjectSummary =
+    summaryAnswer === undefined || summaryAnswer === "" || summarySourceIds.length === 0
+      ? undefined
+      : {
+          key: "subjectSummary",
+          label: "Summary",
+          answer: summaryAnswer,
+          sourceIds: summarySourceIds,
+        };
   const recentMaterialEvents = webProfileFacts(record.recentMaterialEvents);
   const factLedger = webProfileFacts(record.factLedger);
   const openGaps = stringArray(record.openGaps);
@@ -758,10 +791,13 @@ function webCompanyProfileFromValue(value: unknown): WebCompanyProfileView | und
   ) {
     return undefined;
   }
-  const companyName = readStringField(record, "companyName");
+  const subjectLabel =
+    readStringField(record, "subjectLabel") ?? readStringField(record, "companyName");
   const generatedAt = readStringField(record, "generatedAt");
   return {
-    ...(companyName !== undefined ? { companyName } : {}),
+    ...(subjectKind !== undefined ? { subjectKind } : {}),
+    ...(subjectLabel !== undefined ? { subjectLabel } : {}),
+    ...(subjectSummary !== undefined ? { subjectSummary } : {}),
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     questions,
     recentMaterialEvents,
@@ -771,13 +807,13 @@ function webCompanyProfileFromValue(value: unknown): WebCompanyProfileView | und
   };
 }
 
-export function webCompanyProfileView(
+export function webSubjectProfileView(
   report: Record<string, unknown> | undefined,
-  artifact?: WebCompanyProfileArtifact,
-): WebCompanyProfileView | undefined {
+  artifact?: WebSubjectProfileArtifact,
+): WebSubjectProfileView | undefined {
   const extras = readRecord(report?.extras);
   return (
-    webCompanyProfileFromValue(extras?.webCompanyProfile) ?? webCompanyProfileFromValue(artifact)
+    webSubjectProfileFromValue(extras?.webSubjectProfile) ?? webSubjectProfileFromValue(artifact)
   );
 }
 

@@ -23,8 +23,8 @@ Admit Exa-gathered open-web content into the persisted evidence pipeline only as
 - Each normalized web result becomes a Source with `kind: "web"` and `provider: "exa"`.
 - Web Source Gaps and freshness gaps use `evidenceQualityImpact: "extended-evidence-cap"`.
 - Web Sources cannot raise Evidence Quality above the extended-evidence cap and cannot substitute for core market, SEC, or pricing evidence.
-- A `web-company-profile` Extended Evidence item and `normalized/web-company-profile.json` sidecar may summarize gathered web facts.
-- Every accepted Web Company Profile answer or fact must cite gathered web Source IDs.
+- A `web-subject-profile` Extended Evidence item and `normalized/web-subject-profile.json` sidecar may summarize gathered web facts.
+- Every accepted Web Subject Profile answer or fact must cite gathered web Source IDs.
 - Web content is treated only as data. It cannot widen run scope, prediction subjects, allowed tools, or downstream instructions.
 
 ## Consequences

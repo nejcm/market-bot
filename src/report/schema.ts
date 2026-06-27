@@ -115,7 +115,7 @@ function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string,
     catalystCalendar: catalystCalendarText(extras.catalystCalendar),
     earningsSetup: earningsSetupText(extras.earningsSetup),
     businessFramework: businessFrameworkText(extras.businessFramework),
-    webCompanyProfile: webCompanyProfileText(extras.webCompanyProfile),
+    webSubjectProfile: webSubjectProfileText(extras.webSubjectProfile),
   };
 }
 
@@ -204,7 +204,7 @@ function businessFrameworkText(extra: unknown): readonly string[] {
   ];
 }
 
-function webCompanyProfileFactTexts(value: unknown): readonly string[] {
+function webSubjectProfileFactTexts(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value.flatMap((fact) =>
         isRecord(fact) && typeof fact.claim === "string" ? [fact.claim] : [],
@@ -212,7 +212,7 @@ function webCompanyProfileFactTexts(value: unknown): readonly string[] {
     : [];
 }
 
-function webCompanyProfileText(extra: unknown): readonly string[] {
+function webSubjectProfileText(extra: unknown): readonly string[] {
   if (!isRecord(extra)) {
     return [];
   }
@@ -222,9 +222,12 @@ function webCompanyProfileText(extra: unknown): readonly string[] {
       )
     : [];
   return [
+    ...(isRecord(extra.subjectSummary) && typeof extra.subjectSummary.answer === "string"
+      ? [extra.subjectSummary.answer]
+      : []),
     ...questionTexts,
-    ...webCompanyProfileFactTexts(extra.recentMaterialEvents),
-    ...webCompanyProfileFactTexts(extra.factLedger),
+    ...webSubjectProfileFactTexts(extra.recentMaterialEvents),
+    ...webSubjectProfileFactTexts(extra.factLedger),
     ...readStringArray(extra.openGaps),
   ];
 }
@@ -298,21 +301,29 @@ function validateBusinessFrameworkExtra(extra: unknown, knownSourceIds: Readonly
   }
 }
 
-function validateWebCompanyProfileExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateWebSubjectProfileExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Web Company Profile",
+    "Web Subject Profile",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
   );
+  if (isRecord(extra.subjectSummary)) {
+    validateKnownSourceIds(
+      "Web Subject Profile",
+      readStringArray(extra.subjectSummary.sourceIds),
+      knownSourceIds,
+      typeof extra.subjectSummary.answer === "string" && extra.subjectSummary.answer !== "",
+    );
+  }
   if (isRecord(extra.questions)) {
     for (const question of Object.values(extra.questions)) {
       if (isRecord(question)) {
         validateKnownSourceIds(
-          "Web Company Profile",
+          "Web Subject Profile",
           readStringArray(question.sourceIds),
           knownSourceIds,
           typeof question.answer === "string" && question.answer !== "",
@@ -328,7 +339,7 @@ function validateWebCompanyProfileExtra(extra: unknown, knownSourceIds: Readonly
     for (const fact of facts) {
       if (isRecord(fact)) {
         validateKnownSourceIds(
-          "Web Company Profile",
+          "Web Subject Profile",
           readStringArray(fact.sourceIds),
           knownSourceIds,
           typeof fact.claim === "string" && fact.claim !== "",
@@ -443,7 +454,7 @@ function validateRenderedExtras(
   validateProxyResolutionExtra(extras.proxyResolution);
   validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds);
   validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds);
-  validateWebCompanyProfileExtra(extras.webCompanyProfile, knownSourceIds);
+  validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds);
 }
 
 export function validatePredictions(

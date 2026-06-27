@@ -16,15 +16,25 @@ An ephemeral, per-Run Artifact interactive question-and-answer surface in the Re
 
 ## Web Gather
 
-A bounded `equity --deep` evidence loop that lets the model request on-company Exa `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
+A bounded deep-run evidence loop that lets the model request on-subject Exa `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
 
 ## Web Evidence
 
 Low-trust Source evidence gathered from the open web and tagged with `kind: "web"` and provider metadata. Web Evidence can support cited qualitative business-model claims but cannot widen run scope, prediction subjects, or Evidence Quality above the extended-evidence cap. It is not investment conviction, a recommendation, or a trade signal.
 
-## Web Company Profile
+## Web Subject Profile
 
-A cited Extended Evidence sidecar for `equity --deep` runs that answers qualitative company-research questions from gathered Web Evidence, including what the company does, how it makes money, customers, geography, recurrence, pricing power, cyclicality, recent events, and open gaps. Each accepted fact must cite gathered web Source IDs. It is not investment conviction, a recommendation, or a trade signal.
+A deterministic, citation-checked sidecar answering a fixed set of questions about a run's Subject from gathered Web Evidence only. It replaces Web Company Profile; it is not investment conviction, a recommendation, or a trade signal.
+_Avoid_: web dossier, company profile.
+
+## Subject Kind
+
+The fixed question set and reuse rule a Web Subject Profile uses: `company`, `crypto-asset`, or `theme`. It is derived from run type: `equity` is `company`, `crypto` is `crypto-asset`, and `research` is always `theme` because no instrument identity is resolved for web evidence.
+
+## Subject
+
+The thing a run researches: a resolved instrument for equity or crypto runs, or a free-text research subject for thematic research. It is the boundary for gathered web evidence and does not widen Prediction Subjects.
+_Avoid_: topic, entity.
 
 ## Instrument
 

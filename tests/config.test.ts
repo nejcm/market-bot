@@ -195,11 +195,6 @@ describe("resolveConfig", () => {
       maxToolCalls: 2,
       sourceBudget: 8,
     });
-    expect(resolveConfig({}).researchGatherOptions).toEqual({
-      maxRounds: 4,
-      maxToolCalls: 8,
-      sourceBudget: 24,
-    });
     expect(resolveConfig({}).webGatherOptions).toEqual({
       maxRounds: 2,
       maxToolCalls: 4,
@@ -277,16 +272,13 @@ describe("resolveConfig", () => {
       sourceBudget: 13,
     });
     expect(
-      resolveConfig({
-        MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS: "0",
-        MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "5",
-        MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET: "21",
-      }).researchGatherOptions,
-    ).toEqual({
-      maxRounds: 0,
-      maxToolCalls: 5,
-      sourceBudget: 21,
-    });
+      "researchGatherOptions" in
+        resolveConfig({
+          MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS: "0",
+          MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "5",
+          MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET: "21",
+        }),
+    ).toBe(false);
     expect(
       resolveConfig({
         MARKET_BOT_WEB_GATHER_MAX_ROUNDS: "0",
@@ -310,9 +302,7 @@ describe("resolveConfig", () => {
     expect(() => resolveConfig({ MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET: "-1" })).toThrow(
       "Expected non-negative integer",
     );
-    expect(() => resolveConfig({ MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "-1" })).toThrow(
-      "Expected non-negative integer",
-    );
+    expect(() => resolveConfig({ MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "-1" })).not.toThrow();
     expect(() => resolveConfig({ MARKET_BOT_WEB_GATHER_SOURCE_BUDGET: "-1" })).toThrow(
       "Expected non-negative integer",
     );

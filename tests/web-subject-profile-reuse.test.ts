@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { InstrumentCommand } from "../src/cli/args";
 import {
-  attachReusableWebCompanyProfile,
-  findReusableWebCompanyProfile,
+  attachReusableWebSubjectProfile,
+  findReusableWebSubjectProfile,
   latestSecFilingDate,
-} from "../src/research/web-company-profile-reuse";
-import type { WebCompanyProfileArtifact } from "../src/sources/extended-evidence/web-company-profile";
+} from "../src/research/web-subject-profile-reuse";
+import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
 import { collectedSources } from "./support/fixtures";
 
@@ -18,6 +18,12 @@ const command: InstrumentCommand = {
   jobType: "equity",
   assetClass: "equity",
   symbol: "AAPL",
+  depth: "deep",
+};
+const cryptoCommand: InstrumentCommand = {
+  jobType: "crypto",
+  assetClass: "crypto",
+  symbol: "BTC",
   depth: "deep",
 };
 
@@ -53,17 +59,49 @@ async function writeJson(path: string, value: unknown): Promise<void> {
 
 function profile(
   input: {
+    readonly symbol?: string;
+    readonly subjectKind?: "company" | "crypto-asset";
     readonly sourceIds?: readonly string[];
     readonly generatedAt?: string;
   } = {},
-): WebCompanyProfileArtifact {
+): WebSubjectProfileArtifact {
+  const symbol = input.symbol ?? "AAPL";
+  const subjectKind = input.subjectKind ?? "company";
   const sourceIds = input.sourceIds ?? [webSource.id];
-  const answer = { answer: "Apple sells devices and services.", sourceIds };
+  const answer = { answer: `${symbol} sells devices and services.`, sourceIds };
+  if (subjectKind === "crypto-asset") {
+    return {
+      version: 2,
+      generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
+      subjectKind,
+      subjectId: symbol,
+      subjectLabel: symbol,
+      symbol,
+      subjectSummary: answer,
+      questions: {
+        whatItDoes: answer,
+        valueAccrual: answer,
+        supplyIssuance: answer,
+        usageAdoption: answer,
+        governanceBuilders: answer,
+        competitionMoat: answer,
+        keyRisks: answer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: `${symbol} uses public network infrastructure.`, sourceIds }],
+      openGaps: [],
+      sourceIds,
+    };
+  }
   return {
-    version: 1,
+    version: 2,
     generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
-    symbol: "AAPL",
-    companyName: "Apple Inc.",
+    subjectKind: "company",
+    subjectId: symbol,
+    subjectLabel: `${symbol} Inc.`,
+    symbol,
+    companyName: `${symbol} Inc.`,
+    subjectSummary: answer,
     questions: {
       whatItDoes: answer,
       howItMakesMoney: answer,
@@ -85,15 +123,17 @@ async function writePriorRun(input: {
   readonly dataDir: string;
   readonly runId: string;
   readonly symbol: string;
+  readonly subjectKind?: "company" | "crypto-asset";
   readonly sourceIds?: readonly string[];
   readonly sources?: readonly Source[];
   readonly generatedAt?: string;
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
+  const isCrypto = input.subjectKind === "crypto-asset";
   await writeJson(join(runDir, "report.json"), {
     runId: input.runId,
-    jobType: "equity",
-    assetClass: "equity",
+    jobType: isCrypto ? "crypto" : "equity",
+    assetClass: isCrypto ? "crypto" : "equity",
     symbol: input.symbol,
     generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
     summary: "Prior profile run.",
@@ -111,20 +151,22 @@ async function writePriorRun(input: {
     extras: { depth: "deep" },
   });
   await writeJson(
-    join(runDir, "normalized", "web-company-profile.json"),
+    join(runDir, "normalized", "web-subject-profile.json"),
     profile({
       ...(input.sourceIds !== undefined ? { sourceIds: input.sourceIds } : {}),
       ...(input.generatedAt !== undefined ? { generatedAt: input.generatedAt } : {}),
+      symbol: input.symbol,
+      ...(input.subjectKind !== undefined ? { subjectKind: input.subjectKind } : {}),
     }),
   );
 }
 
-describe("web company profile reuse", () => {
+describe("Web Subject Profile reuse", () => {
   test("reuses fresh same-symbol profile when no newer SEC filing exists", async () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
 
-    const reuse = await findReusableWebCompanyProfile({
+    const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
@@ -132,7 +174,7 @@ describe("web company profile reuse", () => {
       currentSecFilingDate: "2026-04-25",
     });
 
-    expect(reuse?.profile.companyName).toBe("Apple Inc.");
+    expect(reuse?.profile).toMatchObject({ subjectKind: "company", companyName: "AAPL Inc." });
     expect(reuse?.sources.map((source) => source.id)).toEqual([webSource.id]);
     expect(reuse?.gap.message).toContain("19 days old");
   });
@@ -141,7 +183,7 @@ describe("web company profile reuse", () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
 
-    const reuse = await findReusableWebCompanyProfile({
+    const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
@@ -152,11 +194,30 @@ describe("web company profile reuse", () => {
     expect(reuse).toBeUndefined();
   });
 
+  test("reuses crypto profiles within TTL without SEC filing basis", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-btc",
+      symbol: "BTC",
+      subjectKind: "crypto-asset",
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command: cryptoCommand,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDays: 30,
+    });
+
+    expect(reuse?.profile).toMatchObject({ subjectKind: "crypto-asset", subjectId: "BTC" });
+  });
+
   test("rejects profiles older than the reuse TTL", async () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
 
-    const reuse = await findReusableWebCompanyProfile({
+    const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-06-02T00:00:00.000Z"),
@@ -176,7 +237,7 @@ describe("web company profile reuse", () => {
       generatedAt: "2026-06-01T00:00:00.000Z",
     });
 
-    const reuse = await findReusableWebCompanyProfile({
+    const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
@@ -191,7 +252,7 @@ describe("web company profile reuse", () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-msft", symbol: "MSFT" });
 
-    const reuse = await findReusableWebCompanyProfile({
+    const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
@@ -212,7 +273,7 @@ describe("web company profile reuse", () => {
       sources: [webSource],
     });
 
-    const reuse = await findReusableWebCompanyProfile({
+    const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
@@ -224,7 +285,7 @@ describe("web company profile reuse", () => {
   });
 
   test("attaches reused profile, cited web sources, and freshness gap", () => {
-    const attached = attachReusableWebCompanyProfile({
+    const attached = attachReusableWebSubjectProfile({
       command,
       collectedSources: collectedSources(),
       reuse: {
@@ -232,8 +293,8 @@ describe("web company profile reuse", () => {
         sources: [webSource],
         runDirName: "prior-aapl",
         gap: {
-          source: "web-company-profile",
-          message: "Reused web company profile from 2026-05-01T00:00:00.000Z (19 days old).",
+          source: "web-subject-profile",
+          message: "Reused Web Subject Profile from 2026-05-01T00:00:00.000Z (19 days old).",
           provider: "market-bot",
           capability: "extended-evidence",
           cause: "stale-fallback",
@@ -242,11 +303,11 @@ describe("web company profile reuse", () => {
       },
     });
 
-    expect(attached.webCompanyProfile?.sourceIds).toEqual([webSource.id]);
+    expect(attached.webSubjectProfile?.sourceIds).toEqual([webSource.id]);
     expect(attached.extendedSources).toEqual([webSource]);
     expect(attached.sourceGaps).toHaveLength(1);
     expect(attached.extendedEvidence?.items).toEqual([
-      expect.objectContaining({ category: "web-company-profile", sourceIds: [webSource.id] }),
+      expect.objectContaining({ category: "web-subject-profile", sourceIds: [webSource.id] }),
     ]);
   });
 

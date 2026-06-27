@@ -509,7 +509,6 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
       sourceTimeoutMs: 1000,
     },
     evidenceRequestOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
-    researchGatherOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
     webGatherOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
     webGatherDisabled: false,
     webProfileReuseDays: 30,

@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
-import { isInstrumentCommand, type InstrumentCommand } from "../cli/args";
-import type { ExtendedEvidenceItem, Source, SourceGap, WebGatherToolName } from "../domain/types";
+import { isInstrumentCommand } from "../cli/args";
+import type {
+  AssetClass,
+  ExtendedEvidenceItem,
+  Source,
+  SourceGap,
+  SubjectKind,
+  WebGatherToolName,
+} from "../domain/types";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import { isRecord, optionalString, readString, stringArrayValue } from "./guards";
 import { canonicalizeUrl, encodeQuery } from "./news-utils";
@@ -21,6 +28,14 @@ export interface WebGatherToolOutput {
   readonly sources: readonly Source[];
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
+}
+
+export interface WebGatherSubject {
+  readonly subjectKind: SubjectKind;
+  readonly subjectId: string;
+  readonly subjectLabel?: string;
+  readonly assetClass?: AssetClass;
+  readonly symbol?: string;
 }
 
 const EXA_API_URL = "https://api.exa.ai";
@@ -54,11 +69,10 @@ export async function executeWebGatherTool(
   args: unknown,
   ctx: CollectContext,
   surfacedUrls: Set<string>,
+  subject = webGatherSubjectFromContext(ctx),
 ): Promise<WebGatherToolOutput> {
-  if (!isInstrumentCommand(ctx.command)) {
-    return emptyOutput([
-      webGatherGap("Web gather tools require ticker runs", "unsupported-coverage"),
-    ]);
+  if (subject === undefined) {
+    return emptyOutput([webGatherGap("Web gather tools require a subject", "validation-failed")]);
   }
   if (ctx.exaApiKey === undefined) {
     return emptyOutput([webGatherGap("MARKET_BOT_EXA_API_KEY is not set", "missing-credential")]);
@@ -66,8 +80,20 @@ export async function executeWebGatherTool(
 
   const apiKey = ctx.exaApiKey;
   return tool === "web_search"
-    ? executeWebSearch(args, ctx, surfacedUrls, apiKey)
-    : executeWebFetch(args, ctx, surfacedUrls, apiKey);
+    ? executeWebSearch(args, ctx, surfacedUrls, apiKey, subject)
+    : executeWebFetch(args, ctx, surfacedUrls, apiKey, subject);
+}
+
+function webGatherSubjectFromContext(ctx: CollectContext): WebGatherSubject | undefined {
+  if (!isInstrumentCommand(ctx.command)) {
+    return undefined;
+  }
+  return {
+    subjectKind: ctx.command.assetClass === "equity" ? "company" : "crypto-asset",
+    subjectId: ctx.command.symbol,
+    symbol: ctx.command.symbol,
+    assetClass: ctx.command.assetClass,
+  };
 }
 
 function emptyOutput(
@@ -152,6 +178,7 @@ async function executeWebSearch(
   ctx: CollectContext,
   surfacedUrls: Set<string>,
   apiKey: string,
+  subject: WebGatherSubject,
 ): Promise<WebGatherToolOutput> {
   const parsed = searchArgs(args);
   if (isSourceGap(parsed)) {
@@ -189,7 +216,7 @@ async function executeWebSearch(
     );
   }
   rememberSurfacedUrls(results, surfacedUrls);
-  return outputFromResults(ctx, results, [fetched.rawSnapshot], fetched.rawSnapshot.id, {
+  return outputFromResults(ctx, subject, results, [fetched.rawSnapshot], fetched.rawSnapshot.id, {
     emptyMessage: `Exa returned no usable web search results for "${parsed.query}"`,
   });
 }
@@ -199,6 +226,7 @@ async function executeWebFetch(
   ctx: CollectContext,
   surfacedUrls: Set<string>,
   apiKey: string,
+  subject: WebGatherSubject,
 ): Promise<WebGatherToolOutput> {
   const parsed = fetchArgs(args);
   if (isSourceGap(parsed)) {
@@ -233,7 +261,7 @@ async function executeWebFetch(
     );
   }
 
-  return outputFromResults(ctx, results, [fetched.rawSnapshot], fetched.rawSnapshot.id, {
+  return outputFromResults(ctx, subject, results, [fetched.rawSnapshot], fetched.rawSnapshot.id, {
     emptyMessage: `Exa returned no usable fetched content for ${parsed.url}`,
   });
 }
@@ -296,18 +324,13 @@ function isSurfacedUrl(url: string, surfacedUrls: ReadonlySet<string>): boolean 
 
 function outputFromResults(
   ctx: CollectContext,
+  subject: WebGatherSubject,
   results: readonly ExaResult[],
   rawSnapshots: readonly RawSourceSnapshot[],
   rawRef: string,
   options: { readonly emptyMessage: string },
 ): WebGatherToolOutput {
-  const { command, fetchedAt } = ctx;
-  if (!isInstrumentCommand(command)) {
-    return emptyOutput([
-      webGatherGap("Web gather tools require ticker runs", "unsupported-coverage"),
-    ]);
-  }
-  const sources = results.map((result) => exaSource(command, fetchedAt, result, rawRef));
+  const sources = results.map((result) => exaSource(subject, ctx.fetchedAt, result, rawRef));
   if (sources.length === 0) {
     return emptyOutput([webGatherGap(options.emptyMessage, "provider-data-missing")], rawSnapshots);
   }
@@ -315,7 +338,7 @@ function outputFromResults(
 }
 
 function exaSource(
-  command: InstrumentCommand,
+  subject: WebGatherSubject,
   fallbackFetchedAt: string,
   result: ExaResult,
   rawRef: string,
@@ -324,14 +347,14 @@ function exaSource(
   const fetchedAt = result.publishedDate ?? fallbackFetchedAt;
   const snippet = webSnippet(result);
   return {
-    id: webSourceId(command.symbol, canonicalUrl ?? result.url),
+    id: webSourceId(subject.subjectId, canonicalUrl ?? result.url),
     title: result.title ?? result.url,
     url: result.url,
     ...(result.author !== undefined ? { publisher: result.author } : {}),
     fetchedAt,
     kind: "web",
-    assetClass: command.assetClass,
-    symbol: command.symbol,
+    ...(subject.assetClass !== undefined ? { assetClass: subject.assetClass } : {}),
+    ...(subject.symbol !== undefined ? { symbol: subject.symbol } : {}),
     provider: EXA_PROVIDER,
     ...(result.id !== undefined ? { providerArticleId: result.id } : {}),
     ...(canonicalUrl !== undefined ? { canonicalUrl } : {}),
@@ -357,7 +380,7 @@ function truncate(value: string, maxChars: number): string {
   return `${normalized.slice(0, maxChars).trimEnd()}...`;
 }
 
-function webSourceId(symbol: string, url: string): string {
+function webSourceId(subjectId: string, url: string): string {
   const digest = createHash("sha256").update(url).digest("hex").slice(0, 8);
-  return `web-${symbol.toLowerCase()}-${digest}`;
+  return `web-${subjectId.toLowerCase()}-${digest}`;
 }

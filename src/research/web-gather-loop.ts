@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config";
-import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
@@ -17,8 +17,10 @@ import {
   executeWebGatherTool,
   MAX_WEB_GATHER_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
+  type WebGatherSubject,
   type WebGatherToolOutput,
 } from "../sources/web-gather-tools";
+import { webSubjectProfileSubjectForCommand } from "../sources/extended-evidence/web-subject-profile";
 import {
   runJsonToolLoop,
   type JsonToolLoopAccepted,
@@ -67,7 +69,6 @@ type ModelWebGatherRequest =
     };
 
 interface ValidationState {
-  readonly command: InstrumentCommand;
   readonly seenKeys: Set<string>;
   readonly surfacedUrls: Set<string>;
   readonly subjectTerms: readonly string[];
@@ -92,6 +93,25 @@ const COMMON_COMPANY_SUFFIXES = new Set([
   "ordinary",
   "shares",
 ]);
+const THEME_STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "for",
+  "from",
+  "in",
+  "into",
+  "is",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+]);
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
   if (!isWebGatherLoopEnabled(input.command, input.config)) {
@@ -100,7 +120,11 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   const { command } = input;
   const surfacedUrls = new Set<string>();
   const seenKeys = new Set<string>();
-  const subjectTerms = subjectTermsForRun(command, input.collectedSources);
+  const subject = webGatherSubjectForRun(command, input.collectedSources);
+  if (subject === undefined) {
+    return { collectedSources: input.collectedSources, stageOutputs: [] };
+  }
+  const subjectTerms = subjectTermsForRun(command, input.collectedSources, subject);
   const collectContext = createCollectContext(
     command,
     input.config.sourceOptions,
@@ -142,7 +166,6 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       validateRequests(
         requests,
         {
-          command,
           seenKeys,
           surfacedUrls,
           subjectTerms,
@@ -166,6 +189,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         request.args,
         toolContext,
         surfacedUrls,
+        subject,
       );
       const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
       const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
@@ -183,20 +207,28 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   };
 }
 
-export function isWebGatherLoopEnabled(
-  command: ResearchCommand,
-  config: AppConfig,
-): command is InstrumentCommand {
+export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
+  const supportedSubject =
+    (isInstrumentCommand(command) &&
+      (command.assetClass === "equity" || command.assetClass === "crypto")) ||
+    command.jobType === "research";
   return (
-    isInstrumentCommand(command) &&
+    supportedSubject &&
     command.depth === "deep" &&
-    command.assetClass === "equity" &&
     config.sourceOptions.exaApiKey !== undefined &&
     !config.webGatherDisabled &&
     config.webGatherOptions.maxRounds > 0 &&
     config.webGatherOptions.maxToolCalls > 0 &&
     config.webGatherOptions.sourceBudget > 0
   );
+}
+
+export function webGatherSubjectForRun(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): WebGatherSubject | undefined {
+  const label = subjectLabelForRun(command, collectedSources);
+  return webSubjectProfileSubjectForCommand(command, label);
 }
 
 function withWebGatherContext(
@@ -287,13 +319,13 @@ function validateRequest(
     if (typeof parsedArgs === "string") {
       return reject(state.round, tool, args, rationale, parsedArgs);
     }
-    if (!isOnCompanyQuery(parsedArgs.query, state.subjectTerms)) {
+    if (!isOnSubjectQuery(parsedArgs.query, state.subjectTerms)) {
       return reject(
         state.round,
         tool,
         args,
         rationale,
-        "web_search query must mention the run symbol or company name",
+        "web_search query must mention the run subject",
       );
     }
     return validateAcceptedRequest(
@@ -405,16 +437,48 @@ function webFetchArgs(args: Record<string, unknown>): { readonly url: string } |
 }
 
 function subjectTermsForRun(
-  command: InstrumentCommand,
+  command: ResearchCommand,
   collectedSources: CollectedSources,
+  subject: WebGatherSubject,
 ): readonly string[] {
+  if (command.jobType === "research") {
+    return significantSubjectTerms(command.subject);
+  }
+  if (!isInstrumentCommand(command)) {
+    return [];
+  }
   const displayName =
     collectedSources.resolvedInstrumentIdentity?.displayName ??
     collectedSources.marketSnapshots.find(
       (snapshot) => snapshot.symbol.toUpperCase() === command.symbol.toUpperCase(),
     )?.name;
-  const terms = [command.symbol, ...(displayName === undefined ? [] : companyTerms(displayName))];
+  let labelTerms: readonly string[] = [];
+  if (displayName !== undefined) {
+    labelTerms =
+      subject.subjectKind === "company"
+        ? companyTerms(displayName)
+        : significantSubjectTerms(displayName);
+  }
+  const terms = [command.symbol, ...labelTerms];
   return [...new Set(terms.map((term) => normalizeTerm(term)).filter((term) => term !== ""))];
+}
+
+function subjectLabelForRun(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): string | undefined {
+  if (command.jobType === "research") {
+    return command.subject;
+  }
+  if (!isInstrumentCommand(command)) {
+    return undefined;
+  }
+  return (
+    collectedSources.resolvedInstrumentIdentity?.displayName ??
+    collectedSources.marketSnapshots.find(
+      (snapshot) => snapshot.symbol.toUpperCase() === command.symbol.toUpperCase(),
+    )?.name
+  );
 }
 
 function companyTerms(name: string): readonly string[] {
@@ -425,6 +489,14 @@ function companyTerms(name: string): readonly string[] {
   return [normalized, significant.join(" "), significant[0] ?? ""].filter((term) => term !== "");
 }
 
+function significantSubjectTerms(subject: string): readonly string[] {
+  const normalized = normalizeTerm(subject);
+  const significant = normalized
+    .split(" ")
+    .filter((token) => token.length > 1 && !THEME_STOPWORDS.has(token));
+  return [normalized, ...significant].filter((term) => term !== "");
+}
+
 function normalizeTerm(value: string): string {
   return value
     .toLowerCase()
@@ -433,7 +505,7 @@ function normalizeTerm(value: string): string {
     .replaceAll(/\s+/gu, " ");
 }
 
-function isOnCompanyQuery(query: string, subjectTerms: readonly string[]): boolean {
+function isOnSubjectQuery(query: string, subjectTerms: readonly string[]): boolean {
   const normalized = normalizeTerm(query);
   const tokens = new Set(normalized.split(" "));
   return subjectTerms.some((term) =>

@@ -276,8 +276,8 @@ export async function readRunDetail(
     ...(artifact.artifact?.businessFramework !== undefined
       ? { businessFramework: artifact.artifact.businessFramework }
       : {}),
-    ...(artifact.artifact?.webCompanyProfile !== undefined
-      ? { webCompanyProfile: artifact.artifact.webCompanyProfile }
+    ...(artifact.artifact?.webSubjectProfile !== undefined
+      ? { webSubjectProfile: artifact.artifact.webSubjectProfile }
       : {}),
   };
 }

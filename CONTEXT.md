@@ -14,6 +14,18 @@ A local research-only user interface for browsing run history, Research Views, S
 
 An ephemeral, per-Run Artifact interactive question-and-answer surface in the Research Console, grounded in that run's artifacts. It is not a persisted artifact and is not bound by the research-only boundary that governs Research Views. When the codex provider is active, it may consult the web for additional *ephemeral context*; such web findings are not Sources and do not enter the Evidence subsystem.
 
+## Web Gather
+
+A bounded `equity --deep` evidence loop that lets the model request on-company Exa `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
+
+## Web Evidence
+
+Low-trust Source evidence gathered from the open web and tagged with `kind: "web"` and provider metadata. Web Evidence can support cited qualitative business-model claims but cannot widen run scope, prediction subjects, or Evidence Quality above the extended-evidence cap. It is not investment conviction, a recommendation, or a trade signal.
+
+## Web Company Profile
+
+A cited Extended Evidence sidecar for `equity --deep` runs that answers qualitative company-research questions from gathered Web Evidence, including what the company does, how it makes money, customers, geography, recurrence, pricing power, cyclicality, recent events, and open gaps. Each accepted fact must cite gathered web Source IDs. It is not investment conviction, a recommendation, or a trade signal.
+
 ## Instrument
 
 A tradable listed or quoted research target. In the current CLI it is still identified by `symbol + assetClass`, with optional exchange, quote currency, provider IDs, and aliases when known.

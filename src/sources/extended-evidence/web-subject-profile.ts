@@ -132,10 +132,7 @@ export function normalizedSubjectId(subject: string): string {
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-+|-+$/gu, "")
     .replaceAll(/-+/gu, "-");
-  const digest = createHash("sha256")
-    .update(subject.trim().toLowerCase())
-    .digest("hex")
-    .slice(0, 8);
+  const digest = createHash("sha256").update(normalized).digest("hex").slice(0, 8);
   return `${normalized === "" ? "subject" : normalized}-${digest}`;
 }
 

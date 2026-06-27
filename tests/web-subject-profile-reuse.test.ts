@@ -2,13 +2,16 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { InstrumentCommand } from "../src/cli/args";
+import type { InstrumentCommand, ResearchCommand } from "../src/cli/args";
 import {
   attachReusableWebSubjectProfile,
   findReusableWebSubjectProfile,
   latestSecFilingDate,
 } from "../src/research/web-subject-profile-reuse";
-import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
+import {
+  normalizedSubjectId,
+  type WebSubjectProfileArtifact,
+} from "../src/sources/extended-evidence/web-subject-profile";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
 import { collectedSources } from "./support/fixtures";
 
@@ -24,6 +27,12 @@ const cryptoCommand: InstrumentCommand = {
   jobType: "crypto",
   assetClass: "crypto",
   symbol: "BTC",
+  depth: "deep",
+};
+const researchCommand: ResearchCommand = {
+  jobType: "research",
+  assetClass: "equity",
+  subject: "AI infrastructure",
   depth: "deep",
 };
 
@@ -60,7 +69,7 @@ async function writeJson(path: string, value: unknown): Promise<void> {
 function profile(
   input: {
     readonly symbol?: string;
-    readonly subjectKind?: "company" | "crypto-asset";
+    readonly subjectKind?: "company" | "crypto-asset" | "theme";
     readonly sourceIds?: readonly string[];
     readonly generatedAt?: string;
   } = {},
@@ -89,6 +98,28 @@ function profile(
       },
       recentMaterialEvents: [],
       factLedger: [{ claim: `${symbol} uses public network infrastructure.`, sourceIds }],
+      openGaps: [],
+      sourceIds,
+    };
+  }
+  if (subjectKind === "theme") {
+    return {
+      version: 2,
+      generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
+      subjectKind,
+      subjectId: symbol,
+      subjectLabel: "AI infrastructure",
+      subjectSummary: answer,
+      questions: {
+        whatItIs: answer,
+        whyNow: answer,
+        beneficiaries: answer,
+        headwinds: answer,
+        keyDebates: answer,
+        howItPlaysOut: answer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: `${symbol} is a public-market research theme.`, sourceIds }],
       openGaps: [],
       sourceIds,
     };
@@ -123,18 +154,26 @@ async function writePriorRun(input: {
   readonly dataDir: string;
   readonly runId: string;
   readonly symbol: string;
-  readonly subjectKind?: "company" | "crypto-asset";
+  readonly subjectKind?: "company" | "crypto-asset" | "theme";
   readonly sourceIds?: readonly string[];
   readonly sources?: readonly Source[];
   readonly generatedAt?: string;
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
   const isCrypto = input.subjectKind === "crypto-asset";
+  const isTheme = input.subjectKind === "theme";
+  let jobType: "research" | "crypto" | "equity" = "equity";
+  if (isCrypto) {
+    jobType = "crypto";
+  }
+  if (isTheme) {
+    jobType = "research";
+  }
   await writeJson(join(runDir, "report.json"), {
     runId: input.runId,
-    jobType: isCrypto ? "crypto" : "equity",
+    jobType,
     assetClass: isCrypto ? "crypto" : "equity",
-    symbol: input.symbol,
+    ...(!isTheme ? { symbol: input.symbol } : {}),
     generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
     summary: "Prior profile run.",
     keyFindings: [],
@@ -211,6 +250,29 @@ describe("Web Subject Profile reuse", () => {
     });
 
     expect(reuse?.profile).toMatchObject({ subjectKind: "crypto-asset", subjectId: "BTC" });
+  });
+
+  test("reuses theme profiles within TTL by normalized subject ID", async () => {
+    const dataDir = tempRunsDir();
+    const subjectId = normalizedSubjectId("AI infrastructure");
+    await writePriorRun({
+      dataDir,
+      runId: "prior-ai-infrastructure",
+      symbol: subjectId,
+      subjectKind: "theme",
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command: {
+        ...researchCommand,
+        subject: " ai   infrastructure ",
+      },
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDays: 30,
+    });
+
+    expect(reuse?.profile).toMatchObject({ subjectKind: "theme", subjectId });
   });
 
   test("rejects profiles older than the reuse TTL", async () => {

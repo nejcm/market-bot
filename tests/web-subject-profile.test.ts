@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { buildWebSubjectProfileEvidence } from "../src/sources/extended-evidence/web-subject-profile";
+import {
+  buildWebSubjectProfileEvidence,
+  normalizedSubjectId,
+} from "../src/sources/extended-evidence/web-subject-profile";
 import type { Source } from "../src/domain/types";
 
 const command = {
@@ -48,6 +51,17 @@ function profilePayload(sourceId = webSource.id): string {
 }
 
 describe("buildWebSubjectProfileEvidence", () => {
+  test("normalizes subject IDs deterministically for theme reuse keys", () => {
+    expect(normalizedSubjectId("AI infrastructure")).toBe(normalizedSubjectId("AI infrastructure"));
+    expect(normalizedSubjectId("AI infrastructure")).toBe(
+      normalizedSubjectId(" ai   infrastructure "),
+    );
+    expect(normalizedSubjectId("AI infrastructure")).toBe(normalizedSubjectId("AI Infrastructure"));
+    expect(normalizedSubjectId("AI infrastructure")).not.toBe(
+      normalizedSubjectId("biotech infrastructure"),
+    );
+  });
+
   test("accepts cited web facts and emits an extended evidence item", () => {
     const result = buildWebSubjectProfileEvidence({
       command,

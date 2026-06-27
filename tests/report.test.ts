@@ -229,9 +229,14 @@ describe("report schema and rendering", () => {
       },
       extras: {
         webSubjectProfile: {
-          version: 1,
+          version: 2,
           generatedAt: "2026-05-19T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
           symbol: "AAPL",
+          companyName: "Apple Inc.",
+          subjectSummary: answer,
           questions: {
             whatItDoes: answer,
             howItMakesMoney: answer,
@@ -286,9 +291,14 @@ describe("report schema and rendering", () => {
       ],
       extras: {
         webSubjectProfile: {
-          version: 1,
+          version: 2,
           generatedAt: "2026-05-19T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
           symbol: "AAPL",
+          companyName: "Apple Inc.",
+          subjectSummary: answer,
           questions: {
             whatItDoes: answer,
             howItMakesMoney: answer,

@@ -722,7 +722,8 @@ function webProfileFacts(value: unknown): readonly WebCompanyProfileFactView[] {
     ? value.flatMap((item): readonly WebCompanyProfileFactView[] => {
         const record = readRecord(item);
         const claim = readStringField(record, "claim");
-        return claim === undefined ? [] : [{ claim, sourceIds: stringArray(record?.sourceIds) }];
+        const sourceIds = stringArray(record?.sourceIds);
+        return claim === undefined || sourceIds.length === 0 ? [] : [{ claim, sourceIds }];
       })
     : [];
 }
@@ -740,9 +741,10 @@ function webCompanyProfileFromValue(value: unknown): WebCompanyProfileView | und
           ([key, label]): readonly WebCompanyProfileQuestionView[] => {
             const question = readRecord(rawQuestions[key]);
             const answer = readStringField(question, "answer");
-            return answer === undefined || answer === ""
+            const sourceIds = stringArray(question?.sourceIds);
+            return answer === undefined || answer === "" || sourceIds.length === 0
               ? []
-              : [{ key, label, answer, sourceIds: stringArray(question?.sourceIds) }];
+              : [{ key, label, answer, sourceIds }];
           },
         );
   const recentMaterialEvents = webProfileFacts(record.recentMaterialEvents);

@@ -1581,6 +1581,44 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
+  test("drops uncited web company profile answers and facts", () => {
+    const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
+
+    expect(
+      webCompanyProfileView(
+        {
+          extras: {
+            webCompanyProfile: {
+              questions: {
+                whatItDoes: { answer: "Uncited answer.", sourceIds: [] },
+              },
+              recentMaterialEvents: [{ claim: "Uncited event.", sourceIds: [] }],
+              factLedger: [{ claim: "Uncited fact.", sourceIds: [] }],
+            },
+          },
+        },
+        {
+          version: 1,
+          generatedAt: "2026-06-22T00:00:00.000Z",
+          symbol: "AAPL",
+          questions: {
+            whatItDoes: sidecarAnswer,
+            howItMakesMoney: sidecarAnswer,
+            customers: sidecarAnswer,
+            geography: sidecarAnswer,
+            purchaseRecurrence: sidecarAnswer,
+            pricingPower: sidecarAnswer,
+            recessionCyclicality: sidecarAnswer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [{ claim: "Fallback fact.", sourceIds: ["sidecar-source"] }],
+          openGaps: [],
+          sourceIds: ["sidecar-source"],
+        },
+      )?.sourceIds,
+    ).toEqual(["sidecar-source"]);
+  });
+
   test("assesses financial lens stats where standalone thresholds are meaningful", () => {
     const tiles = financialLensStatTiles({
       version: 1,

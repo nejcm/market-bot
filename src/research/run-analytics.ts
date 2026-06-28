@@ -10,7 +10,7 @@ import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationContext } from "./research-context-types";
-import type { EvidenceLaneSummary } from "./source-plan";
+import type { EvidenceLaneSummaryV2 } from "./source-plan";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -25,7 +25,7 @@ export interface BuildRunAnalyticsInput {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
   readonly targetPredictions: number;
-  readonly sourcePlanSummary?: EvidenceLaneSummary;
+  readonly sourcePlanSummary?: EvidenceLaneSummaryV2;
   readonly calibrationContext?: CalibrationContext;
 }
 
@@ -579,15 +579,15 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ? {
           sourcePlan: {
             plannedLaneCount: sourcePlanSummary.plannedLaneCount,
-            coreLaneCount: sourcePlanSummary.coreLaneCount ?? 0,
-            materialLaneCount: sourcePlanSummary.materialLaneCount ?? 0,
-            supplementalLaneCount: sourcePlanSummary.supplementalLaneCount ?? 0,
+            coreLaneCount: sourcePlanSummary.coreLaneCount,
+            materialLaneCount: sourcePlanSummary.materialLaneCount,
+            supplementalLaneCount: sourcePlanSummary.supplementalLaneCount,
           },
           evidenceLanes: {
             coveredLaneCount: sourcePlanSummary.coveredLaneCount,
             gapLaneCount: sourcePlanSummary.gapLaneCount,
-            coreGapLaneCount: sourcePlanSummary.coreGapLaneCount ?? 0,
-            materialGapLaneCount: sourcePlanSummary.materialGapLaneCount ?? 0,
+            coreGapLaneCount: sourcePlanSummary.coreGapLaneCount,
+            materialGapLaneCount: sourcePlanSummary.materialGapLaneCount,
             sourceCount: sourcePlanSummary.sourceCount,
             gapCount: sourcePlanSummary.gapCount,
             coverageRatio: sourcePlanSummary.coverageRatio,

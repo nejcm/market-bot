@@ -18,6 +18,7 @@ import {
   type Mover,
   type ResearchReport,
   type RunTrace,
+  type SourceGap,
 } from "../domain/types";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { rankMovers } from "../movers/ranking";
@@ -484,26 +485,21 @@ export function reconcileBusinessFrameworkEvidence(
    * BOTH places so synthesis never sees a gap reconciliation already cleared.
    */
   const oldGapSource = "business-framework";
-  const withoutOldGap = <T extends { readonly source: string }>(gaps: readonly T[]): readonly T[] =>
-    gaps.filter((gap) => gap.source !== oldGapSource);
-  const sourceGaps =
-    result.sourceGap !== undefined
-      ? [...withoutOldGap(collectedSources.sourceGaps), result.sourceGap]
-      : withoutOldGap(collectedSources.sourceGaps);
+  const replaceGap = (gaps: readonly SourceGap[]): readonly SourceGap[] => {
+    const kept = gaps.filter((gap) => gap.source !== oldGapSource);
+    return result.sourceGap !== undefined ? [...kept, result.sourceGap] : kept;
+  };
   const extendedEvidence =
     collectedSources.extendedEvidence === undefined
       ? undefined
       : {
           ...collectedSources.extendedEvidence,
-          gaps:
-            result.sourceGap !== undefined
-              ? [...withoutOldGap(collectedSources.extendedEvidence.gaps), result.sourceGap]
-              : withoutOldGap(collectedSources.extendedEvidence.gaps),
+          gaps: replaceGap(collectedSources.extendedEvidence.gaps),
         };
   return {
     ...collectedSources,
     businessFramework: result.artifact,
-    sourceGaps,
+    sourceGaps: replaceGap(collectedSources.sourceGaps),
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
   };
 }
@@ -902,15 +898,15 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       : {}),
     sourcePlan: {
       plannedLaneCount: sourcePlanning.evidenceLanes.summary.plannedLaneCount,
-      coreLaneCount: sourcePlanning.evidenceLanes.summary.coreLaneCount ?? 0,
-      materialLaneCount: sourcePlanning.evidenceLanes.summary.materialLaneCount ?? 0,
-      supplementalLaneCount: sourcePlanning.evidenceLanes.summary.supplementalLaneCount ?? 0,
+      coreLaneCount: sourcePlanning.evidenceLanes.summary.coreLaneCount,
+      materialLaneCount: sourcePlanning.evidenceLanes.summary.materialLaneCount,
+      supplementalLaneCount: sourcePlanning.evidenceLanes.summary.supplementalLaneCount,
     },
     evidenceLanes: {
       coveredLaneCount: sourcePlanning.evidenceLanes.summary.coveredLaneCount,
       gapLaneCount: sourcePlanning.evidenceLanes.summary.gapLaneCount,
-      coreGapLaneCount: sourcePlanning.evidenceLanes.summary.coreGapLaneCount ?? 0,
-      materialGapLaneCount: sourcePlanning.evidenceLanes.summary.materialGapLaneCount ?? 0,
+      coreGapLaneCount: sourcePlanning.evidenceLanes.summary.coreGapLaneCount,
+      materialGapLaneCount: sourcePlanning.evidenceLanes.summary.materialGapLaneCount,
       sourceCount: sourcePlanning.evidenceLanes.summary.sourceCount,
       gapCount: sourcePlanning.evidenceLanes.summary.gapCount,
       coverageRatio: sourcePlanning.evidenceLanes.summary.coverageRatio,

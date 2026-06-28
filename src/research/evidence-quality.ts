@@ -3,7 +3,7 @@ import type {
   EvidenceQualityAssessment,
   EvidenceQualityCheck,
 } from "../domain/types";
-import type { BuildSourcePlanResult, EvidenceLane, EvidenceLaneCoverage } from "./source-plan";
+import type { BuildSourcePlanResult, EvidenceLane, EvidenceLaneCoverageV2 } from "./source-plan";
 
 const FRESHNESS_DAYS: Readonly<Partial<Record<EvidenceLane, number>>> = {
   "market-data": 3,
@@ -31,7 +31,7 @@ function ageDays(generatedAt: string, value: string): number | undefined {
 }
 
 function freshness(
-  lane: EvidenceLaneCoverage,
+  lane: EvidenceLaneCoverageV2,
   sourcePlanning: BuildSourcePlanResult,
   generatedAt: string,
 ): EvidenceQualityCheck["freshness"] {
@@ -54,7 +54,7 @@ function freshness(
     : "fail";
 }
 
-function corroboration(lane: EvidenceLaneCoverage): EvidenceQualityCheck["corroboration"] {
+function corroboration(lane: EvidenceLaneCoverageV2): EvidenceQualityCheck["corroboration"] {
   if (lane.status !== "covered" || lane.lane !== "news") {
     return "not-applicable";
   }
@@ -62,11 +62,11 @@ function corroboration(lane: EvidenceLaneCoverage): EvidenceQualityCheck["corrob
 }
 
 function checkFor(
-  lane: EvidenceLaneCoverage,
+  lane: EvidenceLaneCoverageV2,
   sourcePlanning: BuildSourcePlanResult,
   generatedAt: string,
 ): EvidenceQualityCheck {
-  const evidenceClass = lane.evidenceClass ?? (lane.required === true ? "core" : "supplemental");
+  const { evidenceClass } = lane;
   const coverage = lane.status === "covered" ? "pass" : "fail";
   const freshnessResult = freshness(lane, sourcePlanning, generatedAt);
   const corroborationResult = corroboration(lane);

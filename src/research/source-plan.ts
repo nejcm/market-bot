@@ -37,6 +37,17 @@ export type LaneRequirement = "required" | "optional";
 
 export type LaneCoverageStatus = "covered" | "gap" | "not-covered";
 
+// ---------------------------------------------------------------------------
+// Persisted artifact shapes (disk boundary)
+//
+// These tolerate BOTH the legacy v1 schema (requirement/required/providerPath,
+// Required/optional lane counts) and the current v2 schema (evidenceClass,
+// Core/material/supplemental counts). Fields are optional only because a single
+// Type has to describe whichever version was on disk. The reader in
+// `src/run-artifacts.ts` is the only producer; consumers that need a guaranteed
+// V2 shape use the strict `*V2` types below, which `buildSourcePlan` emits.
+// ---------------------------------------------------------------------------
+
 export interface SourcePlanLane {
   readonly lane: EvidenceLane;
   readonly evidenceClass?: EvidenceClass;
@@ -46,16 +57,18 @@ export interface SourcePlanLane {
   readonly providerPath?: string;
 }
 
+export interface SourcePlanRun {
+  readonly jobType: ResearchCommand["jobType"];
+  readonly assetClass: AssetClass;
+  readonly symbol?: string;
+  readonly subject?: string;
+  readonly depth: ResearchCommand["depth"];
+}
+
 export interface SourcePlanArtifact {
   readonly version: 1 | 2;
   readonly generatedAt: string;
-  readonly run: {
-    readonly jobType: ResearchCommand["jobType"];
-    readonly assetClass: AssetClass;
-    readonly symbol?: string;
-    readonly subject?: string;
-    readonly depth: ResearchCommand["depth"];
-  };
+  readonly run: SourcePlanRun;
   readonly lanes: readonly SourcePlanLane[];
 }
 
@@ -111,10 +124,70 @@ export interface EvidenceLaneSummary {
   readonly coverageRatio: number;
 }
 
+// ---------------------------------------------------------------------------
+// Fresh-build artifact shapes (v2 only)
+//
+// `buildSourcePlan` always emits these: every field is populated, so in-memory
+// Consumers (evidence-quality, orchestrator trace, run-analytics) read them
+// Without fallbacks. A strict v2 value is structurally assignable to the
+// Persisted shape above, so it serializes through the disk boundary unchanged.
+// ---------------------------------------------------------------------------
+
+export interface SourcePlanLaneV2 {
+  readonly lane: EvidenceLane;
+  readonly evidenceClass: EvidenceClass;
+  readonly appliesToRun: boolean;
+  readonly capability: EvidenceLane;
+}
+
+export interface SourcePlanArtifactV2 {
+  readonly version: 2;
+  readonly generatedAt: string;
+  readonly run: SourcePlanRun;
+  readonly lanes: readonly SourcePlanLaneV2[];
+}
+
+export interface EvidenceLaneCoverageV2 {
+  readonly lane: EvidenceLane;
+  readonly evidenceClass: EvidenceClass;
+  readonly status: LaneCoverageStatus;
+  readonly coveredSourceIds: readonly string[];
+  readonly gapIds: readonly string[];
+  readonly gapText: readonly string[];
+  readonly freshnessNotes: readonly string[];
+}
+
+export interface EvidenceLaneSummaryV2 {
+  readonly plannedLaneCount: number;
+  readonly coreLaneCount: number;
+  readonly materialLaneCount: number;
+  readonly supplementalLaneCount: number;
+  readonly coveredLaneCount: number;
+  readonly gapLaneCount: number;
+  readonly coreGapLaneCount: number;
+  readonly materialGapLaneCount: number;
+  readonly sourceCount: number;
+  readonly gapCount: number;
+  readonly coverageRatio: number;
+}
+
+export interface EvidenceLanesArtifactV2 {
+  readonly version: 2;
+  readonly generatedAt: string;
+  readonly lanes: readonly EvidenceLaneCoverageV2[];
+  readonly summary: EvidenceLaneSummaryV2;
+}
+
+export interface SourceLedgerArtifactV2 {
+  readonly version: 2;
+  readonly generatedAt: string;
+  readonly sources: readonly SourceLedgerEntry[];
+}
+
 export interface BuildSourcePlanResult {
-  readonly sourcePlan: SourcePlanArtifact;
-  readonly evidenceLanes: EvidenceLanesArtifact;
-  readonly sourceLedger: SourceLedgerArtifact;
+  readonly sourcePlan: SourcePlanArtifactV2;
+  readonly evidenceLanes: EvidenceLanesArtifactV2;
+  readonly sourceLedger: SourceLedgerArtifactV2;
 }
 
 interface LaneDefinition {
@@ -376,7 +449,7 @@ function freshnessNotes(entries: readonly SourceLedgerEntry[]): readonly string[
   return latest === undefined ? [] : [`latest evidence timestamp ${latest}`];
 }
 
-function summary(lanes: readonly EvidenceLaneCoverage[]): EvidenceLaneSummary {
+function summary(lanes: readonly EvidenceLaneCoverageV2[]): EvidenceLaneSummaryV2 {
   const coveredLaneCount = lanes.filter((lane) => lane.status === "covered").length;
   const gapLaneCount = lanes.filter((lane) => lane.status === "gap").length;
   const plannedLaneCount = lanes.length;
@@ -418,7 +491,7 @@ export function buildSourcePlan(
     definition.applies(command, collectedSources),
   );
   const ledger: SourceLedgerEntry[] = [];
-  const coverage = planned.map((definition): EvidenceLaneCoverage => {
+  const coverage = planned.map((definition): EvidenceLaneCoverageV2 => {
     const evidenceClass = definition.evidenceClass(command, collectedSources);
     const sourceIds = [...new Set(definition.sourceIds(collectedSources))];
     const matchedGaps = collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));

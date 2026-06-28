@@ -829,6 +829,11 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ]
     : dataGapsRaw;
 
+  // The orchestrator assesses evidence quality once, before synthesis, and stamps the
+  // Result onto context.evidenceQualityAssessment, so the real flow always takes the
+  // First arm. The fallbacks below exist only for direct callers (unit tests) that
+  // Assemble a report without pre-running the assessment; reaching them recomputes
+  // The same deterministic label from the source plan.
   const evidenceQuality =
     context.evidenceQualityAssessment?.label ??
     assessEvidenceQuality(

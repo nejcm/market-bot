@@ -3,7 +3,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadCalibrationContext, parseCalibrationContext } from "../src/research/research-context";
+import {
+  loadCalibrationContext,
+  parseCalibrationContext,
+} from "../src/research/calibration-context";
 import type { CalibrationSummary } from "../src/scoring/types";
 
 async function writeSummary(value: unknown): Promise<string> {

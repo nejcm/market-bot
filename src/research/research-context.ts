@@ -3,7 +3,7 @@ import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
-import { marketUpdateHorizonBucketOf, marketUpdateHorizonOf } from "../domain/types";
+import { marketUpdateHorizonOf } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
 import {
@@ -15,16 +15,8 @@ import {
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "./verified-snapshot-contract";
-import {
-  instrumentsForExpression,
-  MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
-  observableForecastFromPrediction,
-} from "../forecast/observable";
-import type {
-  HistoricalPredictionSummary,
-  HistoricalResearchContext,
-  HistoricalRunContext,
-} from "./historical-context";
+import { MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS } from "../forecast/observable";
+import type { HistoricalResearchContext } from "./historical-context";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage } from "./playbooks";
 import type {
   CalibrationContext,
@@ -34,9 +26,10 @@ import type {
   WebGatherContext,
 } from "./research-context-types";
 import {
-  commandResearchSubjectIdentity,
-  isSameResearchSubjectIdentity,
-} from "./research-subject-identity";
+  buildMarketForecastErrorBlock,
+  buildPriorThesisErrorBlock,
+  buildResearchForecastErrorBlock,
+} from "./prior-forecast-errors";
 import { buildCalibrationBlock } from "./calibration-context";
 import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
@@ -130,273 +123,6 @@ export function deterministicSourceGaps(
 // Nondeterminism into prompts, so it must never fire on a real run.
 function resolveAnalysisAsOf(context: ResearchContext): string {
   return context.analysisAsOf ?? new Date().toISOString();
-}
-
-// ---------------------------------------------------------------------------
-// Prior-thesis error correction (audit finding #11)
-//
-// For ticker runs, surfaces prior predictions on the current instrument that resolved as misses, framed as explicit error-correction signal rather than a passive citation pool.
-// The model is told to diagnose why each prior thesis failed before restating a similar view.
-// The block is omitted entirely when no prior prediction on the instrument resolved as a miss, so empty history renders cleanly with no placeholder noise.
-// ---------------------------------------------------------------------------
-
-const MAX_PRIOR_MISS_BULLETS = 5;
-
-interface PriorMiss {
-  readonly runId: string;
-  readonly generatedAt: string;
-  readonly claim: string;
-  readonly probability: number;
-  readonly sourceId: string;
-  readonly evidence?: Record<string, number | string>;
-}
-
-function missFrom(run: HistoricalRunContext, prediction: HistoricalPredictionSummary): PriorMiss {
-  return {
-    runId: run.runId,
-    generatedAt: run.generatedAt,
-    claim: prediction.claim,
-    probability: prediction.probability,
-    sourceId: run.sourceId,
-    ...(prediction.scoreEvidence !== undefined ? { evidence: prediction.scoreEvidence } : {}),
-  };
-}
-
-function sortedRecentMisses(misses: readonly PriorMiss[]): readonly PriorMiss[] {
-  return misses
-    .toSorted(
-      (left, right) => generatedAtValue(right.generatedAt) - generatedAtValue(left.generatedAt),
-    )
-    .slice(0, MAX_PRIOR_MISS_BULLETS);
-}
-
-function predictionInstrumentsInclude(
-  prediction: HistoricalPredictionSummary,
-  symbol: string,
-): boolean {
-  const forecast = observableForecastFromPrediction({
-    id: prediction.id,
-    claim: prediction.claim,
-    kind: prediction.kind,
-    subject: prediction.subject,
-    measurableAs: prediction.measurableAs,
-    horizonTradingDays: prediction.horizonTradingDays,
-    probability: prediction.probability,
-    sourceIds: [],
-  });
-  if (!("expression" in forecast)) {
-    return false;
-  }
-  return instrumentsForExpression(forecast.expression).some(
-    (instrument) => instrument.toUpperCase() === symbol,
-  );
-}
-
-function collectPriorMisses(
-  command: ResearchCommand,
-  historicalContext: HistoricalResearchContext | undefined,
-): readonly PriorMiss[] {
-  if (!isInstrumentCommand(command) || historicalContext === undefined) {
-    return [];
-  }
-  const symbol = command.symbol.toUpperCase();
-  const misses: PriorMiss[] = [];
-  for (const run of historicalContext.runs) {
-    if (run.symbol?.toUpperCase() !== symbol) {
-      continue;
-    }
-    for (const prediction of run.predictions) {
-      if (prediction.scoreOutcome === "miss" && predictionInstrumentsInclude(prediction, symbol)) {
-        misses.push(missFrom(run, prediction));
-      }
-    }
-  }
-  return sortedRecentMisses(misses);
-}
-
-// Market subjects can be single series (SPY, ^VIX, DGS10) or relative pairs
-// (QQQ:SPY). A prior forecast is eligible only when every subject leg is one of
-// The configured market subjects; this avoids pulling ticker-specific pairs
-// Like SPY:AAPL into market-update correction.
-function isConfiguredMarketSubject(subject: string, subjectKeys: ReadonlySet<string>): boolean {
-  const subjectParts = subject
-    .split(":")
-    .map((part) => part.trim().toUpperCase())
-    .filter((part) => part.length > 0);
-  return subjectParts.length > 0 && subjectParts.every((part) => subjectKeys.has(part));
-}
-
-function historicalRunHorizonBucket(run: HistoricalRunContext): string | undefined {
-  // The run context carries no horizonTradingDays, so market-overview history
-  // Resolves its bucket from the persisted extras; legacy daily/weekly falls
-  // Back to the canonical derivation.
-  if (typeof run.keyExtras?.marketUpdateHorizonBucket === "string") {
-    return run.keyExtras.marketUpdateHorizonBucket;
-  }
-  return marketUpdateHorizonBucketOf(run);
-}
-
-// Market-scoped sibling of collectPriorMisses (ADR 0015): for market-overview runs,
-// Gathers resolved misses from prior same-horizon, same-asset market-update runs
-// Whose prediction subject is one of the command's configured market subjects
-// (index/macro), so the forecast can learn from prior market-scoped errors. The
-// JobType filter alone already excludes single-instrument misses (jobType "equity"/"crypto").
-function collectMarketForecastMisses(
-  command: ResearchCommand,
-  historicalContext: HistoricalResearchContext | undefined,
-  predictionSubjects: readonly string[],
-): readonly PriorMiss[] {
-  if (
-    (command.jobType !== "market-overview" &&
-      command.jobType !== "daily" &&
-      command.jobType !== "weekly") ||
-    historicalContext === undefined
-  ) {
-    return [];
-  }
-  const subjectKeys = new Set(predictionSubjects.map((subject) => subject.trim().toUpperCase()));
-  const commandBucket = marketUpdateHorizonBucketOf(command);
-  const misses: PriorMiss[] = [];
-  for (const run of historicalContext.runs) {
-    if (
-      run.assetClass !== command.assetClass ||
-      historicalRunHorizonBucket(run) !== commandBucket
-    ) {
-      continue;
-    }
-    for (const prediction of run.predictions) {
-      if (
-        prediction.scoreOutcome === "miss" &&
-        isConfiguredMarketSubject(prediction.subject, subjectKeys)
-      ) {
-        misses.push(missFrom(run, prediction));
-      }
-    }
-  }
-  return sortedRecentMisses(misses);
-}
-
-function isSameResearchRun(run: HistoricalRunContext, command: ResearchCommand): boolean {
-  if (command.jobType !== "research" || run.jobType !== "research") {
-    return false;
-  }
-  return isSameResearchSubjectIdentity(commandResearchSubjectIdentity(command), run);
-}
-
-function collectResearchForecastMisses(
-  command: ResearchCommand,
-  historicalContext: HistoricalResearchContext | undefined,
-): readonly PriorMiss[] {
-  if (command.jobType !== "research" || historicalContext === undefined) {
-    return [];
-  }
-  const proxy = commandResearchSubjectIdentity(command).predictionProxySymbol;
-  if (proxy === undefined) {
-    return [];
-  }
-  const misses: PriorMiss[] = [];
-  for (const run of historicalContext.runs) {
-    if (run.assetClass !== command.assetClass || !isSameResearchRun(run, command)) {
-      continue;
-    }
-    for (const prediction of run.predictions) {
-      if (prediction.scoreOutcome === "miss" && prediction.subject.toUpperCase() === proxy) {
-        misses.push(missFrom(run, prediction));
-      }
-    }
-  }
-  return sortedRecentMisses(misses);
-}
-
-// Parse an ISO timestamp to epoch ms for ordering, tolerating malformed values (generatedAt is read
-// From disk without format validation). Non-parseable timestamps sort oldest rather than crashing.
-function generatedAtValue(value: string): number {
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-// Collapse any newlines/tabs in free-form prior claim text so a single bullet stays a single line
-// And cannot inject extra apparent bullets into the prompt block.
-function singleLine(value: string): string {
-  return value.replaceAll(/\s+/gu, " ").trim();
-}
-
-// Render compacted resolution evidence as a single ` (observed k=v …)` segment, so the model sees
-// How wrong a prior thesis was, not just that it missed. Numbers get bounded precision; strings are
-// Single-lined against bullet injection. Returns "" when there is nothing to show.
-function formatObservedEvidence(evidence: Record<string, number | string> | undefined): string {
-  if (evidence === undefined) {
-    return "";
-  }
-  const parts = Object.entries(evidence).map(([key, value]) => {
-    const rendered =
-      typeof value === "number" ? String(Math.round(value * 10_000) / 10_000) : singleLine(value);
-    return `${singleLine(key)}=${rendered}`;
-  });
-  return parts.length === 0 ? "" : ` (observed ${parts.join(" ")})`;
-}
-
-function renderMissBullet(miss: PriorMiss): string {
-  const date = miss.generatedAt.slice(0, 10);
-  return `  - run ${miss.runId} (${date}): claimed "${singleLine(miss.claim)}" at stated p=${miss.probability.toFixed(2)}, resolved MISS${formatObservedEvidence(miss.evidence)} — cite ${miss.sourceId}`;
-}
-
-function buildPriorThesisErrorBlock(
-  command: ResearchCommand,
-  historicalContext: HistoricalResearchContext | undefined,
-): string | undefined {
-  const misses = collectPriorMisses(command, historicalContext);
-  // Second jobType narrowing is deliberate, not a duplicate of collectPriorMisses: it lets TS prove
-  // Command.symbol exists below, and guards command.symbol access if collectPriorMisses is ever
-  // Relaxed to non-ticker runs. Do not remove.
-  if (misses.length === 0 || !isInstrumentCommand(command)) {
-    return undefined;
-  }
-  const symbol = command.symbol.toUpperCase();
-  return [
-    `Prior predictions on ${symbol} that resolved MISS. Treat each as error-correction signal: diagnose why the prior thesis was wrong before restating a similar view, and widen probabilities where the same setup recurs.`,
-    ...misses.map((miss) => renderMissBullet(miss)),
-  ].join("\n");
-}
-
-// Market-scoped counterpart of the ticker instrument block (ADR 0015): for
-// Market-overview runs, surfaces prior MISS forecasts on the command's configured
-// Market subjects (index/macro) so the model corrects market-scoped errors. The
-// Ticker instrument block stays untouched; spotlight ticker misses are excluded
-// By the same-horizon filter in collectMarketForecastMisses.
-function buildMarketForecastErrorBlock(
-  command: ResearchCommand,
-  context: ResearchContext,
-): string | undefined {
-  const misses = collectMarketForecastMisses(
-    command,
-    context.historicalContext,
-    context.depthProfile.predictionSubjects,
-  );
-  if (misses.length === 0) {
-    return undefined;
-  }
-  return [
-    `Prior market-overview forecasts on configured market subjects that resolved MISS. Treat each as error-correction signal: diagnose why the prior market read was wrong before restating a similar view, and widen probabilities where the same regime setup recurs.`,
-    ...misses.map((miss) => renderMissBullet(miss)),
-  ].join("\n");
-}
-
-function buildResearchForecastErrorBlock(
-  command: ResearchCommand,
-  historicalContext: HistoricalResearchContext | undefined,
-): string | undefined {
-  const misses = collectResearchForecastMisses(command, historicalContext);
-  if (misses.length === 0 || command.jobType !== "research") {
-    return undefined;
-  }
-  const identity = commandResearchSubjectIdentity(command);
-  const subjectKey = identity.subjectKey ?? command.subject;
-  const proxy = identity.predictionProxySymbol;
-  return [
-    `Prior research forecasts on ${subjectKey}${proxy === undefined ? "" : ` (${proxy})`} that resolved MISS. Treat each as thematic error-correction signal: diagnose why the prior segment read was wrong before restating a similar view, and widen probabilities where the same subject setup recurs.`,
-    ...misses.map((miss) => renderMissBullet(miss)),
-  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------

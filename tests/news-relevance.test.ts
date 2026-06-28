@@ -62,9 +62,8 @@ describe("isNewsRelevant", () => {
   });
 
   test("ignores company suffix terms in name matching", () => {
-    // "inc" is a suffix term — matching only "Apple" (>=4 chars, not suffix)
-    const src = source({ title: "Apple supplier confirms deal" });
-    expect(isNewsRelevant(src, [target({ symbol: "NVDA", name: "Apple Inc." })])).toBe(true);
+    const src = source({ title: "Inc reports supplier update" });
+    expect(isNewsRelevant(src, [target({ symbol: "NVDA", name: "Apple Inc." })])).toBe(false);
   });
 
   test("rejects generic topic terms — broad headline does not match specific target", () => {

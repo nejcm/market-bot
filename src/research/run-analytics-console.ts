@@ -37,6 +37,28 @@ function auditLine(audit: NonNullable<RunAnalytics["postSynthesisAudit"]>): stri
   return `  Audit: ${String(audit.warningCount)} warning(s)${codes === "" ? "" : ` [${codes}]`}`;
 }
 
+function sourceGapClassLine(analytics: RunAnalytics): string | undefined {
+  const classes = analytics.sourceFunnel.sourceGapClasses;
+  const {total} = analytics.sourceFunnel.sourceGaps;
+  if (total === 0) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  if (classes.missingCredential > 0) {
+    parts.push(`${String(classes.missingCredential)} credential`);
+  }
+  if (classes.unsupportedCoverage > 0) {
+    parts.push(`${String(classes.unsupportedCoverage)} unsupported`);
+  }
+  if (classes.fetchFailed > 0) {
+    parts.push(`${String(classes.fetchFailed)} fetch-failed`);
+  }
+  if (classes.other > 0) {
+    parts.push(`${String(classes.other)} other`);
+  }
+  return `  Source gaps: ${String(total)} total (${parts.join(", ")})`;
+}
+
 export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   const { evidenceLanes, evidenceQuality, postSynthesisAudit, predictions } = analytics;
   const lines: string[] = [
@@ -51,6 +73,11 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   lines.push(
     `  Evidence Quality: ${evidenceQuality.label ?? evidenceQuality.confidence ?? "low"} · ${String(evidenceQuality.dataGapCount)} data gap(s)`,
   );
+
+  const gapLine = sourceGapClassLine(analytics);
+  if (gapLine !== undefined) {
+    lines.push(gapLine);
+  }
 
   if (postSynthesisAudit !== undefined && postSynthesisAudit.warningCount > 0) {
     lines.push(auditLine(postSynthesisAudit));

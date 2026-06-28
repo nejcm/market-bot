@@ -153,4 +153,31 @@ describe("run analytics console", () => {
 
     expect(output).toContain("  ! all emitted predictions are direction kind");
   });
+
+  test("renders source-gap classification breakdown", () => {
+    const analytics = baseAnalytics();
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      sourceFunnel: {
+        ...analytics.sourceFunnel,
+        sourceGaps: { total: 5, bySource: {} },
+        sourceGapClasses: {
+          missingCredential: 2,
+          fetchFailed: 1,
+          unsupportedCoverage: 1,
+          other: 1,
+        },
+      },
+    });
+
+    expect(output).toContain(
+      "Source gaps: 5 total (2 credential, 1 unsupported, 1 fetch-failed, 1 other)",
+    );
+  });
+
+  test("omits source-gap line when no gaps exist", () => {
+    const output = renderRunAnalyticsConsole(baseAnalytics());
+
+    expect(output).not.toContain("Source gaps:");
+  });
 });

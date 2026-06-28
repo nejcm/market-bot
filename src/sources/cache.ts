@@ -159,12 +159,14 @@ function toFetchResult<TPayload>(
   entry: CacheEntry,
   adapter: string,
   payload: TPayload,
+  cacheStatus?: RawSourceSnapshot["cacheStatus"],
 ): FetchSourceResult<TPayload> {
   const rawSnapshot: RawSourceSnapshot = {
     id: `raw-${adapter}-${entry.fetchedAt}`,
     adapter,
     fetchedAt: entry.fetchedAt,
     payload: entry.payload,
+    ...(cacheStatus !== undefined ? { cacheStatus } : {}),
   };
 
   return { rawSnapshot, payload };
@@ -174,6 +176,7 @@ function toCachedResult<TPayload>(
   entry: CacheEntry,
   adapter: string,
   validator: CachedPayloadValidator<TPayload> | undefined,
+  cacheStatus: NonNullable<RawSourceSnapshot["cacheStatus"]>,
 ): FetchSourceResult<TPayload> | SourceGap {
   if (validator !== undefined && !validator.isPayload(entry.payload)) {
     return sourceGap({
@@ -184,7 +187,11 @@ function toCachedResult<TPayload>(
     });
   }
 
-  return toFetchResult(entry, adapter, entry.payload as TPayload);
+  let { payload } = entry;
+  if (cacheStatus === "stale-fallback") {
+    payload = typeof entry.payload === "string" ? "" : undefined;
+  }
+  return toFetchResult(entry, adapter, payload as TPayload, cacheStatus);
 }
 
 export function withCache<TPayload = unknown>(
@@ -204,7 +211,7 @@ export function withCache<TPayload = unknown>(
 
     const cached = await readEntry(todayPath);
     if (cached !== undefined) {
-      return toCachedResult(cached, adapter, validator);
+      return toCachedResult(cached, adapter, validator, "current");
     }
 
     const result = await inner(request);
@@ -237,7 +244,7 @@ export function withCache<TPayload = unknown>(
         }),
       );
 
-      return toCachedResult(stale, adapter, validator);
+      return toCachedResult(stale, adapter, validator, "stale-fallback");
     }
 
     return result;

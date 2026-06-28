@@ -123,6 +123,7 @@ describe("buildStagePrompt", () => {
       }),
       config,
       {
+        analysisAsOf: "2026-06-01T00:00:00.000Z",
         depthProfile: buildDepthProfile(command, config),
         runParams: {
           quickModel: "quick-test",
@@ -150,6 +151,7 @@ describe("buildStagePrompt", () => {
     );
     const parsed = JSON.parse(prompt) as {
       readonly evidence?: {
+        readonly analysisAsOf?: string;
         readonly movers?: readonly {
           readonly features?: {
             readonly unusualVolumeRatio?: number;
@@ -160,6 +162,7 @@ describe("buildStagePrompt", () => {
       };
     };
 
+    expect(parsed.evidence?.analysisAsOf).toBe("2026-06-01T00:00:00.000Z");
     expect(parsed.evidence?.movers?.[0]?.features?.unusualVolumeRatio).toBe(2);
     expect(parsed.evidence?.movers?.[0]?.features?.gapPercent).toBe(5);
     expect(parsed.evidence?.movers?.[0]?.features?.reasons).toContain("5% absolute 24h move");

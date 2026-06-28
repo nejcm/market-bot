@@ -488,6 +488,10 @@ export interface RunTrace {
   readonly depth: Depth;
   readonly provider: string;
   readonly codeVersion?: CodeVersion;
+  readonly reproducibility?: {
+    readonly effectiveConfigHash: string;
+    readonly dirtySourceHash?: string;
+  };
   readonly quickModel: string;
   readonly synthesisModel: string;
   readonly startedAt: string;

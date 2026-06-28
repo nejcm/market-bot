@@ -164,6 +164,7 @@ function buildPrompt(input: {
     {
       instruction: input.loaded.instruction,
       stage: "forecast-disagreement",
+      analysisAsOf: input.report.generatedAt,
       stageGoal: input.loaded.goal,
       report: input.report,
       requiredShape: {

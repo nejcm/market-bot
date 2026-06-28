@@ -82,6 +82,34 @@ async function runWithChallenger(content: string): Promise<{
 }
 
 describe("forecast disagreement", () => {
+  test("includes the analysis cutoff in challenger prompts", async () => {
+    let analysisAsOf = "";
+    const provider: ModelProvider = {
+      name: "openai",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        analysisAsOf = typeof prompt.analysisAsOf === "string" ? prompt.analysisAsOf : "";
+        return {
+          content: JSON.stringify({ predictions: [{ id: "pred-1", probability: 0.7 }] }),
+          tokenEstimate: 10,
+          costEstimateUsd: 0.001,
+        };
+      },
+    };
+
+    await runForecastDisagreement({
+      generatedAt: challengerReport.generatedAt,
+      provider,
+      providerName: "openai",
+      baselineModel: "gpt-5.5",
+      challengerModels: ["gpt-5.4"],
+      loaded: loadedPrompt,
+      report: challengerReport,
+    });
+
+    expect(analysisAsOf).toBe(challengerReport.generatedAt);
+  });
+
   test("maps spread to neutral bands", () => {
     expect(disagreementBand(0.09)).toBe("low");
     expect(disagreementBand(0.1)).toBe("medium");

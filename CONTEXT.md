@@ -180,7 +180,11 @@ Benchmark evidence that compares a Mover against a sector ETF or broad index wit
 
 ## Evidence Quality
 
-A label for how complete, recent, corroborated, and traceable the fetched evidence is. It is not investment conviction or expected return.
+A deterministic label for how complete, recent, corroborated, and traceable the fetched evidence is. Model judgment cannot set or lower it; narrative uncertainty and Prediction probability are separate concepts. It is not investment conviction, predictive confidence, or expected return.
+
+## Temporal Integrity
+
+The guarantee that current evidence contains only facts observable on or before a run's explicit analysis cutoff. Later filings and future reporting periods are excluded; stale cache fallbacks remain in raw audit snapshots with disclosure but do not enter normalized current evidence.
 
 ## Post-Synthesis Audit
 

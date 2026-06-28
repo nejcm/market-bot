@@ -32,6 +32,7 @@ export interface RunAnalytics {
   readonly symbol?: string;
   readonly depth: RunTrace["depth"];
   readonly codeVersion?: RunTrace["codeVersion"];
+  readonly reproducibility?: RunTrace["reproducibility"];
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -491,6 +492,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     ...(report.symbol !== undefined ? { symbol: report.symbol } : {}),
     depth: trace.depth,
     ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
+    ...(trace.reproducibility !== undefined ? { reproducibility: trace.reproducibility } : {}),
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,

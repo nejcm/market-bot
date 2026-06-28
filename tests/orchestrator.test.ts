@@ -1890,6 +1890,8 @@ describe("runResearchJob", () => {
     expect(result.analytics.evidenceLanes?.coveredLaneCount).toBeGreaterThan(0);
     expect(result.trace.codeVersion?.dirty).toEqual(expect.any(Boolean));
     expect(result.analytics.codeVersion).toEqual(result.trace.codeVersion);
+    expect(result.trace.reproducibility?.effectiveConfigHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(result.analytics.reproducibility).toEqual(result.trace.reproducibility);
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "Equity market breadth",
     );

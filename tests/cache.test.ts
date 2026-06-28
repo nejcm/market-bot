@@ -167,12 +167,13 @@ describe("withCache", () => {
 
     if ("rawSnapshot" in firstResult && "rawSnapshot" in hitResult) {
       expect(hitResult.rawSnapshot.fetchedAt).toBe(firstResult.rawSnapshot.fetchedAt);
+      expect(hitResult.rawSnapshot.cacheStatus).toBe("current");
     } else {
       throw new Error("Expected FetchJsonResult from both calls");
     }
   });
 
-  test("live fetch failure with stale canonical entry within fallbackDays returns stale payload and calls onStaleFallback", async () => {
+  test("live fetch failure retains stale payload only in the raw audit snapshot", async () => {
     const stalePayload = { stale: true };
 
     const warmOpts = makeOptions(tmpDir, { now: makeNow(yesterday) });
@@ -192,7 +193,9 @@ describe("withCache", () => {
 
     expect("rawSnapshot" in result).toBe(true);
     if ("rawSnapshot" in result) {
-      expect(result.payload).toEqual(stalePayload);
+      expect(result.payload).toBeUndefined();
+      expect(result.rawSnapshot.payload).toEqual(stalePayload);
+      expect(result.rawSnapshot.cacheStatus).toBe("stale-fallback");
     }
     expect(opts.staleFallbackGaps).toHaveLength(1);
     expect(opts.staleFallbackGaps[0]?.message).toContain("cache-fallback");

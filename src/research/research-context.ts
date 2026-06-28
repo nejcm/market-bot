@@ -878,6 +878,7 @@ function buildEvidencePayload(
   }
 
   return {
+    analysisAsOf: context.analysisAsOf ?? new Date().toISOString(),
     command,
     ...userSteeringField(command),
     movers,
@@ -1126,6 +1127,7 @@ export function buildPlaybookSelectionPrompt(
     {
       instruction: loaded.instruction,
       stage: "playbook-selection",
+      analysisAsOf: context.analysisAsOf ?? new Date().toISOString(),
       stageGoal: loaded.goal,
       command,
       depthProfile: context.depthProfile,
@@ -1153,6 +1155,7 @@ export function buildSpotlightSelectionPrompt(
     {
       instruction: loaded.instruction,
       stage: "spotlight-selection",
+      analysisAsOf: context.analysisAsOf ?? new Date().toISOString(),
       stageGoal: loaded.goal,
       command,
       ...userSteeringField(command),

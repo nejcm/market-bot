@@ -193,6 +193,19 @@ const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
   },
 ];
 
+const FLOW_METRIC_KEYS = new Set([
+  "revenue",
+  "grossProfit",
+  "operatingIncome",
+  "netIncome",
+  "dilutedEps",
+  "operatingCashFlow",
+  "capex",
+  "dilutedShares",
+  "dividendsPaid",
+  "shareRepurchases",
+]);
+
 export function secRequestInit(userAgent: string | undefined): RequestInit | undefined {
   return userAgent === undefined
     ? undefined
@@ -299,13 +312,31 @@ function periodMonths(fact: SecFactValue): number | undefined {
   return months > 0 ? months : undefined;
 }
 
-function compareFacts(a: SecFactValue, b: SecFactValue): number {
-  const filed = (a.filed ?? "").localeCompare(b.filed ?? "");
-  return filed !== 0 ? filed : (a.end ?? "").localeCompare(b.end ?? "");
+function isFactObservableAsOf(fact: SecFactValue, analysisAsOf?: string): boolean {
+  if (analysisAsOf === undefined) {
+    return true;
+  }
+  const cutoff = analysisAsOf.slice(0, 10);
+  return (
+    (fact.end === undefined || fact.end <= cutoff) &&
+    (fact.filed === undefined || fact.filed <= cutoff)
+  );
+}
+
+function compareFactRecency(a: SecFactValue, b: SecFactValue): number {
+  const periodEnd = (b.end ?? "").localeCompare(a.end ?? "");
+  if (periodEnd !== 0) {
+    return periodEnd;
+  }
+  const periodStart = (a.start ?? "").localeCompare(b.start ?? "");
+  if (periodStart !== 0) {
+    return periodStart;
+  }
+  return (b.filed ?? "").localeCompare(a.filed ?? "");
 }
 
 function latestFact(values: readonly SecFactValue[]): SecFactValue | undefined {
-  return values.toSorted((a, b) => compareFacts(b, a))[0];
+  return values.toSorted(compareFactRecency)[0];
 }
 
 function factValuesForConcept(
@@ -356,26 +387,50 @@ function comparablePrior(
 function selectMetric(
   gaap: Record<string, unknown>,
   metric: SecMetricDefinition,
+  analysisAsOf?: string,
+  flowPeriod?: SecFactValue,
 ): SecMetricSelection | undefined {
-  let fallback: SecMetricSelection | undefined = undefined;
+  const selections: SecMetricSelection[] = [];
   for (const concept of metric.concepts) {
-    const values = factValuesForConcept(gaap, concept, metric.unitKeys);
-    const latest = latestFact(values);
+    const observableValues = factValuesForConcept(gaap, concept, metric.unitKeys).filter((value) =>
+      isFactObservableAsOf(value, analysisAsOf),
+    );
+    const values =
+      flowPeriod === undefined
+        ? observableValues
+        : observableValues.filter(
+            (value) => isCurrentFlowFact(flowPeriod, value) || isComparablePrior(flowPeriod, value),
+          );
+    const latest = latestFact(
+      flowPeriod === undefined
+        ? values
+        : values.filter((value) => isCurrentFlowFact(flowPeriod, value)),
+    );
     if (latest === undefined) {
       continue;
     }
     const prior = comparablePrior(latest, values);
-    const selection = { latest, ...(prior !== undefined ? { prior } : {}) };
-    if (prior !== undefined) {
-      return selection;
-    }
-    fallback ??= selection;
+    selections.push({ latest, ...(prior !== undefined ? { prior } : {}) });
   }
-  return fallback;
+  return selections.toSorted((a, b) => {
+    const recency = compareFactRecency(a.latest, b.latest);
+    if (recency !== 0) {
+      return recency;
+    }
+    return Number(b.prior !== undefined) - Number(a.prior !== undefined);
+  })[0];
 }
 
 function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {
   return a.form === b.form && a.fy === b.fy && (a.form === "10-K" || a.fp === b.fp);
+}
+
+function isCurrentFlowFact(anchor: SecFactValue, candidate: SecFactValue): boolean {
+  return (
+    sameFiscalPeriod(anchor, candidate) &&
+    candidate.end === anchor.end &&
+    (anchor.start === undefined || candidate.start === anchor.start)
+  );
 }
 
 function sumMatchingFacts(
@@ -383,7 +438,11 @@ function sumMatchingFacts(
   componentValues: readonly (readonly SecFactValue[])[],
 ): SecFactValue | undefined {
   const matches = componentValues
-    .map((values) => latestFact(values.filter((value) => sameFiscalPeriod(period, value))))
+    .map((values) =>
+      latestFact(
+        values.filter((value) => sameFiscalPeriod(period, value) && value.end === period.end),
+      ),
+    )
     .filter((value): value is SecFactValue => value !== undefined);
   if (matches.length === 0) {
     return undefined;
@@ -394,12 +453,17 @@ function sumMatchingFacts(
   };
 }
 
-function selectDebtMetric(gaap: Record<string, unknown>): SecMetricSelection | undefined {
-  const direct = selectMetric(gaap, DEBT_METRIC);
+function selectDebtMetric(
+  gaap: Record<string, unknown>,
+  analysisAsOf?: string,
+): SecMetricSelection | undefined {
+  const direct = selectMetric(gaap, DEBT_METRIC, analysisAsOf);
   if (direct !== undefined) {
     return direct;
   }
-  const componentValues = DEBT_COMPONENTS.map((metric) => factValuesForMetric(gaap, metric));
+  const componentValues = DEBT_COMPONENTS.map((metric) =>
+    factValuesForMetric(gaap, metric).filter((value) => isFactObservableAsOf(value, analysisAsOf)),
+  );
   const latest = latestFact(componentValues.flat());
   if (latest === undefined) {
     return undefined;
@@ -424,7 +488,10 @@ function formatMetric(label: string, latest: number, delta: number | undefined):
     : `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
 }
 
-export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSummary | undefined {
+export function summarizeSecFundamentals(
+  payload: unknown,
+  analysisAsOf?: string,
+): SecFundamentalsSummary | undefined {
   if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
     return undefined;
   }
@@ -434,12 +501,26 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
   const missingDeltas: string[] = [];
   const summaryParts: string[] = [];
 
+  const [revenueDefinition] = SEC_METRIC_DEFINITIONS;
+  const revenueSelection =
+    revenueDefinition === undefined
+      ? undefined
+      : selectMetric(gaap, revenueDefinition, analysisAsOf);
+  const flowPeriod = revenueSelection?.latest;
   const metricSelections = [
     ...SEC_METRIC_DEFINITIONS.map((definition) => ({
       definition,
-      selection: selectMetric(gaap, definition),
+      selection:
+        definition.key === "revenue"
+          ? revenueSelection
+          : selectMetric(
+              gaap,
+              definition,
+              analysisAsOf,
+              FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
+            ),
     })),
-    { definition: DEBT_METRIC, selection: selectDebtMetric(gaap) },
+    { definition: DEBT_METRIC, selection: selectDebtMetric(gaap, analysisAsOf) },
   ];
 
   for (const { definition, selection } of metricSelections) {
@@ -451,6 +532,9 @@ export function summarizeSecFundamentals(payload: unknown): SecFundamentalsSumma
     }
     const { latest, prior } = selection;
     metrics[definition.key] = latest.val;
+    if (latest.end !== undefined) {
+      metrics[`${definition.key}PeriodEnd`] = latest.end;
+    }
     // Expose each flow fact's own reporting-period length so downstream ratios
     // (ROE/ROA/PCF) annualize by the metric's own period, not revenue's. Instant
     // Facts (no start/end span) yield undefined and emit no key. Revenue keeps its
@@ -578,7 +662,7 @@ export async function fetchSecCompanyFactsForSymbol(
     };
   }
 
-  const fundamentals = summarizeSecFundamentals(facts.payload);
+  const fundamentals = summarizeSecFundamentals(facts.payload, ctx.fetchedAt);
   const emptyFactsGap =
     fundamentals === undefined
       ? [

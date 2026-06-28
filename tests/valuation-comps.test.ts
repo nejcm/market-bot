@@ -416,7 +416,7 @@ describe("collectValuationComps", () => {
 
     expect(result.artifact.summary.usablePeerCount).toBe(0);
     expect(result.artifact.freshnessFlags.peerSecFresh).toBe(false);
-    expect(result.artifact.excludedPeers[0]?.reason).toBe("stale SEC revenue period");
+    expect(result.artifact.excludedPeers[0]?.reason).toBe("missing SEC revenue");
   });
 
   test("excludes peers with missing required fields", async () => {

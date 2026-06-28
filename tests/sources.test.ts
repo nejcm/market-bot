@@ -984,6 +984,108 @@ describe("news provider collection", () => {
 });
 
 describe("SEC fundamental evidence", () => {
+  test("selects the latest reporting period before a newer filing revision", () => {
+    const result = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  secFact(80, {
+                    fy: 2018,
+                    filed: "2026-05-01",
+                    start: "2018-04-01",
+                    end: "2018-06-30",
+                  }),
+                  secFact(100, {
+                    fy: 2025,
+                    filed: "2025-07-30",
+                    start: "2025-04-01",
+                    end: "2025-06-30",
+                  }),
+                ],
+              },
+            },
+          },
+        },
+      },
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    expect(result?.metrics.revenue).toBe(100);
+    expect(result?.metrics.revenuePeriodEnd).toBe("2025-06-30");
+  });
+
+  test("rejects facts filed or ending after the analysis cutoff", () => {
+    const result = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  secFact(90, {
+                    fy: 2025,
+                    filed: "2025-07-30",
+                    start: "2025-04-01",
+                    end: "2025-06-30",
+                  }),
+                  secFact(100, {
+                    fy: 2026,
+                    filed: "2026-07-30",
+                    start: "2026-04-01",
+                    end: "2026-06-30",
+                  }),
+                ],
+              },
+            },
+          },
+        },
+      },
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    expect(result?.metrics.revenue).toBe(90);
+    expect(result?.metrics.revenuePeriodEnd).toBe("2025-06-30");
+  });
+
+  test("does not mix flow metrics from different reporting periods", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(100, {
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  start: "2026-01-01",
+                  end: "2026-03-31",
+                }),
+              ],
+            },
+          },
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                secFact(20, {
+                  fy: 2025,
+                  filed: "2025-05-01",
+                  start: "2025-01-01",
+                  end: "2025-03-31",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.netIncome).toBeUndefined();
+    expect(result?.gaps.some((gap) => gap.message.includes("netIncome"))).toBe(true);
+  });
+
   test("extracts operating facts with latest comparable deltas", () => {
     const result = summarizeSecFundamentals(secCompanyFactsPayload());
 
@@ -1004,6 +1106,13 @@ describe("SEC fundamental evidence", () => {
     });
     expect(result?.metrics.revenueDeltaPercent).toBeCloseTo(11.11);
     expect(result?.metrics.dilutedSharesDeltaPercent).toBeCloseTo(-10);
+    expect(result?.metrics).toMatchObject({
+      revenuePeriodEnd: "2026-06-29",
+      grossProfitPeriodEnd: "2026-06-29",
+      netIncomePeriodEnd: "2026-06-29",
+      cashPeriodEnd: "2026-06-29",
+      operatingCashFlowPeriodEnd: "2026-06-29",
+    });
     expect(result?.gaps).toEqual([]);
   });
 
@@ -1054,6 +1163,42 @@ describe("SEC fundamental evidence", () => {
     expect(result?.gaps.map((gap) => gap.message)).not.toContain(
       "Missing comparable SEC company facts for YoY deltas: revenue",
     );
+  });
+
+  test("selects a newer fallback concept before an older preferred concept", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(80, {
+                  fy: 2024,
+                  filed: "2024-07-30",
+                  start: "2024-04-01",
+                  end: "2024-06-30",
+                }),
+              ],
+            },
+          },
+          SalesRevenueNet: {
+            units: {
+              USD: [
+                secFact(100, {
+                  fy: 2025,
+                  filed: "2025-07-30",
+                  start: "2025-04-01",
+                  end: "2025-06-30",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.revenue).toBe(100);
+    expect(result?.metrics.revenuePeriodEnd).toBe("2025-06-30");
   });
 
   test("reports the latest revenue fact's reporting-period length in months", () => {
@@ -1266,10 +1411,9 @@ describe("extended evidence provider collection", () => {
     expect(secItem?.summary).toContain("Recent SEC filings: 10-Q 2026-05-01.");
     expect(secItem?.summary).toContain("SEC Fundamental Evidence");
     expect(secItem?.observedAt).toBe(secFactsCachedAt);
-    expect(secItem?.metrics?.revenue).toBe(100);
-    expect(secItem?.metrics?.revenuePeriodEnd).toBe("2026-06-29");
-    expect(secItem?.metrics?.revenuePrior).toBe(90);
-    expect(secItem?.metrics?.revenueDeltaPercent).toBeCloseTo(11.11);
+    expect(secItem?.metrics?.revenue).toBe(70);
+    expect(secItem?.metrics?.revenuePeriodEnd).toBe("2026-03-29");
+    expect(secItem?.metrics?.revenuePrior).toBeUndefined();
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("sec-edgar");
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("equity-events");
     expect(result.extendedEvidence?.items.map((item) => item.category)).toContain("fred-macro");
@@ -1300,7 +1444,9 @@ describe("extended evidence provider collection", () => {
       providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0000320193" }],
       aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
     });
-    expect(result.sourceGaps).toEqual([]);
+    expect(result.sourceGaps.some((gap) => gap.message.includes("Missing SEC company facts"))).toBe(
+      true,
+    );
     expect(
       requests
         .filter((request) => request.adapter.startsWith("sec-"))

@@ -1,5 +1,6 @@
 import { marketSpotlightOptions, type AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
+import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { join } from "node:path";
@@ -515,6 +516,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);
   let { collectedSources } = input;
   let context: ResearchContext = {
+    analysisAsOf: generatedAt,
     depthProfile: buildDepthProfileFromParams(input.command, runParams),
     runParams,
     marketRegime: addMarketContextToRegime(
@@ -839,6 +841,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     reportValidationErrors,
   } = synthesis;
   const codeVersion = readCodeVersion();
+  const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
     ...webGatherLoop.stageOutputs,
@@ -860,6 +863,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     depth: input.command.depth,
     provider: input.provider.name,
     codeVersion,
+    reproducibility: {
+      effectiveConfigHash: effectiveConfigHash(input.config),
+      ...(sourceStateHash !== undefined ? { dirtySourceHash: sourceStateHash } : {}),
+    },
     quickModel: runParams.quickModel,
     synthesisModel: runParams.synthesisModel,
     startedAt: generatedAt,

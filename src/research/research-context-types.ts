@@ -30,6 +30,7 @@ export interface DepthProfile {
 export type CalibrationContext = Partial<CalibrationSummary>;
 
 export interface ResearchContext {
+  readonly analysisAsOf?: string;
   readonly depthProfile: DepthProfile;
   readonly runParams: ResolvedRunParams;
   readonly marketRegime: MarketRegimeSummary;

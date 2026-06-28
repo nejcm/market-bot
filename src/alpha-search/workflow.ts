@@ -9,6 +9,7 @@ import {
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
+import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
 import type { KeyFinding, ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
 import {
   compactUnmappedSecFilingGaps,
@@ -75,6 +76,7 @@ export interface AlphaSearchRunAnalytics {
   readonly assetClass: "equity";
   readonly depth: AlphaSearchCommand["depth"];
   readonly codeVersion?: RunTrace["codeVersion"];
+  readonly reproducibility?: RunTrace["reproducibility"];
   readonly sourceFunnel: {
     readonly reportSources: {
       readonly total: number;
@@ -345,13 +347,19 @@ function buildTrace(input: {
   readonly completedAt: string;
   readonly sourceGaps: readonly SourceGap[];
 }): RunTrace {
+  const codeVersion = readCodeVersion();
+  const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   return {
     runId: input.runId,
     jobType: "alpha-search",
     assetClass: input.command.assetClass,
     depth: input.command.depth,
     provider: input.config.provider,
-    codeVersion: readCodeVersion(),
+    codeVersion,
+    reproducibility: {
+      effectiveConfigHash: effectiveConfigHash(input.config),
+      ...(sourceStateHash !== undefined ? { dirtySourceHash: sourceStateHash } : {}),
+    },
     quickModel: input.config.quickModel,
     synthesisModel: input.config.synthesisModel,
     startedAt: input.startedAt,
@@ -412,6 +420,7 @@ function buildAlphaSearchAnalytics(input: {
     assetClass: "equity",
     depth: trace.depth,
     ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
+    ...(trace.reproducibility !== undefined ? { reproducibility: trace.reproducibility } : {}),
     sourceFunnel: {
       reportSources: {
         total: report.sources.length,
@@ -536,6 +545,7 @@ export async function runAlphaSearchWorkflow(input: {
   const fundamentals = await collectAlphaSearchFundamentals({
     leads: researchLeads,
     request,
+    analysisAsOf: startedAt,
     ...(input.config.sourceOptions.secUserAgent !== undefined
       ? { secUserAgent: input.config.sourceOptions.secUserAgent }
       : {}),

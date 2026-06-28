@@ -60,6 +60,7 @@ function noFundamentalsGap(symbol: string): SourceGap {
 export async function collectAlphaSearchFundamentals(options: {
   readonly leads: readonly AlphaSearchLead[];
   readonly request: SourceRequestExecutor;
+  readonly analysisAsOf: string;
   readonly secUserAgent?: string;
 }): Promise<AlphaSearchFundamentalsResult> {
   const symbols = [...new Set(options.leads.map((lead) => lead.symbol))].toSorted();
@@ -109,7 +110,7 @@ export async function collectAlphaSearchFundamentals(options: {
       continue;
     }
     rawSnapshots.push(result.rawSnapshot);
-    const summary = summarizeSecFundamentals(result.payload);
+    const summary = summarizeSecFundamentals(result.payload, options.analysisAsOf);
     if (summary === undefined) {
       missingFactsGaps.push(noFundamentalsGap(entry.symbol));
       continue;

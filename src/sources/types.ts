@@ -159,6 +159,7 @@ export interface RawSourceSnapshot {
   readonly adapter: string;
   readonly fetchedAt: string;
   readonly payload: unknown;
+  readonly cacheStatus?: "current" | "stale-fallback";
   readonly payloadCompacted?: boolean;
   readonly payloadBytes?: number;
   readonly payloadSha256?: string;

@@ -402,6 +402,77 @@ describe("runCli", () => {
     ).resolves.toBe("History rebuilt: 2 run(s), 1 instrument timeline(s), 0 malformed");
   });
 
+  test("rebuilds stale history before executing history search", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-history-search-repair-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+
+    await expect(
+      runCli(["history", "search", "--query", "risk"], {
+        rebuildHistoryArtifacts: async () => {
+          calls.push("rebuild");
+          return {
+            historyDir: join(dataDir, "..", "history"),
+            indexPath: join(dataDir, "..", "history", "index.json"),
+            instrumentCount: 0,
+            sourceRunCount: 0,
+            malformedRunCount: 0,
+          };
+        },
+        searchHistoryIndex: async () => {
+          calls.push("search");
+          return [];
+        },
+      }),
+    ).resolves.toBe("No history results found");
+    expect(calls).toEqual(["rebuild", "search"]);
+  });
+
+  test("rebuilds stale history before executing thesis delta", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-history-delta-repair-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+
+    const output = await runCli(["history", "thesis-delta", "AAPL"], {
+      rebuildHistoryArtifacts: async () => {
+        calls.push("rebuild");
+        return {
+          historyDir: join(dataDir, "..", "history"),
+          indexPath: join(dataDir, "..", "history", "index.json"),
+          instrumentCount: 1,
+          sourceRunCount: 2,
+          malformedRunCount: 0,
+        };
+      },
+      buildThesisDelta: async () => {
+        calls.push("delta");
+        return {
+          version: 1,
+          generatedAt: "2026-06-28T00:00:00.000Z",
+          instrumentKey: "equity:AAPL",
+          symbol: "AAPL",
+          assetClass: "equity",
+          fromRunId: "old",
+          toRunId: "new",
+          fromGeneratedAt: "2026-06-01T00:00:00.000Z",
+          toGeneratedAt: "2026-06-28T00:00:00.000Z",
+          sections: {},
+        };
+      },
+    });
+
+    expect(calls).toEqual(["rebuild", "delta"]);
+    expect(output).toContain("Research Thesis Delta: equity:AAPL");
+  });
+
   test("runs index rebuild through CLI dispatch", async () => {
     const dataDir = join(
       tmpdir(),

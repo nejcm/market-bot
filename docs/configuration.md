@@ -74,7 +74,7 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 
 Cache pruning is manual: `market-bot cache prune` removes raw cache day directories older than 30 days and scorer close cache files older than 365 days.
 
-Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The history env vars control how many prior reports are summarized and which older anchor runs are considered; they do not make the reader scan `MARKET_BOT_CACHE_DIR`. Market Spotlight limits cap AI-selected spotlights for market-overview runs. Setting a spotlight limit to `0` disables the selector for that depth.
+Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The history env vars control how many prior reports are summarized and which older anchor runs are considered; they do not make the reader scan `MARKET_BOT_CACHE_DIR`. `history search` and `history thesis-delta` automatically rebuild derived `data/history` artifacts when their recorded canonical run set is stale; this introduces no environment variable. Market Spotlight limits cap AI-selected spotlights for market-overview runs. Setting a spotlight limit to `0` disables the selector for that depth.
 
 ## Free provider setup
 

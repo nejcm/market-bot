@@ -4,12 +4,12 @@ After the Web Subject Profile is extracted (or reused), a deterministic reconcil
 
 ## Scope
 
-Only `GAP[0]` (segment mix, customer concentration, purchase recurrence) is clearable today — it maps directly to the profile's `howItMakesMoney`, `customers`, and `purchaseRecurrence` structured questions. `GAP[1]` (management track record) and `GAP[2]` (analyst estimates, KPIs, risk buckets) have no matching structured questions in the profile and remain standing.
+Business Framework v2 represents each qualitative gap as a stable code plus display text. Web Subject Profile v3 adds structured company questions for management track record, capital allocation, company-specific KPIs, and disclosed risk factors. Every supported question maps to one gap code; analyst consensus remains unresolved because the provider-neutral source policy has no authoritative consensus capability.
 
 ## Decision
 
-- **Structured-only, deterministic.** Reconciliation checks only the profile's structured `questions` object — it never scans `factLedger` prose or any model-generated text. The predicate is: all three GAP[0] questions have a non-empty `answer` with ≥1 cited `sourceId`. All-or-nothing: partial resolution leaves the whole gap.
-- **Gap strings removed, postures frozen.** Reconciliation removes gap strings from Business and Moat section `gaps`, artifact-level `gaps`, and regenerates the `frameworkGap` SourceGap. Postures, phase, metrics, and summaries are never changed — the framework's quantitative evidence base is unaffected.
+- **Structured-only, deterministic.** Reconciliation checks only Web Subject Profile v3's structured `questions` object — it never scans `factLedger` prose. A non-empty answer with at least one cited `sourceId` resolves only its mapped code: `howItMakesMoney` → `segment-mix`, `customers` → `customer-concentration`, `purchaseRecurrence` → `purchase-recurrence`, `managementTrackRecord` → `management-track-record`, `capitalAllocation` → `capital-allocation`, `companyKpis` → `company-kpis`, and `riskFactors` → `risk-factors`.
+- **Atomic gaps removed, postures frozen.** Reconciliation removes each resolved code from every section and the artifact-level gap list, then regenerates the `frameworkGap` SourceGap. Partial answers resolve independently. Postures, phase, metrics, and summaries are never changed.
 - **No Evidence Quality impact.** Framework qualitative gaps carry `evidenceQualityImpact: "no-cap"`, so clearing them provably cannot move the EQ cap. Web evidence raising EQ would require a change to this contract and is out of scope.
 - **Audit marker on the artifact.** A `reconciliation: { resolvedGaps, profileSourceIds }` field is added to `BusinessFrameworkArtifact`, surfaced through `extras.businessFramework` in the report, so downstream consumers can see what was reconciled and which web sources backed it.
 
@@ -22,7 +22,7 @@ The reconciliation runs as a new step in `orchestrator.ts`, immediately after th
 - **Moving the framework build after web gather.** Would change the collector's timing contract and introduce ordering dependencies; the post-build reconciliation pass is less invasive.
 - **Prose scanning / factLedger matching.** Fragile, non-deterministic, and prone to false positives. Structured questions give a reliable signal.
 - **Web evidence raising Evidence Quality.** The `no-cap` contract on qualitative gaps means clearing them can't change EQ. Allowing web evidence to raise EQ is a larger design change for a separate ADR.
-- **Partial GAP[0] resolution.** GAP[0] bundles three related concepts (segment mix, customer concentration, purchase recurrence). Resolving only one or two would leave a misleading partial gap string.
+- **Bundled all-or-nothing gaps.** Bundling independent concepts caused cited evidence for one field to leave misleading unresolved text. Stable atomic codes make reconciliation auditable and independently resolvable.
 
 ## References
 

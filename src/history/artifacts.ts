@@ -64,11 +64,12 @@ export interface HistorySearchEntry {
 }
 
 export interface HistoryIndex {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly generatedAt: string;
   readonly sourceRunCount: number;
   readonly malformedRunCount: number;
   readonly entries: readonly HistorySearchEntry[];
+  readonly sourceRunIds?: readonly string[];
 }
 
 export interface ResearchThesisState {
@@ -120,6 +121,8 @@ export interface HistoryRebuildResult {
   readonly sourceRunCount: number;
   readonly malformedRunCount: number;
 }
+
+export type HistoryRebuild = (dataDir: string, now?: Date) => Promise<HistoryRebuildResult>;
 
 export interface ThesisDeltaInput {
   readonly dataDir: string;
@@ -464,10 +467,11 @@ export async function rebuildHistoryArtifacts(
   await mkdir(instrumentsDir, { recursive: true });
 
   const index: HistoryIndex = {
-    version: 1,
+    version: 2,
     generatedAt,
     sourceRunCount: loaded.length,
     malformedRunCount,
+    sourceRunIds: scan.artifacts.map((artifact) => artifact.runDirName).toSorted(),
     entries: indexEntries.toSorted((left, right) =>
       right.generatedAt.localeCompare(left.generatedAt),
     ),
@@ -494,9 +498,67 @@ export async function rebuildHistoryArtifacts(
   };
 }
 
+async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefined> {
+  const path = join(historyDir(dataDir), INDEX_FILE);
+  let content = "";
+  try {
+    content = await readFile(path, "utf8");
+  } catch (error: unknown) {
+    if (isRecord(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+    throw new Error(
+      `Unable to read derived history index: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+  let parsed: unknown = undefined;
+  try {
+    parsed = JSON.parse(content) as unknown;
+  } catch {
+    throw new Error("Malformed derived history index; run `history rebuild`");
+  }
+  if (!isRecord(parsed) || (parsed.version !== 1 && parsed.version !== 2)) {
+    throw new Error("Unsupported derived history index schema; run `history rebuild`");
+  }
+  if (
+    typeof parsed.generatedAt !== "string" ||
+    typeof parsed.sourceRunCount !== "number" ||
+    typeof parsed.malformedRunCount !== "number" ||
+    !Array.isArray(parsed.entries)
+  ) {
+    throw new TypeError("Malformed derived history index; run `history rebuild`");
+  }
+  if (
+    parsed.version === 2 &&
+    (!Array.isArray(parsed.sourceRunIds) ||
+      !parsed.sourceRunIds.every((runId) => typeof runId === "string"))
+  ) {
+    throw new Error("Malformed derived history index; run `history rebuild`");
+  }
+  return parsed as unknown as HistoryIndex;
+}
+
+export async function rebuildHistoryArtifactsIfStale(
+  dataDir: string,
+  now: Date = new Date(),
+  rebuild: HistoryRebuild = rebuildHistoryArtifacts,
+): Promise<HistoryRebuildResult | undefined> {
+  const [index, scan] = await Promise.all([readIndexForDrift(dataDir), scanRunArtifacts(dataDir)]);
+  const canonicalRunIds = scan.artifacts.map((artifact) => artifact.runDirName).toSorted();
+  const current =
+    index?.version === 2 &&
+    index.sourceRunIds !== undefined &&
+    index.sourceRunIds.length === canonicalRunIds.length &&
+    index.sourceRunIds.every((runId, position) => runId === canonicalRunIds[position]);
+  return current ? undefined : rebuild(dataDir, now);
+}
+
 async function readIndex(dataDir: string): Promise<HistoryIndex | undefined> {
   const parsed = await readJson(join(historyDir(dataDir), INDEX_FILE));
-  return isRecord(parsed) && parsed.version === 1 && Array.isArray(parsed.entries)
+  return isRecord(parsed) &&
+    (parsed.version === 1 || parsed.version === 2) &&
+    Array.isArray(parsed.entries)
     ? (parsed as unknown as HistoryIndex)
     : undefined;
 }

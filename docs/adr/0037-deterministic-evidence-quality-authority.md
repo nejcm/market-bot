@@ -34,6 +34,8 @@ Lane policy is provider-neutral. A covered capability may be supplied by any eli
 
 Each run persists rubric version, label, per-capability coverage/freshness/corroboration checks, and limiting reasons in trace and analytics.
 
+Rubric v1 applies freshness limits of 3 days for market data, supplemental market data, verified price history, derivatives volatility, and on-chain evidence; 14 days for news; 30 days for subject profiles; 45 days for market context and macro indicators; 90 days for corporate events; and 550 days for regulatory filings and valuation evidence. Covered news passes corroboration with at least two source IDs. Other lanes treat corroboration as not applicable.
+
 ## Compatibility
 
 New reports write `evidenceQuality`; synthesis cannot author it. Readers continue to accept legacy `confidence` labels and mark historical uses as legacy. Source Plan v1 and Evidence Lanes v1 remain readable. The derived SQLite index uses an `evidence_quality` column and is rebuilt under schema version 9.
@@ -42,4 +44,4 @@ New reports write `evidenceQuality`; synthesis cannot author it. Readers continu
 
 - The report retains the existing `high` / `medium` / `low` label values under the `evidenceQuality` field, with authority in deterministic report assembly.
 - Evidence Quality must not be inferred from Prediction probability, narrative tone, or investment conviction.
-- The mapping from individual Evidence Lanes and Source Gaps into core, material optional, and supplemental classes remains a separate policy decision.
+- Lane classification is deterministic policy in Source Plan v2 and may evolve only through a versioned rubric change.

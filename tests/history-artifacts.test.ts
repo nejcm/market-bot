@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   buildThesisDelta,
   rebuildHistoryArtifacts,
+  rebuildHistoryArtifactsIfStale,
   searchHistoryIndex,
 } from "../src/history/artifacts";
 import { readInstrumentTimeline } from "../src/history/timeline-reader";
@@ -143,6 +144,59 @@ describe("history artifacts", () => {
 
     expect(results.map((result) => result.runId)).toEqual(["run-new"]);
     expect(results[0]?.section).toBe("risks");
+  });
+
+  test("rebuilds stale derived history after the canonical run set changes", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-drift-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
+
+    const rebuilt = await rebuildHistoryArtifactsIfStale(
+      dataDir,
+      new Date("2026-06-06T00:00:00.000Z"),
+    );
+    const results = await searchHistoryIndex(dataDir, { query: "New risk" });
+
+    expect(rebuilt?.sourceRunCount).toBe(2);
+    expect(results.map((entry) => entry.runId)).toEqual(["run-new"]);
+  });
+
+  test("does not rebuild history when the canonical run set matches", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-current-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+    let rebuildCalls = 0;
+
+    const rebuilt = await rebuildHistoryArtifactsIfStale(dataDir, new Date(), async () => {
+      rebuildCalls += 1;
+      throw new Error("unexpected rebuild");
+    });
+
+    expect(rebuilt).toBeUndefined();
+    expect(rebuildCalls).toBe(0);
+  });
+
+  test("preserves explicit malformed and unsupported derived-history failures", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-invalid-"));
+    const dataDir = join(rootDir, "runs");
+    const derivedDir = join(rootDir, "history");
+    mkdirSync(dataDir);
+    mkdirSync(derivedDir);
+    writeFileSync(join(derivedDir, "index.json"), "{", "utf8");
+
+    await expect(rebuildHistoryArtifactsIfStale(dataDir)).rejects.toThrow(
+      /Malformed derived history index/u,
+    );
+
+    writeJson(join(derivedDir, "index.json"), { version: 999, entries: [] });
+    await expect(rebuildHistoryArtifactsIfStale(dataDir)).rejects.toThrow(
+      /Unsupported derived history index schema/u,
+    );
   });
 
   test("builds deterministic thesis deltas and persists explicit narratives", async () => {

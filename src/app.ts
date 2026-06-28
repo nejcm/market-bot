@@ -16,6 +16,7 @@ import { renderCalibrationConsole } from "./scoring/calibration-console";
 import {
   buildThesisDelta,
   rebuildHistoryArtifacts,
+  rebuildHistoryArtifactsIfStale,
   renderSearchResults,
   renderThesisDelta,
   searchHistoryIndex,
@@ -169,6 +170,11 @@ export async function runCli(
   }
 
   if (command.jobType === "history-search") {
+    await rebuildHistoryArtifactsIfStale(
+      config.dataDir,
+      now(),
+      dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts,
+    );
     const results = await (dependencies.searchHistoryIndex ?? searchHistoryIndex)(config.dataDir, {
       query: command.query,
       ...(command.symbol !== undefined ? { symbol: command.symbol } : {}),
@@ -184,6 +190,11 @@ export async function runCli(
   }
 
   if (command.jobType === "history-thesis-delta") {
+    await rebuildHistoryArtifactsIfStale(
+      config.dataDir,
+      now(),
+      dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts,
+    );
     const provider = command.narrative
       ? (dependencies.createProvider ?? createProvider)(config)
       : undefined;

@@ -1021,7 +1021,7 @@ describe("report schema and rendering", () => {
     ]);
   });
 
-  test("does not lower high confidence for optional news-provider gaps when usable news exists", () => {
+  test("ignores model confidence and applies the deterministic core-evidence rubric", () => {
     const command = {
       jobType: "equity" as const,
       assetClass: "equity" as const,
@@ -1059,10 +1059,44 @@ describe("report schema and rendering", () => {
       sources: [],
     });
 
-    expect(assembled.confidence).toBe("high");
+    expect(assembled.evidenceQuality).toBe("low");
+    expect(assembled.confidence).toBeUndefined();
     expect(assembled.dataGaps).toContain(
       "finnhub-news: finnhub-news source request failed with status 403",
     );
+  });
+
+  test("model confidence cannot lower a deterministic evidence-quality assessment", () => {
+    const command = {
+      jobType: "daily" as const,
+      assetClass: "equity" as const,
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("SPY");
+    const context: ResearchContext = {
+      ...assemblyContext(depthProfile),
+      evidenceQualityAssessment: {
+        version: 1,
+        rubricVersion: 1,
+        label: "high",
+        checks: [],
+        limitingReasons: [],
+      },
+    };
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: { summary: "Deterministic quality owns the label.", confidence: "low" },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources(),
+      depthProfile,
+      context,
+      sources: [],
+    });
+
+    expect(assembled.evidenceQuality).toBe("high");
+    expect(assembled.confidence).toBeUndefined();
   });
 
   test("adds historical report sources to report source lists", () => {

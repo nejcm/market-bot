@@ -38,6 +38,7 @@ import type {
 } from "./scoring/types";
 import {
   EVIDENCE_LANES,
+  LEGACY_EVIDENCE_LANES,
   type EvidenceLane,
   type EvidenceLanesArtifact,
   type LaneCoverageStatus,
@@ -175,7 +176,10 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "web-subject-profile",
   "yahoo-fundamentals",
 ]);
-const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set(EVIDENCE_LANES);
+const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set([
+  ...EVIDENCE_LANES,
+  ...LEGACY_EVIDENCE_LANES,
+]);
 const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);
 const LANE_COVERAGE_STATUSES: ReadonlySet<string> = new Set<LaneCoverageStatus>([
   "covered",
@@ -226,6 +230,10 @@ function isEvidenceLane(value: unknown): value is EvidenceLane {
 
 function isLaneRequirement(value: unknown): value is LaneRequirement {
   return typeof value === "string" && LANE_REQUIREMENTS.has(value);
+}
+
+function isEvidenceClass(value: unknown): boolean {
+  return value === "core" || value === "material" || value === "supplemental";
 }
 
 function isLaneCoverageStatus(value: unknown): value is LaneCoverageStatus {
@@ -471,6 +479,16 @@ function readReport(value: unknown): ResearchReport | undefined {
     return;
   }
   const extendedEvidence = readExtendedEvidence(value.extendedEvidence);
+  const evidenceQuality =
+    value.evidenceQuality === "high" ||
+    value.evidenceQuality === "medium" ||
+    value.evidenceQuality === "low"
+      ? value.evidenceQuality
+      : undefined;
+  const legacyConfidence =
+    value.confidence === "high" || value.confidence === "medium" || value.confidence === "low"
+      ? value.confidence
+      : undefined;
   return {
     runId,
     jobType: value.jobType,
@@ -487,10 +505,9 @@ function readReport(value: unknown): ResearchReport | undefined {
     risks: readFindings(value.risks),
     catalysts: readFindings(value.catalysts),
     scenarios: [],
-    confidence:
-      value.confidence === "high" || value.confidence === "medium" || value.confidence === "low"
-        ? value.confidence
-        : "low",
+    ...(evidenceQuality !== undefined
+      ? { evidenceQuality }
+      : { confidence: legacyConfidence ?? "low" }),
     dataGaps: stringArrayValue(value.dataGaps),
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),
@@ -722,16 +739,16 @@ function hasSourcePlanLaneShape(value: unknown): boolean {
   return (
     isRecord(value) &&
     isEvidenceLane(value.lane) &&
-    isLaneRequirement(value.requirement) &&
     typeof value.appliesToRun === "boolean" &&
-    typeof value.providerPath === "string"
+    ((isLaneRequirement(value.requirement) && typeof value.providerPath === "string") ||
+      (isEvidenceClass(value.evidenceClass) && isEvidenceLane(value.capability)))
   );
 }
 
 function readSourcePlan(value: unknown): SourcePlanArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    (value.version !== 1 && value.version !== 2) ||
     readString(value, "generatedAt") === undefined ||
     !hasSourcePlanRunShape(value.run) ||
     !Array.isArray(value.lanes) ||
@@ -746,11 +763,16 @@ function hasEvidenceLaneSummaryShape(value: unknown): boolean {
   return (
     isRecord(value) &&
     readNumber(value, "plannedLaneCount") !== undefined &&
-    readNumber(value, "requiredLaneCount") !== undefined &&
-    readNumber(value, "optionalLaneCount") !== undefined &&
+    ((readNumber(value, "requiredLaneCount") !== undefined &&
+      readNumber(value, "optionalLaneCount") !== undefined &&
+      readNumber(value, "requiredGapLaneCount") !== undefined) ||
+      (readNumber(value, "coreLaneCount") !== undefined &&
+        readNumber(value, "materialLaneCount") !== undefined &&
+        readNumber(value, "supplementalLaneCount") !== undefined &&
+        readNumber(value, "coreGapLaneCount") !== undefined &&
+        readNumber(value, "materialGapLaneCount") !== undefined)) &&
     readNumber(value, "coveredLaneCount") !== undefined &&
     readNumber(value, "gapLaneCount") !== undefined &&
-    readNumber(value, "requiredGapLaneCount") !== undefined &&
     readNumber(value, "sourceCount") !== undefined &&
     readNumber(value, "gapCount") !== undefined &&
     readNumber(value, "coverageRatio") !== undefined
@@ -762,7 +784,7 @@ function hasEvidenceLaneCoverageShape(value: unknown): boolean {
     isRecord(value) &&
     isEvidenceLane(value.lane) &&
     isLaneCoverageStatus(value.status) &&
-    typeof value.required === "boolean" &&
+    (typeof value.required === "boolean" || isEvidenceClass(value.evidenceClass)) &&
     readStringArray(value, "coveredSourceIds") !== undefined &&
     readStringArray(value, "gapIds") !== undefined &&
     readStringArray(value, "gapText") !== undefined &&
@@ -773,7 +795,7 @@ function hasEvidenceLaneCoverageShape(value: unknown): boolean {
 function readEvidenceLanes(value: unknown): EvidenceLanesArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    (value.version !== 1 && value.version !== 2) ||
     readString(value, "generatedAt") === undefined ||
     !Array.isArray(value.lanes) ||
     !value.lanes.every(hasEvidenceLaneCoverageShape) ||
@@ -1059,7 +1081,7 @@ function hasSourceLedgerEntryShape(value: unknown): boolean {
 function readSourceLedger(value: unknown): SourceLedgerArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    (value.version !== 1 && value.version !== 2) ||
     readString(value, "generatedAt") === undefined ||
     !Array.isArray(value.sources) ||
     !value.sources.every(hasSourceLedgerEntryShape)

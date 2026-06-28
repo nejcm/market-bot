@@ -23,10 +23,8 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
 }
 
 function evidenceLaneLine(lanes: NonNullable<RunAnalytics["evidenceLanes"]>): string {
-  const gapNote =
-    lanes.requiredGapLaneCount > 0
-      ? ` · ${String(lanes.requiredGapLaneCount)} required gap(s)`
-      : "";
+  const limitingGapCount = lanes.coreGapLaneCount + lanes.materialGapLaneCount;
+  const gapNote = limitingGapCount > 0 ? ` · ${String(limitingGapCount)} limiting gap(s)` : "";
   return `  Evidence lanes: ${String(lanes.coveredLaneCount)} covered, ${String(
     lanes.gapLaneCount,
   )} gap(s)${gapNote}`;
@@ -51,7 +49,7 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   }
 
   lines.push(
-    `  Confidence: ${evidenceQuality.confidence} · ${String(evidenceQuality.dataGapCount)} data gap(s)`,
+    `  Evidence Quality: ${evidenceQuality.label ?? evidenceQuality.confidence ?? "low"} · ${String(evidenceQuality.dataGapCount)} data gap(s)`,
   );
 
   if (postSynthesisAudit !== undefined && postSynthesisAudit.warningCount > 0) {

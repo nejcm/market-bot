@@ -1,4 +1,10 @@
-import type { ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
+import {
+  researchReportEvidenceQuality,
+  type ResearchReport,
+  type RunTrace,
+  type Source,
+  type SourceGap,
+} from "../domain/types";
 import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
 import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
@@ -24,7 +30,7 @@ export interface BuildRunAnalyticsInput {
 }
 
 export interface RunAnalytics {
-  readonly version: 1;
+  readonly version: 2;
   readonly runId: string;
   readonly generatedAt: string;
   readonly jobType: ResearchReport["jobType"];
@@ -59,7 +65,9 @@ export interface RunAnalytics {
   };
   readonly newsDedupe: NewsCollectionAnalytics;
   readonly evidenceQuality: {
-    readonly confidence: ResearchReport["confidence"];
+    readonly label?: ResearchReport["evidenceQuality"];
+    readonly confidence?: ResearchReport["confidence"];
+    readonly assessment?: RunTrace["evidenceQualityAssessment"];
     readonly dataGapCount: number;
     readonly extendedEvidence: {
       readonly itemCount: number;
@@ -125,13 +133,15 @@ export interface RunAnalytics {
   };
   readonly sourcePlan?: {
     readonly plannedLaneCount: number;
-    readonly requiredLaneCount: number;
-    readonly optionalLaneCount: number;
+    readonly coreLaneCount: number;
+    readonly materialLaneCount: number;
+    readonly supplementalLaneCount: number;
   };
   readonly evidenceLanes?: {
     readonly coveredLaneCount: number;
     readonly gapLaneCount: number;
-    readonly requiredGapLaneCount: number;
+    readonly coreGapLaneCount: number;
+    readonly materialGapLaneCount: number;
     readonly sourceCount: number;
     readonly gapCount: number;
     readonly coverageRatio: number;
@@ -484,7 +494,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         };
 
   return {
-    version: 1,
+    version: 2,
     runId: report.runId,
     generatedAt: report.generatedAt,
     jobType: report.jobType,
@@ -514,7 +524,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     },
     newsDedupe: newsDedupe(input),
     evidenceQuality: {
-      confidence: report.confidence,
+      label: researchReportEvidenceQuality(report),
+      ...(trace.evidenceQualityAssessment !== undefined
+        ? { assessment: trace.evidenceQualityAssessment }
+        : {}),
       dataGapCount: report.dataGaps.length,
       extendedEvidence: {
         itemCount: extendedEvidence?.items.length ?? 0,
@@ -556,13 +569,15 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ? {
           sourcePlan: {
             plannedLaneCount: sourcePlanSummary.plannedLaneCount,
-            requiredLaneCount: sourcePlanSummary.requiredLaneCount,
-            optionalLaneCount: sourcePlanSummary.optionalLaneCount,
+            coreLaneCount: sourcePlanSummary.coreLaneCount ?? 0,
+            materialLaneCount: sourcePlanSummary.materialLaneCount ?? 0,
+            supplementalLaneCount: sourcePlanSummary.supplementalLaneCount ?? 0,
           },
           evidenceLanes: {
             coveredLaneCount: sourcePlanSummary.coveredLaneCount,
             gapLaneCount: sourcePlanSummary.gapLaneCount,
-            requiredGapLaneCount: sourcePlanSummary.requiredGapLaneCount,
+            coreGapLaneCount: sourcePlanSummary.coreGapLaneCount ?? 0,
+            materialGapLaneCount: sourcePlanSummary.materialGapLaneCount ?? 0,
             sourceCount: sourcePlanSummary.sourceCount,
             gapCount: sourcePlanSummary.gapCount,
             coverageRatio: sourcePlanSummary.coverageRatio,

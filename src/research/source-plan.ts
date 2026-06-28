@@ -2,36 +2,52 @@ import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { AssetClass, Source, SourceGap } from "../domain/types";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
+import { isUsListing } from "../sources/instrument-capability";
 
 export const EVIDENCE_LANES = [
   "market-data",
   "supplemental-market",
   "news",
+  "market-context",
+  "verified-price-history",
+  "regulatory-filings",
+  "corporate-events",
+  "macro-indicators",
+  "derivatives-volatility",
+  "on-chain",
+  "target-valuation",
+  "peer-valuation",
+  "subject-profile",
+] as const;
+
+export const LEGACY_EVIDENCE_LANES = [
   "macro-context",
   "verified-snapshot",
   "sec-edgar",
   "equity-events",
   "extended-fred-macro",
   "options-iv",
-  "on-chain",
   "valuation",
 ] as const;
 
-export type EvidenceLane = (typeof EVIDENCE_LANES)[number];
+export type EvidenceLane = (typeof EVIDENCE_LANES)[number] | (typeof LEGACY_EVIDENCE_LANES)[number];
 
+export type EvidenceClass = "core" | "material" | "supplemental";
 export type LaneRequirement = "required" | "optional";
 
 export type LaneCoverageStatus = "covered" | "gap" | "not-covered";
 
 export interface SourcePlanLane {
   readonly lane: EvidenceLane;
-  readonly requirement: LaneRequirement;
+  readonly evidenceClass?: EvidenceClass;
+  readonly requirement?: "required" | "optional";
   readonly appliesToRun: boolean;
-  readonly providerPath: string;
+  readonly capability?: EvidenceLane;
+  readonly providerPath?: string;
 }
 
 export interface SourcePlanArtifact {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly generatedAt: string;
   readonly run: {
     readonly jobType: ResearchCommand["jobType"];
@@ -45,8 +61,9 @@ export interface SourcePlanArtifact {
 
 export interface EvidenceLaneCoverage {
   readonly lane: EvidenceLane;
+  readonly evidenceClass?: EvidenceClass;
+  readonly required?: boolean;
   readonly status: LaneCoverageStatus;
-  readonly required: boolean;
   readonly coveredSourceIds: readonly string[];
   readonly gapIds: readonly string[];
   readonly gapText: readonly string[];
@@ -54,7 +71,7 @@ export interface EvidenceLaneCoverage {
 }
 
 export interface EvidenceLanesArtifact {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly generatedAt: string;
   readonly lanes: readonly EvidenceLaneCoverage[];
   readonly summary: EvidenceLaneSummary;
@@ -72,18 +89,23 @@ export interface SourceLedgerEntry {
 }
 
 export interface SourceLedgerArtifact {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly generatedAt: string;
   readonly sources: readonly SourceLedgerEntry[];
 }
 
 export interface EvidenceLaneSummary {
   readonly plannedLaneCount: number;
-  readonly requiredLaneCount: number;
-  readonly optionalLaneCount: number;
+  readonly coreLaneCount?: number;
+  readonly materialLaneCount?: number;
+  readonly supplementalLaneCount?: number;
+  readonly requiredLaneCount?: number;
+  readonly optionalLaneCount?: number;
   readonly coveredLaneCount: number;
   readonly gapLaneCount: number;
-  readonly requiredGapLaneCount: number;
+  readonly coreGapLaneCount?: number;
+  readonly materialGapLaneCount?: number;
+  readonly requiredGapLaneCount?: number;
   readonly sourceCount: number;
   readonly gapCount: number;
   readonly coverageRatio: number;
@@ -97,8 +119,10 @@ export interface BuildSourcePlanResult {
 
 interface LaneDefinition {
   readonly lane: EvidenceLane;
-  readonly requirement: LaneRequirement;
-  readonly providerPath: string;
+  readonly evidenceClass: (
+    command: ResearchCommand,
+    collectedSources: CollectedSources,
+  ) => EvidenceClass;
   readonly applies: (command: ResearchCommand, collectedSources: CollectedSources) => boolean;
   readonly sourceIds: (collectedSources: CollectedSources) => readonly string[];
   readonly gapMatches: (gap: SourceGap) => boolean;
@@ -124,8 +148,7 @@ function marketDataApplies(command: ResearchCommand, collectedSources: Collected
 const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   {
     lane: "market-data",
-    requirement: "required",
-    providerPath: "yahoo equity market data or coingecko crypto market data",
+    evidenceClass: () => "core",
     applies: marketDataApplies,
     sourceIds: (sources) => [
       ...sources.marketSnapshots.map((snapshot) => snapshot.sourceId),
@@ -137,8 +160,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   },
   {
     lane: "supplemental-market",
-    requirement: "optional",
-    providerPath: "massive supplemental equity snapshots",
+    evidenceClass: () => "supplemental",
     applies: (command) => command.assetClass === "equity",
     sourceIds: (sources) =>
       sources.supplementalMarketSnapshots.map((snapshot) => snapshot.sourceId),
@@ -146,16 +168,14 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   },
   {
     lane: "news",
-    requirement: "optional",
-    providerPath: "marketaux, finnhub, yahoo news, or massive news",
+    evidenceClass: () => "material",
     applies: () => true,
     sourceIds: (sources) => sources.newsSources.map((source) => source.id),
     gapMatches: (gap) => gap.capability === "news",
   },
   {
-    lane: "macro-context",
-    requirement: "optional",
-    providerPath: "market-context adapter backed by FRED",
+    lane: "market-context",
+    evidenceClass: () => "material",
     applies: (command) =>
       command.jobType === "market-overview" ||
       command.jobType === "daily" ||
@@ -164,9 +184,8 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     gapMatches: (gap) => gap.capability === "market-context",
   },
   {
-    lane: "verified-snapshot",
-    requirement: "required",
-    providerPath: "yahoo verified chart for equity ticker runs",
+    lane: "verified-price-history",
+    evidenceClass: () => "core",
     applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
     sourceIds: (sources) =>
       sources.verifiedMarketSnapshot === undefined
@@ -175,52 +194,86 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     gapMatches: (gap) => gap.source === "yahoo-verified-chart",
   },
   {
-    lane: "sec-edgar",
-    requirement: "optional",
-    providerPath: "SEC EDGAR extended evidence for equity ticker runs",
-    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
+    lane: "regulatory-filings",
+    evidenceClass: () => "material",
+    applies: (command, sources) =>
+      isInstrumentCommand(command) &&
+      command.assetClass === "equity" &&
+      isUsListing(command.symbol, sources.resolvedInstrumentIdentity),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "sec-edgar"),
     gapMatches: (gap) => gap.source.startsWith("sec-"),
   },
   {
-    lane: "equity-events",
-    requirement: "optional",
-    providerPath: "Finnhub events extended evidence for equity ticker runs",
-    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
+    lane: "corporate-events",
+    evidenceClass: (command) => (command.depth === "deep" ? "material" : "supplemental"),
+    applies: (command, sources) =>
+      isInstrumentCommand(command) &&
+      command.assetClass === "equity" &&
+      isUsListing(command.symbol, sources.resolvedInstrumentIdentity),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "equity-events"),
     gapMatches: (gap) => gap.source.startsWith("finnhub-events"),
   },
   {
-    lane: "extended-fred-macro",
-    requirement: "optional",
-    providerPath: "FRED macro extended evidence for ticker runs",
+    lane: "macro-indicators",
+    evidenceClass: (command) => (command.depth === "deep" ? "material" : "supplemental"),
     applies: (command) => isInstrumentCommand(command),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "fred-macro"),
     gapMatches: (gap) => gap.capability === "extended-evidence" && gap.source.startsWith("fred-"),
   },
   {
-    lane: "options-iv",
-    requirement: "optional",
-    providerPath: "Tradier IV term structure for equity ticker runs",
-    applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
+    lane: "derivatives-volatility",
+    evidenceClass: (_command, sources) => {
+      const capabilityAvailable =
+        extendedEvidenceSourceIds(sources, "options-iv").length > 0 ||
+        sources.sourceGaps.some(
+          (gap) => gap.source.startsWith("tradier-") && gap.cause !== "missing-credential",
+        );
+      return sources.earningsSetup !== undefined && capabilityAvailable
+        ? "material"
+        : "supplemental";
+    },
+    applies: (command, sources) =>
+      isInstrumentCommand(command) &&
+      command.assetClass === "equity" &&
+      isUsListing(command.symbol, sources.resolvedInstrumentIdentity),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "options-iv"),
     gapMatches: (gap) => gap.source.startsWith("tradier-"),
   },
   {
     lane: "on-chain",
-    requirement: "optional",
-    providerPath: "Glassnode on-chain extended evidence for crypto ticker runs",
+    evidenceClass: (_command, sources) =>
+      extendedEvidenceSourceIds(sources, "on-chain").length > 0 ? "material" : "supplemental",
     applies: (command) => isInstrumentCommand(command) && command.assetClass === "crypto",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "on-chain"),
     gapMatches: (gap) => gap.source.startsWith("glassnode-"),
   },
   {
-    lane: "valuation",
-    requirement: "optional",
-    providerPath: "derived from Yahoo market cap and SEC fundamentals for equity ticker runs",
+    lane: "target-valuation",
+    evidenceClass: () => "material",
     applies: (command) => isInstrumentCommand(command) && command.assetClass === "equity",
-    sourceIds: (sources) => extendedEvidenceSourceIds(sources, "valuation"),
+    sourceIds: (sources) =>
+      sources.valuationComps?.target.sourceIds ?? extendedEvidenceSourceIds(sources, "valuation"),
     gapMatches: (gap) => gap.source === "valuation",
+  },
+  {
+    lane: "peer-valuation",
+    evidenceClass: (_command, sources) =>
+      sources.valuationComps?.target.usable === true ? "supplemental" : "material",
+    applies: (command) =>
+      isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep",
+    sourceIds: (sources) => sources.valuationComps?.peers.flatMap((peer) => peer.sourceIds) ?? [],
+    gapMatches: (gap) => gap.source === "valuation",
+  },
+  {
+    lane: "subject-profile",
+    evidenceClass: (_command, sources) =>
+      sources.webSubjectProfile === undefined ? "supplemental" : "material",
+    applies: (command) =>
+      command.depth === "deep" &&
+      command.assetClass === "equity" &&
+      (isInstrumentCommand(command) || command.jobType === "research"),
+    sourceIds: (sources) => sources.webSubjectProfile?.sourceIds ?? [],
+    gapMatches: (gap) => gap.source === "web-subject-profile",
   },
 ];
 
@@ -329,11 +382,17 @@ function summary(lanes: readonly EvidenceLaneCoverage[]): EvidenceLaneSummary {
   const plannedLaneCount = lanes.length;
   return {
     plannedLaneCount,
-    requiredLaneCount: lanes.filter((lane) => lane.required).length,
-    optionalLaneCount: lanes.filter((lane) => !lane.required).length,
+    coreLaneCount: lanes.filter((lane) => lane.evidenceClass === "core").length,
+    materialLaneCount: lanes.filter((lane) => lane.evidenceClass === "material").length,
+    supplementalLaneCount: lanes.filter((lane) => lane.evidenceClass === "supplemental").length,
     coveredLaneCount,
     gapLaneCount,
-    requiredGapLaneCount: lanes.filter((lane) => lane.required && lane.status === "gap").length,
+    coreGapLaneCount: lanes.filter(
+      (lane) => lane.evidenceClass === "core" && lane.status !== "covered",
+    ).length,
+    materialGapLaneCount: lanes.filter(
+      (lane) => lane.evidenceClass === "material" && lane.status !== "covered",
+    ).length,
     sourceCount: lanes.reduce((total, lane) => total + lane.coveredSourceIds.length, 0),
     gapCount: lanes.reduce((total, lane) => total + lane.gapIds.length, 0),
     coverageRatio: plannedLaneCount === 0 ? 1 : coveredLaneCount / plannedLaneCount,
@@ -360,23 +419,24 @@ export function buildSourcePlan(
   );
   const ledger: SourceLedgerEntry[] = [];
   const coverage = planned.map((definition): EvidenceLaneCoverage => {
+    const evidenceClass = definition.evidenceClass(command, collectedSources);
     const sourceIds = [...new Set(definition.sourceIds(collectedSources))];
     const matchedGaps = collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
     const sourceGapIds = matchedGaps.map((_, index) => gapId(definition.lane, index));
     const gapIds =
-      sourceIds.length === 0 && definition.requirement === "required" && sourceGapIds.length === 0
+      sourceIds.length === 0 && evidenceClass === "core" && sourceGapIds.length === 0
         ? [gapId(definition.lane, 0)]
         : sourceGapIds;
     const gapLines =
-      sourceIds.length === 0 && definition.requirement === "required" && matchedGaps.length === 0
+      sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
         ? syntheticMissingGap(definition.lane)
         : matchedGaps.map((gap) => gapText(gap));
     const entries = ledgerEntriesForLane(definition.lane, sourceIds, collectedSources, gapIds);
     ledger.push(...entries);
     return {
       lane: definition.lane,
+      evidenceClass,
       status: coverageStatus(sourceIds, gapIds),
-      required: definition.requirement === "required",
       coveredSourceIds: sourceIds,
       gapIds,
       gapText: gapLines,
@@ -386,7 +446,7 @@ export function buildSourcePlan(
 
   return {
     sourcePlan: {
-      version: 1,
+      version: 2,
       generatedAt,
       run: {
         jobType: command.jobType,
@@ -397,19 +457,19 @@ export function buildSourcePlan(
       },
       lanes: planned.map((definition) => ({
         lane: definition.lane,
-        requirement: definition.requirement,
+        evidenceClass: definition.evidenceClass(command, collectedSources),
         appliesToRun: true,
-        providerPath: definition.providerPath,
+        capability: definition.lane,
       })),
     },
     evidenceLanes: {
-      version: 1,
+      version: 2,
       generatedAt,
       lanes: coverage,
       summary: summary(coverage),
     },
     sourceLedger: {
-      version: 1,
+      version: 2,
       generatedAt,
       sources: ledger,
     },

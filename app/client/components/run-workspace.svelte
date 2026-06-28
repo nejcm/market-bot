@@ -323,7 +323,7 @@
         </div>
       </div>
       <div class="flex gap-5.5">
-        {#each [{ value: detail.summary.confidence ?? "—", label: "Confidence" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
+        {#each [{ value: detail.summary.confidence ?? "—", label: "Evidence Quality" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
           <div class="text-right">
             <div class="font-mono text-[17px] font-medium">{stat.value}</div>
             <div

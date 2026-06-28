@@ -47,20 +47,23 @@ describe("source plan", () => {
       generatedAt,
     );
 
-    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("options-iv");
+    expect(plan.sourcePlan.version).toBe(2);
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("derivatives-volatility");
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).not.toContain("on-chain");
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
       status: "covered",
       coveredSourceIds: ["market-yahoo-equity-aapl"],
     });
     expect(
-      plan.evidenceLanes.lanes.find((lane) => lane.lane === "verified-snapshot"),
+      plan.evidenceLanes.lanes.find((lane) => lane.lane === "verified-price-history"),
     ).toMatchObject({
       status: "gap",
-      required: true,
+      evidenceClass: "core",
       gapText: ["yahoo-verified-chart: source request failed with status 500"],
     });
-    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "sec-edgar")).toMatchObject({
+    expect(
+      plan.evidenceLanes.lanes.find((lane) => lane.lane === "regulatory-filings"),
+    ).toMatchObject({
       status: "covered",
       coveredSourceIds: ["extended-sec-edgar-aapl-filings"],
     });
@@ -80,7 +83,7 @@ describe("source plan", () => {
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toEqual(["supplemental-market", "news"]);
-    expect(plan.evidenceLanes.summary.requiredGapLaneCount).toBe(0);
+    expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(0);
   });
 
   test("keeps required market-data gap for resolved research proxy failures", () => {
@@ -111,7 +114,7 @@ describe("source plan", () => {
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("market-data");
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
       status: "gap",
-      required: true,
+      evidenceClass: "core",
       gapText: ["yahoo-research-proxy: source request failed with status 500"],
     });
   });
@@ -187,19 +190,25 @@ describe("source plan", () => {
       generatedAt,
     );
 
-    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "valuation")).toMatchObject({
-      status: "covered",
-      coveredSourceIds: ["market-yahoo-equity-amd", "extended-sec-edgar-amd-fundamentals"],
-      gapText: ["valuation: Valuation peer comps screening-only for NVDA: 2 usable peers"],
-    });
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "target-valuation")).toMatchObject(
+      {
+        status: "covered",
+        coveredSourceIds: ["market-yahoo-equity-amd", "extended-sec-edgar-amd-fundamentals"],
+        gapText: ["valuation: Valuation peer comps screening-only for NVDA: 2 usable peers"],
+      },
+    );
     expect(
       plan.sourceLedger.sources.find((source) => source.id === "market-yahoo-equity-amd"),
-    ).toMatchObject({ lane: "valuation", kind: "market-data", provider: "yahoo" });
+    ).toMatchObject({ lane: "target-valuation", kind: "market-data", provider: "yahoo" });
     expect(
       plan.sourceLedger.sources.find(
         (source) => source.id === "extended-sec-edgar-amd-fundamentals",
       ),
-    ).toMatchObject({ lane: "valuation", kind: "extended-evidence", provider: "sec-edgar" });
+    ).toMatchObject({
+      lane: "target-valuation",
+      kind: "extended-evidence",
+      provider: "sec-edgar",
+    });
   });
 
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {
@@ -227,10 +236,58 @@ describe("source plan", () => {
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("on-chain");
-    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).not.toContain("options-iv");
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).not.toContain("derivatives-volatility");
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "on-chain")).toMatchObject({
       status: "gap",
-      required: false,
+      evidenceClass: "supplemental",
     });
+  });
+
+  test("makes derivatives material only for a dated event context", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "deep" as const,
+    };
+    const withoutEvent = buildSourcePlan(command, collectedSources(), generatedAt);
+    const withEventAndCapability = buildSourcePlan(
+      command,
+      collectedSources({
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-06-10",
+            timing: "amc",
+            sourceIds: ["event-aapl"],
+            fetchedAt: generatedAt,
+          },
+          gaps: [],
+        },
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "IV term structure captured.",
+              sourceIds: ["options-aapl"],
+              observedAt: generatedAt,
+            },
+          ],
+          gaps: [],
+        },
+      }),
+      generatedAt,
+    );
+
+    expect(
+      withoutEvent.sourcePlan.lanes.find((lane) => lane.lane === "derivatives-volatility")
+        ?.evidenceClass,
+    ).toBe("supplemental");
+    expect(
+      withEventAndCapability.sourcePlan.lanes.find((lane) => lane.lane === "derivatives-volatility")
+        ?.evidenceClass,
+    ).toBe("material");
   });
 });

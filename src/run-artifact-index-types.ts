@@ -18,7 +18,7 @@ export interface RunRow {
   readonly job_type: string | null;
   readonly asset_class: string | null;
   readonly symbol: string | null;
-  readonly confidence: string | null;
+  readonly evidence_quality: string | null;
   readonly depth: string | null;
   readonly market_regime_label: string | null;
   readonly horizon_trading_days: number | null;

@@ -487,7 +487,18 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
     throw new Error("Report must set notFinancialAdvice to true");
   }
 
-  assertEvidenceQuality(report.confidence);
+  const evidenceQuality = report.evidenceQuality ?? report.confidence;
+  if (evidenceQuality === undefined) {
+    throw new Error("Research report must include evidenceQuality or legacy confidence");
+  }
+  if (
+    report.evidenceQuality !== undefined &&
+    report.confidence !== undefined &&
+    report.evidenceQuality !== report.confidence
+  ) {
+    throw new Error("Research report evidenceQuality conflicts with legacy confidence");
+  }
+  assertEvidenceQuality(evidenceQuality);
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));
 

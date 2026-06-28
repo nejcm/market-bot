@@ -165,6 +165,11 @@ describe("run artifact index", () => {
     expect(result.malformedRunCount).toBe(0);
     expect(result.artifactFileCount).toBe(3);
     expect(result.searchEntryCount).toBeGreaterThan(0);
+    const db = new Database(dbPath, { readonly: true });
+    const columns = db.query<{ name: string }, []>("PRAGMA table_info(runs)").all();
+    db.close();
+    expect(columns.map((column) => column.name)).toContain("evidence_quality");
+    expect(columns.map((column) => column.name)).not.toContain("confidence");
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toEqual([
       {

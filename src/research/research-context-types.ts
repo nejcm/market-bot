@@ -1,5 +1,6 @@
 import type { ForecastKindMix, ResolvedRunParams } from "../config/runs";
 import type {
+  EvidenceQualityAssessment,
   EvidenceRequestToolName,
   MarketRegimeSummary,
   WebGatherToolName,
@@ -9,6 +10,7 @@ import type { HistoricalResearchContext } from "./historical-context";
 import type { MarketUpdateDelta } from "./market-update-delta";
 import type { StagePlaybooks } from "./playbooks";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
+import type { BuildSourcePlanResult } from "./source-plan";
 
 export interface DepthProfile {
   readonly depth: "brief" | "deep";
@@ -31,6 +33,8 @@ export type CalibrationContext = Partial<CalibrationSummary>;
 
 export interface ResearchContext {
   readonly analysisAsOf?: string;
+  readonly sourcePlanning?: BuildSourcePlanResult;
+  readonly evidenceQualityAssessment?: EvidenceQualityAssessment;
   readonly depthProfile: DepthProfile;
   readonly runParams: ResolvedRunParams;
   readonly marketRegime: MarketRegimeSummary;

@@ -150,7 +150,7 @@ async function writeHistoricalRun(input: {
       risks: [{ text: "Prior risk.", sourceIds: ["prior-source"] }],
       catalysts: [{ text: "Prior catalyst.", sourceIds: ["prior-source"] }],
       scenarios: [],
-      confidence: "medium",
+      evidenceQuality: "medium",
       dataGaps: [],
       predictions: [],
       sources: [],
@@ -1405,7 +1405,7 @@ describe("runResearchJob", () => {
     expect(result.report).toMatchObject({
       jobType: "daily",
       assetClass: "equity",
-      confidence: "medium",
+      evidenceQuality: "medium",
       notFinancialAdvice: true,
     });
     expect(result.markdown).toContain("Research-only note");
@@ -1877,9 +1877,12 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "movers.json"), "utf8"),
     ).resolves.toContain("market-aapl");
-    await expect(
-      readFile(join(result.artifacts.normalizedDir, "source-plan.json"), "utf8"),
-    ).resolves.toContain("market-data");
+    const sourcePlanJson = await readFile(
+      join(result.artifacts.normalizedDir, "source-plan.json"),
+      "utf8",
+    );
+    expect(JSON.parse(sourcePlanJson)).toMatchObject({ version: 2 });
+    expect(sourcePlanJson).toContain("market-data");
     await expect(
       readFile(join(result.artifacts.normalizedDir, "evidence-lanes.json"), "utf8"),
     ).resolves.toContain("coveredLaneCount");
@@ -1892,9 +1895,15 @@ describe("runResearchJob", () => {
     expect(result.analytics.codeVersion).toEqual(result.trace.codeVersion);
     expect(result.trace.reproducibility?.effectiveConfigHash).toMatch(/^[a-f0-9]{64}$/u);
     expect(result.analytics.reproducibility).toEqual(result.trace.reproducibility);
-    await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
-      "Equity market breadth",
+    expect(result.trace.evidenceQualityAssessment?.label).toBe(result.report.evidenceQuality);
+    expect(result.trace.schemaVersion).toBe(2);
+    expect(result.analytics.evidenceQuality.assessment).toEqual(
+      result.trace.evidenceQualityAssessment,
     );
+    const reportJson = await readFile(join(result.artifacts.runDir, "report.json"), "utf8");
+    expect(reportJson).toContain("Equity market breadth");
+    expect(reportJson).toContain('"evidenceQuality"');
+    expect(reportJson).not.toContain('"confidence"');
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
       "Research-only note",
     );
@@ -2673,7 +2682,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.report.confidence).toBe("low");
+    expect(result.report.evidenceQuality).toBe("low");
     expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
     expect(result.report.dataGaps).toContain("No usable news sources were collected");
     expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
@@ -2726,7 +2735,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.report.confidence).toBe("high");
+    expect(result.report.evidenceQuality).toBe("medium");
     expect(result.report.dataGaps).toContain("fred-macro: MARKET_BOT_FRED_API_KEY is not set");
   });
 
@@ -2780,7 +2789,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.report.confidence).toBe("high");
+    expect(result.report.evidenceQuality).toBe("medium");
     expect(result.report.dataGaps).toEqual([
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
@@ -2837,7 +2846,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.report.confidence).toBe("medium");
+    expect(result.report.evidenceQuality).toBe("low");
   });
 
   test("allows Web Subject Profile evidence to offset one extended evidence gap", async () => {
@@ -2901,7 +2910,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.report.confidence).toBe("high");
+    expect(result.report.evidenceQuality).toBe("low");
   });
 
   test("ships with a shortfall gap without reprompting when predictions fall below target", async () => {

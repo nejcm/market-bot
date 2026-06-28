@@ -899,6 +899,12 @@ function buildEvidencePayload(
     ...(context.evidenceRequest !== undefined ? { evidenceRequest: context.evidenceRequest } : {}),
     ...(context.webGather !== undefined ? { webGather: context.webGather } : {}),
     sourceGaps: deterministicSourceGaps(command, collectedSources),
+    ...(context.sourcePlanning !== undefined
+      ? {
+          sourcePlan: context.sourcePlanning.sourcePlan,
+          evidenceLanes: context.sourcePlanning.evidenceLanes,
+        }
+      : {}),
     deterministicCitationGuidance,
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
@@ -981,7 +987,6 @@ function finalReportShape(
     risks: [{ text: "string", sourceIds: ["source-id"] }],
     catalysts: [{ text: "string", sourceIds: ["source-id"] }],
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
-    confidence: "high|medium|low",
     dataGaps: ["string"],
     predictions: Array.from({ length: depthProfile.targetPredictions }, (_, idx) => ({
       id: `pred-${String(idx + 1)}`,

@@ -184,11 +184,13 @@ describe("run analytics", () => {
       targetPredictions: 3,
       sourcePlanSummary: {
         plannedLaneCount: 5,
-        requiredLaneCount: 2,
-        optionalLaneCount: 3,
+        coreLaneCount: 2,
+        materialLaneCount: 2,
+        supplementalLaneCount: 1,
         coveredLaneCount: 3,
         gapLaneCount: 1,
-        requiredGapLaneCount: 1,
+        coreGapLaneCount: 1,
+        materialGapLaneCount: 0,
         sourceCount: 4,
         gapCount: 1,
         coverageRatio: 0.6,
@@ -259,13 +261,15 @@ describe("run analytics", () => {
     });
     expect(analytics.sourcePlan).toEqual({
       plannedLaneCount: 5,
-      requiredLaneCount: 2,
-      optionalLaneCount: 3,
+      coreLaneCount: 2,
+      materialLaneCount: 2,
+      supplementalLaneCount: 1,
     });
     expect(analytics.evidenceLanes).toEqual({
       coveredLaneCount: 3,
       gapLaneCount: 1,
-      requiredGapLaneCount: 1,
+      coreGapLaneCount: 1,
+      materialGapLaneCount: 0,
       sourceCount: 4,
       gapCount: 1,
       coverageRatio: 0.6,

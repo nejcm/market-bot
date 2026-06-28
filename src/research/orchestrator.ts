@@ -1,6 +1,7 @@
 import { marketSpotlightOptions, type AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
+import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { join } from "node:path";
@@ -702,6 +703,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       marketUpdateDelta,
     };
   }
+  const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
+  const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
+  context = { ...context, sourcePlanning, evidenceQualityAssessment };
   const plannedStages = plannedResearchStages(input.command);
   const playbookSelection = await runPlaybookSelection(
     input,
@@ -832,7 +836,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ],
     });
   }
-  const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
   const {
     predictionErrors,
     predictionRetryErrors,
@@ -855,6 +858,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   ];
 
   const trace: RunTrace = {
+    schemaVersion: 2,
     runId,
     jobType: input.command.jobType,
     ...marketUpdateTraceFields(input.command),
@@ -867,6 +871,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       effectiveConfigHash: effectiveConfigHash(input.config),
       ...(sourceStateHash !== undefined ? { dirtySourceHash: sourceStateHash } : {}),
     },
+    evidenceQualityAssessment,
     quickModel: runParams.quickModel,
     synthesisModel: runParams.synthesisModel,
     startedAt: generatedAt,
@@ -897,13 +902,15 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       : {}),
     sourcePlan: {
       plannedLaneCount: sourcePlanning.evidenceLanes.summary.plannedLaneCount,
-      requiredLaneCount: sourcePlanning.evidenceLanes.summary.requiredLaneCount,
-      optionalLaneCount: sourcePlanning.evidenceLanes.summary.optionalLaneCount,
+      coreLaneCount: sourcePlanning.evidenceLanes.summary.coreLaneCount ?? 0,
+      materialLaneCount: sourcePlanning.evidenceLanes.summary.materialLaneCount ?? 0,
+      supplementalLaneCount: sourcePlanning.evidenceLanes.summary.supplementalLaneCount ?? 0,
     },
     evidenceLanes: {
       coveredLaneCount: sourcePlanning.evidenceLanes.summary.coveredLaneCount,
       gapLaneCount: sourcePlanning.evidenceLanes.summary.gapLaneCount,
-      requiredGapLaneCount: sourcePlanning.evidenceLanes.summary.requiredGapLaneCount,
+      coreGapLaneCount: sourcePlanning.evidenceLanes.summary.coreGapLaneCount ?? 0,
+      materialGapLaneCount: sourcePlanning.evidenceLanes.summary.materialGapLaneCount ?? 0,
       sourceCount: sourcePlanning.evidenceLanes.summary.sourceCount,
       gapCount: sourcePlanning.evidenceLanes.summary.gapCount,
       coverageRatio: sourcePlanning.evidenceLanes.summary.coverageRatio,

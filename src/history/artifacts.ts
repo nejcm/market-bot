@@ -1,14 +1,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-  AssetClass,
-  InstrumentIdentity,
-  JobType,
-  KeyFinding,
-  Prediction,
-  ResearchReport,
-  Source,
-  VerifiedMarketSnapshot,
+import {
+  researchReportEvidenceQuality,
+  type AssetClass,
+  type InstrumentIdentity,
+  type JobType,
+  type KeyFinding,
+  type Prediction,
+  type ResearchReport,
+  type Source,
+  type VerifiedMarketSnapshot,
 } from "../domain/types";
 import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
@@ -91,6 +92,7 @@ export interface InstrumentTimelineEntry {
   readonly instrumentKey: string;
   readonly scope: ThesisScope;
   readonly confidence: string;
+  readonly confidenceLegacy?: boolean;
   readonly thesis: ResearchThesisState;
   readonly sources: readonly Source[];
   readonly scores: readonly PredictionScore[];
@@ -384,7 +386,8 @@ export function buildInstrumentTimelines(
         symbol,
         instrumentKey: key,
         scope,
-        confidence: run.report.confidence,
+        confidence: researchReportEvidenceQuality(run.report),
+        confidenceLegacy: run.report.evidenceQuality === undefined,
         thesis: thesisState(run.report, run.scores),
         sources: run.report.sources.filter(
           (source) => source.symbol === undefined || source.symbol.toUpperCase() === symbol,

@@ -69,7 +69,7 @@ export interface AlphaSearchWorkflowResult {
 }
 
 export interface AlphaSearchRunAnalytics {
-  readonly version: 1;
+  readonly version: 2;
   readonly runId: string;
   readonly generatedAt: string;
   readonly jobType: "alpha-search";
@@ -327,7 +327,7 @@ function buildAlphaSearchReport(input: {
     // Only quality-capping (core) gaps should downgrade confidence.
     // No-cap gaps such as pre-ticker SEC filings are disclosed in dataGaps,
     // Yet must not pin an otherwise-clean run with valid leads to "low".
-    confidence:
+    evidenceQuality:
       validLeads.length > 0 && input.sourceGaps.filter(isCoreEvidenceQualityGap).length === 0
         ? "medium"
         : "low",
@@ -350,6 +350,7 @@ function buildTrace(input: {
   const codeVersion = readCodeVersion();
   const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   return {
+    schemaVersion: 2,
     runId: input.runId,
     jobType: "alpha-search",
     assetClass: input.command.assetClass,
@@ -413,7 +414,7 @@ function buildAlphaSearchAnalytics(input: {
   const { report, trace } = input;
   const runDurationMs = durationMs(trace);
   return {
-    version: 1,
+    version: 2,
     runId: report.runId,
     generatedAt: report.generatedAt,
     jobType: "alpha-search",

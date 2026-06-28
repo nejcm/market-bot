@@ -285,6 +285,24 @@ export interface MoverFeatures {
 
 export type EvidenceQuality = "high" | "medium" | "low";
 
+export interface EvidenceQualityCheck {
+  readonly capability: string;
+  readonly evidenceClass: "core" | "material" | "supplemental";
+  readonly coverage: "pass" | "fail";
+  readonly freshness: "pass" | "fail" | "not-applicable";
+  readonly corroboration: "pass" | "fail" | "not-applicable";
+  readonly passed: boolean;
+  readonly reasons: readonly string[];
+}
+
+export interface EvidenceQualityAssessment {
+  readonly version: 1;
+  readonly rubricVersion: 1;
+  readonly label: EvidenceQuality;
+  readonly checks: readonly EvidenceQualityCheck[];
+  readonly limitingReasons: readonly string[];
+}
+
 export type ExtendedEvidenceCategory =
   | "sec-edgar"
   | "valuation"
@@ -443,13 +461,18 @@ export interface ResearchReport {
   readonly risks: readonly KeyFinding[];
   readonly catalysts: readonly KeyFinding[];
   readonly scenarios: readonly Scenario[];
-  readonly confidence: EvidenceQuality;
+  readonly evidenceQuality?: EvidenceQuality;
+  readonly confidence?: EvidenceQuality;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
   readonly extendedEvidence?: ExtendedEvidence;
   readonly notFinancialAdvice: true;
   readonly extras?: Record<string, unknown>;
+}
+
+export function researchReportEvidenceQuality(report: ResearchReport): EvidenceQuality {
+  return report.evidenceQuality ?? report.confidence ?? "low";
 }
 
 export interface HistoricalContextAudit {
@@ -478,6 +501,7 @@ export interface CodeVersion {
 }
 
 export interface RunTrace {
+  readonly schemaVersion?: 2;
   readonly runId: string;
   readonly jobType: JobType;
   readonly marketUpdateHorizonBucket?: string;
@@ -492,6 +516,7 @@ export interface RunTrace {
     readonly effectiveConfigHash: string;
     readonly dirtySourceHash?: string;
   };
+  readonly evidenceQualityAssessment?: EvidenceQualityAssessment;
   readonly quickModel: string;
   readonly synthesisModel: string;
   readonly startedAt: string;
@@ -522,13 +547,15 @@ export interface RunTrace {
   };
   readonly sourcePlan?: {
     readonly plannedLaneCount: number;
-    readonly requiredLaneCount: number;
-    readonly optionalLaneCount: number;
+    readonly coreLaneCount: number;
+    readonly materialLaneCount: number;
+    readonly supplementalLaneCount: number;
   };
   readonly evidenceLanes?: {
     readonly coveredLaneCount: number;
     readonly gapLaneCount: number;
-    readonly requiredGapLaneCount: number;
+    readonly coreGapLaneCount: number;
+    readonly materialGapLaneCount: number;
     readonly sourceCount: number;
     readonly gapCount: number;
     readonly coverageRatio: number;

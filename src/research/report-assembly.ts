@@ -3,7 +3,6 @@ import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
-  type EvidenceQuality,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
@@ -13,11 +12,7 @@ import {
   type SourceGap,
 } from "../domain/types";
 import type { ObservableForecastIssue } from "../forecast/observable";
-import {
-  dedupeSourceGaps,
-  isCoreEvidenceQualityGap,
-  isExtendedEvidenceQualityGap,
-} from "../domain/source-gaps";
+import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
@@ -37,6 +32,8 @@ import {
 } from "./research-subject-identity";
 import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightSelectionResult } from "./spotlights";
+import { assessEvidenceQuality } from "./evidence-quality";
+import { buildSourcePlan } from "./source-plan";
 
 // ---------------------------------------------------------------------------
 // Raw model payload
@@ -50,6 +47,7 @@ export interface ModelReportPayload {
   readonly risks?: unknown;
   readonly catalysts?: unknown;
   readonly scenarios?: unknown;
+  /** Legacy model field accepted but ignored for new report assembly. */
   readonly confidence?: unknown;
   readonly dataGaps?: unknown;
   readonly predictions?: unknown;
@@ -107,26 +105,6 @@ function readScenarios(value: unknown): readonly Scenario[] {
       };
     })
     .filter((item): item is Scenario => item !== undefined);
-}
-
-function readEvidenceQuality(value: unknown): EvidenceQuality {
-  if (value === "high" || value === "medium" || value === "low") {
-    return value;
-  }
-
-  return "low";
-}
-
-function qualityRank(value: EvidenceQuality): number {
-  if (value === "high") {
-    return 3;
-  }
-
-  return value === "medium" ? 2 : 1;
-}
-
-function lowerQuality(left: EvidenceQuality, right: EvidenceQuality): EvidenceQuality {
-  return qualityRank(left) <= qualityRank(right) ? left : right;
 }
 
 // ---------------------------------------------------------------------------
@@ -257,34 +235,6 @@ export function buildSourceList(
     ...(historicalContext?.sources ?? []),
     ...registrySources,
   ];
-}
-
-// ---------------------------------------------------------------------------
-// Evidence quality cap
-// ---------------------------------------------------------------------------
-
-function deterministicQualityCap(collectedSources: CollectedSources): EvidenceQuality {
-  if (collectedSources.marketSnapshots.length === 0) {
-    return "low";
-  }
-
-  const coreGaps = collectedSources.sourceGaps.filter((gap) => isCoreEvidenceQualityGap(gap));
-  const extendedCategoryCount =
-    collectedSources.extendedEvidence === undefined
-      ? 0
-      : new Set(collectedSources.extendedEvidence.items.map((item) => item.category)).size;
-  const extendedGapCount =
-    collectedSources.extendedEvidence?.gaps.filter(isExtendedEvidenceQualityGap).length ?? 0;
-
-  if (
-    coreGaps.length > 0 ||
-    collectedSources.newsSources.length === 0 ||
-    extendedGapCount > extendedCategoryCount
-  ) {
-    return "medium";
-  }
-
-  return "high";
 }
 
 // ---------------------------------------------------------------------------
@@ -879,10 +829,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ]
     : dataGapsRaw;
 
-  const confidence = lowerQuality(
-    readEvidenceQuality(payload.confidence),
-    deterministicQualityCap(collectedSources),
-  );
+  const evidenceQuality =
+    context.evidenceQualityAssessment?.label ??
+    assessEvidenceQuality(
+      context.sourcePlanning ?? buildSourcePlan(command, collectedSources, generatedAt),
+      generatedAt,
+    ).label;
   const modelExtras =
     typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
       ? (payload.extras as Record<string, unknown>)
@@ -942,7 +894,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     risks,
     catalysts,
     scenarios,
-    confidence,
+    evidenceQuality,
     dataGaps,
     predictions: gatedPredictions.predictions,
     sources,

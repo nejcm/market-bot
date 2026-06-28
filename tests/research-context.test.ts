@@ -386,7 +386,7 @@ describe("buildStagePrompt", () => {
     );
     const parsed = JSON.parse(prompt) as {
       readonly instruction?: string;
-      readonly requiredShape?: {
+      readonly requiredShape?: Record<string, unknown> & {
         readonly predictions?: readonly Record<string, unknown>[];
       };
     };
@@ -394,6 +394,7 @@ describe("buildStagePrompt", () => {
     expect(parsed.instruction).toContain("Do not write a claim field");
     expect(parsed.instruction).toContain("probability is the probability that the measurableAs");
     expect(parsed.requiredShape?.predictions?.[0]).not.toHaveProperty("claim");
+    expect(parsed.requiredShape).not.toHaveProperty("confidence");
   });
 
   test("final-synthesis shape includes business framework extras when sidecar exists", () => {

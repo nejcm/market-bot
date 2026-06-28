@@ -6,7 +6,7 @@ function analytics(
   overrides: Partial<AlphaSearchRunAnalytics["alphaSearch"]> = {},
 ): AlphaSearchRunAnalytics {
   return {
-    version: 1,
+    version: 2,
     runId: "alpha-run",
     generatedAt: "2026-05-19T00:00:00.000Z",
     jobType: "alpha-search",

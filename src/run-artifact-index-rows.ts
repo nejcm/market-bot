@@ -1,6 +1,10 @@
 import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import type { Prediction, ResearchReport } from "./domain/types";
+import {
+  researchReportEvidenceQuality,
+  type Prediction,
+  type ResearchReport,
+} from "./domain/types";
 import {
   buildReportSearchEntries,
   predictionClaim,
@@ -111,7 +115,7 @@ function runRowFor(
       job_type: null,
       asset_class: null,
       symbol: null,
-      confidence: null,
+      evidence_quality: null,
       depth: null,
       market_regime_label: null,
       horizon_trading_days: null,
@@ -132,7 +136,7 @@ function runRowFor(
     job_type: report.jobType,
     asset_class: report.assetClass,
     symbol: report.symbol?.toUpperCase() ?? null,
-    confidence: report.confidence,
+    evidence_quality: researchReportEvidenceQuality(report),
     depth: readDepth(report) ?? null,
     market_regime_label: readReportMarketRegimeLabel(report) ?? null,
     horizon_trading_days: report.horizonTradingDays ?? null,

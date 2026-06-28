@@ -4,6 +4,7 @@ import {
   isInstrumentJobType,
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
+  researchReportEvidenceQuality,
   type AssetClass,
   type EvidenceQuality,
   type HistoricalContextAudit,
@@ -81,6 +82,7 @@ export interface HistoricalRunContext {
   readonly selectionReasons: readonly HistoricalSelectionReason[];
   readonly summary: string;
   readonly confidence: EvidenceQuality;
+  readonly confidenceLegacy?: boolean;
   readonly keyFindings: readonly KeyFinding[];
   readonly risks: readonly KeyFinding[];
   readonly catalysts: readonly KeyFinding[];
@@ -432,7 +434,8 @@ function toRunContext(
     generatedAt: report.generatedAt,
     selectionReasons: selected.reasons,
     summary: report.summary,
-    confidence: report.confidence,
+    confidence: researchReportEvidenceQuality(report),
+    confidenceLegacy: report.evidenceQuality === undefined,
     keyFindings: report.keyFindings.slice(0, 5),
     risks: report.risks.slice(0, 5),
     catalysts: report.catalysts.slice(0, 5),

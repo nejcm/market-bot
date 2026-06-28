@@ -218,7 +218,7 @@ export async function rebuildRunArtifactIndex(
       resetSchema(db);
       const insertRun = db.prepare(`
         INSERT INTO runs (
-          run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
+          run_id, run_dir_name, generated_at, job_type, asset_class, symbol, evidence_quality, depth,
           market_regime_label, horizon_trading_days,
           finding_count, prediction_count, source_count, data_gap_count, has_score,
           report_status, score_status
@@ -242,7 +242,7 @@ export async function rebuildRunArtifactIndex(
           row.job_type,
           row.asset_class,
           row.symbol,
-          row.confidence,
+          row.evidence_quality,
           row.depth,
           row.market_regime_label,
           row.horizon_trading_days,
@@ -343,7 +343,7 @@ export async function writeThroughRunArtifactIndex(
       const deleteRun = db.prepare("DELETE FROM runs WHERE run_id = ?");
       const insertRun = db.prepare(`
         INSERT INTO runs (
-          run_id, run_dir_name, generated_at, job_type, asset_class, symbol, confidence, depth,
+          run_id, run_dir_name, generated_at, job_type, asset_class, symbol, evidence_quality, depth,
           market_regime_label, horizon_trading_days,
           finding_count, prediction_count, source_count, data_gap_count, has_score,
           report_status, score_status
@@ -382,7 +382,7 @@ export async function writeThroughRunArtifactIndex(
           indexed.run.job_type,
           indexed.run.asset_class,
           indexed.run.symbol,
-          indexed.run.confidence,
+          indexed.run.evidence_quality,
           indexed.run.depth,
           indexed.run.market_regime_label,
           indexed.run.horizon_trading_days,

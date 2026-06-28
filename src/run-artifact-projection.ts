@@ -34,7 +34,10 @@ export function runSummaryFromReport(
   const assetClass = report === undefined ? undefined : readString(report, "assetClass");
   const symbol = report === undefined ? undefined : readString(report, "symbol");
   const depth = report === undefined ? undefined : readDepth(report);
-  const confidence = report === undefined ? undefined : readString(report, "confidence");
+  const confidence =
+    report === undefined
+      ? undefined
+      : (readString(report, "evidenceQuality") ?? readString(report, "confidence"));
 
   return {
     runId: readString(report ?? {}, "runId") ?? runId,
@@ -61,7 +64,7 @@ export function runSummaryFromIndexRow(row: RunRow, availableFiles: readonly str
     ...(row.asset_class !== null ? { assetClass: row.asset_class } : {}),
     ...(row.symbol !== null ? { symbol: row.symbol } : {}),
     ...(row.depth !== null ? { depth: row.depth } : {}),
-    ...(row.confidence !== null ? { confidence: row.confidence } : {}),
+    ...(row.evidence_quality !== null ? { confidence: row.evidence_quality } : {}),
     findingCount: row.finding_count,
     predictionCount: row.prediction_count,
     sourceCount: row.source_count,

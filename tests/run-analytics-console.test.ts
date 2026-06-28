@@ -4,7 +4,7 @@ import type { RunAnalytics } from "../src/research/run-analytics";
 
 function baseAnalytics(): RunAnalytics {
   return {
-    version: 1,
+    version: 2,
     runId: "run-1",
     generatedAt: "2026-05-19T00:00:00.000Z",
     jobType: "equity",
@@ -71,7 +71,7 @@ describe("run analytics console", () => {
       [
         "Run quality — equity AAPL (run-1)",
         "  Predictions: 5/5 target met · 3 informative, 2 near base rate",
-        "  Confidence: medium · 1 data gap(s)",
+        "  Evidence Quality: medium · 1 data gap(s)",
       ].join("\n"),
     );
   });
@@ -103,21 +103,22 @@ describe("run analytics console", () => {
     expect(output).toContain("1 informative, 2 near base rate (below signal floor)");
   });
 
-  test("renders evidence lanes with a required-gap note", () => {
+  test("renders evidence lanes with a limiting-gap note", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
       evidenceLanes: {
         coveredLaneCount: 6,
         gapLaneCount: 2,
-        requiredGapLaneCount: 1,
+        coreGapLaneCount: 1,
+        materialGapLaneCount: 0,
         sourceCount: 12,
         gapCount: 2,
         coverageRatio: 0.75,
       },
     });
 
-    expect(output).toContain("Evidence lanes: 6 covered, 2 gap(s) · 1 required gap(s)");
+    expect(output).toContain("Evidence lanes: 6 covered, 2 gap(s) · 1 limiting gap(s)");
   });
 
   test("renders post-synthesis audit warnings with code breakdown", () => {

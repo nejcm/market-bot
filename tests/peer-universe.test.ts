@@ -7,6 +7,27 @@ import {
 } from "../src/research/peer-universe";
 
 describe("peer universe", () => {
+  test("resolves AAPL to deterministic large-cap peer universe", () => {
+    const result = resolvePeerUniverse("AAPL");
+
+    expect(result.status).toBe("resolved");
+    expect(result.universe).toMatchObject({
+      targetSymbol: "AAPL",
+      provenance: "ticker-mapping",
+    });
+    expect(result.universe?.peers.map((peer) => peer.symbol)).toEqual([
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "DELL",
+    ]);
+    expect(result.universe?.peers.filter((peer) => peer.role === "core")).toHaveLength(4);
+    expect(result.universe?.peers.filter((peer) => peer.role === "secondary")).toHaveLength(1);
+    expect(result.universe?.peers.every((peer) => peer.sourceIds.length > 0)).toBe(true);
+    expect(result.universe?.peers.every((peer) => peer.rationale.trim() !== "")).toBe(true);
+  });
+
   test("resolves checked-in ticker mapping before subject-registry fallback", () => {
     const result = resolvePeerUniverse("nvda");
 

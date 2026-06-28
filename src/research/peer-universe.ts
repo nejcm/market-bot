@@ -46,6 +46,17 @@ export interface PeerUniverseValidationResult {
 export type PeerUniverseMapping = Readonly<Record<string, PeerUniverse>>;
 
 export const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse({
+  AAPL: tickerUniverse("AAPL", [
+    peer("MSFT", "Microsoft", "core", "large-cap platform ecosystem and services peer", [
+      "nasdaq-msft",
+    ]),
+    peer("GOOGL", "Alphabet", "core", "large-cap digital advertising and platform peer", [
+      "nasdaq-googl",
+    ]),
+    peer("AMZN", "Amazon", "core", "large-cap cloud and consumer ecosystem peer", ["nasdaq-amzn"]),
+    peer("META", "Meta Platforms", "core", "large-cap digital platform peer", ["nasdaq-meta"]),
+    peer("DELL", "Dell Technologies", "secondary", "hardware and ecosystem peer", ["nyse-dell"]),
+  ]),
   NVDA: tickerUniverse("NVDA", [
     peer("AMD", "Advanced Micro Devices", "core", "GPU and accelerator semiconductor peer", [
       "nasdaq-amd",

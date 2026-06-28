@@ -668,9 +668,8 @@ function buildForecastDiversityGuidance(
     "range (outside [Lo, Hi])",
   ];
   if (
-    collectedSources.extendedEvidence?.items.some(
-      (item) => item.category === "options-iv" || item.category === "derivatives-volatility",
-    ) === true ||
+    collectedSources.extendedEvidence?.items.some((item) => item.category === "options-iv") ===
+      true ||
     collectedSources.sourceGaps.some(
       (gap) => gap.source.startsWith("tradier-") && gap.cause !== "missing-credential",
     )

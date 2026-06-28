@@ -38,9 +38,12 @@ function auditLine(audit: NonNullable<RunAnalytics["postSynthesisAudit"]>): stri
 }
 
 function sourceGapClassLine(analytics: RunAnalytics): string | undefined {
-  const classes = analytics.sourceFunnel.sourceGapClasses;
-  const {total} = analytics.sourceFunnel.sourceGaps;
-  if (total === 0) {
+  // Cosmetic digest must never abort: tolerate analytics that predates the
+  // SourceGapClasses field or omits sourceFunnel entirely.
+  const funnel = analytics.sourceFunnel as RunAnalytics["sourceFunnel"] | undefined;
+  const classes = funnel?.sourceGapClasses;
+  const total = funnel?.sourceGaps?.total ?? 0;
+  if (classes === undefined || total === 0) {
     return undefined;
   }
   const parts: string[] = [];

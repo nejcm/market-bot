@@ -1,3 +1,4 @@
+import { runTypeSupportsAsset, runTypeSupportsDepth } from "../domain/run-types";
 import {
   isInstrumentJobType,
   type AssetClass,
@@ -198,19 +199,11 @@ function depthArg(depth: Depth): readonly string[] {
 }
 
 export function jobSupportsAsset(jobType: string): boolean {
-  return jobType === "daily" || jobType === "weekly" || jobType === "market-overview";
+  return runTypeSupportsAsset(jobType);
 }
 
 export function jobSupportsDepth(jobType: string): boolean {
-  return (
-    jobType === "daily" ||
-    jobType === "weekly" ||
-    jobType === "market-overview" ||
-    jobType === "equity" ||
-    jobType === "crypto" ||
-    jobType === "alpha-search" ||
-    jobType === "research"
-  );
+  return runTypeSupportsDepth(jobType);
 }
 
 export function commandLabel(command: CliCommand): string {

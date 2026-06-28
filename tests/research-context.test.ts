@@ -2328,6 +2328,33 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).toContain("earnings-direction or earnings-move");
   });
 
+  test("uses on-subject IV guidance instead of VIX volatility for instrument options evidence", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command, {
+      extendedEvidence: {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          {
+            category: "options-iv",
+            title: "AAPL options IV",
+            summary: "Near-term IV is elevated.",
+            sourceIds: ["tradier-aapl-options"],
+            observedAt: "2026-06-01T00:00:00.000Z",
+          },
+        ],
+        gaps: [],
+      },
+    });
+
+    expect(instruction).toContain("IV (iv(SUBJECT, +N) > T)");
+    expect(instruction).not.toContain("volatility (VIX threshold)");
+  });
+
   test("omits earnings shapes when no earningsSetup", () => {
     const command: ResearchCommand = {
       jobType: "equity",

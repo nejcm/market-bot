@@ -674,7 +674,7 @@ function buildForecastDiversityGuidance(
       (gap) => gap.source.startsWith("tradier-") && gap.cause !== "missing-credential",
     )
   ) {
-    shapes.push("volatility (VIX threshold)");
+    shapes.push("IV (iv(SUBJECT, +N) > T)");
   }
   if (collectedSources.earningsSetup !== undefined) {
     shapes.push("earnings-direction or earnings-move (event-anchored)");

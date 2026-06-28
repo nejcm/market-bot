@@ -2213,3 +2213,130 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(evidence.webSubjectProfile).toBeUndefined();
   });
 });
+
+describe("buildStagePrompt forecast diversity guidance", () => {
+  function finalSynthesisInstruction(
+    command: ResearchCommand,
+    sources: Partial<Parameters<typeof collectedSources>[0]> = {},
+  ): string {
+    const depthProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+        ...sources,
+      }),
+      config,
+      {
+        depthProfile,
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "concise brief",
+          minimumKeyFindings: 3,
+          minimumScenarios: 2,
+          targetPredictions: depthProfile.targetPredictions,
+          defaultPredictionHorizon: depthProfile.defaultPredictionHorizon,
+          predictionSubjects: depthProfile.predictionSubjects,
+          focus: depthProfile.focus,
+          targetKindMix: depthProfile.targetKindMix,
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: command.assetClass,
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    return parsed.instruction ?? "";
+  }
+
+  test("deep instrument runs include forecast-shape diversity guidance", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).toContain(
+      "consider whether the available evidence supports distinct forecast shapes",
+    );
+    expect(instruction).toContain("direction (close up/down)");
+    expect(instruction).toContain("relative (vs benchmark)");
+    expect(instruction).toContain("range (outside [Lo, Hi])");
+    expect(instruction).toContain("conditional");
+    expect(instruction).toContain("soft target");
+  });
+
+  test("brief instrument runs do not include forecast diversity guidance", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).not.toContain(
+      "consider whether the available evidence supports distinct forecast shapes",
+    );
+  });
+
+  test("market-overview runs do not include forecast diversity guidance", () => {
+    const command: ResearchCommand = {
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).not.toContain(
+      "consider whether the available evidence supports distinct forecast shapes",
+    );
+  });
+
+  test("includes earnings shapes when earningsSetup is present", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command, {
+      earningsSetup: {
+        event: {
+          symbol: "AAPL",
+          date: "2026-07-30",
+          timing: "amc",
+          sourceIds: ["earnings-aapl"],
+          fetchedAt: "2026-06-01T00:00:00.000Z",
+        },
+        gaps: [],
+      },
+    });
+
+    expect(instruction).toContain("earnings-direction or earnings-move");
+  });
+
+  test("omits earnings shapes when no earningsSetup", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).not.toContain("earnings-direction or earnings-move");
+  });
+});

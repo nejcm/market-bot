@@ -15,7 +15,6 @@ import {
   type MarketRegimeLabel,
   type MarketSnapshot,
   type Prediction,
-  type PredictionKind,
   type ProviderInstrumentId,
   type ResearchReport,
   type Source,
@@ -28,7 +27,7 @@ import {
   isSourceGapCause,
   isSourceGapEvidenceQualityImpact,
 } from "./domain/source-gaps";
-import { renderClaimForMeasurableAs } from "./forecast/observable";
+import { isPredictionKind, renderClaimForMeasurableAs } from "./forecast/observable";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type {
   MissAutopsyCause,
@@ -147,18 +146,6 @@ interface JsonFileResult {
   readonly value?: unknown;
 }
 
-const PREDICTION_KINDS: ReadonlySet<string> = new Set<PredictionKind>([
-  "direction",
-  "relative",
-  "volatility",
-  "range",
-  "macro",
-  "iv",
-  "earnings-direction",
-  "earnings-move",
-  "conditional",
-]);
-
 const MISS_AUTOPSY_CAUSES: ReadonlySet<string> = new Set<MissAutopsyCause>([
   "data_gap",
   "source_gap",
@@ -207,10 +194,6 @@ function isJobType(value: unknown): value is JobType {
     value === "alpha-search" ||
     value === "research"
   );
-}
-
-function isPredictionKind(value: unknown): value is PredictionKind {
-  return typeof value === "string" && PREDICTION_KINDS.has(value);
 }
 
 function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {

@@ -98,7 +98,7 @@ type AnyBasePredictionShape = {
   readonly [K in BasePredictionKind]: PredictionShape<K>;
 }[BasePredictionKind];
 
-function isPredictionKind(value: unknown): value is PredictionKind {
+export function isPredictionKind(value: unknown): value is PredictionKind {
   return typeof value === "string" && value in PREDICTION_SHAPE_BY_KIND;
 }
 

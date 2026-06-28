@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   instrumentsForMeasurableAs,
+  isPredictionKind,
   observationStrategyForForecast,
   parseObservableExpression,
   renderClaim,
@@ -439,5 +440,39 @@ describe("instrumentsForMeasurableAs", () => {
     expect(instrumentsForMeasurableAs("")).toEqual([]);
     expect(instrumentsForMeasurableAs("not a real expression")).toEqual([]);
     expect(instrumentsForMeasurableAs("close(SPY,")).toEqual([]);
+  });
+});
+
+describe("isPredictionKind", () => {
+  const allKinds = [
+    "direction",
+    "relative",
+    "volatility",
+    "range",
+    "macro",
+    "iv",
+    "earnings-direction",
+    "earnings-move",
+    "conditional",
+  ] as const;
+
+  for (const kind of allKinds) {
+    test(`returns true for "${kind}"`, () => {
+      expect(isPredictionKind(kind)).toBe(true);
+    });
+  }
+
+  test("returns false for a known non-kind string", () => {
+    expect(isPredictionKind("recommendation")).toBe(false);
+  });
+
+  test("returns false for an empty string", () => {
+    expect(isPredictionKind("")).toBe(false);
+  });
+
+  test("returns false for a non-string value", () => {
+    expect(isPredictionKind(42)).toBe(false);
+    expect(isPredictionKind(null)).toBe(false);
+    expect(isPredictionKind({ kind: "direction" })).toBe(false);
   });
 });

@@ -146,6 +146,15 @@ export async function loadCalibrationContext(
   }
 }
 
+// Resolve the analysis cutoff stamped into evidence payloads and selection prompts.
+// Real entry points (runResearchJob, alpha-search workflow) always set context.analysisAsOf
+// To the run's generatedAt/startedAt, so the wall-clock branch is an unreachable defensive
+// Fallback kept only to satisfy the optional type; reaching it would reintroduce
+// Nondeterminism into prompts, so it must never fire on a real run.
+function resolveAnalysisAsOf(context: ResearchContext): string {
+  return context.analysisAsOf ?? new Date().toISOString();
+}
+
 // Domain invariants the producer guarantees (see src/scoring/calibration.ts).
 // These are enforced at the untrusted disk boundary, not assumed.
 // Finite-but-impossible values like hitRate 1.5 or negative counts are dropped.
@@ -878,7 +887,7 @@ function buildEvidencePayload(
   }
 
   return {
-    analysisAsOf: context.analysisAsOf ?? new Date().toISOString(),
+    analysisAsOf: resolveAnalysisAsOf(context),
     command,
     ...userSteeringField(command),
     movers,
@@ -1132,7 +1141,7 @@ export function buildPlaybookSelectionPrompt(
     {
       instruction: loaded.instruction,
       stage: "playbook-selection",
-      analysisAsOf: context.analysisAsOf ?? new Date().toISOString(),
+      analysisAsOf: resolveAnalysisAsOf(context),
       stageGoal: loaded.goal,
       command,
       depthProfile: context.depthProfile,
@@ -1160,7 +1169,7 @@ export function buildSpotlightSelectionPrompt(
     {
       instruction: loaded.instruction,
       stage: "spotlight-selection",
-      analysisAsOf: context.analysisAsOf ?? new Date().toISOString(),
+      analysisAsOf: resolveAnalysisAsOf(context),
       stageGoal: loaded.goal,
       command,
       ...userSteeringField(command),

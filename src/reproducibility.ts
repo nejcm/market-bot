@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const SECRET_KEY = /(api[-_]?key|api[-_]?token|access[-_]?token|password|secret|user[-_]?agent)/iu;
+// Denylist of secret-bearing config field names, excluded from the reproducibility hash.
+// A denylist (rather than a whitelist of hashed fields) is deliberate: an unknown future
+// Config field defaults to being *included* in the hash, which is the safe bias for a
+// Reproducibility fingerprint. Patterns stay narrow enough to avoid catching legitimate
+// Fields such as `maxOutputTokens` (no `api`/`access` prefix). The exclusion guarantee for
+// Every known secret field is pinned by tests/reproducibility.test.ts.
+const SECRET_KEY =
+  /(api[-_]?key|api[-_]?token|access[-_]?token|password|secret|credential|bearer|private[-_]?key|user[-_]?agent)/iu;
 const SAFE_UNTRACKED_PATH =
   /^(?:src|tests|scripts|app|prompts|docs|research)[/\\]|^(?:CONTEXT|README|package|tsconfig|oxfmt|oxlint)\b/iu;
 

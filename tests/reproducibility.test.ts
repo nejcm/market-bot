@@ -30,6 +30,32 @@ describe("reproducibility fingerprints", () => {
     );
   });
 
+  test("excludes every known secret-bearing config field from the hash", () => {
+    // Pins the SECRET_KEY denylist against the actual secret fields read in src/config.ts.
+    // A new secret field added to config without matching the denylist would change the hash
+    // (leaking a secret-derived value), and this test would catch it.
+    const secretFields = [
+      "apiKey",
+      "marketauxApiToken",
+      "finnhubApiToken",
+      "fredApiKey",
+      "tradierApiToken",
+      "glassnodeApiKey",
+      "massiveApiKey",
+      "exaApiKey",
+      "secUserAgent",
+    ] as const;
+    const base = Object.fromEntries(secretFields.map((field) => [field, "value-a"]));
+    const baseline = effectiveConfigHash(base);
+    for (const field of secretFields) {
+      expect(effectiveConfigHash({ ...base, [field]: "value-b" })).toBe(baseline);
+    }
+    // A non-secret token-suffixed field (maxOutputTokens) still affects the hash.
+    expect(effectiveConfigHash({ ...base, maxOutputTokens: 1 })).not.toBe(
+      effectiveConfigHash({ ...base, maxOutputTokens: 2 }),
+    );
+  });
+
   test("changes with dirty source state and excludes ignored secrets", async () => {
     const dir = await mkdtemp(join(tmpdir(), "market-bot-repro-"));
     try {

@@ -369,4 +369,52 @@ describe("multi-news", () => {
     expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(3);
     expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
   });
+
+  test("clamps the relevance floor to available relevant supply when candidates are scarce", async () => {
+    const newsSeenPath = tempSeenPath();
+    // Only 2 relevant candidates exist, fewer than the floor of max(2, ceil(6/2)) = 3.
+    const relevant = Array.from({ length: 2 }, (_, index) => ({
+      ...source(
+        `relevant-${index}`,
+        "provider-a",
+        `AAPL material update ${index}`,
+        `2026-06-01T1${index}:00:00.000Z`,
+      ),
+      url: `https://example.test/aapl-scarce-${index}`,
+    }));
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: relevant,
+    });
+    const generic = Array.from({ length: 6 }, (_, index) => ({
+      ...source(
+        `generic-${index}`,
+        "provider-b",
+        `Markets rise broadly ${index}`,
+        `2026-06-01T0${index}:00:00.000Z`,
+      ),
+      url: `https://example.test/generic-scarce-${index}`,
+    }));
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", relevant), adapter("provider-b", generic)],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({
+      ...context(),
+      newsLimit: 6,
+      newsSeenPath,
+      newsSeenRetentionDays: 30,
+    });
+
+    // The floor is clamped to the 2 available relevant sources, not fabricated up to 3.
+    expect(result.newsSources).toHaveLength(6);
+    expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBe(2);
+    expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(2);
+    expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
 });

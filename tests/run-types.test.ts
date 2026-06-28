@@ -4,6 +4,8 @@ import {
   RUN_TYPE_REGISTRY,
   runTypeSupportsAsset,
   runTypeSupportsDepth,
+  runTypeSupportsEvidenceRequest,
+  runTypeSupportsWebGather,
   type ResearchJobType,
 } from "../src/domain/run-types";
 
@@ -68,6 +70,42 @@ describe("runTypeSupportsDepth", () => {
   test("false for operational job types", () => {
     for (const jobType of OPERATIONAL_JOB_TYPES) {
       expect(runTypeSupportsDepth(jobType)).toBe(false);
+    }
+  });
+});
+
+describe("runTypeSupportsWebGather", () => {
+  test("true only for equity, crypto, research", () => {
+    expect(runTypeSupportsWebGather("equity")).toBe(true);
+    expect(runTypeSupportsWebGather("crypto")).toBe(true);
+    expect(runTypeSupportsWebGather("research")).toBe(true);
+  });
+
+  test("false for market updates, alpha-search, and operational types", () => {
+    expect(runTypeSupportsWebGather("market-overview")).toBe(false);
+    expect(runTypeSupportsWebGather("daily")).toBe(false);
+    expect(runTypeSupportsWebGather("weekly")).toBe(false);
+    expect(runTypeSupportsWebGather("alpha-search")).toBe(false);
+    for (const jobType of OPERATIONAL_JOB_TYPES) {
+      expect(runTypeSupportsWebGather(jobType)).toBe(false);
+    }
+  });
+});
+
+describe("runTypeSupportsEvidenceRequest", () => {
+  test("true only for equity", () => {
+    expect(runTypeSupportsEvidenceRequest("equity")).toBe(true);
+  });
+
+  test("false for crypto, research, market updates, and operational types", () => {
+    expect(runTypeSupportsEvidenceRequest("crypto")).toBe(false);
+    expect(runTypeSupportsEvidenceRequest("research")).toBe(false);
+    expect(runTypeSupportsEvidenceRequest("market-overview")).toBe(false);
+    expect(runTypeSupportsEvidenceRequest("daily")).toBe(false);
+    expect(runTypeSupportsEvidenceRequest("weekly")).toBe(false);
+    expect(runTypeSupportsEvidenceRequest("alpha-search")).toBe(false);
+    for (const jobType of OPERATIONAL_JOB_TYPES) {
+      expect(runTypeSupportsEvidenceRequest(jobType)).toBe(false);
     }
   });
 });

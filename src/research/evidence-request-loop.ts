@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
+import { runTypeSupportsEvidenceRequest } from "../domain/run-types";
 import type {
   EvidenceRequestAuditEntry,
   EvidenceRequestLoopAudit,
@@ -196,8 +197,8 @@ function isEvidenceRequestLoopEnabled(
 ): command is InstrumentCommand {
   return (
     isInstrumentCommand(command) &&
+    runTypeSupportsEvidenceRequest(command.jobType) &&
     command.depth === "deep" &&
-    command.assetClass === "equity" &&
     config.evidenceRequestOptions.maxRounds > 0 &&
     config.evidenceRequestOptions.maxToolCalls > 0 &&
     config.evidenceRequestOptions.sourceBudget > 0

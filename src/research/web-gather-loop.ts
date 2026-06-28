@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { runTypeSupportsWebGather } from "../domain/run-types";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
@@ -210,12 +211,8 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
 }
 
 export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
-  const supportedSubject =
-    (isInstrumentCommand(command) &&
-      (command.assetClass === "equity" || command.assetClass === "crypto")) ||
-    command.jobType === "research";
   return (
-    supportedSubject &&
+    runTypeSupportsWebGather(command.jobType) &&
     command.depth === "deep" &&
     config.sourceOptions.exaApiKey !== undefined &&
     !config.webGatherDisabled &&

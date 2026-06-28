@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
-import { resolveRunParams, runConfig, type RunConfig } from "../src/config/runs";
+import { resolveRunParams, runConfig, type RunConfig, type RunKey } from "../src/config/runs";
 
 const baseConfig: AppConfig = {
   provider: "openai",
@@ -42,6 +42,25 @@ const baseConfig: AppConfig = {
     maxMarketCap: 10_000_000_000,
   },
 };
+
+describe("runConfig profiles", () => {
+  test("has exactly the canonical run profile keys", () => {
+    const keys = Object.keys(runConfig).toSorted();
+    const expected: RunKey[] = [
+      "crypto",
+      "equity",
+      "market-overview-crypto",
+      "market-overview-equity",
+      "research-equity",
+    ];
+
+    expect(keys).toEqual([...expected].toSorted());
+  });
+
+  test("keeps equity and crypto instrument profiles behavior-equivalent", () => {
+    expect(runConfig.equity).toEqual(runConfig.crypto);
+  });
+});
 
 describe("resolveRunParams — fallback chain", () => {
   test("env AppConfig provides quickModel and synthesisModel when combo has none", () => {
@@ -170,6 +189,23 @@ describe("resolveRunParams — run keys", () => {
     );
 
     expect(result.focus).toContain("cross-asset themes");
+  });
+
+  test("daily and weekly aliases resolve through market-overview profiles", () => {
+    const daily = resolveRunParams(
+      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      baseConfig,
+    );
+    const weekly = resolveRunParams(
+      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      baseConfig,
+    );
+
+    expect(daily.defaultPredictionHorizon).toBe(5);
+    expect(weekly.defaultPredictionHorizon).toBe(15);
+    expect(daily.predictionSubjects).toEqual(weekly.predictionSubjects);
+    expect(daily.predictionSubjects).toContain("DGS10");
+    expect(daily.predictionSubjects).not.toContain("BTC");
   });
 
   test("ticker brief uses command symbol as predictionSubjects", () => {

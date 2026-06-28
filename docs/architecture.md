@@ -9,7 +9,7 @@ src/
   app.ts              CLI glue (dispatches by jobType)
   cli/args.ts         Argument parsing
   config.ts           Env-driven AppConfig
-  config/runs.ts      Typed per-run-type config (model, sampling knobs, depth profile)
+  config/runs/        Typed per-run-profile config (model, sampling knobs, depth profile)
   domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
   forecast/           Observable forecast contract: parser, expression shape, resolver
   model/              OpenAI / OpenAI-compatible / Codex / Anthropic providers

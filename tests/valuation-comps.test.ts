@@ -475,6 +475,70 @@ describe("collectValuationComps", () => {
     });
   });
 
+  test("resolves AAPL to deterministic peer universe with usable peers", async () => {
+    const aaplCommand = { ...command, symbol: "AAPL" };
+    const aaplValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "AAPL", assetClass: "equity" },
+      items: valuationEvidence().items.map((item) => ({
+        ...item,
+        sourceIds: item.sourceIds.map((id) => id.replace("nvda", "aapl")),
+      })),
+    };
+    const aaplExecutor: SourceRequestExecutor = {
+      json: async ({ adapter }) => {
+        if (adapter === "yahoo-valuation-peers") {
+          return rawJson(adapter, {
+            quoteResponse: {
+              result: ["MSFT", "GOOGL", "AMZN", "META", "DELL"].map((symbol) => ({
+                symbol,
+                shortName: symbol,
+                regularMarketPrice: 100,
+                regularMarketChangePercent: 1,
+                regularMarketVolume: 1_000_000,
+                marketCap: 500,
+              })),
+            },
+          });
+        }
+        if (adapter === "sec-tickers") {
+          return rawJson(adapter, {
+            "0": { cik_str: 10, ticker: "MSFT", title: "Microsoft" },
+            "1": { cik_str: 11, ticker: "GOOGL", title: "Alphabet" },
+            "2": { cik_str: 12, ticker: "AMZN", title: "Amazon" },
+            "3": { cik_str: 13, ticker: "META", title: "Meta" },
+            "4": { cik_str: 14, ticker: "DELL", title: "Dell" },
+          });
+        }
+        if (adapter === "sec-companyfacts") {
+          return rawJson(adapter, secPayload());
+        }
+        throw new Error(`unexpected adapter ${adapter}`);
+      },
+      text: async () => {
+        throw new Error("unexpected text request");
+      },
+    };
+    const result = await collectValuationComps(
+      collectContext(aaplExecutor),
+      aaplCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-aapl",
+          symbol: "AAPL",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      aaplValuation,
+    );
+
+    expect(result.artifact.summary.usablePeerCount).toBeGreaterThanOrEqual(3);
+    expect(result.artifact.summary.valuationSupportability).toBe("supported");
+    expect(result.artifact.peers.map((peer) => peer.symbol)).toContain("MSFT");
+    expect(result.artifact.peers.map((peer) => peer.symbol)).toContain("GOOGL");
+  });
+
   test("uses injected peer universe mappings", async () => {
     const result = await collectValuationComps(
       collectContext(requestExecutor()),

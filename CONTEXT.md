@@ -76,6 +76,10 @@ A Prediction whose scored event is conditional on an earlier observable event. I
 
 An emitted Prediction whose stated probability sits within a small fixed band of 0.5 (a coin flip), labeled as analytics-only forecast-quality telemetry. It measures stated confidence after generation and is distinct from forecast-kind priority, which shapes generation by favoring better-measured kinds over bare `direction`. It is never a rejection gate and does not change prediction-count or horizon policy; it is not investment conviction, model endorsement, or a trade signal.
 
+## Forecast-Shape Diversity Guidance
+
+Soft prompt-time guidance that enumerates distinct forecast shapes (direction, relative, range, volatility, earnings, conditional) available from deterministic context on deep instrument runs. It encourages exploring shape and horizon variety before stopping but does not change the soft-target semantics of `targetPredictions`; a below-target result still ships via `predictionShortfall`. It is not a validation gate, rejection reason, or reprompt trigger.
+
 ## Prediction Subject
 
 The instrument or instruments a run's scored Predictions are allowed to be about, declared per run. For `direction`, `range`, `volatility`, and `iv` forecasts it is the forecast subject; for `relative` forecasts it is the primary instrument named before the comparison. Instrument and Market Overview runs enforce that every emitted Prediction's subject belongs to this set, rejecting and retrying off-subject Predictions. Research runs do not apply this gate; their separate research prediction gate is the sole authority. See [ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md).

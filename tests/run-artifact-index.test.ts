@@ -149,9 +149,9 @@ describe("run artifact index", () => {
       expectedSchemaVersion: INDEX_SCHEMA_VERSION,
       currentSchemaVersion: 4,
       rebuildCommand: "bun run src/cli.ts index rebuild",
-      message: `Run Artifact Index schema 4 is unsupported; expected ${String(
+      message: `Run Artifact Index schema version 4 is not compatible with the current expected version ${String(
         INDEX_SCHEMA_VERSION,
-      )}. Run bun run src/cli.ts index rebuild.`,
+      )}. The index will not be auto-migrated or auto-rebuilt. To update, run: bun run src/cli.ts index rebuild`,
     });
   });
 

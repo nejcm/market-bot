@@ -108,7 +108,7 @@ export function readRunArtifactIndexStatus(
     return {
       ...base,
       state: "missing",
-      message: `Run Artifact Index database is missing; run ${rebuildCommand}.`,
+      message: `Run Artifact Index database is missing. To create it, run: ${rebuildCommand}`,
     };
   }
 
@@ -124,9 +124,9 @@ export function readRunArtifactIndexStatus(
         ...base,
         state: "unsupported-schema",
         ...(currentSchemaVersion !== undefined ? { currentSchemaVersion } : {}),
-        message: `Run Artifact Index schema ${String(
+        message: `Run Artifact Index schema version ${String(
           currentSchemaVersion ?? "unknown",
-        )} is unsupported; expected ${String(INDEX_SCHEMA_VERSION)}. Run ${rebuildCommand}.`,
+        )} is not compatible with the current expected version ${String(INDEX_SCHEMA_VERSION)}. The index will not be auto-migrated or auto-rebuilt. To update, run: ${rebuildCommand}`,
       };
     }
     return {

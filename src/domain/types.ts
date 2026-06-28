@@ -10,7 +10,9 @@ export type JobType = MarketUpdateJobType | InstrumentJobType | "alpha-search" |
 
 export type Depth = "brief" | "deep";
 
-export function isMarketUpdateJobType(jobType: JobType): jobType is MarketUpdateJobType {
+export function isMarketUpdateJobType(
+  jobType: JobType | undefined,
+): jobType is MarketUpdateJobType {
   return jobType === "market-overview" || jobType === "daily" || jobType === "weekly";
 }
 

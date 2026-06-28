@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { parseArgs, type ResearchCommand } from "./cli/args";
+import { isResearchCommand, parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { renderAlphaSearchAnalyticsConsole } from "./alpha-search/run-analytics-console";
@@ -271,14 +271,7 @@ export async function runCli(
 }
 
 function asResearchCommand(command: ReturnType<typeof parseArgs>): ResearchCommand {
-  if (
-    command.jobType === "market-overview" ||
-    command.jobType === "daily" ||
-    command.jobType === "weekly" ||
-    command.jobType === "equity" ||
-    command.jobType === "crypto" ||
-    command.jobType === "research"
-  ) {
+  if (isResearchCommand(command)) {
     return command;
   }
 

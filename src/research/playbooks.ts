@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssetClass, Depth, JobType } from "../domain/types";
+import { runTypeProducesSynthesisReport } from "../domain/run-types";
 import { isRecord, readString } from "../sources/guards";
 import { parseSections } from "./markdown-sections";
 import type { StageLabel } from "./prompt-loader";
@@ -77,14 +78,6 @@ const SOURCE_DISCIPLINE_PLAYBOOK_ID = "source-discipline";
 const SYNTHESIS_DISCIPLINE_PLAYBOOK_ID = "synthesis-discipline";
 const SOURCE_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["critique"];
 const SYNTHESIS_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["final-synthesis"];
-const SYNTHESIS_DISCIPLINE_JOB_TYPES: ReadonlySet<PlaybookJobType> = new Set([
-  "market-overview",
-  "daily",
-  "weekly",
-  "equity",
-  "crypto",
-  "research",
-]);
 // Keep in sync with PlaybookStage; this runtime set validates checked-in JSON.
 const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
   "specialist-analysis",
@@ -244,7 +237,7 @@ export function mandatoryPlaybookSelections(
           candidates,
         })
       : [];
-  const synthesisDiscipline = SYNTHESIS_DISCIPLINE_JOB_TYPES.has(command.jobType)
+  const synthesisDiscipline = runTypeProducesSynthesisReport(command.jobType)
     ? mandatoryPlaybookSelection({
         playbookId: SYNTHESIS_DISCIPLINE_PLAYBOOK_ID,
         label: "synthesis-discipline",

@@ -19,6 +19,10 @@ export interface RunTypeMeta {
   // Eligible for the SEC/Tradier evidence-request loop (still gated at runtime
   // On --deep, a US listing, and positive budgets).
   readonly supportsEvidenceRequest: boolean;
+  // Output shape: emits a full synthesis ResearchReport (key findings, cases,
+  // Scenarios, predictions) rather than a screening candidate list. False only
+  // For alpha-search, whose pipeline produces ranked candidates.
+  readonly producesSynthesisReport: boolean;
 }
 
 // Single source of truth for the two CLI capability predicates
@@ -32,6 +36,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: false,
     supportsWebGather: false,
     supportsEvidenceRequest: false,
+    producesSynthesisReport: true,
   },
   daily: {
     supportsAsset: true,
@@ -39,6 +44,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: false,
     supportsWebGather: false,
     supportsEvidenceRequest: false,
+    producesSynthesisReport: true,
   },
   weekly: {
     supportsAsset: true,
@@ -46,6 +52,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: false,
     supportsWebGather: false,
     supportsEvidenceRequest: false,
+    producesSynthesisReport: true,
   },
   equity: {
     supportsAsset: false,
@@ -53,6 +60,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: true,
     supportsWebGather: true,
     supportsEvidenceRequest: true,
+    producesSynthesisReport: true,
   },
   crypto: {
     supportsAsset: false,
@@ -60,6 +68,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: true,
     supportsWebGather: true,
     supportsEvidenceRequest: false,
+    producesSynthesisReport: true,
   },
   "alpha-search": {
     supportsAsset: false,
@@ -67,6 +76,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: false,
     supportsWebGather: false,
     supportsEvidenceRequest: false,
+    producesSynthesisReport: false,
   },
   research: {
     supportsAsset: false,
@@ -74,8 +84,16 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     isInstrument: false,
     supportsWebGather: true,
     supportsEvidenceRequest: false,
+    producesSynthesisReport: true,
   },
 };
+
+// Membership guard for the seven research job types. Returns false for
+// Operational job types (score, calibration, cache-prune, provider-health,
+// History-*) and any other string, narrowing to ResearchJobType when true.
+export function isResearchJobType(value: string): value is ResearchJobType {
+  return runTypeMeta(value) !== undefined;
+}
 
 function runTypeMeta(jobType: string): RunTypeMeta | undefined {
   return (RUN_TYPE_REGISTRY as Record<string, RunTypeMeta | undefined>)[jobType];
@@ -97,4 +115,8 @@ export function runTypeSupportsWebGather(jobType: string): boolean {
 
 export function runTypeSupportsEvidenceRequest(jobType: string): boolean {
   return runTypeMeta(jobType)?.supportsEvidenceRequest ?? false;
+}
+
+export function runTypeProducesSynthesisReport(jobType: string): boolean {
+  return runTypeMeta(jobType)?.producesSynthesisReport ?? false;
 }

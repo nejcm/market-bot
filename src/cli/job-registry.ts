@@ -1,4 +1,8 @@
-import { runTypeSupportsAsset, runTypeSupportsDepth } from "../domain/run-types";
+import {
+  runTypeProducesSynthesisReport,
+  runTypeSupportsAsset,
+  runTypeSupportsDepth,
+} from "../domain/run-types";
 import {
   isInstrumentJobType,
   type AssetClass,
@@ -126,6 +130,12 @@ export type CliCommand =
 // Narrows a command to a single-instrument (equity / crypto) run, exposing `symbol`.
 export function isInstrumentCommand(command: ResearchCommand): command is InstrumentCommand {
   return isInstrumentJobType(command.jobType);
+}
+
+// Narrows any CLI command to a synthesis-report research run (every research
+// Job type except alpha-search, which produces a screening candidate list).
+export function isResearchCommand(command: CliCommand): command is ResearchCommand {
+  return runTypeProducesSynthesisReport(command.jobType);
 }
 
 export const ASSET_CLASS_OPTIONS = ["equity", "crypto"] as const;

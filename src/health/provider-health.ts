@@ -10,6 +10,7 @@ import {
 import {
   SOURCE_KINDS,
   isInstrumentJobType,
+  isMarketUpdateJobType,
   type AssetClass,
   type Depth,
   type InstrumentIdentity,
@@ -457,10 +458,7 @@ function validationSummary(
   calibrationPresent: boolean,
 ): ProviderHealthSummary["realRunValidation"] {
   return {
-    marketUpdateRuns: runs.filter(
-      (run) =>
-        run.jobType === "market-overview" || run.jobType === "daily" || run.jobType === "weekly",
-    ).length,
+    marketUpdateRuns: runs.filter((run) => isMarketUpdateJobType(run.jobType)).length,
     instrumentRuns: runs.filter((run) => isInstrumentJobType(run.jobType)).length,
     deepInstrumentRuns: runs.filter(
       (run) => isInstrumentJobType(run.jobType) && run.depth === "deep",

@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { isInstrumentJobType, type JobType } from "../src/domain/types";
 import {
   RUN_TYPE_REGISTRY,
+  isResearchJobType,
+  runTypeProducesSynthesisReport,
   runTypeSupportsAsset,
   runTypeSupportsDepth,
   runTypeSupportsEvidenceRequest,
@@ -106,6 +108,36 @@ describe("runTypeSupportsEvidenceRequest", () => {
     expect(runTypeSupportsEvidenceRequest("alpha-search")).toBe(false);
     for (const jobType of OPERATIONAL_JOB_TYPES) {
       expect(runTypeSupportsEvidenceRequest(jobType)).toBe(false);
+    }
+  });
+});
+
+describe("isResearchJobType", () => {
+  test("true for every research job type", () => {
+    for (const jobType of RESEARCH_JOB_TYPES) {
+      expect(isResearchJobType(jobType)).toBe(true);
+    }
+  });
+
+  test("false for operational job types and unknown strings", () => {
+    for (const jobType of OPERATIONAL_JOB_TYPES) {
+      expect(isResearchJobType(jobType)).toBe(false);
+    }
+    expect(isResearchJobType("history-search")).toBe(false);
+    expect(isResearchJobType("")).toBe(false);
+  });
+});
+
+describe("runTypeProducesSynthesisReport", () => {
+  test("true for every research job type except alpha-search", () => {
+    for (const jobType of RESEARCH_JOB_TYPES) {
+      expect(runTypeProducesSynthesisReport(jobType)).toBe(jobType !== "alpha-search");
+    }
+  });
+
+  test("false for operational job types", () => {
+    for (const jobType of OPERATIONAL_JOB_TYPES) {
+      expect(runTypeProducesSynthesisReport(jobType)).toBe(false);
     }
   });
 });

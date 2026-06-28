@@ -1,9 +1,11 @@
 import type { AssetClass, Depth } from "../domain/types";
+import { isResearchJobType } from "../domain/run-types";
 import { createInstrument } from "../domain/instrument";
 import { HISTORY_SECTIONS, type HistorySection } from "../history/artifacts";
 import {
   commandLabel,
   isInstrumentCommand,
+  isResearchCommand,
   USAGE,
   type CliCommand,
   type HistoryRebuildCommand,
@@ -14,7 +16,7 @@ import {
   type ResearchSubjectCommand,
 } from "./job-registry";
 
-export { commandLabel, isInstrumentCommand };
+export { commandLabel, isInstrumentCommand, isResearchCommand };
 export type {
   AlphaSearchCommand,
   CachePruneCommand,
@@ -298,16 +300,7 @@ export function parseArgs(args: readonly string[]): CliCommand {
     const section = readSection(readFlagValue(args, "--section"));
     const provider = readFlagValue(args, "--provider");
     const limit = readLimit(readFlagValue(args, "--limit"));
-    if (
-      jobType !== undefined &&
-      jobType !== "market-overview" &&
-      jobType !== "daily" &&
-      jobType !== "weekly" &&
-      jobType !== "equity" &&
-      jobType !== "crypto" &&
-      jobType !== "alpha-search" &&
-      jobType !== "research"
-    ) {
+    if (jobType !== undefined && !isResearchJobType(jobType)) {
       throw new Error(
         "Expected --job-type market-overview|daily|weekly|equity|crypto|alpha-search|research",
       );

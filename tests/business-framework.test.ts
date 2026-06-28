@@ -161,7 +161,9 @@ describe("business framework evidence", () => {
     expect(result.artifact?.sections.find((section) => section.name === "Business")?.posture).toBe(
       "insufficient-data",
     );
-    expect(result.artifact?.gaps.join(" ")).toContain("Management track record");
+    expect(
+      result.artifact?.gaps.map((gap) => (typeof gap === "string" ? gap : gap.text)).join(" "),
+    ).toContain("Management track record");
     expect(result.sourceGaps[0]?.cause).toBe("provider-data-missing");
   });
 

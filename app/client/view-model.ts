@@ -684,7 +684,7 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
         ...(text !== undefined ? { text } : {}),
         metrics,
         sourceIds: stringArray(section.sourceIds),
-        gaps: stringArray(section.gaps),
+        gaps: businessFrameworkGapTexts(section.gaps),
       },
     ];
   });
@@ -692,8 +692,22 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
     phase: typedPhase,
     sections,
     sourceIds: stringArray(record.sourceIds),
-    gaps: stringArray(record.gaps),
+    gaps: businessFrameworkGapTexts(record.gaps),
   };
+}
+
+function businessFrameworkGapTexts(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((gap) => {
+    if (typeof gap === "string") {
+      return [gap];
+    }
+    const record = readRecord(gap);
+    const text = record === undefined ? undefined : readStringField(record, "text");
+    return text === undefined ? [] : [text];
+  });
 }
 
 export function businessFrameworkView(
@@ -715,6 +729,10 @@ const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<Record<string, readonly [string, s
     ["purchaseRecurrence", "Purchase recurrence"],
     ["pricingPower", "Pricing power"],
     ["recessionCyclicality", "Recession cyclicality"],
+    ["managementTrackRecord", "Management track record"],
+    ["capitalAllocation", "Capital allocation"],
+    ["companyKpis", "Company-specific KPIs"],
+    ["riskFactors", "Disclosed risk factors"],
   ],
   "crypto-asset": [
     ["whatItDoes", "What it does"],

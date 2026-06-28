@@ -2089,6 +2089,10 @@ describe("runResearchJob", () => {
                 purchaseRecurrence: answer,
                 pricingPower: answer,
                 recessionCyclicality: answer,
+                managementTrackRecord: answer,
+                capitalAllocation: answer,
+                companyKpis: answer,
+                riskFactors: answer,
               },
               recentMaterialEvents: [
                 { claim: "Apple reports services revenue.", sourceIds: [sourceId] },
@@ -2198,7 +2202,7 @@ describe("runResearchJob", () => {
     await writeFile(
       join(priorRunDir, "normalized", "web-subject-profile.json"),
       JSON.stringify({
-        version: 2,
+        version: 3,
         generatedAt: "2026-05-01T00:00:00.000Z",
         subjectKind: "company",
         subjectId: "AAPL",
@@ -2214,6 +2218,10 @@ describe("runResearchJob", () => {
           purchaseRecurrence: answer,
           pricingPower: answer,
           recessionCyclicality: answer,
+          managementTrackRecord: answer,
+          capitalAllocation: answer,
+          companyKpis: answer,
+          riskFactors: answer,
         },
         recentMaterialEvents: [],
         factLedger: [

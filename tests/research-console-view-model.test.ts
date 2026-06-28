@@ -1599,6 +1599,30 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
+  test("presents current company profile questions", () => {
+    const answer = { answer: "Cited answer.", sourceIds: ["web-source"] };
+    const profile = webSubjectProfileView({
+      extras: {
+        webSubjectProfile: {
+          subjectKind: "company",
+          questions: {
+            managementTrackRecord: answer,
+            capitalAllocation: answer,
+            companyKpis: answer,
+            riskFactors: answer,
+          },
+        },
+      },
+    });
+
+    expect(profile?.questions.map(({ key, label }) => ({ key, label }))).toEqual([
+      { key: "managementTrackRecord", label: "Management track record" },
+      { key: "capitalAllocation", label: "Capital allocation" },
+      { key: "companyKpis", label: "Company-specific KPIs" },
+      { key: "riskFactors", label: "Disclosed risk factors" },
+    ]);
+  });
+
   test("drops uncited Web Subject Profile answers and facts", () => {
     const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
 

@@ -136,7 +136,8 @@ function isReusableProfile(
   }
   if (
     profile.subjectKind === "company" &&
-    (input.currentSecFilingDate === undefined ||
+    (profile.version !== 3 ||
+      input.currentSecFilingDate === undefined ||
       profile.secFilingBasisDate === undefined ||
       !ISO_DATE_RE.test(profile.secFilingBasisDate) ||
       profile.secFilingBasisDate < input.currentSecFilingDate)

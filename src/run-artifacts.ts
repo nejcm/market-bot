@@ -49,6 +49,7 @@ import {
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
 import type {
   BusinessFrameworkArtifact,
+  BusinessFrameworkGapCode,
   BusinessFrameworkPosture,
   BusinessFrameworkSectionName,
   BusinessLifecyclePhase,
@@ -843,7 +844,7 @@ const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFramewo
   "criteria-not-supported",
   "insufficient-data",
 ]);
-const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
+const LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
   Record<SubjectKind, readonly WebSubjectProfileQuestionKey[]>
 > = {
   company: [
@@ -865,6 +866,18 @@ const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
     "keyRisks",
   ],
   theme: ["whatItIs", "whyNow", "beneficiaries", "headwinds", "keyDebates", "howItPlaysOut"],
+};
+const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
+  Record<SubjectKind, readonly WebSubjectProfileQuestionKey[]>
+> = {
+  ...LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS,
+  company: [
+    ...LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS.company,
+    "managementTrackRecord",
+    "capitalAllocation",
+    "companyKpis",
+    "riskFactors",
+  ],
 };
 
 function hasFinancialLensMetricShape(value: unknown): boolean {
@@ -911,7 +924,32 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
   return value as unknown as FinancialLensArtifact;
 }
 
-function hasBusinessFrameworkSectionShape(value: unknown): boolean {
+const BUSINESS_FRAMEWORK_GAP_CODES: ReadonlySet<string> = new Set<BusinessFrameworkGapCode>([
+  "segment-mix",
+  "customer-concentration",
+  "purchase-recurrence",
+  "management-track-record",
+  "capital-allocation",
+  "company-kpis",
+  "risk-factors",
+  "analyst-consensus",
+]);
+
+function hasBusinessFrameworkGaps(value: unknown, version: 1 | 2): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((gap) =>
+      version === 1
+        ? typeof gap === "string"
+        : isRecord(gap) &&
+          typeof gap.code === "string" &&
+          BUSINESS_FRAMEWORK_GAP_CODES.has(gap.code) &&
+          typeof gap.text === "string",
+    )
+  );
+}
+
+function hasBusinessFrameworkSectionShape(value: unknown, version: 1 | 2): boolean {
   return (
     isRecord(value) &&
     typeof value.name === "string" &&
@@ -922,22 +960,24 @@ function hasBusinessFrameworkSectionShape(value: unknown): boolean {
     Array.isArray(value.metrics) &&
     value.metrics.every(hasFinancialLensMetricShape) &&
     readStringArray(value, "sourceIds") !== undefined &&
-    readStringArray(value, "gaps") !== undefined
+    hasBusinessFrameworkGaps(value.gaps, version)
   );
 }
 
 function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifact | undefined {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) {
+    return undefined;
+  }
+  const { version } = value;
   if (
-    !isRecord(value) ||
-    value.version !== 1 ||
     readString(value, "generatedAt") === undefined ||
     readString(value, "symbol") === undefined ||
     typeof value.phase !== "string" ||
     !BUSINESS_FRAMEWORK_PHASES.has(value.phase) ||
     !Array.isArray(value.sections) ||
-    !value.sections.every(hasBusinessFrameworkSectionShape) ||
+    !value.sections.every((section) => hasBusinessFrameworkSectionShape(section, version)) ||
     readStringArray(value, "sourceIds") === undefined ||
-    readStringArray(value, "gaps") === undefined
+    !hasBusinessFrameworkGaps(value.gaps, version)
   ) {
     return undefined;
   }
@@ -956,12 +996,17 @@ function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAnswer | 
 function readWebSubjectProfileQuestions(
   value: unknown,
   subjectKind: SubjectKind,
+  version: 2 | 3,
 ): Readonly<Record<string, WebSubjectProfileAnswer>> | undefined {
   if (!isRecord(value)) {
     return;
   }
   const entries: [string, WebSubjectProfileAnswer][] = [];
-  for (const key of WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind]) {
+  const keys =
+    version === 2
+      ? LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind]
+      : WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind];
+  for (const key of keys) {
     const answer = readWebSubjectProfileAnswer(value[key]);
     if (answer === undefined) {
       return;
@@ -987,16 +1032,17 @@ function readWebSubjectProfileFacts(value: unknown): readonly WebSubjectProfileF
 }
 
 function readWebSubjectProfileArtifact(value: unknown): WebSubjectProfileArtifact | undefined {
-  if (!isRecord(value) || value.version !== 2) {
+  if (!isRecord(value) || (value.version !== 2 && value.version !== 3)) {
     return;
   }
+  const version = value.version as 2 | 3;
   const generatedAt = readString(value, "generatedAt");
   const subjectKind = readSubjectKind(value.subjectKind);
   const subjectId = readString(value, "subjectId");
   if (subjectKind === undefined || subjectId === undefined) {
     return;
   }
-  const questions = readWebSubjectProfileQuestions(value.questions, subjectKind);
+  const questions = readWebSubjectProfileQuestions(value.questions, subjectKind, version);
   const subjectSummary = readWebSubjectProfileAnswer(value.subjectSummary);
   const recentMaterialEvents = readWebSubjectProfileFacts(value.recentMaterialEvents);
   const factLedger = readWebSubjectProfileFacts(value.factLedger);
@@ -1018,7 +1064,7 @@ function readWebSubjectProfileArtifact(value: unknown): WebSubjectProfileArtifac
     return;
   }
   const base = {
-    version: 2 as const,
+    version,
     generatedAt,
     subjectKind,
     subjectId,

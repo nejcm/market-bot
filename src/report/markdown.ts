@@ -521,7 +521,7 @@ function renderBusinessFramework(report: ResearchReport): string {
       `- **${markdownText(section.name)}**${posture}: ${markdownText(text)}${refs === "" ? "" : ` ${refs}`}`,
     ];
   });
-  const gaps = readStringArray(framework.gaps).map((gap) => `- ${markdownText(gap)}`);
+  const gaps = readFrameworkGapTexts(framework.gaps).map((gap) => `- ${markdownText(gap)}`);
   return [
     "## Business Framework",
     "",
@@ -533,6 +533,18 @@ function renderBusinessFramework(report: ResearchReport): string {
   ].join("\n");
 }
 
+function readFrameworkGapTexts(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((gap) => {
+    if (typeof gap === "string") {
+      return [gap];
+    }
+    return isRecord(gap) && typeof gap.text === "string" ? [gap.text] : [];
+  });
+}
+
 const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = {
   company: [
     ["whatItDoes", "What It Does"],
@@ -542,6 +554,10 @@ const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = 
     ["purchaseRecurrence", "Purchase Recurrence"],
     ["pricingPower", "Pricing Power"],
     ["recessionCyclicality", "Recession Cyclicality"],
+    ["managementTrackRecord", "Management Track Record"],
+    ["capitalAllocation", "Capital Allocation"],
+    ["companyKpis", "Company-specific KPIs"],
+    ["riskFactors", "Disclosed Risk Factors"],
   ],
   "crypto-asset": [
     ["whatItDoes", "What It Does"],

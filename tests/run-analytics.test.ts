@@ -506,6 +506,8 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources!.reportCited).toBe(3);
     // Union of profile+report: web-1, web-2, web-3, web-4 → web-5 unused
     expect(analytics.webSources!.unused).toBe(1);
+    expect(analytics.webSources!.usageRatio).toBe(0.8);
+    expect(analytics.webSources!.usageWarning).toBeUndefined();
   });
 
   test("omits webSources block when no web sources are accepted", () => {
@@ -542,5 +544,23 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources!.profileUsed).toBe(0);
     expect(analytics.webSources!.reportCited).toBe(0);
     expect(analytics.webSources!.unused).toBe(2);
+    expect(analytics.webSources!.usageRatio).toBe(0);
+    expect(analytics.webSources!.usageWarning).toBeUndefined();
+  });
+
+  test("warns without rejecting when accepted web-source usage is disproportionately low", () => {
+    const report = researchReport({
+      sources: [webSource("web-1"), webSource("web-2"), webSource("web-3"), webSource("web-4")],
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources?.usageRatio).toBe(0);
+    expect(analytics.webSources?.usageWarning).toContain("disproportionately low");
   });
 });

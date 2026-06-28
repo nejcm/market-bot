@@ -211,6 +211,40 @@ describe("loadRunArtifact", () => {
     expect(artifact?.businessFramework?.sections[0]?.name).toBe("Business");
   });
 
+  test("loads current business framework v2 atomic gaps", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "business-framework-v2");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({ runId: "business-framework-v2" }),
+    );
+    await writeJson(join(runDir, "normalized", "business-framework.json"), {
+      version: 2,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      symbol: "AAPL",
+      phase: "capital-return",
+      sections: [
+        {
+          name: "Business",
+          posture: "insufficient-data",
+          summary: "Business evidence incomplete.",
+          metrics: [],
+          sourceIds: [],
+          gaps: [{ code: "segment-mix", text: "Segment mix unavailable" }],
+        },
+      ],
+      sourceIds: [],
+      gaps: [{ code: "segment-mix", text: "Segment mix unavailable" }],
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.businessFramework?.version).toBe(2);
+    expect(artifact?.businessFramework?.gaps).toEqual([
+      { code: "segment-mix", text: "Segment mix unavailable" },
+    ]);
+  });
+
   test("loads source-plan sidecars through the run artifact seam", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "source-plan");

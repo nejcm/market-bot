@@ -323,4 +323,50 @@ describe("multi-news", () => {
     expect(result.newsAnalytics?.relevantSuppressedBySeenFilterCount).toBe(1);
     expect(result.newsAnalytics?.repeatFallbackUsed).toBe(false);
   });
+
+  test("re-adds seen relevant ticker news up to the configured relevance floor", async () => {
+    const newsSeenPath = tempSeenPath();
+    const relevant = Array.from({ length: 3 }, (_, index) => ({
+      ...source(
+        `relevant-${index}`,
+        "provider-a",
+        `AAPL material update ${index}`,
+        `2026-06-01T1${index}:00:00.000Z`,
+      ),
+      url: `https://example.test/aapl-${index}`,
+    }));
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "previous-run",
+      seenAt: "2026-05-18T00:00:00.000Z",
+      sources: relevant,
+    });
+    const generic = Array.from({ length: 6 }, (_, index) => ({
+      ...source(
+        `generic-${index}`,
+        "provider-b",
+        `Markets rise broadly ${index}`,
+        `2026-06-01T0${index}:00:00.000Z`,
+      ),
+      url: `https://example.test/generic-floor-${index}`,
+    }));
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", relevant), adapter("provider-b", generic)],
+      ["provider-a", "provider-b"],
+    );
+
+    const result = await multi.collect({
+      ...context(),
+      newsLimit: 6,
+      newsSeenPath,
+      newsSeenRetentionDays: 30,
+    });
+
+    expect(result.newsSources).toHaveLength(6);
+    expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBe(3);
+    expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(3);
+    expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
 });

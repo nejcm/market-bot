@@ -165,6 +165,8 @@ export interface RunAnalytics {
     readonly profileUsed: number;
     readonly reportCited: number;
     readonly unused: number;
+    readonly usageRatio: number;
+    readonly usageWarning?: string;
   };
   readonly runShape: {
     readonly traceStages: readonly string[];
@@ -411,12 +413,20 @@ function webSourceRoles(
       .filter((id) => acceptedIds.has(id)),
   );
   const usedUnion = new Set([...profileUsedIds, ...reportCitedIds]);
+  const usageRatio = usedUnion.size / acceptedIds.size;
   return {
     webSources: {
       accepted: acceptedIds.size,
       profileUsed: profileUsedIds.size,
       reportCited: reportCitedIds.size,
       unused: acceptedIds.size - usedUnion.size,
+      usageRatio,
+      ...(acceptedIds.size >= 4 && usageRatio < 0.25
+        ? {
+            usageWarning:
+              "Accepted web-source usage is disproportionately low; review gather relevance and synthesis citations.",
+          }
+        : {}),
     },
   };
 }

@@ -72,6 +72,7 @@ function profile(
     readonly subjectKind?: "company" | "crypto-asset" | "theme";
     readonly sourceIds?: readonly string[];
     readonly generatedAt?: string;
+    readonly version?: 2 | 3;
   } = {},
 ): WebSubjectProfileArtifact {
   const symbol = input.symbol ?? "AAPL";
@@ -125,7 +126,7 @@ function profile(
     };
   }
   return {
-    version: 2,
+    version: input.version ?? 3,
     generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
     subjectKind: "company",
     subjectId: symbol,
@@ -141,6 +142,10 @@ function profile(
       purchaseRecurrence: answer,
       pricingPower: answer,
       recessionCyclicality: answer,
+      managementTrackRecord: answer,
+      capitalAllocation: answer,
+      companyKpis: answer,
+      riskFactors: answer,
     },
     recentMaterialEvents: [{ claim: "Apple reports services revenue.", sourceIds }],
     factLedger: [{ claim: "Apple sells hardware and services.", sourceIds }],
@@ -158,6 +163,7 @@ async function writePriorRun(input: {
   readonly sourceIds?: readonly string[];
   readonly sources?: readonly Source[];
   readonly generatedAt?: string;
+  readonly version?: 2 | 3;
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
   const isCrypto = input.subjectKind === "crypto-asset";
@@ -194,6 +200,7 @@ async function writePriorRun(input: {
     profile({
       ...(input.sourceIds !== undefined ? { sourceIds: input.sourceIds } : {}),
       ...(input.generatedAt !== undefined ? { generatedAt: input.generatedAt } : {}),
+      ...(input.version !== undefined ? { version: input.version } : {}),
       symbol: input.symbol,
       ...(input.subjectKind !== undefined ? { subjectKind: input.subjectKind } : {}),
     }),
@@ -228,6 +235,26 @@ describe("Web Subject Profile reuse", () => {
       now: new Date("2026-05-20T00:00:00.000Z"),
       reuseDays: 30,
       currentSecFilingDate: "2026-05-10",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
+  test("reads but does not reuse legacy company profile v2", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl-v2",
+      symbol: "AAPL",
+      version: 2,
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDays: 30,
+      currentSecFilingDate: "2026-04-25",
     });
 
     expect(reuse).toBeUndefined();

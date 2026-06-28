@@ -17,7 +17,16 @@ export type WebSubjectProfileCompanyQuestionKey =
   | "geography"
   | "purchaseRecurrence"
   | "pricingPower"
-  | "recessionCyclicality";
+  | "recessionCyclicality"
+  | "managementTrackRecord"
+  | "capitalAllocation"
+  | "companyKpis"
+  | "riskFactors";
+
+type WebSubjectProfileLegacyCompanyQuestionKey = Exclude<
+  WebSubjectProfileCompanyQuestionKey,
+  "managementTrackRecord" | "capitalAllocation" | "companyKpis" | "riskFactors"
+>;
 
 export type WebSubjectProfileCryptoQuestionKey =
   | "whatItDoes"
@@ -52,7 +61,7 @@ export interface WebSubjectProfileFact {
 }
 
 interface WebSubjectProfileBase {
-  readonly version: 2;
+  readonly version: 2 | 3;
   readonly generatedAt: string;
   readonly subjectKind: SubjectKind;
   readonly subjectId: string;
@@ -70,7 +79,8 @@ export type WebSubjectProfileArtifact =
       readonly symbol: string;
       readonly companyName?: string;
       readonly questions: Readonly<
-        Record<WebSubjectProfileCompanyQuestionKey, WebSubjectProfileAnswer>
+        Record<WebSubjectProfileLegacyCompanyQuestionKey, WebSubjectProfileAnswer> &
+          Partial<Record<WebSubjectProfileCompanyQuestionKey, WebSubjectProfileAnswer>>
       >;
       readonly secFilingBasisDate?: string;
     })
@@ -111,6 +121,10 @@ const QUESTION_KEYS: Readonly<Record<SubjectKind, readonly WebSubjectProfileQues
     "purchaseRecurrence",
     "pricingPower",
     "recessionCyclicality",
+    "managementTrackRecord",
+    "capitalAllocation",
+    "companyKpis",
+    "riskFactors",
   ],
   "crypto-asset": [
     "whatItDoes",
@@ -433,7 +447,7 @@ function emptyArtifact(
   secFilingBasisDate?: string,
 ): WebSubjectProfileArtifact {
   const base = {
-    version: 2 as const,
+    version: 3 as const,
     generatedAt,
     subjectKind: subject.subjectKind,
     subjectId: subject.subjectId,
@@ -483,7 +497,7 @@ function profileArtifact(input: {
 }): WebSubjectProfileArtifact {
   const subjectLabel = input.profile.subjectLabel ?? input.subject.subjectLabel;
   const base = {
-    version: 2 as const,
+    version: 3 as const,
     generatedAt: input.generatedAt,
     subjectKind: input.subject.subjectKind,
     subjectId: input.subject.subjectId,

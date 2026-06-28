@@ -229,7 +229,7 @@ describe("report schema and rendering", () => {
       },
       extras: {
         webSubjectProfile: {
-          version: 2,
+          version: 3,
           generatedAt: "2026-05-19T00:00:00.000Z",
           subjectKind: "company",
           subjectId: "AAPL",
@@ -245,6 +245,10 @@ describe("report schema and rendering", () => {
             purchaseRecurrence: answer,
             pricingPower: answer,
             recessionCyclicality: answer,
+            managementTrackRecord: answer,
+            capitalAllocation: answer,
+            companyKpis: answer,
+            riskFactors: answer,
           },
           recentMaterialEvents: [
             { claim: "Apple reports services revenue.", sourceIds: ["web-aapl-12345678"] },
@@ -263,6 +267,8 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("AAPL web profile is cited. [web-aapl-12345678]");
     expect(markdown).toContain("## Extended Evidence");
     expect(markdown).toContain("## Web Subject Profile");
+    expect(markdown).toContain("**Management Track Record:**");
+    expect(markdown).toContain("**Disclosed Risk Factors:**");
     expect(markdown).toContain("### Fact Ledger");
     expect(markdown).toContain("Apple sells devices and services. [web-aapl-12345678]");
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");

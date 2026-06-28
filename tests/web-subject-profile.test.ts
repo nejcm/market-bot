@@ -43,6 +43,10 @@ function profilePayload(sourceId = webSource.id): string {
       purchaseRecurrence: answer,
       pricingPower: answer,
       recessionCyclicality: answer,
+      managementTrackRecord: answer,
+      capitalAllocation: answer,
+      companyKpis: answer,
+      riskFactors: answer,
     },
     recentMaterialEvents: [{ claim: "Apple expanded services disclosure.", sourceIds: [sourceId] }],
     factLedger: [{ claim: "Apple sells iPhone, Mac, and services.", sourceIds: [sourceId] }],
@@ -73,7 +77,11 @@ describe("buildWebSubjectProfileEvidence", () => {
     });
 
     expect(result.sourceGaps).toEqual([]);
-    expect(result.artifact).toMatchObject({ subjectKind: "company", companyName: "Apple Inc." });
+    expect(result.artifact).toMatchObject({
+      version: 3,
+      subjectKind: "company",
+      companyName: "Apple Inc.",
+    });
     expect(result.artifact?.sourceIds).toEqual([webSource.id]);
     expect(result.extendedEvidence?.items).toEqual([
       expect.objectContaining({

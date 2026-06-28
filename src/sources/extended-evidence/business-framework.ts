@@ -47,22 +47,22 @@ export interface BusinessFrameworkSection {
   readonly summary: string;
   readonly metrics: readonly BusinessFrameworkMetric[];
   readonly sourceIds: readonly string[];
-  readonly gaps: readonly string[];
+  readonly gaps: readonly BusinessFrameworkGapValue[];
 }
 
 export interface BusinessFrameworkReconciliation {
-  readonly resolvedGaps: readonly string[];
+  readonly resolvedGaps: readonly BusinessFrameworkGapCode[];
   readonly profileSourceIds: readonly string[];
 }
 
 export interface BusinessFrameworkArtifact {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly generatedAt: string;
   readonly symbol: string;
   readonly phase: BusinessLifecyclePhase;
   readonly sections: readonly BusinessFrameworkSection[];
   readonly sourceIds: readonly string[];
-  readonly gaps: readonly string[];
+  readonly gaps: readonly BusinessFrameworkGapValue[];
   readonly reconciliation?: BusinessFrameworkReconciliation;
 }
 
@@ -93,11 +93,60 @@ const SECTION_ORDER: readonly BusinessFrameworkSectionName[] = [
   "Valuation",
 ];
 
+export type BusinessFrameworkGapCode =
+  | "segment-mix"
+  | "customer-concentration"
+  | "purchase-recurrence"
+  | "management-track-record"
+  | "capital-allocation"
+  | "company-kpis"
+  | "risk-factors"
+  | "analyst-consensus";
+
+export interface BusinessFrameworkGap {
+  readonly code: BusinessFrameworkGapCode;
+  readonly text: string;
+}
+
+export type BusinessFrameworkGapValue = BusinessFrameworkGap | string;
+
 export const QUALITATIVE_GAPS = [
-  "Segment mix, customer concentration, and purchase recurrence are not available from current normalized sources",
-  "Management track record and capital allocation commentary are not available from current normalized sources",
-  "Analyst estimates, company-specific KPIs, and risk bucket evidence are not available from current normalized sources",
-] as const;
+  { code: "segment-mix", text: "Segment mix is not available from current normalized sources" },
+  {
+    code: "customer-concentration",
+    text: "Customer concentration is not available from current normalized sources",
+  },
+  {
+    code: "purchase-recurrence",
+    text: "Purchase recurrence is not available from current normalized sources",
+  },
+  {
+    code: "management-track-record",
+    text: "Management track record is not available from current normalized sources",
+  },
+  {
+    code: "capital-allocation",
+    text: "Capital allocation commentary is not available from current normalized sources",
+  },
+  {
+    code: "company-kpis",
+    text: "Company-specific KPI evidence is not available from current normalized sources",
+  },
+  {
+    code: "risk-factors",
+    text: "Disclosed risk-factor evidence is not available from current normalized sources",
+  },
+  {
+    code: "analyst-consensus",
+    text: "Analyst consensus is not available from a provider-neutral authoritative capability",
+  },
+] as const satisfies readonly BusinessFrameworkGap[];
+
+function qualitativeGaps(
+  ...codes: readonly BusinessFrameworkGapCode[]
+): readonly BusinessFrameworkGap[] {
+  return QUALITATIVE_GAPS.filter((gap) => codes.includes(gap.code));
+}
 
 function readMetric(
   metrics: Readonly<Record<string, number | string>> | undefined,
@@ -226,7 +275,7 @@ function section(
   posture: BusinessFrameworkPosture,
   metrics: readonly BusinessFrameworkMetric[],
   sourceIds: readonly string[],
-  gaps: readonly string[] = [],
+  gaps: readonly BusinessFrameworkGap[] = [],
 ): BusinessFrameworkSection {
   return {
     name,
@@ -238,10 +287,13 @@ function section(
   };
 }
 
-export function frameworkGap(symbol: string, gaps: readonly string[]): SourceGap {
+export function frameworkGap(
+  symbol: string,
+  gaps: readonly BusinessFrameworkGapValue[],
+): SourceGap {
   return sourceGap({
     source: "business-framework",
-    message: `Business Framework partial for ${symbol}: ${gaps.join("; ")}`,
+    message: `Business Framework partial for ${symbol}: ${gaps.map((gap) => (typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`)).join("; ")}`,
     provider: "market-bot",
     capability: "extended-evidence",
     cause: "provider-data-missing",
@@ -338,7 +390,7 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       secSourceIds,
-      [QUALITATIVE_GAPS[0]],
+      qualitativeGaps("segment-mix", "customer-concentration", "purchase-recurrence"),
     ),
     section(
       "Phase",
@@ -389,7 +441,7 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       secSourceIds,
-      [QUALITATIVE_GAPS[0]],
+      qualitativeGaps("segment-mix", "customer-concentration", "purchase-recurrence"),
     ),
     section(
       "Growth",
@@ -426,9 +478,15 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       secSourceIds,
-      [QUALITATIVE_GAPS[2]],
+      qualitativeGaps("company-kpis", "analyst-consensus"),
     ),
-    section("Management", "insufficient-data", [], [], [QUALITATIVE_GAPS[1]]),
+    section(
+      "Management",
+      "insufficient-data",
+      [],
+      [],
+      qualitativeGaps("management-track-record", "capital-allocation"),
+    ),
     section(
       "Risk",
       postureFrom([
@@ -453,7 +511,7 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       financialLensItem?.sourceIds ?? [],
-      [QUALITATIVE_GAPS[2]],
+      qualitativeGaps("risk-factors"),
     ),
     section(
       "Valuation",
@@ -494,7 +552,13 @@ export function addBusinessFrameworkEvidence(
       ].filter((sourceId) => sourceId !== ""),
     ),
   ];
-  const gaps = [...new Set(sections.flatMap((frameworkSection) => frameworkSection.gaps))];
+  const gaps = [
+    ...new Map(
+      sections
+        .flatMap((frameworkSection) => frameworkSection.gaps)
+        .map((gap) => [typeof gap === "string" ? gap : gap.code, gap]),
+    ).values(),
+  ];
   const item: ExtendedEvidenceItem = {
     category: "business-framework",
     title: `${command.symbol} Business Framework Evidence`,
@@ -520,7 +584,7 @@ export function addBusinessFrameworkEvidence(
     ...(secItem?.identity !== undefined ? { identity: secItem.identity } : {}),
   };
   const artifact: BusinessFrameworkArtifact = {
-    version: 1,
+    version: 2,
     generatedAt,
     symbol: command.symbol.toUpperCase(),
     phase,

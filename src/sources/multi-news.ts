@@ -277,12 +277,9 @@ function relevantNewsCount(
   return sources.filter((source) => isNewsRelevant(source, targets)).length;
 }
 
-// Min-relevant-keep guarantee for ticker lanes. When the persistent seen-filter
-// Strips every relevant source but leaves generic survivors, re-add the most
-// Recent relevant deduped source(s) dropped as seen so the issuer signal is not
-// Lost to repeat-dedupe. Emits one repeat-fallback gap. Market-overview and
-// Mover lanes are unchanged.
-const MIN_RELEVANT_KEEP_TICKER = 1;
+function tickerRelevanceFloor(newsLimit: number): number {
+  return Math.max(2, Math.ceil(newsLimit / 2));
+}
 
 function canonicalUrlOf(source: Source): string | undefined {
   return source.canonicalUrl ?? canonicalizeUrl(source.url);
@@ -299,15 +296,22 @@ function keepRelevantSeenSources(args: {
   readonly dedupedSources: readonly Source[];
   readonly survivors: readonly Source[];
   readonly targets: readonly NewsRelevanceTarget[];
+  readonly newsLimit: number;
 }): RelevantRepeatKeep {
-  const { command, dedupedSources, survivors, targets } = args;
+  const { command, dedupedSources, survivors, targets, newsLimit } = args;
   if (!isInstrumentCommand(command) || targets.length === 0) {
     return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
   }
   const relevantSurvivorCount = survivors.filter((source) =>
     isNewsRelevant(source, targets),
   ).length;
-  const deficit = Math.max(0, MIN_RELEVANT_KEEP_TICKER - relevantSurvivorCount);
+  const availableRelevantCount = relevantNewsCount(dedupedSources, targets);
+  const requiredRelevantCount = Math.min(
+    tickerRelevanceFloor(newsLimit),
+    availableRelevantCount,
+    newsLimit,
+  );
+  const deficit = Math.max(0, requiredRelevantCount - relevantSurvivorCount);
   if (deficit === 0) {
     return { pool: survivors, keptRelevantRepeat: [], gap: undefined };
   }
@@ -467,6 +471,7 @@ export function createMultiNewsAdapter(
       dedupedSources,
       survivors: filtered.newsSources,
       targets,
+      newsLimit: ctx.newsLimit,
     });
     const repeatFallbackGaps = relevantKeep.gap === undefined ? [] : [relevantKeep.gap];
     const newsSources = assignSourceIds(

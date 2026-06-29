@@ -274,6 +274,166 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
   });
 
+  test("renders the SEC filing basis line for company profiles", () => {
+    const answer = {
+      answer: "Apple sells devices and services.",
+      sourceIds: ["web-aapl-12345678"],
+    };
+    const webReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      keyFindings: [{ text: "AAPL web profile is cited.", sourceIds: ["web-aapl-12345678"] }],
+      risks: [],
+      scenarios: [],
+      sources: [
+        {
+          id: "web-aapl-12345678",
+          title: "AAPL company page",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "exa",
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "AAPL SEC 10-K",
+            summary: "10-K filed 2025-11-01 for period 2025-09-30.",
+            sourceIds: ["web-aapl-12345678"],
+            observedAt: "2025-11-01T00:00:00.000Z",
+            metrics: { form: "10-K", filingDate: "2025-11-01", reportDate: "2025-09-30" },
+          },
+          {
+            category: "sec-edgar",
+            title: "AAPL SEC 10-Q",
+            summary: "10-Q filed 2026-05-01 for period 2026-03-31.",
+            sourceIds: ["web-aapl-12345678"],
+            observedAt: "2026-05-01T00:00:00.000Z",
+            metrics: { form: "10-Q", filingDate: "2026-05-01", reportDate: "2026-03-31" },
+          },
+        ],
+        gaps: [],
+      },
+      extras: {
+        webSubjectProfile: {
+          version: 3,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
+          symbol: "AAPL",
+          companyName: "Apple Inc.",
+          subjectSummary: answer,
+          questions: {
+            whatItDoes: answer,
+            howItMakesMoney: answer,
+            customers: answer,
+            geography: answer,
+            purchaseRecurrence: answer,
+            pricingPower: answer,
+            recessionCyclicality: answer,
+            managementTrackRecord: answer,
+            capitalAllocation: answer,
+            companyKpis: answer,
+            riskFactors: answer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [],
+          openGaps: [],
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
+    };
+
+    const markdown = renderMarkdownReport(validateResearchReport(webReport));
+
+    expect(markdown).toContain(
+      "**Basis:** 10-K filed 2025-11-01 (period 2025-09-30); 10-Q for period 2026-03-31.",
+    );
+    expect(markdown).not.toContain("Current-year 10-Q unavailable");
+  });
+
+  test("discloses a missing 10-Q in the basis line when only the 10-K is present", () => {
+    const answer = {
+      answer: "Apple sells devices and services.",
+      sourceIds: ["web-aapl-12345678"],
+    };
+    const webReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      keyFindings: [{ text: "AAPL web profile is cited.", sourceIds: ["web-aapl-12345678"] }],
+      risks: [],
+      scenarios: [],
+      sources: [
+        {
+          id: "web-aapl-12345678",
+          title: "AAPL company page",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "exa",
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "AAPL SEC 10-K",
+            summary: "10-K filed 2025-11-01 for period 2025-09-30.",
+            sourceIds: ["web-aapl-12345678"],
+            observedAt: "2025-11-01T00:00:00.000Z",
+            metrics: { form: "10-K", filingDate: "2025-11-01", reportDate: "2025-09-30" },
+          },
+        ],
+        gaps: [],
+      },
+      extras: {
+        webSubjectProfile: {
+          version: 3,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
+          symbol: "AAPL",
+          companyName: "Apple Inc.",
+          subjectSummary: answer,
+          questions: {
+            whatItDoes: answer,
+            howItMakesMoney: answer,
+            customers: answer,
+            geography: answer,
+            purchaseRecurrence: answer,
+            pricingPower: answer,
+            recessionCyclicality: answer,
+            managementTrackRecord: answer,
+            capitalAllocation: answer,
+            companyKpis: answer,
+            riskFactors: answer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [],
+          openGaps: [],
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
+    };
+
+    const markdown = renderMarkdownReport(validateResearchReport(webReport));
+
+    expect(markdown).toContain("**Basis:** 10-K filed 2025-11-01 (period 2025-09-30).");
+    expect(markdown).toContain("Current-year 10-Q unavailable.");
+  });
+
   test("rejects unknown source IDs in web-subject-profile extras", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: ["unknown-web"] };
     const webReport: ResearchReport = {

@@ -578,6 +578,48 @@ const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = 
   ],
 };
 
+function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): string | undefined {
+  const {form} = metrics;
+  if (form !== "10-K" && form !== "10-Q") {
+    return undefined;
+  }
+  const filingDate = typeof metrics.filingDate === "string" ? metrics.filingDate : undefined;
+  const reportDate = typeof metrics.reportDate === "string" ? metrics.reportDate : undefined;
+  if (form === "10-K") {
+    const filed = filingDate !== undefined ? ` filed ${filingDate}` : "";
+    const period = reportDate !== undefined ? ` (period ${reportDate})` : "";
+    return `10-K${filed}${period}`;
+  }
+  if (reportDate !== undefined) {
+    return `10-Q for period ${reportDate}`;
+  }
+  return filingDate !== undefined ? `10-Q filed ${filingDate}` : "10-Q";
+}
+
+/**
+ * Renders the SEC filing basis/verification line for company profiles from the
+ * 10-K/10-Q filing items, plus a disclosure when only the annual 10-K is present.
+ */
+function companyFilingBasisLine(report: ResearchReport): string | undefined {
+  const items = report.extendedEvidence?.items ?? [];
+  const entries = items.flatMap((item) =>
+    item.metrics !== undefined ? [filingBasisEntry(item.metrics)] : [],
+  );
+  const forms = new Set(
+    items.flatMap((item) => {
+      const form = item.metrics?.form;
+      return form === "10-K" || form === "10-Q" ? [form] : [];
+    }),
+  );
+  const parts = entries.filter((entry): entry is string => entry !== undefined);
+  if (parts.length === 0) {
+    return undefined;
+  }
+  const disclosure =
+    forms.has("10-K") && !forms.has("10-Q") ? " Current-year 10-Q unavailable." : "";
+  return `**Basis:** ${parts.join("; ")}.${disclosure}`;
+}
+
 function renderWebSubjectProfile(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType) && report.jobType !== "research") {
     return "";
@@ -629,11 +671,13 @@ function renderWebSubjectProfile(report: ResearchReport): string {
   if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
     return "";
   }
+  const basis = subjectKind === "company" ? companyFilingBasisLine(report) : undefined;
   return [
     "## Web Subject Profile",
     "",
     ...summary,
     ...(summary.length > 0 ? [""] : []),
+    ...(basis !== undefined ? [basis, ""] : []),
     ...rows,
     ...(events.length > 0 ? ["", "### Recent Material Events", "", ...events] : []),
     ...(facts.length > 0 ? ["", "### Fact Ledger", "", ...facts] : []),

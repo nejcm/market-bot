@@ -26,7 +26,7 @@ Add a bounded Evidence Request Loop before `specialist-analysis` for `ticker --d
 
 V1 tools are:
 
-- `sec_latest_filing` — SEC EDGAR latest 10-K/10-Q filing text, 3 source units.
+- `sec_latest_filing` — SEC EDGAR latest 10-K and latest 10-Q filing text (two citeable Sources), 5 source units.
 - `tradier_iv_term_structure` — Tradier public market-data IV term structure, 5 source units, available only when `MARKET_BOT_TRADIER_API_TOKEN` is set.
 
 The env limits default to two rounds, two accepted tool calls, and eight source units. Setting any limit to `0` disables the loop.

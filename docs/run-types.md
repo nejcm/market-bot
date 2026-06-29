@@ -13,15 +13,15 @@ legacy `daily` and `weekly` for artifact/history compatibility, but the public
 CLI parser normalizes new `daily` / `weekly` invocations into canonical
 `market-overview` commands with a `legacyAlias`.
 
-| Run Type          | Asset Handling       | Depth Flag | Instrument | Web Gather | Evidence Request | Synthesis Report |
-| ----------------- | -------------------- | ---------- | ---------- | ---------- | ---------------- | ---------------- |
-| `market-overview` | `--asset` required   | yes        | no         | no         | no               | yes              |
-| `daily`           | legacy alias         | yes        | no         | no         | no               | yes              |
-| `weekly`          | legacy alias         | yes        | no         | no         | no               | yes              |
-| `equity`          | implied equity       | yes        | yes        | yes        | yes              | yes              |
-| `crypto`          | implied crypto       | yes        | yes        | yes        | no               | yes              |
-| `alpha-search`    | fixed `--asset equity` | yes      | no         | no         | no               | no               |
-| `research`        | implied equity       | yes        | no         | yes        | no               | yes              |
+| Run Type          | Asset Handling         | Depth Flag | Instrument | Web Gather | Evidence Request | Synthesis Report |
+| ----------------- | ---------------------- | ---------- | ---------- | ---------- | ---------------- | ---------------- |
+| `market-overview` | `--asset` required     | yes        | no         | no         | no               | yes              |
+| `daily`           | legacy alias           | yes        | no         | no         | no               | yes              |
+| `weekly`          | legacy alias           | yes        | no         | no         | no               | yes              |
+| `equity`          | implied equity         | yes        | yes        | yes        | yes              | yes              |
+| `crypto`          | implied crypto         | yes        | yes        | yes        | no               | yes              |
+| `alpha-search`    | fixed `--asset equity` | yes        | no         | no         | no               | no               |
+| `research`        | implied equity         | yes        | no         | yes        | no               | yes              |
 
 Operational commands (`score`, `calibration`, `cache-prune`, `provider-health`,
 `history-*`, `index-rebuild`) are not research run types.

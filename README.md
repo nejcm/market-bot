@@ -75,19 +75,19 @@ bun link          # optional — adds `market-bot` to PATH from this clone
 market-bot market-overview --asset equity
 ```
 
-| Command                                                   | Purpose                                                                                                                          |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Command                                                            | Purpose                                                                                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `market-overview --asset equity\|crypto [--horizon days] [prompt]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases; prompt text steers spotlight selection and final synthesis |
-| `equity <SYMBOL>`                                         | Single-instrument equity brief; `--deep` adds Evidence Request Loop + Coverage Panel                                             |
-| `crypto <SYMBOL>`                                         | Single-instrument crypto brief; `--deep` adds Coverage Panel                                                                     |
-| `research <subject> [--deep]`                             | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions |
-| `alpha-search --asset equity`                             | Research Leads only — no predictions or calibration side effects; later `score` runs update alpha validation artifacts           |
-| `score`                                                   | Resolve due predictions across prior runs                                                                                        |
-| `calibration`                                             | Rebuild calibration summary + print reliability dashboard                                                                        |
-| `index rebuild`                                           | Bootstrap / rebuild SQLite Run Artifact Index                                                                                    |
-| `history rebuild` / `search` / `thesis-delta`             | Artifact-only cross-run search and thesis comparison                                                                             |
-| `provider-health`                                         | Validation report over persisted runs and provider coverage                                                                      |
-| `cache prune`                                             | Drop stale source and close-cache entries                                                                                        |
+| `equity <SYMBOL>`                                                  | Single-instrument equity brief; `--deep` adds Evidence Request Loop + Coverage Panel                                                                          |
+| `crypto <SYMBOL>`                                                  | Single-instrument crypto brief; `--deep` adds Coverage Panel                                                                                                  |
+| `research <subject> [--deep]`                                      | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions                              |
+| `alpha-search --asset equity`                                      | Research Leads only — no predictions or calibration side effects; later `score` runs update alpha validation artifacts                                        |
+| `score`                                                            | Resolve due predictions across prior runs                                                                                                                     |
+| `calibration`                                                      | Rebuild calibration summary + print reliability dashboard                                                                                                     |
+| `index rebuild`                                                    | Bootstrap / rebuild SQLite Run Artifact Index                                                                                                                 |
+| `history rebuild` / `search` / `thesis-delta`                      | Artifact-only cross-run search and thesis comparison                                                                                                          |
+| `provider-health`                                                  | Validation report over persisted runs and provider coverage                                                                                                   |
+| `cache prune`                                                      | Drop stale source and close-cache entries                                                                                                                     |
 
 Full command reference: [docs/how-it-works.md](./docs/how-it-works.md).
 

@@ -13,6 +13,7 @@ export interface WebTextSanitizerResult {
 export const MAX_WEB_TEXT_SANITIZER_INPUT_CHARS = 10_000;
 
 const CODE_FENCE_RE = /```[\s\S]*?```/gu;
+const CODE_FENCE_UNCLOSED_RE = /```[\s\S]*$/gu;
 const HTML_BLOCK_RE =
   /<(script|style|form|template|noscript|iframe|svg|head|meta|link|input|button|select|textarea)\b[\s\S]*?<\/\1>|<(meta|link|input|button|select|textarea)\b[^>]*>/giu;
 const HTML_UNCLOSED_BLOCK_RE =
@@ -20,9 +21,11 @@ const HTML_UNCLOSED_BLOCK_RE =
 const HTML_DANGLING_RISKY_TAG_RE =
   /<(script|style|form|template|noscript|iframe|svg|head)\b[^>]*$/giu;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/gu;
+const HTML_UNCLOSED_COMMENT_RE = /<!--[\s\S]*$/gu;
 const HTML_TAG_RE = /<[^>]+>/gu;
 const ENTITY_RE = /&(?:#(\d+)|#x([\da-f]+)|amp|lt|gt|quot|apos|nbsp|mdash|ndash);/giu;
-const FORMAT_SEPARATOR_RE = /[\u00AD\u200B-\u200D\uFEFF]+/gu;
+const UNKNOWN_NAMED_ENTITY_RE = /&[a-z][a-z\d]+;/giu;
+const FORMAT_SEPARATOR_RE = /\p{Cf}+/gu;
 const WHITESPACE_RE = /\s+/gu;
 const MAX_UNICODE_CODE_POINT = 1_114_111;
 
@@ -41,7 +44,7 @@ const INSTRUCTION_SPAN_PATTERNS: readonly RegExp[] = [
 
 const CHROME_PATTERNS: readonly RegExp[] = [
   /^(?:accept|reject|manage|allow)(?: all)? cookies?$/iu,
-  /^we use cookies\b/iu,
+  /^we use cookies\b[^.!?]*[.!?]?$/iu,
   /^cookie (?:settings|preferences|policy)$/iu,
   /^(?:subscribe|sign in|log in|create account|join now|newsletter)$/iu,
   /^(?:share|shared? on|follow us|advertisement|advertising|sponsored)$/iu,
@@ -63,34 +66,57 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
       removedChromeHtmlCount,
     ));
   }
-  ({ text, removedCount: removedChromeHtmlCount } = removePattern(
+  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
     text,
     HTML_COMMENT_RE,
+    " ",
     removedChromeHtmlCount,
   ));
-  ({ text, removedCount: removedChromeHtmlCount } = removePattern(
+  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
+    text,
+    HTML_UNCLOSED_COMMENT_RE,
+    " ",
+    removedChromeHtmlCount,
+  ));
+  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
     text,
     HTML_BLOCK_RE,
+    " ",
     removedChromeHtmlCount,
   ));
-  ({ text, removedCount: removedChromeHtmlCount } = removePattern(
+  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
     text,
     HTML_UNCLOSED_BLOCK_RE,
+    " ",
     removedChromeHtmlCount,
   ));
-  ({ text, removedCount: removedChromeHtmlCount } = removePattern(
+  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
     text,
     HTML_DANGLING_RISKY_TAG_RE,
+    " ",
     removedChromeHtmlCount,
   ));
-  ({ text, removedCount: removedInstructionSpanCount } = removePattern(
+  ({ text, removedCount: removedInstructionSpanCount } = replacePattern(
     text,
     CODE_FENCE_RE,
+    " ",
+    removedInstructionSpanCount,
+  ));
+  ({ text, removedCount: removedInstructionSpanCount } = replacePattern(
+    text,
+    CODE_FENCE_UNCLOSED_RE,
+    " ",
     removedInstructionSpanCount,
   ));
   ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
     text,
     HTML_TAG_RE,
+    " ",
+    removedChromeHtmlCount,
+  ));
+  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
+    text,
+    UNKNOWN_NAMED_ENTITY_RE,
     " ",
     removedChromeHtmlCount,
   ));
@@ -113,6 +139,10 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
   const filtered: string[] = [];
   const normalizedText = retainedLines.join(" ").replaceAll(WHITESPACE_RE, " ").trim();
   for (const sentence of normalizedText.split(/(?<=[.!?])\s+/u)) {
+    if (isChromeLine(sentence)) {
+      removedChromeHtmlCount += 1;
+      continue;
+    }
     if (isInstructionSpan(sentence)) {
       removedInstructionSpanCount += 1;
       continue;
@@ -130,19 +160,6 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
       removedChromeHtmlCount,
     },
   };
-}
-
-function removePattern(
-  text: string,
-  pattern: RegExp,
-  removedCount: number,
-): { readonly text: string; readonly removedCount: number } {
-  let count = removedCount;
-  const next = text.replace(pattern, () => {
-    count += 1;
-    return "";
-  });
-  return { text: next, removedCount: count };
 }
 
 function replacePattern(

@@ -50,6 +50,11 @@ export const MAX_WEB_GATHER_SEARCH_RESULTS = 8;
 const MAX_TEXT_CHARS = 5000;
 const MAX_SNIPPET_CHARS = 1200;
 const MAX_SUMMARY_CHARS = 1200;
+const MAX_TITLE_CHARS = 300;
+const MAX_PUBLISHER_CHARS = 200;
+const MAX_WEB_URL_CHARS = 2048;
+const ISO_DATE_OR_TIMESTAMP_RE =
+  /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/u;
 const ZERO_SANITIZER_AUDIT: WebGatherSanitizerAudit = {
   sourceCount: 0,
   sanitizedSourceCount: 0,
@@ -300,7 +305,7 @@ function readExaResults(payload: unknown): ExaResultsParse {
     if (!isRecord(value)) {
       return [];
     }
-    const url = readString(value, "url");
+    const url = validatedWebUrl(readString(value, "url"));
     if (url === undefined) {
       return [];
     }
@@ -324,6 +329,39 @@ function readExaResults(payload: unknown): ExaResultsParse {
     ];
   });
   return { results, malformed: payload.results.length > 0 && results.length === 0 };
+}
+
+function validatedWebUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (trimmed === undefined || trimmed === "" || trimmed.length > MAX_WEB_URL_CHARS) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (
+      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+      parsed.username !== "" ||
+      parsed.password !== ""
+    ) {
+      return undefined;
+    }
+    const normalized = parsed.toString();
+    return normalized.length <= MAX_WEB_URL_CHARS ? normalized : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizedPublishedDate(value: string | undefined): string | undefined {
+  if (value === undefined || value.length > 64 || !ISO_DATE_OR_TIMESTAMP_RE.test(value)) {
+    return undefined;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
+}
+
+function webSourceFallbackTitle(url: string): string {
+  return new URL(url).hostname;
 }
 
 function rememberSurfacedUrls(results: readonly ExaResult[], surfacedUrls: Set<string>): void {
@@ -380,14 +418,16 @@ function exaSource(
   rawRef: string,
 ): SanitizedExaSource {
   const canonicalUrl = canonicalizeUrl(result.url);
-  const fetchedAt = result.publishedDate ?? fallbackFetchedAt;
+  const fetchedAt = normalizedPublishedDate(result.publishedDate) ?? fallbackFetchedAt;
+  const title = sanitizeOptionalWebText(result.title, MAX_TITLE_CHARS);
+  const publisher = sanitizeOptionalWebText(result.author, MAX_PUBLISHER_CHARS);
   const summary = sanitizeOptionalWebText(result.summary, MAX_SUMMARY_CHARS);
   const snippet = sanitizeOptionalWebText(webSnippetText(result), MAX_SNIPPET_CHARS);
   const source: Source = {
     id: webSourceId(subject.subjectId, canonicalUrl ?? result.url),
-    title: result.title ?? result.url,
+    title: title.text ?? webSourceFallbackTitle(result.url),
     url: result.url,
-    ...(result.author !== undefined ? { publisher: result.author } : {}),
+    ...(publisher.text !== undefined ? { publisher: publisher.text } : {}),
     fetchedAt,
     kind: "web",
     ...(subject.assetClass !== undefined ? { assetClass: subject.assetClass } : {}),
@@ -399,24 +439,38 @@ function exaSource(
     ...(summary.text !== undefined ? { summary: summary.text } : {}),
     ...(snippet.text !== undefined ? { snippet: snippet.text } : {}),
   };
-  const hadModelVisibleInput = summary.inputPresent || snippet.inputPresent;
+  const hadModelVisibleInput =
+    title.inputPresent || publisher.inputPresent || summary.inputPresent || snippet.inputPresent;
+  const hadContentInput = summary.inputPresent || snippet.inputPresent;
   return {
     source,
     sanitizer: {
       sourceCount: 1,
       sanitizedSourceCount: hadModelVisibleInput ? 1 : 0,
       emptyAfterSanitizeCount:
-        hadModelVisibleInput && summary.text === undefined && snippet.text === undefined ? 1 : 0,
-      inputCharCount: summary.telemetry.inputCharCount + snippet.telemetry.inputCharCount,
-      outputCharCount: summary.telemetry.outputCharCount + snippet.telemetry.outputCharCount,
+        hadContentInput && summary.text === undefined && snippet.text === undefined ? 1 : 0,
+      inputCharCount:
+        title.telemetry.inputCharCount +
+        publisher.telemetry.inputCharCount +
+        summary.telemetry.inputCharCount +
+        snippet.telemetry.inputCharCount,
+      outputCharCount:
+        title.telemetry.outputCharCount +
+        publisher.telemetry.outputCharCount +
+        summary.telemetry.outputCharCount +
+        snippet.telemetry.outputCharCount,
       removedInstructionSpanCount:
+        title.telemetry.removedInstructionSpanCount +
+        publisher.telemetry.removedInstructionSpanCount +
         summary.telemetry.removedInstructionSpanCount +
         snippet.telemetry.removedInstructionSpanCount,
       removedChromeHtmlCount:
-        summary.telemetry.removedChromeHtmlCount + snippet.telemetry.removedChromeHtmlCount,
+        title.telemetry.removedChromeHtmlCount +
+        publisher.telemetry.removedChromeHtmlCount +
+        summary.telemetry.removedChromeHtmlCount +
+        snippet.telemetry.removedChromeHtmlCount,
     },
-    emptyAfterSanitize:
-      hadModelVisibleInput && summary.text === undefined && snippet.text === undefined,
+    emptyAfterSanitize: hadContentInput && summary.text === undefined && snippet.text === undefined,
   };
 }
 

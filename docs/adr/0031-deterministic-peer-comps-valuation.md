@@ -41,7 +41,7 @@ The collector performs additional Yahoo and SEC requests only for deep equity ti
 
 ## Rejected alternatives
 
-- Let the model select peers. Rejected because it violates Peer Universe provenance discipline.
+- Let the model select peers. Rejected because it violates Peer Universe provenance discipline. (Superseded in part by [ADR 0039](./0039-model-proposed-validated-peer-universe.md): the model now *proposes* candidates, code *validates* each one deterministically, and a learned cache makes the resolved set reproducible — the model still never authors the peer set directly.)
 - Run peer comps for every equity ticker brief. Rejected because the extra peer quote and SEC fetch cost belongs in deep ticker research.
 - Add a new report prediction kind or valuation forecast. Rejected because valuation comps are research context, not scored forecasts.
 - Add spreadsheet or workbook output. Rejected because the public interface is the normalized JSON sidecar.

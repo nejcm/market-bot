@@ -24,7 +24,7 @@ import {
 } from "./types";
 
 export const EVIDENCE_REQUEST_TOOL_UNITS: Record<EvidenceRequestToolName, number> = {
-  sec_latest_filing: 3,
+  sec_latest_filing: 5,
   tradier_iv_term_structure: 5,
 };
 
@@ -105,7 +105,10 @@ function secTextRequestInit(userAgent: string | undefined): RequestInit | undefi
   return userAgent === undefined ? undefined : { headers: { "user-agent": userAgent } };
 }
 
-function selectLatestPeriodicFiling(payload: unknown): SecFiling | undefined {
+function selectLatestFilingByForm(
+  payload: unknown,
+  form: SecFiling["form"],
+): SecFiling | undefined {
   if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
     return undefined;
   }
@@ -118,8 +121,8 @@ function selectLatestPeriodicFiling(payload: unknown): SecFiling | undefined {
   const primaryDocuments = stringArrayValue(recent.primaryDocument);
 
   return forms
-    .flatMap((form, index): SecFiling[] => {
-      if (form !== "10-K" && form !== "10-Q") {
+    .flatMap((f, index): SecFiling[] => {
+      if (f !== form) {
         return [];
       }
       const filingDate = filingDates[index];
@@ -206,6 +209,71 @@ function secFilingExcerpt(normalized: string, form: SecFiling["form"]): string {
   return truncateText(normalized.slice(sectionStart), SEC_FILING_SNIPPET_CHARS);
 }
 
+interface SecFilingSourceItem {
+  readonly source: Source;
+  readonly item: ExtendedEvidenceItem;
+}
+
+function buildSecFilingSourceItem(
+  command: InstrumentCommand,
+  match: { cik: string; ticker: string; name?: string },
+  filing: SecFiling,
+  url: string,
+  filingText: FetchTextResult,
+): SecFilingSourceItem {
+  const formKey = filing.form === "10-K" ? "10k" : "10q";
+  const identity = secIdentity(match);
+  const normalized = normalizeFilingText(filingText.payload);
+  const excerpt = secFilingExcerpt(normalized, filing.form);
+  const summaryExcerpt = truncateText(excerpt, SEC_FILING_SUMMARY_EXCERPT_CHARS);
+  const title = `${command.symbol} SEC ${filing.form}`;
+  const source: Source = {
+    id: `extended-sec-edgar-${command.symbol.toLowerCase()}-${formKey}`,
+    title,
+    url,
+    fetchedAt: filingText.rawSnapshot.fetchedAt,
+    kind: "extended-evidence",
+    assetClass: command.assetClass,
+    symbol: command.symbol,
+    provider: "sec-edgar",
+    rawRef: filingText.rawSnapshot.id,
+    summary: `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`,
+    snippet: excerpt,
+    identity,
+  };
+  const item: ExtendedEvidenceItem = {
+    category: "sec-edgar",
+    title,
+    summary: `${source.summary} Filing excerpt: ${summaryExcerpt}`,
+    sourceIds: [source.id],
+    observedAt: source.fetchedAt,
+    metrics: {
+      form: filing.form,
+      filingDate: filing.filingDate,
+      ...(filing.reportDate !== undefined ? { reportDate: filing.reportDate } : {}),
+      accessionNumber: filing.accessionNumber,
+      primaryDocument: filing.primaryDocument,
+      cik: match.cik,
+    },
+    identity,
+  };
+  return { source, item };
+}
+
+async function fetchFilingText(
+  ctx: CollectContext,
+  filing: SecFiling,
+  cik: string,
+): Promise<{ result: FetchTextResult | SourceGap; url: string }> {
+  const url = filingUrl(cik, filing);
+  const result = await ctx.request.text({
+    url,
+    adapter: "sec-filing-text",
+    init: secTextRequestInit(ctx.secUserAgent),
+  });
+  return { result, url };
+}
+
 async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
   const { command } = ctx;
   if (!isInstrumentCommand(command)) {
@@ -260,8 +328,10 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     return emptyOutput([submissions], [tickers.rawSnapshot]);
   }
 
-  const filing = selectLatestPeriodicFiling(submissions.payload);
-  if (filing === undefined) {
+  const tenK = selectLatestFilingByForm(submissions.payload, "10-K");
+  const tenQ = selectLatestFilingByForm(submissions.payload, "10-Q");
+
+  if (tenK === undefined && tenQ === undefined) {
     return emptyOutput(
       [
         sourceGap({
@@ -277,70 +347,58 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     );
   }
 
-  const url = filingUrl(match.cik, filing);
-  const filingText = await ctx.request.text({
-    url,
-    adapter: "sec-filing-text",
-    init: secTextRequestInit(ctx.secUserAgent),
-  });
-  if (!isFetchTextResult(filingText)) {
-    return emptyOutput([filingText], [tickers.rawSnapshot, submissions.rawSnapshot]);
+  const sharedRawSnapshots: readonly RawSourceSnapshot[] = [
+    tickers.rawSnapshot,
+    submissions.rawSnapshot,
+  ];
+  const sources: Source[] = [];
+  const items: ExtendedEvidenceItem[] = [];
+  const gaps: SourceGap[] = [];
+  const rawSnapshots: RawSourceSnapshot[] = [...sharedRawSnapshots];
+
+  // Fetch 10-K (primary annual source)
+  if (tenK !== undefined) {
+    const { result: tenKText, url: tenKUrl } = await fetchFilingText(ctx, tenK, match.cik);
+    if (isFetchTextResult(tenKText)) {
+      rawSnapshots.push(tenKText.rawSnapshot);
+      const { source, item } = buildSecFilingSourceItem(command, match, tenK, tenKUrl, tenKText);
+      sources.push(source);
+      items.push(item);
+    } else {
+      gaps.push(tenKText);
+    }
   }
 
-  return secFilingOutput(
-    command,
-    match,
-    filing,
-    url,
-    [tickers.rawSnapshot, submissions.rawSnapshot, filingText.rawSnapshot],
-    filingText,
-  );
-}
+  // Fetch 10-Q (most recent quarterly update)
+  if (tenQ !== undefined) {
+    const { result: tenQText, url: tenQUrl } = await fetchFilingText(ctx, tenQ, match.cik);
+    if (isFetchTextResult(tenQText)) {
+      rawSnapshots.push(tenQText.rawSnapshot);
+      const { source, item } = buildSecFilingSourceItem(command, match, tenQ, tenQUrl, tenQText);
+      sources.push(source);
+      items.push(item);
+    } else {
+      gaps.push(tenQText);
+    }
+  } else if (tenK !== undefined) {
+    // 10-K present but no current-year 10-Q — add disclosure gap
+    gaps.push(
+      sourceGap({
+        source: "sec-edgar",
+        message: `No current-year 10-Q found for ${command.symbol}; only annual 10-K available`,
+        provider: "sec-edgar",
+        capability: "evidence-request",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
+  }
 
-function secFilingOutput(
-  command: InstrumentCommand,
-  match: { cik: string; ticker: string; name?: string },
-  filing: SecFiling,
-  url: string,
-  rawSnapshots: readonly RawSourceSnapshot[],
-  filingText: FetchTextResult,
-): EvidenceRequestToolOutput {
-  const identity = secIdentity(match);
-  const normalized = normalizeFilingText(filingText.payload);
-  const excerpt = secFilingExcerpt(normalized, filing.form);
-  const summaryExcerpt = truncateText(excerpt, SEC_FILING_SUMMARY_EXCERPT_CHARS);
-  const title = `${command.symbol} latest SEC ${filing.form}`;
-  const source: Source = {
-    id: `extended-sec-edgar-${command.symbol.toLowerCase()}-latest-filing`,
-    title,
-    url,
-    fetchedAt: filingText.rawSnapshot.fetchedAt,
-    kind: "extended-evidence",
-    assetClass: command.assetClass,
-    symbol: command.symbol,
-    provider: "sec-edgar",
-    rawRef: filingText.rawSnapshot.id,
-    summary: `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`,
-    snippet: excerpt,
-    identity,
-  };
-  const item: ExtendedEvidenceItem = {
-    category: "sec-edgar",
-    title,
-    summary: `${source.summary} Filing excerpt: ${summaryExcerpt}`,
-    sourceIds: [source.id],
-    observedAt: source.fetchedAt,
-    metrics: {
-      form: filing.form,
-      filingDate: filing.filingDate,
-      ...(filing.reportDate !== undefined ? { reportDate: filing.reportDate } : {}),
-      accessionNumber: filing.accessionNumber,
-      primaryDocument: filing.primaryDocument,
-      cik: match.cik,
-    },
-    identity,
-  };
-  return { rawSnapshots, sources: [source], items: [item], gaps: [] };
+  if (sources.length === 0) {
+    return emptyOutput(gaps, sharedRawSnapshots);
+  }
+
+  return { rawSnapshots, sources, items, gaps };
 }
 
 function readTradierExpirations(payload: unknown): readonly string[] {

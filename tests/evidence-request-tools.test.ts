@@ -227,6 +227,67 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.items[0]?.summary.length).toBeLessThan(1400);
   });
 
+  test("fetches both latest 10-K and latest 10-Q as distinct citeable sources", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q", "10-Q"],
+          filingDate: ["2025-11-01", "2026-05-01", "2026-02-01"],
+          reportDate: ["2025-09-30", "2026-03-31", "2025-12-31"],
+          accessionNumber: ["0000320193-25-000010", "0000320193-26-000077", "0000320193-26-000020"],
+          primaryDocument: ["a10k.htm", "a10q-latest.htm", "a10q-old.htm"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ url, adapter }) =>
+            textResult(adapter, `ITEM 7-MANAGEMENT discussion for ${url}`),
+        }),
+      }),
+    );
+
+    expect(result.gaps).toEqual([]);
+    expect(result.sources).toHaveLength(2);
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10k",
+      "extended-sec-edgar-aapl-10q",
+    ]);
+    expect(result.sources[0]?.url).toContain("/a10k.htm");
+    // Latest 10-Q wins over the older one.
+    expect(result.sources[1]?.url).toContain("/a10q-latest.htm");
+    expect(result.items[0]?.metrics).toMatchObject({ form: "10-K", filingDate: "2025-11-01" });
+    expect(result.items[1]?.metrics).toMatchObject({ form: "10-Q", filingDate: "2026-05-01" });
+    // Tickers + submissions + two filing texts
+    expect(result.rawSnapshots).toHaveLength(4);
+  });
+
+  test("returns the 10-K with a disclosure gap when no 10-Q exists", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-K"], ["a10k.htm"])),
+          text: async ({ adapter }) => textResult(adapter, "ITEM 7-MANAGEMENT annual discussion"),
+        }),
+      }),
+    );
+
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]?.id).toBe("extended-sec-edgar-aapl-10k");
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0]?.message).toContain("No current-year 10-Q");
+  });
+
   test("emits fetch failure gap from filing text fetch", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",

@@ -536,7 +536,7 @@ describe("runResearchJob", () => {
       | undefined;
     expect(evidenceRequestPrompt?.evidenceRequest).toMatchObject({
       availableTools: ["sec_latest_filing"],
-      toolUnits: { sec_latest_filing: 3, tradier_iv_term_structure: 5 },
+      toolUnits: { sec_latest_filing: 5, tradier_iv_term_structure: 5 },
     });
     expect(result.trace.stages).toEqual([
       "source-collection",
@@ -808,7 +808,7 @@ describe("runResearchJob", () => {
                     },
                   ],
                 })
-              : modelReport("AAPL", "extended-sec-edgar-aapl-latest-filing"),
+              : modelReport("AAPL", "extended-sec-edgar-aapl-10q"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -840,17 +840,15 @@ describe("runResearchJob", () => {
       };
     };
 
-    expect(specialistPrompt.evidence?.extendedEvidence?.items?.[0]?.title).toBe(
-      "AAPL latest SEC 10-Q",
-    );
+    expect(specialistPrompt.evidence?.extendedEvidence?.items?.[0]?.title).toBe("AAPL SEC 10-Q");
     expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
       "sec-filing-text",
     );
     expect(result.report.sources.map((source) => source.id)).toContain(
-      "extended-sec-edgar-aapl-latest-filing",
+      "extended-sec-edgar-aapl-10q",
     );
     expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
-    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(3);
+    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(5);
   });
 
   test("selects playbooks after evidence request and injects them downstream", async () => {
@@ -889,7 +887,7 @@ describe("runResearchJob", () => {
           };
         }
         return {
-          content: modelReport("AAPL", "extended-sec-edgar-aapl-latest-filing"),
+          content: modelReport("AAPL", "extended-sec-edgar-aapl-10q"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -1254,7 +1252,7 @@ describe("runResearchJob", () => {
     expect(result.trace.evidenceRequestLoop?.rejectedRequests).toEqual([
       expect.objectContaining({ round: 2, reason: "duplicate evidence request" }),
     ]);
-    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(3);
+    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(5);
   });
 
   test("emits source gap and continues when evidence request JSON is invalid", async () => {

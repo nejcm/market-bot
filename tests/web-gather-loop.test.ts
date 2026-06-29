@@ -153,7 +153,10 @@ describe("runWebGatherLoop", () => {
           requests: [
             {
               tool: "web_search",
-              args: { query: "Apple business model revenue segments" },
+              args: {
+                query: "Apple business model revenue segments",
+                searchType: "background",
+              },
               rationale: "business profile evidence",
             },
           ],
@@ -181,6 +184,12 @@ describe("runWebGatherLoop", () => {
       sourceCount: 1,
       sanitizedSourceCount: 1,
     });
+    expect(result.audit?.acceptedRequests[0]?.freshness).toEqual({
+      searchType: "background",
+      endPublishedDate: "2026-05-19T00:00:00.000Z",
+      livecrawl: false,
+      widened: false,
+    });
     expect(result.audit?.sourceUnitsUsed).toBe(2);
     expect(result.audit?.sanitizer).toMatchObject({
       sourceCount: 1,
@@ -205,7 +214,7 @@ describe("runWebGatherLoop", () => {
           requests: [
             {
               tool: "web_search",
-              args: { query: "Snapple beverage customer wins" },
+              args: { query: "Snapple beverage customer wins", searchType: "background" },
               rationale: "off subject",
             },
           ],
@@ -246,17 +255,20 @@ describe("runWebGatherLoop", () => {
           requests: [
             {
               tool: "web_search",
-              args: { query: "restaurant payment terminals" },
+              args: { query: "restaurant payment terminals", searchType: "market" },
               rationale: "off subject",
             },
             {
               tool: "web_search",
-              args: { query: "AI market news" },
+              args: { query: "AI market news", searchType: "news" },
               rationale: "generic single-token subject drift",
             },
             {
               tool: "web_search",
-              args: { query: "AI infrastructure buildout power constraints" },
+              args: {
+                query: "AI infrastructure buildout power constraints",
+                searchType: "current-subject",
+              },
               rationale: "on subject",
             },
           ],
@@ -294,7 +306,7 @@ describe("runWebGatherLoop", () => {
               ? [
                   {
                     tool: "web_search",
-                    args: { query: "AAPL business model" },
+                    args: { query: "AAPL business model", searchType: "background" },
                     rationale: "find relevant urls",
                   },
                 ]
@@ -348,12 +360,15 @@ describe("runWebGatherLoop", () => {
               ? [
                   {
                     tool: "web_search",
-                    args: { query: "Apple business model" },
+                    args: { query: "Apple business model", searchType: "background" },
                     rationale: "find relevant urls",
                   },
                   {
                     tool: "web_search",
-                    args: { query: "  apple   BUSINESS   model  " },
+                    args: {
+                      query: "  apple   BUSINESS   model  ",
+                      searchType: "background",
+                    },
                     rationale: "duplicate query",
                   },
                 ]
@@ -417,12 +432,12 @@ describe("runWebGatherLoop", () => {
           requests: [
             {
               tool: "web_search",
-              args: { query: "Apple business model" },
+              args: { query: "Apple business model", searchType: "background" },
               rationale: "first search",
             },
             {
               tool: "web_search",
-              args: { query: "AAPL revenue segments" },
+              args: { query: "AAPL revenue segments", searchType: "background" },
               rationale: "second search",
             },
           ],
@@ -453,7 +468,7 @@ describe("runWebGatherLoop", () => {
           requests: [
             {
               tool: "web_search",
-              args: { query: "Apple business model", numResults: 9 },
+              args: { query: "Apple business model", searchType: "background", numResults: 9 },
               rationale: "oversized search",
             },
           ],
@@ -467,6 +482,37 @@ describe("runWebGatherLoop", () => {
         reason: "web_search numResults must be at most 8",
       }),
     ]);
+  });
+
+  test("rejects web search without an explicit search type", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model" },
+              rationale: "missing classification",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([]);
+    expect(result.audit?.rejectedRequests).toContainEqual(
+      expect.objectContaining({
+        reason: "web_search searchType must be news, market, current-subject, or background",
+      }),
+    );
   });
 
   test("emits a malformed gap and stops on invalid JSON", async () => {

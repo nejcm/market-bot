@@ -8,6 +8,7 @@ import type {
   SubjectKind,
   WebGatherSanitizerAudit,
   WebGatherToolName,
+  WebSearchType,
 } from "../domain/types";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import { isRecord, optionalString, readString, stringArrayValue } from "./guards";
@@ -31,6 +32,16 @@ export interface WebGatherToolOutput {
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
   readonly sanitizer: WebGatherSanitizerAudit;
+  readonly freshness?: WebSearchFreshnessAudit;
+}
+
+export interface WebSearchFreshnessAudit {
+  readonly searchType: WebSearchType;
+  readonly initialWindowDays?: number;
+  readonly effectiveWindowDays?: number;
+  readonly endPublishedDate: string;
+  readonly livecrawl: boolean;
+  readonly widened: boolean;
 }
 
 export interface WebGatherSubject {
@@ -46,6 +57,9 @@ const EXA_PROVIDER = "exa";
 const EXA_SEARCH_ADAPTER = "exa-search";
 const EXA_CONTENTS_ADAPTER = "exa-contents";
 const DEFAULT_SEARCH_RESULTS = 5;
+const MIN_USABLE_SEARCH_RESULTS = 2;
+const RECENT_SEARCH_WINDOW_DAYS = 30;
+const CURRENT_SUBJECT_WINDOW_DAYS = 180;
 export const MAX_WEB_GATHER_SEARCH_RESULTS = 8;
 const MAX_TEXT_CHARS = 5000;
 const MAX_SNIPPET_CHARS = 1200;
@@ -170,7 +184,9 @@ function isSourceGap(value: SourceGap | object): value is SourceGap {
 
 function searchArgs(
   args: unknown,
-): { readonly query: string; readonly numResults: number } | SourceGap {
+):
+  | { readonly query: string; readonly searchType: WebSearchType; readonly numResults: number }
+  | SourceGap {
   if (!isRecord(args)) {
     return webGatherGap("web_search args must be an object", "validation-failed");
   }
@@ -178,9 +194,22 @@ function searchArgs(
   if (query === undefined) {
     return webGatherGap("web_search requires a non-empty query", "validation-failed");
   }
+  const searchType = readString(args, "searchType");
+  if (
+    searchType !== "news" &&
+    searchType !== "market" &&
+    searchType !== "current-subject" &&
+    searchType !== "background"
+  ) {
+    return webGatherGap(
+      "web_search searchType must be news, market, current-subject, or background",
+      "validation-failed",
+    );
+  }
   const requested = readPositiveInteger(args.numResults);
   return {
     query,
+    searchType,
     numResults: Math.min(requested ?? DEFAULT_SEARCH_RESULTS, MAX_WEB_GATHER_SEARCH_RESULTS),
   };
 }
@@ -208,39 +237,135 @@ async function executeWebSearch(
     return emptyOutput([parsed]);
   }
 
+  const initialWindowDays = searchWindowDays(parsed.searchType);
+  const initial = await requestExaSearch(
+    parsed,
+    ctx,
+    apiKey,
+    initialWindowDays,
+    parsed.searchType !== "background",
+  );
+  if (!isFetchJsonResult(initial)) {
+    return emptyOutput([exaFailureGap(initial)]);
+  }
+
+  const initialParsed = readExaResults(initial.payload);
+  if (initialParsed.malformed) {
+    return emptyOutput(
+      [webGatherGap("Exa search response was malformed", "malformed-response")],
+      [initial.rawSnapshot],
+    );
+  }
+
+  const shouldWiden =
+    initialParsed.results.length < MIN_USABLE_SEARCH_RESULTS && parsed.searchType !== "background";
+  const fallbackWindowDays = widenedSearchWindowDays(parsed.searchType);
+  const fallback = shouldWiden
+    ? await requestExaSearch(parsed, ctx, apiKey, fallbackWindowDays, true)
+    : undefined;
+  const fallbackResult =
+    fallback !== undefined && isFetchJsonResult(fallback) ? fallback : undefined;
+  const fallbackParsed =
+    fallbackResult !== undefined ? readExaResults(fallbackResult.payload) : undefined;
+  const useFallback =
+    fallbackParsed !== undefined &&
+    !fallbackParsed.malformed &&
+    fallbackParsed.results.length >= initialParsed.results.length;
+  const results = useFallback ? fallbackParsed.results : initialParsed.results;
+  const rawSnapshots = [
+    initial.rawSnapshot,
+    ...(fallbackResult !== undefined ? [fallbackResult.rawSnapshot] : []),
+  ];
+  rememberSurfacedUrls(results, surfacedUrls);
+  const output = outputFromResults(
+    ctx,
+    subject,
+    results,
+    rawSnapshots,
+    useFallback && fallbackResult !== undefined
+      ? fallbackResult.rawSnapshot.id
+      : initial.rawSnapshot.id,
+    { emptyMessage: `Exa returned no usable web search results for "${parsed.query}"` },
+  );
+  const fallbackGaps: SourceGap[] = [];
+  if (fallback !== undefined && !isFetchJsonResult(fallback)) {
+    fallbackGaps.push(exaFailureGap(fallback));
+  } else if (fallbackParsed?.malformed === true) {
+    fallbackGaps.push(
+      webGatherGap("Widened Exa search response was malformed", "malformed-response"),
+    );
+  }
+  const effectiveWindowDays = shouldWiden ? fallbackWindowDays : initialWindowDays;
+  return {
+    ...output,
+    gaps: [...output.gaps, ...fallbackGaps],
+    freshness: {
+      searchType: parsed.searchType,
+      ...(initialWindowDays !== undefined ? { initialWindowDays } : {}),
+      ...(effectiveWindowDays !== undefined ? { effectiveWindowDays } : {}),
+      endPublishedDate: ctx.fetchedAt,
+      livecrawl: parsed.searchType !== "background",
+      widened: shouldWiden,
+    },
+  };
+}
+
+function searchWindowDays(searchType: WebSearchType): number | undefined {
+  if (searchType === "news" || searchType === "market") {
+    return RECENT_SEARCH_WINDOW_DAYS;
+  }
+  return searchType === "current-subject" ? CURRENT_SUBJECT_WINDOW_DAYS : undefined;
+}
+
+function widenedSearchWindowDays(searchType: WebSearchType): number | undefined {
+  return searchType === "news" || searchType === "market" ? CURRENT_SUBJECT_WINDOW_DAYS : undefined;
+}
+
+function publishedDateBefore(isoTimestamp: string, days: number): string {
+  const date = new Date(isoTimestamp);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString();
+}
+
+async function requestExaSearch(
+  parsed: {
+    readonly query: string;
+    readonly searchType: WebSearchType;
+    readonly numResults: number;
+  },
+  ctx: CollectContext,
+  apiKey: string,
+  windowDays: number | undefined,
+  livecrawl: boolean,
+) {
   const body = {
     query: parsed.query,
     type: "auto",
     numResults: parsed.numResults,
+    ...(windowDays !== undefined
+      ? { startPublishedDate: publishedDateBefore(ctx.fetchedAt, windowDays) }
+      : {}),
+    endPublishedDate: ctx.fetchedAt,
     contents: {
       text: { maxCharacters: MAX_TEXT_CHARS },
       summary: { query: parsed.query },
       highlights: { numSentences: 2, highlightsPerUrl: 2, query: parsed.query },
+      ...(livecrawl ? { livecrawl: "always" } : {}),
     },
   };
-  const fetched = await ctx.request.json({
+  return ctx.request.json({
     url: `${EXA_API_URL}/search?${encodeQuery({
       query: parsed.query,
       numResults: String(parsed.numResults),
+      searchType: parsed.searchType,
+      startPublishedDate:
+        windowDays === undefined ? "unbounded" : publishedDateBefore(ctx.fetchedAt, windowDays),
+      endPublishedDate: ctx.fetchedAt,
+      livecrawl: livecrawl ? "always" : "never",
     })}`,
     adapter: EXA_SEARCH_ADAPTER,
     init: exaRequestInit(apiKey, body),
     fetch: exaEndpointFetch,
-  });
-  if (!isFetchJsonResult(fetched)) {
-    return emptyOutput([exaFailureGap(fetched)]);
-  }
-
-  const { results, malformed } = readExaResults(fetched.payload);
-  if (malformed) {
-    return emptyOutput(
-      [webGatherGap("Exa search response was malformed", "malformed-response")],
-      [fetched.rawSnapshot],
-    );
-  }
-  rememberSurfacedUrls(results, surfacedUrls);
-  return outputFromResults(ctx, subject, results, [fetched.rawSnapshot], fetched.rawSnapshot.id, {
-    emptyMessage: `Exa returned no usable web search results for "${parsed.query}"`,
   });
 }
 

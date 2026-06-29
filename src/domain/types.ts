@@ -164,6 +164,7 @@ export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap
 export type EvidenceRequestToolName = "sec_latest_filing" | "tradier_iv_term_structure";
 
 export type WebGatherToolName = "web_search" | "web_fetch";
+export type WebSearchType = "news" | "market" | "current-subject" | "background";
 export type SubjectKind = "company" | "crypto-asset" | "theme";
 
 export interface JsonToolLoopAuditEntry {
@@ -201,6 +202,14 @@ export interface WebGatherSanitizerAudit {
 
 export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly sanitizer?: WebGatherSanitizerAudit;
+  readonly freshness?: {
+    readonly searchType: WebSearchType;
+    readonly initialWindowDays?: number;
+    readonly effectiveWindowDays?: number;
+    readonly endPublishedDate: string;
+    readonly livecrawl: boolean;
+    readonly widened: boolean;
+  };
 }
 
 export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherAuditEntry> & {

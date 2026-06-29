@@ -67,7 +67,7 @@ describe("web gather tools", () => {
     }[] = [];
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model", numResults: 3 },
+      { query: "AAPL business model", searchType: "background", numResults: 3 },
       baseCtx({
         request: requestExecutor({
           json: async ({ url, adapter, init, fetch }) => {
@@ -131,10 +131,118 @@ describe("web gather tools", () => {
     expect(surfacedUrls.has("https://apple.com/newsroom/article")).toBe(true);
   });
 
+  test("applies purpose-based publication windows and live crawl settings", async () => {
+    const requests: { readonly url: string; readonly body: Record<string, unknown> }[] = [];
+    const ctx = baseCtx({
+      request: requestExecutor({
+        json: async ({ url, adapter, init }) => {
+          requests.push({ url, body: JSON.parse(String(init?.body)) });
+          return jsonResult(adapter, {
+            results: [
+              { url: `${url}#one`, title: "One" },
+              { url: `${url}#two`, title: "Two" },
+            ],
+          });
+        },
+      }),
+    });
+
+    for (const searchType of ["news", "market", "current-subject", "background"] as const) {
+      await executeWebGatherTool(
+        "web_search",
+        { query: `AAPL ${searchType}`, searchType },
+        ctx,
+        new Set(),
+      );
+    }
+
+    expect(requests.map(({ body }) => body)).toEqual([
+      expect.objectContaining({
+        startPublishedDate: "2026-04-01T00:00:00.000Z",
+        endPublishedDate: fetchedAt,
+        contents: expect.objectContaining({ livecrawl: "always" }),
+      }),
+      expect.objectContaining({
+        startPublishedDate: "2026-04-01T00:00:00.000Z",
+        endPublishedDate: fetchedAt,
+        contents: expect.objectContaining({ livecrawl: "always" }),
+      }),
+      expect.objectContaining({
+        startPublishedDate: "2025-11-02T00:00:00.000Z",
+        endPublishedDate: fetchedAt,
+        contents: expect.objectContaining({ livecrawl: "always" }),
+      }),
+      expect.objectContaining({ endPublishedDate: fetchedAt }),
+    ]);
+    expect(requests[3]?.body.startPublishedDate).toBeUndefined();
+    expect((requests[3]!.body.contents as Record<string, unknown>).livecrawl).toBeUndefined();
+    expect(new Set(requests.map(({ url }) => url)).size).toBe(4);
+  });
+
+  test("widens sparse fresh searches once and leaves background searches unbounded", async () => {
+    const requests: { readonly url: string; readonly body: Record<string, unknown> }[] = [];
+    const ctx = baseCtx({
+      request: requestExecutor({
+        json: async ({ url, adapter, init }) => {
+          requests.push({ url, body: JSON.parse(String(init?.body)) });
+          return jsonResult(adapter, {
+            results: [{ url: `https://example.test/${String(requests.length)}`, title: "Result" }],
+          });
+        },
+      }),
+    });
+
+    const news = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL recent news", searchType: "news" },
+      ctx,
+      new Set(),
+    );
+    const current = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL current company", searchType: "current-subject" },
+      ctx,
+      new Set(),
+    );
+    const background = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL company history", searchType: "background" },
+      ctx,
+      new Set(),
+    );
+
+    expect(requests).toHaveLength(5);
+    expect(requests[1]?.body.startPublishedDate).toBe("2025-11-02T00:00:00.000Z");
+    expect(requests[3]?.body.startPublishedDate).toBeUndefined();
+    expect(requests[4]?.body.startPublishedDate).toBeUndefined();
+    expect(new URL(requests[0]?.url ?? "").search).not.toBe(new URL(requests[1]?.url ?? "").search);
+    expect(news.freshness).toEqual({
+      searchType: "news",
+      initialWindowDays: 30,
+      effectiveWindowDays: 180,
+      endPublishedDate: fetchedAt,
+      livecrawl: true,
+      widened: true,
+    });
+    expect(current.freshness).toEqual({
+      searchType: "current-subject",
+      initialWindowDays: 180,
+      endPublishedDate: fetchedAt,
+      livecrawl: true,
+      widened: true,
+    });
+    expect(background.freshness).toEqual({
+      searchType: "background",
+      endPublishedDate: fetchedAt,
+      livecrawl: false,
+      widened: false,
+    });
+  });
+
   test("builds theme web Sources without instrument fields", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AI infrastructure buildout demand", numResults: 1 },
+      { query: "AI infrastructure buildout demand", searchType: "background", numResults: 1 },
       baseCtx({
         command: {
           jobType: "research",
@@ -179,7 +287,7 @@ describe("web gather tools", () => {
     });
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       ctxWithoutExa,
       new Set(),
     );
@@ -225,7 +333,18 @@ describe("web gather tools", () => {
     });
 
     const nonObject = await executeWebGatherTool("web_search", "AAPL", ctx, new Set());
-    const blankQuery = await executeWebGatherTool("web_search", { query: "   " }, ctx, new Set());
+    const blankQuery = await executeWebGatherTool(
+      "web_search",
+      { query: "   ", searchType: "background" },
+      ctx,
+      new Set(),
+    );
+    const missingSearchType = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL profile" },
+      ctx,
+      new Set(),
+    );
 
     expect(nonObject.gaps).toEqual([
       expect.objectContaining({
@@ -239,6 +358,12 @@ describe("web gather tools", () => {
         source: "exa",
         cause: "validation-failed",
         message: "web_search requires a non-empty query",
+      }),
+    ]);
+    expect(missingSearchType.gaps).toEqual([
+      expect.objectContaining({
+        cause: "validation-failed",
+        message: "web_search searchType must be news, market, current-subject, or background",
       }),
     ]);
   });
@@ -329,7 +454,7 @@ describe("web gather tools", () => {
   test("sanitizes model-visible search text while retaining raw snapshots", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) =>
@@ -385,7 +510,7 @@ describe("web gather tools", () => {
   test("sanitizes and bounds model-visible source metadata", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) =>
@@ -418,7 +543,7 @@ describe("web gather tools", () => {
   test("rejects non-HTTP provider result URLs", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) =>
@@ -449,7 +574,7 @@ describe("web gather tools", () => {
     const summary = "A".repeat(1500);
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) =>
@@ -471,7 +596,7 @@ describe("web gather tools", () => {
   test("keeps metadata and emits gap when sanitized web text becomes empty", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) =>
@@ -517,7 +642,7 @@ describe("web gather tools", () => {
   test("wraps Exa provider failures with web evidence context", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async () => gap("exa-search", "timeout"),
@@ -541,7 +666,7 @@ describe("web gather tools", () => {
   test("classifies malformed Exa payloads separately from empty results", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) => jsonResult(adapter, { notResults: [] }),
@@ -564,7 +689,7 @@ describe("web gather tools", () => {
   test("classifies empty Exa results as provider data missing", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) => jsonResult(adapter, { results: [] }),
@@ -587,7 +712,7 @@ describe("web gather tools", () => {
   test("classifies unparseable Exa result entries as malformed", async () => {
     const result = await executeWebGatherTool(
       "web_search",
-      { query: "AAPL business model" },
+      { query: "AAPL business model", searchType: "background" },
       baseCtx({
         request: requestExecutor({
           json: async ({ adapter }) => jsonResult(adapter, { results: [{ title: "Missing URL" }] }),

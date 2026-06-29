@@ -8,6 +8,7 @@ import type {
   WebGatherSanitizerAudit,
   WebGatherLoopAudit,
   WebGatherToolName,
+  WebSearchType,
   JsonToolLoopAuditEntry,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
@@ -62,7 +63,11 @@ interface WebGatherLoopInput {
 type ModelWebGatherRequest =
   | {
       readonly tool: "web_search";
-      readonly args: { readonly query: string; readonly numResults?: number };
+      readonly args: {
+        readonly query: string;
+        readonly searchType: WebSearchType;
+        readonly numResults?: number;
+      };
       readonly rationale: string;
     }
   | {
@@ -137,6 +142,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
   const sanitizerAudits: WebGatherSanitizerAudit[] = [];
+  const freshnessAudits: (WebGatherToolOutput["freshness"] | undefined)[] = [];
 
   const loop = await runJsonToolLoop<
     CollectedSources,
@@ -198,6 +204,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         subject,
       );
       sanitizerAudits.push(output.sanitizer);
+      freshnessAudits.push(output.freshness);
       const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
       const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
       return {
@@ -215,6 +222,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       acceptedRequests: loop.audit.acceptedRequests.map((entry, index) => ({
         ...entry,
         sanitizer: sanitizerAudits[index]!,
+        ...(freshnessAudits[index] !== undefined ? { freshness: freshnessAudits[index] } : {}),
       })),
       sanitizer: aggregateSanitizerAudit(sanitizerAudits),
     },
@@ -410,16 +418,29 @@ function validateAcceptedRequest(
   return { request };
 }
 
-function webSearchArgs(
-  args: Record<string, unknown>,
-): { readonly query: string; readonly numResults?: number } | string {
+function webSearchArgs(args: Record<string, unknown>):
+  | {
+      readonly query: string;
+      readonly searchType: WebSearchType;
+      readonly numResults?: number;
+    }
+  | string {
   const keys = Object.keys(args).toSorted();
-  if (!keys.every((key) => key === "query" || key === "numResults")) {
-    return "web_search args may contain only query and numResults";
+  if (!keys.every((key) => key === "query" || key === "searchType" || key === "numResults")) {
+    return "web_search args may contain only query, searchType, and numResults";
   }
   const query = readString(args, "query");
   if (query === undefined) {
     return "web_search requires a non-empty query";
+  }
+  const searchType = readString(args, "searchType");
+  if (
+    searchType !== "news" &&
+    searchType !== "market" &&
+    searchType !== "current-subject" &&
+    searchType !== "background"
+  ) {
+    return "web_search searchType must be news, market, current-subject, or background";
   }
   if (
     args.numResults !== undefined &&
@@ -434,6 +455,7 @@ function webSearchArgs(
   }
   return {
     query,
+    searchType,
     ...(typeof args.numResults === "number" ? { numResults: args.numResults } : {}),
   };
 }
@@ -543,7 +565,7 @@ function isSurfacedUrl(url: string, surfacedUrls: ReadonlySet<string>): boolean 
 
 function requestKey(request: ModelWebGatherRequest): string {
   if (request.tool === "web_search") {
-    return `web_search:${normalizeTerm(request.args.query)}`;
+    return `web_search:${request.args.searchType}:${normalizeTerm(request.args.query)}`;
   }
   return `web_fetch:${canonicalizeUrl(request.args.url) ?? request.args.url}`;
 }

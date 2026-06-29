@@ -482,7 +482,10 @@ function webGatherShape(): Record<string, unknown> {
     requests: [
       {
         tool: "web_search",
-        args: { query: "must mention run symbol or company name" },
+        args: {
+          query: "must mention run symbol or company name",
+          searchType: "news|market|current-subject|background",
+        },
         rationale: "string",
       },
       {

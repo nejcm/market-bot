@@ -2059,7 +2059,10 @@ describe("runResearchJob", () => {
               requests: [
                 {
                   tool: "web_search",
-                  args: { query: "AAPL Apple business model customers" },
+                  args: {
+                    query: "AAPL Apple business model customers",
+                    searchType: "background",
+                  },
                   rationale: "company profile evidence",
                 },
               ],
@@ -2444,7 +2447,10 @@ describe("runResearchJob", () => {
               requests: [
                 {
                   tool: "web_search",
-                  args: { query: "AAPL Apple business model customers" },
+                  args: {
+                    query: "AAPL Apple business model customers",
+                    searchType: "background",
+                  },
                   rationale: "company profile evidence",
                 },
               ],

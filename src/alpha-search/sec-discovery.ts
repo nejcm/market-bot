@@ -1,4 +1,5 @@
 import type { AlphaSearchCandidate, AlphaSearchSecFiling } from "./candidates";
+import { LISTED_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
 import { isRecord, readNumber, readString } from "../sources/guards";
@@ -9,13 +10,11 @@ import {
   type SourceRequestExecutor,
 } from "../sources/types";
 
-const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
 const SEC_CURRENT_FILINGS_URL = "https://www.sec.gov/cgi-bin/browse-edgar";
 const CIK_RE = /\bCIK(?:=|:)?\s*0*(\d{1,10})\b/iu;
 const TITLE_CIK_RE = /\(0*(\d{1,10})\)\s*\(Filer\)/iu;
 const ACCESSION_RE = /\b\d{10}-\d{2}-\d{6}\b/u;
 const FILED_DATE_RE = /\bFiled:\s*(\d{4}-\d{2}-\d{2})\b/iu;
-const SEC_SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
 const MAX_SEC_NAME_LENGTH = 160;
 const MAX_SEC_FEED_ENTRIES = 250;
 const MAX_SEC_TICKER_MAPPINGS = 20_000;
@@ -142,7 +141,7 @@ function parseCompanyName(title: string | undefined): string | undefined {
 
 function normalizeSecTicker(value: string | undefined): string | undefined {
   const ticker = value?.trim().toUpperCase();
-  return ticker !== undefined && SEC_SYMBOL_RE.test(ticker) ? ticker : undefined;
+  return ticker !== undefined && LISTED_SYMBOL_RE.test(ticker) ? ticker : undefined;
 }
 
 function withoutControlCharacters(value: string): string {

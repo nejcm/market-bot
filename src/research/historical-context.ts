@@ -1,5 +1,6 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
+import { DAY_MS } from "../config/shared";
 import {
   isInstrumentJobType,
   isMarketUpdateJobType,
@@ -156,7 +157,6 @@ export interface HistoricalContextReader {
   ) => Promise<HistoricalResearchContext>;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_LIMIT = 8;
 
 // Project the reader's full MarketSnapshot down to the compact numeric shape the

@@ -1,3 +1,4 @@
+import { SEC_TICKERS_URL } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
 import {
@@ -11,8 +12,6 @@ import {
   type SourceRequestExecutor,
 } from "../sources/types";
 import type { AlphaSearchLead } from "./report-extras";
-
-const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
 
 export interface AlphaSearchFundamentals {
   readonly symbol: string;

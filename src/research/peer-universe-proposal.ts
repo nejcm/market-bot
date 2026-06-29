@@ -1,3 +1,4 @@
+import { RESEARCH_SUBJECT_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
 import type { ModelProvider } from "../model/types";
 import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types";
 import { isRecord } from "../sources/guards";
@@ -7,7 +8,6 @@ import { collectListedUniverse, type ListedUniverseEntry } from "../alpha-search
 import {
   MAX_PEERS,
   MIN_PROPOSED_PEERS,
-  SYMBOL_RE,
   type PeerUniverse,
   type PeerUniversePeer,
   type PeerUniverseSource,
@@ -17,7 +17,6 @@ import {
 const UNSUPPORTED_SECURITY_NAME_RE =
   /\b(ADR|ADS|AMERICAN DEPOSITARY|ETF|ETN|FUND|TRUST|INDEX|UNIT|WARRANT|RIGHT|PREFERRED|PREFERENCE|NOTE|NOTES|DEBENTURE|BOND)\b/iu;
 
-const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
 const SEC_TICKERS_SOURCE_ID = "sec-company-tickers";
 
 export interface ProposerDeps {
@@ -192,7 +191,7 @@ export function createPeerUniverseProposer(
       const symbol = raw.symbol.trim().toUpperCase();
 
       // Symbol shape
-      if (!SYMBOL_RE.test(symbol)) {
+      if (!RESEARCH_SUBJECT_SYMBOL_RE.test(symbol)) {
         continue;
       }
       // Skip target and duplicates

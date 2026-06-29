@@ -1,4 +1,5 @@
 import { type ResearchCommand } from "../cli/args";
+import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { ExtendedEvidence, Source, SourceGap, SubjectKind } from "../domain/types";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
@@ -16,7 +17,6 @@ export interface WebSubjectProfileReuse {
   readonly runDirName: string;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
 
 export function latestSecFilingDate(evidence: ExtendedEvidence | undefined): string | undefined {
@@ -72,7 +72,7 @@ export async function findReusableWebSubjectProfile(input: {
       continue;
     }
     const ageDays = Math.floor(
-      (input.now.getTime() - new Date(profile.generatedAt).getTime()) / MS_PER_DAY,
+      (input.now.getTime() - new Date(profile.generatedAt).getTime()) / DAY_MS,
     );
     const filingSuffix =
       profile.subjectKind === "company" && input.currentSecFilingDate !== undefined
@@ -149,7 +149,7 @@ function isReusableProfile(
   if (!Number.isFinite(generatedAtMs) || generatedAtMs > nowMs) {
     return false;
   }
-  return nowMs - generatedAtMs <= input.reuseDays * MS_PER_DAY;
+  return nowMs - generatedAtMs <= input.reuseDays * DAY_MS;
 }
 
 function resolvedProfileSources(

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { Source, SourceGap } from "../domain/types";
 import { isRecord } from "./guards";
@@ -45,7 +46,6 @@ export interface RecordSeenNewsOptions {
 }
 
 const INDEX_VERSION = 1;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function newsSeenLane(command: ResearchCommand): string {
   if (isInstrumentCommand(command)) {
@@ -61,7 +61,7 @@ function ageDays(now: Date, then: string): number {
     return Number.POSITIVE_INFINITY;
   }
 
-  return Math.floor((now.getTime() - parsed) / MS_PER_DAY);
+  return Math.floor((now.getTime() - parsed) / DAY_MS);
 }
 
 function isFresh(entry: NewsSeenEntry, now: Date, retentionDays: number): boolean {

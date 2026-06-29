@@ -1,7 +1,7 @@
+import { RESEARCH_SUBJECT_SYMBOL_RE } from "../config/shared";
 import type { AssetClass } from "../domain/types";
 
 const SUBJECT_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const SYMBOL_RE = /^(?=.{1,10}$)[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/u;
 
 export type ResearchSubjectAssetClass = Extract<AssetClass, "equity">;
 
@@ -394,7 +394,7 @@ function validateInstrument(
   citedSourceIds: Set<string>,
   errors: string[],
 ): void {
-  if (!SYMBOL_RE.test(instrument.symbol)) {
+  if (!RESEARCH_SUBJECT_SYMBOL_RE.test(instrument.symbol)) {
     errors.push(`${subjectKey}: invalid representative symbol ${instrument.symbol}`);
   }
   validateSourceIds(subjectKey, instrument.sourceIds, sourceIds, citedSourceIds, errors);
@@ -408,7 +408,7 @@ function validatePredictionProxy(
   citedSourceIds: Set<string>,
   errors: string[],
 ): void {
-  if (!SYMBOL_RE.test(proxy.symbol)) {
+  if (!RESEARCH_SUBJECT_SYMBOL_RE.test(proxy.symbol)) {
     errors.push(`${subjectKey}: invalid prediction proxy symbol ${proxy.symbol}`);
   }
   if (proxy.instrumentType !== "listed-etf") {

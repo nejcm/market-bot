@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { DAY_MS } from "../config/shared";
 import { isRecord } from "../sources/guards";
 import {
   validatePeerUniverse,
@@ -11,7 +12,6 @@ import {
 } from "./peer-universe";
 
 const CACHE_VERSION = 1;
-const DAY_MS = 86_400_000;
 export const DEFAULT_PEER_UNIVERSE_TTL_DAYS = 90;
 
 export interface PeerUniverseLearnedEntry {

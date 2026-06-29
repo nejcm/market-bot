@@ -1,10 +1,10 @@
+import { RESEARCH_SUBJECT_SYMBOL_RE } from "../config/shared";
 import {
   DEFAULT_RESEARCH_SUBJECT_REGISTRY,
   type ResearchSubjectRegistryEntry,
   type ResearchSubjectSource,
 } from "./subject-registry";
 
-export const SYMBOL_RE = /^(?=.{1,10}$)[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/u;
 export const MAX_PEERS = 8;
 export const MIN_PROPOSED_PEERS = 3;
 
@@ -218,7 +218,7 @@ export function validatePeerUniverse(universe: PeerUniverse): PeerUniverseValida
   const sourceIds = new Set(universe.sources.map((source) => source.sourceId));
   const peerSymbols = new Set<string>();
 
-  if (!SYMBOL_RE.test(target)) {
+  if (!RESEARCH_SUBJECT_SYMBOL_RE.test(target)) {
     errors.push(`${universe.targetSymbol}: invalid target symbol`);
   }
   if (
@@ -239,7 +239,7 @@ export function validatePeerUniverse(universe: PeerUniverse): PeerUniverseValida
 
   for (const peerEntry of universe.peers) {
     const symbol = normalizeSymbol(peerEntry.symbol);
-    if (!SYMBOL_RE.test(symbol)) {
+    if (!RESEARCH_SUBJECT_SYMBOL_RE.test(symbol)) {
       errors.push(`${target}: invalid peer symbol ${peerEntry.symbol}`);
     }
     if (symbol === target) {

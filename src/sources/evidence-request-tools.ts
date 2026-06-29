@@ -1,4 +1,5 @@
 import { isInstrumentCommand, type InstrumentCommand } from "../cli/args";
+import { DAY_MS } from "../config/shared";
 import type {
   EvidenceRequestToolName,
   ExtendedEvidenceItem,
@@ -52,7 +53,6 @@ interface TradierBucketIv extends TradierBucket {
   readonly medianIv: number;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
 const SEC_FILING_SNIPPET_CHARS = 6000;
 const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
@@ -355,7 +355,7 @@ function dteFrom(fetchedAt: string, expiration: string): number | undefined {
   if (!Number.isFinite(diff)) {
     return undefined;
   }
-  return Math.max(0, Math.round(diff / MS_PER_DAY));
+  return Math.max(0, Math.round(diff / DAY_MS));
 }
 
 function nearestExpirationBuckets(payload: unknown, fetchedAt: string): readonly TradierBucket[] {

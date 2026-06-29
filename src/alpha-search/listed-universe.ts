@@ -1,3 +1,4 @@
+import { LISTED_SYMBOL_RE } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
 import {
@@ -10,7 +11,6 @@ const NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlis
 const NASDAQ_OTHER_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt";
 const CBOE_LISTED_CSV_URL =
   "https://www.cboe.com/us/equities/market_statistics/listed_symbols/csv/";
-const SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/u;
 const MAX_LISTED_UNIVERSE_ROWS = 25_000;
 const SUPPORTED_STOCK_NAME_RE =
   /\b(?:common stock|common shares|ordinary shares|american depositary shares|american depositary receipt|adr)\b/iu;
@@ -54,7 +54,7 @@ export interface ListedUniverseCandidateFilterResult<TCandidate extends ListedUn
 
 function normalizeSymbol(value: string | undefined): string | undefined {
   const symbol = value?.trim().toUpperCase();
-  return symbol !== undefined && SYMBOL_RE.test(symbol) ? symbol : undefined;
+  return symbol !== undefined && LISTED_SYMBOL_RE.test(symbol) ? symbol : undefined;
 }
 
 function sourceId(source: ListedUniverseSource, symbol: string): string {

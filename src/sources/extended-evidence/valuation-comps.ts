@@ -1,4 +1,5 @@
 import type { InstrumentCommand } from "../../cli/args";
+import { DAY_MS } from "../../config/shared";
 import { sourceGap, sourceGapWithContext } from "../../domain/source-gaps";
 import type {
   ExtendedEvidence,
@@ -26,7 +27,6 @@ import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
 
 const SEC_FRESHNESS_DAYS = 180;
 const MIN_USABLE_PEERS = 3;
-const DAY_MS = 86_400_000;
 
 export type ValuationSupportability = "screening-only" | "supported" | "not-supportable";
 

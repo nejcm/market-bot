@@ -189,7 +189,19 @@ export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
 
 export type EvidenceRequestLoopAudit = JsonToolLoopAudit<EvidenceRequestToolName>;
 
-export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName>;
+export interface WebGatherSanitizerAudit {
+  readonly sourceCount: number;
+  readonly sanitizedSourceCount: number;
+  readonly emptyAfterSanitizeCount: number;
+  readonly inputCharCount: number;
+  readonly outputCharCount: number;
+  readonly removedInstructionSpanCount: number;
+  readonly removedChromeHtmlCount: number;
+}
+
+export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName> & {
+  readonly sanitizer: WebGatherSanitizerAudit;
+};
 
 export interface DomainPlaybookSelectionAudit {
   readonly selected: readonly {

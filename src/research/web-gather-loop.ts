@@ -5,6 +5,7 @@ import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
   SourceGap,
+  WebGatherSanitizerAudit,
   WebGatherLoopAudit,
   WebGatherToolName,
   JsonToolLoopAuditEntry,
@@ -16,6 +17,7 @@ import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collec
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   executeWebGatherTool,
+  aggregateSanitizerAudit,
   MAX_WEB_GATHER_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
   type WebGatherSubject,
@@ -134,6 +136,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
+  const sanitizerAudits: WebGatherSanitizerAudit[] = [];
 
   const loop = await runJsonToolLoop<
     CollectedSources,
@@ -194,6 +197,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         surfacedUrls,
         subject,
       );
+      sanitizerAudits.push(output.sanitizer);
       const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
       const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
       return {
@@ -206,7 +210,10 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   return {
     collectedSources: loop.state,
     stageOutputs: loop.stageOutputs,
-    audit: loop.audit,
+    audit: {
+      ...loop.audit,
+      sanitizer: aggregateSanitizerAudit(sanitizerAudits),
+    },
   };
 }
 

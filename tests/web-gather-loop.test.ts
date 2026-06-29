@@ -178,6 +178,11 @@ describe("runWebGatherLoop", () => {
     ]);
     expect(result.audit?.acceptedRequests).toHaveLength(1);
     expect(result.audit?.sourceUnitsUsed).toBe(2);
+    expect(result.audit?.sanitizer).toMatchObject({
+      sourceCount: 1,
+      sanitizedSourceCount: 1,
+      emptyAfterSanitizeCount: 0,
+    });
   });
 
   test("rejects off-company web search queries", async () => {

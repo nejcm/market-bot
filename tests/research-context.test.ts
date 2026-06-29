@@ -1967,9 +1967,10 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
   function evidenceFor(
     command: ResearchCommand,
     sources: Partial<Parameters<typeof collectedSources>[0]>,
+    stage: Parameters<typeof buildStagePrompt>[0] = "specialist-analysis",
   ): Record<string, unknown> {
     const prompt = buildStagePrompt(
-      "specialist-analysis",
+      stage,
       command,
       collectedSources({
         marketSnapshots: [marketSnapshot()],
@@ -2115,7 +2116,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(sources[0]!.snippet).toBeUndefined();
   });
 
-  test("web sources keep summary/snippet when no profile exists", () => {
+  test("web sources strip summary/snippet when no profile exists", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -2133,11 +2134,11 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     const evidence = evidenceFor(command, { extendedSources: [webSource] });
     const sources = evidence.webSources as readonly Record<string, unknown>[];
     expect(sources).toHaveLength(1);
-    expect(sources[0]!.summary).toBe("Long summary text");
-    expect(sources[0]!.snippet).toBe("Long snippet text");
+    expect(sources[0]!.summary).toBeUndefined();
+    expect(sources[0]!.snippet).toBeUndefined();
   });
 
-  test("web sources keep summary/snippet when profile is empty (failed)", () => {
+  test("web sources strip summary/snippet when profile is empty (failed)", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -2162,8 +2163,30 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     });
     const sources = evidence.webSources as readonly Record<string, unknown>[];
     expect(sources).toHaveLength(1);
-    expect(sources[0]!.summary).toBe("Long summary text");
-    expect(sources[0]!.snippet).toBe("Long snippet text");
+    expect(sources[0]!.summary).toBeUndefined();
+    expect(sources[0]!.snippet).toBeUndefined();
+  });
+
+  test("web subject profile prompt can see sanitized web summary/snippet", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const webSource = {
+      id: "web-1",
+      title: "Apple analysis",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple sells services.",
+      snippet: "Apple has recurring purchases.",
+    };
+    const evidence = evidenceFor(command, { extendedSources: [webSource] }, "web-subject-profile");
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    expect(sources).toHaveLength(1);
+    expect(sources[0]!.summary).toBe("Apple sells services.");
+    expect(sources[0]!.snippet).toBe("Apple has recurring purchases.");
   });
 
   test("structured profile projected when non-empty profile exists", () => {

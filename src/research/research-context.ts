@@ -170,28 +170,29 @@ export function moverLimitFor(command: ResearchCommand, config: AppConfig): numb
  * builder body.
  */
 type EvidenceProjector = (
+  stage: StageLabel,
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ) => Record<string, unknown>;
 
-const projectMarketContext: EvidenceProjector = (_command, collectedSources) =>
+const projectMarketContext: EvidenceProjector = (_stage, _command, collectedSources) =>
   collectedSources.marketContext !== undefined
     ? { marketContext: collectedSources.marketContext }
     : {};
 
-const projectExtendedEvidence: EvidenceProjector = (command, collectedSources) =>
+const projectExtendedEvidence: EvidenceProjector = (_stage, command, collectedSources) =>
   isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
     ? { extendedEvidence: collectedSources.extendedEvidence }
     : {};
 
-const projectEarningsSetup: EvidenceProjector = (command, collectedSources) =>
+const projectEarningsSetup: EvidenceProjector = (_stage, command, collectedSources) =>
   isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined
     ? { earningsSetup: collectedSources.earningsSetup }
     : {};
 
 // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
 // The full bar series stays on disk (rawSnapshots / normalized sidecar).
-const projectVerifiedMarketSnapshot: EvidenceProjector = (_command, collectedSources) =>
+const projectVerifiedMarketSnapshot: EvidenceProjector = (_stage, _command, collectedSources) =>
   collectedSources.verifiedMarketSnapshot !== undefined
     ? {
         verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
@@ -204,7 +205,7 @@ const projectVerifiedMarketSnapshot: EvidenceProjector = (_command, collectedSou
       }
     : {};
 
-const projectResolvedInstrumentIdentity: EvidenceProjector = (_command, collectedSources) =>
+const projectResolvedInstrumentIdentity: EvidenceProjector = (_stage, _command, collectedSources) =>
   collectedSources.resolvedInstrumentIdentity !== undefined
     ? {
         resolvedInstrumentIdentity: collectedSources.resolvedInstrumentIdentity,
@@ -213,16 +214,11 @@ const projectResolvedInstrumentIdentity: EvidenceProjector = (_command, collecte
       }
     : {};
 
-function hasNonEmptyWebSubjectProfile(collectedSources: CollectedSources): boolean {
-  const profile = collectedSources.webSubjectProfile;
-  return profile !== undefined && profile.sourceIds.length > 0;
-}
-
-const projectWebSources: EvidenceProjector = (command, collectedSources) => {
+const projectWebSources: EvidenceProjector = (stage, command, collectedSources) => {
   if (!isInstrumentCommand(command)) {
     return {};
   }
-  const hasProfile = hasNonEmptyWebSubjectProfile(collectedSources);
+  const includeModelVisibleText = stage === "web-subject-profile";
   return {
     webSources: collectedSources.extendedSources
       .filter((source) => source.kind === "web")
@@ -232,14 +228,17 @@ const projectWebSources: EvidenceProjector = (command, collectedSources) => {
         ...(source.url !== undefined ? { url: source.url } : {}),
         ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
         fetchedAt: source.fetchedAt,
-        // Strip raw content when a non-empty profile distils the same information.
-        ...(!hasProfile && source.summary !== undefined ? { summary: source.summary } : {}),
-        ...(!hasProfile && source.snippet !== undefined ? { snippet: source.snippet } : {}),
+        ...(includeModelVisibleText && source.summary !== undefined
+          ? { summary: source.summary }
+          : {}),
+        ...(includeModelVisibleText && source.snippet !== undefined
+          ? { snippet: source.snippet }
+          : {}),
       })),
   };
 };
 
-const projectWebSubjectProfile: EvidenceProjector = (command, collectedSources) => {
+const projectWebSubjectProfile: EvidenceProjector = (_stage, command, collectedSources) => {
   if (!isInstrumentCommand(command)) {
     return {};
   }
@@ -269,6 +268,7 @@ const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
 ];
 
 function buildEvidencePayload(
+  stage: StageLabel,
   command: ResearchCommand,
   collectedSources: CollectedSources,
   config: AppConfig,
@@ -291,7 +291,7 @@ function buildEvidencePayload(
     "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, or verifiedMarketSnapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
   const evidenceProjections = EVIDENCE_PROJECTORS.reduce<Record<string, unknown>>(
-    (payload, project) => ({ ...payload, ...project(command, collectedSources) }),
+    (payload, project) => ({ ...payload, ...project(stage, command, collectedSources) }),
     {},
   );
 
@@ -790,7 +790,7 @@ export function buildStagePrompt(
       stage,
       stageGoal: loaded.goal,
       depthProfile: context.depthProfile,
-      evidence: buildEvidencePayload(command, collectedSources, config, context),
+      evidence: buildEvidencePayload(stage, command, collectedSources, config, context),
       ...(playbooks !== undefined && playbooks.length > 0 ? { domainPlaybooks: playbooks } : {}),
       priorStages,
       ...(predictionRepromptErrors.length > 0

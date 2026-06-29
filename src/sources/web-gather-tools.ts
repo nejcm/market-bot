@@ -6,6 +6,7 @@ import type {
   Source,
   SourceGap,
   SubjectKind,
+  WebGatherSanitizerAudit,
   WebGatherToolName,
 } from "../domain/types";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
@@ -17,6 +18,7 @@ import {
   type FetchLike,
   type RawSourceSnapshot,
 } from "./types";
+import { sanitizeModelVisibleWebText } from "./web-text-sanitizer";
 
 export const WEB_GATHER_TOOL_UNITS: Record<WebGatherToolName, number> = {
   web_search: 2,
@@ -28,6 +30,7 @@ export interface WebGatherToolOutput {
   readonly sources: readonly Source[];
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
+  readonly sanitizer: WebGatherSanitizerAudit;
 }
 
 export interface WebGatherSubject {
@@ -47,6 +50,15 @@ export const MAX_WEB_GATHER_SEARCH_RESULTS = 8;
 const MAX_TEXT_CHARS = 5000;
 const MAX_SNIPPET_CHARS = 1200;
 const MAX_SUMMARY_CHARS = 1200;
+const ZERO_SANITIZER_AUDIT: WebGatherSanitizerAudit = {
+  sourceCount: 0,
+  sanitizedSourceCount: 0,
+  emptyAfterSanitizeCount: 0,
+  inputCharCount: 0,
+  outputCharCount: 0,
+  removedInstructionSpanCount: 0,
+  removedChromeHtmlCount: 0,
+};
 
 interface ExaResult {
   readonly id?: string;
@@ -62,6 +74,12 @@ interface ExaResult {
 interface ExaResultsParse {
   readonly results: readonly ExaResult[];
   readonly malformed: boolean;
+}
+
+interface SanitizedExaSource {
+  readonly source: Source;
+  readonly sanitizer: WebGatherSanitizerAudit;
+  readonly emptyAfterSanitize: boolean;
 }
 
 export async function executeWebGatherTool(
@@ -100,7 +118,7 @@ function emptyOutput(
   gaps: readonly SourceGap[],
   rawSnapshots: readonly RawSourceSnapshot[] = [],
 ): WebGatherToolOutput {
-  return { rawSnapshots, sources: [], items: [], gaps };
+  return { rawSnapshots, sources: [], items: [], gaps, sanitizer: ZERO_SANITIZER_AUDIT };
 }
 
 function webGatherGap(
@@ -330,11 +348,29 @@ function outputFromResults(
   rawRef: string,
   options: { readonly emptyMessage: string },
 ): WebGatherToolOutput {
-  const sources = results.map((result) => exaSource(subject, ctx.fetchedAt, result, rawRef));
+  const sanitizedSources = results.map((result) =>
+    exaSource(subject, ctx.fetchedAt, result, rawRef),
+  );
+  const sources = sanitizedSources.map((result) => result.source);
   if (sources.length === 0) {
     return emptyOutput([webGatherGap(options.emptyMessage, "provider-data-missing")], rawSnapshots);
   }
-  return { rawSnapshots, sources, items: [], gaps: [] };
+  const gaps = sanitizedSources
+    .filter((result) => result.emptyAfterSanitize)
+    .map((result) =>
+      webGatherGap(
+        `Exa result text was empty after sanitization for ${result.source.url ?? result.source.id}`,
+        "provider-data-missing",
+        "web-gather",
+      ),
+    );
+  return {
+    rawSnapshots,
+    sources,
+    items: [],
+    gaps,
+    sanitizer: aggregateSanitizerAudit(sanitizedSources.map((result) => result.sanitizer)),
+  };
 }
 
 function exaSource(
@@ -342,11 +378,12 @@ function exaSource(
   fallbackFetchedAt: string,
   result: ExaResult,
   rawRef: string,
-): Source {
+): SanitizedExaSource {
   const canonicalUrl = canonicalizeUrl(result.url);
   const fetchedAt = result.publishedDate ?? fallbackFetchedAt;
-  const snippet = webSnippet(result);
-  return {
+  const summary = sanitizeOptionalWebText(result.summary, MAX_SUMMARY_CHARS);
+  const snippet = sanitizeOptionalWebText(webSnippetText(result), MAX_SNIPPET_CHARS);
+  const source: Source = {
     id: webSourceId(subject.subjectId, canonicalUrl ?? result.url),
     title: result.title ?? result.url,
     url: result.url,
@@ -359,17 +396,33 @@ function exaSource(
     ...(result.id !== undefined ? { providerArticleId: result.id } : {}),
     ...(canonicalUrl !== undefined ? { canonicalUrl } : {}),
     rawRef,
-    ...(result.summary !== undefined
-      ? { summary: truncate(result.summary, MAX_SUMMARY_CHARS) }
-      : {}),
-    ...(snippet !== undefined ? { snippet } : {}),
+    ...(summary.text !== undefined ? { summary: summary.text } : {}),
+    ...(snippet.text !== undefined ? { snippet: snippet.text } : {}),
+  };
+  const hadModelVisibleInput = summary.inputPresent || snippet.inputPresent;
+  return {
+    source,
+    sanitizer: {
+      sourceCount: 1,
+      sanitizedSourceCount: hadModelVisibleInput ? 1 : 0,
+      emptyAfterSanitizeCount:
+        hadModelVisibleInput && summary.text === undefined && snippet.text === undefined ? 1 : 0,
+      inputCharCount: summary.telemetry.inputCharCount + snippet.telemetry.inputCharCount,
+      outputCharCount: summary.telemetry.outputCharCount + snippet.telemetry.outputCharCount,
+      removedInstructionSpanCount:
+        summary.telemetry.removedInstructionSpanCount +
+        snippet.telemetry.removedInstructionSpanCount,
+      removedChromeHtmlCount:
+        summary.telemetry.removedChromeHtmlCount + snippet.telemetry.removedChromeHtmlCount,
+    },
+    emptyAfterSanitize:
+      hadModelVisibleInput && summary.text === undefined && snippet.text === undefined,
   };
 }
 
-function webSnippet(result: ExaResult): string | undefined {
-  const highlighted = result.highlights.join(" ");
-  const snippet = highlighted.trim() !== "" ? highlighted : result.text;
-  return snippet === undefined ? undefined : truncate(snippet, MAX_SNIPPET_CHARS);
+function webSnippetText(result: ExaResult): string | undefined {
+  const highlighted = result.highlights.join("\n");
+  return highlighted.trim() !== "" ? highlighted : result.text;
 }
 
 function truncate(value: string, maxChars: number): string {
@@ -378,6 +431,60 @@ function truncate(value: string, maxChars: number): string {
     return normalized;
   }
   return `${normalized.slice(0, maxChars).trimEnd()}...`;
+}
+
+function sanitizeOptionalWebText(
+  value: string | undefined,
+  maxChars: number,
+): {
+  readonly text?: string;
+  readonly inputPresent: boolean;
+  readonly telemetry: Pick<
+    WebGatherSanitizerAudit,
+    "inputCharCount" | "outputCharCount" | "removedInstructionSpanCount" | "removedChromeHtmlCount"
+  >;
+} {
+  if (value === undefined) {
+    return {
+      inputPresent: false,
+      telemetry: {
+        inputCharCount: 0,
+        outputCharCount: 0,
+        removedInstructionSpanCount: 0,
+        removedChromeHtmlCount: 0,
+      },
+    };
+  }
+  const result = sanitizeModelVisibleWebText(value);
+  const text = result.text === undefined ? undefined : truncate(result.text, maxChars);
+  return {
+    ...(text !== undefined ? { text } : {}),
+    inputPresent: true,
+    telemetry: {
+      inputCharCount: result.telemetry.inputChars,
+      outputCharCount: text?.length ?? 0,
+      removedInstructionSpanCount: result.telemetry.removedInstructionSpanCount,
+      removedChromeHtmlCount: result.telemetry.removedChromeHtmlCount,
+    },
+  };
+}
+
+export function aggregateSanitizerAudit(
+  entries: readonly WebGatherSanitizerAudit[],
+): WebGatherSanitizerAudit {
+  return entries.reduce<WebGatherSanitizerAudit>(
+    (total, entry) => ({
+      sourceCount: total.sourceCount + entry.sourceCount,
+      sanitizedSourceCount: total.sanitizedSourceCount + entry.sanitizedSourceCount,
+      emptyAfterSanitizeCount: total.emptyAfterSanitizeCount + entry.emptyAfterSanitizeCount,
+      inputCharCount: total.inputCharCount + entry.inputCharCount,
+      outputCharCount: total.outputCharCount + entry.outputCharCount,
+      removedInstructionSpanCount:
+        total.removedInstructionSpanCount + entry.removedInstructionSpanCount,
+      removedChromeHtmlCount: total.removedChromeHtmlCount + entry.removedChromeHtmlCount,
+    }),
+    ZERO_SANITIZER_AUDIT,
+  );
 }
 
 function webSourceId(subjectId: string, url: string): string {

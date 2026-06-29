@@ -95,6 +95,13 @@ describe("sanitizeModelVisibleWebText", () => {
     expect(unclosed.text).toBe("Revenue grew.");
   });
 
+  test("does not count benign entity decoding as chrome removal", () => {
+    const result = sanitizeModelVisibleWebText("AT&amp;T and R&amp;D");
+
+    expect(result.text).toBe("AT&T and R&D");
+    expect(result.telemetry.removedChromeHtmlCount).toBe(0);
+  });
+
   test("strips dangling risky HTML tags", () => {
     const result = sanitizeModelVisibleWebText("Revenue grew.\n<script");
 
@@ -141,6 +148,15 @@ describe("sanitizeModelVisibleWebText", () => {
     );
 
     expect(result.text).toBe("The company sells cloud software.");
+    expect(result.telemetry.removedChromeHtmlCount).toBe(1);
+  });
+
+  test("removes punctuated chrome sentences", () => {
+    const result = sanitizeModelVisibleWebText(
+      "Revenue grew. Advertisement. The company sells cloud software.",
+    );
+
+    expect(result.text).toBe("Revenue grew. The company sells cloud software.");
     expect(result.telemetry.removedChromeHtmlCount).toBe(1);
   });
 

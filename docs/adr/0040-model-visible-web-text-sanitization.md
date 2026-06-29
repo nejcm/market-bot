@@ -16,7 +16,7 @@ Separate raw web payload retention from model-visible web text:
 
 - Raw Web Snapshots stay exact provider payloads under the raw snapshot path.
 - Before any web `summary` or `snippet` is written to normalized `Source` fields, the adapter sanitizes the text with a local dependency-free TypeScript sanitizer.
-- Provider-controlled titles and publishers are sanitized and bounded; result URLs and publication dates are validated before entering normalized Source metadata.
+- Provider-controlled titles and publishers are sanitized and bounded; result URLs and publication dates are validated before entering normalized Source metadata. URLs remain available in persisted Sources but are omitted from model prompt projections.
 - Sanitization strips high-confidence HTML/page chrome and prompt-risk spans, including scripts/styles/forms, tags/entities, code fences, cookie/subscribe/share/advertising lines, and explicit instruction-injection text.
 - Sanitization preserves ordinary business prose and avoids false positives on words such as "instruct", "command", or "prompt" when used in normal context.
 - If model-visible text becomes empty after sanitization, the web Source metadata is retained without `summary` or `snippet`, and a non-fatal `web-gather` SourceGap with `provider-data-missing` and `extended-evidence-cap` is emitted.

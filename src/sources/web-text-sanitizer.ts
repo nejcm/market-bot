@@ -58,13 +58,9 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
   let text = input.slice(0, MAX_WEB_TEXT_SANITIZER_INPUT_CHARS);
 
   for (let pass = 0; pass < 2; pass += 1) {
-    ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
-      text,
-      ENTITY_RE,
-      (match, decimal: string | undefined, hex: string | undefined) =>
-        decodeHtmlEntity(match, decimal, hex),
-      removedChromeHtmlCount,
-    ));
+    text = text.replace(ENTITY_RE, (match, decimal: string | undefined, hex: string | undefined) =>
+      decodeHtmlEntity(match, decimal, hex),
+    );
   }
   ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
     text,
@@ -235,5 +231,6 @@ function isChromeLine(text: string): boolean {
   if (text.length > 180) {
     return false;
   }
-  return CHROME_PATTERNS.some((pattern) => pattern.test(text));
+  const withoutTerminalPunctuation = text.replace(/[.!?]+$/u, "").trimEnd();
+  return CHROME_PATTERNS.some((pattern) => pattern.test(withoutTerminalPunctuation));
 }

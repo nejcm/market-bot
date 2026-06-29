@@ -442,13 +442,14 @@ function exaSource(
   const hadModelVisibleInput =
     title.inputPresent || publisher.inputPresent || summary.inputPresent || snippet.inputPresent;
   const hadContentInput = summary.inputPresent || snippet.inputPresent;
+  const emptyAfterSanitize =
+    hadContentInput && summary.text === undefined && snippet.text === undefined;
   return {
     source,
     sanitizer: {
       sourceCount: 1,
       sanitizedSourceCount: hadModelVisibleInput ? 1 : 0,
-      emptyAfterSanitizeCount:
-        hadContentInput && summary.text === undefined && snippet.text === undefined ? 1 : 0,
+      emptyAfterSanitizeCount: emptyAfterSanitize ? 1 : 0,
       inputCharCount:
         title.telemetry.inputCharCount +
         publisher.telemetry.inputCharCount +
@@ -470,7 +471,7 @@ function exaSource(
         summary.telemetry.removedChromeHtmlCount +
         snippet.telemetry.removedChromeHtmlCount,
     },
-    emptyAfterSanitize: hadContentInput && summary.text === undefined && snippet.text === undefined,
+    emptyAfterSanitize,
   };
 }
 

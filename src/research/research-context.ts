@@ -225,7 +225,6 @@ const projectWebSources: EvidenceProjector = (stage, command, collectedSources) 
       .map((source) => ({
         id: source.id,
         title: source.title,
-        ...(source.url !== undefined ? { url: source.url } : {}),
         ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
         fetchedAt: source.fetchedAt,
         ...(includeModelVisibleText && source.summary !== undefined

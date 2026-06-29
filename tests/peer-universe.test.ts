@@ -277,6 +277,20 @@ describe("resolvePeerUniverseWithFallback", () => {
     expect(cacheWriteMock).not.toHaveBeenCalled();
   });
 
+  test("rejects a cache hit for a different target symbol", async () => {
+    const cachedUniverse = makeModelProposedUniverse("AAAA");
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: async () => cachedUniverse,
+      cacheWrite: async () => {},
+      propose: async () => ({ audit: dummyAudit }),
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("unresolved");
+    expect(result.reason).toContain("target mismatch");
+  });
+
   test("calls propose on cache miss, writes cache, resolves when enough survivors", async () => {
     const proposedUniverse = makeModelProposedUniverse("ZZZZ");
     const cacheWriteMock = mock(async () => {});
@@ -292,6 +306,33 @@ describe("resolvePeerUniverseWithFallback", () => {
     expect(result.universe?.provenance).toBe("model-proposed-validated");
     expect(cacheWriteMock).toHaveBeenCalledTimes(1);
     expect(cacheWriteMock).toHaveBeenCalledWith("ZZZZ", proposedUniverse, dummyAudit);
+  });
+
+  test("does not write an invalid proposed universe to cache", async () => {
+    const invalidUniverse: PeerUniverse = {
+      ...makeModelProposedUniverse("ZZZZ"),
+      peers: [
+        {
+          symbol: "AAPL",
+          name: "Apple Inc.",
+          role: "core",
+          rationale: "peer a",
+          sourceIds: ["missing-source"],
+        },
+      ],
+    };
+    const cacheWriteMock = mock(async () => {});
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: cacheMiss,
+      cacheWrite: cacheWriteMock,
+      propose: async () => ({ universe: invalidUniverse, audit: dummyAudit }),
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("unresolved");
+    expect(result.reason).toContain("Invalid Peer Universe");
+    expect(cacheWriteMock).not.toHaveBeenCalled();
   });
 
   test("returns unresolved when propose returns no universe (< MIN_PROPOSED_PEERS)", async () => {

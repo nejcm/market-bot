@@ -196,13 +196,17 @@ export async function resolvePeerUniverseWithFallback(
   // Live model tier: propose + validate; write to cache if enough survivors
   const { universe, audit } = await fallback.propose(target);
   if (universe !== undefined) {
-    // Swallow cache-write errors; run succeeds even when disk is unavailable
-    await fallback.cacheWrite(target, universe, audit).catch(() => {});
-    return resolvedPeerUniverse(
+    const proposedResolution = resolvedPeerUniverse(
       target,
       universe,
       "Resolved from model-proposed, code-validated peer universe",
     );
+    if (proposedResolution.status !== "resolved") {
+      return proposedResolution;
+    }
+    // Swallow cache-write errors; run succeeds even when disk is unavailable
+    await fallback.cacheWrite(target, universe, audit).catch(() => {});
+    return proposedResolution;
   }
 
   return resolution;
@@ -279,6 +283,13 @@ function resolvedPeerUniverse(
   universe: PeerUniverse,
   reason: string,
 ): PeerUniverseResolution {
+  if (normalizeSymbol(universe.targetSymbol) !== targetSymbol) {
+    return {
+      targetSymbol,
+      status: "unresolved",
+      reason: `Invalid Peer Universe: target mismatch ${universe.targetSymbol} != ${targetSymbol}`,
+    };
+  }
   const validation = validatePeerUniverse(universe);
   if (!validation.valid) {
     return {

@@ -189,11 +189,20 @@ export function makePeerUniverseCacheWriter(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   providerName = "unknown",
+  now: Date = new Date(),
 ): (symbol: string, universe: PeerUniverse, audit: ProposalAudit) => Promise<void> {
   return async (symbol: string, universe: PeerUniverse, audit: ProposalAudit): Promise<void> => {
-    const now = new Date();
-    const entries = await readIndex(path);
+    const validation = validatePeerUniverse(universe);
+    if (!validation.valid) {
+      throw new Error(`Invalid learned peer universe: ${validation.errors.join("; ")}`);
+    }
     const target = symbol.trim().toUpperCase();
+    if (universe.targetSymbol.trim().toUpperCase() !== target) {
+      throw new Error(
+        `Invalid learned peer universe: target mismatch ${universe.targetSymbol} != ${target}`,
+      );
+    }
+    const entries = await readIndex(path);
     // Prune stale entries and remove any existing entry for this symbol (upsert)
     const pruned = entries.filter((e) => e.targetSymbol !== target && !isStale(e, now, ttlDays));
     const newEntry: PeerUniverseLearnedEntry = {

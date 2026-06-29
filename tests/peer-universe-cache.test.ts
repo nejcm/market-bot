@@ -79,6 +79,24 @@ describe("peer universe cache", () => {
     expect(result?.peers.map((p) => p.symbol)).toEqual(["AAPL", "MSFT", "GOOGL"]);
   });
 
+  test("write rejects a universe for a different target symbol", async () => {
+    const write = makePeerUniverseCacheWriter(cachePath, 90, "test-provider");
+
+    await expect(write("ZZZZ", universe("AAAA"), audit)).rejects.toThrow("target mismatch");
+  });
+
+  test("write stamps entries with the injected clock", async () => {
+    const now = new Date("2026-06-29T12:00:00.000Z");
+    const write = makePeerUniverseCacheWriter(cachePath, 90, "test-provider", now);
+
+    await write("ZZZZ", universe("ZZZZ"), audit);
+
+    const parsed = JSON.parse(await readFile(cachePath, "utf8")) as {
+      entries: { proposedAt: string }[];
+    };
+    expect(parsed.entries[0]?.proposedAt).toBe(now.toISOString());
+  });
+
   test("read normalizes symbol case", async () => {
     const write = makePeerUniverseCacheWriter(cachePath);
     await write("zzzz", universe("ZZZZ"), audit);

@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { createPeerUniverseProposer } from "../src/research/peer-universe-proposal";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
-import type { FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
+import type { FetchJsonResult, FetchTextResult, SourceRequestExecutor } from "../src/sources/types";
 
 const generatedAt = "2026-06-29T00:00:00.000Z";
 
@@ -13,6 +13,7 @@ const SEC_TICKERS = {
   "3": { cik_str: 4, ticker: "AMZN", title: "Amazon.com Inc." },
   "4": { cik_str: 5, ticker: "SPY", title: "SPDR S&P 500 ETF Trust" },
   "5": { cik_str: 6, ticker: "QQQ", title: "Invesco QQQ Trust" },
+  "6": { cik_str: 7, ticker: "BABA", title: "Alibaba Group Holding Limited" },
 };
 
 function rawJson(adapter: string, payload: unknown): FetchJsonResult {
@@ -22,7 +23,38 @@ function rawJson(adapter: string, payload: unknown): FetchJsonResult {
   };
 }
 
-function secTickersExecutor(available = true): SourceRequestExecutor {
+function rawText(adapter: string, payload: string): FetchTextResult {
+  return {
+    rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt: generatedAt, payload },
+    payload,
+  };
+}
+
+function nasdaqListedPayload(symbols: readonly string[]): string {
+  const rows = symbols.map((symbol) => `${symbol}|${symbol} Inc. Common Stock|Q|N|N|100|N|N`);
+  rows.push("SPY|SPDR S&P 500 ETF Trust|Q|N|N|100|Y|N");
+  rows.push("QQQ|Invesco QQQ Trust|Q|N|N|100|Y|N");
+  rows.push(
+    "BABA|Alibaba Group Holding Limited American Depositary Shares each representing eight Ordinary share|Q|N|N|100|N|N",
+  );
+  return [
+    "Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares",
+    ...rows,
+  ].join("\n");
+}
+
+function otherListedPayload(): string {
+  return "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n";
+}
+
+function cboeListedPayload(): string {
+  return "Name,Symbol\n";
+}
+
+function secTickersExecutor(
+  available = true,
+  listedSymbols = ["AAPL", "MSFT", "GOOGL", "AMZN"],
+): SourceRequestExecutor {
   return {
     json: async ({ adapter }) => {
       if (adapter === "sec-tickers") {
@@ -39,8 +71,17 @@ function secTickersExecutor(available = true): SourceRequestExecutor {
       }
       throw new Error(`unexpected adapter ${adapter}`);
     },
-    text: async () => {
-      throw new Error("unexpected text request");
+    text: async ({ adapter }) => {
+      if (adapter === "nasdaq-listed") {
+        return rawText(adapter, nasdaqListedPayload(listedSymbols));
+      }
+      if (adapter === "nasdaq-other-listed") {
+        return rawText(adapter, otherListedPayload());
+      }
+      if (adapter === "cboe-listed") {
+        return rawText(adapter, cboeListedPayload());
+      }
+      throw new Error(`unexpected adapter ${adapter}`);
     },
   };
 }
@@ -125,6 +166,59 @@ describe("createPeerUniverseProposer", () => {
 
     expect(universe?.peers.map((p) => p.symbol)).not.toContain("SPY");
     expect(audit.rejectedByEtf).toBe(1);
+  });
+
+  test("rejects an ADR by the official listing type", async () => {
+    const propose = createPeerUniverseProposer({
+      provider: modelProvider(
+        peersJson([
+          { symbol: "AAPL", name: "Apple Inc.", role: "core", rationale: "peer" },
+          { symbol: "MSFT", name: "Microsoft", role: "core", rationale: "peer" },
+          { symbol: "GOOGL", name: "Alphabet", role: "secondary", rationale: "peer" },
+          { symbol: "BABA", name: "Alibaba Group", role: "secondary", rationale: "peer" },
+        ]),
+      ),
+      model: "test-model",
+      request: secTickersExecutor(),
+    });
+
+    const { universe, audit } = await propose("ZZZZ");
+
+    expect(universe?.peers.map((p) => p.symbol)).not.toContain("BABA");
+    expect(audit.rejectedByListing).toBe(1);
+  });
+
+  test("does not call the model when official listing data is unavailable", async () => {
+    const generateMock = mock(async () => ({
+      content: peersJson([]),
+      tokenEstimate: 0,
+      costEstimateUsd: 0,
+    }));
+    const request: SourceRequestExecutor = {
+      json: async ({ adapter }) =>
+        adapter === "sec-tickers"
+          ? rawJson(adapter, SEC_TICKERS)
+          : (() => {
+              throw new Error("unexpected");
+            })(),
+      text: async () => ({
+        source: "listed-universe",
+        message: "listed data unavailable",
+        capability: "market-data",
+        cause: "fetch-failed",
+        evidenceQualityImpact: "core-cap",
+      }),
+    };
+    const propose = createPeerUniverseProposer({
+      provider: { name: "test", generate: generateMock },
+      model: "test-model",
+      request,
+    });
+
+    const { universe } = await propose("ZZZZ");
+
+    expect(universe).toBeUndefined();
+    expect(generateMock).not.toHaveBeenCalled();
   });
 
   test("rejects a foreign-suffixed symbol by the US-listing gate", async () => {
@@ -235,9 +329,11 @@ describe("createPeerUniverseProposer", () => {
           : (() => {
               throw new Error("unexpected");
             })(),
-      text: async () => {
-        throw new Error("unexpected");
-      },
+      text: async () =>
+        rawText(
+          "nasdaq-listed",
+          nasdaqListedPayload(Array.from({ length: 10 }, (_, index) => `PEER${String(index)}`)),
+        ),
     };
     const propose = createPeerUniverseProposer({
       provider: modelProvider(peersJson(peers)),

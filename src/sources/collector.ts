@@ -36,6 +36,7 @@ import {
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
 import type { ModelProvider } from "../model/types";
+import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 
 interface HostState {
   queue: Promise<void>;
@@ -565,20 +566,62 @@ export interface PeerUniverseSeam {
   readonly ttlDays?: number;
 }
 
+export interface CollectSourcesRuntimeOptions {
+  readonly now?: Date;
+  readonly fetchImpl?: FetchLike;
+  readonly retryDelaysMs?: readonly number[];
+  readonly peerUniverse?: PeerUniverseSeam;
+}
+
+function peerUniverseFallbackFor(
+  peerUniverse: PeerUniverseSeam | undefined,
+  ctx: CollectContext,
+  now: Date,
+): PeerUniverseFallbackContext | undefined {
+  return peerUniverse === undefined
+    ? undefined
+    : {
+        cacheRead: makePeerUniverseCacheReader(peerUniverse.cachePath, peerUniverse.ttlDays, now),
+        cacheWrite: makePeerUniverseCacheWriter(
+          peerUniverse.cachePath,
+          peerUniverse.ttlDays,
+          peerUniverse.provider.name,
+          now,
+        ),
+        propose: createPeerUniverseProposer({
+          provider: peerUniverse.provider,
+          model: peerUniverse.model,
+          request: ctx.request,
+          ...(ctx.secUserAgent !== undefined ? { secUserAgent: ctx.secUserAgent } : {}),
+          ...(ctx.instrumentIdentity?.displayName !== undefined
+            ? { targetName: ctx.instrumentIdentity.displayName }
+            : {}),
+        }),
+      };
+}
+
 export async function collectSources(
   command: ResearchCommand,
   sourceOptions: SourceOptions,
-  now: Date = new Date(),
+  runtimeOrNow: Date | CollectSourcesRuntimeOptions = {},
   fetchImpl: FetchLike = fetch,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
   peerUniverse?: PeerUniverseSeam,
 ): Promise<CollectedSources> {
+  const runtime =
+    runtimeOrNow instanceof Date
+      ? { now: runtimeOrNow, fetchImpl, retryDelaysMs, peerUniverse }
+      : runtimeOrNow;
+  const now = runtime.now ?? new Date();
+  const requestFetchImpl = runtime.fetchImpl ?? fetch;
+  const requestRetryDelaysMs = runtime.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+  const peerUniverseSeam = runtime.peerUniverse;
   const { context: ctx, staleFallbackGaps } = createCollectContext(
     command,
     sourceOptions,
     now,
-    fetchImpl,
-    retryDelaysMs,
+    requestFetchImpl,
+    requestRetryDelaysMs,
   );
 
   const registry = createSourceRegistry();
@@ -608,37 +651,6 @@ export async function collectSources(
     preliminaryIdentityResult?.identity !== undefined
       ? { ...ctx, instrumentIdentity: preliminaryIdentityResult.identity }
       : ctx;
-  // Thread model-proposed peer-universe fallback into the context for deep-equity runs.
-  // The proposer closes over targetName (display name) and the request executor from identityCtx.
-  const peerUniverseCtx: CollectContext =
-    peerUniverse !== undefined && isEquityTicker && command.depth === "deep"
-      ? {
-          ...identityCtx,
-          peerUniverseFallback: {
-            cacheRead: makePeerUniverseCacheReader(
-              peerUniverse.cachePath,
-              peerUniverse.ttlDays,
-              now,
-            ),
-            cacheWrite: makePeerUniverseCacheWriter(
-              peerUniverse.cachePath,
-              peerUniverse.ttlDays,
-              peerUniverse.provider.name,
-            ),
-            propose: createPeerUniverseProposer({
-              provider: peerUniverse.provider,
-              model: peerUniverse.model,
-              request: identityCtx.request,
-              ...(identityCtx.secUserAgent !== undefined
-                ? { secUserAgent: identityCtx.secUserAgent }
-                : {}),
-              ...(identityCtx.instrumentIdentity?.displayName !== undefined
-                ? { targetName: identityCtx.instrumentIdentity.displayName }
-                : {}),
-            }),
-          },
-        }
-      : identityCtx;
   let newsContext: CollectContext = identityCtx;
   if (marketResult !== undefined) {
     const targets = isMarketUpdateCommand(command)
@@ -686,15 +698,20 @@ export async function collectSources(
     resolvedMarketResult.marketSnapshots,
     extendedResult.extendedEvidence,
   );
+  const peerUniverseFallback =
+    isEquityTicker && command.depth === "deep"
+      ? peerUniverseFallbackFor(peerUniverseSeam, identityCtx, now)
+      : undefined;
   const valuationCompsResult =
     isEquityTicker &&
     command.depth === "deep" &&
     valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
       ? await collectValuationComps(
-          peerUniverseCtx,
+          identityCtx,
           command,
           resolvedMarketResult.marketSnapshots,
           valuationResult.extendedEvidence,
+          peerUniverseFallback !== undefined ? { peerUniverseFallback } : undefined,
         )
       : undefined;
   const finalExtendedEvidence =

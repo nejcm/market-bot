@@ -3,6 +3,7 @@ import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types"
 import { isRecord } from "../sources/guards";
 import { isUsListing } from "../sources/instrument-capability";
 import { findSecTicker } from "../sources/extended-evidence/sec-edgar";
+import { collectListedUniverse, type ListedUniverseEntry } from "../alpha-search/listed-universe";
 import {
   MAX_PEERS,
   MIN_PROPOSED_PEERS,
@@ -13,10 +14,8 @@ import {
   type ProposalAudit,
 } from "./peer-universe";
 
-// Regex to exclude ETF/fund/trust/index instruments by name — mirrors the
-// Subject-registry `listed-stock`-only rule; the downstream SEC-revenue
-// Requirement is the hard backstop.
-const ETF_NAME_RE = /\b(ETF|FUND|TRUST|INDEX)\b/iu;
+const UNSUPPORTED_SECURITY_NAME_RE =
+  /\b(ADR|ADS|AMERICAN DEPOSITARY|ETF|ETN|FUND|TRUST|INDEX|UNIT|WARRANT|RIGHT|PREFERRED|PREFERENCE|NOTE|NOTES|DEBENTURE|BOND)\b/iu;
 
 const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
 const SEC_TICKERS_SOURCE_ID = "sec-company-tickers";
@@ -106,6 +105,21 @@ function parseProposedPeers(content: string): readonly RawProposedPeer[] {
   }
 }
 
+function isEligibleListedCommonStock(
+  symbol: string,
+  listedEntries: readonly ListedUniverseEntry[],
+): boolean {
+  return listedEntries.some(
+    (entry) =>
+      entry.symbol === symbol &&
+      entry.isActive &&
+      entry.isTestIssue !== true &&
+      entry.isEtfOrFund !== true &&
+      entry.isSupportedStock === true &&
+      !UNSUPPORTED_SECURITY_NAME_RE.test(entry.name ?? ""),
+  );
+}
+
 // Runs the structured-JSON model call; returns the raw content, or an empty string
 // When the provider throws (network/timeout). Empty content parses to zero candidates,
 // So the caller degrades to the existing too-few-survivors gap without a special case.
@@ -156,6 +170,10 @@ export function createPeerUniverseProposer(
       // SEC directory unavailable — degrade to existing unsupported-coverage gap
       return { audit: emptyAudit("(sec-fetch-failed)") };
     }
+    const listedUniverse = await collectListedUniverse(deps.request);
+    if (listedUniverse.entries.length === 0) {
+      return { audit: emptyAudit("(listing-fetch-failed)") };
+    }
     const tickersPayload = tickersResult.payload;
 
     // Model call: structured JSON, low token budget, temperature:0 for reproducibility
@@ -183,8 +201,8 @@ export function createPeerUniverseProposer(
       }
       seen.add(symbol);
 
-      // ETF/fund exclusion on proposed name
-      if (ETF_NAME_RE.test(raw.name)) {
+      // Unsupported security-type exclusion on proposed name
+      if (UNSUPPORTED_SECURITY_NAME_RE.test(raw.name)) {
         rejectedByEtf++;
         continue;
       }
@@ -196,9 +214,14 @@ export function createPeerUniverseProposer(
         continue;
       }
 
-      // ETF/fund exclusion on SEC title (secondary guard)
+      if (!isEligibleListedCommonStock(symbol, listedUniverse.entries)) {
+        rejectedByListing++;
+        continue;
+      }
+
+      // Unsupported security-type exclusion on SEC title (secondary guard)
       const secTitle = secMatch.name ?? raw.name;
-      if (ETF_NAME_RE.test(secTitle)) {
+      if (UNSUPPORTED_SECURITY_NAME_RE.test(secTitle)) {
         rejectedByEtf++;
         continue;
       }

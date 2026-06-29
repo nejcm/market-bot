@@ -18,6 +18,17 @@ function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
 }
 
+function textResponse(payload: string): Response {
+  return new Response(payload, { headers: { "content-type": "text/plain" } });
+}
+
+function listedCommonStocksPayload(symbols: readonly string[]): string {
+  return [
+    "Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares",
+    ...symbols.map((symbol) => `${symbol}|${symbol} Inc. Common Stock|Q|N|N|100|N|N`),
+  ].join("\n");
+}
+
 let tmpDirs: string[] = [];
 
 beforeEach(() => {
@@ -294,6 +305,17 @@ describe("collectSources", () => {
             ]),
           ),
         );
+      }
+      if (url.includes("nasdaqlisted.txt")) {
+        return textResponse(listedCommonStocksPayload(["AMD", "AVGO", "ANET"]));
+      }
+      if (url.includes("otherlisted.txt")) {
+        return textResponse(
+          "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n",
+        );
+      }
+      if (url.includes("listed_symbols/csv")) {
+        return textResponse("Name,Symbol\n");
       }
       if (url.includes("companyfacts")) {
         return jsonResponse(collectorSecPayload());

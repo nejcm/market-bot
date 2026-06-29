@@ -231,18 +231,17 @@ export async function runCli(
   const collectedSources = await (dependencies.collectSources ?? collectSources)(
     researchCommand,
     config.sourceOptions,
-    undefined,
-    undefined,
-    undefined,
     {
-      provider,
-      model: config.quickModel,
-      cachePath:
-        config.sourceOptions.peerUniverseLearnedPath ??
-        `${config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
-      ...(config.sourceOptions.peerUniverseTtlDays !== undefined
-        ? { ttlDays: config.sourceOptions.peerUniverseTtlDays }
-        : {}),
+      peerUniverse: {
+        provider,
+        model: config.quickModel,
+        cachePath:
+          config.sourceOptions.peerUniverseLearnedPath ??
+          `${config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
+        ...(config.sourceOptions.peerUniverseTtlDays !== undefined
+          ? { ttlDays: config.sourceOptions.peerUniverseTtlDays }
+          : {}),
+      },
     },
   );
 

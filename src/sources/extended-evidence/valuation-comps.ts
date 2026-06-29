@@ -124,7 +124,7 @@ export async function collectValuationComps(
   const target = targetRow(command.symbol, valuationItem, targetSnapshot, ctx.fetchedAt);
   const resolution = await resolvePeerUniverseWithFallback(
     command.symbol,
-    options.peerUniverseFallback ?? ctx.peerUniverseFallback,
+    options.peerUniverseFallback,
     options.peerUniverseMappings,
     options.subjectRegistry,
   );

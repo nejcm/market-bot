@@ -199,7 +199,11 @@ export interface WebGatherSanitizerAudit {
   readonly removedChromeHtmlCount: number;
 }
 
-export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName> & {
+export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
+  readonly sanitizer?: WebGatherSanitizerAudit;
+}
+
+export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherAuditEntry> & {
   readonly sanitizer: WebGatherSanitizerAudit;
 };
 

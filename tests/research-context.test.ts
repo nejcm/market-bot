@@ -2189,6 +2189,60 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(sources[0]!.snippet).toBe("Apple has recurring purchases.");
   });
 
+  test("research theme prompts receive web text only for profile extraction and retain the profile", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "artificial intelligence",
+      depth: "deep",
+    };
+    const webSource = {
+      id: "web-1",
+      title: "AI industry analysis",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "AI infrastructure demand is growing.",
+      snippet: "Cloud providers are expanding accelerator capacity.",
+    };
+    const themeProfile: WebSubjectProfileArtifact = {
+      version: 2,
+      generatedAt: "2026-06-28T00:00:00.000Z",
+      subjectKind: "theme",
+      subjectId: "artificial-intelligence",
+      subjectLabel: "artificial intelligence",
+      subjectSummary: { answer: "AI adoption is broadening", sourceIds: ["web-1"] },
+      questions: {
+        whatItIs: { answer: "Machine intelligence", sourceIds: ["web-1"] },
+        whyNow: { answer: "Compute availability", sourceIds: ["web-1"] },
+        beneficiaries: { answer: "Infrastructure vendors", sourceIds: ["web-1"] },
+        headwinds: { answer: "Power constraints", sourceIds: ["web-1"] },
+        keyDebates: { answer: "Return on investment", sourceIds: ["web-1"] },
+        howItPlaysOut: { answer: "Gradual adoption", sourceIds: ["web-1"] },
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: "Demand is growing", sourceIds: ["web-1"] }],
+      openGaps: [],
+      sourceIds: ["web-1"],
+    };
+
+    const profileEvidence = evidenceFor(
+      command,
+      { extendedSources: [webSource] },
+      "web-subject-profile",
+    );
+    const profileSources = profileEvidence.webSources as readonly Record<string, unknown>[];
+    expect(profileSources[0]?.summary).toBe("AI infrastructure demand is growing.");
+
+    const synthesisEvidence = evidenceFor(command, {
+      extendedSources: [webSource],
+      webSubjectProfile: themeProfile,
+    });
+    const synthesisSources = synthesisEvidence.webSources as readonly Record<string, unknown>[];
+    expect(synthesisSources[0]?.summary).toBeUndefined();
+    expect(synthesisSources[0]?.snippet).toBeUndefined();
+    expect(synthesisEvidence.webSubjectProfile).toBeDefined();
+  });
+
   test("structured profile projected when non-empty profile exists", () => {
     const command: ResearchCommand = {
       jobType: "equity",

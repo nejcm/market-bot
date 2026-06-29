@@ -382,6 +382,29 @@ describe("web gather tools", () => {
     expect(result.sanitizer.removedChromeHtmlCount).toBeGreaterThan(0);
   });
 
+  test("reports sanitizer output characters before adapter truncation", async () => {
+    const summary = "A".repeat(1500);
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model" },
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            jsonResult(adapter, {
+              results: [{ url: "https://example.test/apple", summary }],
+            }),
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(result.sources[0]?.summary?.length).toBe(1203);
+    expect(result.sanitizer).toMatchObject({
+      inputCharCount: summary.length,
+      outputCharCount: summary.length,
+    });
+  });
+
   test("keeps metadata and emits gap when sanitized web text becomes empty", async () => {
     const result = await executeWebGatherTool(
       "web_search",

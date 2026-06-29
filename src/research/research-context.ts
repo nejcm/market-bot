@@ -215,7 +215,7 @@ const projectResolvedInstrumentIdentity: EvidenceProjector = (_stage, _command, 
     : {};
 
 const projectWebSources: EvidenceProjector = (stage, command, collectedSources) => {
-  if (!isInstrumentCommand(command)) {
+  if (subjectKindForCommand(command) === undefined) {
     return {};
   }
   const includeModelVisibleText = stage === "web-subject-profile";
@@ -239,7 +239,7 @@ const projectWebSources: EvidenceProjector = (stage, command, collectedSources) 
 };
 
 const projectWebSubjectProfile: EvidenceProjector = (_stage, command, collectedSources) => {
-  if (!isInstrumentCommand(command)) {
+  if (subjectKindForCommand(command) === undefined) {
     return {};
   }
   const profile = collectedSources.webSubjectProfile;

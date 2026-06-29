@@ -2149,9 +2149,20 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
     ).resolves.toContain('"companyName": "Apple Inc."');
-    await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
-    ).resolves.toContain('"tool": "web_search"');
+    const webGatherAudit = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
+    ) as {
+      readonly acceptedRequests: readonly {
+        readonly tool: string;
+        readonly sanitizer?: { readonly sourceCount: number };
+      }[];
+      readonly sanitizer?: { readonly sourceCount: number };
+    };
+    expect(webGatherAudit.acceptedRequests[0]).toMatchObject({
+      tool: "web_search",
+      sanitizer: { sourceCount: 1 },
+    });
+    expect(webGatherAudit.sanitizer).toMatchObject({ sourceCount: 1 });
     await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
       "## Web Subject Profile",
     );

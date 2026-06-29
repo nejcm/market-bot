@@ -212,6 +212,10 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     stageOutputs: loop.stageOutputs,
     audit: {
       ...loop.audit,
+      acceptedRequests: loop.audit.acceptedRequests.map((entry, index) => ({
+        ...entry,
+        sanitizer: sanitizerAudits[index]!,
+      })),
       sanitizer: aggregateSanitizerAudit(sanitizerAudits),
     },
   };

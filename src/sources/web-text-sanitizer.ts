@@ -13,6 +13,8 @@ export interface WebTextSanitizerResult {
 const CODE_FENCE_RE = /```[\s\S]*?```/gu;
 const HTML_BLOCK_RE =
   /<(script|style|form|template|noscript|iframe|svg|head|meta|link|input|button|select|textarea)\b[\s\S]*?<\/\1>|<(meta|link|input|button|select|textarea)\b[^>]*>/giu;
+const HTML_UNCLOSED_BLOCK_RE =
+  /<(script|style|form|template|noscript|iframe|svg|head)\b[^>]*>[\s\S]*$/giu;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/gu;
 const HTML_TAG_RE = /<[^>]+>/gu;
 const ENTITY_RE = /&(?:#(\d+)|#x([\da-f]+)|amp|lt|gt|quot|apos|nbsp|mdash|ndash);/giu;
@@ -47,6 +49,15 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
   let removedChromeHtmlCount = 0;
   let text = input;
 
+  for (let pass = 0; pass < 2; pass += 1) {
+    ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
+      text,
+      ENTITY_RE,
+      (match, decimal: string | undefined, hex: string | undefined) =>
+        decodeHtmlEntity(match, decimal, hex),
+      removedChromeHtmlCount,
+    ));
+  }
   ({ text, removedCount: removedChromeHtmlCount } = removePattern(
     text,
     HTML_COMMENT_RE,
@@ -55,6 +66,11 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
   ({ text, removedCount: removedChromeHtmlCount } = removePattern(
     text,
     HTML_BLOCK_RE,
+    removedChromeHtmlCount,
+  ));
+  ({ text, removedCount: removedChromeHtmlCount } = removePattern(
+    text,
+    HTML_UNCLOSED_BLOCK_RE,
     removedChromeHtmlCount,
   ));
   ({ text, removedCount: removedInstructionSpanCount } = removePattern(
@@ -68,29 +84,23 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
     " ",
     removedChromeHtmlCount,
   ));
-  ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
-    text,
-    ENTITY_RE,
-    (match, decimal: string | undefined, hex: string | undefined) =>
-      decodeHtmlEntity(match, decimal, hex),
-    removedChromeHtmlCount,
-  ));
-
   const filtered: string[] = [];
   for (const paragraph of text.split(/\r?\n+/u)) {
     const normalized = paragraph.replaceAll(WHITESPACE_RE, " ").trim();
     if (normalized === "") {
       continue;
     }
-    if (isInstructionSpan(normalized)) {
-      removedInstructionSpanCount += 1;
-      continue;
-    }
     if (isChromeLine(normalized)) {
       removedChromeHtmlCount += 1;
       continue;
     }
-    filtered.push(normalized);
+    for (const sentence of normalized.split(/(?<=[.!?])\s+/u)) {
+      if (isInstructionSpan(sentence)) {
+        removedInstructionSpanCount += 1;
+        continue;
+      }
+      filtered.push(sentence);
+    }
   }
 
   const output = filtered.join(" ").replaceAll(WHITESPACE_RE, " ").trim();

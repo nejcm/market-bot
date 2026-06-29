@@ -177,6 +177,10 @@ describe("runWebGatherLoop", () => {
       "exa-search",
     ]);
     expect(result.audit?.acceptedRequests).toHaveLength(1);
+    expect(result.audit?.acceptedRequests[0]?.sanitizer).toMatchObject({
+      sourceCount: 1,
+      sanitizedSourceCount: 1,
+    });
     expect(result.audit?.sourceUnitsUsed).toBe(2);
     expect(result.audit?.sanitizer).toMatchObject({
       sourceCount: 1,

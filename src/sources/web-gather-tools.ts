@@ -462,7 +462,7 @@ function sanitizeOptionalWebText(
     inputPresent: true,
     telemetry: {
       inputCharCount: result.telemetry.inputChars,
-      outputCharCount: text?.length ?? 0,
+      outputCharCount: result.telemetry.outputChars,
       removedInstructionSpanCount: result.telemetry.removedInstructionSpanCount,
       removedChromeHtmlCount: result.telemetry.removedChromeHtmlCount,
     },

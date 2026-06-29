@@ -7,18 +7,21 @@ collects, which model stages it executes, and what artifacts it produces.
 
 ### Run Type Registry
 
-The seven research/analysis run types are declared in
-`src/domain/run-types.ts` via `RUN_TYPE_REGISTRY`:
+The seven research/analysis run identities are declared in
+`src/domain/run-types.ts` via `RUN_TYPE_REGISTRY`. The registry still includes
+legacy `daily` and `weekly` for artifact/history compatibility, but the public
+CLI parser normalizes new `daily` / `weekly` invocations into canonical
+`market-overview` commands with a `legacyAlias`.
 
-| Run Type          | Asset Flag | Depth Flag | Instrument | Web Gather | Evidence Request | Synthesis Report |
-| ----------------- | ---------- | ---------- | ---------- | ---------- | ---------------- | ---------------- |
-| `market-overview` | yes        | yes        | no         | no         | no               | yes              |
-| `daily`           | yes        | yes        | no         | no         | no               | yes              |
-| `weekly`          | yes        | yes        | no         | no         | no               | yes              |
-| `equity`          | no         | yes        | yes        | yes        | yes              | yes              |
-| `crypto`          | no         | yes        | yes        | yes        | no               | yes              |
-| `alpha-search`    | no         | yes        | no         | no         | no               | no               |
-| `research`        | no         | yes        | no         | yes        | no               | yes              |
+| Run Type          | Asset Handling       | Depth Flag | Instrument | Web Gather | Evidence Request | Synthesis Report |
+| ----------------- | -------------------- | ---------- | ---------- | ---------- | ---------------- | ---------------- |
+| `market-overview` | `--asset` required   | yes        | no         | no         | no               | yes              |
+| `daily`           | legacy alias         | yes        | no         | no         | no               | yes              |
+| `weekly`          | legacy alias         | yes        | no         | no         | no               | yes              |
+| `equity`          | implied equity       | yes        | yes        | yes        | yes              | yes              |
+| `crypto`          | implied crypto       | yes        | yes        | yes        | no               | yes              |
+| `alpha-search`    | fixed `--asset equity` | yes      | no         | no         | no               | no               |
+| `research`        | implied equity       | yes        | no         | yes        | no               | yes              |
 
 Operational commands (`score`, `calibration`, `cache-prune`, `provider-health`,
 `history-*`, `index-rebuild`) are not research run types.
@@ -85,7 +88,8 @@ For synthesis-report runs, `runResearchJob` in
    &rarr; critique &rarr; final-synthesis.
 10. Optional **forecast-disagreement** stage (deep runs with challenger models).
 11. Build trace, analytics, render markdown, persist artifacts.
-12. The CLI then runs a **score pass** and updates the run artifact index.
+12. The CLI then runs a **score pass** for synthesis-report research runs and
+    updates the run artifact index.
 
 ---
 
@@ -170,8 +174,11 @@ market-bot weekly --asset equity|crypto [--deep]
 - `--asset` is required.
 - No `--horizon` flag.
 
-Command shape: `DailyCommand` / `WeeklyCommand` with `jobType: "daily"` or
-`"weekly"`.
+CLI parse result: canonical `MarketOverviewCommand` with
+`jobType: "market-overview"`, fixed `horizonTradingDays`, and
+`legacyAlias: "daily" | "weekly"`. Old persisted artifacts can still carry
+`jobType: "daily"` or `"weekly"` and remain readable through artifact/history
+paths.
 
 ### Config
 
@@ -181,16 +188,19 @@ Both map to `market-overview-{assetClass}` profile (same as
 - `daily` &rarr; 5 trading days.
 - `weekly` &rarr; 15 trading days.
 
-`resolveRunParams` uses `legacyMarketUpdateHorizon(jobType)` for
-`defaultPredictionHorizon`.
+For new CLI runs, `resolveRunParams` receives the canonical market-overview
+command and uses `horizonTradingDays` for `defaultPredictionHorizon`. The
+legacy `daily` / `weekly` branch remains for compatibility with direct internal
+callers and old artifact-shaped tests.
 
 ### Data and Stages
 
 Identical to `market-overview` except:
 
 - `horizonTradingDays` is fixed.
-- Trace records `legacyMarketUpdateAlias: "daily" | "weekly"` and
-  `marketUpdateCadence`.
+- Trace and report extras record `legacyMarketUpdateAlias: "daily" | "weekly"`
+  on new alias-invoked runs. Read paths still map old `marketUpdateCadence`
+  artifacts into horizon buckets.
 - Horizon bucket is derived from the fixed horizon.
 
 This is the legacy alias path per ADR 0025 (market-overview fold).
@@ -466,8 +476,11 @@ Hard-coded trace stages (no LLM pipeline):
 
 ### Post-Run
 
-After any research run, the CLI score pass also updates alpha validation
-summaries, feature attribution, candidate watchlist, and lead cohorts.
+`alpha-search` itself only runs the deterministic discovery workflow and run
+artifact index update. It does not run the post-research score pass because it
+emits no predictions. The separate `score` command later updates alpha
+validation summaries, feature attribution, candidate watchlist, and lead cohorts
+from persisted alpha-search artifacts.
 
 ---
 
@@ -600,12 +613,14 @@ containing:
 
 ## 10. Post-Research Score Pass
 
-After every synthesis-report research run and after `alpha-search`:
+After every synthesis-report research run:
 
 1. `runScorePass` scores all predictions in all run directories.
 2. `buildAndWriteCalibration` updates the calibration summary.
 3. `updateRunArtifactIndex` writes new run directories to the index and rebuilds
    if stale.
 
-This happens inside `runCli` regardless of run type, but `alpha-search` triggers
-it explicitly around its own workflow.
+This happens inside `runCli` after `market-overview`, legacy alias,
+`equity`, `crypto`, and `research` runs. `alpha-search` skips this score pass
+and only writes its own run directory through the index; alpha validation and
+candidate-state rollups are produced by a later `score` run.

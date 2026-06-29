@@ -110,7 +110,9 @@ describe("reconcileBusinessFramework", () => {
       "capital-allocation",
       "company-kpis",
       "customer-concentration",
+      "cyclicality",
       "management-track-record",
+      "pricing-power",
       "purchase-recurrence",
       "risk-factors",
       "segment-mix",
@@ -123,6 +125,7 @@ describe("reconcileBusinessFramework", () => {
       "recurrence",
       "risks",
       "segment",
+      "web-1",
     ]);
     expect(result.sourceGap?.message).toContain("Analyst consensus");
   });

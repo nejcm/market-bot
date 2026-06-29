@@ -101,7 +101,9 @@ export type BusinessFrameworkGapCode =
   | "capital-allocation"
   | "company-kpis"
   | "risk-factors"
-  | "analyst-consensus";
+  | "analyst-consensus"
+  | "pricing-power"
+  | "cyclicality";
 
 export interface BusinessFrameworkGap {
   readonly code: BusinessFrameworkGapCode;
@@ -139,6 +141,14 @@ export const QUALITATIVE_GAPS = [
   {
     code: "analyst-consensus",
     text: "Analyst consensus is not available from a provider-neutral authoritative capability",
+  },
+  {
+    code: "pricing-power",
+    text: "Pricing power evidence is not available from current normalized sources",
+  },
+  {
+    code: "cyclicality",
+    text: "Recession cyclicality evidence is not available from current normalized sources",
   },
 ] as const satisfies readonly BusinessFrameworkGap[];
 
@@ -441,7 +451,12 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       secSourceIds,
-      qualitativeGaps("segment-mix", "customer-concentration", "purchase-recurrence"),
+      qualitativeGaps(
+        "segment-mix",
+        "customer-concentration",
+        "purchase-recurrence",
+        "pricing-power",
+      ),
     ),
     section(
       "Growth",
@@ -511,7 +526,7 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       financialLensItem?.sourceIds ?? [],
-      qualitativeGaps("risk-factors"),
+      qualitativeGaps("risk-factors", "cyclicality"),
     ),
     section(
       "Valuation",

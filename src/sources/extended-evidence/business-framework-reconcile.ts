@@ -23,6 +23,8 @@ const PROFILE_GAP_QUESTIONS: readonly {
   { code: "capital-allocation", question: "capitalAllocation" },
   { code: "company-kpis", question: "companyKpis" },
   { code: "risk-factors", question: "riskFactors" },
+  { code: "pricing-power", question: "pricingPower" },
+  { code: "cyclicality", question: "recessionCyclicality" },
 ];
 
 export interface ReconciliationResult {

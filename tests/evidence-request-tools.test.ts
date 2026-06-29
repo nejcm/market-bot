@@ -288,6 +288,38 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps[0]?.message).toContain("No current-year 10-Q");
   });
 
+  test("treats a 10-Q before the latest 10-K basis as missing current-year coverage", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q"],
+          filingDate: ["2026-02-15", "2025-11-01"],
+          reportDate: ["2025-12-31", "2025-09-30"],
+          accessionNumber: ["0000320193-26-000010", "0000320193-25-000077"],
+          primaryDocument: ["a10k.htm", "a10q-stale.htm"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ url, adapter }) =>
+            textResult(adapter, `ITEM 7-MANAGEMENT discussion for ${url}`),
+        }),
+      }),
+    );
+
+    expect(result.sources.map((source) => source.id)).toEqual(["extended-sec-edgar-aapl-10k"]);
+    expect(result.sources[0]?.url).toContain("/a10k.htm");
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0]?.message).toContain("No current-year 10-Q");
+  });
+
   test("emits fetch failure gap from filing text fetch", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",

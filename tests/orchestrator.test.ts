@@ -2280,6 +2280,53 @@ describe("runResearchJob", () => {
     expect(result.markdown).toContain("**Basis:** 10-Q for period 2026-03-31.");
   });
 
+  test("does not build a SEC-only company profile from fundamentals-only SEC evidence", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-subject-profile") {
+          throw new Error("unexpected web-subject-profile");
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        marketSnapshots,
+        newsSources,
+        extendedSources: [
+          {
+            id: "extended-sec-edgar-aapl-fundamentals",
+            title: "AAPL SEC fundamentals",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "extended-evidence",
+            assetClass: "equity",
+            symbol: "AAPL",
+            provider: "sec-edgar",
+          },
+        ],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toBeUndefined();
+  });
+
   test("reuses fresh Web Subject Profile and skips web gather", async () => {
     const dataDir = tempDataDir("market-bot-web-subject-profile-reuse");
     const priorRunDir = join(dataDir, "prior-aapl");

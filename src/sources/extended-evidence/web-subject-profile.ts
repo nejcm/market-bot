@@ -154,7 +154,11 @@ export function normalizedSubjectId(subject: string): string {
 // Company Web Subject Profile may cite alongside gathered web Sources. They live
 // In `extendedSources` with provider `sec-edgar`.
 export function isCompanyProfileSecSource(source: Source): boolean {
-  return source.kind === "extended-evidence" && source.provider === "sec-edgar";
+  return (
+    source.kind === "extended-evidence" &&
+    source.provider === "sec-edgar" &&
+    (source.id.endsWith("-10k") || source.id.endsWith("-10q"))
+  );
 }
 
 export function subjectKindForCommand(command: ResearchCommand): SubjectKind | undefined {

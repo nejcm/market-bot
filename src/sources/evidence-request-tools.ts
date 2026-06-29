@@ -149,6 +149,18 @@ function selectLatestFilingByForm(
     .toSorted((a, b) => b.filingDate.localeCompare(a.filingDate))[0];
 }
 
+function filingBasisDate(filing: SecFiling): string {
+  return filing.reportDate ?? filing.filingDate;
+}
+
+function selectCurrentQuarterlyFiling(payload: unknown, annual?: SecFiling): SecFiling | undefined {
+  const latestQuarterly = selectLatestFilingByForm(payload, "10-Q");
+  if (latestQuarterly === undefined || annual === undefined) {
+    return latestQuarterly;
+  }
+  return filingBasisDate(latestQuarterly) > filingBasisDate(annual) ? latestQuarterly : undefined;
+}
+
 function filingUrl(cik: string, filing: SecFiling): string {
   const primaryDocument = encodeURIComponent(filing.primaryDocument);
   return `https://www.sec.gov/Archives/edgar/data/${String(Number(cik))}/${filing.accessionNumber.replaceAll("-", "")}/${primaryDocument}`;
@@ -329,7 +341,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   }
 
   const tenK = selectLatestFilingByForm(submissions.payload, "10-K");
-  const tenQ = selectLatestFilingByForm(submissions.payload, "10-Q");
+  const tenQ = selectCurrentQuarterlyFiling(submissions.payload, tenK);
 
   if (tenK === undefined && tenQ === undefined) {
     return emptyOutput(

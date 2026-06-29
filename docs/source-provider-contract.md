@@ -58,7 +58,7 @@ Evidence Request tools are Source Provider consumers, not model-provider native 
 - run through `ctx.request.json` or `ctx.request.text`;
 - emit normal `Source`, `ExtendedEvidence`, raw snapshots, and `SourceGap`s.
 
-V1 tools are `sec_latest_filing` (3 units) and `tradier_iv_term_structure` (5 units), scoped to deep equity ticker research.
+V1 tools are `sec_latest_filing` (latest 10-K and latest 10-Q filing text, 5 units) and `tradier_iv_term_structure` (5 units), scoped to deep equity ticker research.
 
 ## Verified Market Snapshot
 

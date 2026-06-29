@@ -579,7 +579,18 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   };
   let webSubjectProfile: Awaited<ReturnType<typeof runWebSubjectProfileExtraction>> | undefined =
     undefined;
-  if (isWebGatherLoopEnabled(input.command, input.config)) {
+  const webGatherEnabled = isWebGatherLoopEnabled(input.command, input.config);
+  // When Exa/web-gather is unavailable, a US-listed equity --deep run can still
+  // Build a company profile from SEC 10-K/10-Q filing text alone (10-K-first
+  // Sourcing). The presence of a SEC filing Source implies a US listing, since
+  // The SEC evidence tool only runs for US listings.
+  const secOnlyCompanyProfile =
+    !webGatherEnabled &&
+    isInstrumentCommand(input.command) &&
+    input.command.assetClass === "equity" &&
+    input.command.depth === "deep" &&
+    collectedSources.extendedSources.some(isCompanyProfileSecSource);
+  if (webGatherEnabled) {
     const reusableWebSubjectProfile = await findReusableWebSubjectProfile({
       dataDir: input.config.dataDir,
       command: input.command,
@@ -625,6 +636,17 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       });
       ({ collectedSources } = webSubjectProfile);
     }
+    collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
+  } else if (secOnlyCompanyProfile) {
+    webSubjectProfile = await runWebSubjectProfileExtraction({
+      jobInput: input,
+      collectedSources,
+      context,
+      generatedAt,
+      runParams,
+      ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
+    });
+    ({ collectedSources } = webSubjectProfile);
     collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
   }
   let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;

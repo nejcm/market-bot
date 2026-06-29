@@ -832,15 +832,21 @@ describe("runResearchJob", () => {
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const specialistPrompt = prompts[2] as {
-      readonly evidence?: {
-        readonly extendedEvidence?: {
-          readonly items?: readonly { readonly title?: string }[];
-        };
-      };
-    };
+    const specialistPrompt = prompts.find((prompt) => prompt.stage === "specialist-analysis") as
+      | {
+          readonly evidence?: {
+            readonly extendedEvidence?: {
+              readonly items?: readonly { readonly title?: string }[];
+            };
+          };
+        }
+      | undefined;
 
-    expect(specialistPrompt.evidence?.extendedEvidence?.items?.[0]?.title).toBe("AAPL SEC 10-Q");
+    expect(
+      specialistPrompt?.evidence?.extendedEvidence?.items?.some(
+        (item) => item.title === "AAPL SEC 10-Q",
+      ),
+    ).toBe(true);
     expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
       "sec-filing-text",
     );
@@ -2181,6 +2187,99 @@ describe("runResearchJob", () => {
     );
   });
 
+  test("builds a SEC-only company profile when Exa is absent on equity --deep", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "evidence-request") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-subject-profile") {
+          const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
+          const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
+          const source = sources.find((item) => isRecord(item)) ?? {};
+          const sourceId = typeof source.id === "string" ? source.id : "missing-source";
+          const answer = {
+            answer: "Apple sells hardware and services per the filing.",
+            sourceIds: [sourceId],
+          };
+          return {
+            content: JSON.stringify({
+              companyName: "Apple Inc.",
+              subjectSummary: answer,
+              questions: {
+                whatItDoes: answer,
+                howItMakesMoney: answer,
+                customers: answer,
+                geography: answer,
+                purchaseRecurrence: answer,
+                pricingPower: answer,
+                recessionCyclicality: answer,
+                managementTrackRecord: answer,
+                capitalAllocation: answer,
+                companyKpis: answer,
+                riskFactors: answer,
+              },
+              recentMaterialEvents: [],
+              factLedger: [{ claim: "Apple sells hardware and services.", sourceIds: [sourceId] }],
+              openGaps: [],
+            }),
+            tokenEstimate: 12,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: evidenceConfig,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const stages = prompts.map((prompt) => prompt.stage);
+    expect(stages).toContain("web-subject-profile");
+    expect(stages).not.toContain("web-gather");
+    expect(result.collectedSources.webSubjectProfile).toMatchObject({
+      companyName: "Apple Inc.",
+      subjectKind: "company",
+    });
+    // The SEC-only profile cites the filing source.
+    expect(result.collectedSources.webSubjectProfile?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-10q",
+    ]);
+    expect(result.markdown).toContain("## Web Subject Profile");
+    expect(result.markdown).toContain("**Basis:** 10-Q for period 2026-03-31.");
+  });
+
   test("reuses fresh Web Subject Profile and skips web gather", async () => {
     const dataDir = tempDataDir("market-bot-web-subject-profile-reuse");
     const priorRunDir = join(dataDir, "prior-aapl");
@@ -2406,8 +2505,42 @@ describe("runResearchJob", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "web-gather" || prompt.stage === "web-subject-profile") {
+        if (prompt.stage === "web-gather") {
           throw new Error(`unexpected ${String(prompt.stage)}`);
+        }
+        if (prompt.stage === "web-subject-profile") {
+          const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
+          const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
+          const source = sources.find((item) => isRecord(item)) ?? {};
+          const sourceId = typeof source.id === "string" ? source.id : "missing-source";
+          const freshAnswer = {
+            answer: "Apple sells hardware and services per the latest filing.",
+            sourceIds: [sourceId],
+          };
+          return {
+            content: JSON.stringify({
+              companyName: "Apple Inc.",
+              subjectSummary: freshAnswer,
+              questions: {
+                whatItDoes: freshAnswer,
+                howItMakesMoney: freshAnswer,
+                customers: freshAnswer,
+                geography: freshAnswer,
+                purchaseRecurrence: freshAnswer,
+                pricingPower: freshAnswer,
+                recessionCyclicality: freshAnswer,
+                managementTrackRecord: freshAnswer,
+                capitalAllocation: freshAnswer,
+                companyKpis: freshAnswer,
+                riskFactors: freshAnswer,
+              },
+              recentMaterialEvents: [],
+              factLedger: [{ claim: "Apple sells hardware and services.", sourceIds: [sourceId] }],
+              openGaps: [],
+            }),
+            tokenEstimate: 12,
+            costEstimateUsd: 0.001,
+          };
         }
         if (prompt.stage === "playbook-selection") {
           return {
@@ -2436,11 +2569,14 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
+    // Web gather stays disabled, but a fresh SEC-only profile is built — the prior
+    // Profile must not be reused (its web source is never reattached).
     expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
-    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
-    expect(result.collectedSources.webSubjectProfile).toBeUndefined();
     expect(result.collectedSources.extendedSources).not.toContainEqual(priorWebSource);
-    expect(result.report.extras?.webSubjectProfile).toBeUndefined();
+    expect(result.collectedSources.webSubjectProfile?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-10q",
+    ]);
+    expect(result.collectedSources.webSubjectProfile?.sourceIds).not.toContain(priorWebSource.id);
   });
 
   test("persists empty Web Subject Profile when extraction stage fails", async () => {

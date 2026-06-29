@@ -18,7 +18,7 @@ Four modules independently read and parsed the same per-run artifacts under
 Each redefined `readJson`, `isJobType`/`isAssetClass`, a `report.json → ResearchReport` parse, and
 its own directory scan. The malformed-counting definitions actively contradicted each other: a
 directory with no `report.json` was "not scanned" in historical-context but counted as "malformed"
-in history. There was no canonical reader — `src/report/schema.ts` only validates on *write*, and
+in history. There was no canonical reader — `src/report/schema.ts` only validates on _write_, and
 reading back is intentionally lenient because older artifacts predate the current schema.
 
 This mirrors the situation ADR 0009 resolved on the write/fetch side: provider integrations were

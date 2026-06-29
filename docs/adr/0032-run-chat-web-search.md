@@ -76,7 +76,7 @@ Run Chat is non-persisted server-side (ADR 0029). Web results found during a
 conversation are **ephemeral conversational context**. They:
 
 - Are never assigned an ID.
-- Never become domain *Sources*.
+- Never become domain _Sources_.
 - Never touch Evidence Lanes, Evidence Quality, or prediction scoring.
 - Are never written to disk under `data/runs/` and never re-enter a research run.
 
@@ -84,7 +84,7 @@ conversation are **ephemeral conversational context**. They:
 conversation survives reloads — see `app/client/components/run-chat-storage.ts` — but
 that is browser-local UI state, not a server-side artifact or a Source.)
 
-The terms *Source*, *Evidence*, *Evidence Lane*, and *Source Provider* retain their
+The terms _Source_, _Evidence_, _Evidence Lane_, and _Source Provider_ retain their
 glossary meanings (CONTEXT.md) and are unaffected by this feature.
 
 ## Consequences

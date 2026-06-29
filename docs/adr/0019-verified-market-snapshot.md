@@ -38,19 +38,19 @@ Add `deriveCanonicalInstrumentIdentity` in `src/sources/instrument-identity.ts`.
 
 Phase A.2 numeric verification reads these keys by name. Do not change them without a new ADR.
 
-| Key | Indicator | Parameters |
-|---|---|---|
-| `ema10` | EMA | 10-period |
-| `sma50` | SMA | 50-period |
-| `sma200` | SMA | 200-period |
-| `rsi14` | RSI (Wilder) | 14-period |
-| `macd` | MACD line | 12, 26 |
-| `macdSignal` | MACD signal | 9-period EMA of MACD line |
-| `macdHistogram` | MACD histogram | macd − signal |
-| `bollUpper` | Bollinger upper band | 20-period, 2σ |
-| `bollMiddle` | Bollinger middle band | 20-period SMA |
-| `bollLower` | Bollinger lower band | 20-period, 2σ |
-| `atr14` | ATR (Wilder) | 14-period |
+| Key             | Indicator             | Parameters                |
+| --------------- | --------------------- | ------------------------- |
+| `ema10`         | EMA                   | 10-period                 |
+| `sma50`         | SMA                   | 50-period                 |
+| `sma200`        | SMA                   | 200-period                |
+| `rsi14`         | RSI (Wilder)          | 14-period                 |
+| `macd`          | MACD line             | 12, 26                    |
+| `macdSignal`    | MACD signal           | 9-period EMA of MACD line |
+| `macdHistogram` | MACD histogram        | macd − signal             |
+| `bollUpper`     | Bollinger upper band  | 20-period, 2σ             |
+| `bollMiddle`    | Bollinger middle band | 20-period SMA             |
+| `bollLower`     | Bollinger lower band  | 20-period, 2σ             |
+| `atr14`         | ATR (Wilder)          | 14-period                 |
 
 ---
 

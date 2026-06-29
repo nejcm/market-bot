@@ -62,7 +62,7 @@ This is stale-healing of an existing, schema-matched index — not auto-creation
   and the run side-effect order being score → calibration → index update, the run
   that first detects drift has already completed its own calibration pairing via disk
   scan. The rebuild benefits subsequent runs. This is the accepted trade-off — the
-  goal is to stop *repeated* fallbacks, not to make the detecting run itself
+  goal is to stop _repeated_ fallbacks, not to make the detecting run itself
   index-backed.
 - **Additional freshness probe per write-through.** Every write-through now also
   pays an O(run count) freshness probe (run-dir listing + mutable-sidecar `stat`s).

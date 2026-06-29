@@ -15,14 +15,14 @@ Add a `predictions: Prediction[]` field to `ResearchReport`. A `Prediction` is a
 
 Allowed `kind` values and their `measurableAs` shapes:
 
-| Kind | measurableAs form | Example |
-|------|-------------------|---------|
-| `direction` | `close(SUBJECT, +N) > close(SUBJECT, 0)` | `close(SPY, +5) > close(SPY, 0)` |
-| `relative` | `close(A, +N) / close(A, 0) > close(B, +N) / close(B, 0)` | `close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)` |
-| `volatility` | `max(close(^VIX), 0..+N) > T` | `max(close(^VIX), 0..+5) > 20` |
-| `range` | `close(SUBJECT, +N) outside [Lo, Hi]` | `close(BTC, +7) outside [90000, 110000]` |
-| `macro` | `fred(SERIES, +N) > fred(SERIES, 0)` | `fred(DGS10, +5) > fred(DGS10, 0)` |
-| `iv` | `iv(SUBJECT, +N) > T` | `iv(AAPL, +5) > 0.35` |
+| Kind         | measurableAs form                                         | Example                                                           |
+| ------------ | --------------------------------------------------------- | ----------------------------------------------------------------- |
+| `direction`  | `close(SUBJECT, +N) > close(SUBJECT, 0)`                  | `close(SPY, +5) > close(SPY, 0)`                                  |
+| `relative`   | `close(A, +N) / close(A, 0) > close(B, +N) / close(B, 0)` | `close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)` |
+| `volatility` | `max(close(^VIX), 0..+N) > T`                             | `max(close(^VIX), 0..+5) > 20`                                    |
+| `range`      | `close(SUBJECT, +N) outside [Lo, Hi]`                     | `close(BTC, +7) outside [90000, 110000]`                          |
+| `macro`      | `fred(SERIES, +N) > fred(SERIES, 0)`                      | `fred(DGS10, +5) > fred(DGS10, 0)`                                |
+| `iv`         | `iv(SUBJECT, +N) > T`                                     | `iv(AAPL, +5) > 0.35`                                             |
 
 `measurableAs` is parsed by the scorer (`src/forecast/observable.ts`), never by the LLM. `horizonTradingDays` is 1–20.
 
@@ -36,7 +36,7 @@ This is analogous to a weather forecast: "70% chance of rain" is a statement abo
 
 ### Validator additions
 
-The existing `TRADE_ACTION_PATTERN` regex already applies to all text fields. Predictions additionally reject `claim` strings containing reader-directed modal phrases: `consider`, `watch for`, `should`, `could be a`, `expect to`. Predictions describe the *market*, not the *reader*.
+The existing `TRADE_ACTION_PATTERN` regex already applies to all text fields. Predictions additionally reject `claim` strings containing reader-directed modal phrases: `consider`, `watch for`, `should`, `could be a`, `expect to`. Predictions describe the _market_, not the _reader_.
 
 ### Disclaimer text
 

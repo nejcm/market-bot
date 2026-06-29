@@ -12,7 +12,7 @@ A local research-only user interface for browsing run history, Research Views, S
 
 ## Run Chat
 
-An ephemeral, per-Run Artifact interactive question-and-answer surface in the Research Console, grounded in that run's artifacts. It is not a persisted artifact and is not bound by the research-only boundary that governs Research Views. When the codex provider is active, it may consult the web for additional *ephemeral context*; such web findings are not Sources and do not enter the Evidence subsystem.
+An ephemeral, per-Run Artifact interactive question-and-answer surface in the Research Console, grounded in that run's artifacts. It is not a persisted artifact and is not bound by the research-only boundary that governs Research Views. When the codex provider is active, it may consult the web for additional _ephemeral context_; such web findings are not Sources and do not enter the Evidence subsystem.
 
 ## Web Gather
 
@@ -285,7 +285,7 @@ Deterministic Extended Evidence for `equity` runs that organizes already-collect
 
 ## Evidence Reconciliation
 
-A deterministic, no-model pass that runs after [[web-subject-profile]] extraction on `equity --deep` runs and clears a [[business-framework-evidence]] qualitative gap only when the profile's corresponding *structured* answers are present and carry cited web `sourceId`s. It removes resolved gap strings from the framework artifact and from the matching Source Gap disclosure so the report no longer discloses a gap its own profile resolved. It only ever removes gaps and records which profile facts resolved them; it never injects profile prose into framework summaries or metrics, never moves a section posture or lifecycle phase (those stay on normalized provider data), and never clears a gap with no structured profile question behind it. It is not investment conviction, a recommendation, or a trade signal.
+A deterministic, no-model pass that runs after [[web-subject-profile]] extraction on `equity --deep` runs and clears a [[business-framework-evidence]] qualitative gap only when the profile's corresponding _structured_ answers are present and carry cited web `sourceId`s. It removes resolved gap strings from the framework artifact and from the matching Source Gap disclosure so the report no longer discloses a gap its own profile resolved. It only ever removes gaps and records which profile facts resolved them; it never injects profile prose into framework summaries or metrics, never moves a section posture or lifecycle phase (those stay on normalized provider data), and never clears a gap with no structured profile question behind it. It is not investment conviction, a recommendation, or a trade signal.
 
 ## Yahoo Fundamentals Evidence
 
@@ -305,4 +305,4 @@ A deterministic, descriptive listing of dated items auto-promoted into a Market 
 
 ## Peer Universe
 
-A deterministic, auditable set of comparable Instruments used for peer valuation context. Each peer carries provenance, role, and rationale. It resolves from one of three tiers: a checked-in ticker mapping (`ticker-mapping`), a Research Subject Registry fallback (`subject-registry`), or — when neither resolves for an `equity --deep` ticker — a `model-proposed-validated` set in which the model *proposes* candidates and code *validates* each one deterministically (SEC directory existence + US-listing + ETF exclusion + the fetchable-facts pipeline), with the validated set cached for reproducible reuse. The model never authors the peer set directly. Tickers that cannot produce enough valid candidates emit a visible valuation SourceGap. See [[ADR 0031]] and [[ADR 0039]].
+A deterministic, auditable set of comparable Instruments used for peer valuation context. Each peer carries provenance, role, and rationale. It resolves from one of three tiers: a checked-in ticker mapping (`ticker-mapping`), a Research Subject Registry fallback (`subject-registry`), or — when neither resolves for an `equity --deep` ticker — a `model-proposed-validated` set in which the model _proposes_ candidates and code _validates_ each one deterministically (SEC directory existence + US-listing + ETF exclusion + the fetchable-facts pipeline), with the validated set cached for reproducible reuse. The model never authors the peer set directly. Tickers that cannot produce enough valid candidates emit a visible valuation SourceGap. See [[ADR 0031]] and [[ADR 0039]].

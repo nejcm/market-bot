@@ -18,10 +18,10 @@ Additionally, the origin close (the "before" price) depends on earnings timing:
 
 Add two new prediction kinds and a DSL grammar for event-anchored earnings forecasts:
 
-| Kind | `measurableAs` form | Example |
-|------|---------------------|---------|
-| `earnings-direction` | `earningsReturn(SYMBOL, YYYY-MM-DD, +N) > 0` | `earningsReturn(AAPL, 2026-07-24, +1) > 0` |
-| `earnings-move` | `abs(earningsReturn(SYMBOL, YYYY-MM-DD, +N)) > T` | `abs(earningsReturn(AAPL, 2026-07-24, +1)) > 0.045` |
+| Kind                 | `measurableAs` form                               | Example                                             |
+| -------------------- | ------------------------------------------------- | --------------------------------------------------- |
+| `earnings-direction` | `earningsReturn(SYMBOL, YYYY-MM-DD, +N) > 0`      | `earningsReturn(AAPL, 2026-07-24, +1) > 0`          |
+| `earnings-move`      | `abs(earningsReturn(SYMBOL, YYYY-MM-DD, +N)) > T` | `abs(earningsReturn(AAPL, 2026-07-24, +1)) > 0.045` |
 
 For these kinds, `horizonTradingDays` means **post-event trading days**, not days from `generatedAt`.
 
@@ -29,11 +29,11 @@ For these kinds, `horizonTradingDays` means **post-event trading days**, not day
 
 The origin and horizon closes are determined by event timing:
 
-| Timing | Origin close | Horizon close (+N) |
-|--------|-------------|-------------------|
-| BMO | Prior session close | Event-date + (N−1) trading days |
-| AMC | Event-date close | Event-date + N trading days |
-| Unknown | Prior session close | Event-date + N trading days |
+| Timing  | Origin close        | Horizon close (+N)              |
+| ------- | ------------------- | ------------------------------- |
+| BMO     | Prior session close | Event-date + (N−1) trading days |
+| AMC     | Event-date close    | Event-date + N trading days     |
+| Unknown | Prior session close | Event-date + N trading days     |
 
 The due-date check uses the horizon close date (not `resolutionDate(generatedAt, ...)`). If the horizon close date has not yet elapsed, the prediction remains pending.
 

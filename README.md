@@ -40,16 +40,16 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 
 ## What it does
 
-| Capability | Summary |
-| --- | --- |
-| **Market overview** | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights |
-| **Instrument briefs** | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation, financial lens, deep-run earnings setup) |
-| **Thematic research** | Equity subject research via `research <subject>` with checked-in subject/proxy identity |
-| **Alpha search** | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads |
-| **Predictions** | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)); thematic research forecasts only score a resolved listed proxy |
-| **Scoring & calibration** | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline |
-| **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas |
-| **Research Console** | Local Svelte UI to browse runs, search artifacts, view calibration, queue jobs |
+| Capability                 | Summary                                                                                                                                                                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Market overview**        | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights                                                                                                                                                                                        |
+| **Instrument briefs**      | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation, financial lens, deep-run earnings setup)                                                                                                                              |
+| **Thematic research**      | Equity subject research via `research <subject>` with checked-in subject/proxy identity                                                                                                                                                                                        |
+| **Alpha search**           | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads                                                                                                                                                                                          |
+| **Predictions**            | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)); thematic research forecasts only score a resolved listed proxy |
+| **Scoring & calibration**  | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline                                                                                                                                                                                              |
+| **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas                                                                                                                                                                                        |
+| **Research Console**       | Local Svelte UI to browse runs, search artifacts, view calibration, queue jobs                                                                                                                                                                                                 |
 
 Market overview runs take an explicit `--horizon` in trading days; cadence is a scheduling concern (`daily` / `weekly` are deprecated horizon-preset aliases). At longer horizons, mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
 
@@ -74,19 +74,19 @@ bun link          # optional — adds `market-bot` to PATH from this clone
 market-bot market-overview --asset equity
 ```
 
-| Command | Purpose |
-| --- | --- |
-| `market-overview --asset equity\|crypto [--horizon days]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases |
-| `equity <SYMBOL>` | Single-instrument equity brief; `--deep` adds Evidence Request Loop + Coverage Panel |
-| `crypto <SYMBOL>` | Single-instrument crypto brief; `--deep` adds Coverage Panel |
-| `research <subject> [--deep]` | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions |
-| `alpha-search --asset equity` | Research Leads only — no predictions or calibration side effects |
-| `score` | Resolve due predictions across prior runs |
-| `calibration` | Rebuild calibration summary + print reliability dashboard |
-| `index rebuild` | Bootstrap / rebuild SQLite Run Artifact Index |
-| `history rebuild` / `search` / `thesis-delta` | Artifact-only cross-run search and thesis comparison |
-| `provider-health` | Validation report over persisted runs and provider coverage |
-| `cache prune` | Drop stale source and close-cache entries |
+| Command                                                   | Purpose                                                                                                                          |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `market-overview --asset equity\|crypto [--horizon days]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases                                |
+| `equity <SYMBOL>`                                         | Single-instrument equity brief; `--deep` adds Evidence Request Loop + Coverage Panel                                             |
+| `crypto <SYMBOL>`                                         | Single-instrument crypto brief; `--deep` adds Coverage Panel                                                                     |
+| `research <subject> [--deep]`                             | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions |
+| `alpha-search --asset equity`                             | Research Leads only — no predictions or calibration side effects                                                                 |
+| `score`                                                   | Resolve due predictions across prior runs                                                                                        |
+| `calibration`                                             | Rebuild calibration summary + print reliability dashboard                                                                        |
+| `index rebuild`                                           | Bootstrap / rebuild SQLite Run Artifact Index                                                                                    |
+| `history rebuild` / `search` / `thesis-delta`             | Artifact-only cross-run search and thesis comparison                                                                             |
+| `provider-health`                                         | Validation report over persisted runs and provider coverage                                                                      |
+| `cache prune`                                             | Drop stale source and close-cache entries                                                                                        |
 
 Full command reference: [docs/how-it-works.md](./docs/how-it-works.md).
 
@@ -145,12 +145,12 @@ bun run src/cli.ts market-overview --asset equity
 
 ## `--deep` flag
 
-| | Brief (default) | `--deep` |
-| --- | --- | --- |
-| Model | Quick model | Synthesis model |
-| Coverage panel | No | Yes — two concurrent role stages before critique |
-| Evidence Request Loop | No | Yes — equity only; SEC filing + Tradier IV on request |
-| Alpha search pages | Brief limit | Deep page limit |
+|                             | Brief (default)         | `--deep`                                                    |
+| --------------------------- | ----------------------- | ----------------------------------------------------------- |
+| Model                       | Quick model             | Synthesis model                                             |
+| Coverage panel              | No                      | Yes — two concurrent role stages before critique            |
+| Evidence Request Loop       | No                      | Yes — equity only; SEC filing + Tradier IV on request       |
+| Alpha search pages          | Brief limit             | Deep page limit                                             |
 | Thematic research forecasts | Proxy-only, if resolved | Proxy-only, with a higher non-direction forecast mix target |
 
 ## Configuration

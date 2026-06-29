@@ -7,7 +7,7 @@ pre-commit:
       stage_fixed: true
     format:
       glob: "*.{js,ts,jsx,tsx,json}"
-      run: bun run fmt:staged -- {staged_files}
+      run: bun run fmt -- {staged_files}
       stage_fixed: true
 
 commit-msg:

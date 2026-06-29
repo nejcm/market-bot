@@ -31,13 +31,12 @@
     "lint:ts": "bun run typecheck",
     "lint:fix": "oxlint --fix",
     "lint:staged": "oxlint --fix",
-    "fmt": "oxfmt src tests scripts app/*.ts app/client",
-    "fmt:staged": "oxfmt",
+    "fmt": "oxfmt",
     "fmt:check": "oxfmt --check src tests scripts app/*.ts app/client",
     "commitlint": "commitlint",
     "knip": "knip --production",
     "audit": "bun audit --audit-level=high",
-    "check": "bun run lint && bun run fmt:check && bun run typecheck && bun test"
+    "check": "bun run fmt && bun run lint && bun run fmt:check && bun run typecheck && bun test"
   },
   "devDependencies": {
     "@ai-sdk/svelte": "4.0.208",

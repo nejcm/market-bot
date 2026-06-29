@@ -13,4 +13,3 @@ The Forbes "below 80%" sustainability threshold contributes a Financial Strength
 ## Per-metric annualization
 
 ROE, ROA, and PCF annualize each flow fact by its **own** `periodMonths` (exposed as `<key>PeriodMonths` from `sec-edgar.ts`), not a borrowed `revenuePeriodMonths`. The SEC selector does not disambiguate a 10-Q's 3-month vs YTD duration facts, so the selected `netIncome` period is not guaranteed to match revenue's; borrowing revenue's months can double the error (and the same ambiguity already affected shipped `netMargin`).
-

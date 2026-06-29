@@ -20,7 +20,7 @@ function minimalConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     evidenceRequestOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
     webGatherOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
     webGatherDisabled: false,
-    webProfileReuseDays: 30,
+    webProfileReuseDaysBySubjectKind: { company: 30, "crypto-asset": 7, theme: 7 },
     alphaSearchOptions: {
       apeWisdomFilter: "all-stocks",
       apeWisdomBriefPageLimit: 5,

@@ -1,4 +1,5 @@
 import { basename, dirname, join } from "node:path";
+import type { SubjectKind } from "./domain/types";
 import { defaultRunArtifactIndexPath } from "./run-artifact-index";
 import type { ModelParams } from "./model/types";
 
@@ -99,7 +100,7 @@ export interface AppConfig {
   readonly evidenceRequestOptions: EvidenceRequestOptions;
   readonly webGatherOptions: WebGatherOptions;
   readonly webGatherDisabled: boolean;
-  readonly webProfileReuseDays: number;
+  readonly webProfileReuseDaysBySubjectKind: Readonly<Record<SubjectKind, number>>;
   readonly alphaSearchOptions: AlphaSearchOptions;
   readonly marketSpotlightOptions?: MarketSpotlightOptions;
   readonly forecastDisagreementOptions?: ForecastDisagreementOptions;
@@ -160,7 +161,9 @@ const DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT = 40;
 const DEFAULT_WEB_GATHER_MAX_ROUNDS = 2;
 const DEFAULT_WEB_GATHER_MAX_TOOL_CALLS = 4;
 const DEFAULT_WEB_GATHER_SOURCE_BUDGET = 8;
-const DEFAULT_WEB_PROFILE_REUSE_DAYS = 30;
+const DEFAULT_WEB_PROFILE_COMPANY_REUSE_DAYS = 30;
+const DEFAULT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS = 7;
+const DEFAULT_WEB_PROFILE_THEME_REUSE_DAYS = 7;
 const DEFAULT_HISTORY_TICKER_RECENT_LIMIT = 3;
 const DEFAULT_HISTORY_MARKET_RECENT_LIMIT = 5;
 const DEFAULT_HISTORY_RECENT_DAYS = 90;
@@ -611,10 +614,20 @@ export function resolveConfig(
       ),
     },
     webGatherDisabled: readBoolean(env.MARKET_BOT_WEB_GATHER_DISABLE),
-    webProfileReuseDays: readPositiveInteger(
-      env.MARKET_BOT_WEB_PROFILE_REUSE_DAYS,
-      DEFAULT_WEB_PROFILE_REUSE_DAYS,
-    ),
+    webProfileReuseDaysBySubjectKind: {
+      company: readPositiveInteger(
+        env.MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS,
+        DEFAULT_WEB_PROFILE_COMPANY_REUSE_DAYS,
+      ),
+      "crypto-asset": readPositiveInteger(
+        env.MARKET_BOT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS,
+        DEFAULT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS,
+      ),
+      theme: readPositiveInteger(
+        env.MARKET_BOT_WEB_PROFILE_THEME_REUSE_DAYS,
+        DEFAULT_WEB_PROFILE_THEME_REUSE_DAYS,
+      ),
+    },
     alphaSearchOptions:
       options.validateAlphaSearchOptions === false
         ? defaultAlphaSearchOptions()

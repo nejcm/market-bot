@@ -10,7 +10,7 @@ ADR 0034 admitted low-trust cited web Sources for `equity --deep` company contex
 
 ## Decision
 
-Generalize the sidecar to a version 2 Web Subject Profile keyed by `subjectKind` and `subjectId`, with fixed cited question sets for `company`, `crypto-asset`, and `theme`. Company profiles keep SEC-filing-aware reuse; crypto-asset and theme profiles use time-TTL reuse only. `market-overview` remains out of scope because it has no single Subject for strict containment.
+Generalize the sidecar to a version 2 Web Subject Profile keyed by `subjectKind` and `subjectId`, with fixed cited question sets for `company`, `crypto-asset`, and `theme`. Each Subject Kind has an independently configured reuse TTL, defaulting to 30 days for company and 7 days for crypto-asset and theme. Company profiles also keep SEC-filing-aware invalidation; crypto-asset and theme profiles use time-TTL reuse only. `market-overview` remains out of scope because it has no single Subject for strict containment.
 
 ## Consequences
 

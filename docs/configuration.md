@@ -53,7 +53,9 @@ All configuration is via environment variables, resolved in [src/config.ts](../s
 | `MARKET_BOT_WEB_GATHER_MAX_TOOL_CALLS` | `4` | Max accepted web tool executions per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_WEB_GATHER_SOURCE_BUDGET` | `8` | Max declared web source units per eligible run. Set to `0` to disable the loop. |
 | `MARKET_BOT_WEB_GATHER_DISABLE` | `false` | Set to `1` or `true` to disable Exa-backed web evidence gathering even when configured. |
-| `MARKET_BOT_WEB_PROFILE_REUSE_DAYS` | `30` | Reuse TTL for same-subject web-subject-profile artifacts before regathering. Company profiles also require current SEC filing freshness. |
+| `MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS` | `30` | Reuse TTL for same-company Web Subject Profile artifacts before regathering. Reuse also requires current SEC filing freshness. |
+| `MARKET_BOT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS` | `7` | Reuse TTL for same-crypto-asset Web Subject Profile artifacts before regathering. |
+| `MARKET_BOT_WEB_PROFILE_THEME_REUSE_DAYS` | `7` | Reuse TTL for same-theme Web Subject Profile artifacts before regathering. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` | `2` | Max AI-selected Market Spotlights for brief market-overview runs. Set `0` to disable spotlights. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | `4` | Max AI-selected Market Spotlights for deep market-overview runs. Set `0` to disable spotlights. |
 | `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT` | `40` | Top-ranked mover candidates fed to the spotlight selector. Caps selector prompt size by dropping long-tail movers the model never picks. Set `0` to pass every candidate. |

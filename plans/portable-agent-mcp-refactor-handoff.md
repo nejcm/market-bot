@@ -1,6 +1,6 @@
 # Portable Agent/MCP Refactor — Refined Plan
 
-> **Status: v1 complete, plus v1.1 subject-broadening and a run-config module split.** All v1 slices
+> **Status: v1 complete, plus v1.1 subject-broadening, sanitization, per-kind reuse TTLs, and a run-config module split.** All v1 slices
 > (A–G) shipped on `feat/web-gather-slice-a`; crypto + research web-gather and the `src/config/runs/`
 > module split / capability registry landed afterward.
 > This document serves as a record of the decisions made and the deferred work remaining.
@@ -63,19 +63,12 @@ capital allocation, KPIs, risk factors; distinct question sets for crypto-asset 
    (SSRF + on-subject guard).
 6. **Defense-in-depth containment.** `web_search` queries must reference the run subject; web
    Sources tagged a distinct low-trust kind and capped in Evidence Quality; web content never alters
-   run scope or prediction subjects. Fetched web content is **prompt-instructed** to be treated as
-   untrusted data, never as instructions (`prompts/web-gather/base.md`). *(This is a prompt-level
-   boundary at the gather stage only — structural instruction-stripping, and equivalent hardening of
-   the profile-extraction and synthesis prompts, are deferred to D3.
-   Do not read this as enforced containment.)*
-7. **Reuse freshness = time-TTL + filing-aware (company only).** Reuse only if within
-   `WEB_PROFILE_REUSE_DAYS` (~30d) AND no newer SEC 10-K/10-Q since the profile was built; else
-   regather. Reuse age disclosed as a freshness gap. *(Reuse is the only real cost control under an
-   always-on trigger.)* **Known limitation:** filing-aware invalidation is gated on
-   `subjectKind === "company"`; crypto-asset and theme reuse fall back to **pure time-TTL** with no
-   filing/news anchor, so a fast-moving subject can reuse a stale profile inside the 30-day window
-   (disclosed only via the generic reuse-age gap). A per-`subjectKind` TTL or news-recency anchor is a
-   logged follow-up (see D3).
+   run scope or prediction subjects. Model-visible web text is structurally sanitized under ADR 0040,
+   raw provider payloads remain audit-only, and later synthesis receives cited structured profiles
+   rather than web snippets.
+7. **Reuse freshness = per-kind time-TTL + filing-aware (company only).** Company profiles reuse for
+   30 days, while crypto-asset and theme profiles reuse for 7 days. Company reuse also requires no
+   newer SEC 10-K/10-Q since the profile was built. Reuse age is disclosed as a freshness gap.
 8. **Skills-format migration and subagent/run-profile abstraction deferred** (speculative; overlap
    `config/runs.ts` + playbooks).
 
@@ -94,7 +87,8 @@ All seven slices landed in a single feature branch (`feat/web-gather-slice-a`):
 
 - **Types & config (A):** `WebGatherToolName`, `Source.kind: "web"`, `SubjectKind`
   (`"company" | "crypto-asset" | "theme"`), `ExtendedEvidenceItem` category `"web-subject-profile"`,
-  config keys `webGatherOptions`, `exaApiKey`, `webGatherDisabled`, `webProfileReuseDays`.
+  config keys `webGatherOptions`, `exaApiKey`, `webGatherDisabled`, and per-Subject Kind profile
+  reuse TTLs.
 - **Exa tool executor (B):** `src/sources/web-gather-tools.ts` — cached Exa calls, stable Source IDs
   (`web-<subject>-<sha8(url)>`), `web_fetch` URL-allowlisted to prior `web_search` results, missing
   key → `missing-credential` gap.
@@ -147,24 +141,17 @@ These were considered and deliberately pushed to later slices. Each is independe
   Codex/Claude vs market-bot guidance. Deferred as a packaging/refactor with drift risk and no
   functional gain for the research goal.
 
-### D3. `web_fetch` hardening + heavy sanitizer — *top deferred-risk item*
-- **Risk note:** web content is currently raw Exa passthrough with **no** structural sanitization, and
-  this path is no longer single-path — it is live across **three** run types, including the broad,
-  least-anchored `theme`/research path. The only containment is the gather-stage prompt line in
-  `prompts/web-gather/base.md` (see decision 6). Prioritize accordingly.
-- If/when hardened: generic HTML readability extraction, robots/paywall handling, and a separate
-  sanitization pass that strips instruction-like content before the profile-extraction and synthesis
-  prompts see it.
-- **Carries the freshness follow-up** from decision 7: a per-`subjectKind` `WEB_PROFILE_REUSE_DAYS`
-  (shorter for crypto/theme) or a news-recency anchor for non-company subjects.
+### D3. `web_fetch` hardening + sanitizer — shipped in part
+- Model-visible web text sanitization shipped under ADR 0040. Raw provider payloads remain audit-only;
+  later synthesis receives cited structured profiles rather than web snippets.
+- Per-Subject Kind reuse TTLs also shipped: company 30 days, crypto-asset and theme 7 days.
+- Generic HTML readability extraction and robots/paywall handling remain deferred.
 
-### D4. Broaden web gather to market-overview + dead-config cleanup
+### D4. Broaden web gather to market-overview
 - *(crypto and research/theme broadening already shipped — see "What shipped (v1.1)".)*
 - **Remaining run type:** **market-overview** (`supportsWebGather: false` in `RUN_TYPE_REGISTRY`).
-- **Dead-config cleanup:** `researchGatherOptions` + `MARKET_BOT_RESEARCH_GATHER_*` remain
-  defined-but-ignored (confirmed by `tests/config.test.ts`); research web-gather was wired via
-  `webGatherOptions`, leaving this old config orphaned — wire or remove in a small cleanup PR (do not
-  silently reuse for the web path).
+- `researchGatherOptions` and `MARKET_BOT_RESEARCH_GATHER_*` are absent from runtime configuration;
+  stale tests that described those names as ignored have been removed.
 
 ### D5. Promote web data to scoring Observations
 - Not in scope: web-gathered facts stay research-only evidence and never resolve Predictions. Only

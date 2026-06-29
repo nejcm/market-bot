@@ -1,6 +1,6 @@
 import { type ResearchCommand } from "../cli/args";
 import { sourceGap } from "../domain/source-gaps";
-import type { ExtendedEvidence, Source, SourceGap } from "../domain/types";
+import type { ExtendedEvidence, Source, SourceGap, SubjectKind } from "../domain/types";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import {
   buildWebSubjectProfileReuseEvidence,
@@ -34,7 +34,7 @@ export async function findReusableWebSubjectProfile(input: {
   readonly dataDir: string;
   readonly command: ResearchCommand;
   readonly now: Date;
-  readonly reuseDays: number;
+  readonly reuseDaysBySubjectKind: Readonly<Record<SubjectKind, number>>;
   readonly currentSecFilingDate?: string;
 }): Promise<WebSubjectProfileReuse | undefined> {
   const subject = webSubjectProfileSubjectForCommand(input.command);
@@ -59,7 +59,7 @@ export async function findReusableWebSubjectProfile(input: {
       !isReusableProfile(profile, {
         subjectId: subject.subjectId,
         now: input.now,
-        reuseDays: input.reuseDays,
+        reuseDays: input.reuseDaysBySubjectKind[subject.subjectKind],
         ...(input.currentSecFilingDate !== undefined
           ? { currentSecFilingDate: input.currentSecFilingDate }
           : {}),

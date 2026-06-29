@@ -31,7 +31,7 @@ const config: AppConfig = {
   evidenceRequestOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
   webGatherOptions: { maxRounds: 2, maxToolCalls: 4, sourceBudget: 8 },
   webGatherDisabled: false,
-  webProfileReuseDays: 30,
+  webProfileReuseDaysBySubjectKind: { company: 30, "crypto-asset": 7, theme: 7 },
   alphaSearchOptions: {
     apeWisdomFilter: "all-stocks",
     apeWisdomBriefPageLimit: 5,

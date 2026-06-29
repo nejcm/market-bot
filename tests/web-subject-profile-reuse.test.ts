@@ -208,6 +208,12 @@ async function writePriorRun(input: {
 }
 
 describe("Web Subject Profile reuse", () => {
+  const reuseDaysBySubjectKind = {
+    company: 30,
+    "crypto-asset": 7,
+    theme: 7,
+  } as const;
+
   test("reuses fresh same-symbol profile when no newer SEC filing exists", async () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
@@ -216,7 +222,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
@@ -233,7 +239,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-05-10",
     });
 
@@ -253,7 +259,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
@@ -272,8 +278,8 @@ describe("Web Subject Profile reuse", () => {
     const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command: cryptoCommand,
-      now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      now: new Date("2026-05-07T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
     });
 
     expect(reuse?.profile).toMatchObject({ subjectKind: "crypto-asset", subjectId: "BTC" });
@@ -295,11 +301,73 @@ describe("Web Subject Profile reuse", () => {
         ...researchCommand,
         subject: " ai   infrastructure ",
       },
-      now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      now: new Date("2026-05-07T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
     });
 
     expect(reuse?.profile).toMatchObject({ subjectKind: "theme", subjectId });
+  });
+
+  test("reuses a profile at the exact TTL boundary", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-btc",
+      symbol: "BTC",
+      subjectKind: "crypto-asset",
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command: cryptoCommand,
+      now: new Date("2026-05-08T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+    });
+
+    expect(reuse).toBeDefined();
+  });
+
+  test("applies the Subject Kind TTL to eight-day-old profiles", async () => {
+    const dataDir = tempRunsDir();
+    const themeSubjectId = normalizedSubjectId("AI infrastructure");
+    await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
+    await writePriorRun({
+      dataDir,
+      runId: "prior-btc",
+      symbol: "BTC",
+      subjectKind: "crypto-asset",
+    });
+    await writePriorRun({
+      dataDir,
+      runId: "prior-ai-infrastructure",
+      symbol: themeSubjectId,
+      subjectKind: "theme",
+    });
+    const now = new Date("2026-05-09T00:00:00.000Z");
+
+    const companyReuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now,
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+    const cryptoReuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command: cryptoCommand,
+      now,
+      reuseDaysBySubjectKind,
+    });
+    const themeReuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command: { ...researchCommand, subject: "AI infrastructure" },
+      now,
+      reuseDaysBySubjectKind,
+    });
+
+    expect(companyReuse).toBeDefined();
+    expect(cryptoReuse).toBeUndefined();
+    expect(themeReuse).toBeUndefined();
   });
 
   test("rejects profiles older than the reuse TTL", async () => {
@@ -310,7 +378,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-06-02T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
@@ -330,7 +398,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
@@ -345,7 +413,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
@@ -366,7 +434,7 @@ describe("Web Subject Profile reuse", () => {
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
-      reuseDays: 30,
+      reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 

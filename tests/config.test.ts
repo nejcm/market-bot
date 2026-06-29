@@ -201,7 +201,11 @@ describe("resolveConfig", () => {
       sourceBudget: 8,
     });
     expect(resolveConfig({}).webGatherDisabled).toBe(false);
-    expect(resolveConfig({}).webProfileReuseDays).toBe(30);
+    expect(resolveConfig({}).webProfileReuseDaysBySubjectKind).toEqual({
+      company: 30,
+      "crypto-asset": 7,
+      theme: 7,
+    });
   });
 
   test("uses history and market spotlight defaults", () => {
@@ -272,20 +276,14 @@ describe("resolveConfig", () => {
       sourceBudget: 13,
     });
     expect(
-      "researchGatherOptions" in
-        resolveConfig({
-          MARKET_BOT_RESEARCH_GATHER_MAX_ROUNDS: "0",
-          MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "5",
-          MARKET_BOT_RESEARCH_GATHER_SOURCE_BUDGET: "21",
-        }),
-    ).toBe(false);
-    expect(
       resolveConfig({
         MARKET_BOT_WEB_GATHER_MAX_ROUNDS: "0",
         MARKET_BOT_WEB_GATHER_MAX_TOOL_CALLS: "3",
         MARKET_BOT_WEB_GATHER_SOURCE_BUDGET: "13",
         MARKET_BOT_WEB_GATHER_DISABLE: "true",
-        MARKET_BOT_WEB_PROFILE_REUSE_DAYS: "45",
+        MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS: "45",
+        MARKET_BOT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS: "6",
+        MARKET_BOT_WEB_PROFILE_THEME_REUSE_DAYS: "5",
       }),
     ).toMatchObject({
       webGatherOptions: {
@@ -294,21 +292,52 @@ describe("resolveConfig", () => {
         sourceBudget: 13,
       },
       webGatherDisabled: true,
-      webProfileReuseDays: 45,
+      webProfileReuseDaysBySubjectKind: {
+        company: 45,
+        "crypto-asset": 6,
+        theme: 5,
+      },
     });
+  });
+
+  test("overrides each Web Subject Profile reuse TTL independently", () => {
+    for (const [name, subjectKind] of [
+      ["MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS", "company"],
+      ["MARKET_BOT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS", "crypto-asset"],
+      ["MARKET_BOT_WEB_PROFILE_THEME_REUSE_DAYS", "theme"],
+    ] as const) {
+      const config = resolveConfig({ [name]: "45" });
+
+      expect(config.webProfileReuseDaysBySubjectKind).toEqual({
+        company: subjectKind === "company" ? 45 : 30,
+        "crypto-asset": subjectKind === "crypto-asset" ? 45 : 7,
+        theme: subjectKind === "theme" ? 45 : 7,
+      });
+    }
+  });
+
+  test("ignores the removed shared Web Subject Profile reuse TTL", () => {
+    expect(
+      resolveConfig({ MARKET_BOT_WEB_PROFILE_REUSE_DAYS: "45" }).webProfileReuseDaysBySubjectKind,
+    ).toEqual({ company: 30, "crypto-asset": 7, theme: 7 });
   });
 
   test("rejects invalid evidence request loop settings", () => {
     expect(() => resolveConfig({ MARKET_BOT_EVIDENCE_REQUEST_SOURCE_BUDGET: "-1" })).toThrow(
       "Expected non-negative integer",
     );
-    expect(() => resolveConfig({ MARKET_BOT_RESEARCH_GATHER_MAX_TOOL_CALLS: "-1" })).not.toThrow();
     expect(() => resolveConfig({ MARKET_BOT_WEB_GATHER_SOURCE_BUDGET: "-1" })).toThrow(
       "Expected non-negative integer",
     );
-    expect(() => resolveConfig({ MARKET_BOT_WEB_PROFILE_REUSE_DAYS: "0" })).toThrow(
-      "Expected positive integer",
-    );
+    for (const name of [
+      "MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS",
+      "MARKET_BOT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS",
+      "MARKET_BOT_WEB_PROFILE_THEME_REUSE_DAYS",
+    ] as const) {
+      for (const value of ["0", "-1", "invalid"]) {
+        expect(() => resolveConfig({ [name]: value })).toThrow("Expected positive integer");
+      }
+    }
   });
 
   test("derives persistent news seen index from data directory", () => {

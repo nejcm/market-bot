@@ -37,6 +37,7 @@ The accounting roles a gathered web [[source]] can hold on a run that builds a [
 ## Web Subject Profile
 
 A deterministic, citation-checked sidecar answering a fixed set of questions about a run's Subject from gathered Web Evidence only. It replaces Web Company Profile; it is not investment conviction, a recommendation, or a trade signal.
+Each Subject Kind has an independent reuse TTL; company reuse also requires a current SEC filing basis.
 _Avoid_: web dossier, company profile.
 
 ## Subject Kind

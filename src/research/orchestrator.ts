@@ -572,7 +572,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       dataDir: input.config.dataDir,
       command: input.command,
       now,
-      reuseDays: input.config.webProfileReuseDays,
+      reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
       ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
     });
     if (reusableWebSubjectProfile !== undefined) {

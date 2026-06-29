@@ -579,7 +579,7 @@ const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = 
 };
 
 function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): string | undefined {
-  const {form} = metrics;
+  const { form } = metrics;
   if (form !== "10-K" && form !== "10-Q") {
     return undefined;
   }
@@ -596,10 +596,8 @@ function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): s
   return filingDate !== undefined ? `10-Q filed ${filingDate}` : "10-Q";
 }
 
-/**
- * Renders the SEC filing basis/verification line for company profiles from the
- * 10-K/10-Q filing items, plus a disclosure when only the annual 10-K is present.
- */
+// Renders the SEC filing basis/verification line for company profiles from the
+// 10-K/10-Q filing items, plus a disclosure when only the annual 10-K is present.
 function companyFilingBasisLine(report: ResearchReport): string | undefined {
   const items = report.extendedEvidence?.items ?? [];
   const entries = items.flatMap((item) =>

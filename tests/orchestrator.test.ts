@@ -1851,6 +1851,12 @@ describe("runResearchJob", () => {
             fetchedAt: "2026-05-19T00:00:00.000Z",
             payload: { ok: true },
           },
+          {
+            id: "raw-large",
+            adapter: "mock-large",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            payload: { body: "x".repeat(1024 * 1024 + 1) },
+          },
         ],
         marketSnapshots,
         newsSources,
@@ -1862,6 +1868,12 @@ describe("runResearchJob", () => {
     await expect(
       readFile(join(result.artifacts.rawDir, "snapshots.json"), "utf8"),
     ).resolves.toContain("raw-1");
+    const rawSnapshots = JSON.parse(
+      await readFile(join(result.artifacts.rawDir, "snapshots.json"), "utf8"),
+    ) as readonly { readonly id: string; readonly payloadCompacted?: boolean }[];
+    expect(rawSnapshots.find((snapshot) => snapshot.id === "raw-large")).toMatchObject({
+      payloadCompacted: true,
+    });
     await expect(
       readFile(join(result.artifacts.normalizedDir, "market-snapshots.json"), "utf8"),
     ).resolves.toContain("market-aapl");

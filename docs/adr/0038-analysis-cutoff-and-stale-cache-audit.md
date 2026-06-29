@@ -8,7 +8,7 @@ Accepted
 
 Every model-stage evidence payload carries the run's `analysisAsOf` timestamp. SEC facts filed or ending after that cutoff are excluded. SEC flow metrics use one reporting period, revisions are selected within that period, and each emitted metric records its period end.
 
-Cache hits are marked `current` or `stale-fallback`. A stale fallback remains in the raw snapshot for audit and emits an explicit Source Gap, but its payload is excluded from normalized current evidence.
+Cache hits are marked `current` or `stale-fallback`. Source cache entries are freshness-budgeted by adapter class. Once an entry is past budget, the run attempts a live refetch; if that refetch fails, the stale fallback remains in the raw snapshot for audit and emits an explicit Source Gap, but its payload is excluded from normalized current evidence.
 
 Run traces persist SHA-256 fingerprints of effective non-secret configuration and dirty source state. Secret configuration values and ignored files do not affect those fingerprints.
 

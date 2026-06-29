@@ -26,6 +26,7 @@ import { buildMarketUpdateDelta } from "./market-update-delta";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
+import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
 import { recordSeenNewsSources } from "../sources/news-seen";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import {
@@ -959,7 +960,7 @@ export async function persistResearchJob(
 
   await writeJson(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.rawSnapshots),
-    result.collectedSources.rawSnapshots,
+    compactOversizedRawSnapshots(result.collectedSources.rawSnapshots),
   );
   await writeJson(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.marketSnapshots),

@@ -17,20 +17,31 @@ export type FetchWindowFn = (
 ) => Promise<readonly Observation[]>;
 
 interface CloseCacheEntry {
+  readonly schemaVersion: 2;
   readonly symbol: string;
   readonly assetClass: AssetClass;
+  readonly providerSet: string;
+  readonly priceMode: string;
   readonly date: string;
   readonly close: number;
   readonly cachedAt: string;
 }
 
 interface CloseWindowCacheEntry {
+  readonly schemaVersion: 2;
   readonly symbol: string;
   readonly assetClass: AssetClass;
+  readonly providerSet: string;
+  readonly priceMode: string;
   readonly from: string;
   readonly to: string;
   readonly observations: readonly Observation[];
   readonly cachedAt: string;
+}
+
+interface CloseCacheSemantics {
+  readonly providerSet: string;
+  readonly priceMode: string;
 }
 
 function ymd(date: Date): string {
@@ -41,13 +52,33 @@ function cacheSymbol(symbol: string): string {
   return symbol.toLowerCase().replaceAll(/[^a-z0-9._-]/gu, "_");
 }
 
+function cacheComponent(value: string): string {
+  return value.toLowerCase().replaceAll(/[^a-z0-9._-]/gu, "_");
+}
+
+function closeCacheSemantics(assetClass: AssetClass): CloseCacheSemantics {
+  return assetClass === "crypto"
+    ? { providerSet: "coingecko", priceMode: "raw-close" }
+    : { providerSet: "yahoo-massive", priceMode: "raw-close" };
+}
+
 function closeCachePath(
   cacheDir: string,
   symbol: string,
   assetClass: AssetClass,
   date: Date,
 ): string {
-  return join(cacheDir, "closes", assetClass, cacheSymbol(symbol), `${ymd(date)}.json`);
+  const semantics = closeCacheSemantics(assetClass);
+  return join(
+    cacheDir,
+    "closes",
+    "v2",
+    cacheComponent(semantics.priceMode),
+    cacheComponent(semantics.providerSet),
+    assetClass,
+    cacheSymbol(symbol),
+    `${ymd(date)}.json`,
+  );
 }
 
 function closeWindowCachePath(
@@ -57,9 +88,13 @@ function closeWindowCachePath(
   from: Date,
   to: Date,
 ): string {
+  const semantics = closeCacheSemantics(assetClass);
   return join(
     cacheDir,
     "close-windows",
+    "v2",
+    cacheComponent(semantics.priceMode),
+    cacheComponent(semantics.providerSet),
     assetClass,
     cacheSymbol(symbol),
     `${ymd(from)}_${ymd(to)}.json`,
@@ -137,8 +172,10 @@ export async function fetchCloseWithCache(
   const close = await fetchClose(symbol, assetClass, date);
   if (close !== undefined) {
     await writeClose(path, {
+      schemaVersion: 2,
       symbol,
       assetClass,
+      ...closeCacheSemantics(assetClass),
       date: ymd(date),
       close,
       cachedAt: now.toISOString(),
@@ -170,8 +207,10 @@ export async function fetchWindowWithCache(
   const observations = await fetchWindow(symbol, assetClass, from, to);
   if (observations.length > 0) {
     await writeWindow(path, {
+      schemaVersion: 2,
       symbol,
       assetClass,
+      ...closeCacheSemantics(assetClass),
       from: ymd(from),
       to: ymd(to),
       observations,

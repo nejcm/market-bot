@@ -519,6 +519,14 @@ function cachedTextFetch(inner: FetchTextRequestFn, options: CacheOptions): Fetc
   });
 }
 
+function cachedJsonFetch(inner: FetchJsonRequestFn, options: CacheOptions): FetchJsonRequestFn {
+  return withCache(inner, options, {
+    isPayload: (payload): payload is unknown[] | Record<string, unknown> =>
+      (typeof payload === "object" && payload !== null) || Array.isArray(payload),
+    invalidMessage: "cached JSON payload was not an object or array",
+  });
+}
+
 interface SourceRequestExecutorOptions {
   readonly fetchedAt: string;
   readonly sourceTimeoutMs: number;
@@ -554,7 +562,7 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
   }
 
   return {
-    json: withCache(json, options.cacheOptions),
+    json: cachedJsonFetch(json, options.cacheOptions),
     text: cachedTextFetch(text, options.cacheOptions),
   };
 }

@@ -31,8 +31,17 @@ interface CacheEntry {
   readonly payload: unknown;
 }
 
-const CACHE_KEY_VERSION = "v2";
+const CACHE_KEY_VERSION = "v3";
 const CREDENTIAL_QUERY_PARAMS = new Set(["api_key", "api_token", "token", "access_token"]);
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+const FRESHNESS_BUDGETS_MS = {
+  live: 15 * MINUTE_MS,
+  news: 60 * MINUTE_MS,
+  reference: DAY_MS,
+} as const;
 
 export interface PruneCacheOptions {
   readonly dir: string;
@@ -62,7 +71,7 @@ function compareText(left: string, right: string): number {
   return 0;
 }
 
-function canonicalRequest(url: string): string {
+function canonicalRequestUrl(url: string): string {
   try {
     const parsed = new URL(url);
     parsed.hash = "";
@@ -87,12 +96,51 @@ function canonicalRequest(url: string): string {
   }
 }
 
-async function cacheKey(url: string, adapter: string): Promise<string> {
-  return sha256Hex(`${CACHE_KEY_VERSION}\n${adapter}\n${canonicalRequest(url)}`);
+function requestMethod(init: RequestInit | undefined): string {
+  return (init?.method ?? "GET").toUpperCase();
 }
 
-export async function makeCacheKeyForTest(url: string, adapter: string): Promise<string> {
-  return cacheKey(url, adapter);
+async function cacheableRequestFingerprint(request: SourceRequest): Promise<
+  | {
+      readonly method: string;
+      readonly bodyHash: string;
+    }
+  | undefined
+> {
+  const method = requestMethod(request.init);
+  const body = request.init?.body;
+  if (method === "GET" || method === "HEAD") {
+    return { method, bodyHash: "" };
+  }
+  if (body === undefined || body === null) {
+    return { method, bodyHash: "" };
+  }
+  if (typeof body !== "string") {
+    return undefined;
+  }
+  return { method, bodyHash: await sha256Hex(body) };
+}
+
+function cacheKeyVersionForAdapter(_adapter: string): string {
+  return CACHE_KEY_VERSION;
+}
+
+async function cacheKey(request: SourceRequest): Promise<string | undefined> {
+  const fingerprint = await cacheableRequestFingerprint(request);
+  if (fingerprint === undefined) {
+    return undefined;
+  }
+  return sha256Hex(
+    `${cacheKeyVersionForAdapter(request.adapter)}\n${request.adapter}\n${fingerprint.method}\n${fingerprint.bodyHash}\n${canonicalRequestUrl(request.url)}`,
+  );
+}
+
+export async function makeCacheKeyForTest(
+  url: string,
+  adapter: string,
+  init?: RequestInit,
+): Promise<string | undefined> {
+  return cacheKey({ url, adapter, init });
 }
 
 function utcDateString(date: Date): string {
@@ -121,6 +169,27 @@ async function readEntry(path: string): Promise<CacheEntry | undefined> {
   }
 }
 
+function cacheEntryMetadataGap(adapter: string): SourceGap {
+  return sourceGap({
+    source: adapter,
+    message: "cached entry metadata was invalid",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "core-cap",
+  });
+}
+
+function isValidCacheEntryMetadata(
+  entry: CacheEntry,
+  expected: { readonly cacheKey: string; readonly adapter: string; readonly cachedDate: string },
+): boolean {
+  return (
+    entry.cacheKey === expected.cacheKey &&
+    entry.adapter === expected.adapter &&
+    entry.cachedDate === expected.cachedDate &&
+    !Number.isNaN(new Date(entry.fetchedAt).getTime())
+  );
+}
+
 async function writeEntry(path: string, entry: CacheEntry): Promise<void> {
   try {
     await Bun.write(path, JSON.stringify(entry));
@@ -145,14 +214,55 @@ async function findStaleFallback(
   sha: string,
   today: string,
   fallbackDays: number,
+  adapter: string,
+  sameDayEntry?: CacheEntry,
 ): Promise<CacheEntry | undefined> {
   const candidateDirs = listDateDirs(dir).filter(
     (d) => d < today && dateDiffDays(today, d) <= fallbackDays,
   );
 
-  const entries = await Promise.all(candidateDirs.map((d) => readEntry(entryPath(dir, d, sha))));
+  const entries = await Promise.all(
+    candidateDirs.map(async (d) => ({ date: d, entry: await readEntry(entryPath(dir, d, sha)) })),
+  );
 
-  return entries.find((e): e is CacheEntry => e !== undefined);
+  const sameDayCandidate =
+    sameDayEntry === undefined ? [] : ([{ date: today, entry: sameDayEntry }] as const);
+  return [...sameDayCandidate, ...entries]
+    .map(({ date, entry }) =>
+      entry !== undefined &&
+      isValidCacheEntryMetadata(entry, { cacheKey: sha, adapter, cachedDate: date })
+        ? entry
+        : undefined,
+    )
+    .find((e): e is CacheEntry => e !== undefined);
+}
+
+function freshnessBudgetMs(adapter: string): number {
+  if (
+    adapter.includes("news") ||
+    adapter === "apewisdom" ||
+    adapter.startsWith("exa-search") ||
+    adapter.includes("social")
+  ) {
+    return FRESHNESS_BUDGETS_MS.news;
+  }
+  if (
+    adapter.startsWith("sec-") ||
+    adapter.startsWith("fred") ||
+    adapter.startsWith("nasdaq-") ||
+    adapter.startsWith("cboe-") ||
+    adapter.startsWith("exa-contents") ||
+    adapter.startsWith("glassnode") ||
+    adapter.includes("expirations") ||
+    adapter.includes("events")
+  ) {
+    return FRESHNESS_BUDGETS_MS.reference;
+  }
+  return FRESHNESS_BUDGETS_MS.live;
+}
+
+function isFresh(entry: CacheEntry, adapter: string, now: Date): boolean {
+  return now.getTime() - new Date(entry.fetchedAt).getTime() <= freshnessBudgetMs(adapter);
 }
 
 function toFetchResult<TPayload>(
@@ -200,18 +310,32 @@ export function withCache<TPayload = unknown>(
   validator?: CachedPayloadValidator<TPayload>,
 ): CacheableFetchFn<TPayload> {
   return async (request) => {
-    const { url, adapter } = request;
+    const { adapter } = request;
     if (options.disabled) {
       return inner(request);
     }
 
     const today = utcDateString(options.now());
-    const sha = await cacheKey(url, adapter);
+    const sha = await cacheKey(request);
+    if (sha === undefined) {
+      return inner(request);
+    }
     const todayPath = entryPath(options.dir, today, sha);
 
     const cached = await readEntry(todayPath);
     if (cached !== undefined) {
-      return toCachedResult(cached, adapter, validator, "current");
+      if (
+        !isValidCacheEntryMetadata(cached, {
+          cacheKey: sha,
+          adapter,
+          cachedDate: today,
+        })
+      ) {
+        return cacheEntryMetadataGap(adapter);
+      }
+      if (isFresh(cached, adapter, options.now())) {
+        return toCachedResult(cached, adapter, validator, "current");
+      }
     }
 
     const result = await inner(request);
@@ -231,7 +355,14 @@ export function withCache<TPayload = unknown>(
     const effectiveFallbackDays = isYahooMarketDataAdapter(adapter)
       ? yahooCacheFallbackDays(options.fallbackDays)
       : options.fallbackDays;
-    const stale = await findStaleFallback(options.dir, sha, today, effectiveFallbackDays);
+    const stale = await findStaleFallback(
+      options.dir,
+      sha,
+      today,
+      effectiveFallbackDays,
+      adapter,
+      cached,
+    );
     if (stale !== undefined) {
       const ageDays = dateDiffDays(today, stale.cachedDate);
       options.onStaleFallback(

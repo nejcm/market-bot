@@ -10,7 +10,7 @@ import {
 } from "../src/sources/cache";
 import type { FetchJsonResult, SourceRequest } from "../src/sources/types";
 
-const fetchedAt = "2026-05-20T10:00:00.000Z";
+const fetchedAt = "2026-05-20T11:55:00.000Z";
 const today = "2026-05-20";
 const yesterday = "2026-05-19";
 
@@ -18,15 +18,24 @@ function makeNow(date: string): () => Date {
   return () => new Date(`${date}T12:00:00.000Z`);
 }
 
-function makeFetchResult(payload: unknown, adapter: string): FetchJsonResult {
+function makeFetchResult(
+  payload: unknown,
+  adapter: string,
+  fetchedAtOverride = fetchedAt,
+): FetchJsonResult {
   return {
-    rawSnapshot: { id: `raw-${adapter}-${fetchedAt}`, adapter, fetchedAt, payload },
+    rawSnapshot: {
+      id: `raw-${adapter}-${fetchedAtOverride}`,
+      adapter,
+      fetchedAt: fetchedAtOverride,
+      payload,
+    },
     payload,
   };
 }
 
-function request(url: string, adapter = "test-adapter"): SourceRequest {
-  return { url, adapter };
+function request(url: string, adapter = "test-adapter", init?: RequestInit): SourceRequest {
+  return { url, adapter, init };
 }
 
 function makeOptions(
@@ -97,6 +106,55 @@ describe("withCache", () => {
     expect(calls).toBe(1);
   });
 
+  test("over-budget same-day cache refetches and overwrites on success", async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return makeFetchResult(
+        { value: calls },
+        "test-adapter",
+        calls === 1 ? "2026-05-20T10:00:00.000Z" : "2026-05-20T11:59:00.000Z",
+      );
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+    const url = "https://example.test/api";
+
+    await cached(request(url));
+    const result = await cached(request(url));
+
+    expect(calls).toBe(2);
+    if ("rawSnapshot" in result) {
+      expect(result.payload).toEqual({ value: 2 });
+      expect(result.rawSnapshot.cacheStatus).toBeUndefined();
+    } else {
+      throw new Error("Expected FetchJsonResult");
+    }
+  });
+
+  test("over-budget same-day cache uses stale fallback on live failure", async () => {
+    const stalePayload = { stale: true };
+    await withCache(
+      async () => makeFetchResult(stalePayload, "test-adapter", "2026-05-20T10:00:00.000Z"),
+      makeOptions(tmpDir),
+    )(request("https://example.test/data"));
+
+    const opts = makeOptions(tmpDir);
+    const result = await withCache(
+      async () => ({ source: "test-adapter", message: "timeout" }),
+      opts,
+    )(request("https://example.test/data"));
+
+    expect("rawSnapshot" in result).toBe(true);
+    if ("rawSnapshot" in result) {
+      expect(result.payload).toBeUndefined();
+      expect(result.rawSnapshot.payload).toEqual(stalePayload);
+      expect(result.rawSnapshot.cacheStatus).toBe("stale-fallback");
+    }
+    expect(opts.staleFallbackGaps).toHaveLength(1);
+    expect(opts.staleFallbackGaps[0]?.message).toContain("stalenessDays=0");
+  });
+
   test("reordered query params share a canonical cache key", async () => {
     let calls = 0;
     const inner = async () => {
@@ -143,8 +201,60 @@ describe("withCache", () => {
     expect(calls).toBe(2);
   });
 
+  test("POST request body participates in the cache key", async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return makeFetchResult({ value: calls }, "exa-search");
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+    const url = "https://api.exa.ai/search";
+
+    await cached(request(url, "exa-search", { method: "POST", body: '{"query":"a"}' }));
+    await cached(request(url, "exa-search", { method: "POST", body: '{"query":"b"}' }));
+    await cached(request(url, "exa-search", { method: "POST", body: '{"query":"a"}' }));
+
+    expect(calls).toBe(2);
+  });
+
+  test("unsupported non-GET body forms bypass cache", async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return makeFetchResult({ value: calls }, "test-adapter");
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+    const init = { method: "POST", body: new URLSearchParams("q=a") };
+
+    await cached(request("https://example.test/api", "test-adapter", init));
+    await cached(request("https://example.test/api", "test-adapter", init));
+
+    expect(calls).toBe(2);
+  });
+
+  test("adapter freshness budgets classify live news and reference sources", async () => {
+    let calls = 0;
+    const inner = async (sourceRequest: SourceRequest) => {
+      calls += 1;
+      return makeFetchResult({ value: calls }, sourceRequest.adapter, "2026-05-20T11:10:00.000Z");
+    };
+
+    const cached = withCache(inner, makeOptions(tmpDir));
+
+    await cached(request("https://example.test/live", "yahoo-ticker"));
+    await cached(request("https://example.test/live", "yahoo-ticker"));
+    await cached(request("https://example.test/news", "marketaux-news"));
+    await cached(request("https://example.test/news", "marketaux-news"));
+    await cached(request("https://example.test/sec", "sec-tickers"));
+    await cached(request("https://example.test/sec", "sec-tickers"));
+
+    expect(calls).toBe(4);
+  });
+
   test("cache hit returns the original fetchedAt from the stored entry", async () => {
-    const originalFetchedAt = "2026-05-20T08:30:00.000Z";
+    const originalFetchedAt = "2026-05-20T11:50:00.000Z";
     const inner = async (): Promise<FetchJsonResult> => ({
       rawSnapshot: {
         id: `raw-test-adapter-${originalFetchedAt}`,
@@ -170,6 +280,51 @@ describe("withCache", () => {
       expect(hitResult.rawSnapshot.cacheStatus).toBe("current");
     } else {
       throw new Error("Expected FetchJsonResult from both calls");
+    }
+  });
+
+  test("invalid cache metadata returns a SourceGap", async () => {
+    const url = "https://example.test/api";
+    const sha = await cacheKey(url, "test-adapter");
+    mkdirSync(join(tmpDir, today), { recursive: true });
+    writeFileSync(
+      join(tmpDir, today, `${sha}.json`),
+      JSON.stringify({
+        cacheKey: "wrong",
+        adapter: "test-adapter",
+        fetchedAt,
+        cachedDate: today,
+        payload: { value: 42 },
+      }),
+    );
+
+    const result = await withCache(
+      async () => makeFetchResult({ value: 1 }, "test-adapter"),
+      makeOptions(tmpDir),
+    )(request(url));
+
+    expect("source" in result).toBe(true);
+    if ("source" in result) {
+      expect(result.message).toContain("metadata");
+    }
+  });
+
+  test("invalid cached payload shape returns a SourceGap", async () => {
+    const cached = withCache(
+      async () => makeFetchResult({ value: 42 }, "test-adapter"),
+      makeOptions(tmpDir),
+      {
+        isPayload: (payload): payload is readonly unknown[] => Array.isArray(payload),
+        invalidMessage: "cached JSON payload was not an object or array",
+      },
+    );
+
+    await cached(request("https://example.test/api"));
+    const result = await cached(request("https://example.test/api"));
+
+    expect("source" in result).toBe(true);
+    if ("source" in result) {
+      expect(result.message).toContain("cached JSON payload");
     }
   });
 

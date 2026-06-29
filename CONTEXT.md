@@ -26,6 +26,10 @@ Low-trust Source evidence gathered from the open web and tagged with `kind: "web
 
 The exact provider payload retained for Web Evidence audit and replay. Raw Web Snapshots are not model-visible evidence.
 
+## Freshness-Budgeted Source Cache
+
+A raw Source Provider cache that can replay same-day provider payloads only inside adapter-specific freshness budgets. Once a cached entry is over budget, the run must refetch live data; if that refetch fails, the cached payload is retained only in raw audit snapshots with a stale-cache SourceGap and does not enter normalized current evidence.
+
 ## Model-Visible Web Text
 
 Sanitized normalized web text allowed into model prompts for Web Subject Profile extraction only. It strips high-confidence prompt-risk and page-chrome spans while preserving factual business prose. Later synthesis receives web Source metadata and the cited structured Web Subject Profile, not web snippets.

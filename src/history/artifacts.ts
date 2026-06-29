@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   researchReportEvidenceQuality,
@@ -24,7 +24,7 @@ import {
 } from "../report-search-entries";
 import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
-import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord } from "../sources/guards";
 
@@ -64,12 +64,20 @@ export interface HistorySearchEntry {
 }
 
 export interface HistoryIndex {
-  readonly version: 1 | 2;
+  readonly version: 1 | 2 | 3;
   readonly generatedAt: string;
   readonly sourceRunCount: number;
   readonly malformedRunCount: number;
   readonly entries: readonly HistorySearchEntry[];
   readonly sourceRunIds?: readonly string[];
+  readonly sourceSidecars?: readonly HistorySourceSidecar[];
+}
+
+interface HistorySourceSidecar {
+  readonly runId: string;
+  readonly path: string;
+  readonly size: number;
+  readonly modifiedAt: number;
 }
 
 export interface ResearchThesisState {
@@ -164,6 +172,7 @@ export interface ThesisDelta {
 
 const HISTORY_DIR = "history";
 const INDEX_FILE = "index.json";
+const HISTORY_INDEX_VERSION = 3;
 const MAX_SEARCH_RESULTS = 100;
 
 export function historyDir(dataDir: string): string {
@@ -176,6 +185,40 @@ export function instrumentKey(assetClass: AssetClass, symbol: string): string {
 
 export function instrumentFileName(key: string): string {
   return `${key.replace(":", "-").replaceAll(/[^A-Z0-9._-]/giu, "_")}.json`;
+}
+
+async function sourceSidecarFingerprints(
+  dataDir: string,
+  runDirNames: readonly string[],
+): Promise<readonly HistorySourceSidecar[]> {
+  const sidecars = await Promise.all(
+    runDirNames.flatMap((runId) =>
+      MUTABLE_SIDECARS.map(async (path) => {
+        const filePath = join(dataDir, runId, path);
+        const metadata = await stat(filePath).catch(() => null);
+        return metadata?.isFile() === true
+          ? {
+              runId,
+              path: String(path),
+              size: metadata.size,
+              modifiedAt: metadata.mtimeMs,
+            }
+          : null;
+      }),
+    ),
+  );
+  return sidecars
+    .filter((sidecar): sidecar is HistorySourceSidecar => sidecar !== null)
+    .toSorted((left, right) =>
+      `${left.runId}:${left.path}`.localeCompare(`${right.runId}:${right.path}`),
+    );
+}
+
+function sidecarFingerprintMatches(
+  current: readonly HistorySourceSidecar[],
+  indexed: readonly HistorySourceSidecar[] | undefined,
+): boolean {
+  return JSON.stringify(current) === JSON.stringify(indexed ?? []);
 }
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
@@ -461,17 +504,20 @@ export async function rebuildHistoryArtifacts(
     searchEntriesFor(run.report, run.scores, run.fundamentals, run.validation),
   );
   const timelines = buildInstrumentTimelines(loaded, generatedAt);
+  const sourceRunIds = scan.artifacts.map((artifact) => artifact.runDirName).toSorted();
+  const sourceSidecars = await sourceSidecarFingerprints(dataDir, sourceRunIds);
 
   const dir = historyDir(dataDir);
   const instrumentsDir = join(dir, "instruments");
   await mkdir(instrumentsDir, { recursive: true });
 
   const index: HistoryIndex = {
-    version: 2,
+    version: HISTORY_INDEX_VERSION,
     generatedAt,
     sourceRunCount: loaded.length,
     malformedRunCount,
-    sourceRunIds: scan.artifacts.map((artifact) => artifact.runDirName).toSorted(),
+    sourceRunIds,
+    sourceSidecars,
     entries: indexEntries.toSorted((left, right) =>
       right.generatedAt.localeCompare(left.generatedAt),
     ),
@@ -518,7 +564,7 @@ async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefi
   } catch {
     throw new Error("Malformed derived history index; run `history rebuild`");
   }
-  if (!isRecord(parsed) || (parsed.version !== 1 && parsed.version !== 2)) {
+  if (!isRecord(parsed) || ![1, 2, 3].includes(parsed.version as number)) {
     throw new Error("Unsupported derived history index schema; run `history rebuild`");
   }
   if (
@@ -530,9 +576,23 @@ async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefi
     throw new TypeError("Malformed derived history index; run `history rebuild`");
   }
   if (
-    parsed.version === 2 &&
+    (parsed.version === 2 || parsed.version === 3) &&
     (!Array.isArray(parsed.sourceRunIds) ||
       !parsed.sourceRunIds.every((runId) => typeof runId === "string"))
+  ) {
+    throw new Error("Malformed derived history index; run `history rebuild`");
+  }
+  if (
+    parsed.version === 3 &&
+    (!Array.isArray(parsed.sourceSidecars) ||
+      !parsed.sourceSidecars.every(
+        (sidecar) =>
+          isRecord(sidecar) &&
+          typeof sidecar.runId === "string" &&
+          typeof sidecar.path === "string" &&
+          typeof sidecar.size === "number" &&
+          typeof sidecar.modifiedAt === "number",
+      ))
   ) {
     throw new Error("Malformed derived history index; run `history rebuild`");
   }
@@ -546,18 +606,20 @@ export async function rebuildHistoryArtifactsIfStale(
 ): Promise<HistoryRebuildResult | undefined> {
   const [index, scan] = await Promise.all([readIndexForDrift(dataDir), scanRunArtifacts(dataDir)]);
   const canonicalRunIds = scan.artifacts.map((artifact) => artifact.runDirName).toSorted();
+  const sourceSidecars = await sourceSidecarFingerprints(dataDir, canonicalRunIds);
   const current =
-    index?.version === 2 &&
+    index?.version === HISTORY_INDEX_VERSION &&
     index.sourceRunIds !== undefined &&
     index.sourceRunIds.length === canonicalRunIds.length &&
-    index.sourceRunIds.every((runId, position) => runId === canonicalRunIds[position]);
+    index.sourceRunIds.every((runId, position) => runId === canonicalRunIds[position]) &&
+    sidecarFingerprintMatches(sourceSidecars, index.sourceSidecars);
   return current ? undefined : rebuild(dataDir, now);
 }
 
 async function readIndex(dataDir: string): Promise<HistoryIndex | undefined> {
   const parsed = await readJson(join(historyDir(dataDir), INDEX_FILE));
   return isRecord(parsed) &&
-    (parsed.version === 1 || parsed.version === 2) &&
+    (parsed.version === 1 || parsed.version === 2 || parsed.version === 3) &&
     Array.isArray(parsed.entries)
     ? (parsed as unknown as HistoryIndex)
     : undefined;

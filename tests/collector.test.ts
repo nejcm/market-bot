@@ -154,6 +154,36 @@ describe("collectSources", () => {
     );
   });
 
+  test("returns a gap when a cached JSON fetch hydrates a non-object payload", async () => {
+    const cacheDir = tempCacheDir();
+    const { context } = createCollectContext(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      {
+        equityMoverLimit: 5,
+        cryptoMoverLimit: 5,
+        newsLimit: 5,
+        sourceTimeoutMs: 100,
+        cacheDir,
+      },
+      new Date("2026-05-20T00:00:00.000Z"),
+      async () => textResponse("plain text"),
+      [],
+    );
+
+    const request = { url: "https://example.test/json", adapter: "test-json" };
+    await context.request.text(request);
+
+    const jsonResult = await context.request.json(request);
+
+    expect(jsonResult).toEqual(
+      expect.objectContaining({
+        source: "test-json",
+        message: "cached JSON payload was not an object or array",
+        cause: "provider-data-missing",
+      }),
+    );
+  });
+
   test("returns a gap when a provider response exceeds the byte cap", async () => {
     const { context } = createCollectContext(
       { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },

@@ -181,6 +181,35 @@ describe("history artifacts", () => {
     expect(rebuildCalls).toBe(0);
   });
 
+  test("rebuilds stale derived history after mutable sidecars change", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-sidecar-drift-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk");
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+    writeJson(join(dataDir, "run-old", "score.json"), {
+      scores: [
+        {
+          predictionId: "p1",
+          runId: "run-old",
+          resolved: true,
+          outcome: "miss",
+          observedAt: "2026-06-03T00:00:00.000Z",
+          attemptCount: 1,
+          evidence: {},
+          changed: "sidecar fingerprint changes",
+        },
+      ],
+    });
+
+    const rebuilt = await rebuildHistoryArtifactsIfStale(
+      dataDir,
+      new Date("2026-06-04T00:00:00.000Z"),
+    );
+
+    expect(rebuilt?.sourceRunCount).toBe(1);
+  });
+
   test("preserves explicit malformed and unsupported derived-history failures", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-invalid-"));
     const dataDir = join(rootDir, "runs");

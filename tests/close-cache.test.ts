@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -28,6 +28,36 @@ describe("fetchCloseWithCache", () => {
 
     expect(first).toBe(500);
     expect(second).toBe(500);
+    expect(calls).toBe(1);
+    expect(
+      existsSync(
+        join(
+          tmpDir,
+          "closes",
+          "v2",
+          "raw-close",
+          "yahoo-massive",
+          "equity",
+          "spy",
+          "2026-05-19.json",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("ignores legacy v1 close files", async () => {
+    let calls = 0;
+    const date = new Date("2026-05-19T00:00:00.000Z");
+    const legacyDir = join(tmpDir, "closes", "equity", "spy");
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(join(legacyDir, "2026-05-19.json"), JSON.stringify({ close: 400 }), "utf8");
+
+    const close = await fetchCloseWithCache("SPY", "equity", date, tmpDir, async () => {
+      calls += 1;
+      return 500;
+    });
+
+    expect(close).toBe(500);
     expect(calls).toBe(1);
   });
 
@@ -63,6 +93,20 @@ describe("fetchCloseWithCache", () => {
 
     expect(first).toEqual(second);
     expect(calls).toBe(1);
+    expect(
+      existsSync(
+        join(
+          tmpDir,
+          "close-windows",
+          "v2",
+          "raw-close",
+          "yahoo-massive",
+          "equity",
+          "spy",
+          "2026-05-19_2026-05-21.json",
+        ),
+      ),
+    ).toBe(true);
   });
 
   test("does not cache empty close windows", async () => {

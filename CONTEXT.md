@@ -22,6 +22,14 @@ A bounded deep-run evidence loop that lets the model request on-subject Exa `web
 
 Low-trust Source evidence gathered from the open web and tagged with `kind: "web"` and provider metadata. Web Evidence can support cited qualitative business-model claims but cannot widen run scope, prediction subjects, or Evidence Quality above the extended-evidence cap. It is not investment conviction, a recommendation, or a trade signal.
 
+## Raw Web Snapshot
+
+The exact provider payload retained for Web Evidence audit and replay. Raw Web Snapshots are not model-visible evidence.
+
+## Model-Visible Web Text
+
+Sanitized normalized web text allowed into model prompts for Web Subject Profile extraction only. It strips high-confidence prompt-risk and page-chrome spans while preserving factual business prose. Later synthesis receives web Source metadata and the cited structured Web Subject Profile, not web snippets.
+
 ## Web Source Roles
 
 The accounting roles a gathered web [[source]] can hold on a run that builds a [[web-subject-profile]], tracked as separate counts so raw web volume is not mistaken for evidence coverage. **Accepted**: web Sources that survived into the run (`kind: "web"`). **Profile-used**: accepted web Sources the Web Subject Profile cited. **Report-cited**: accepted web Sources referenced in the final Research View's claim or Prediction citations. **Unused**: accepted web Sources that are neither profile-used nor report-cited — the honest noise count. They are descriptive accounting only, not investment conviction, evidence-lane coverage, or a trade signal.

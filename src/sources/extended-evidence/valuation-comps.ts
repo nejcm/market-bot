@@ -8,8 +8,9 @@ import type {
   SourceGap,
 } from "../../domain/types";
 import {
-  resolvePeerUniverse,
+  resolvePeerUniverseWithFallback,
   type PeerUniverse,
+  type PeerUniverseFallbackContext,
   type PeerUniverseMapping,
   type PeerUniversePeer,
 } from "../../research/peer-universe";
@@ -94,6 +95,7 @@ export interface ValuationCompsResult {
 export interface ValuationCompsOptions {
   readonly peerUniverseMappings?: PeerUniverseMapping;
   readonly subjectRegistry?: readonly ResearchSubjectRegistryEntry[];
+  readonly peerUniverseFallback?: PeerUniverseFallbackContext;
 }
 
 interface PeerCollection {
@@ -120,8 +122,9 @@ export async function collectValuationComps(
       snapshot.symbol.toUpperCase() === command.symbol.toUpperCase(),
   );
   const target = targetRow(command.symbol, valuationItem, targetSnapshot, ctx.fetchedAt);
-  const resolution = resolvePeerUniverse(
+  const resolution = await resolvePeerUniverseWithFallback(
     command.symbol,
+    options.peerUniverseFallback ?? ctx.peerUniverseFallback,
     options.peerUniverseMappings,
     options.subjectRegistry,
   );
@@ -497,9 +500,13 @@ function enrichValuationItem(
     summary.peerMedianEvToAnnualizedRevenue === undefined
       ? ` Peer comps supportability: ${summary.valuationSupportability}; ${summary.usablePeerCount} usable peers.`
       : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x.`;
+  const provenanceNote =
+    artifact.provenance === "model-proposed-validated"
+      ? " Peer set provenance: model-proposed (LLM-proposed, code-validated against SEC directory + US-listing; cached)."
+      : "";
   return {
     ...item,
-    summary: `${item.summary}${peerReadThrough}`,
+    summary: `${item.summary}${peerReadThrough}${provenanceNote}`,
     sourceIds: unique([...item.sourceIds, ...artifact.sourceIds]),
     metrics: {
       ...item.metrics,

@@ -22,6 +22,9 @@ export interface SourceOptions {
   readonly cacheFallbackDays?: number;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
+  // Learned peer-universe cache (model-proposed-validated entries). See ADR 0039.
+  readonly peerUniverseLearnedPath?: string;
+  readonly peerUniverseTtlDays?: number;
 }
 
 export interface EvidenceRequestOptions {
@@ -138,6 +141,7 @@ const DEFAULT_RESEARCH_CONSOLE_PORT = 4173;
 const DEFAULT_PROMPT_DIR = join(import.meta.dir, "../prompts");
 const DEFAULT_SEC_USER_AGENT = "market-bot research contact@example.invalid";
 const DEFAULT_NEWS_SEEN_RETENTION_DAYS = 30;
+const DEFAULT_PEER_UNIVERSE_TTL_DAYS = 90;
 const DEFAULT_ALPHA_SEARCH_CANDIDATE_LIMIT = 15;
 const DEFAULT_APEWISDOM_FILTER = "all-stocks";
 const DEFAULT_APEWISDOM_BRIEF_PAGE_LIMIT = 5;
@@ -300,6 +304,11 @@ function readReasoningEffort(
 function deriveNewsSeenPath(dataDir: string): string {
   const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
   return join(dataRoot, "news-seen.json");
+}
+
+export function derivePeerUniverseLearnedPath(dataDir: string): string {
+  const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
+  return join(dataRoot, "peer-universe-learned.json");
 }
 
 function readApeWisdomFilter(value: string | undefined): string {
@@ -573,6 +582,13 @@ export function resolveConfig(
       newsSeenRetentionDays: readPositiveInteger(
         env.MARKET_BOT_NEWS_SEEN_RETENTION_DAYS,
         DEFAULT_NEWS_SEEN_RETENTION_DAYS,
+      ),
+      peerUniverseLearnedPath:
+        readOptionalString(env.MARKET_BOT_PEER_UNIVERSE_LEARNED_PATH) ??
+        derivePeerUniverseLearnedPath(dataDir),
+      peerUniverseTtlDays: readPositiveInteger(
+        env.MARKET_BOT_PEER_UNIVERSE_TTL_DAYS,
+        DEFAULT_PEER_UNIVERSE_TTL_DAYS,
       ),
     },
     evidenceRequestOptions: {

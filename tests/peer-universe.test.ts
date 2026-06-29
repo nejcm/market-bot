@@ -1,9 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import {
   MAX_PEERS,
+  MIN_PROPOSED_PEERS,
   resolvePeerUniverse,
+  resolvePeerUniverseWithFallback,
   validatePeerUniverse,
   type PeerUniverse,
+  type PeerUniverseFallbackContext,
+  type ProposalAudit,
 } from "../src/research/peer-universe";
 
 describe("peer universe", () => {
@@ -136,5 +140,195 @@ describe("peer universe", () => {
     });
 
     expect(result.universe?.peers).toHaveLength(MAX_PEERS);
+  });
+
+  test("validates model-proposed-validated provenance as valid", () => {
+    const universe: PeerUniverse = {
+      targetSymbol: "ZZZZ",
+      provenance: "model-proposed-validated",
+      peers: [
+        {
+          symbol: "AAPL",
+          name: "Apple Inc.",
+          role: "core",
+          rationale: "large-cap tech peer",
+          sourceIds: ["sec-company-tickers"],
+        },
+        {
+          symbol: "MSFT",
+          name: "Microsoft",
+          role: "core",
+          rationale: "enterprise software peer",
+          sourceIds: ["sec-company-tickers"],
+        },
+        {
+          symbol: "GOOGL",
+          name: "Alphabet",
+          role: "secondary",
+          rationale: "platform peer",
+          sourceIds: ["sec-company-tickers"],
+        },
+      ],
+      sources: [
+        {
+          sourceId: "sec-company-tickers",
+          title: "SEC company_tickers.json directory",
+          url: "https://www.sec.gov/files/company_tickers.json",
+        },
+      ],
+    };
+
+    expect(validatePeerUniverse(universe)).toEqual({ valid: true, errors: [] });
+  });
+});
+
+function makeModelProposedUniverse(targetSymbol: string): PeerUniverse {
+  return {
+    targetSymbol,
+    provenance: "model-proposed-validated",
+    peers: [
+      {
+        symbol: "AAPL",
+        name: "Apple Inc.",
+        role: "core",
+        rationale: "peer a",
+        sourceIds: ["sec-company-tickers"],
+      },
+      {
+        symbol: "MSFT",
+        name: "Microsoft Corporation",
+        role: "core",
+        rationale: "peer b",
+        sourceIds: ["sec-company-tickers"],
+      },
+      {
+        symbol: "GOOGL",
+        name: "Alphabet Inc.",
+        role: "secondary",
+        rationale: "peer c",
+        sourceIds: ["sec-company-tickers"],
+      },
+    ],
+    sources: [
+      {
+        sourceId: "sec-company-tickers",
+        title: "SEC company_tickers.json directory",
+        url: "https://www.sec.gov/files/company_tickers.json",
+      },
+    ],
+  };
+}
+
+const dummyAudit: ProposalAudit = {
+  proposed: 5,
+  survived: 3,
+  rejectedByDirectory: 1,
+  rejectedByEtf: 0,
+  rejectedByListing: 1,
+  modelId: "test-model",
+};
+
+// Cache-reader stub that always misses, mirroring the real reader's miss result.
+async function cacheMiss(): Promise<PeerUniverse | undefined> {
+  return undefined;
+}
+
+describe("resolvePeerUniverseWithFallback", () => {
+  test("returns deterministic tier result without calling fallback for AAPL", async () => {
+    const proposeMock = mock(async (_symbol: string) => ({
+      audit: dummyAudit,
+    }));
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: cacheMiss,
+      cacheWrite: async () => {},
+      propose: proposeMock,
+    };
+
+    const result = await resolvePeerUniverseWithFallback("AAPL", fallback);
+
+    expect(result.status).toBe("resolved");
+    expect(result.universe?.provenance).toBe("ticker-mapping");
+    expect(proposeMock).not.toHaveBeenCalled();
+  });
+
+  test("returns unresolved without calling fallback when no fallback provided", async () => {
+    const result = await resolvePeerUniverseWithFallback("ZZZZ");
+
+    expect(result.status).toBe("unresolved");
+    expect(result.universe).toBeUndefined();
+  });
+
+  test("resolves from cache hit without calling propose", async () => {
+    const cachedUniverse = makeModelProposedUniverse("ZZZZ");
+    const proposeMock = mock(async (_symbol: string) => ({ audit: dummyAudit }));
+    const cacheWriteMock = mock(async () => {});
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: async () => cachedUniverse,
+      cacheWrite: cacheWriteMock,
+      propose: proposeMock,
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("resolved");
+    expect(result.universe?.provenance).toBe("model-proposed-validated");
+    expect(result.universe?.targetSymbol).toBe("ZZZZ");
+    expect(proposeMock).not.toHaveBeenCalled();
+    expect(cacheWriteMock).not.toHaveBeenCalled();
+  });
+
+  test("calls propose on cache miss, writes cache, resolves when enough survivors", async () => {
+    const proposedUniverse = makeModelProposedUniverse("ZZZZ");
+    const cacheWriteMock = mock(async () => {});
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: cacheMiss,
+      cacheWrite: cacheWriteMock,
+      propose: async () => ({ universe: proposedUniverse, audit: dummyAudit }),
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("resolved");
+    expect(result.universe?.provenance).toBe("model-proposed-validated");
+    expect(cacheWriteMock).toHaveBeenCalledTimes(1);
+    expect(cacheWriteMock).toHaveBeenCalledWith("ZZZZ", proposedUniverse, dummyAudit);
+  });
+
+  test("returns unresolved when propose returns no universe (< MIN_PROPOSED_PEERS)", async () => {
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: cacheMiss,
+      cacheWrite: async () => {},
+      propose: async () => ({ audit: dummyAudit }),
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("unresolved");
+    expect(result.universe).toBeUndefined();
+  });
+
+  test("poisoned cache entry dropped — returns undefined from cacheRead triggers propose", async () => {
+    // Poison: provenance says model-proposed-validated but peers violate validation
+    // (here simulated by returning undefined from cacheRead, as if reader dropped it)
+    const proposedUniverse = makeModelProposedUniverse("ZZZZ");
+    let proposeCalled = false;
+    // Reader returns undefined (miss/poison), so the resolver advances to propose.
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: cacheMiss,
+      cacheWrite: async () => {},
+      propose: async () => {
+        proposeCalled = true;
+        return { universe: proposedUniverse, audit: dummyAudit };
+      },
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("resolved");
+    expect(proposeCalled).toBe(true);
+  });
+
+  test("exports MIN_PROPOSED_PEERS = 3", () => {
+    expect(MIN_PROPOSED_PEERS).toBe(3);
   });
 });

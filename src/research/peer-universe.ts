@@ -4,11 +4,15 @@ import {
   type ResearchSubjectSource,
 } from "./subject-registry";
 
-const SYMBOL_RE = /^(?=.{1,10}$)[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/u;
+export const SYMBOL_RE = /^(?=.{1,10}$)[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/u;
 export const MAX_PEERS = 8;
+export const MIN_PROPOSED_PEERS = 3;
 
 export type PeerRole = "core" | "secondary";
-export type PeerUniverseProvenance = "ticker-mapping" | "subject-registry";
+export type PeerUniverseProvenance =
+  | "ticker-mapping"
+  | "subject-registry"
+  | "model-proposed-validated";
 
 export interface PeerUniversePeer {
   readonly symbol: string;
@@ -44,6 +48,25 @@ export interface PeerUniverseValidationResult {
 }
 
 export type PeerUniverseMapping = Readonly<Record<string, PeerUniverse>>;
+
+export interface ProposalAudit {
+  readonly proposed: number;
+  readonly survived: number;
+  readonly rejectedByDirectory: number;
+  readonly rejectedByEtf: number;
+  readonly rejectedByListing: number;
+  readonly modelId: string;
+}
+
+export interface PeerUniverseFallbackContext {
+  readonly cacheRead: (symbol: string) => Promise<PeerUniverse | undefined>;
+  readonly cacheWrite: (
+    symbol: string,
+    universe: PeerUniverse,
+    audit: ProposalAudit,
+  ) => Promise<void>;
+  readonly propose: (symbol: string) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }>;
+}
 
 export const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse({
   AAPL: tickerUniverse("AAPL", [
@@ -152,6 +175,39 @@ export function resolvePeerUniverse(
   );
 }
 
+export async function resolvePeerUniverseWithFallback(
+  targetSymbol: string,
+  fallback?: PeerUniverseFallbackContext,
+  mappings?: PeerUniverseMapping,
+  registry?: readonly ResearchSubjectRegistryEntry[],
+): Promise<PeerUniverseResolution> {
+  const resolution = resolvePeerUniverse(targetSymbol, mappings, registry);
+  if (resolution.status === "resolved" || fallback === undefined) {
+    return resolution;
+  }
+  const target = normalizeSymbol(targetSymbol);
+
+  // Cache tier: re-validate on every read as a poison guard
+  const cached = await fallback.cacheRead(target);
+  if (cached !== undefined) {
+    return resolvedPeerUniverse(target, cached, "Resolved from learned peer-universe cache");
+  }
+
+  // Live model tier: propose + validate; write to cache if enough survivors
+  const { universe, audit } = await fallback.propose(target);
+  if (universe !== undefined) {
+    // Swallow cache-write errors; run succeeds even when disk is unavailable
+    await fallback.cacheWrite(target, universe, audit).catch(() => {});
+    return resolvedPeerUniverse(
+      target,
+      universe,
+      "Resolved from model-proposed, code-validated peer universe",
+    );
+  }
+
+  return resolution;
+}
+
 export function validatePeerUniverse(universe: PeerUniverse): PeerUniverseValidationResult {
   const errors: string[] = [];
   const target = normalizeSymbol(universe.targetSymbol);
@@ -161,7 +217,11 @@ export function validatePeerUniverse(universe: PeerUniverse): PeerUniverseValida
   if (!SYMBOL_RE.test(target)) {
     errors.push(`${universe.targetSymbol}: invalid target symbol`);
   }
-  if (universe.provenance !== "ticker-mapping" && universe.provenance !== "subject-registry") {
+  if (
+    universe.provenance !== "ticker-mapping" &&
+    universe.provenance !== "subject-registry" &&
+    universe.provenance !== "model-proposed-validated"
+  ) {
     errors.push(`${target}: invalid provenance`);
   }
   if (universe.peers.length === 0) {

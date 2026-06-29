@@ -334,6 +334,25 @@ describe("resolveConfig", () => {
     expect(sourceOptions.newsSeenRetentionDays).toBe(14);
   });
 
+  test("derives the learned peer-universe cache path from the data directory", () => {
+    const { sourceOptions } = resolveConfig({ MARKET_BOT_DATA_DIR: "custom/runs" });
+
+    expect(sourceOptions.peerUniverseLearnedPath).toBe(
+      join("custom", "peer-universe-learned.json"),
+    );
+    expect(sourceOptions.peerUniverseTtlDays).toBe(90);
+  });
+
+  test("reads peer-universe cache overrides", () => {
+    const { sourceOptions } = resolveConfig({
+      MARKET_BOT_PEER_UNIVERSE_LEARNED_PATH: "custom/peers.json",
+      MARKET_BOT_PEER_UNIVERSE_TTL_DAYS: "30",
+    });
+
+    expect(sourceOptions.peerUniverseLearnedPath).toBe("custom/peers.json");
+    expect(sourceOptions.peerUniverseTtlDays).toBe(30);
+  });
+
   test("reads news provider tokens", () => {
     expect(
       resolveConfig({

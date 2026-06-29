@@ -3,6 +3,7 @@ import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "./extended-evidence/web-subject-profile";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
+import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 import type {
   AssetClass,
   ExtendedEvidence,
@@ -51,6 +52,9 @@ export interface CollectContext {
   // Resolved canonical identity (exchange/quoteCurrency), when known before source collection.
   // US-only collectors use it as the primary instrument-capability signal (see isUsListing).
   readonly instrumentIdentity?: InstrumentIdentity;
+  // Model-proposed, code-validated peer-universe fallback (ADR 0039). Supplied by the
+  // App layer for deep-equity runs and threaded into collectValuationComps via context.
+  readonly peerUniverseFallback?: PeerUniverseFallbackContext;
   readonly request: SourceRequestExecutor;
 }
 

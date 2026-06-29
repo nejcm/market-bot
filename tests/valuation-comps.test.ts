@@ -5,10 +5,16 @@ import {
   type ValuationCompsOptions,
 } from "../src/sources/extended-evidence/valuation-comps";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
+import type { PeerUniverse } from "../src/research/peer-universe";
 import { marketSnapshot } from "./support/fixtures";
 
 const generatedAt = "2026-07-15T00:00:00.000Z";
 const command = { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" } as const;
+
+// Cache-reader stub that always misses, mirroring the real reader's miss result.
+async function cacheMiss(): Promise<PeerUniverse | undefined> {
+  return undefined;
+}
 
 function rawJson(adapter: string, payload: unknown, fetchedAt = generatedAt): FetchJsonResult {
   return {
@@ -557,5 +563,157 @@ describe("collectValuationComps", () => {
 
     expect(result.artifact.peers.map((peer) => peer.symbol)).toEqual(["AMD", "AVGO", "ANET"]);
     expect(result.artifact.summary.usablePeerCount).toBe(3);
+  });
+
+  test("resolves model-proposed-validated universe via injected fallback", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+      items: valuationEvidence().items.map((item) => ({
+        ...item,
+        sourceIds: item.sourceIds.map((id) => id.replace("nvda", "zzzz")),
+      })),
+    };
+    const fallbackOptions: ValuationCompsOptions = {
+      peerUniverseFallback: {
+        cacheRead: cacheMiss,
+        cacheWrite: async () => {},
+        propose: async (symbol) => ({
+          universe: {
+            targetSymbol: symbol,
+            provenance: "model-proposed-validated",
+            peers: [
+              {
+                symbol: "AMD",
+                name: "Advanced Micro Devices",
+                role: "core",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+              {
+                symbol: "AVGO",
+                name: "Broadcom",
+                role: "core",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+              {
+                symbol: "ANET",
+                name: "Arista Networks",
+                role: "secondary",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+            ],
+            sources: [
+              {
+                sourceId: "sec-company-tickers",
+                title: "SEC company_tickers.json directory",
+                url: "https://www.sec.gov/files/company_tickers.json",
+              },
+            ],
+          },
+          audit: {
+            proposed: 3,
+            survived: 3,
+            rejectedByDirectory: 0,
+            rejectedByEtf: 0,
+            rejectedByListing: 0,
+            modelId: "test-model",
+          },
+        }),
+      },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      fallbackOptions,
+    );
+
+    expect(result.artifact.provenance).toBe("model-proposed-validated");
+    expect(result.artifact.peers.map((peer) => peer.symbol)).toEqual(["AMD", "AVGO", "ANET"]);
+    const valuationSummary = result.extendedEvidence.items.find(
+      (item) => item.category === "valuation",
+    )?.summary;
+    expect(valuationSummary).toContain("Peer set provenance: model-proposed");
+  });
+
+  test("falls back to unsupported-coverage gap when fallback yields too few survivors", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+    };
+    const fallbackOptions: ValuationCompsOptions = {
+      peerUniverseFallback: {
+        cacheRead: cacheMiss,
+        cacheWrite: async () => {},
+        propose: async () => ({
+          audit: {
+            proposed: 1,
+            survived: 1,
+            rejectedByDirectory: 0,
+            rejectedByEtf: 0,
+            rejectedByListing: 0,
+            modelId: "test-model",
+          },
+        }),
+      },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      fallbackOptions,
+    );
+
+    expect(result.artifact.peers).toEqual([]);
+    expect(result.artifact.provenance).toBeUndefined();
+    expect(result.gaps[0]).toMatchObject({ cause: "unsupported-coverage" });
+  });
+
+  test("without fallback an unmapped ticker still emits unsupported-coverage gap", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+    );
+
+    expect(result.artifact.peers).toEqual([]);
+    expect(result.gaps[0]).toMatchObject({ cause: "unsupported-coverage" });
   });
 });

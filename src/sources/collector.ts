@@ -28,8 +28,14 @@ import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import { collectValuationComps } from "./extended-evidence/valuation-comps";
 import { resolveResearchSubjectProxy } from "../research/subject-registry";
+import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
+import {
+  makePeerUniverseCacheReader,
+  makePeerUniverseCacheWriter,
+} from "../research/peer-universe-cache";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
+import type { ModelProvider } from "../model/types";
 
 interface HostState {
   queue: Promise<void>;
@@ -552,12 +558,20 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
   };
 }
 
+export interface PeerUniverseSeam {
+  readonly provider: ModelProvider;
+  readonly model: string;
+  readonly cachePath: string;
+  readonly ttlDays?: number;
+}
+
 export async function collectSources(
   command: ResearchCommand,
   sourceOptions: SourceOptions,
   now: Date = new Date(),
   fetchImpl: FetchLike = fetch,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
+  peerUniverse?: PeerUniverseSeam,
 ): Promise<CollectedSources> {
   const { context: ctx, staleFallbackGaps } = createCollectContext(
     command,
@@ -594,6 +608,37 @@ export async function collectSources(
     preliminaryIdentityResult?.identity !== undefined
       ? { ...ctx, instrumentIdentity: preliminaryIdentityResult.identity }
       : ctx;
+  // Thread model-proposed peer-universe fallback into the context for deep-equity runs.
+  // The proposer closes over targetName (display name) and the request executor from identityCtx.
+  const peerUniverseCtx: CollectContext =
+    peerUniverse !== undefined && isEquityTicker && command.depth === "deep"
+      ? {
+          ...identityCtx,
+          peerUniverseFallback: {
+            cacheRead: makePeerUniverseCacheReader(
+              peerUniverse.cachePath,
+              peerUniverse.ttlDays,
+              now,
+            ),
+            cacheWrite: makePeerUniverseCacheWriter(
+              peerUniverse.cachePath,
+              peerUniverse.ttlDays,
+              peerUniverse.provider.name,
+            ),
+            propose: createPeerUniverseProposer({
+              provider: peerUniverse.provider,
+              model: peerUniverse.model,
+              request: identityCtx.request,
+              ...(identityCtx.secUserAgent !== undefined
+                ? { secUserAgent: identityCtx.secUserAgent }
+                : {}),
+              ...(identityCtx.instrumentIdentity?.displayName !== undefined
+                ? { targetName: identityCtx.instrumentIdentity.displayName }
+                : {}),
+            }),
+          },
+        }
+      : identityCtx;
   let newsContext: CollectContext = identityCtx;
   if (marketResult !== undefined) {
     const targets = isMarketUpdateCommand(command)
@@ -646,7 +691,7 @@ export async function collectSources(
     command.depth === "deep" &&
     valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
       ? await collectValuationComps(
-          ctx,
+          peerUniverseCtx,
           command,
           resolvedMarketResult.marketSnapshots,
           valuationResult.extendedEvidence,

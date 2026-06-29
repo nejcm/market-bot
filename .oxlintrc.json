@@ -50,5 +50,5 @@
       }
     }
   ],
-  "ignorePatterns": ["node_modules/**", "coverage/**", "research/**", "plans/**"]
+  "ignorePatterns": ["node_modules/**", "coverage/**", "/research/**", "plans/**"]
 }

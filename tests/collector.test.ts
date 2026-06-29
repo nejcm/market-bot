@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
 import { summarizeMarketRegime } from "../src/research/regime";
 import {
@@ -256,6 +257,129 @@ describe("collectSources", () => {
       corePeerCount: 2,
       valuationSupportability: "supported",
     });
+  });
+
+  test("resolves model-proposed peers for an unmapped deep-equity ticker and writes the cache", async () => {
+    const marketCaps: Readonly<Record<string, number>> = {
+      ZZZZ: 1000,
+      AMD: 390,
+      AVGO: 590,
+      ANET: 790,
+    };
+    const cikBySymbol: Readonly<Record<string, number>> = {
+      ZZZZ: 1,
+      AMD: 2,
+      AVGO: 3,
+      ANET: 4,
+    };
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: {
+            result: symbols.map((symbol) => collectorQuote(symbol, marketCaps[symbol] ?? 100)),
+          },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse(
+          Object.fromEntries(
+            Object.entries(cikBySymbol).map(([symbol, cik], index) => [
+              String(index),
+              { cik_str: cik, ticker: symbol, title: symbol },
+            ]),
+          ),
+        );
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const generate = mock(async () => ({
+      content: JSON.stringify({
+        peers: [
+          { symbol: "AMD", name: "AMD", role: "core", rationale: "peer" },
+          { symbol: "AVGO", name: "AVGO", role: "core", rationale: "peer" },
+          { symbol: "ANET", name: "ANET", role: "secondary", rationale: "peer" },
+        ],
+      }),
+      tokenEstimate: 10,
+      costEstimateUsd: 0,
+    }));
+    const provider: ModelProvider = { name: "test-provider", generate };
+    const cachePath = join(tempCacheDir(), "peer-universe-learned.json");
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "ZZZZ", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-07-15T00:00:00.000Z"),
+      fetchImpl,
+      undefined,
+      { provider, model: "test-model", cachePath },
+    );
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(result.valuationComps?.provenance).toBe("model-proposed-validated");
+    expect(result.valuationComps?.peers.map((peer) => peer.symbol)).toEqual([
+      "AMD",
+      "AVGO",
+      "ANET",
+    ]);
+    const persisted = JSON.parse(readFileSync(cachePath, "utf8")) as {
+      entries: { targetSymbol: string; provenance: string }[];
+    };
+    expect(persisted.entries).toHaveLength(1);
+    expect(persisted.entries[0]).toMatchObject({
+      targetSymbol: "ZZZZ",
+      provenance: "model-proposed-validated",
+    });
+  });
+
+  test("does not propose model peers for a brief equity run", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: { result: symbols.map((symbol) => collectorQuote(symbol, 1000)) },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "ZZZZ", title: "ZZZZ" } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      return jsonResponse({});
+    };
+    const generate = mock(async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }));
+    const provider: ModelProvider = { name: "test-provider", generate };
+
+    await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "ZZZZ", depth: "brief" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-07-15T00:00:00.000Z"),
+      fetchImpl,
+      undefined,
+      { provider, model: "test-model", cachePath: join(tempCacheDir(), "peers.json") },
+    );
+
+    expect(generate).not.toHaveBeenCalled();
   });
 
   test("collects daily equity market data and news with injectable fetch", async () => {

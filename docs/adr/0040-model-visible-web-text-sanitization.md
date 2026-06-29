@@ -30,6 +30,7 @@ Separate raw web payload retention from model-visible web text:
 - Final synthesis has a smaller prompt-injection surface because it cannot fall back to raw or sanitized web snippets when profile extraction is empty.
 - Raw provider payloads remain available for audit/replay without becoming model instructions.
 - The sanitizer is intentionally conservative, not a relevance classifier or truth judge. It strips only high-confidence prompt-risk and page-chrome spans.
+- Format separators are normalized before instruction matching, but Unicode homoglyph and confusable detection remains out of scope.
 
 ## Rejected alternatives
 

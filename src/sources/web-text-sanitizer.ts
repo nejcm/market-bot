@@ -10,14 +10,19 @@ export interface WebTextSanitizerResult {
   readonly telemetry: WebTextSanitizerTelemetry;
 }
 
+export const MAX_WEB_TEXT_SANITIZER_INPUT_CHARS = 10_000;
+
 const CODE_FENCE_RE = /```[\s\S]*?```/gu;
 const HTML_BLOCK_RE =
   /<(script|style|form|template|noscript|iframe|svg|head|meta|link|input|button|select|textarea)\b[\s\S]*?<\/\1>|<(meta|link|input|button|select|textarea)\b[^>]*>/giu;
 const HTML_UNCLOSED_BLOCK_RE =
   /<(script|style|form|template|noscript|iframe|svg|head)\b[^>]*>[\s\S]*$/giu;
+const HTML_DANGLING_RISKY_TAG_RE =
+  /<(script|style|form|template|noscript|iframe|svg|head)\b[^>]*$/giu;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/gu;
 const HTML_TAG_RE = /<[^>]+>/gu;
 const ENTITY_RE = /&(?:#(\d+)|#x([\da-f]+)|amp|lt|gt|quot|apos|nbsp|mdash|ndash);/giu;
+const FORMAT_SEPARATOR_RE = /[\u00AD\u200B-\u200D\uFEFF]+/gu;
 const WHITESPACE_RE = /\s+/gu;
 const MAX_UNICODE_CODE_POINT = 1_114_111;
 
@@ -47,7 +52,7 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
   const inputChars = input.length;
   let removedInstructionSpanCount = 0;
   let removedChromeHtmlCount = 0;
-  let text = input;
+  let text = input.slice(0, MAX_WEB_TEXT_SANITIZER_INPUT_CHARS);
 
   for (let pass = 0; pass < 2; pass += 1) {
     ({ text, removedCount: removedChromeHtmlCount } = replacePattern(
@@ -73,6 +78,11 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
     HTML_UNCLOSED_BLOCK_RE,
     removedChromeHtmlCount,
   ));
+  ({ text, removedCount: removedChromeHtmlCount } = removePattern(
+    text,
+    HTML_DANGLING_RISKY_TAG_RE,
+    removedChromeHtmlCount,
+  ));
   ({ text, removedCount: removedInstructionSpanCount } = removePattern(
     text,
     CODE_FENCE_RE,
@@ -84,9 +94,12 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
     " ",
     removedChromeHtmlCount,
   ));
-  const filtered: string[] = [];
-  for (const paragraph of text.split(/\r?\n+/u)) {
-    const normalized = paragraph.replaceAll(WHITESPACE_RE, " ").trim();
+  const retainedLines: string[] = [];
+  for (const line of text.split(/\r?\n+/u)) {
+    const normalized = line
+      .replaceAll(FORMAT_SEPARATOR_RE, " ")
+      .replaceAll(WHITESPACE_RE, " ")
+      .trim();
     if (normalized === "") {
       continue;
     }
@@ -94,13 +107,17 @@ export function sanitizeModelVisibleWebText(input: string): WebTextSanitizerResu
       removedChromeHtmlCount += 1;
       continue;
     }
-    for (const sentence of normalized.split(/(?<=[.!?])\s+/u)) {
-      if (isInstructionSpan(sentence)) {
-        removedInstructionSpanCount += 1;
-        continue;
-      }
-      filtered.push(sentence);
+    retainedLines.push(normalized);
+  }
+
+  const filtered: string[] = [];
+  const normalizedText = retainedLines.join(" ").replaceAll(WHITESPACE_RE, " ").trim();
+  for (const sentence of normalizedText.split(/(?<=[.!?])\s+/u)) {
+    if (isInstructionSpan(sentence)) {
+      removedInstructionSpanCount += 1;
+      continue;
     }
+    filtered.push(sentence);
   }
 
   const output = filtered.join(" ").replaceAll(WHITESPACE_RE, " ").trim();

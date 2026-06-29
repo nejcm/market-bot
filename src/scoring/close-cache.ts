@@ -101,11 +101,35 @@ function closeWindowCachePath(
   );
 }
 
-async function readClose(path: string): Promise<number | undefined> {
+function closeEntryMatches(
+  entry: CloseCacheEntry,
+  symbol: string,
+  assetClass: AssetClass,
+  date: Date,
+): boolean {
+  const semantics = closeCacheSemantics(assetClass);
+  return (
+    entry.schemaVersion === 2 &&
+    cacheSymbol(entry.symbol) === cacheSymbol(symbol) &&
+    entry.assetClass === assetClass &&
+    entry.providerSet === semantics.providerSet &&
+    entry.priceMode === semantics.priceMode &&
+    entry.date === ymd(date)
+  );
+}
+
+async function readClose(
+  path: string,
+  symbol: string,
+  assetClass: AssetClass,
+  date: Date,
+): Promise<number | undefined> {
   try {
     const raw = await readFile(path, "utf8");
     const entry = JSON.parse(raw) as CloseCacheEntry;
-    return Number.isFinite(entry.close) ? entry.close : undefined;
+    return closeEntryMatches(entry, symbol, assetClass, date) && Number.isFinite(entry.close)
+      ? entry.close
+      : undefined;
   } catch {
     return undefined;
   }
@@ -121,11 +145,38 @@ function isObservation(value: unknown): value is Observation {
   );
 }
 
-async function readWindow(path: string): Promise<readonly Observation[] | undefined> {
+function windowEntryMatches(
+  entry: CloseWindowCacheEntry,
+  symbol: string,
+  assetClass: AssetClass,
+  from: Date,
+  to: Date,
+): boolean {
+  const semantics = closeCacheSemantics(assetClass);
+  return (
+    entry.schemaVersion === 2 &&
+    cacheSymbol(entry.symbol) === cacheSymbol(symbol) &&
+    entry.assetClass === assetClass &&
+    entry.providerSet === semantics.providerSet &&
+    entry.priceMode === semantics.priceMode &&
+    entry.from === ymd(from) &&
+    entry.to === ymd(to)
+  );
+}
+
+async function readWindow(
+  path: string,
+  symbol: string,
+  assetClass: AssetClass,
+  from: Date,
+  to: Date,
+): Promise<readonly Observation[] | undefined> {
   try {
     const raw = await readFile(path, "utf8");
     const entry = JSON.parse(raw) as CloseWindowCacheEntry;
-    return Array.isArray(entry.observations) && entry.observations.every(isObservation)
+    return windowEntryMatches(entry, symbol, assetClass, from, to) &&
+      Array.isArray(entry.observations) &&
+      entry.observations.every(isObservation)
       ? entry.observations
       : undefined;
   } catch {
@@ -164,7 +215,7 @@ export async function fetchCloseWithCache(
   }
 
   const path = closeCachePath(cacheDir, symbol, assetClass, date);
-  const cached = await readClose(path);
+  const cached = await readClose(path, symbol, assetClass, date);
   if (cached !== undefined) {
     return cached;
   }
@@ -199,7 +250,7 @@ export async function fetchWindowWithCache(
   }
 
   const path = closeWindowCachePath(cacheDir, symbol, assetClass, from, to);
-  const cached = await readWindow(path);
+  const cached = await readWindow(path, symbol, assetClass, from, to);
   if (cached !== undefined) {
     return cached;
   }

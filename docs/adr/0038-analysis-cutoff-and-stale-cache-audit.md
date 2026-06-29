@@ -10,6 +10,8 @@ Every model-stage evidence payload carries the run's `analysisAsOf` timestamp. S
 
 Cache hits are marked `current` or `stale-fallback`. Source cache entries are freshness-budgeted by adapter class. Once an entry is past budget, the run attempts a live refetch; if that refetch fails, the stale fallback remains in the raw snapshot for audit and emits an explicit Source Gap, but its payload is excluded from normalized current evidence.
 
+A cache entry whose metadata fails validation is treated as a cache miss: an audit Source Gap is emitted and the run falls through to a live fetch, so a single corrupt or tampered entry never denies live data for its key until the UTC day rolls over.
+
 Run traces persist SHA-256 fingerprints of effective non-secret configuration and dirty source state. Secret configuration values and ignored files do not affect those fingerprints.
 
 ## Consequences

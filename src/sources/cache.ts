@@ -315,7 +315,8 @@ export function withCache<TPayload = unknown>(
       return inner(request);
     }
 
-    const today = utcDateString(options.now());
+    const now = options.now();
+    const today = utcDateString(now);
     const sha = await cacheKey(request);
     if (sha === undefined) {
       return inner(request);
@@ -323,18 +324,23 @@ export function withCache<TPayload = unknown>(
     const todayPath = entryPath(options.dir, today, sha);
 
     const cached = await readEntry(todayPath);
+    let validCached = cached;
     if (cached !== undefined) {
       if (
-        !isValidCacheEntryMetadata(cached, {
+        isValidCacheEntryMetadata(cached, {
           cacheKey: sha,
           adapter,
           cachedDate: today,
         })
       ) {
-        return cacheEntryMetadataGap(adapter);
-      }
-      if (isFresh(cached, adapter, options.now())) {
-        return toCachedResult(cached, adapter, validator, "current");
+        if (isFresh(cached, adapter, now)) {
+          return toCachedResult(cached, adapter, validator, "current");
+        }
+      } else {
+        // Treat a corrupt/tampered entry as a cache miss.
+        // Emit an audit gap, then fall through to a live fetch.
+        options.onStaleFallback(cacheEntryMetadataGap(adapter));
+        validCached = undefined;
       }
     }
 
@@ -361,7 +367,7 @@ export function withCache<TPayload = unknown>(
       today,
       effectiveFallbackDays,
       adapter,
-      cached,
+      validCached,
     );
     if (stale !== undefined) {
       const ageDays = dateDiffDays(today, stale.cachedDate);

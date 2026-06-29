@@ -61,6 +61,34 @@ describe("fetchCloseWithCache", () => {
     expect(calls).toBe(1);
   });
 
+  test("ignores invalid v2 close entries at the expected path", async () => {
+    let calls = 0;
+    const date = new Date("2026-05-19T00:00:00.000Z");
+    const cacheDir = join(tmpDir, "closes", "v2", "raw-close", "yahoo-massive", "equity", "spy");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(
+      join(cacheDir, "2026-05-19.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        symbol: "SPY",
+        assetClass: "equity",
+        providerSet: "yahoo-massive",
+        priceMode: "raw-close",
+        date: "2026-05-19",
+        close: 400,
+      }),
+      "utf8",
+    );
+
+    const close = await fetchCloseWithCache("SPY", "equity", date, tmpDir, async () => {
+      calls += 1;
+      return 500;
+    });
+
+    expect(close).toBe(500);
+    expect(calls).toBe(1);
+  });
+
   test("does not cache missing closes", async () => {
     let calls = 0;
     const date = new Date("2026-05-19T00:00:00.000Z");
@@ -107,6 +135,44 @@ describe("fetchCloseWithCache", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  test("ignores invalid v2 close window entries at the expected path", async () => {
+    let calls = 0;
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-21T00:00:00.000Z");
+    const cacheDir = join(
+      tmpDir,
+      "close-windows",
+      "v2",
+      "raw-close",
+      "yahoo-massive",
+      "equity",
+      "spy",
+    );
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(
+      join(cacheDir, "2026-05-19_2026-05-21.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        symbol: "SPY",
+        assetClass: "equity",
+        providerSet: "yahoo-massive",
+        priceMode: "raw-close",
+        from: "2026-05-19",
+        to: "2026-05-21",
+        observations: [{ subject: "SPY", date: "2026-05-19", value: 400 }],
+      }),
+      "utf8",
+    );
+
+    const observations = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, async () => {
+      calls += 1;
+      return [{ subject: "SPY", date: "2026-05-19", value: 500 }];
+    });
+
+    expect(observations).toEqual([{ subject: "SPY", date: "2026-05-19", value: 500 }]);
+    expect(calls).toBe(1);
   });
 
   test("does not cache empty close windows", async () => {

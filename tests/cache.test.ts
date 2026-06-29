@@ -283,7 +283,7 @@ describe("withCache", () => {
     }
   });
 
-  test("invalid cache metadata returns a SourceGap", async () => {
+  test("invalid cache metadata falls through to a live fetch and emits an audit gap", async () => {
     const url = "https://example.test/api";
     const sha = await cacheKey(url, "test-adapter");
     mkdirSync(join(tmpDir, today), { recursive: true });
@@ -298,15 +298,21 @@ describe("withCache", () => {
       }),
     );
 
-    const result = await withCache(
-      async () => makeFetchResult({ value: 1 }, "test-adapter"),
-      makeOptions(tmpDir),
-    )(request(url));
+    let calls = 0;
+    const opts = makeOptions(tmpDir);
+    const result = await withCache(async () => {
+      calls += 1;
+      return makeFetchResult({ value: 1 }, "test-adapter");
+    }, opts)(request(url));
 
-    expect("source" in result).toBe(true);
-    if ("source" in result) {
-      expect(result.message).toContain("metadata");
+    expect(calls).toBe(1);
+    expect("rawSnapshot" in result).toBe(true);
+    if ("rawSnapshot" in result) {
+      expect(result.payload).toEqual({ value: 1 });
+      expect(result.rawSnapshot.cacheStatus).toBeUndefined();
     }
+    expect(opts.staleFallbackGaps).toHaveLength(1);
+    expect(opts.staleFallbackGaps[0]?.message).toContain("metadata");
   });
 
   test("invalid cached payload shape returns a SourceGap", async () => {

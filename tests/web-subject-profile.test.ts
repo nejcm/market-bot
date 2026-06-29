@@ -91,6 +91,60 @@ describe("buildWebSubjectProfileEvidence", () => {
     ]);
   });
 
+  test("accepts answers that cite SEC filing sources alongside web sources", () => {
+    const secTenK: Source = {
+      id: "extended-sec-edgar-aapl-10k",
+      title: "AAPL SEC 10-K",
+      fetchedAt: "2026-05-19T00:00:00.000Z",
+      kind: "extended-evidence",
+      assetClass: "equity",
+      symbol: "AAPL",
+      provider: "sec-edgar",
+    };
+    const secTenQ: Source = {
+      ...secTenK,
+      id: "extended-sec-edgar-aapl-10q",
+      title: "AAPL SEC 10-Q",
+    };
+    const secAnswer = {
+      answer: "Hardware drove the majority of revenue per the 10-K MDA.",
+      sourceIds: [secTenK.id, secTenQ.id],
+    };
+    const webAnswer = { answer: "Apple sells devices and services.", sourceIds: [webSource.id] };
+    const modelContent = JSON.stringify({
+      companyName: "Apple Inc.",
+      subjectSummary: webAnswer,
+      questions: {
+        whatItDoes: webAnswer,
+        howItMakesMoney: secAnswer,
+        customers: webAnswer,
+        geography: secAnswer,
+        purchaseRecurrence: webAnswer,
+        pricingPower: secAnswer,
+        recessionCyclicality: secAnswer,
+        managementTrackRecord: webAnswer,
+        capitalAllocation: webAnswer,
+        companyKpis: webAnswer,
+        riskFactors: secAnswer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: "Hardware is the largest segment.", sourceIds: [secTenK.id] }],
+      openGaps: [],
+    });
+
+    const result = buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      modelContent,
+      webSources: [webSource, secTenK, secTenQ],
+      extendedEvidence: undefined,
+    });
+
+    expect(result.sourceGaps).toEqual([]);
+    expect(result.artifact?.sourceIds).toEqual([webSource.id, secTenK.id, secTenQ.id].toSorted());
+  });
+
   test("rejects uncited facts and returns an empty profile with a gap", () => {
     const result = buildWebSubjectProfileEvidence({
       command,

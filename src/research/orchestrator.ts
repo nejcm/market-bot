@@ -70,6 +70,7 @@ import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
 import {
   buildWebSubjectProfileEvidence,
   buildWebSubjectProfileFailureEvidence,
+  isCompanyProfileSecSource,
   webSubjectProfileSubjectForCommand,
 } from "../sources/extended-evidence/web-subject-profile";
 import {
@@ -396,7 +397,17 @@ async function runWebSubjectProfileExtraction(input: {
     (source) => source.kind === "web",
   );
   const subject = webSubjectProfileSubjectForCommand(input.jobInput.command);
-  if (subject === undefined || webSources.length === 0) {
+  if (subject === undefined) {
+    return { collectedSources: input.collectedSources };
+  }
+  // Company profiles may cite SEC 10-K/10-Q filing text (high-trust primary)
+  // Alongside gathered web Sources, so include them in the allowed-source set.
+  const secSources =
+    subject.subjectKind === "company"
+      ? input.collectedSources.extendedSources.filter(isCompanyProfileSecSource)
+      : [];
+  const allowedSources = [...webSources, ...secSources];
+  if (allowedSources.length === 0) {
     return { collectedSources: input.collectedSources };
   }
   try {
@@ -412,7 +423,7 @@ async function runWebSubjectProfileExtraction(input: {
       subject,
       generatedAt: input.generatedAt,
       modelContent: output.content,
-      webSources,
+      webSources: allowedSources,
       extendedEvidence: input.collectedSources.extendedEvidence,
       ...(subject.subjectKind === "company" && input.secFilingBasisDate !== undefined
         ? { secFilingBasisDate: input.secFilingBasisDate }

@@ -2195,6 +2195,48 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(sources[0]!.snippet).toBe("Apple has recurring purchases.");
   });
 
+  test("company profile prompt sees SEC filing sources with model-visible text", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const webSource = {
+      id: "web-1",
+      title: "Apple analysis",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple sells services.",
+      snippet: "Apple has recurring purchases.",
+    };
+    const secSource = {
+      id: "extended-sec-edgar-aapl-10k",
+      title: "AAPL SEC 10-K",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "extended-evidence" as const,
+      provider: "sec-edgar" as const,
+      summary: "10-K filed 2026-02-01 for period 2025-12-31.",
+      snippet: "ITEM 7 MANAGEMENT discussion of results.",
+    };
+    const profileEvidence = evidenceFor(
+      command,
+      { extendedSources: [webSource, secSource] },
+      "web-subject-profile",
+    );
+    const profileSources = profileEvidence.webSources as readonly Record<string, unknown>[];
+    const sec = profileSources.find((source) => source.id === "extended-sec-edgar-aapl-10k");
+    expect(sec).toBeDefined();
+    expect(sec!.snippet).toBe("ITEM 7 MANAGEMENT discussion of results.");
+
+    // SEC sources are not projected into the webSources list for other stages.
+    const synthesisEvidence = evidenceFor(command, { extendedSources: [webSource, secSource] });
+    const synthesisSources = synthesisEvidence.webSources as readonly Record<string, unknown>[];
+    expect(synthesisSources.some((source) => source.id === "extended-sec-edgar-aapl-10k")).toBe(
+      false,
+    );
+  });
+
   test("research theme prompts receive web text only for profile extraction and retain the profile", () => {
     const command: ResearchCommand = {
       jobType: "research",

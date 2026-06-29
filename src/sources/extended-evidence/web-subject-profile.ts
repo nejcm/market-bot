@@ -150,6 +150,13 @@ export function normalizedSubjectId(subject: string): string {
   return `${normalized === "" ? "subject" : normalized}-${digest}`;
 }
 
+// SEC filing Sources (10-K/10-Q text) are high-trust primary evidence that the
+// Company Web Subject Profile may cite alongside gathered web Sources. They live
+// In `extendedSources` with provider `sec-edgar`.
+export function isCompanyProfileSecSource(source: Source): boolean {
+  return source.kind === "extended-evidence" && source.provider === "sec-edgar";
+}
+
 export function subjectKindForCommand(command: ResearchCommand): SubjectKind | undefined {
   if (isInstrumentCommand(command)) {
     if (command.assetClass === "equity") {

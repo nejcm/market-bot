@@ -7,6 +7,7 @@ import { marketUpdateHorizonOf } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
 import {
+  isCompanyProfileSecSource,
   subjectKindForCommand,
   webSubjectProfileRequiredShape,
 } from "../sources/extended-evidence/web-subject-profile";
@@ -215,13 +216,22 @@ const projectResolvedInstrumentIdentity: EvidenceProjector = (_stage, _command, 
     : {};
 
 const projectWebSources: EvidenceProjector = (stage, command, collectedSources) => {
-  if (subjectKindForCommand(command) === undefined) {
+  const subjectKind = subjectKindForCommand(command);
+  if (subjectKind === undefined) {
     return {};
   }
   const includeModelVisibleText = stage === "web-subject-profile";
+  // The company profile stage may cite SEC 10-K/10-Q filing text alongside web
+  // Sources, so surface their model-visible snippet/summary here too. SEC text is
+  // High-trust primary (normalized at fetch time), not the untrusted web content
+  // The stage prompt warns about.
+  const includeSecSources = includeModelVisibleText && subjectKind === "company";
   return {
     webSources: collectedSources.extendedSources
-      .filter((source) => source.kind === "web")
+      .filter(
+        (source) =>
+          source.kind === "web" || (includeSecSources && isCompanyProfileSecSource(source)),
+      )
       .map((source) => ({
         id: source.id,
         title: source.title,

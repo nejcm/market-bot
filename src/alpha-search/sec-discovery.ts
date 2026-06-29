@@ -1,4 +1,3 @@
-import type { AlphaSearchCandidate, AlphaSearchSecFiling } from "./candidates";
 import { LISTED_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
@@ -9,6 +8,7 @@ import {
   type RawSourceSnapshot,
   type SourceRequestExecutor,
 } from "../sources/types";
+import type { AlphaSearchCandidate, AlphaSearchSecFiling } from "./candidates";
 
 const SEC_CURRENT_FILINGS_URL = "https://www.sec.gov/cgi-bin/browse-edgar";
 const CIK_RE = /\bCIK(?:=|:)?\s*0*(\d{1,10})\b/iu;

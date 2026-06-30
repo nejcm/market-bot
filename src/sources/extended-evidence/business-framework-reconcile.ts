@@ -36,6 +36,16 @@ function gapCode(gap: BusinessFrameworkGapValue): BusinessFrameworkGapCode | und
   return typeof gap === "string" ? undefined : gap.code;
 }
 
+// Non-answer phrasing the model uses when a disclosure is absent. A cited
+// "Not disclosed" carries sourceIds but is not substantive evidence, so it must
+// Not clear its mapped Business Framework gap.
+const NON_ANSWER_RE =
+  /^(not\s+disclosed|undisclosed|no\s+disclosure|not\s+quantified|not\s+available)\b/iu;
+
+function isNonAnswer(text: string): boolean {
+  return NON_ANSWER_RE.test(text.trim());
+}
+
 function citedAnswer(
   profile: WebSubjectProfileArtifact,
   question: WebSubjectProfileCompanyQuestionKey,
@@ -44,7 +54,10 @@ function citedAnswer(
     return [];
   }
   const answer = profile.questions[question];
-  return answer !== undefined && answer.answer !== "" ? answer.sourceIds : [];
+  if (answer === undefined || answer.answer === "" || isNonAnswer(answer.answer)) {
+    return [];
+  }
+  return answer.sourceIds;
 }
 
 export function reconcileBusinessFramework(

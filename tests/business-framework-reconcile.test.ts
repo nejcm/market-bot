@@ -146,6 +146,19 @@ describe("reconcileBusinessFramework", () => {
     expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("kpis");
   });
 
+  test("a cited non-answer does not clear its Business Framework gap", () => {
+    const profile = companyProfile({
+      howItMakesMoney: { answer: "Not disclosed in cited filings.", sourceIds: ["segment"] },
+    });
+    const result = reconcileBusinessFramework(framework(), profile);
+
+    expect(result.artifact.gaps).toContain(gap("segment-mix"));
+    expect(result.artifact.reconciliation?.resolvedGaps).not.toContain("segment-mix");
+    expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("segment");
+    // Substantive answers still clear their own gaps.
+    expect(result.artifact.reconciliation?.resolvedGaps).toContain("customer-concentration");
+  });
+
   test("removes a resolved code from every section", () => {
     const gaps = [gap("segment-mix"), gap("analyst-consensus")];
     const result = reconcileBusinessFramework(framework(gaps), companyProfile());

@@ -146,6 +146,29 @@ describe("createAnthropicProvider", () => {
     });
   });
 
+  test("enables server web search when requested", async () => {
+    const requests: Request[] = [];
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      requests.push(new Request(input, init));
+      return Response.json({ content: [{ type: "text", text: "Search-grounded answer" }] });
+    };
+
+    const provider = createAnthropicProvider(baseConfig, fetchImpl);
+    const response = await provider.generate({
+      model: "claude-sonnet-4-6",
+      webSearch: true,
+      messages: [{ role: "user", content: "Find current context." }],
+    });
+
+    expect(response.content).toBe("Search-grounded answer");
+    await expect(requests[0]?.json()).resolves.toMatchObject({
+      tools: [{ type: "web_search_20260318", name: "web_search" }],
+    });
+  });
+
   test("rounds fallback token estimate when usage is absent", async () => {
     const provider = createAnthropicProvider(baseConfig, okWithoutUsageFetch);
     const response = await provider.generate({

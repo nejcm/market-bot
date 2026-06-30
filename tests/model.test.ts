@@ -128,6 +128,79 @@ describe("createOpenAIProvider", () => {
     expect(urls).toEqual(["http://localhost:11434/v1/chat/completions"]);
   });
 
+  test("uses Responses web search when requested", async () => {
+    const requests: Request[] = [];
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      requests.push(new Request(input, init));
+      return Response.json({
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Search-grounded answer" }],
+          },
+        ],
+        usage: { total_tokens: 21 },
+      });
+    };
+    const provider = createOpenAIProvider(
+      {
+        provider: "openai",
+        apiKey: "test-key",
+        quickModel: "quick",
+        synthesisModel: "synthesis",
+        modelTimeoutMs: 120_000,
+        dataDir: "data/runs",
+        promptDir: "prompts",
+        sourceOptions: {
+          equityMoverLimit: 5,
+          cryptoMoverLimit: 5,
+          newsLimit: 8,
+          sourceTimeoutMs: 1000,
+        },
+        evidenceRequestOptions: {
+          maxRounds: 0,
+          maxToolCalls: 0,
+          sourceBudget: 0,
+        },
+        webGatherOptions,
+        webGatherDisabled: false,
+        webProfileReuseDaysBySubjectKind: { company: 30, "crypto-asset": 7, theme: 7 },
+        alphaSearchOptions,
+      },
+      fetchImpl,
+    );
+
+    const response = await provider.generate({
+      model: "synthesis",
+      webSearch: true,
+      messages: [
+        { role: "system", content: "Cite sources." },
+        { role: "user", content: "Find current context." },
+      ],
+      params: { max_completion_tokens: 512, reasoningEffort: "medium" },
+    });
+
+    expect(response).toEqual({
+      content: "Search-grounded answer",
+      tokenEstimate: 21,
+      costEstimateUsd: 0,
+    });
+    expect(String(requests[0]?.url)).toBe("https://api.openai.com/v1/responses");
+    await expect(requests[0]?.json()).resolves.toMatchObject({
+      model: "synthesis",
+      input: [
+        { role: "system", content: "Cite sources." },
+        { role: "user", content: "Find current context." },
+      ],
+      tools: [{ type: "web_search" }],
+      max_output_tokens: 512,
+      reasoning: { effort: "medium" },
+    });
+  });
+
   test("spreads ModelParams into request body when set", async () => {
     const requests: Request[] = [];
     const fetchImpl = async (

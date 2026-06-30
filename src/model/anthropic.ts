@@ -3,6 +3,7 @@ import type { ModelMessage, ModelProvider, ModelRequest, ModelResponse } from ".
 
 const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION = "2023-06-01";
+const ANTHROPIC_WEB_SEARCH_TOOL_TYPE = "web_search_20260318";
 const DEFAULT_MAX_TOKENS = 16_384;
 const JSON_INSTRUCTION =
   "IMPORTANT: Respond with a valid JSON object only. No prose, no markdown, no code fences.";
@@ -115,6 +116,9 @@ export function createAnthropicProvider(
           max_tokens: request.params?.max_completion_tokens ?? DEFAULT_MAX_TOKENS,
           ...(system !== undefined ? { system } : {}),
           messages,
+          ...(request.webSearch === true
+            ? { tools: [{ type: ANTHROPIC_WEB_SEARCH_TOOL_TYPE, name: "web_search" }] }
+            : {}),
           ...(request.params?.reasoningEffort !== undefined
             ? { output_config: { effort: request.params.reasoningEffort } }
             : {}),

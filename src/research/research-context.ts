@@ -678,7 +678,7 @@ export function buildSpotlightSelectionPrompt(
 // For deep instrument runs, enumerates distinct forecast shapes the
 // Deterministic context supports so the model considers each before stopping.
 // This is a soft nudge, not a hard gate — a below-target result still ships
-// Via ADR 0021's predictionShortfall disclosure.
+// Via ADR 0004's predictionShortfall disclosure.
 // ---------------------------------------------------------------------------
 
 function buildForecastDiversityGuidance(

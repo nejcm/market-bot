@@ -77,7 +77,7 @@ A public market quantity value used to resolve a Prediction. An Observation can 
 
 ## Prediction
 
-- `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event. The public `claim` is rendered from `measurableAs`, not model-authored ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)). Depth profiles set a soft `targetPredictions` count; below-target runs disclose `predictionShortfall` rather than padding ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)).
+- `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event. The public `claim` is rendered from `measurableAs`, not model-authored ([ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md)). Depth profiles set a soft `targetPredictions` count; below-target runs disclose `predictionShortfall` rather than padding ([ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md)).
 
 ## Prediction Trim
 

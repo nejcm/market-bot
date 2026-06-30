@@ -18,7 +18,7 @@ export interface DepthProfile {
   readonly analystStyle: "concise brief" | "fuller analyst-style";
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
-  /** Soft target for the prediction count, not a hard floor (ADR 0021). A run may
+  /** Soft target for the prediction count, not a hard floor (ADR 0004). A run may
    * emit fewer when the evidence does not support a directional lean; the shortfall
    * is disclosed as a data gap rather than padded with coin-flip predictions. */
   readonly targetPredictions: number;

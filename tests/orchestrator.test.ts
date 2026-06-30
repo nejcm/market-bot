@@ -3233,7 +3233,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    // The count is a soft target (ADR 0021); a clean below-target result ships unrepaired.
+    // The count is a soft target (ADR 0004); a clean below-target result ships unrepaired.
     expect(prompts.filter((prompt) => prompt.stage === "final-synthesis")).toHaveLength(1);
     expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
     expect(result.report.predictions).toHaveLength(0);
@@ -3732,7 +3732,7 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
 
-    // Clean below-target: no redundancy → no replacement retry (ADR 0021).
+    // Clean below-target: no redundancy → no replacement retry (ADR 0004).
     expect(finalPrompts).toHaveLength(1);
     expect(result.trace.predictionReplacementAttempted).toBeUndefined();
     expect(result.report.predictions).toHaveLength(1);
@@ -4020,7 +4020,7 @@ describe("runResearchJob", () => {
     expect(reportRetryPrompt.predictionRepromptErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",
     );
-    // The validation error keeps the reprompt alive; a count shortfall never does (ADR 0021).
+    // The validation error keeps the reprompt alive; a count shortfall never does (ADR 0004).
     expect(
       (reportRetryPrompt.predictionRepromptErrors as readonly string[] | undefined)?.some(
         (reason) => reason.includes("predictionShortfall"),

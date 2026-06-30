@@ -77,7 +77,7 @@ export async function synthesizeReportUntilValid(
   /*
    * After hard-error retries settle, check whether a redundant trim dropped the
    * prediction count below target. If so, fire exactly one replacement attempt
-   * through the existing predictionRepair path (ADR 0021 carve-out).
+   * through the existing predictionRepair path (ADR 0004 carve-out).
    */
   const replacementResult = await runRedundantTrimReplacement(input, predictionProgress);
   let reportValidationErrors: readonly string[] = [];
@@ -147,7 +147,7 @@ async function runPredictionReprompts(
     async (progressPromise) => {
       const progress = await progressPromise;
       /*
-       * The prediction count is a soft target (ADR 0021), not a hard floor: a
+       * The prediction count is a soft target (ADR 0004), not a hard floor: a
        * below-target result is disclosed as a predictionShortfall data gap during
        * report assembly, never repaired by reprompting for more. Prediction trims
        * are telemetry, not retryable validation errors.
@@ -194,7 +194,7 @@ interface RedundantTrimReplacementResult {
  * After hard-error retries settle, fire at most one replacement attempt when a
  * redundant trim dropped the emitted prediction count below targetPredictions.
  *
- * Rules (ADR 0021 carve-out):
+ * Rules (ADR 0004 carve-out):
  * - At most one attempt — separate from maxPredictionReprompts (hard errors).
  * - Redundant trim warnings are passed as predictionErrors to trigger the
  *   existing buildPredictionRepairInstruction guidance.

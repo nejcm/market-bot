@@ -488,7 +488,7 @@ function evidenceRequestShape(): Record<string, unknown> {
   return {
     requests: [
       {
-        tool: "sec_latest_filing|tradier_iv_term_structure",
+        tool: "tradier_iv_term_structure",
         args: { symbol: "run symbol only" },
         rationale: "string",
       },

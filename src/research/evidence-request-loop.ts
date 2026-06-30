@@ -10,7 +10,6 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
-import { isUsListing } from "../sources/instrument-capability";
 import { isRecord } from "../sources/guards";
 import {
   availableEvidenceRequestTools,
@@ -98,34 +97,47 @@ export async function runEvidenceRequestLoop(
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
+  const toolContext =
+    input.collectedSources.resolvedInstrumentIdentity !== undefined
+      ? {
+          ...collectContext.context,
+          instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
+        }
+      : collectContext.context;
+
+  // Deterministic SEC filing retrieval. Mandatory 10-K (and 10-Q when metadata
+  // Lists one after the 10-K) retrieval is not at model discretion; it runs
+  // Before the optional tool loop so the SEC-first evidence path is always
+  // Seeded. The collector emits its own unsupported-coverage gap for non-US
+  // Listings, so the loop no longer needs to synthesize one.
+  let { collectedSources } = input;
+  const secOutput = await withStaleFallbackGaps(collectContext, () =>
+    executeEvidenceRequestTool("sec_latest_filing", toolContext),
+  );
+  collectedSources = mergeToolOutput(command, collectedSources, secOutput);
+  const secExecutedTools: readonly EvidenceRequestToolName[] =
+    secOutput.sources.length > 0 ? ["sec_latest_filing"] : [];
+  const { gaps: secEmittedGaps } = secOutput;
+
   const availableTools = availableEvidenceRequestTools(
     collectContext.context,
     input.collectedSources.resolvedInstrumentIdentity,
   );
   if (availableTools.length === 0) {
-    // The loop is enabled only for deep equity tickers; an empty tool set here means
-    // The instrument is a non-US listing (US equity always exposes sec_latest_filing).
-    // Emit one deterministic unsupported-coverage gap so the skip is observable.
-    if (
-      isInstrumentCommand(command) &&
-      command.assetClass === "equity" &&
-      !isUsListing(command.symbol, input.collectedSources.resolvedInstrumentIdentity)
-    ) {
-      const skipGap = extendedEvidenceGap(
-        sourceGap({
-          source: "evidence-request",
-          message: `evidence-request: no applicable tools for ${command.symbol} (non-US listing)`,
-          capability: "evidence-request",
-          cause: "unsupported-coverage",
-          evidenceQualityImpact: "extended-evidence-cap",
-        }),
-      );
-      return {
-        collectedSources: mergeGaps(command, input.collectedSources, [skipGap]),
-        stageOutputs: [],
-      };
-    }
-    return { collectedSources: input.collectedSources, stageOutputs: [] };
+    // No optional tools (e.g., Tradier not configured). SEC retrieval is already
+    // Done; the optional model-driven loop is skipped without a model round.
+    return {
+      collectedSources,
+      stageOutputs: [],
+      audit: {
+        rounds: 0,
+        acceptedRequests: [],
+        rejectedRequests: [],
+        sourceUnitsUsed: 0,
+        executedTools: secExecutedTools,
+        emittedGaps: secEmittedGaps,
+      },
+    };
   }
 
   // The adapter owns cross-round duplicate tracking; the generic loop only owns budgets.
@@ -139,7 +151,7 @@ export async function runEvidenceRequestLoop(
     EvidenceRequestAuditEntry
   >({
     options: input.config.evidenceRequestOptions,
-    initialState: input.collectedSources,
+    initialState: collectedSources,
     invalidJsonMessage: "Evidence request stage returned invalid JSON",
     invalidShapeMessage: "Evidence request stage must return JSON object with requests array",
     malformedGap: evidenceRequestMalformedGap,
@@ -172,13 +184,6 @@ export async function runEvidenceRequestLoop(
       ),
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
-      const toolContext =
-        input.collectedSources.resolvedInstrumentIdentity !== undefined
-          ? {
-              ...collectContext.context,
-              instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
-            }
-          : collectContext.context;
       const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
         executeEvidenceRequestTool(request.tool, toolContext),
       );
@@ -192,7 +197,11 @@ export async function runEvidenceRequestLoop(
   return {
     collectedSources: loop.state,
     stageOutputs: loop.stageOutputs,
-    audit: loop.audit,
+    audit: {
+      ...loop.audit,
+      executedTools: [...secExecutedTools, ...loop.audit.executedTools],
+      emittedGaps: [...secEmittedGaps, ...loop.audit.emittedGaps],
+    },
   };
 }
 

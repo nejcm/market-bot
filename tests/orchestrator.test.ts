@@ -256,6 +256,10 @@ function secEvidenceFetch(input: string | URL | Request): Promise<Response> {
   return Promise.resolve(new Response("not found", { status: 404 }));
 }
 
+function secFetchUnavailable(_input: string | URL | Request): Promise<Response> {
+  return Promise.resolve(new Response("not found", { status: 404 }));
+}
+
 describe("runResearchJob", () => {
   test("uses resolved run models and model params for provider calls and trace", async () => {
     const requests: { readonly model: string; readonly params: unknown }[] = [];
@@ -496,7 +500,10 @@ describe("runResearchJob", () => {
 
     const result = await runResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
-      config: evidenceConfig,
+      config: {
+        ...evidenceConfig,
+        sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
+      },
       provider,
       collectedSources: collectedSourceBundle({
         rawSnapshots: [],
@@ -504,6 +511,7 @@ describe("runResearchJob", () => {
         newsSources,
         sourceGaps: [],
       }),
+      sourceFetchImpl: secFetchUnavailable,
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -522,7 +530,7 @@ describe("runResearchJob", () => {
     expect(calls[0]?.prompt.requiredShape).toEqual({
       requests: [
         {
-          tool: "sec_latest_filing|tradier_iv_term_structure",
+          tool: "tradier_iv_term_structure",
           args: { symbol: "run symbol only" },
           rationale: "string",
         },
@@ -537,7 +545,7 @@ describe("runResearchJob", () => {
         }
       | undefined;
     expect(evidenceRequestPrompt?.evidenceRequest).toMatchObject({
-      availableTools: ["sec_latest_filing"],
+      availableTools: ["tradier_iv_term_structure"],
       toolUnits: { sec_latest_filing: 5, tradier_iv_term_structure: 5 },
     });
     expect(result.trace.stages).toEqual([
@@ -593,7 +601,11 @@ describe("runResearchJob", () => {
 
     const result = await runResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
-      config: { ...evidenceConfig, dataDir },
+      config: {
+        ...evidenceConfig,
+        dataDir,
+        sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
+      },
       provider,
       collectedSources: collectedSourceBundle({
         rawSnapshots: [],
@@ -601,6 +613,7 @@ describe("runResearchJob", () => {
         newsSources,
         sourceGaps: [],
       }),
+      sourceFetchImpl: secEvidenceFetch,
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const evidencePrompt = prompts[0] as {
@@ -791,7 +804,7 @@ describe("runResearchJob", () => {
     expect(result.markdown).toContain("## Market Spotlights");
   });
 
-  test("merges accepted evidence tool output before specialist analysis", async () => {
+  test("merges deterministic SEC evidence output before specialist analysis", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -799,18 +812,7 @@ describe("runResearchJob", () => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
         return {
-          content:
-            prompt.stage === "evidence-request"
-              ? JSON.stringify({
-                  requests: [
-                    {
-                      tool: "sec_latest_filing",
-                      args: { symbol: "AAPL" },
-                      rationale: "latest periodic filing",
-                    },
-                  ],
-                })
-              : modelReport("AAPL", "extended-sec-edgar-aapl-10q"),
+          content: modelReport("AAPL", "extended-sec-edgar-aapl-10q"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
         };
@@ -855,8 +857,9 @@ describe("runResearchJob", () => {
     expect(result.report.sources.map((source) => source.id)).toContain(
       "extended-sec-edgar-aapl-10q",
     );
-    expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
-    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(5);
+    expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(0);
+    expect(result.trace.evidenceRequestLoop?.sourceUnitsUsed).toBe(0);
+    expect(result.trace.evidenceRequestLoop?.executedTools).toEqual(["sec_latest_filing"]);
   });
 
   test("selects playbooks after evidence request and injects them downstream", async () => {
@@ -866,21 +869,6 @@ describe("runResearchJob", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
-        if (prompt.stage === "evidence-request") {
-          return {
-            content: JSON.stringify({
-              requests: [
-                {
-                  tool: "sec_latest_filing",
-                  args: { symbol: "AAPL" },
-                  rationale: "latest filing",
-                },
-              ],
-            }),
-            tokenEstimate: 100,
-            costEstimateUsd: 0.01,
-          };
-        }
         if (prompt.stage === "playbook-selection") {
           return {
             content: JSON.stringify({
@@ -1110,12 +1098,15 @@ describe("runResearchJob", () => {
             prompt.stage === "evidence-request"
               ? JSON.stringify({
                   requests: [
-                    { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
-                    { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "repeat" },
                     {
                       tool: "tradier_iv_term_structure",
                       args: { symbol: "AAPL" },
                       rationale: "term structure",
+                    },
+                    {
+                      tool: "tradier_iv_term_structure",
+                      args: { symbol: "AAPL" },
+                      rationale: "repeat",
                     },
                     { tool: "private_account", args: { symbol: "AAPL" }, rationale: "bad" },
                   ],
@@ -1148,11 +1139,7 @@ describe("runResearchJob", () => {
 
     expect(result.trace.evidenceRequestLoop?.acceptedRequests).toHaveLength(1);
     expect(result.trace.evidenceRequestLoop?.rejectedRequests.map((entry) => entry.reason)).toEqual(
-      [
-        "duplicate evidence request",
-        "evidence request source budget exceeded",
-        "tool is not an allowed public evidence request tool",
-      ],
+      ["duplicate evidence request", "tool is not an allowed public evidence request tool"],
     );
     expect(result.trace.evidenceRequestLoop?.emittedGaps.map((gap) => gap.message)).toContain(
       "private_account: tool is not an allowed public evidence request tool",
@@ -1170,7 +1157,7 @@ describe("runResearchJob", () => {
               ? JSON.stringify({
                   requests: [
                     {
-                      tool: "sec_latest_filing",
+                      tool: "tradier_iv_term_structure",
                       args: { symbol: "MSFT" },
                       rationale: "wrong symbol",
                     },
@@ -1187,6 +1174,7 @@ describe("runResearchJob", () => {
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...evidenceConfig,
+        sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
         evidenceRequestOptions: { ...evidenceConfig.evidenceRequestOptions, maxRounds: 1 },
       },
       provider,
@@ -1196,13 +1184,14 @@ describe("runResearchJob", () => {
         newsSources,
         sourceGaps: [],
       }),
+      sourceFetchImpl: secEvidenceFetch,
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
     expect(result.trace.evidenceRequestLoop?.acceptedRequests).toEqual([]);
     expect(result.trace.evidenceRequestLoop?.rejectedRequests).toEqual([
       expect.objectContaining({
-        tool: "sec_latest_filing",
+        tool: "tradier_iv_term_structure",
         args: { symbol: "MSFT" },
         reason: "requested symbol must match run symbol",
         status: "rejected",
@@ -1211,7 +1200,7 @@ describe("runResearchJob", () => {
     expect(result.trace.evidenceRequestLoop?.emittedGaps).toContainEqual(
       expect.objectContaining({
         source: "evidence-request",
-        message: "sec_latest_filing: requested symbol must match run symbol",
+        message: "tradier_iv_term_structure: requested symbol must match run symbol",
       }),
     );
   });
@@ -1227,7 +1216,11 @@ describe("runResearchJob", () => {
           return {
             content: JSON.stringify({
               requests: [
-                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
+                {
+                  tool: "tradier_iv_term_structure",
+                  args: { symbol: "AAPL" },
+                  rationale: "term structure",
+                },
               ],
             }),
             tokenEstimate: 100,
@@ -1240,7 +1233,10 @@ describe("runResearchJob", () => {
 
     const result = await runResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
-      config: evidenceConfig,
+      config: {
+        ...evidenceConfig,
+        sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
+      },
       provider,
       collectedSources: collectedSourceBundle({
         rawSnapshots: [],
@@ -1278,7 +1274,10 @@ describe("runResearchJob", () => {
 
     const result = await runResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
-      config: evidenceConfig,
+      config: {
+        ...evidenceConfig,
+        sourceOptions: { ...evidenceConfig.sourceOptions, tradierApiToken: "tradier-token" },
+      },
       provider,
       collectedSources: collectedSourceBundle({
         rawSnapshots: [],
@@ -1286,6 +1285,7 @@ describe("runResearchJob", () => {
         newsSources,
         sourceGaps: [],
       }),
+      sourceFetchImpl: secEvidenceFetch,
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
@@ -2246,17 +2246,6 @@ describe("runResearchJob", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
-        if (prompt.stage === "evidence-request") {
-          return {
-            content: JSON.stringify({
-              requests: [
-                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
-              ],
-            }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         if (prompt.stage === "web-subject-profile") {
           const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
           const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
@@ -2462,17 +2451,6 @@ describe("runResearchJob", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
-        if (prompt.stage === "evidence-request") {
-          return {
-            content: JSON.stringify({
-              requests: [
-                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
-              ],
-            }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         if (prompt.stage === "web-gather" || prompt.stage === "web-subject-profile") {
           throw new Error(`unexpected ${String(prompt.stage)}`);
         }
@@ -2593,17 +2571,6 @@ describe("runResearchJob", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
-        if (prompt.stage === "evidence-request") {
-          return {
-            content: JSON.stringify({
-              requests: [
-                { tool: "sec_latest_filing", args: { symbol: "AAPL" }, rationale: "filing" },
-              ],
-            }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         if (prompt.stage === "web-gather") {
           throw new Error(`unexpected ${String(prompt.stage)}`);
         }

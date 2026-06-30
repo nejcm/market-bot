@@ -8,4 +8,4 @@ Review the supplied evidence, source gaps, available tools, and budgets. Request
 
 ## goal
 
-Emit bounded evidence requests as `{"requests":[{"tool":"sec_latest_filing","args":{"symbol":"AAPL"},"rationale":"why this public evidence helps"}]}` or `{"requests":[]}`.
+Emit bounded evidence requests as `{"requests":[{"tool":"tradier_iv_term_structure","args":{"symbol":"AAPL"},"rationale":"why this public evidence helps"}]}` or `{"requests":[]}`.

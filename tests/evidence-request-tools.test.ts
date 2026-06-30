@@ -268,7 +268,7 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.rawSnapshots).toHaveLength(4);
   });
 
-  test("returns the 10-K with a disclosure gap when no 10-Q exists", async () => {
+  test("marks quarterly coverage not-applicable when no 10-Q follows the 10-K", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -284,11 +284,11 @@ describe("SEC latest filing evidence tool", () => {
 
     expect(result.sources).toHaveLength(1);
     expect(result.sources[0]?.id).toBe("extended-sec-edgar-aapl-10k");
-    expect(result.gaps).toHaveLength(1);
-    expect(result.gaps[0]?.message).toContain("No current-year 10-Q");
+    // No 10-Q after the 10-K means quarterly coverage is not-applicable, not missing.
+    expect(result.gaps).toEqual([]);
   });
 
-  test("treats a 10-Q before the latest 10-K basis as missing current-year coverage", async () => {
+  test("treats a 10-Q before the latest 10-K basis as not-applicable quarterly coverage", async () => {
     const submissions = {
       filings: {
         recent: {
@@ -316,8 +316,8 @@ describe("SEC latest filing evidence tool", () => {
 
     expect(result.sources.map((source) => source.id)).toEqual(["extended-sec-edgar-aapl-10k"]);
     expect(result.sources[0]?.url).toContain("/a10k.htm");
-    expect(result.gaps).toHaveLength(1);
-    expect(result.gaps[0]?.message).toContain("No current-year 10-Q");
+    // 10-Q before the 10-K basis → not-applicable quarterly coverage (no gap).
+    expect(result.gaps).toEqual([]);
   });
 
   test("emits fetch failure gap from filing text fetch", async () => {
@@ -405,7 +405,9 @@ describe("Tradier IV term structure evidence tool", () => {
   test("requires Tradier token and marks tool unavailable", async () => {
     const ctx = baseCtx();
 
-    expect(availableEvidenceRequestTools(ctx)).toEqual(["sec_latest_filing"]);
+    // SEC latest filing is deterministic (not model-requestable); without a
+    // Tradier token no optional tools are available.
+    expect(availableEvidenceRequestTools(ctx)).toEqual([]);
     const result = await executeEvidenceRequestTool("tradier_iv_term_structure", ctx);
 
     expect(result.gaps).toEqual([

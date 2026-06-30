@@ -67,10 +67,9 @@ export function availableEvidenceRequestTools(
   if (!isUsListing(ctx.command.symbol, identity)) {
     return [];
   }
-  return [
-    "sec_latest_filing",
-    ...(ctx.tradierApiToken !== undefined ? (["tradier_iv_term_structure"] as const) : []),
-  ];
+  // SEC latest filing is retrieved deterministically (see runEvidenceRequestLoop);
+  // Only optional tools remain at model discretion.
+  return ctx.tradierApiToken !== undefined ? ["tradier_iv_term_structure"] : [];
 }
 
 export async function executeEvidenceRequestTool(
@@ -392,19 +391,8 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     } else {
       gaps.push(tenQText);
     }
-  } else if (tenK !== undefined) {
-    // 10-K present but no current-year 10-Q — add disclosure gap
-    gaps.push(
-      sourceGap({
-        source: "sec-edgar",
-        message: `No current-year 10-Q found for ${command.symbol}; only annual 10-K available`,
-        provider: "sec-edgar",
-        capability: "evidence-request",
-        cause: "provider-data-missing",
-        evidenceQualityImpact: "no-cap",
-      }),
-    );
   }
+  // When the latest 10-K is present but metadata lists no 10-Q after it, quarterly coverage is not-applicable (not a missing gap): the issuer has not filed an interim report since its annual.
 
   if (sources.length === 0) {
     return emptyOutput(gaps, sharedRawSnapshots);

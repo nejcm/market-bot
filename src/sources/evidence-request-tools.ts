@@ -351,7 +351,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
           provider: "sec-edgar",
           capability: "evidence-request",
           cause: "provider-data-missing",
-          evidenceQualityImpact: "extended-evidence-cap",
+          evidenceQualityImpact: "core-cap",
         }),
       ],
       [tickers.rawSnapshot, submissions.rawSnapshot],
@@ -393,6 +393,19 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     }
   }
   // When the latest 10-K is present but metadata lists no 10-Q after it, quarterly coverage is not-applicable (not a missing gap): the issuer has not filed an interim report since its annual.
+  // A missing annual 10-K is an explicit core-cap gap even when a 10-Q exists.
+  if (tenK === undefined && tenQ !== undefined) {
+    gaps.push(
+      sourceGap({
+        source: "sec-edgar",
+        message: `No SEC 10-K filing found for ${command.symbol}; only quarterly 10-Q available`,
+        provider: "sec-edgar",
+        capability: "evidence-request",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "core-cap",
+      }),
+    );
+  }
 
   if (sources.length === 0) {
     return emptyOutput(gaps, sharedRawSnapshots);

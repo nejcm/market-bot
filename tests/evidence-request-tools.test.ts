@@ -115,7 +115,11 @@ describe("SEC latest filing evidence tool", () => {
 
     const result = await executeEvidenceRequestTool("sec_latest_filing", ctx);
 
-    expect(result.gaps).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
+      }),
+    ]);
     expect(result.rawSnapshots).toHaveLength(3);
     expect(result.sources[0]?.url).toContain("/000032019326000077/a10q.htm");
     expect(result.sources[0]?.fetchedAt).toBe(filingTextFetchedAt);
@@ -320,6 +324,39 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps).toEqual([]);
   });
 
+  test("emits an explicit core-cap gap when the 10-K is missing but a 10-Q exists", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-Q"],
+          filingDate: ["2026-05-01"],
+          reportDate: ["2026-03-31"],
+          accessionNumber: ["0000320193-26-000077"],
+          primaryDocument: ["a10q.htm"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ adapter }) =>
+            textResult(adapter, "ITEM 2-MANAGEMENT quarterly discussion"),
+        }),
+      }),
+    );
+
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]?.id).toBe("extended-sec-edgar-aapl-10q");
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0]?.message).toContain("No SEC 10-K filing found");
+    expect(result.gaps[0]?.evidenceQualityImpact).toBe("core-cap");
+  });
+
   test("emits fetch failure gap from filing text fetch", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
@@ -338,6 +375,9 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.rawSnapshots).toHaveLength(2);
     expect(result.gaps).toEqual([
       expect.objectContaining({ source: "sec-filing-text", message: "timeout" }),
+      expect.objectContaining({
+        message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
+      }),
     ]);
   });
 });

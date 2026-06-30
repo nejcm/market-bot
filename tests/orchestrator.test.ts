@@ -1285,19 +1285,19 @@ describe("runResearchJob", () => {
         newsSources,
         sourceGaps: [],
       }),
-      sourceFetchImpl: secEvidenceFetch,
+      sourceFetchImpl: secFetchUnavailable,
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
     expect(result.report.dataGaps).toContain(
       "evidence-request: Evidence request stage returned invalid JSON",
     );
-    expect(result.trace.evidenceRequestLoop?.emittedGaps).toEqual([
+    expect(result.trace.evidenceRequestLoop?.emittedGaps).toContainEqual(
       expect.objectContaining({
         source: "evidence-request",
         message: "Evidence request stage returned invalid JSON",
       }),
-    ]);
+    );
   });
 
   test("skips evidence request loop outside deep equity ticker scope", async () => {

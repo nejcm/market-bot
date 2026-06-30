@@ -272,8 +272,9 @@ Only available for US listings. Requests must match the run symbol.
 ### Web-Gather Loop
 
 Enabled for deep `equity` runs when an Exa key is present and budgets are
-positive. Subject kind = `company`. Searches and fetches must mention the
-company symbol or display name.
+positive. If budgets are positive but the Exa key is absent, the run continues
+degraded and emits a `search-unavailable` `SourceGap`. Subject kind = `company`.
+Searches and fetches must mention the company symbol or display name.
 
 ### Model Stages
 
@@ -322,7 +323,8 @@ match the equity instrument profile, but the profiles are independently owned.
   - No SEC filings, no options IV, no earnings.
 - No verified market snapshot sidecar.
 - No evidence-request loop (`supportsEvidenceRequest: false`).
-- Web-gather loop enabled for deep runs (Exa key + budgets).
+- Web-gather loop enabled for deep runs (Exa key + budgets); positive budgets
+  without an Exa key emit a `search-unavailable` `SourceGap`.
 - Deep crypto runs include the `subject-profile` Source Plan lane for cited Web
   Subject Profile evidence.
 
@@ -393,8 +395,10 @@ as `semis`, `chip stocks`, or `ai infrastructure` to:
 - Extended evidence: same equity lanes as an `equity` run, applied only if a
   proxy or instrument identity resolves.
 - No evidence-request loop.
-- Web-gather loop enabled for deep runs; subject kind = `theme` or `company`
-  depending on the registry entry.
+- Web-gather loop enabled for deep runs when an Exa key is present and budgets
+  are positive; positive budgets without an Exa key emit a `search-unavailable`
+  `SourceGap`. Subject kind = `theme` or `company` depending on the registry
+  entry.
 
 ### Registry Provenance
 

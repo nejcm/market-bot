@@ -120,7 +120,22 @@ const exaFetch: FetchLike = async (input) => {
 };
 
 describe("runWebGatherLoop", () => {
-  test("skips outside enabled deep equity Exa scope", async () => {
+  test("skips outside enabled deep web-gather scope", async () => {
+    const result = await runWebGatherLoop({
+      command: { ...command, depth: "brief" },
+      config,
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => stage({ requests: [] }),
+    });
+
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toEqual([]);
+  });
+
+  test("emits search-unavailable gap when Exa is absent for eligible deep runs", async () => {
     const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
     const result = await runWebGatherLoop({
       command,
@@ -133,6 +148,19 @@ describe("runWebGatherLoop", () => {
 
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped",
+        provider: "exa",
+        capability: "web-gather",
+        cause: "missing-credential",
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
+    );
+    expect(result.collectedSources.extendedEvidence?.gaps).toEqual(
+      result.collectedSources.sourceGaps,
+    );
   });
 
   test("merges accepted web search sources and exposes web gather context", async () => {

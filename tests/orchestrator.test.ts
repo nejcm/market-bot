@@ -2327,7 +2327,10 @@ describe("runResearchJob", () => {
 
     const result = await runResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
-      config: evidenceConfig,
+      config: {
+        ...evidenceConfig,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
       provider,
       collectedSources: collectedSourceBundle({
         rawSnapshots: [],
@@ -2351,6 +2354,13 @@ describe("runResearchJob", () => {
     expect(result.collectedSources.webSubjectProfile?.sourceIds).toEqual([
       "extended-sec-edgar-aapl-10q",
     ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped",
+        cause: "missing-credential",
+      }),
+    );
     expect(result.markdown).toContain("## Web Subject Profile");
     expect(result.markdown).toContain("**Basis:** 10-Q for period 2026-03-31.");
   });

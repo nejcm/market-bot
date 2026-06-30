@@ -130,7 +130,14 @@ const THEME_STOPWORDS = new Set([
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
   if (!isWebGatherLoopEnabled(input.command, input.config)) {
-    return { collectedSources: input.collectedSources, stageOutputs: [] };
+    const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config);
+    return {
+      collectedSources:
+        unavailableGap === undefined
+          ? input.collectedSources
+          : mergeGaps(input.command, input.collectedSources, [unavailableGap]),
+      stageOutputs: [],
+    };
   }
   const { command } = input;
   const surfacedUrls = new Set<string>();
@@ -230,14 +237,41 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
 
 export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
   return (
-    runTypeSupportsWebGather(command.jobType) &&
-    command.depth === "deep" &&
+    isWebGatherScope(command) &&
     config.sourceOptions.exaApiKey !== undefined &&
     !config.webGatherDisabled &&
     config.webGatherOptions.maxRounds > 0 &&
     config.webGatherOptions.maxToolCalls > 0 &&
     config.webGatherOptions.sourceBudget > 0
   );
+}
+
+function isWebGatherScope(command: ResearchCommand): boolean {
+  return runTypeSupportsWebGather(command.jobType) && command.depth === "deep";
+}
+
+function webGatherSearchUnavailableGap(
+  command: ResearchCommand,
+  config: AppConfig,
+): SourceGap | undefined {
+  if (
+    !isWebGatherScope(command) ||
+    config.webGatherDisabled ||
+    config.sourceOptions.exaApiKey !== undefined ||
+    config.webGatherOptions.maxRounds <= 0 ||
+    config.webGatherOptions.maxToolCalls <= 0 ||
+    config.webGatherOptions.sourceBudget <= 0
+  ) {
+    return undefined;
+  }
+  return sourceGap({
+    source: "web-gather",
+    message: "search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped",
+    provider: "exa",
+    capability: "web-gather",
+    cause: "missing-credential",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
 }
 
 export function webGatherSubjectForRun(

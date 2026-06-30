@@ -201,7 +201,24 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
       ({ collectedSources } = webSubjectProfile);
     }
     collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
-  } else if (secOnlyCompanyProfile) {
+  } else {
+    webGatherLoop = await runWebGatherLoop({
+      command: input.command,
+      config: input.config,
+      collectedSources,
+      context: input.context,
+      now: input.now,
+      ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
+      ...(input.retryDelaysMs !== undefined ? { retryDelaysMs: input.retryDelaysMs } : {}),
+      generateRound: (currentSources, roundContext, priorStages) =>
+        input.generateStage("web-gather", currentSources, roundContext, priorStages) as Promise<
+          StageOutput & { readonly stage: "web-gather" }
+        >,
+    });
+    ({ collectedSources } = webGatherLoop);
+  }
+
+  if (!webGatherEnabled && secOnlyCompanyProfile) {
     webSubjectProfile = await runWebSubjectProfileExtraction({
       phaseInput: input,
       collectedSources,

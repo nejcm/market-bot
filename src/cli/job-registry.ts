@@ -1,4 +1,5 @@
 import {
+  runTypeFixedAssetClass,
   runTypeProducesSynthesisReport,
   runTypeSupportsAsset,
   runTypeSupportsDepth,
@@ -176,6 +177,11 @@ function readAssetClass(value: string | undefined): AssetClass {
   throw new Error("Expected assetClass equity|crypto");
 }
 
+function fixedAssetArg(jobType: string): readonly string[] {
+  const assetClass = runTypeFixedAssetClass(jobType);
+  return assetClass === undefined ? [] : ["--asset", assetClass];
+}
+
 function readDepth(value: string | undefined): Depth {
   if (value === undefined || value === "brief") {
     return "brief";
@@ -277,8 +283,7 @@ export function jobRequestArgv(value: unknown): readonly string[] {
   if (jobType === "alpha-search") {
     return [
       "alpha-search",
-      "--asset",
-      "equity",
+      ...fixedAssetArg(jobType),
       ...depthArg(readDepth(readString(value, "depth"))),
     ];
   }

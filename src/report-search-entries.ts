@@ -9,6 +9,8 @@ export const REPORT_SEARCH_SECTIONS = [
   "bearCase",
   "risks",
   "catalysts",
+  "researchLeads",
+  "rejectedCandidates",
   "dataGaps",
   "predictions",
   "sources",
@@ -67,6 +69,8 @@ type FindingSection = "keyFindings" | "bullCase" | "bearCase" | "risks" | "catal
 type ReportSearchInputKey =
   | "summary"
   | FindingSection
+  | "researchLeads"
+  | "rejectedCandidates"
   | "dataGaps"
   | "predictions"
   | "sources"
@@ -348,6 +352,83 @@ function extendedEvidenceCandidates(report: ReportSearchInput): readonly ReportS
   }));
 }
 
+function extrasRecord(report: ReportSearchInput): Record<string, unknown> | undefined {
+  const value = (report as Readonly<Record<string, unknown>>).extras;
+  return isRecord(value) ? value : undefined;
+}
+
+function stringListText(value: unknown): string {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string").join(" ")
+    : "";
+}
+
+function alphaResearchLeadCandidates(report: ReportSearchInput): readonly ReportSearchCandidate[] {
+  const leads = extrasRecord(report)?.researchLeads;
+  if (!Array.isArray(leads)) {
+    return [];
+  }
+  return leads
+    .filter((lead) => isRecord(lead))
+    .flatMap((lead) => {
+      const symbol = readString(lead, "symbol");
+      if (symbol === undefined) {
+        return [];
+      }
+      return [
+        {
+          section: "researchLeads" as const,
+          label: `Research lead ${symbol}`,
+          text: [
+            symbol,
+            readString(lead, "name"),
+            readString(lead, "exchange"),
+            stringListText(lead.discoverySources),
+            readString(lead, "secCompanyName"),
+          ]
+            .filter((part): part is string => part !== undefined && part !== "")
+            .join(" "),
+          sourceIds: readSourceIds(lead),
+          identityId: symbol.toUpperCase(),
+        },
+      ];
+    });
+}
+
+function alphaRejectedCandidateCandidates(
+  report: ReportSearchInput,
+): readonly ReportSearchCandidate[] {
+  const rejected = extrasRecord(report)?.rejectedCandidates;
+  if (!Array.isArray(rejected)) {
+    return [];
+  }
+  return rejected
+    .filter((candidate) => isRecord(candidate))
+    .flatMap((candidate) => {
+      const symbol = readString(candidate, "symbol");
+      const reason = readString(candidate, "reason");
+      if (symbol === undefined || reason === undefined) {
+        return [];
+      }
+      return [
+        {
+          section: "rejectedCandidates" as const,
+          label: `Rejected candidate ${symbol}`,
+          text: [
+            symbol,
+            reason,
+            stringListText(candidate.discoverySources),
+            readString(candidate, "secCompanyName"),
+          ]
+            .filter((part): part is string => part !== undefined && part !== "")
+            .join(" "),
+          sourceIds: readSourceIds(candidate),
+          identityId: symbol.toUpperCase(),
+        },
+      ];
+    });
+}
+
 export function reportSearchCandidates(
   report: ReportSearchInput,
   scope: ReportSearchScope,
@@ -363,6 +444,14 @@ export function reportSearchCandidates(
     for (const candidate of textItemCandidates(report, section, scope)) {
       pushCandidate(out, candidate);
     }
+  }
+
+  for (const candidate of alphaResearchLeadCandidates(report)) {
+    pushCandidate(out, candidate);
+  }
+
+  for (const candidate of alphaRejectedCandidateCandidates(report)) {
+    pushCandidate(out, candidate);
   }
 
   if (scope === "history") {
@@ -436,6 +525,12 @@ function enrichCandidate(
   }
   if (candidate.section === "predictions" && candidate.identityId !== undefined) {
     return { predictionId: candidate.identityId };
+  }
+  if (
+    (candidate.section === "researchLeads" || candidate.section === "rejectedCandidates") &&
+    candidate.identityId !== undefined
+  ) {
+    return { symbol: candidate.identityId };
   }
   return {};
 }

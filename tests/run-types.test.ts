@@ -3,6 +3,7 @@ import { isInstrumentJobType, type JobType } from "../src/domain/types";
 import {
   RUN_TYPE_REGISTRY,
   isResearchJobType,
+  runTypeFixedAssetClass,
   runTypeProducesSynthesisReport,
   runTypeSupportsAsset,
   runTypeSupportsDepth,
@@ -39,6 +40,12 @@ describe("RUN_TYPE_REGISTRY", () => {
       expect(RUN_TYPE_REGISTRY[jobType].isInstrument).toBe(isInstrumentJobType(jobType as JobType));
     }
   });
+
+  test("declares required, fixed, and none asset argument modes", () => {
+    expect(RUN_TYPE_REGISTRY["market-overview"].assetArg).toBe("required");
+    expect(RUN_TYPE_REGISTRY["alpha-search"].assetArg).toEqual({ fixed: "equity" });
+    expect(RUN_TYPE_REGISTRY.equity.assetArg).toBe("none");
+  });
 });
 
 describe("runTypeSupportsAsset", () => {
@@ -59,6 +66,15 @@ describe("runTypeSupportsAsset", () => {
     for (const jobType of OPERATIONAL_JOB_TYPES) {
       expect(runTypeSupportsAsset(jobType)).toBe(false);
     }
+  });
+});
+
+describe("runTypeFixedAssetClass", () => {
+  test("returns fixed assets only for fixed-asset run types", () => {
+    expect(runTypeFixedAssetClass("alpha-search")).toBe("equity");
+    expect(runTypeFixedAssetClass("market-overview")).toBeUndefined();
+    expect(runTypeFixedAssetClass("equity")).toBeUndefined();
+    expect(runTypeFixedAssetClass("score")).toBeUndefined();
   });
 });
 

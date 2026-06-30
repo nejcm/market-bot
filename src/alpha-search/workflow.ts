@@ -45,6 +45,7 @@ import {
   alphaSearchRejectedCandidate,
   leadSourceIds,
   readAlphaSearchLeads,
+  readAlphaSearchRejectedCandidates,
   type AlphaSearchReportExtras,
   type AlphaSearchProfileCoverage,
 } from "./report-extras";
@@ -372,6 +373,7 @@ function buildTrace(input: {
       "sec-filing-discovery",
       "official-listed-universe-filter",
       "yahoo-validation",
+      "sec-fundamentals-collection",
       "alpha-search-report",
     ],
     tokenEstimate: 0,
@@ -543,6 +545,7 @@ export async function runAlphaSearchWorkflow(input: {
     sources,
   });
   const researchLeads = readAlphaSearchLeads(initialReport.extras);
+  const reportRejectedCandidates = readAlphaSearchRejectedCandidates(initialReport.extras);
   const fundamentals = await collectAlphaSearchFundamentals({
     leads: researchLeads,
     request,
@@ -629,7 +632,7 @@ export async function runAlphaSearchWorkflow(input: {
   await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.candidateProfiles), candidateProfiles);
   await writeJson(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.rejectedCandidates),
-    rejectedCandidates,
+    reportRejectedCandidates,
   );
   await writeJson(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceGaps),

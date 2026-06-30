@@ -1,14 +1,15 @@
-import type { JobType } from "./types";
+import type { AssetClass, JobType } from "./types";
 
 // Research/analysis run types. Today this is exactly the JobType set (seven
 // Members); the alias names the intent so the capability registry below stays
 // A single source of truth even if operational job types are modelled
 // Elsewhere. Pure leaf module: no imports from cli/config/research/sources.
 export type ResearchJobType = JobType;
+export type RunTypeAssetArg = "none" | "required" | { readonly fixed: AssetClass };
 
 export interface RunTypeMeta {
-  // Takes --asset equity|crypto.
-  readonly supportsAsset: boolean;
+  // CLI asset argument mode.
+  readonly assetArg: RunTypeAssetArg;
   // Takes --deep.
   readonly supportsDepth: boolean;
   // Single-symbol run (equity/crypto).
@@ -31,7 +32,7 @@ export interface RunTypeMeta {
 // Added without declaring its capabilities here.
 export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
   "market-overview": {
-    supportsAsset: true,
+    assetArg: "required",
     supportsDepth: true,
     isInstrument: false,
     supportsWebGather: false,
@@ -39,7 +40,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     producesSynthesisReport: true,
   },
   daily: {
-    supportsAsset: true,
+    assetArg: "required",
     supportsDepth: true,
     isInstrument: false,
     supportsWebGather: false,
@@ -47,7 +48,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     producesSynthesisReport: true,
   },
   weekly: {
-    supportsAsset: true,
+    assetArg: "required",
     supportsDepth: true,
     isInstrument: false,
     supportsWebGather: false,
@@ -55,7 +56,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     producesSynthesisReport: true,
   },
   equity: {
-    supportsAsset: false,
+    assetArg: "none",
     supportsDepth: true,
     isInstrument: true,
     supportsWebGather: true,
@@ -63,7 +64,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     producesSynthesisReport: true,
   },
   crypto: {
-    supportsAsset: false,
+    assetArg: "none",
     supportsDepth: true,
     isInstrument: true,
     supportsWebGather: true,
@@ -71,7 +72,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     producesSynthesisReport: true,
   },
   "alpha-search": {
-    supportsAsset: false,
+    assetArg: { fixed: "equity" },
     supportsDepth: true,
     isInstrument: false,
     supportsWebGather: false,
@@ -79,7 +80,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
     producesSynthesisReport: false,
   },
   research: {
-    supportsAsset: false,
+    assetArg: "none",
     supportsDepth: true,
     isInstrument: false,
     supportsWebGather: true,
@@ -102,7 +103,12 @@ function runTypeMeta(jobType: string): RunTypeMeta | undefined {
 // Capability lookups return false for unknown/operational job types (score,
 // Calibration, cache-prune, provider-health, history-*), which carry no entry.
 export function runTypeSupportsAsset(jobType: string): boolean {
-  return runTypeMeta(jobType)?.supportsAsset ?? false;
+  return runTypeMeta(jobType)?.assetArg === "required";
+}
+
+export function runTypeFixedAssetClass(jobType: string): AssetClass | undefined {
+  const assetArg = runTypeMeta(jobType)?.assetArg;
+  return typeof assetArg === "object" ? assetArg.fixed : undefined;
 }
 
 export function runTypeSupportsDepth(jobType: string): boolean {

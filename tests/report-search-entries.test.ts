@@ -160,6 +160,55 @@ describe("reportSearchCandidates", () => {
     });
   });
 
+  test("indexes alpha-search leads and rejection reasons", () => {
+    const entries = buildReportSearchEntries(
+      researchReport({
+        jobType: "alpha-search",
+        extras: {
+          depth: "brief",
+          socialCandidateCount: 2,
+          researchLeads: [
+            {
+              symbol: "ALFA",
+              name: "Alpha Co",
+              exchange: "NMS",
+              price: 12,
+              volume: 500_000,
+              marketCap: 250_000_000,
+              discoverySources: ["apewisdom"],
+              sourceIds: ["apewisdom-alfa"],
+            },
+          ],
+          rejectedCandidates: [
+            {
+              symbol: "BRAV",
+              discoverySources: ["sec-filings"],
+              reason: "Yahoo market cap is above configured alpha-search maximum",
+              sourceIds: ["sec-brav"],
+            },
+          ],
+        },
+      }),
+      [],
+      "history",
+    );
+
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          section: "researchLeads",
+          symbol: "ALFA",
+          text: expect.stringContaining("Alpha Co"),
+        }),
+        expect.objectContaining({
+          section: "rejectedCandidates",
+          symbol: "BRAV",
+          text: expect.stringContaining("market cap is above"),
+        }),
+      ]),
+    );
+  });
+
   test("skips empty summary and empty-text sections", () => {
     const candidates = reportSearchCandidates(
       { summary: "   ", keyFindings: [{ text: "" }] },

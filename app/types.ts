@@ -126,6 +126,8 @@ export type RunSearchSection =
   | "bearCase"
   | "risks"
   | "catalysts"
+  | "researchLeads"
+  | "rejectedCandidates"
   | "predictions"
   | "sources"
   | "dataGaps"

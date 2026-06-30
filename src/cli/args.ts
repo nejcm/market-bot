@@ -1,5 +1,5 @@
 import type { AssetClass, Depth } from "../domain/types";
-import { isResearchJobType } from "../domain/run-types";
+import { isResearchJobType, runTypeFixedAssetClass } from "../domain/run-types";
 import { createInstrument } from "../domain/instrument";
 import { HISTORY_SECTIONS, type HistorySection } from "../history/artifacts";
 import {
@@ -61,6 +61,15 @@ function readDepth(args: readonly string[]): Depth {
 
 function readOptionalAsset(value: string | undefined): AssetClass | undefined {
   return value === undefined ? undefined : parseAsset(value);
+}
+
+function parseFixedAsset(jobType: string, value: string | undefined): AssetClass {
+  const fixed = runTypeFixedAssetClass(jobType);
+  const asset = parseAsset(value);
+  if (fixed !== undefined && asset !== fixed) {
+    throw new Error(`${jobType} supports only --asset ${fixed} in V1`);
+  }
+  return asset;
 }
 
 function readLimit(value: string | undefined): number | undefined {
@@ -230,8 +239,7 @@ export function parseArgs(args: readonly string[]): CliCommand {
 
   if (command === "alpha-search") {
     rejectUnknownArgs(args, 1, new Set(["--asset", "--deep"]));
-
-    const assetClass = parseAsset(readFlagValue(args, "--asset"));
+    const assetClass = parseFixedAsset(command, readFlagValue(args, "--asset"));
     if (assetClass !== "equity") {
       throw new Error("alpha-search supports only --asset equity in V1");
     }

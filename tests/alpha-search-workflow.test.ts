@@ -557,6 +557,22 @@ describe("alpha-search workflow", () => {
       ]),
     );
     expect(result.report.extras?.rejectedCandidates).toHaveLength(2);
+    const rejectedSidecar = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "rejected-candidates.json"), "utf8"),
+    ) as readonly {
+      readonly symbol?: string;
+      readonly reason?: string;
+      readonly sourceIds?: readonly string[];
+      readonly candidate?: unknown;
+    }[];
+    const reportRejectedCandidates = result.report.extras?.rejectedCandidates as
+      | typeof rejectedSidecar
+      | undefined;
+    if (reportRejectedCandidates === undefined) {
+      throw new Error("Expected report rejected candidates");
+    }
+    expect(rejectedSidecar).toEqual(reportRejectedCandidates);
+    expect(rejectedSidecar[0]?.candidate).toBeUndefined();
     expect(result.markdown).toContain("## Research Leads");
     expect(result.markdown).toContain("## Rejected Candidates");
     expect(result.markdown).toContain("[apewisdom-all-stocks-AAPL@rank-1]");
@@ -600,6 +616,7 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).toContain("24h mention delta 22");
     expect(result.markdown).toContain("rank improvement 4");
     expect(result.markdown).toContain("upvotes/mention 3");
+    expect(result.trace.stages).toContain("sec-fundamentals-collection");
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),

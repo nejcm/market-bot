@@ -1,21 +1,11 @@
-# Analysis cutoff and stale-cache audit
+# ADR 0038: Analysis cutoff and stale-cache audit
 
 ## Status
 
-Accepted
+Superseded by [ADR 0028](./0028-deterministic-source-plan-subsystem.md)
 
-## Decision
+## Date
 
-Every model-stage evidence payload carries the run's `analysisAsOf` timestamp. SEC facts filed or ending after that cutoff are excluded. SEC flow metrics use one reporting period, revisions are selected within that period, and each emitted metric records its period end.
+2026-06-30
 
-Cache hits are marked `current` or `stale-fallback`. Source cache entries are freshness-budgeted by adapter class. Once an entry is past budget, the run attempts a live refetch; if that refetch fails, the stale fallback remains in the raw snapshot for audit and emits an explicit Source Gap, but its payload is excluded from normalized current evidence.
-
-A cache entry whose metadata fails validation is treated as a cache miss: an audit Source Gap is emitted and the run falls through to a live fetch, so a single corrupt or tampered entry never denies live data for its key until the UTC day rolls over.
-
-Run traces persist SHA-256 fingerprints of effective non-secret configuration and dirty source state. Secret configuration values and ignored files do not affect those fingerprints.
-
-## Consequences
-
-- Historical artifacts remain immutable.
-- Current synthesis cannot silently consume future SEC facts or stale cached values.
-- A run can be reproduced against its cutoff, code revision, and privacy-safe fingerprints without persisting credentials.
+Temporal integrity, stale audit data, and reproducibility fingerprints are consolidated into ADR 0028.

@@ -1,67 +1,70 @@
-# ADR 0028: Deterministic Source Plan Subsystem
+# ADR 0028: Evidence governance, temporal integrity, and web evidence
 
 ## Status
 
 Accepted
 
+## Date
+
+2026-06-30
+
 ## Context
 
-Run artifacts already persist fetched Sources, Source Gaps, normalized snapshots, analytics, and
-trace. That shows what evidence arrived, but it does not record the deterministic evidence lanes
-the run intended to cover before synthesis.
-
-The original lane proposal included aspirational lanes. V1 must not persist empty abstractions or
-pretend a lane was covered without backing Sources. The source-plan lane set therefore has to come
-from provider paths that exist today in `src/sources/providers.ts` and the collector.
+Evidence completeness, freshness, source authority, and open-web content must be evaluated by code
+rather than model confidence. Web evidence also introduces prompt-injection and reuse risks.
 
 ## Decision
 
-Add a deterministic, no-model source-planning layer after source collection and before artifact
-persistence. It records:
+- Build deterministic Source Plan, Evidence Lanes, and Source Ledger sidecars from the run type,
+  depth, asset class, dated-event context, collected sources, and gaps.
+- Classify applicable capability lanes as core, material, or supplemental. Evidence Quality is
+  derived entirely from observable lane coverage, freshness, corroboration, traceability, and gap
+  severity; synthesis cannot author or lower it.
+- `low` means required/core evidence is unusable; `medium` means core evidence is complete but
+  material optional coverage or corroboration is missing; `high` requires complete core and
+  sufficiently broad, fresh, corroborated material evidence. Supplemental gaps do not lower it.
+- Every model evidence payload carries `analysisAsOf`. Exclude facts published, filed, or ending
+  after the cutoff where the adapter supports those semantics.
+- Cache entries are freshness-budgeted and validated. Failed live refresh may retain stale payloads
+  in raw audit snapshots, but stale payloads do not enter normalized current evidence.
+- Deep instrument and thematic runs may gather bounded Exa web results. Search/fetch is subject
+  constrained, cached, persisted as low-trust `web` Sources, and cannot substitute for core market,
+  regulatory, or pricing evidence.
+- Web Subject Profiles use fixed cited question sets by subject kind and bounded reuse TTLs.
+  Company reuse also considers SEC filing freshness.
+- Sanitize Exa-controlled titles, publishers, summaries, and snippets before model exposure. Raw
+  payloads remain exact in audit snapshots. Only the profile-extraction stage sees sanitized web
+  prose; later stages receive metadata and the cited structured profile.
+- Persist web-source role and sanitizer telemetry. Empty sanitized content emits a non-fatal gap.
+- Persist fingerprints of effective non-secret configuration and dirty source state for audit.
 
-- `normalized/source-plan.json`: applicable lanes, required/optional status, and the real provider
-  path for each lane.
-- `normalized/evidence-lanes.json`: lane coverage, covered source IDs, gap IDs/text, freshness
-  notes, and summary counts.
-- `normalized/source-ledger.json`: per-source lane assignment, provider, fetched/observed time, and
-  related lane gap IDs.
+## Current governance limitations
 
-V1 lanes are limited to current provider paths:
-
-- `market-data`: Yahoo equity market data or CoinGecko crypto market data.
-- `supplemental-market`: Massive equity supplemental snapshots.
-- `news`: MarketAux, Finnhub, Yahoo Finance, or Massive news.
-- `macro-context`: Market Context backed by FRED on market-overview runs.
-- `verified-snapshot`: Yahoo verified chart on equity ticker runs.
-- `sec-edgar`: SEC EDGAR extended evidence on equity ticker runs.
-- `equity-events`: Finnhub events extended evidence on equity ticker runs.
-- `extended-fred-macro`: FRED macro extended evidence on ticker runs.
-- `options-iv`: Tradier IV extended evidence on equity ticker runs.
-- `on-chain`: Glassnode extended evidence on crypto ticker runs.
-- `valuation`: deterministic valuation evidence derived from Yahoo market cap, SEC fundamentals,
-  and any deterministic peer-comps sources on equity ticker runs.
-
-Only `market-data` and equity ticker `verified-snapshot` are required in V1. Optional lanes can be
-not covered without making the run invalid. A lane is marked covered only when it has at least one
-backing source ID. Missing required coverage is represented as a lane gap, never as covered.
-
-The subsystem adds no provider calls, no model calls, no report schema fields, and no scored
-Prediction behavior. Analytics and trace carry compact additive summaries while full detail stays in
-normalized sidecars. `RunAnalytics.version` remains `1` because the fields are optional additions.
+- News-provider prose is injected into model evidence without the Exa sanitizer. It remains an
+  untrusted-content gap in the current implementation.
+- The sanitizer does not detect all Unicode homoglyph/confusable attacks.
+- Post-synthesis unsupported-claim auditing is warning-only under ADR 0011.
+- Company profile TTL reuse does not invalidate on every possible material non-filing event.
 
 ## Consequences
 
-Source coverage becomes auditable without changing the research-only boundary. Provider gaps can be
-distinguished from unplanned lanes, and downstream readers can compare intended coverage to actual
-evidence.
+- Evidence Quality is comparable across current runs independently of model rhetoric.
+- Raw replay data is separated from normalized current/model-visible evidence.
+- Web evidence can close qualitative gaps without raising core evidence authority.
 
-The sidecars are a new artifact contract surface. Readers remain lenient for legacy runs where the
-files are absent.
+## Implementation validation
 
-## Rejected alternatives
+- `src/research/source-plan.ts` and `evidence-quality.ts` implement deterministic authority.
+- `src/sources/cache.ts` implements freshness and stale-audit behavior.
+- `src/research/web-gather-loop.ts`, `src/sources/web-gather-tools.ts`, and
+  `web-text-sanitizer.ts` implement bounded sanitized web evidence.
+- `src/research/web-subject-profile-reuse.ts` implements reuse.
+- `src/reproducibility.ts` implements configuration and source-state fingerprints.
 
-- A fixed ten-lane enum with lanes lacking V1 provider paths. Rejected as speculative.
-- Filling uncovered lanes by adding providers in the same change. Rejected because provider work is
-  separate contract and configuration surface.
-- Adding report fields. Rejected because the need is artifact and analytics auditability, not public
-  report schema expansion.
+## Supersedes
+
+- ADR 0034
+- ADR 0035
+- ADR 0037
+- ADR 0038
+- ADR 0040

@@ -1,63 +1,71 @@
-# ADR 0004 — Predictions as observable forecasts, not advice
+# ADR 0004: Observable forecasts, scoring, and calibration
 
-**Status:** Accepted  
-**Amended by:** [ADR 0020 (Prediction Claim Rendered From DSL)](./0020-claim-rendered-from-dsl.md), [ADR 0021 (Prediction Count Is a Soft Target)](./0021-prediction-count-soft-target.md), [Prediction-subject enforcement](#amendment-prediction-subject-enforcement)
+## Status
+
+Accepted
+
+## Date
+
+2026-06-30
 
 ## Context
 
-ADR 0001 establishes a strict research-only boundary: `market-bot` must not emit trade actions, position sizing, execution instructions, or portfolio changes. The `confidence` field on `ResearchReport` today is a qualitative `"high" | "medium" | "low"` label derived deterministically from source completeness — it is not a measurement of predictive accuracy.
-
-Without any falsifiable claims in the output there is no way to measure whether the bot's research is useful, calibrate its confidence over time, or evaluate whether adding new data sources actually improves signal. Every upstream improvement (deeper sources, richer regime inference, new providers) would remain guess-work.
+Research reports need measurable forecasts without becoming recommendations. Forecast generation,
+display, conditional semantics, event anchoring, disagreement analysis, scoring, and calibration
+must share one contract.
 
 ## Decision
 
-Add a `predictions: Prediction[]` field to `ResearchReport`. A `Prediction` is a probabilistic statement about a **future observable market quantity**, not a trade recommendation.
+- `ResearchReport.predictions` contains probabilistic forecasts about future public observations.
+- `measurableAs` is the scored source of truth. Code parses and canonicalizes the DSL and renders
+  the public `claim`; model-authored claim text is ignored.
+- Supported expressions cover direction, relative performance, volatility, range, FRED macro,
+  options IV, conditional events, and earnings-event returns.
+- Probability always means the probability that `measurableAs` evaluates true. Conditional
+  forecasts mean `P(B | A)`; a false antecedent produces a terminal `voided` result excluded from
+  Brier and reliability metrics.
+- Earnings forecasts anchor their origin and due date to the declared earnings event and timing.
+- Prediction count is a soft `targetPredictions`, not a quota. Shortfalls are disclosed. One
+  replacement-only retry may follow a redundancy trim; models must not pad with 0.5 forecasts.
+- Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
+  listed proxy and emits no predictions when no proxy resolves.
+- Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast
+  IDs. The primary synthesis probability remains the only scored probability.
+- Scoring resolves observations through the repository and close cache, then aggregates Brier
+  metrics and calibration slices.
 
-Allowed `kind` values and their `measurableAs` shapes:
+## Current scoring limitations
 
-| Kind         | measurableAs form                                         | Example                                                           |
-| ------------ | --------------------------------------------------------- | ----------------------------------------------------------------- |
-| `direction`  | `close(SUBJECT, +N) > close(SUBJECT, 0)`                  | `close(SPY, +5) > close(SPY, 0)`                                  |
-| `relative`   | `close(A, +N) / close(A, 0) > close(B, +N) / close(B, 0)` | `close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)` |
-| `volatility` | `max(close(^VIX), 0..+N) > T`                             | `max(close(^VIX), 0..+5) > 20`                                    |
-| `range`      | `close(SUBJECT, +N) outside [Lo, Hi]`                     | `close(BTC, +7) outside [90000, 110000]`                          |
-| `macro`      | `fred(SERIES, +N) > fred(SERIES, 0)`                      | `fred(DGS10, +5) > fred(DGS10, 0)`                                |
-| `iv`         | `iv(SUBJECT, +N) > T`                                     | `iv(AAPL, +5) > 0.35`                                             |
+- Brier skill uses an always-0.5 reference (`1 - brier / 0.25`), not an empirical event baseline.
+  It must not be described as market-relative forecasting skill.
+- Equity close scoring uses raw closes and can be distorted by splits or other corporate actions.
+- Generic due-date calculation uses the US exchange calendar, including crypto and non-US equity
+  reports. Provider-returned observations determine the actual close sequence, but the due gate is
+  not asset/exchange-specific.
+- Conditional forecasts can have low activation rates; calibration output does not yet report
+  activation coverage as a first-class metric.
 
-`measurableAs` is parsed by the scorer (`src/forecast/observable.ts`), never by the LLM. `horizonTradingDays` is 1–20.
-
-Scoring resolves predictions from Observations: public market quantity values fetched from Source Providers. Close-based predictions use provider-returned sessions, with origin as the first available close at or after the report date and horizon as the Nth available close after origin. Volatility predictions use the full close window. Macro and IV predictions are point-based Observations.
-
-### What this is NOT
-
-A prediction with `probability: 0.68` that `close(SPY, +5) > close(SPY, 0)` does **not** tell the user to buy SPY. It describes the market. What the user does with that information is entirely the user's decision.
-
-This is analogous to a weather forecast: "70% chance of rain" is a statement about the atmosphere, not an instruction to take an umbrella.
-
-### Validator additions
-
-The existing `TRADE_ACTION_PATTERN` regex already applies to all text fields. Predictions additionally reject `claim` strings containing reader-directed modal phrases: `consider`, `watch for`, `should`, `could be a`, `expect to`. Predictions describe the _market_, not the _reader_.
-
-### Disclaimer text
-
-`notFinancialAdvice` is expanded: "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision."
+These limitations are implementation facts, not endorsed end-state methodology. Changing baseline,
+price adjustment, or calendar semantics requires a scoring-version migration.
 
 ## Consequences
 
-- The calibration loop becomes possible: a `market-bot score` command resolves predictions after their horizon elapses and computes Brier scores.
-- The `confidence` label remains the existing evidence-quality cap. Calibration data is fed back as passive context in future runs.
-- Any future feature that **does** recommend a trade action (sizing, execution) must still live in a completely separate system per ADR 0001.
+- Displayed claims and scored events cannot diverge when the DSL parses.
+- Fewer supported forecasts are preferred to artificial calibration volume.
+- Legacy artifacts retain stored claims and legacy score semantics.
+- Calibration consumers must interpret current Brier skill within the limitations above.
 
-## Amendment: prediction-subject enforcement
+## Implementation validation
 
-Predictions must be about the run's own subject. `ObservableForecastPolicy` carries an `allowedSubjects` set (the run's declared Prediction Subjects) and rejects any prediction whose subject is not a member — for `relative` forecasts, the primary instrument named before the comparison. Rejected predictions trigger the standard validation retry path via a `disallowed-subject` issue code; they are not silently dropped.
+- `src/forecast/observable.ts` owns parsing, canonicalization, and expression shape.
+- `src/research/report-assembly.ts` applies subject gates, trims, and shortfalls.
+- `src/scoring/resolver.ts`, `close-cache.ts`, and `calibration.ts` implement current scoring.
+- `src/research/forecast-disagreement.ts` keeps challenger output separate from canonical scores.
 
-Ticker and Market Overview runs supply `allowedSubjects`. **Research runs deliberately do not**: they pass `allowedSubjects=undefined` so the existing research prediction gate remains the sole authority over subject membership. The asymmetry is intentional — thematic research can legitimately forecast a representative proxy that differs from the literal subject query, whereas a ticker or overview run forecasting an off-subject instrument is an error.
+## Supersedes
 
-This tightens what counts as a valid Prediction under this ADR; it adds no new prediction kind, scoring behavior, or report field, and does not touch the research-only boundary.
-
-## Alternatives considered
-
-1. **Stay purely qualitative, skip predictions.** Simple but kills the calibration loop. Rejected.
-2. **Store predictions in a sidecar `predictions.json`, outside `report.json`.** User expressed comfort having predictions in the main report. Rejected.
-3. **Allow free-form probabilistic text instead of a structured DSL.** Unscoreable without LLM judgment. Rejected.
+- ADR 0020
+- ADR 0021
+- ADR 0023
+- ADR 0024
+- ADR 0030

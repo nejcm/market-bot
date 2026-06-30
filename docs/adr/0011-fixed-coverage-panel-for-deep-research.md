@@ -1,30 +1,49 @@
-# ADR 0011 — Fixed Coverage Panel for deep research
+# ADR 0011: Model-stage pipeline and domain playbooks
 
 ## Status
 
 Accepted
 
+## Date
+
+2026-06-30
+
 ## Context
 
-Deep research needs broader coverage than the fixed `specialist-analysis` -> `critique` -> `final-synthesis` chain provides. The project still needs provider-neutral model calls, research-only outputs, supplied-source citations, and stable report artifacts.
+Research quality depends on a predictable stage graph, bounded context, and reviewable domain
+guidance rather than provider-native agents.
 
 ## Decision
 
-Deep runs use a fixed Coverage Panel after `specialist-analysis` and before `critique`. Market updates run `regime-context-analysis` and `mover-theme-analysis`; ticker runs run `instrument-evidence-analysis` and `market-behavior-analysis`.
-
-The panel uses normal prompt stages with JSON-only non-final outputs, the quick model, and existing model params. Each role sees only the specialist output as prior stage context. `critique` receives the specialist plus both role outputs, and `final-synthesis` receives all analyses plus critique.
-
-The panel does not use provider-native agent or tool APIs, does not fetch additional sources, and does not add report schema fields. Its public artifact surface is the existing `trace.stages` list and persisted `stages.json`.
+- Brief runs execute specialist analysis, critique, and final synthesis.
+- Deep runs add a fixed two-role Coverage Panel after specialist analysis and before critique.
+  Market overviews use regime and mover-theme roles; instrument runs use instrument-evidence and
+  market-behavior roles. The two roles run concurrently and are persisted in deterministic order.
+- A quick-model playbook-selection stage chooses checked-in Domain Playbooks from an allowlisted
+  registry with stage/run caps. Invalid selections are trace-only rejections.
+- Always-on discipline playbooks are injected deterministically for synthesis and research
+  critique where configured.
+- Model stages receive normalized evidence and prior stage output, never authority to widen tools,
+  source scope, prediction subjects, or persistence behavior.
+- Final synthesis produces the candidate report. Deterministic assembly and validation remain the
+  authority over report shape, prediction acceptance, Evidence Quality, and research-only language.
+- The post-synthesis audit records unsupported numeric/technical claims and evidence-posture
+  omissions as warning telemetry. It currently does not remove claims, lower Evidence Quality, or
+  fail a run.
 
 ## Consequences
 
-- Brief runs keep the lower-cost three-stage flow.
-- Deep runs spend two additional model calls for broader coverage.
-- Stage output order is deterministic even though the two role calls can run concurrently.
-- Failed role stages abort the run like other model-stage failures.
+- Deep runs pay additional latency and token cost for broader analysis.
+- Prompt behavior is reviewable independently of provider APIs.
+- Warning-only post-synthesis findings must not be represented as enforced factual correctness.
 
-## Rejected alternatives
+## Implementation validation
 
-- **Configurable roles** — rejected for V1 because custom role topology would add config and testing surface before the fixed panel is validated.
-- **Replacing `specialist-analysis`** — rejected because the existing specialist remains the stable anchor for current prompts and tests.
-- **Sequential debate rounds** — rejected because the goal is broader coverage, not multi-round rebuttal, and sequential rounds would add latency while reducing role independence.
+- `src/research/orchestrator.ts` defines the stage graph.
+- `src/research/playbooks.ts` validates and loads playbooks.
+- `src/research/final-synthesis.ts` and `report-assembly.ts` separate generation from authority.
+- `src/research/post-synthesis-audit.ts` implements current warning-only behavior.
+
+## Supersedes
+
+- ADR 0012

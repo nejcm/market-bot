@@ -1,28 +1,46 @@
-# ADR 0008 — Provider-normalized Instrument identity
+# ADR 0008: Instrument and research-subject identity
 
 ## Status
 
 Accepted
 
+## Date
+
+2026-06-30
+
 ## Context
 
-V1 treated an Instrument as `symbol + assetClass`. That was enough for simple US equity and crypto runs, but provider expansion introduces listings, quote currencies, and provider-specific identifiers such as SEC CIKs and CoinGecko coin IDs. A full resolver or security master would add more complexity than the current workflows need.
+Provider symbols, listed instruments, thematic subjects, representative companies, and scored
+proxies need deterministic identities without pretending the project has a global security master.
 
 ## Decision
 
-Instrument means a tradable listed or quoted research target. Keep `symbol + assetClass` as the compatibility key for CLI input, matching, forecast syntax, and scoring. Add optional Instrument Identity metadata to normalized artifacts where a Source Provider already exposes useful fields.
-
-The first slice is metadata-only: no central resolver, no provider-qualified CLI syntax, no identity-based matching, and no cross-provider reconciliation.
+- Keep `symbol + assetClass` as the compatibility identity for CLI input, matching, forecast DSL,
+  history, and scoring.
+- Preserve optional provider-normalized metadata such as exchange, quote currency, display name,
+  provider IDs, and aliases in normalized artifacts.
+- For an instrument run, derive one run-scoped canonical identity from the collected market
+  snapshot. Do not perform a second identity fetch or cross-provider reconciliation.
+- Use a checked-in equity Research Subject Registry for thematic research. Entries contain a
+  canonical key, aliases, representative instruments, provenance, and an optional single listed ETF
+  prediction proxy.
+- Subject resolution is local and deterministic. Registry misses or subjects without an eligible
+  proxy may produce research but produce no scored predictions.
+- Representatives provide context only. They do not become forecast proxies or peer-comparison
+  members unless another accepted rule explicitly selects them.
 
 ## Consequences
 
-- Existing commands and artifacts remain compatible at the top level.
-- Source adapters can preserve exchange, quote currency, provider IDs, and aliases without forcing every caller to understand them.
-- Future regional data and scoring work can build on stored identity metadata.
-- Conflicts between providers are not resolved yet; identity stays attached to the source or snapshot that produced it.
+- Existing symbol-based artifacts and forecast syntax remain compatible.
+- Thematic predictions remain observable against one declared listed instrument.
+- Identity conflicts are disclosed rather than silently reconciled.
 
-## Rejected alternatives
+## Implementation validation
 
-- **Economic-asset identity** — rejected for now because scoring and market data need exact quoted listings.
-- **Full Instrument resolver/catalog** — rejected as premature without multiple adapters requiring reconciled identity.
-- **Provider-qualified CLI input** — rejected to keep the user workflow simple until identity changes behavior.
+- `src/domain/instrument.ts` defines symbol normalization and validation.
+- `src/sources/instrument-identity.ts` derives run-scoped identity.
+- `src/research/subject-registry.ts` and `research-subject-identity.ts` implement thematic identity.
+
+## Supersedes
+
+- ADR 0027

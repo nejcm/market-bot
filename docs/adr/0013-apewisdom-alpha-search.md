@@ -1,26 +1,39 @@
-# ADR 0013 — ApeWisdom Alpha Search
+# ADR 0013: Equity alpha-search research leads
 
 ## Status
 
 Accepted
 
+## Date
+
+2026-06-30
+
 ## Context
 
-Alpha search should surface early equity Research Leads from public evidence without turning the bot into a trading or portfolio tool. Social discussion can be useful for discovery, but it is noisy and must stay separate from deterministic market validation and observable forecasts.
+The project needs a discovery workflow distinct from synthesis reports and scored forecasts.
 
 ## Decision
 
-Add `alpha-search --asset equity [--deep]` as an ApeWisdom discovery workflow. V1 is equity-only. It ranks candidate tickers from ApeWisdom social-momentum pages first, then cross-checks the top ranked candidates with Yahoo only for symbol validity and basic market metadata.
-
-The social momentum score is deterministic and based on ApeWisdom aggregate features such as mention growth, rank improvement, current mentions, and upvotes per mention. Yahoo metadata does not contribute to the social ranking in V1.
-
-ApeWisdom provides aggregate social-momentum rows rather than raw discussion text, so alpha-search does not retain raw social text.
-
-Alpha Search Reports must remain research-only. They must not emit buy/sell/hold calls, sizing, execution language, portfolio-change language, expected-return language, or predictions.
+- `alpha-search --asset equity [--deep]` is an equity-only deterministic discovery workflow.
+- ApeWisdom aggregate social momentum and SEC current-filing discovery create candidates.
+- Official listed-universe metadata filters eligibility; Yahoo validates listed-stock metadata and
+  configured screening limits.
+- Social ranking uses aggregate momentum features. Yahoo metadata validates candidates but does not
+  alter the social score.
+- Output contains Research Leads, rejected candidates, normalized candidate profiles, and
+  provenance artifacts. It contains no predictions and triggers no immediate calibration pass.
+- Later explicit or research-triggered score passes may update alpha validation, watchlist,
+  attribution, and cohort artifacts.
+- Alpha output follows ADR 0001 and must not contain expected-return, trade-action, sizing,
+  execution, or portfolio language.
 
 ## Consequences
 
-- ApeWisdom collection, social momentum ranking, Yahoo validation, and report persistence are model-free in V1.
-- Non-equity assets are rejected until a separate design is accepted.
-- Score and calibration side effects do not run for alpha-search V1 because it emits no predictions.
-- Rejected candidates are disclosed separately from valid Research Leads with rejection reasons.
+- Discovery state can be evaluated later without presenting candidates as recommendations.
+- Mutable validation sidecars are historical research state, not promotion verdicts.
+
+## Implementation validation
+
+- `src/alpha-search/workflow.ts` owns discovery and validation orchestration.
+- `src/alpha-search/validation.ts`, `candidate-state.ts`, `feature-attribution.ts`, and `cohorts.ts`
+  own later evaluation artifacts.

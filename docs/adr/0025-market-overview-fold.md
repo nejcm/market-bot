@@ -1,40 +1,40 @@
-# ADR 0025: Market Overview Fold and Horizon Decoupling
+# ADR 0025: Market overview and horizon semantics
 
 ## Status
 
 Accepted
 
+## Date
+
+2026-06-30
+
 ## Context
 
-Daily and weekly market updates used the same deterministic source flow but were modeled as separate run identities. That made cadence look like product semantics even though the meaningful research difference was forecast horizon.
+Daily and weekly updates shared one source and research flow. Forecast horizon, not scheduling
+cadence, is the meaningful research distinction.
 
 ## Decision
 
-`daily` and `weekly` market updates are folded into one canonical `market-overview` run. Cadence is an invocation/scheduling concern. Forecast horizon is explicit as `horizonTradingDays`; the CLI exposes `market-overview --horizon <trading-days>` with a default of 15.
-
-`daily` and `weekly` remain deprecated CLI aliases for zero-break migration:
-
-- `daily` dispatches to `market-overview` with a 5 trading-day horizon.
-- `weekly` dispatches to `market-overview` with a 15 trading-day horizon.
-
-Runtime command construction, including Research Console job serialization,
-uses the canonical `market-overview` command shape. The legacy names are only
-accepted as CLI aliases and persisted artifact `JobType` values.
-
-New overview artifacts persist `jobType: "market-overview"` and top-level `horizonTradingDays`. Legacy `daily` and `weekly` artifacts remain readable and are mapped into horizon buckets on read:
-
-- `daily` -> `1-5d`
-- `weekly` -> `11-15d`
-
-Calibration, Market Update Delta, market-scoped prior-miss correction, historical-context relevance, and provider-health coverage use horizon buckets instead of cadence labels. Provider-health requires short and medium market-overview coverage per asset class and accepts legacy daily/weekly artifacts while the migration fills in canonical overview runs.
+- `market-overview` is the canonical whole-market run type for equity and crypto.
+- `--horizon` expresses forecast horizon in trading days and defaults to 15.
+- `daily` and `weekly` remain deprecated CLI aliases mapping to 5 and 15 days. New artifacts persist
+  `jobType: "market-overview"`; legacy artifacts remain readable.
+- Calibration, history relevance, market-update deltas, prior-miss correction, and provider-health
+  group overview runs by horizon bucket rather than invocation cadence.
+- Market Overview may select Spotlights from current collected movers and may render a narrow
+  catalyst calendar derived only from already-collected or persisted evidence.
+- Equity mover inputs remain Yahoo daily screeners and crypto movers remain CoinGecko 24-hour
+  changes even for longer forecast horizons. Reports disclose this horizon/input mismatch.
 
 ## Consequences
 
-Market overview reports are comparable by asset class and horizon bucket rather than by cadence label. Scheduled legacy commands continue to work, but new code paths and artifacts use the canonical run type.
+- Scheduled legacy commands continue to work without preserving cadence as product semantics.
+- Overview comparisons are stable by asset class and horizon bucket.
+- Longer-horizon reports must not describe current mover inputs as matching the forecast horizon.
 
-The catalyst calendar added to overview report `extras` is deliberately narrow in V1: it is derived only from already-collected or persisted sources (sourced model catalysts, observed market-context/macro dates, and observable prediction resolution dates) using neutral language. Dedicated earnings-cluster and filing-window calendar items are out of scope for this slice because deriving them would require new calendar providers, which the fold explicitly excludes; they can follow once those sources are collected.
+## Implementation validation
 
-Rejected alternatives:
-
-- Dropping `daily` and `weekly` immediately, which would break scheduled jobs.
-- Keeping a `--cadence` flag, which would preserve the distinction this fold removes.
+- `src/cli/args.ts` parses canonical and legacy commands.
+- `src/cli/job-registry.ts` serializes canonical console jobs.
+- `src/domain/run-types.ts` maps legacy artifacts and horizon buckets.
+- Market overview profiles live under `src/config/runs/profiles/`.

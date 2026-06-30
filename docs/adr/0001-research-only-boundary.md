@@ -1,17 +1,48 @@
-# ADR 0001: Research-Only Boundary
+# ADR 0001: Research output boundary
 
 ## Status
 
 Accepted
 
+## Date
+
+2026-06-30
+
 ## Context
 
-Market Bot V1 produces financial-market research artifacts. The system must not become a trading bot, portfolio manager, or execution assistant.
+The project produces market research artifacts and observable forecasts. Persisted artifacts must
+not become trading instructions. The Research Console also has an ephemeral Run Chat whose current
+implementation deliberately permits positioning and trade-oriented questions.
 
 ## Decision
 
-Reports must include a standard research-only note and must not emit buy/sell/hold conclusions, position sizing, execution instructions, or portfolio-change language.
+- Persisted reports, alpha-search output, history narratives, and generated artifacts are
+  research-only. They must not contain buy/sell/hold conclusions, position sizing, execution
+  instructions, allocation changes, or portfolio actions.
+- Predictions are probabilistic statements about public observable quantities, not
+  recommendations. Their scored event is defined by the forecast DSL in ADR 0004.
+- Report validation and research prompts enforce the persisted-output boundary.
+- Run Chat is the sole current exception. It is not report-validated, is not persisted server-side,
+  and may discuss positioning or trade ideas over run artifacts. Browser-local chat storage does
+  not make chat a Run Artifact.
+- The exception means the product as a whole is not uniformly “no trade-action surface.”
+  Documentation must distinguish persisted research artifacts from ephemeral chat behavior.
+- Provider and source integrations must never use account, order, portfolio, or execution
+  endpoints.
 
 ## Consequences
 
-Safety checks are part of report validation and tests. Future alpha or decision layers must remain separate from V1 research generation.
+- Persisted research remains auditable and separated from execution.
+- Run Chat requires a separate safety and threat model; ephemerality is not equivalent to the
+  persisted research-only policy.
+- Expanding trade-oriented behavior beyond Run Chat requires a new ADR.
+
+## Implementation validation
+
+- `src/report/schema.ts` and research prompts reject trade-action language in reports.
+- `src/history/artifacts.ts` validates narrative thesis deltas before persistence.
+- `prompts/console-run-chat.md` implements the explicit chat exception.
+
+## Supersedes
+
+- ADR 0029’s boundary-exception section; Run Chat architecture remains in ADR 0029.

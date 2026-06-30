@@ -106,7 +106,7 @@ describe("SEC latest filing evidence tool", () => {
           requested.push({ adapter, url, headers: new Headers(init?.headers) });
           return textResult(
             adapter,
-            "<html><style>.x{}</style><body><h1>Management&nbsp;Discussion</h1><script>bad()</script><p>Revenue &amp; margin improved.</p></body></html>",
+            "<html><style>.x{}</style><body><h1>ITEM 2-MANAGEMENT</h1><script>bad()</script><p>Management&nbsp;Discussion</p><p>Revenue &amp; margin improved.</p></body></html>",
             filingTextFetchedAt,
           );
         },
@@ -151,7 +151,10 @@ describe("SEC latest filing evidence tool", () => {
             : jsonResult(adapter, secSubmissionsPayload(["10-Q"], ["a 10q.htm?x=1"])),
         text: async ({ url, adapter }) => {
           filingTextUrl = url;
-          return textResult(adapter, "Latest filing evidence.");
+          return textResult(
+            adapter,
+            "ITEM 2-MANAGEMENT Latest filing evidence with enough text to clear the minimum packet length threshold.",
+          );
         },
       }),
     });
@@ -252,7 +255,12 @@ describe("SEC latest filing evidence tool", () => {
               ? jsonResult(adapter, secTickersPayload())
               : jsonResult(adapter, submissions),
           text: async ({ url, adapter }) =>
-            textResult(adapter, `ITEM 7-MANAGEMENT discussion for ${url}`),
+            textResult(
+              adapter,
+              url.includes("a10k")
+                ? "ITEM 7-MANAGEMENT annual discussion for 10-K filing text body"
+                : "ITEM 2-MANAGEMENT quarterly discussion for 10-Q filing text body",
+            ),
         }),
       }),
     );
@@ -281,7 +289,11 @@ describe("SEC latest filing evidence tool", () => {
             adapter === "sec-tickers"
               ? jsonResult(adapter, secTickersPayload())
               : jsonResult(adapter, secSubmissionsPayload(["10-K"], ["a10k.htm"])),
-          text: async ({ adapter }) => textResult(adapter, "ITEM 7-MANAGEMENT annual discussion"),
+          text: async ({ adapter }) =>
+            textResult(
+              adapter,
+              "ITEM 7-MANAGEMENT annual discussion with enough filing text to clear the packet threshold",
+            ),
         }),
       }),
     );
@@ -345,7 +357,10 @@ describe("SEC latest filing evidence tool", () => {
               ? jsonResult(adapter, secTickersPayload())
               : jsonResult(adapter, submissions),
           text: async ({ adapter }) =>
-            textResult(adapter, "ITEM 2-MANAGEMENT quarterly discussion"),
+            textResult(
+              adapter,
+              "ITEM 2-MANAGEMENT quarterly discussion with enough filing text to clear the packet threshold",
+            ),
         }),
       }),
     );
@@ -375,6 +390,65 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.rawSnapshots).toHaveLength(2);
     expect(result.gaps).toEqual([
       expect.objectContaining({ source: "sec-filing-text", message: "timeout" }),
+      expect.objectContaining({
+        message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
+      }),
+    ]);
+  });
+
+  test("section packet covers Business, Risk Factors, MD&A, segments, and notes", async () => {
+    const body = [
+      "ITEM 1. BUSINESS Apple designs consumer electronics and services.",
+      "ITEM 1A. RISK FACTORS Supply chain disruptions and regulation may harm results.",
+      "ITEM 7. MANAGEMENT'S DISCUSSION Revenue grew across all segments.",
+      "SEGMENT INFORMATION The Company reports two segments: Products and Services.",
+      "GEOGRAPHIC REVENUE Americas 40%, Europe 25%, Greater China 18%, Japan 8%, Rest of Asia 9%.",
+      "NOTES TO CONSOLIDATED FINANCIAL STATEMENTS Significant accounting policies are described herein.",
+    ].join(" ");
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-K"], ["a10k.htm"])),
+          text: async ({ adapter }) => textResult(adapter, body),
+        }),
+      }),
+    );
+
+    expect(result.sources).toHaveLength(1);
+    const snippet = result.sources[0]?.snippet ?? "";
+    expect(snippet).toContain("[Business]");
+    expect(snippet).toContain("[Risk Factors]");
+    expect(snippet).toContain("[MD&A]");
+    expect(snippet).toContain("[Segments]");
+    expect(snippet).toContain("[Notes]");
+  });
+
+  test("malformed or too-short documents degrade to an explicit gap", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-Q"], ["a10q.htm"])),
+          text: async ({ adapter }) => textResult(adapter, "short body with no item headers"),
+        }),
+      }),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.items).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "sec-edgar",
+        message: "SEC 10-Q section packet for AAPL is malformed or too short to extract",
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
       expect.objectContaining({
         message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
       }),

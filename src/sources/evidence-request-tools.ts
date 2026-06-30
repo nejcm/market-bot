@@ -54,8 +54,8 @@ interface TradierBucketIv extends TradierBucket {
 }
 
 const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
-const SEC_FILING_SNIPPET_CHARS = 6000;
 const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
+const SEC_PACKET_MIN_CHARS = 50;
 
 export function availableEvidenceRequestTools(
   ctx: CollectContext,
@@ -96,6 +96,17 @@ function unsupportedInstrumentGap(source: string, provider: string, symbol: stri
     provider,
     capability: "evidence-request",
     cause: "unsupported-coverage",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
+function secPacketGap(symbol: string, form: SecFiling["form"]): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC ${form} section packet for ${symbol} is malformed or too short to extract`,
+    provider: "sec-edgar",
+    capability: "evidence-request",
+    cause: "malformed-response",
     evidenceQualityImpact: "extended-evidence-cap",
   });
 }
@@ -213,11 +224,70 @@ function truncateText(value: string, maxChars: number): string {
   return `${trimmed}...`;
 }
 
-function secFilingExcerpt(normalized: string, form: SecFiling["form"]): string {
-  const sectionPattern =
-    form === "10-K" ? /ITEM\s+7\s*\S*\s*MANAGEMENT/u : /ITEM\s+2\s*\S*\s*MANAGEMENT/u;
-  const sectionStart = sectionPattern.exec(normalized)?.index ?? 0;
-  return truncateText(normalized.slice(sectionStart), SEC_FILING_SNIPPET_CHARS);
+// Per-section char budgets for the bounded SEC section packet. The sum bounds
+// The total text projected to the model for profile extraction.
+const SEC_SECTION_BUDGETS = {
+  business: 2000,
+  riskFactors: 1500,
+  mdna: 3000,
+  segments: 1000,
+  notes: 500,
+} as const;
+
+// Extracts a bounded slice of `text` starting at `start`, stopping at the next
+// ITEM header (to avoid bleeding into the following section) or `maxChars`.
+function boundedSection(text: string, start: number, maxChars: number): string {
+  const afterStart = text.slice(start);
+  const skipChars = 50;
+  const nextItem = /ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]/iu.exec(afterStart.slice(skipChars));
+  const endOffset = nextItem !== null ? skipChars + nextItem.index : afterStart.length;
+  return truncateText(afterStart.slice(0, Math.min(endOffset, maxChars)), maxChars);
+}
+
+// Builds a deterministic bounded section packet from a normalized SEC HTML filing. Covers Business, Risk Factors, MD&A, segment/geography disclosures, and notes — each with its own char budget. Returns undefined when the document is malformed or too short to yield any recognizable section, so the caller can degrade to an explicit gap instead of projecting a bad excerpt.
+function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): string | undefined {
+  if (normalized.length < SEC_PACKET_MIN_CHARS) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  const businessMatch = /ITEM\s+1\b[.\u2010-\u2015:-]?\s*BUSINESS/iu.exec(normalized);
+  if (businessMatch !== null) {
+    parts.push(
+      `[Business] ${boundedSection(normalized, businessMatch.index, SEC_SECTION_BUDGETS.business)}`,
+    );
+  }
+  const riskMatch = /ITEM\s+1A\b[.\u2010-\u2015:-]?\s*RISK\s+FACTORS/iu.exec(normalized);
+  if (riskMatch !== null) {
+    parts.push(
+      `[Risk Factors] ${boundedSection(normalized, riskMatch.index, SEC_SECTION_BUDGETS.riskFactors)}`,
+    );
+  }
+  const mdnaPattern =
+    form === "10-K"
+      ? /ITEM\s+7\b[.\u2010-\u2015:-]?\s*MANAGEMENT/iu
+      : /ITEM\s+2\b[.\u2010-\u2015:-]?\s*MANAGEMENT/iu;
+  const mdnaMatch = mdnaPattern.exec(normalized);
+  if (mdnaMatch !== null) {
+    parts.push(`[MD&A] ${boundedSection(normalized, mdnaMatch.index, SEC_SECTION_BUDGETS.mdna)}`);
+  }
+  const segmentMatch =
+    /SEGMENT\s+(INFORMATION|REPORTING|DATA|RESULTS|REVENUE)|GEOGRAPH(IC|IES|Y)\s+(REVENUE|SALES|DISCLOSURE|INFORMATION|DATA|BREAKDOWN)/iu.exec(
+      normalized,
+    );
+  if (segmentMatch !== null) {
+    const segStart = Math.max(0, segmentMatch.index - 200);
+    parts.push(`[Segments] ${boundedSection(normalized, segStart, SEC_SECTION_BUDGETS.segments)}`);
+  }
+  const notesMatch = /NOTES?\s+TO\s+(CONSOLIDATED\s+)?FINANCIAL\s+STATEMENTS/iu.exec(normalized);
+  if (notesMatch !== null) {
+    parts.push(
+      `[Notes] ${boundedSection(normalized, notesMatch.index, SEC_SECTION_BUDGETS.notes)}`,
+    );
+  }
+  if (parts.length === 0) {
+    return undefined;
+  }
+  return parts.join("\n\n");
 }
 
 interface SecFilingSourceItem {
@@ -231,12 +301,15 @@ function buildSecFilingSourceItem(
   filing: SecFiling,
   url: string,
   filingText: FetchTextResult,
-): SecFilingSourceItem {
+): SecFilingSourceItem | undefined {
   const formKey = filing.form === "10-K" ? "10k" : "10q";
   const identity = secIdentity(match);
   const normalized = normalizeFilingText(filingText.payload);
-  const excerpt = secFilingExcerpt(normalized, filing.form);
-  const summaryExcerpt = truncateText(excerpt, SEC_FILING_SUMMARY_EXCERPT_CHARS);
+  const packet = secFilingSectionPacket(normalized, filing.form);
+  if (packet === undefined) {
+    return undefined;
+  }
+  const summaryExcerpt = truncateText(packet, SEC_FILING_SUMMARY_EXCERPT_CHARS);
   const title = `${command.symbol} SEC ${filing.form}`;
   const source: Source = {
     id: `extended-sec-edgar-${command.symbol.toLowerCase()}-${formKey}`,
@@ -249,7 +322,7 @@ function buildSecFilingSourceItem(
     provider: "sec-edgar",
     rawRef: filingText.rawSnapshot.id,
     summary: `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`,
-    snippet: excerpt,
+    snippet: packet,
     identity,
   };
   const item: ExtendedEvidenceItem = {
@@ -372,9 +445,13 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     const { result: tenKText, url: tenKUrl } = await fetchFilingText(ctx, tenK, match.cik);
     if (isFetchTextResult(tenKText)) {
       rawSnapshots.push(tenKText.rawSnapshot);
-      const { source, item } = buildSecFilingSourceItem(command, match, tenK, tenKUrl, tenKText);
-      sources.push(source);
-      items.push(item);
+      const built = buildSecFilingSourceItem(command, match, tenK, tenKUrl, tenKText);
+      if (built !== undefined) {
+        sources.push(built.source);
+        items.push(built.item);
+      } else {
+        gaps.push(secPacketGap(command.symbol, tenK.form));
+      }
     } else {
       gaps.push(tenKText);
     }
@@ -385,9 +462,13 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     const { result: tenQText, url: tenQUrl } = await fetchFilingText(ctx, tenQ, match.cik);
     if (isFetchTextResult(tenQText)) {
       rawSnapshots.push(tenQText.rawSnapshot);
-      const { source, item } = buildSecFilingSourceItem(command, match, tenQ, tenQUrl, tenQText);
-      sources.push(source);
-      items.push(item);
+      const built = buildSecFilingSourceItem(command, match, tenQ, tenQUrl, tenQText);
+      if (built !== undefined) {
+        sources.push(built.source);
+        items.push(built.item);
+      } else {
+        gaps.push(secPacketGap(command.symbol, tenQ.form));
+      }
     } else {
       gaps.push(tenQText);
     }

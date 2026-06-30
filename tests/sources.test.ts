@@ -1363,6 +1363,83 @@ describe("SEC fundamental evidence", () => {
     expect(result?.metrics.dividendsPaid).toBeUndefined();
     expect(result?.gaps).toEqual([]);
   });
+
+  test("selects the correct revenue period and aligns flow metrics when an old fact has a newer filed date", () => {
+    // Reproduces the AAPL corruption: a 2018 revenue fact with a 2026 filed date
+    // Sorted ahead of the correct 2026 fact under filed-date-descending ordering.
+    // Period-end-descending ordering plus same-fiscal-period flow alignment fixes it.
+    const result = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  secFact(202_695_000_000, {
+                    fy: 2018,
+                    fp: "Q3",
+                    filed: "2026-05-01",
+                    start: "2017-10-01",
+                    end: "2018-06-30",
+                  }),
+                  secFact(254_940_000_000, {
+                    fy: 2026,
+                    fp: "Q2",
+                    filed: "2026-05-01",
+                    start: "2025-10-01",
+                    end: "2026-03-28",
+                  }),
+                ],
+              },
+            },
+            GrossProfit: {
+              units: {
+                USD: [
+                  secFact(124_012_000_000, {
+                    fy: 2026,
+                    fp: "Q2",
+                    filed: "2026-05-01",
+                    start: "2025-10-01",
+                    end: "2026-03-28",
+                  }),
+                ],
+              },
+            },
+            NetIncomeLoss: {
+              units: {
+                USD: [
+                  secFact(71_675_000_000, {
+                    fy: 2026,
+                    fp: "Q2",
+                    filed: "2026-05-01",
+                    start: "2025-10-01",
+                    end: "2026-03-28",
+                  }),
+                ],
+              },
+            },
+          },
+        },
+      },
+      "2026-06-28T00:00:00.000Z",
+    );
+
+    expect(result?.metrics.revenue).toBe(254_940_000_000);
+    expect(result?.metrics.revenuePeriodEnd).toBe("2026-03-28");
+    expect(result?.metrics.grossProfit).toBe(124_012_000_000);
+    expect(result?.metrics.grossProfitPeriodEnd).toBe("2026-03-28");
+    expect(result?.metrics.netIncome).toBe(71_675_000_000);
+    expect(result?.metrics.netIncomePeriodEnd).toBe("2026-03-28");
+    expect(
+      result?.gaps.some(
+        (gap) =>
+          gap.message.startsWith("Missing SEC company facts:") &&
+          (gap.message.includes("revenue") ||
+            gap.message.includes("grossProfit") ||
+            gap.message.includes("netIncome")),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("extended evidence provider collection", () => {

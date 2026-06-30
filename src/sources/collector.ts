@@ -1,10 +1,12 @@
-import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import {
   isMarketUpdateJobType,
+  type ExtendedEvidence,
   type MarketSnapshot,
   type Source,
   type SourceGap,
+  type VerifiedMarketSnapshot,
 } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
@@ -693,127 +695,27 @@ export async function collectSources(
     (result) => result.supplementalMarketSnapshots,
   );
 
-  // Canonical identity is a pure selection from the already-fetched ticker quote
-  const identityResult =
-    preliminaryIdentityResult ??
-    (isTicker
-      ? deriveCanonicalInstrumentIdentity(resolvedMarketResult.marketSnapshots, command.symbol)
-      : undefined);
-  const valuationResult = addValuationEvidence(
+  const enrichmentResult = await collectEquityEnrichment({
     command,
-    resolvedMarketResult.marketSnapshots,
-    extendedResult.extendedEvidence,
-  );
-  const peerUniverseFallback =
-    isEquityTicker && command.depth === "deep"
-      ? peerUniverseFallbackFor(peerUniverseSeam, identityCtx, now)
-      : undefined;
-  const valuationCompsResult =
-    isEquityTicker &&
-    command.depth === "deep" &&
-    valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
-      ? await collectValuationComps(
-          identityCtx,
-          command,
-          resolvedMarketResult.marketSnapshots,
-          valuationResult.extendedEvidence,
-          peerUniverseFallback !== undefined ? { peerUniverseFallback } : undefined,
-        )
-      : undefined;
-  const finalExtendedEvidence =
-    valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
-  // Yahoo Fundamentals: derive from the normalized ticker snapshot's fundamentals
-  // (captured at the single Yahoo parse point) before the financial lens runs, so
-  // The lens can mix SEC + Yahoo sources. Returns undefined for Massive fallback /
-  // Non-equity / payloads with no fundamental fields — no item, no crash. See ADR 0033.
-  const yahooFundamentalsItem = buildYahooFundamentals(
-    command,
-    resolvedMarketResult.marketSnapshots,
-    ctx.fetchedAt,
-  );
-  const evidenceWithYahooFundamentals =
-    yahooFundamentalsItem === undefined || finalExtendedEvidence === undefined
-      ? finalExtendedEvidence
-      : {
-          ...(finalExtendedEvidence.instrument !== undefined
-            ? { instrument: finalExtendedEvidence.instrument }
-            : {}),
-          ...(finalExtendedEvidence.subject !== undefined
-            ? { subject: finalExtendedEvidence.subject }
-            : {}),
-          items: [...finalExtendedEvidence.items, yahooFundamentalsItem],
-          gaps: finalExtendedEvidence.gaps,
-        };
-  const financialLensResult = addFinancialLensEvidence(
-    command,
-    resolvedMarketResult.marketSnapshots,
-    evidenceWithYahooFundamentals,
-    verifiedSnapshotResult?.snapshot,
-    ctx.fetchedAt,
-  );
-  const businessFrameworkResult = addBusinessFrameworkEvidence(
-    command,
-    resolvedMarketResult.marketSnapshots,
-    financialLensResult.extendedEvidence,
-    verifiedSnapshotResult?.snapshot,
-    ctx.fetchedAt,
-  );
-
-  // Earnings Setup: equity ticker deep only — parse Finnhub calendar for a
-  // Near upcoming event, then compute deterministic implied move from Tradier.
-  let earningsSetup: EarningsSetupCollected | undefined = undefined;
-  const earningsExtraSources: Source[] = [];
-  if (isEquityTicker && command.depth === "deep") {
-    const earningsCalendarSnapshot = extendedResult.rawSnapshots.find(
-      (snapshot) => snapshot.adapter === "finnhub-events-1",
-    );
-    if (earningsCalendarSnapshot !== undefined) {
-      const earningsSourceId = `extended-finnhub-events-${command.symbol.toLowerCase()}`;
-      const event = parseNearEarningsEvent(
-        earningsCalendarSnapshot.payload,
-        command.symbol,
-        earningsCalendarSnapshot.fetchedAt,
-        earningsSourceId,
-      );
-      if (event !== undefined) {
-        const tickerSnapshot = resolvedMarketResult.marketSnapshots.find(
-          (snapshot) => snapshot.symbol === command.symbol,
-        );
-        const spot = tickerSnapshot?.price;
-        const earningsGaps: string[] = [];
-        const earningsSourceGaps: SourceGap[] = [];
-
-        if (spot !== undefined && spot > 0) {
-          const moveResult = await computeImpliedMove(ctx, event, spot);
-          earningsSetup = {
-            event,
-            ...(moveResult.impliedMove !== undefined
-              ? { impliedMove: moveResult.impliedMove }
-              : {}),
-            gaps: moveResult.gaps.map((gap) => gap.message),
-          };
-          // Register a citeable Source for the implied move to avoid orphaned IDs.
-          const impliedMoveSource = buildImpliedMoveSource(command, moveResult.impliedMove);
-          earningsExtraSources.push(
-            ...(impliedMoveSource !== undefined ? [impliedMoveSource] : []),
-          );
-          earningsSourceGaps.push(...moveResult.gaps);
-        } else {
-          earningsGaps.push("Spot price unavailable; implied move could not be computed");
-          earningsSetup = { event, gaps: earningsGaps };
-        }
-        // Push earnings source gaps into the main gap array below.
-        earningsSourceGaps.forEach((gap) => staleFallbackGaps.push(gap));
-      }
-    }
-  }
+    marketSnapshots: resolvedMarketResult.marketSnapshots,
+    extendedEvidence: extendedResult.extendedEvidence,
+    extendedRawSnapshots: extendedResult.rawSnapshots,
+    verifiedMarketSnapshot: verifiedSnapshotResult?.snapshot,
+    fetchedAt: ctx.fetchedAt,
+    context: ctx,
+    identityContext: identityCtx,
+    preliminaryIdentityResult,
+    now,
+    peerUniverse: peerUniverseSeam,
+  });
+  staleFallbackGaps.push(...enrichmentResult.earningsSourceGaps);
 
   return {
     rawSnapshots: [
       ...resolvedMarketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
       ...extendedResult.rawSnapshots,
-      ...(valuationCompsResult?.rawSnapshots ?? []),
+      ...(enrichmentResult.valuationCompsResult?.rawSnapshots ?? []),
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
       ...(verifiedSnapshotResult?.rawSnapshot !== undefined
@@ -825,11 +727,11 @@ export async function collectSources(
     newsSources: newsResult.newsSources,
     extendedSources: [
       ...extendedResult.sources,
-      ...(valuationCompsResult?.sources ?? []),
-      ...earningsExtraSources,
+      ...(enrichmentResult.valuationCompsResult?.sources ?? []),
+      ...enrichmentResult.earningsExtraSources,
     ],
-    ...(businessFrameworkResult.extendedEvidence !== undefined
-      ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
+    ...(enrichmentResult.businessFrameworkResult.extendedEvidence !== undefined
+      ? { extendedEvidence: enrichmentResult.businessFrameworkResult.extendedEvidence }
       : {}),
     ...(marketContextResult.marketContext !== undefined
       ? { marketContext: marketContextResult.marketContext }
@@ -839,33 +741,255 @@ export async function collectSources(
     ...(verifiedSnapshotResult?.snapshot !== undefined
       ? { verifiedMarketSnapshot: verifiedSnapshotResult.snapshot }
       : {}),
-    ...(identityResult?.identity !== undefined
-      ? { resolvedInstrumentIdentity: identityResult.identity }
+    ...(enrichmentResult.identityResult?.identity !== undefined
+      ? { resolvedInstrumentIdentity: enrichmentResult.identityResult.identity }
       : {}),
-    ...(earningsSetup !== undefined ? { earningsSetup } : {}),
-    ...(valuationCompsResult?.artifact !== undefined
-      ? { valuationComps: valuationCompsResult.artifact }
+    ...(enrichmentResult.earningsSetup !== undefined
+      ? { earningsSetup: enrichmentResult.earningsSetup }
       : {}),
-    ...(financialLensResult.artifact !== undefined
-      ? { financialLenses: financialLensResult.artifact }
+    ...(enrichmentResult.valuationCompsResult?.artifact !== undefined
+      ? { valuationComps: enrichmentResult.valuationCompsResult.artifact }
       : {}),
-    ...(businessFrameworkResult.artifact !== undefined
-      ? { businessFramework: businessFrameworkResult.artifact }
+    ...(enrichmentResult.financialLensResult.artifact !== undefined
+      ? { financialLenses: enrichmentResult.financialLensResult.artifact }
+      : {}),
+    ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
+      ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
       ...extendedResult.sourceGaps,
-      ...valuationResult.sourceGaps,
-      ...(valuationCompsResult?.gaps ?? []),
-      ...financialLensResult.sourceGaps,
-      ...businessFrameworkResult.sourceGaps,
+      ...enrichmentResult.valuationResult.sourceGaps,
+      ...(enrichmentResult.valuationCompsResult?.gaps ?? []),
+      ...enrichmentResult.financialLensResult.sourceGaps,
+      ...enrichmentResult.businessFrameworkResult.sourceGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),
-      ...(identityResult?.gap !== undefined ? [identityResult.gap] : []),
+      ...(enrichmentResult.identityResult?.gap !== undefined
+        ? [enrichmentResult.identityResult.gap]
+        : []),
       ...staleFallbackGaps,
     ],
+  };
+}
+
+type InstrumentIdentityResult = ReturnType<typeof deriveCanonicalInstrumentIdentity>;
+type ValuationResult = ReturnType<typeof addValuationEvidence>;
+type ValuationCompsResult = Awaited<ReturnType<typeof collectValuationComps>>;
+type FinancialLensResult = ReturnType<typeof addFinancialLensEvidence>;
+type BusinessFrameworkResult = ReturnType<typeof addBusinessFrameworkEvidence>;
+
+interface EquityEnrichmentInput {
+  readonly command: ResearchCommand;
+  readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly extendedEvidence: ExtendedEvidence | undefined;
+  readonly extendedRawSnapshots: readonly RawSourceSnapshot[];
+  readonly verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined;
+  readonly fetchedAt: string;
+  readonly context: CollectContext;
+  readonly identityContext: CollectContext;
+  readonly preliminaryIdentityResult: InstrumentIdentityResult | undefined;
+  readonly now: Date;
+  readonly peerUniverse: PeerUniverseSeam | undefined;
+}
+
+interface EquityEnrichmentResult {
+  readonly identityResult: InstrumentIdentityResult | undefined;
+  readonly valuationResult: ValuationResult;
+  readonly valuationCompsResult: ValuationCompsResult | undefined;
+  readonly financialLensResult: FinancialLensResult;
+  readonly businessFrameworkResult: BusinessFrameworkResult;
+  readonly earningsSetup: EarningsSetupCollected | undefined;
+  readonly earningsExtraSources: readonly Source[];
+  readonly earningsSourceGaps: readonly SourceGap[];
+}
+
+async function collectEquityEnrichment(
+  input: EquityEnrichmentInput,
+): Promise<EquityEnrichmentResult> {
+  const identityResult =
+    input.preliminaryIdentityResult ??
+    (isInstrumentCommand(input.command)
+      ? deriveCanonicalInstrumentIdentity(input.marketSnapshots, input.command.symbol)
+      : undefined);
+  if (isMarketUpdateJobType(input.command.jobType)) {
+    return noEquityEnrichment(identityResult, input.extendedEvidence);
+  }
+  if (!isInstrumentCommand(input.command) || input.command.assetClass !== "equity") {
+    return noEquityEnrichment(identityResult, input.extendedEvidence);
+  }
+
+  const valuationResult = addValuationEvidence(
+    input.command,
+    input.marketSnapshots,
+    input.extendedEvidence,
+  );
+  const peerUniverseFallback =
+    input.command.depth === "deep"
+      ? peerUniverseFallbackFor(input.peerUniverse, input.identityContext, input.now)
+      : undefined;
+  const valuationCompsResult =
+    input.command.depth === "deep" &&
+    valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
+      ? await collectValuationComps(
+          input.identityContext,
+          input.command,
+          input.marketSnapshots,
+          valuationResult.extendedEvidence,
+          peerUniverseFallback !== undefined ? { peerUniverseFallback } : undefined,
+        )
+      : undefined;
+  const evidenceWithComps =
+    valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
+  const evidenceWithYahooFundamentals = addYahooFundamentals(
+    input.command,
+    input.marketSnapshots,
+    evidenceWithComps,
+    input.fetchedAt,
+  );
+  const financialLensResult = addFinancialLensEvidence(
+    input.command,
+    input.marketSnapshots,
+    evidenceWithYahooFundamentals,
+    input.verifiedMarketSnapshot,
+    input.fetchedAt,
+  );
+  const businessFrameworkResult = addBusinessFrameworkEvidence(
+    input.command,
+    input.marketSnapshots,
+    financialLensResult.extendedEvidence,
+    input.verifiedMarketSnapshot,
+    input.fetchedAt,
+  );
+  const earningsResult =
+    input.command.depth === "deep"
+      ? await collectEarningsSetup(
+          input.command,
+          input.marketSnapshots,
+          input.extendedRawSnapshots,
+          input.context,
+        )
+      : { earningsSetup: undefined, earningsExtraSources: [], earningsSourceGaps: [] };
+
+  return {
+    identityResult,
+    valuationResult,
+    valuationCompsResult,
+    financialLensResult,
+    businessFrameworkResult,
+    ...earningsResult,
+  };
+}
+
+function noEquityEnrichment(
+  identityResult: InstrumentIdentityResult | undefined,
+  extendedEvidence: ExtendedEvidence | undefined,
+): EquityEnrichmentResult {
+  const valuationResult = passthroughValuationResult(extendedEvidence);
+  const financialLensResult = passthroughFinancialLensResult(extendedEvidence);
+  const businessFrameworkResult = passthroughBusinessFrameworkResult(extendedEvidence);
+  return {
+    identityResult,
+    valuationResult,
+    valuationCompsResult: undefined,
+    financialLensResult,
+    businessFrameworkResult,
+    earningsSetup: undefined,
+    earningsExtraSources: [],
+    earningsSourceGaps: [],
+  };
+}
+
+function passthroughValuationResult(
+  extendedEvidence: ExtendedEvidence | undefined,
+): ValuationResult {
+  return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
+}
+
+function passthroughFinancialLensResult(
+  extendedEvidence: ExtendedEvidence | undefined,
+): FinancialLensResult {
+  return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
+}
+
+function passthroughBusinessFrameworkResult(
+  extendedEvidence: ExtendedEvidence | undefined,
+): BusinessFrameworkResult {
+  return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
+}
+
+function addYahooFundamentals(
+  command: ResearchCommand,
+  marketSnapshots: readonly MarketSnapshot[],
+  extendedEvidence: ExtendedEvidence | undefined,
+  fetchedAt: string,
+): ExtendedEvidence | undefined {
+  const yahooFundamentalsItem = buildYahooFundamentals(command, marketSnapshots, fetchedAt);
+  if (yahooFundamentalsItem === undefined || extendedEvidence === undefined) {
+    return extendedEvidence;
+  }
+  return {
+    ...(extendedEvidence.instrument !== undefined
+      ? { instrument: extendedEvidence.instrument }
+      : {}),
+    ...(extendedEvidence.subject !== undefined ? { subject: extendedEvidence.subject } : {}),
+    items: [...extendedEvidence.items, yahooFundamentalsItem],
+    gaps: extendedEvidence.gaps,
+  };
+}
+
+async function collectEarningsSetup(
+  command: InstrumentCommand,
+  marketSnapshots: readonly MarketSnapshot[],
+  extendedRawSnapshots: readonly RawSourceSnapshot[],
+  context: CollectContext,
+): Promise<{
+  readonly earningsSetup: EarningsSetupCollected | undefined;
+  readonly earningsExtraSources: readonly Source[];
+  readonly earningsSourceGaps: readonly SourceGap[];
+}> {
+  const earningsCalendarSnapshot = extendedRawSnapshots.find(
+    (snapshot) => snapshot.adapter === "finnhub-events-1",
+  );
+  if (earningsCalendarSnapshot === undefined) {
+    return { earningsSetup: undefined, earningsExtraSources: [], earningsSourceGaps: [] };
+  }
+  const earningsSourceId = `extended-finnhub-events-${command.symbol.toLowerCase()}`;
+  const event = parseNearEarningsEvent(
+    earningsCalendarSnapshot.payload,
+    command.symbol,
+    earningsCalendarSnapshot.fetchedAt,
+    earningsSourceId,
+  );
+  if (event === undefined) {
+    return { earningsSetup: undefined, earningsExtraSources: [], earningsSourceGaps: [] };
+  }
+
+  const tickerSnapshot = marketSnapshots.find((snapshot) => snapshot.symbol === command.symbol);
+  const spot = tickerSnapshot?.price;
+  if (spot === undefined || spot <= 0) {
+    return {
+      earningsSetup: {
+        event,
+        gaps: ["Spot price unavailable; implied move could not be computed"],
+      },
+      earningsExtraSources: [],
+      earningsSourceGaps: [],
+    };
+  }
+
+  const moveResult = await computeImpliedMove(context, event, spot);
+  const impliedMoveSource = buildImpliedMoveSource(command, moveResult.impliedMove);
+  return {
+    earningsSetup: {
+      event,
+      ...(moveResult.impliedMove !== undefined ? { impliedMove: moveResult.impliedMove } : {}),
+      gaps: moveResult.gaps.map((gap) => gap.message),
+    },
+    earningsExtraSources: impliedMoveSource !== undefined ? [impliedMoveSource] : [],
+    earningsSourceGaps: moveResult.gaps,
   };
 }
 

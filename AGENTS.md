@@ -28,6 +28,7 @@ bun run check    # fmt + lint + fmt:check + typecheck + test
 ```
 
 Requirements:
+
 - All checks must pass before marking the task as complete
 - Never bypass Git hooks with --no-verify or skip CI checks
 - Include tests within the same commit as the code changes

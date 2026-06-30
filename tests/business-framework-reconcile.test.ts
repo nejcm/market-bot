@@ -107,10 +107,12 @@ describe("reconcileBusinessFramework", () => {
 
     expect(result.artifact.gaps).toEqual([gap("analyst-consensus")]);
     expect(result.artifact.reconciliation?.resolvedGaps).toEqual([
+      "business-description",
       "capital-allocation",
       "company-kpis",
       "customer-concentration",
       "cyclicality",
+      "geographic-mix",
       "management-track-record",
       "pricing-power",
       "purchase-recurrence",

@@ -106,6 +106,8 @@ interface PhaseClassificationInput {
 const SECTION_ORDER = BUSINESS_FRAMEWORK_SECTION_NAMES;
 
 export const BUSINESS_FRAMEWORK_GAP_CODES = [
+  "business-description",
+  "geographic-mix",
   "segment-mix",
   "customer-concentration",
   "purchase-recurrence",
@@ -131,6 +133,14 @@ export interface BusinessFrameworkGap {
 export type BusinessFrameworkGapValue = BusinessFrameworkGap | string;
 
 export const QUALITATIVE_GAPS = [
+  {
+    code: "business-description",
+    text: "Business description is not available from current normalized sources",
+  },
+  {
+    code: "geographic-mix",
+    text: "Geographic revenue mix is not available from current normalized sources",
+  },
   { code: "segment-mix", text: "Segment mix is not available from current normalized sources" },
   {
     code: "customer-concentration",
@@ -418,7 +428,13 @@ export function addBusinessFrameworkEvidence(
         ),
       ],
       secSourceIds,
-      qualitativeGaps("segment-mix", "customer-concentration", "purchase-recurrence"),
+      qualitativeGaps(
+        "business-description",
+        "geographic-mix",
+        "segment-mix",
+        "customer-concentration",
+        "purchase-recurrence",
+      ),
     ),
     section(
       "Phase",

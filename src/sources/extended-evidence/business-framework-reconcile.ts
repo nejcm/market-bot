@@ -16,6 +16,8 @@ const PROFILE_GAP_QUESTIONS: readonly {
   readonly code: BusinessFrameworkGapCode;
   readonly question: WebSubjectProfileCompanyQuestionKey;
 }[] = [
+  { code: "business-description", question: "whatItDoes" },
+  { code: "geographic-mix", question: "geography" },
   { code: "segment-mix", question: "howItMakesMoney" },
   { code: "customer-concentration", question: "customers" },
   { code: "purchase-recurrence", question: "purchaseRecurrence" },

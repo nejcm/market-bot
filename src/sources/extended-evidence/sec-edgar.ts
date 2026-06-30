@@ -324,10 +324,8 @@ function isFactObservableAsOf(fact: SecFactValue, analysisAsOf?: string): boolea
   );
 }
 
-// True when the revenue period end is older than SEC_FRESHNESS_DAYS relative to
-// AnalysisAsOf. Matches the freshness pattern in valuation-comps.ts's
-// IsFreshPeriodEnd; flags the gap without suppressing the metric so downstream
-// Consumers can still use it.
+// Returns true when the revenue period end is older than SEC_FRESHNESS_DAYS.
+// The gap does not suppress the metric, so downstream consumers can still use it.
 function isStalePeriodEnd(periodEnd: string, analysisAsOf: string): boolean {
   const periodMs = Date.parse(periodEnd);
   const cutoffMs = Date.parse(analysisAsOf);

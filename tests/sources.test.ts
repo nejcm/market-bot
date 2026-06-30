@@ -1469,6 +1469,35 @@ describe("SEC fundamental evidence", () => {
     expect(result?.metrics.revenue).toBe(100);
   });
 
+  test("does not flag revenue exactly at the freshness threshold", () => {
+    const result = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  secFact(100, {
+                    fy: 2026,
+                    fp: "Q1",
+                    filed: "2026-01-15",
+                    start: "2025-10-01",
+                    end: "2025-12-30",
+                  }),
+                ],
+              },
+            },
+          },
+        },
+      },
+      "2026-06-28T00:00:00.000Z",
+    );
+
+    expect(result?.gaps.some((gap) => gap.message.includes("Stale SEC revenue period"))).toBe(
+      false,
+    );
+  });
+
   test("does not flag revenue within the freshness threshold", () => {
     const result = summarizeSecFundamentals(
       {

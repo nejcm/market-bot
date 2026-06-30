@@ -25,9 +25,9 @@ export interface ToolOutputWithGaps {
   readonly gaps: readonly SourceGap[];
 }
 
-export function acceptedJsonToolAuditEntry<TTool extends string>(
+export function acceptedJsonToolAuditEntry(
   round: number,
-  tool: TTool,
+  tool: string,
   args: unknown,
   rationale: string,
   sourceUnits: number,

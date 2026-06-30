@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import {
   DEFAULT_RESEARCH_SUBJECT_REGISTRY,
   normalizeResearchSubjectQuery,
@@ -50,6 +51,23 @@ describe("research subject registry", () => {
       reason: "Resolved to checked-in single listed prediction proxy",
     });
     expect(result.subject?.subjectKey).toBe("semiconductors");
+  });
+
+  test("resolves from the raw subject instead of caller-provided identity", () => {
+    const result = resolveResearchSubject({
+      jobType: "research",
+      assetClass: "equity",
+      subject: "Chip stocks",
+      subjectKey: "bogus-subject",
+      predictionProxySymbol: "BOGUS",
+      depth: "brief",
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+    });
   });
 
   test("resolves known subjects without a proxy but keeps predictions disabled", () => {

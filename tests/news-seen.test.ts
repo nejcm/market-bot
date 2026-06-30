@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { readNewsSeenEntries, recordSeenNewsSources } from "../src/sources/news-seen";
 import { newsSource } from "./support/fixtures";
 
@@ -27,13 +28,7 @@ describe("news seen index", () => {
     await recordSeenNewsSources({
       path,
       retentionDays: 30,
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       runId: "run-1",
       seenAt: "2026-05-01T00:00:00.000Z",
       sources: [
@@ -47,13 +42,7 @@ describe("news seen index", () => {
     await recordSeenNewsSources({
       path,
       retentionDays: 30,
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       runId: "run-2",
       seenAt: "2026-05-02T00:00:00.000Z",
       sources: [
@@ -105,13 +94,7 @@ describe("news seen index", () => {
     await recordSeenNewsSources({
       path,
       retentionDays: 30,
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       runId: "run-1",
       seenAt: "2026-05-15T00:00:00.000Z",
       sources: [newsSource({ url: "https://example.test/new" })],

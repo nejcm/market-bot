@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import {
@@ -103,13 +104,10 @@ function resolvedPair(id: string, probability: number, outcome: "hit" | "miss"):
 
 describe("buildStagePrompt", () => {
   test("includes mover feature breakdown in evidence payload", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "specialist-analysis",
       command,
@@ -179,13 +177,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("uses the non-final required shape for coverage panel stages", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "deep",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "regime-context-analysis",
       command,
@@ -238,13 +233,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("adds explicit prediction repair guidance on final-synthesis retries", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "final-synthesis",
       command,
@@ -314,13 +306,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("threads redundancy-rejection reasons into the final-synthesis retry prompt", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const redundancyReason =
       "Prediction pred-2: redundant direction forecast for AAPL at 6 trading days (within 2 trading days of accepted 5d)";
     const prompt = buildStagePrompt(
@@ -372,13 +361,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("final-synthesis shape omits model-authored prediction claims", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "final-synthesis",
       command,
@@ -553,13 +539,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("renders prior calibration from real CalibrationSummary JSON without undefined", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const summary = buildCalibrationSummary([
       resolvedPair("pred-1", 0.65, "hit"),
       resolvedPair("pred-2", 0.65, "miss"),
@@ -618,13 +601,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("surfaces overall skill and per-kind / per-horizon calibration slices", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const summary = buildCalibrationSummary([
       resolvedPair("pred-1", 0.65, "hit"),
       resolvedPair("pred-2", 0.65, "miss"),
@@ -684,13 +664,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("injects current-regime calibration only at the sample floor", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "specialist-analysis",
       command,
@@ -738,13 +715,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("omits current-regime calibration below the sample floor", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "specialist-analysis",
       command,
@@ -791,13 +765,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("injects domain playbooks as a separate prompt field", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "critique",
       command,
@@ -862,13 +833,10 @@ describe("buildStagePrompt", () => {
   });
 
   test("adds citation guidance that reserves history reports for narrative context", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildStagePrompt(
       "specialist-analysis",
       command,
@@ -1135,13 +1103,10 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
   }
 
   test("daily-equity (market-update) instruction favors relative/macro/volatility over bare direction", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const instruction = finalSynthesisInstruction(command);
 
     expect(instruction).toContain(
@@ -1168,13 +1133,10 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
   });
 
   test("daily-crypto instruction favors relative/range and never advertises macro or iv", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "crypto",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const instruction = finalSynthesisInstruction(command);
 
     expect(instruction).toContain(
@@ -1193,20 +1155,14 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
   });
 
   test("deep daily-equity raises the non-direction floor over the brief profile", () => {
-    const briefCommand: ResearchCommand = {
-      jobType: "market-overview",
+    const briefCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
-    const deepCommand: ResearchCommand = {
-      jobType: "market-overview",
+    });
+    const deepCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "deep",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
 
     const briefInstruction = finalSynthesisInstruction(briefCommand);
     const deepInstruction = finalSynthesisInstruction(deepCommand);
@@ -1332,13 +1288,10 @@ describe("buildStagePrompt prior-thesis error correction", () => {
   });
 
   test("does not surface an instrument error block for market-update (daily) runs", () => {
-    const dailyCommand: ResearchCommand = {
-      jobType: "market-overview",
+    const dailyCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const context = contextWithHistory(
       dailyCommand,
       historicalContextWith([tickerRun("run-aapl-1", "AAPL", [missSummary("p1")])]),
@@ -1507,13 +1460,10 @@ function priorThematicForecastErrorsFor(
 }
 
 describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", () => {
-  const dailyCommand: ResearchCommand = {
-    jobType: "market-overview",
+  const dailyCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
     assetClass: "equity",
     depth: "brief",
-    horizonTradingDays: 5,
-    legacyAlias: "daily",
-  };
+  });
   const sevenDayOverviewCommand: ResearchCommand = {
     jobType: "market-overview",
     assetClass: "equity",
@@ -1714,13 +1664,10 @@ describe("buildStagePrompt research thematic forecast error correction", () => {
 
 describe("buildPlaybookSelectionPrompt", () => {
   test("uses slim selector context", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const prompt = buildPlaybookSelectionPrompt(
       command,
       collectedSources({
@@ -1788,13 +1735,10 @@ describe("buildPlaybookSelectionPrompt", () => {
 
 describe("buildSpotlightSelectionPrompt", () => {
   test("uses candidate-only selector context", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const sources = collectedSources({
       rawSnapshots: [],
       marketSnapshots: [marketSnapshot()],
@@ -2151,13 +2095,10 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
   }
 
   test("non-gated projector contributes its key only when its source is present", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
 
     expect(evidenceFor(command, {}).marketContext).toBeUndefined();
     expect(evidenceFor(command, { marketContext: marketContextValue }).marketContext).toEqual(
@@ -2186,13 +2127,10 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
       symbol: "AAPL",
       depth: "deep",
     };
-    const dailyCommand: ResearchCommand = {
-      jobType: "market-overview",
+    const dailyCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
 
     expect(
       evidenceFor(tickerCommand, { extendedEvidence: extendedEvidenceValue }).extendedEvidence,
@@ -2209,13 +2147,10 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
       symbol: "AAPL",
       depth: "deep",
     };
-    const dailyCommand: ResearchCommand = {
-      jobType: "market-overview",
+    const dailyCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
 
     expect(evidenceFor(tickerCommand, {}).earningsSetup).toBeUndefined();
     expect(evidenceFor(tickerCommand, { earningsSetup: earningsSetupValue }).earningsSetup).toEqual(
@@ -2503,13 +2438,10 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
   });
 
   test("no structured profile projected for non-instrument runs", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const evidence = evidenceFor(command, {
       webSubjectProfile: webProfileForProjection,
     });
@@ -2596,13 +2528,10 @@ describe("buildStagePrompt forecast diversity guidance", () => {
   });
 
   test("market-overview runs do not include forecast diversity guidance", () => {
-    const command: ResearchCommand = {
-      jobType: "market-overview",
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "deep",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    };
+    });
     const instruction = finalSynthesisInstruction(command);
 
     expect(instruction).not.toContain(

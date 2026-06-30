@@ -1,4 +1,5 @@
 import { describe, expect, test, afterEach } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -34,13 +35,10 @@ Base instruction text.
 Base goal text.
 `;
 
-const dailyEquityCommand = {
-  jobType: "market-overview" as const,
-  assetClass: "equity" as const,
-  depth: "brief" as const,
-  horizonTradingDays: 5,
-  legacyAlias: "daily" as const,
-};
+const dailyEquityCommand = legacyMarketOverviewCommand("daily", {
+  assetClass: "equity",
+  depth: "brief",
+});
 
 const tickerCommand = {
   jobType: "equity" as const,
@@ -187,13 +185,10 @@ Unexpected system delta.
     });
     cleanups.push(cleanup);
 
-    const weeklyCommand = {
-      jobType: "market-overview" as const,
-      assetClass: "equity" as const,
-      depth: "brief" as const,
-      horizonTradingDays: 15,
-      legacyAlias: "weekly" as const,
-    };
+    const weeklyCommand = legacyMarketOverviewCommand("weekly", {
+      assetClass: "equity",
+      depth: "brief",
+    });
     const result = await loadStagePrompt("critique", weeklyCommand, dir);
 
     expect(result.instruction).toBe("Base instruction text.");

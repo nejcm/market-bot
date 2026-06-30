@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -311,13 +312,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       runConfig,
       provider,
@@ -385,13 +380,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "deep",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -700,13 +689,7 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const daily = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config: { ...config, dataDir },
       provider,
       collectedSources: collected,
@@ -767,13 +750,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config: { ...config, dataDir },
       provider,
       collectedSources: collectedSourceBundle({
@@ -1021,13 +998,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1343,20 +1314,8 @@ describe("runResearchJob", () => {
         symbol: "BTC",
         depth: "deep" as const,
       },
-      {
-        jobType: "market-overview" as const,
-        assetClass: "equity" as const,
-        depth: "deep" as const,
-        horizonTradingDays: 5,
-        legacyAlias: "daily" as const,
-      },
-      {
-        jobType: "market-overview" as const,
-        assetClass: "equity" as const,
-        depth: "deep" as const,
-        horizonTradingDays: 15,
-        legacyAlias: "weekly" as const,
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
+      legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "deep" }),
     ];
 
     for (const command of commands) {
@@ -1411,13 +1370,7 @@ describe("runResearchJob", () => {
 
   test("creates a daily Research View from mocked sources and model output", async () => {
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -1525,13 +1478,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1667,13 +1614,7 @@ describe("runResearchJob", () => {
 
   test("ignores extended sources for market update source lists", async () => {
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -1764,13 +1705,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 15,
-        legacyAlias: "weekly",
-      },
+      command: legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1843,13 +1778,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 15,
-        legacyAlias: "weekly",
-      },
+      command: legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1902,13 +1831,7 @@ describe("runResearchJob", () => {
     const dataDir = join(tmpdir(), `market-bot-test-${Date.now()}`);
     dataDirs.push(dataDir);
     const result = await persistResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config: {
         ...config,
         dataDir,
@@ -3005,13 +2928,7 @@ describe("runResearchJob", () => {
 
   test("caps Evidence Quality and adds deterministic gaps for sparse sources", async () => {
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -3043,13 +2960,7 @@ describe("runResearchJob", () => {
 
   test("does not cap Evidence Quality for missing Market Context", async () => {
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -3100,13 +3011,7 @@ describe("runResearchJob", () => {
 
   test("does not cap Evidence Quality for missing optional news credentials", async () => {
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -3305,13 +3210,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3415,13 +3314,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "deep",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3530,13 +3423,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3647,13 +3534,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "deep",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3767,13 +3648,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "deep",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3832,13 +3707,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "deep",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3906,13 +3775,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -4125,13 +3988,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -4233,13 +4090,7 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -4265,13 +4116,7 @@ describe("runResearchJob", () => {
 
   test("logs prediction validation errors to trace when malformed predictions are dropped", async () => {
     const result = await runResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -4332,13 +4177,7 @@ describe("runResearchJob", () => {
     dataDirs.push(dataDir);
 
     const result = await persistResearchJob({
-      command: {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       config: {
         ...config,
         dataDir,

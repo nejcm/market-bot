@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -164,33 +165,15 @@ describe("mocked research workflows", () => {
   test("persists daily, weekly, and ticker workflows with matching artifact layout", async () => {
     const workflows = [
       await runWorkflow(
-        {
-          jobType: "market-overview",
-          assetClass: "equity",
-          depth: "brief",
-          horizonTradingDays: 5,
-          legacyAlias: "daily",
-        },
+        legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
         "AAPL",
       ),
       await runWorkflow(
-        {
-          jobType: "market-overview",
-          assetClass: "crypto",
-          depth: "brief",
-          horizonTradingDays: 5,
-          legacyAlias: "daily",
-        },
+        legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
         "BTC",
       ),
       await runWorkflow(
-        {
-          jobType: "market-overview",
-          assetClass: "equity",
-          depth: "brief",
-          horizonTradingDays: 15,
-          legacyAlias: "weekly",
-        },
+        legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
         "AAPL",
       ),
       await runWorkflow(

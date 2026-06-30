@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -109,13 +110,10 @@ function writeRun(dataDir: string, spec: RunSpec): void {
   }
 }
 
-const DAILY_EQUITY = {
-  jobType: "market-overview" as const,
-  assetClass: "equity" as const,
-  depth: "brief" as const,
-  horizonTradingDays: 5,
-  legacyAlias: "daily" as const,
-};
+const DAILY_EQUITY = legacyMarketOverviewCommand("daily", {
+  assetClass: "equity",
+  depth: "brief",
+});
 const NOW = new Date("2026-05-10T00:00:00.000Z");
 
 async function tempDataDir(): Promise<string> {

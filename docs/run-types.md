@@ -240,6 +240,8 @@ Run key `equity` &rarr; `INSTRUMENT_RUN_PARAMS` profile in
 ### Data Collected
 
 - Market snapshot for the ticker plus a benchmark snapshot.
+- Live **Ticker Regime Context** from broad equity breadth proxies (`SPY`,
+  `QQQ`, `IWM`, `DIA`) and volatility gauges (`^VIX`, `^VIX3M`).
 - Supplemental market data.
 - News relevance targets = the ticker symbol (plus display name if available).
 - Extended evidence:
@@ -467,6 +469,7 @@ Hard-coded trace stages (no LLM pipeline):
 - `sec-filing-discovery`
 - `official-listed-universe-filter`
 - `yahoo-validation`
+- `sec-fundamentals-collection`
 - `alpha-search-report`
 
 ### Output

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
@@ -174,13 +175,8 @@ function assembleWithSpotlights(
         readonly depth: "brief";
       },
 ): ResearchReport {
-  const resolvedCommand = command ?? {
-    jobType: "market-overview",
-    assetClass: "equity",
-    depth: "brief",
-    horizonTradingDays: 5,
-    legacyAlias: "daily",
-  };
+  const resolvedCommand =
+    command ?? legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" });
   return assembleResearchReport({
     runId: "spotlight-run",
     generatedAt: "2026-06-01T00:00:00.000Z",
@@ -845,13 +841,10 @@ describe("report schema and rendering", () => {
   });
 
   test("dedupes model and deterministic data gaps by normalized text", () => {
-    const command = {
-      jobType: "market-overview" as const,
-      assetClass: "equity" as const,
-      depth: "brief" as const,
-      horizonTradingDays: 5,
-      legacyAlias: "daily" as const,
-    };
+    const command = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
     const targetKindMix = { favored: ["relative", "range"] as const, minNonDirection: 1 };
     const depthProfile: DepthProfile = {
       depth: "brief",
@@ -1248,13 +1241,10 @@ describe("report schema and rendering", () => {
   });
 
   test("model confidence cannot lower a deterministic evidence-quality assessment", () => {
-    const command = {
-      jobType: "market-overview" as const,
-      assetClass: "equity" as const,
-      depth: "brief" as const,
-      horizonTradingDays: 5,
-      legacyAlias: "daily" as const,
-    };
+    const command = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
     const depthProfile = assemblyDepthProfile("SPY");
     const context: ResearchContext = {
       ...assemblyContext(depthProfile),
@@ -1321,13 +1311,7 @@ describe("report schema and rendering", () => {
     };
 
     const sources = buildSourceList(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: [],
@@ -1827,13 +1811,7 @@ describe("report schema and rendering", () => {
     ];
 
     const sources = buildSourceList(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: snapshots,
@@ -1882,13 +1860,7 @@ describe("report schema and rendering", () => {
     ];
 
     const sources = buildSourceList(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: snapshots,

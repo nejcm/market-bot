@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { createJobQueue, jobRequestArgv, type JobRunResult } from "../app/jobs";
 import { handleResearchConsoleRequest } from "../app/server";
+import { parseArgs } from "../src/cli/args";
 
 function deferred<T>(): {
   readonly promise: Promise<T>;
@@ -32,15 +34,15 @@ async function waitFor(predicate: () => boolean): Promise<void> {
 
 describe("research console app jobs", () => {
   test("converts typed requests to allowlisted CLI argv", () => {
-    expect(
-      jobRequestArgv({
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "deep",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      }),
-    ).toEqual(["market-overview", "--asset", "equity", "--horizon", "5", "--deep"]);
+    const dailyArgv = jobRequestArgv({
+      jobType: "daily",
+      assetClass: "equity",
+      depth: "deep",
+    });
+    expect(dailyArgv).toEqual(["daily", "--asset", "equity", "--deep"]);
+    expect(parseArgs(dailyArgv)).toEqual(
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
+    );
     expect(jobRequestArgv({ jobType: "equity", symbol: "aapl", depth: "deep" })).toEqual([
       "equity",
       "aapl",

@@ -6,7 +6,6 @@ import {
 } from "../domain/run-types";
 import {
   isInstrumentJobType,
-  legacyMarketUpdateHorizon,
   type AssetClass,
   type Depth,
   type InstrumentJobType,
@@ -261,14 +260,7 @@ export function jobRequestArgv(value: unknown): readonly string[] {
 
   if (jobType === "daily" || jobType === "weekly") {
     const assetClass = readAssetClass(readString(value, "assetClass"));
-    return [
-      "market-overview",
-      "--asset",
-      assetClass,
-      "--horizon",
-      String(legacyMarketUpdateHorizon(jobType)),
-      ...depthArg(readDepth(readString(value, "depth"))),
-    ];
+    return [jobType, "--asset", assetClass, ...depthArg(readDepth(readString(value, "depth")))];
   }
 
   if (jobType === "equity" || jobType === "crypto") {

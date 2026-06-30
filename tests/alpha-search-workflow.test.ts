@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readAlphaRejectedCandidateFile } from "../src/alpha-search/cohorts";
 import { runAlphaSearchWorkflow } from "../src/alpha-search/workflow";
 import type { AppConfig } from "../src/config";
 import { resetSourceResilienceForTests } from "../src/sources/collector";
@@ -573,6 +574,7 @@ describe("alpha-search workflow", () => {
     }
     expect(rejectedSidecar).toEqual(reportRejectedCandidates);
     expect(rejectedSidecar[0]?.candidate).toBeUndefined();
+    expect(readAlphaRejectedCandidateFile(rejectedSidecar)).not.toHaveLength(0);
     expect(result.markdown).toContain("## Research Leads");
     expect(result.markdown).toContain("## Rejected Candidates");
     expect(result.markdown).toContain("[apewisdom-all-stocks-AAPL@rank-1]");

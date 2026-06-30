@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { parseYahooChartOhlcv } from "../src/sources/yahoo";
 import { collectVerifiedMarketSnapshot } from "../src/sources/verified-market-snapshot";
 import {
@@ -404,13 +405,7 @@ describe("deterministicSourceGaps — verified snapshot gap", () => {
 
   test("no missing-snapshot gap for daily equity runs", () => {
     const gaps = deterministicSourceGaps(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       collectedSources({
         marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
         newsSources: [{ id: "n1", title: "news", fetchedAt: "2026-01-01", kind: "news" }],
@@ -446,13 +441,7 @@ describe("buildSourceList — verified snapshot source", () => {
 
   test("does not include verified-snapshot source for daily run", () => {
     const list = buildSourceList(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       sources,
     );
     expect(list.find((s) => s.id.startsWith("verified-snapshot-"))).toBeUndefined();
@@ -704,13 +693,7 @@ describe("collectSources — verified snapshot wiring", () => {
     resetSourceResilienceForTests();
     setSourceHostMinDelayMsForTests(0);
     const result = await collectSources(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       sourceOptions,
       new Date("2026-05-20T00:00:00.000Z"),
       tickerFetch,

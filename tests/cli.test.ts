@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { commandLabel, parseArgs } from "../src/cli/args";
 import {
   CONSOLE_JOB_TYPES,
@@ -10,23 +11,15 @@ import {
 
 describe("parseArgs", () => {
   test("parses daily equity brief", () => {
-    expect(parseArgs(["daily", "--asset", "equity"])).toEqual({
-      jobType: "market-overview",
-      assetClass: "equity",
-      depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    });
+    expect(parseArgs(["daily", "--asset", "equity"])).toEqual(
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+    );
   });
 
   test("parses weekly crypto deep", () => {
-    expect(parseArgs(["weekly", "--asset", "crypto", "--deep"])).toEqual({
-      jobType: "market-overview",
-      assetClass: "crypto",
-      depth: "deep",
-      horizonTradingDays: 15,
-      legacyAlias: "weekly",
-    });
+    expect(parseArgs(["weekly", "--asset", "crypto", "--deep"])).toEqual(
+      legacyMarketOverviewCommand("weekly", { assetClass: "crypto", depth: "deep" }),
+    );
   });
 
   test("parses market overview horizon and prompt", () => {
@@ -124,13 +117,7 @@ describe("parseArgs", () => {
       commandLabel({ jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" }),
     ).toBe("crypto BTC");
     expect(
-      commandLabel({
-        jobType: "market-overview",
-        assetClass: "crypto",
-        depth: "brief",
-        horizonTradingDays: 15,
-        legacyAlias: "weekly",
-      }),
+      commandLabel(legacyMarketOverviewCommand("weekly", { assetClass: "crypto", depth: "brief" })),
     ).toBe("weekly crypto 15d");
     expect(
       commandLabel({

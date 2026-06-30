@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { sourceGap } from "../src/domain/source-gaps";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { buildSourcePlan } from "../src/research/source-plan";
@@ -149,13 +150,7 @@ describe("source plan", () => {
 
   test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
     const plan = buildSourcePlan(
-      {
-        jobType: "market-overview",
-        assetClass: "equity",
-        depth: "brief",
-        horizonTradingDays: 5,
-        legacyAlias: "daily",
-      },
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       collectedSources({
         supplementalMarketSnapshots: [
           marketSnapshot({

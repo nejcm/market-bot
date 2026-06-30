@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { legacyMarketOverviewCommand } from "./support/commands";
 import { EQUITY_REGIME_SYMBOLS } from "../src/domain/regime-symbols";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
 import {
@@ -54,13 +55,7 @@ function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): Source
 
 function collectContext(overrides: Partial<CollectContext> = {}): CollectContext {
   return {
-    command: {
-      jobType: "market-overview",
-      assetClass: "equity",
-      depth: "brief",
-      horizonTradingDays: 5,
-      legacyAlias: "daily",
-    },
+    command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
     fetchedAt,
     newsLimit: 1,
     cryptoMoverLimit: 2,
@@ -659,13 +654,7 @@ describe("market context provider collection", () => {
     const cachedFetchedAt = "2026-05-18T00:00:00.000Z";
     const result = await marketContextAdapter.collect(
       collectContext({
-        command: {
-          jobType: "market-overview",
-          assetClass: "equity",
-          depth: "brief",
-          horizonTradingDays: 5,
-          legacyAlias: "daily",
-        },
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
         fredApiKey: "fred-key",
         request: requestExecutor({
           json: async ({ adapter }) => {
@@ -701,13 +690,7 @@ describe("market context provider collection", () => {
   test("emits missing-key Market Context gap for equity market updates", async () => {
     const result = await marketContextAdapter.collect(
       collectContext({
-        command: {
-          jobType: "market-overview",
-          assetClass: "equity",
-          depth: "brief",
-          horizonTradingDays: 15,
-          legacyAlias: "weekly",
-        },
+        command: legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
       }),
     );
 
@@ -764,13 +747,7 @@ describe("news provider collection", () => {
 
     await finnhubNewsAdapter.collect(
       collectContext({
-        command: {
-          jobType: "market-overview",
-          assetClass: "crypto",
-          depth: "brief",
-          horizonTradingDays: 5,
-          legacyAlias: "daily",
-        },
+        command: legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
         finnhubApiToken: "finnhub-token",
         request: requestExecutor({
           json: async (request) => {
@@ -986,13 +963,7 @@ describe("news provider collection", () => {
   test("caps Finnhub normalized sources after provider fetch", async () => {
     const result = await finnhubNewsAdapter.collect(
       collectContext({
-        command: {
-          jobType: "market-overview",
-          assetClass: "crypto",
-          depth: "brief",
-          horizonTradingDays: 5,
-          legacyAlias: "daily",
-        },
+        command: legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
         finnhubApiToken: "finnhub-token",
         request: requestExecutor({
           json: async ({ adapter }) => ({

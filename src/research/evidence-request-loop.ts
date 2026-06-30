@@ -25,6 +25,12 @@ import {
   type JsonToolLoopAccepted,
   type JsonToolLoopRoundState,
 } from "./json-tool-loop";
+import {
+  acceptedJsonToolAuditEntry,
+  budgetRejectionReason,
+  rejectedJsonToolRequest,
+  withStaleFallbackGaps,
+} from "./json-tool-loop-support";
 import type { EvidenceRequestContext, ResearchContext } from "./research-context";
 
 export interface EvidenceRequestStageOutput {
@@ -166,7 +172,6 @@ export async function runEvidenceRequestLoop(
       ),
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
-      const staleStart = collectContext.staleFallbackGaps.length;
       const toolContext =
         input.collectedSources.resolvedInstrumentIdentity !== undefined
           ? {
@@ -174,9 +179,9 @@ export async function runEvidenceRequestLoop(
               instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
             }
           : collectContext.context;
-      const output = await executeEvidenceRequestTool(request.tool, toolContext);
-      const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
-      const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
+      const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
+        executeEvidenceRequestTool(request.tool, toolContext),
+      );
       return {
         state: mergeToolOutput(command, currentSources, outputWithStale),
         gaps: outputWithStale.gaps,
@@ -240,14 +245,13 @@ function validateRequests(
       const sourceUnits = EVIDENCE_REQUEST_TOOL_UNITS[result.request.tool];
       accepted.push({
         request: result.request,
-        audit: {
-          round: state.round,
-          tool: result.request.tool,
-          args: result.request.args,
-          rationale: result.request.rationale,
-          status: "accepted",
+        audit: acceptedJsonToolAuditEntry(
+          state.round,
+          result.request.tool,
+          result.request.args,
+          result.request.rationale,
           sourceUnits,
-        },
+        ),
         sourceUnits,
         tool: result.request.tool,
       });
@@ -305,14 +309,17 @@ function validateRequest(
   if (state.seenKeys.has(requestKey(request))) {
     return reject(state.round, tool, args, rationale, "duplicate evidence request");
   }
-  if (toolCallsUsed + 1 > state.config.evidenceRequestOptions.maxToolCalls) {
-    return reject(state.round, tool, args, rationale, "evidence request tool-call budget exceeded");
-  }
-  if (
-    sourceUnitsUsed + EVIDENCE_REQUEST_TOOL_UNITS[typedTool] >
-    state.config.evidenceRequestOptions.sourceBudget
-  ) {
-    return reject(state.round, tool, args, rationale, "evidence request source budget exceeded");
+  const budgetReason = budgetRejectionReason({
+    maxToolCalls: state.config.evidenceRequestOptions.maxToolCalls,
+    sourceBudget: state.config.evidenceRequestOptions.sourceBudget,
+    toolCallsUsed,
+    sourceUnitsUsed,
+    requestSourceUnits: EVIDENCE_REQUEST_TOOL_UNITS[typedTool],
+    toolCallExceededReason: "evidence request tool-call budget exceeded",
+    sourceBudgetExceededReason: "evidence request source budget exceeded",
+  });
+  if (budgetReason !== undefined) {
+    return reject(state.round, tool, args, rationale, budgetReason);
   }
   return { request };
 }
@@ -335,23 +342,10 @@ function reject(
   rationale: string | undefined,
   reason: string,
 ): { readonly audit: EvidenceRequestAuditEntry; readonly gap: SourceGap } {
-  return {
-    audit: {
-      round,
-      tool,
-      ...(args !== undefined ? { args } : {}),
-      ...(rationale !== undefined ? { rationale } : {}),
-      status: "rejected",
-      reason,
-    },
-    gap: sourceGap({
-      source: "evidence-request",
-      message: `${tool}: ${reason}`,
-      capability: "evidence-request",
-      cause: "validation-failed",
-      evidenceQualityImpact: "extended-evidence-cap",
-    }),
-  };
+  return rejectedJsonToolRequest(round, tool, args, rationale, reason, {
+    source: "evidence-request",
+    capability: "evidence-request",
+  });
 }
 
 function evidenceRequestMalformedGap(message: string): SourceGap {

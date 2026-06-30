@@ -30,6 +30,12 @@ import {
   type JsonToolLoopAccepted,
   type JsonToolLoopRoundState,
 } from "./json-tool-loop";
+import {
+  acceptedJsonToolAuditEntry,
+  budgetRejectionReason,
+  rejectedJsonToolRequest,
+  withStaleFallbackGaps,
+} from "./json-tool-loop-support";
 import type { ResearchContext, WebGatherContext } from "./research-context";
 
 export interface WebGatherStageOutput {
@@ -188,7 +194,6 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       ),
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
-      const staleStart = collectContext.staleFallbackGaps.length;
       const toolContext =
         input.collectedSources.resolvedInstrumentIdentity !== undefined
           ? {
@@ -196,17 +201,11 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
               instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
             }
           : collectContext.context;
-      const output = await executeWebGatherTool(
-        request.tool,
-        request.args,
-        toolContext,
-        surfacedUrls,
-        subject,
+      const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
+        executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
       );
-      sanitizerAudits.push(output.sanitizer);
-      freshnessAudits.push(output.freshness);
-      const staleGaps = collectContext.staleFallbackGaps.slice(staleStart);
-      const outputWithStale = { ...output, gaps: [...output.gaps, ...staleGaps] };
+      sanitizerAudits.push(outputWithStale.sanitizer);
+      freshnessAudits.push(outputWithStale.freshness);
       return {
         state: mergeToolOutput(command, currentSources, outputWithStale),
         gaps: outputWithStale.gaps,
@@ -284,14 +283,13 @@ function validateRequests(
       const sourceUnits = WEB_GATHER_TOOL_UNITS[result.request.tool];
       accepted.push({
         request: result.request,
-        audit: {
-          round: state.round,
-          tool: result.request.tool,
-          args: result.request.args,
-          rationale: result.request.rationale,
-          status: "accepted",
+        audit: acceptedJsonToolAuditEntry(
+          state.round,
+          result.request.tool,
+          result.request.args,
+          result.request.rationale,
           sourceUnits,
-        },
+        ),
         sourceUnits,
         tool: result.request.tool,
       });
@@ -394,26 +392,17 @@ function validateAcceptedRequest(
       "duplicate web gather request",
     );
   }
-  if (toolCallsUsed + 1 > state.config.webGatherOptions.maxToolCalls) {
-    return reject(
-      state.round,
-      request.tool,
-      auditArgs,
-      request.rationale,
-      "web gather tool-call budget exceeded",
-    );
-  }
-  if (
-    sourceUnitsUsed + WEB_GATHER_TOOL_UNITS[request.tool] >
-    state.config.webGatherOptions.sourceBudget
-  ) {
-    return reject(
-      state.round,
-      request.tool,
-      auditArgs,
-      request.rationale,
-      "web gather source budget exceeded",
-    );
+  const budgetReason = budgetRejectionReason({
+    maxToolCalls: state.config.webGatherOptions.maxToolCalls,
+    sourceBudget: state.config.webGatherOptions.sourceBudget,
+    toolCallsUsed,
+    sourceUnitsUsed,
+    requestSourceUnits: WEB_GATHER_TOOL_UNITS[request.tool],
+    toolCallExceededReason: "web gather tool-call budget exceeded",
+    sourceBudgetExceededReason: "web gather source budget exceeded",
+  });
+  if (budgetReason !== undefined) {
+    return reject(state.round, request.tool, auditArgs, request.rationale, budgetReason);
   }
   return { request };
 }
@@ -584,24 +573,11 @@ function reject(
   rationale: string | undefined,
   reason: string,
 ): { readonly audit: JsonToolLoopAuditEntry; readonly gap: SourceGap } {
-  return {
-    audit: {
-      round,
-      tool,
-      ...(args !== undefined ? { args } : {}),
-      ...(rationale !== undefined ? { rationale } : {}),
-      status: "rejected",
-      reason,
-    },
-    gap: sourceGap({
-      source: "web-gather",
-      message: `${tool}: ${reason}`,
-      provider: "exa",
-      capability: "web-gather",
-      cause: "validation-failed",
-      evidenceQualityImpact: "extended-evidence-cap",
-    }),
-  };
+  return rejectedJsonToolRequest(round, tool, args, rationale, reason, {
+    source: "web-gather",
+    provider: "exa",
+    capability: "web-gather",
+  });
 }
 
 function webGatherMalformedGap(message: string): SourceGap {

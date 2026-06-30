@@ -132,6 +132,18 @@ The original prompt/schema-only plan was reviewed adversarially. The review foun
 - `tests/run-analytics.test.ts`
   - Near-base-rate telemetry tests proving count remains unchanged and telemetry is not a rejection gate.
 
+## Implementation Outcome (2026-07-01)
+
+- Diagnosis classification: **correlated padding**, not three independent honest low-edge forecasts.
+  - Latest AAPL `report.json` predictions: `pred-2` (AAPL:QQQ, 0.47), `pred-3` (AAPL:SPY, 0.52), `pred-4` (AAPL:IWM, 0.52) — all `relative`, all 5-trading-day horizon.
+  - QQQ, SPY, and IWM are correlated broad US equity benchmarks and AAPL is a dominant QQQ/SPY constituent, so the three forecasts restate one "AAPL tracks the broad market over 5 days" view against correlated benchmarks rather than expressing three independent edges, each near coin-flip.
+- Work delivered: prompt/schema and documentation refinement only.
+  - One-exemplar `requiredShape.predictions` (removes count pressure from the schema).
+  - Forecast-diversity and kind-mix wording now separate informative forecast kind from informative forecast probability.
+  - ADR 0020/0021 → canonical ADR 0004 citation cleanup in `CONTEXT.md`, prediction code comments, and test comments.
+  - No near-base-rate rejection gate, retry branch, deterministic trim, validator, or scoring-version change was added.
+- **Finding 1 status: open (partially addressed).** No follow-up AAPL run was performed, so this is prompt/schema/docs refinement, not a confirmed behavioral fix. Closing finding 1 requires an observational rerun (treated as evidence given model nondeterminism) showing the correlated near-0.5 relative cluster no longer recurs.
+
 ## Implementation Notes
 
 - Keep the change surgical.

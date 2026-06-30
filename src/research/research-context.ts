@@ -458,9 +458,9 @@ function finalReportShape(
     catalysts: [{ text: "string", sourceIds: ["source-id"] }],
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
     dataGaps: ["string"],
-    // One exemplar only: the schema shows prediction shape, while the soft target
-    // Count lives in depthProfile.targetPredictions and the instruction text. A
-    // Target-length array here would apply count pressure toward the target.
+    // One exemplar only: this array conveys prediction shape, not how many to emit.
+    // The soft target count lives in depthProfile.targetPredictions and the
+    // Instruction text; a target-length array here would pressure the count upward.
     predictions: [
       {
         id: "pred-1",

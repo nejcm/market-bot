@@ -57,8 +57,9 @@ describe("runConfig profiles", () => {
     expect(keys).toEqual([...expected].toSorted());
   });
 
-  test("keeps equity and crypto instrument profiles behavior-equivalent", () => {
+  test("keeps split equity and crypto instrument profiles behavior-equivalent", () => {
     expect(runConfig.equity).toEqual(runConfig.crypto);
+    expect(runConfig.equity).not.toBe(runConfig.crypto);
   });
 });
 

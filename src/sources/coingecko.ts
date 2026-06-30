@@ -71,6 +71,43 @@ export function normalizeCoinGeckoMarketsPayload(
     .filter((snapshot): snapshot is MarketSnapshot => snapshot !== undefined);
 }
 
+function coingeckoCoinId(snapshot: MarketSnapshot): string {
+  return (
+    snapshot.identity?.providerIds?.find(
+      (id) => id.provider === "coingecko" && id.idKind === "coin-id",
+    )?.value ?? ""
+  );
+}
+
+function compareCoinGeckoInstrumentSnapshots(left: MarketSnapshot, right: MarketSnapshot): number {
+  const leftMarketCap = left.marketCap;
+  const rightMarketCap = right.marketCap;
+  if (leftMarketCap !== undefined || rightMarketCap !== undefined) {
+    if (leftMarketCap === undefined) {
+      return 1;
+    }
+    if (rightMarketCap === undefined) {
+      return -1;
+    }
+    if (leftMarketCap !== rightMarketCap) {
+      return rightMarketCap - leftMarketCap;
+    }
+  }
+  return (
+    coingeckoCoinId(left).localeCompare(coingeckoCoinId(right)) ||
+    (left.name ?? "").localeCompare(right.name ?? "")
+  );
+}
+
+function selectCoinGeckoInstrumentSnapshots(
+  snapshots: readonly MarketSnapshot[],
+  symbol: string,
+): readonly MarketSnapshot[] {
+  const matches = snapshots.filter((snapshot) => snapshot.symbol === symbol);
+  const [selected] = matches.toSorted(compareCoinGeckoInstrumentSnapshots);
+  return selected === undefined ? [] : [selected];
+}
+
 const COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets";
 
 function encodeQuery(params: Record<string, string>): string {
@@ -109,7 +146,7 @@ async function collectCrypto(ctx: CollectContext): Promise<MarketCollectionResul
 
   const all = normalizeCoinGeckoMarketsPayload(fetched.payload, fetched.rawSnapshot.fetchedAt);
   const marketSnapshots = isInstrumentCommand(command)
-    ? all.filter((s) => s.symbol === command.symbol)
+    ? selectCoinGeckoInstrumentSnapshots(all, command.symbol)
     : all;
 
   return {

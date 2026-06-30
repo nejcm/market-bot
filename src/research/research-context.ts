@@ -403,6 +403,7 @@ function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<
 }
 
 function finalReportShape(
+  command: ResearchCommand,
   depthProfile: DepthProfile,
   hasEarningsSetup: boolean,
   hasBusinessFramework: boolean,
@@ -410,9 +411,15 @@ function finalReportShape(
   webSubjectKind: ReturnType<typeof subjectKindForCommand>,
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
-  const predictionKinds = hasEarningsSetup
-    ? "direction|relative|volatility|range|macro|iv|conditional|earnings-direction|earnings-move"
-    : "direction|relative|volatility|range|macro|iv|conditional";
+  const predictionKinds = [
+    "direction",
+    "relative",
+    ...(command.assetClass === "equity" ? ["volatility", "iv"] : []),
+    "range",
+    "macro",
+    "conditional",
+    ...(hasEarningsSetup ? ["earnings-direction", "earnings-move"] : []),
+  ].join("|");
   const earningsSetupShape = hasEarningsSetup
     ? {
         earningsSetup: {
@@ -696,6 +703,14 @@ function buildForecastDiversityGuidance(
   return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and horizon variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
+function predictionDslInstruction(command: ResearchCommand): string {
+  const equityOnly =
+    command.assetClass === "equity"
+      ? ", max(close(^VIX), 0..+N) > T for volatility, or iv(SUBJECT, +N) > T for IV"
+      : "";
+  return `Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro${equityOnly}.`;
+}
+
 function buildKindMixGuidance(mix: ForecastKindMix): string {
   const favored = mix.favored.join(", ");
   const floor =
@@ -759,7 +774,7 @@ export function buildStagePrompt(
       : "";
   const predictionInstruction =
     stage === "final-synthesis"
-      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, max(close(^VIX), 0..+N) > T for volatility, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro, or iv(SUBJECT, +N) > T for IV. probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${buildForecastDiversityGuidance(command, collectedSources)}`
+      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${buildForecastDiversityGuidance(command, collectedSources)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
@@ -782,6 +797,7 @@ export function buildStagePrompt(
     }
     if (stage === "final-synthesis") {
       return finalReportShape(
+        command,
         context.depthProfile,
         hasEarningsSetup,
         hasBusinessFramework,

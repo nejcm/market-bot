@@ -132,7 +132,7 @@ Resolves to run key `market-overview-{assetClass}`:
 - Market snapshots for the asset class (Yahoo for equity, CoinGecko for crypto).
 - Supplemental market data (Massive for equity).
 - News, ranked by relevance to top movers.
-- Market context / macro indicators (FRED).
+- Market context / macro indicators (FRED) for equity market overviews only.
 - No instrument-level extended evidence (SEC filings, options IV, earnings).
 - No verified market snapshot, no identity resolution, no earnings setup.
 
@@ -304,11 +304,14 @@ market-bot crypto <symbol> [--deep]
 
 ### Config
 
-Run key `crypto` &rarr; `INSTRUMENT_RUN_PARAMS` profile (same params as equity).
+Run key `crypto` &rarr; dedicated crypto instrument profile. Current defaults
+match the equity instrument profile, but the profiles are independently owned.
 
 ### Data Collected
 
 - Market snapshot for the crypto ticker (CoinGecko).
+- CoinGecko ticker symbol collisions select one snapshot deterministically by
+  highest numeric market cap, then provider coin ID, then name.
 - News relevance targets = the symbol.
 - Extended evidence:
   - On-chain metrics (Glassnode) when API key is present.

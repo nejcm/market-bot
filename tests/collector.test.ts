@@ -1788,6 +1788,62 @@ describe("collectSources", () => {
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
   });
 
+  test("selects the deterministic CoinGecko symbol collision winner for crypto tickers", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("coingecko")) {
+        return jsonResponse([
+          {
+            id: "bitcoin-bep2",
+            symbol: "btc",
+            name: "Bitcoin BEP2",
+            current_price: 103_000,
+            price_change_percentage_24h: 2,
+            total_volume: 20_000_000,
+            market_cap: 600_000_000,
+          },
+          {
+            id: "bitcoin",
+            symbol: "btc",
+            name: "Bitcoin",
+            current_price: 103_100,
+            price_change_percentage_24h: 3,
+            total_volume: 40_000_000_000,
+            market_cap: 600_000_000,
+          },
+          {
+            id: "btc-proxy",
+            symbol: "btc",
+            name: "BTC Proxy",
+            current_price: 1,
+            price_change_percentage_24h: 1,
+            total_volume: 100_000,
+          },
+        ]);
+      }
+
+      return jsonResponse({ news: [] });
+    };
+
+    const result = await collectSources(
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result.marketSnapshots).toHaveLength(1);
+    expect(result.marketSnapshots[0]).toMatchObject({
+      symbol: "BTC",
+      name: "Bitcoin",
+      marketCap: 600_000_000,
+    });
+    expect(result.resolvedInstrumentIdentity).toMatchObject({
+      displayName: "Bitcoin",
+      providerIds: [{ provider: "coingecko", idKind: "coin-id", value: "bitcoin" }],
+    });
+  });
+
   test("preserves partial results when one source fails", async () => {
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
@@ -2281,11 +2337,7 @@ describe("collectSources", () => {
 
     expect(coinGeckoCalls).toBe(3);
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
-    expect(result.sourceGaps.map((gap) => gap.source)).toEqual([
-      "marketaux-news",
-      "finnhub-news",
-      "fred-macro",
-    ]);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["marketaux-news", "finnhub-news"]);
   });
 
   test("collects and dedupes news across MarketAux, Finnhub, and Yahoo", async () => {
@@ -2384,7 +2436,7 @@ describe("collectSources", () => {
       provider: "yahoo-news",
     });
     expect(result.newsAnalytics?.canonicalDuplicateNewsSourceCount).toBe(1);
-    expect(result.sourceGaps.map((gap) => gap.source)).toEqual(["fred-macro"]);
+    expect(result.sourceGaps.map((gap) => gap.source)).toEqual([]);
   });
 
   test("caps Finnhub after normalization and keeps provider round-robin order", async () => {

@@ -45,6 +45,9 @@ async function collectFredMarketContext(
   if (!isMarketUpdateJobType(ctx.command.jobType)) {
     return { rawSnapshots: [], sources: [], sourceGaps: [] };
   }
+  if (ctx.command.assetClass === "crypto") {
+    return { rawSnapshots: [], sources: [], sourceGaps: [] };
+  }
   if (ctx.fredApiKey === undefined) {
     const gaps = [
       sourceGap({

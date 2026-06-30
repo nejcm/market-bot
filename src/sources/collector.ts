@@ -638,6 +638,7 @@ export async function collectSources(
 
   // Verified Market Snapshot: equity ticker only (ADR 0019); joins the parallel batch
   const isEquityTicker = isInstrumentCommand(command) && command.assetClass === "equity";
+  const isTicker = isInstrumentCommand(command);
 
   // Market updates and ticker runs sequence market first so current ranked movers or resolved
   // Instrument identity can steer news selection.
@@ -647,7 +648,7 @@ export async function collectSources(
     isMarketUpdateJobType(command.jobType) || isInstrumentCommand(command);
   const marketResult = shouldCollectMarketBeforeNews ? await marketAdapter.collect(ctx) : undefined;
   const preliminaryIdentityResult =
-    isEquityTicker && marketResult !== undefined
+    isTicker && marketResult !== undefined
       ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
       : undefined;
   // Thread resolved identity (exchange/quoteCurrency) into the source-collection context so
@@ -695,7 +696,7 @@ export async function collectSources(
   // Canonical identity is a pure selection from the already-fetched ticker quote
   const identityResult =
     preliminaryIdentityResult ??
-    (isEquityTicker
+    (isTicker
       ? deriveCanonicalInstrumentIdentity(resolvedMarketResult.marketSnapshots, command.symbol)
       : undefined);
   const valuationResult = addValuationEvidence(

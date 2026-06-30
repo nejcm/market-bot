@@ -698,12 +698,12 @@ describe("market context provider collection", () => {
     expect(result.sourceGaps).toEqual([]);
   });
 
-  test("emits missing-key Market Context gap for market updates", async () => {
+  test("emits missing-key Market Context gap for equity market updates", async () => {
     const result = await marketContextAdapter.collect(
       collectContext({
         command: {
           jobType: "market-overview",
-          assetClass: "crypto",
+          assetClass: "equity",
           depth: "brief",
           horizonTradingDays: 15,
           legacyAlias: "weekly",
@@ -712,7 +712,7 @@ describe("market context provider collection", () => {
     );
 
     expect(result.marketContext).toEqual({
-      assetClass: "crypto",
+      assetClass: "equity",
       items: [],
       gaps: [
         expect.objectContaining({
@@ -729,6 +729,21 @@ describe("market context provider collection", () => {
         evidenceQualityImpact: "no-cap",
       }),
     ]);
+  });
+
+  test("skips Market Context for crypto market updates", async () => {
+    const result = await marketContextAdapter.collect(
+      collectContext({
+        command: {
+          jobType: "market-overview",
+          assetClass: "crypto",
+          depth: "brief",
+          horizonTradingDays: 5,
+        },
+      }),
+    );
+
+    expect(result).toEqual({ rawSnapshots: [], sources: [], sourceGaps: [] });
   });
 
   test("skips Market Context for ticker runs", async () => {

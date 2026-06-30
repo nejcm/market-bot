@@ -427,6 +427,61 @@ describe("buildStagePrompt", () => {
     expect(parsed.requiredShape).not.toHaveProperty("confidence");
   });
 
+  test("crypto final-synthesis prompt omits equity-only IV and VIX prediction shapes", () => {
+    const command: ResearchCommand = {
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ assetClass: "crypto", symbol: "BTC" })],
+        newsSources: [newsSource({ assetClass: "crypto" })],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 6,
+          minimumScenarios: 3,
+          targetPredictions: 5,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["BTC"],
+          focus: ["thesis"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "crypto",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly requiredShape?: {
+        readonly predictions?: readonly { readonly kind?: string }[];
+      };
+    };
+
+    expect(parsed.instruction).not.toContain("^VIX");
+    expect(parsed.instruction).not.toContain("iv(SUBJECT");
+    const kinds = parsed.requiredShape?.predictions?.[0]?.kind?.split("|") ?? [];
+    expect(kinds).not.toContain("iv");
+    expect(kinds).not.toContain("volatility");
+  });
+
   test("final-synthesis shape includes business framework extras when sidecar exists", () => {
     const command: ResearchCommand = {
       jobType: "equity",

@@ -260,9 +260,11 @@ Run key `equity` &rarr; `INSTRUMENT_RUN_PARAMS` profile in
 
 ### Evidence-Request Loop
 
-Enabled only for deep `equity` runs when budgets are positive. Tools:
+Enabled only for deep `equity` runs when budgets are positive. SEC filing
+retrieval (latest 10-K and, when metadata lists one after the 10-K, latest
+10-Q) is deterministic and runs before the model-driven loop. The optional
+model-requested tool is:
 
-- `sec_latest_filing`
 - `tradier_iv_term_structure`
 
 Only available for US listings. Requests must match the run symbol.

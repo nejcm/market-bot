@@ -452,6 +452,114 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("Current-year 10-Q unavailable.");
   });
 
+  test("basis line excludes a fetched SEC filing the profile did not cite", () => {
+    const tenKSourceId = "extended-sec-edgar-aapl-10k";
+    const tenQSourceId = "extended-sec-edgar-aapl-10q";
+    const webSourceId = "web-aapl-12345678";
+    const citedAnswer = {
+      answer: "Apple makes consumer electronics.",
+      sourceIds: [tenKSourceId, webSourceId],
+    };
+    const uncitedAnswer = {
+      answer: "Not disclosed in cited filings.",
+      sourceIds: [tenKSourceId],
+    };
+    const webReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      keyFindings: [{ text: "AAPL web profile is cited.", sourceIds: [webSourceId] }],
+      risks: [],
+      scenarios: [],
+      sources: [
+        {
+          id: webSourceId,
+          title: "AAPL company page",
+          fetchedAt: "2026-05-19T00:00:00.000Z",
+          kind: "web",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "exa",
+        },
+        {
+          id: tenKSourceId,
+          title: "AAPL SEC 10-K",
+          fetchedAt: "2025-11-01T00:00:00.000Z",
+          kind: "extended-evidence",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "sec-edgar",
+        },
+        {
+          id: tenQSourceId,
+          title: "AAPL SEC 10-Q",
+          fetchedAt: "2026-05-01T00:00:00.000Z",
+          kind: "extended-evidence",
+          assetClass: "equity",
+          symbol: "AAPL",
+          provider: "sec-edgar",
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "AAPL SEC 10-K",
+            summary: "10-K filed 2025-11-01 for period 2025-09-30.",
+            sourceIds: [tenKSourceId],
+            observedAt: "2025-11-01T00:00:00.000Z",
+            metrics: { form: "10-K", filingDate: "2025-11-01", reportDate: "2025-09-30" },
+          },
+          {
+            category: "sec-edgar",
+            title: "AAPL SEC 10-Q",
+            summary: "10-Q filed 2026-05-01 for period 2026-03-31.",
+            sourceIds: [tenQSourceId],
+            observedAt: "2026-05-01T00:00:00.000Z",
+            metrics: { form: "10-Q", filingDate: "2026-05-01", reportDate: "2026-03-31" },
+          },
+        ],
+        gaps: [],
+      },
+      extras: {
+        webSubjectProfile: {
+          version: 3,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          subjectLabel: "Apple Inc.",
+          symbol: "AAPL",
+          companyName: "Apple Inc.",
+          subjectSummary: citedAnswer,
+          questions: {
+            whatItDoes: citedAnswer,
+            howItMakesMoney: citedAnswer,
+            customers: uncitedAnswer,
+            geography: uncitedAnswer,
+            purchaseRecurrence: uncitedAnswer,
+            pricingPower: uncitedAnswer,
+            recessionCyclicality: uncitedAnswer,
+            managementTrackRecord: uncitedAnswer,
+            capitalAllocation: uncitedAnswer,
+            companyKpis: uncitedAnswer,
+            riskFactors: uncitedAnswer,
+          },
+          recentMaterialEvents: [],
+          factLedger: [{ claim: "Apple sells devices and services.", sourceIds: [tenKSourceId] }],
+          openGaps: [],
+          sourceIds: [tenKSourceId, webSourceId],
+        },
+      },
+    };
+
+    const markdown = renderMarkdownReport(validateResearchReport(webReport));
+
+    expect(markdown).toContain("**Basis:** 10-K filed 2025-11-01 (period 2025-09-30).");
+    expect(markdown).not.toContain("10-Q for period 2026-03-31");
+  });
+
   test("rejects unknown source IDs in web-subject-profile extras", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: ["unknown-web"] };
     const webReport: ResearchReport = {

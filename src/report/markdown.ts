@@ -597,10 +597,22 @@ function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): s
 }
 
 // Renders the SEC filing basis/verification line for company profiles from the
-// 10-K/10-Q filing items, plus a disclosure when only the annual 10-K is present.
-function companyFilingBasisLine(report: ResearchReport): string | undefined {
+// 10-K/10-Q filing items actually cited by the accepted profile, plus a
+// Disclosure when only the annual 10-K is cited. Filings fetched but not cited
+// By the profile are excluded so the Basis reflects the documents the profile
+// Used rather than every retrieved SEC item.
+function companyFilingBasisLine(
+  report: ResearchReport,
+  profile: Record<string, unknown>,
+): string | undefined {
+  const citedSourceIds = new Set(readStringArray(profile.sourceIds));
+  if (citedSourceIds.size === 0) {
+    return undefined;
+  }
   const items = (report.extendedEvidence?.items ?? []).filter(
-    (item) => item.category === "sec-edgar",
+    (item) =>
+      item.category === "sec-edgar" &&
+      item.sourceIds.some((sourceId) => citedSourceIds.has(sourceId)),
   );
   const entries = items.flatMap((item) =>
     item.metrics !== undefined ? [filingBasisEntry(item.metrics)] : [],
@@ -671,7 +683,7 @@ function renderWebSubjectProfile(report: ResearchReport): string {
   if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
     return "";
   }
-  const basis = subjectKind === "company" ? companyFilingBasisLine(report) : undefined;
+  const basis = subjectKind === "company" ? companyFilingBasisLine(report, profile) : undefined;
   return [
     "## Web Subject Profile",
     "",

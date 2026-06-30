@@ -5,6 +5,7 @@ import {
 } from "../domain/run-types";
 import {
   isInstrumentJobType,
+  legacyMarketUpdateHorizon,
   type AssetClass,
   type Depth,
   type InstrumentJobType,
@@ -20,18 +21,6 @@ export interface MarketOverviewCommand {
   readonly horizonTradingDays: number;
   readonly prompt?: string;
   readonly legacyAlias?: LegacyMarketUpdateJobType;
-}
-
-export interface DailyCommand {
-  readonly jobType: "daily";
-  readonly assetClass: AssetClass;
-  readonly depth: Depth;
-}
-
-export interface WeeklyCommand {
-  readonly jobType: "weekly";
-  readonly assetClass: AssetClass;
-  readonly depth: Depth;
 }
 
 export interface InstrumentCommand {
@@ -109,12 +98,7 @@ export interface HistoryThesisDeltaCommand {
   readonly narrative: boolean;
 }
 
-export type ResearchCommand =
-  | MarketOverviewCommand
-  | DailyCommand
-  | WeeklyCommand
-  | InstrumentCommand
-  | ResearchSubjectCommand;
+export type ResearchCommand = MarketOverviewCommand | InstrumentCommand | ResearchSubjectCommand;
 export type CliCommand =
   | ResearchCommand
   | AlphaSearchCommand
@@ -244,8 +228,11 @@ export function commandLabel(command: CliCommand): string {
   if (command.jobType === "research") {
     return `research ${command.subject}${depthSuffix}`;
   }
+  if (command.jobType === "alpha-search") {
+    return `alpha-search ${command.assetClass}${depthSuffix}`;
+  }
 
-  return `${command.jobType} ${command.assetClass}${depthSuffix}`;
+  throw new Error(`Unsupported command label for job type ${command.jobType}`);
 }
 
 export function jobRequestArgv(value: unknown): readonly string[] {
@@ -254,14 +241,26 @@ export function jobRequestArgv(value: unknown): readonly string[] {
   }
 
   const jobType = readString(value, "jobType");
-  if (jobType === "daily" || jobType === "weekly" || jobType === "market-overview") {
+  if (jobType === "market-overview") {
     const assetClass = readAssetClass(readString(value, "assetClass"));
     const horizon = readPositiveIntegerString(value, "horizonTradingDays");
     return [
-      jobType,
+      "market-overview",
       "--asset",
       assetClass,
-      ...(jobType === "market-overview" && horizon !== undefined ? ["--horizon", horizon] : []),
+      ...(horizon !== undefined ? ["--horizon", horizon] : []),
+      ...depthArg(readDepth(readString(value, "depth"))),
+    ];
+  }
+
+  if (jobType === "daily" || jobType === "weekly") {
+    const assetClass = readAssetClass(readString(value, "assetClass"));
+    return [
+      "market-overview",
+      "--asset",
+      assetClass,
+      "--horizon",
+      String(legacyMarketUpdateHorizon(jobType)),
       ...depthArg(readDepth(readString(value, "depth"))),
     ];
   }

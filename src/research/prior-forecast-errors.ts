@@ -1,5 +1,5 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import { marketUpdateHorizonBucketOf } from "../domain/types";
+import { isMarketUpdateJobType, marketUpdateHorizonBucketOf } from "../domain/types";
 import { instrumentsForExpression, observableForecastFromPrediction } from "../forecast/observable";
 import type {
   HistoricalPredictionSummary,
@@ -106,12 +106,7 @@ function collectMarketForecastMisses(
   historicalContext: HistoricalResearchContext | undefined,
   predictionSubjects: readonly string[],
 ): readonly PriorMiss[] {
-  if (
-    (command.jobType !== "market-overview" &&
-      command.jobType !== "daily" &&
-      command.jobType !== "weekly") ||
-    historicalContext === undefined
-  ) {
+  if (!isMarketUpdateJobType(command.jobType) || historicalContext === undefined) {
     return [];
   }
   const subjectKeys = new Set(predictionSubjects.map((subject) => subject.trim().toUpperCase()));

@@ -110,9 +110,11 @@ function writeRun(dataDir: string, spec: RunSpec): void {
 }
 
 const DAILY_EQUITY = {
-  jobType: "daily" as const,
+  jobType: "market-overview" as const,
   assetClass: "equity" as const,
   depth: "brief" as const,
+  horizonTradingDays: 5,
+  legacyAlias: "daily" as const,
 };
 const NOW = new Date("2026-05-10T00:00:00.000Z");
 

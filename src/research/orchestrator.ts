@@ -14,7 +14,7 @@ import {
 } from "../artifacts";
 import {
   isMarketUpdateJobType,
-  marketUpdateHorizonBucketOf,
+  marketUpdateMetadataOf,
   type Mover,
   type ResearchReport,
   type RunTrace,
@@ -295,22 +295,7 @@ function emptySpotlightSelection(cap: number, candidateCount: number): Spotlight
 }
 
 function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
-  const marketUpdateHorizonBucket = marketUpdateHorizonBucketOf(command);
-  if (marketUpdateHorizonBucket === undefined) {
-    return {};
-  }
-  if (command.jobType === "market-overview") {
-    return {
-      marketUpdateHorizonBucket,
-      ...(command.legacyAlias !== undefined
-        ? { legacyMarketUpdateAlias: command.legacyAlias }
-        : {}),
-    };
-  }
-  if (command.jobType === "daily" || command.jobType === "weekly") {
-    return { marketUpdateHorizonBucket, marketUpdateCadence: command.jobType };
-  }
-  return {};
+  return marketUpdateMetadataOf(command) ?? {};
 }
 
 async function runSpotlightSelection(

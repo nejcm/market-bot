@@ -1,4 +1,8 @@
-import type { InstrumentIdentity, MarketSnapshot } from "../domain/types";
+import {
+  isMarketUpdateJobType,
+  type InstrumentIdentity,
+  type MarketSnapshot,
+} from "../domain/types";
 import { isInstrumentCommand } from "../cli/args";
 import type { Observation } from "../forecast/observable";
 import {
@@ -86,11 +90,7 @@ function coinGeckoMarketsUrl(perPage: number): string {
 
 function fetchLimit(ctx: CollectContext): number {
   const { command, cryptoMoverLimit } = ctx;
-  if (
-    command.jobType === "market-overview" ||
-    command.jobType === "daily" ||
-    command.jobType === "weekly"
-  ) {
+  if (isMarketUpdateJobType(command.jobType)) {
     return Math.max(cryptoMoverLimit * 10, 50);
   }
   return 250;

@@ -1,6 +1,11 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { MarketSnapshot, Source, SourceGap } from "../domain/types";
+import {
+  isMarketUpdateJobType,
+  type MarketSnapshot,
+  type Source,
+  type SourceGap,
+} from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
 import { rankMovers } from "../movers/ranking";
 import { withCache, type CacheOptions } from "./cache";
@@ -306,14 +311,6 @@ export function setSourceHostMinDelayMsForTests(ms: number): void {
 
 export { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 
-function isMarketUpdateCommand(command: ResearchCommand): boolean {
-  return (
-    command.jobType === "market-overview" ||
-    command.jobType === "daily" ||
-    command.jobType === "weekly"
-  );
-}
-
 function moverLimit(command: ResearchCommand, sourceOptions: SourceOptions): number {
   return command.assetClass === "crypto"
     ? sourceOptions.cryptoMoverLimit
@@ -325,7 +322,7 @@ function moverNewsRelevanceTargets(
   sourceOptions: SourceOptions,
   marketSnapshots: readonly MarketSnapshot[],
 ): readonly NewsRelevanceTarget[] {
-  if (!isMarketUpdateCommand(command)) {
+  if (!isMarketUpdateJobType(command.jobType)) {
     return [];
   }
   return rankMovers(
@@ -647,7 +644,7 @@ export async function collectSources(
   // Research runs resolve registry-based relevance targets without waiting on market data.
   // Other run types keep the parallel source collection path.
   const shouldCollectMarketBeforeNews =
-    isMarketUpdateCommand(command) || isInstrumentCommand(command);
+    isMarketUpdateJobType(command.jobType) || isInstrumentCommand(command);
   const marketResult = shouldCollectMarketBeforeNews ? await marketAdapter.collect(ctx) : undefined;
   const preliminaryIdentityResult =
     isEquityTicker && marketResult !== undefined
@@ -661,7 +658,7 @@ export async function collectSources(
       : ctx;
   let newsContext: CollectContext = identityCtx;
   if (marketResult !== undefined) {
-    const targets = isMarketUpdateCommand(command)
+    const targets = isMarketUpdateJobType(command.jobType)
       ? moverNewsRelevanceTargets(command, sourceOptions, marketResult.marketSnapshots)
       : tickerNewsRelevanceTargets(command, preliminaryIdentityResult?.identity?.displayName);
     newsContext = contextWithNewsRelevanceTargets(identityCtx, targets);

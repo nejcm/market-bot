@@ -121,7 +121,13 @@ describe("source plan", () => {
 
   test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
     const plan = buildSourcePlan(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       collectedSources({
         supplementalMarketSnapshots: [
           marketSnapshot({

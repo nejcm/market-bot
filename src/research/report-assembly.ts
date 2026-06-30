@@ -2,7 +2,7 @@ import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
-  marketUpdateHorizonBucketOf,
+  marketUpdateMetadataOf,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
@@ -491,22 +491,7 @@ function catalystCalendarExtra(input: {
 }
 
 function marketUpdateExtras(command: ResearchCommand): Record<string, unknown> {
-  const marketUpdateHorizonBucket = marketUpdateHorizonBucketOf(command);
-  if (marketUpdateHorizonBucket === undefined) {
-    return {};
-  }
-  if (command.jobType === "market-overview") {
-    return {
-      marketUpdateHorizonBucket,
-      ...(command.legacyAlias !== undefined
-        ? { legacyMarketUpdateAlias: command.legacyAlias }
-        : {}),
-    };
-  }
-  if (command.jobType === "daily" || command.jobType === "weekly") {
-    return { marketUpdateCadence: command.jobType, marketUpdateHorizonBucket };
-  }
-  return {};
+  return marketUpdateMetadataOf(command) ?? {};
 }
 
 function dataGapKey(value: string): string {

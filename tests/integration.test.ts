@@ -152,8 +152,6 @@ function parseResearchCommand(args: readonly string[]): ResearchCommand {
   const command = parseArgs(args);
   if (
     command.jobType === "market-overview" ||
-    command.jobType === "daily" ||
-    command.jobType === "weekly" ||
     command.jobType === "equity" ||
     command.jobType === "crypto"
   ) {
@@ -165,9 +163,36 @@ function parseResearchCommand(args: readonly string[]): ResearchCommand {
 describe("mocked research workflows", () => {
   test("persists daily, weekly, and ticker workflows with matching artifact layout", async () => {
     const workflows = [
-      await runWorkflow({ jobType: "daily", assetClass: "equity", depth: "brief" }, "AAPL"),
-      await runWorkflow({ jobType: "daily", assetClass: "crypto", depth: "brief" }, "BTC"),
-      await runWorkflow({ jobType: "weekly", assetClass: "equity", depth: "brief" }, "AAPL"),
+      await runWorkflow(
+        {
+          jobType: "market-overview",
+          assetClass: "equity",
+          depth: "brief",
+          horizonTradingDays: 5,
+          legacyAlias: "daily",
+        },
+        "AAPL",
+      ),
+      await runWorkflow(
+        {
+          jobType: "market-overview",
+          assetClass: "crypto",
+          depth: "brief",
+          horizonTradingDays: 5,
+          legacyAlias: "daily",
+        },
+        "BTC",
+      ),
+      await runWorkflow(
+        {
+          jobType: "market-overview",
+          assetClass: "equity",
+          depth: "brief",
+          horizonTradingDays: 15,
+          legacyAlias: "weekly",
+        },
+        "AAPL",
+      ),
       await runWorkflow(
         { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
         "AAPL",
@@ -210,9 +235,9 @@ describe("mocked research workflows", () => {
     }
 
     expect(workflows.map((workflow) => workflow.report.jobType)).toEqual([
-      "daily",
-      "daily",
-      "weekly",
+      "market-overview",
+      "market-overview",
+      "market-overview",
       "equity",
       "crypto",
     ]);
@@ -224,7 +249,7 @@ describe("mocked research workflows", () => {
       "crypto",
     ]);
     expect(workflows[0]?.report.symbol).toBeUndefined();
-    expect(workflows[2]?.trace.marketUpdateCadence).toBe("weekly");
+    expect(workflows[2]?.trace.legacyMarketUpdateAlias).toBe("weekly");
     expect(workflows[3]?.report.symbol).toBe("AAPL");
     expect(workflows[4]?.trace.depth).toBe("deep");
     expect(workflows[4]?.report.extras?.depth).toBe("deep");

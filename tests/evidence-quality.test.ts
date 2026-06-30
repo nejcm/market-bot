@@ -50,7 +50,7 @@ function planning(
     sourcePlan: {
       version: 2,
       generatedAt,
-      run: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      run: { jobType: "market-overview", assetClass: "equity", depth: "brief" },
       lanes: coverage.map((lane) => ({
         lane: lane.lane,
         evidenceClass: lane.evidenceClass,

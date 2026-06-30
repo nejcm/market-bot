@@ -70,6 +70,33 @@ export function marketUpdateHorizonBucketOf(source: {
   return horizon === undefined ? undefined : marketUpdateHorizonBucket(horizon);
 }
 
+export function marketUpdateMetadataOf(source: {
+  readonly jobType: JobType;
+  readonly horizonTradingDays?: number | undefined;
+  readonly legacyAlias?: LegacyMarketUpdateJobType | undefined;
+}):
+  | {
+      readonly marketUpdateHorizonBucket: string;
+      readonly legacyMarketUpdateAlias?: LegacyMarketUpdateJobType;
+      readonly marketUpdateCadence?: LegacyMarketUpdateJobType;
+    }
+  | undefined {
+  const horizonBucket = marketUpdateHorizonBucketOf(source);
+  if (horizonBucket === undefined) {
+    return undefined;
+  }
+  if (source.jobType === "market-overview") {
+    return {
+      marketUpdateHorizonBucket: horizonBucket,
+      ...(source.legacyAlias !== undefined ? { legacyMarketUpdateAlias: source.legacyAlias } : {}),
+    };
+  }
+  if (isLegacyMarketUpdateJobType(source.jobType)) {
+    return { marketUpdateHorizonBucket: horizonBucket, marketUpdateCadence: source.jobType };
+  }
+  return undefined;
+}
+
 export interface Instrument {
   readonly symbol: string;
   readonly assetClass: AssetClass;

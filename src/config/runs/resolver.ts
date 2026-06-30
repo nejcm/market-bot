@@ -1,6 +1,5 @@
 import type { AppConfig } from "../../config";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import { legacyMarketUpdateHorizon } from "../../domain/types";
 import { cleanResearchProxySymbol } from "../../research/research-subject-identity";
 import { runConfig } from "./profiles";
 import type { ResolvedRunParams, RunBaseParams, RunConfig, RunKey } from "./types";
@@ -41,9 +40,6 @@ function mergeModelParams(
 function defaultPredictionHorizonFor(command: ResearchCommand, merged: RunBaseParams): number {
   if (command.jobType === "market-overview") {
     return command.horizonTradingDays;
-  }
-  if (command.jobType === "daily" || command.jobType === "weekly") {
-    return legacyMarketUpdateHorizon(command.jobType);
   }
   return merged.defaultPredictionHorizon ?? CODE_DEFAULTS.defaultPredictionHorizon;
 }

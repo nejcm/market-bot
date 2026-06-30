@@ -22,7 +22,6 @@ export type {
   CachePruneCommand,
   CalibrationCommand,
   CliCommand,
-  DailyCommand,
   HistoryRebuildCommand,
   HistorySearchCommand,
   HistoryThesisDeltaCommand,
@@ -32,7 +31,6 @@ export type {
   ProviderHealthCommand,
   ResearchCommand,
   ScoreCommand,
-  WeeklyCommand,
 } from "./job-registry";
 
 function parseAsset(value: string | undefined): AssetClass {

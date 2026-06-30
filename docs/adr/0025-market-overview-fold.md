@@ -17,6 +17,10 @@ Daily and weekly market updates used the same deterministic source flow but were
 - `daily` dispatches to `market-overview` with a 5 trading-day horizon.
 - `weekly` dispatches to `market-overview` with a 15 trading-day horizon.
 
+Runtime command construction, including Research Console job serialization,
+uses the canonical `market-overview` command shape. The legacy names are only
+accepted as CLI aliases and persisted artifact `JobType` values.
+
 New overview artifacts persist `jobType: "market-overview"` and top-level `horizonTradingDays`. Legacy `daily` and `weekly` artifacts remain readable and are mapped into horizon buckets on read:
 
 - `daily` -> `1-5d`

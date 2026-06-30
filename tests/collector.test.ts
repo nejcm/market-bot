@@ -484,7 +484,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -599,7 +605,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 1,
         cryptoMoverLimit: 2,
@@ -679,7 +691,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 1,
         cryptoMoverLimit: 2,
@@ -773,7 +791,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 1,
         cryptoMoverLimit: 2,
@@ -846,7 +870,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -1077,7 +1107,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1184,7 +1220,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1267,7 +1309,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1327,7 +1375,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1383,7 +1437,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1439,7 +1499,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1498,7 +1564,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1563,7 +1635,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1641,14 +1719,26 @@ describe("collectSources", () => {
     const now = new Date("2026-05-19T00:00:00.000Z");
 
     const daily = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       sourceOptions,
       now,
       fetchImpl,
     );
     const firstRunFetches = requestedUrls.length;
     const weekly = await collectSources(
-      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       sourceOptions,
       now,
       fetchImpl,
@@ -1716,7 +1806,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1754,7 +1850,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1798,7 +1900,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -1869,7 +1977,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -1979,7 +2093,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2022,7 +2142,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2072,7 +2198,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2134,7 +2266,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
@@ -2205,7 +2343,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2303,7 +2447,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2328,7 +2478,13 @@ describe("collectSources", () => {
     await recordSeenNewsSources({
       path: newsSeenPath,
       retentionDays: 30,
-      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       runId: "previous-run",
       seenAt: "2026-05-18T00:00:00.000Z",
       sources: [
@@ -2375,7 +2531,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2403,7 +2565,13 @@ describe("collectSources", () => {
     await recordSeenNewsSources({
       path: newsSeenPath,
       retentionDays: 30,
-      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       runId: "previous-run",
       seenAt: "2026-05-18T00:00:00.000Z",
       sources: [
@@ -2444,7 +2612,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "weekly", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2465,7 +2639,13 @@ describe("collectSources", () => {
     await recordSeenNewsSources({
       path: newsSeenPath,
       retentionDays: 30,
-      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       runId: "previous-run",
       seenAt: "2026-05-18T00:00:00.000Z",
       sources: [
@@ -2506,7 +2686,13 @@ describe("collectSources", () => {
     };
 
     const result = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         equityMoverLimit: 2,
         cryptoMoverLimit: 2,
@@ -2558,14 +2744,26 @@ describe("collectSources", () => {
     };
 
     await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       sourceOptions,
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,
       [],
     );
     const second = await collectSources(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       sourceOptions,
       new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl,

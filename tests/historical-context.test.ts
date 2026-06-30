@@ -254,7 +254,13 @@ describe("loadHistoricalContext", () => {
   test("softly reports no-history gaps without source gaps", async () => {
     const context = await loadHistoricalContext({
       dataDir: tempRunsDir(),
-      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: { historyOptions: options() },
       now: new Date("2026-06-04T00:00:00.000Z"),
     });
@@ -291,7 +297,13 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       config: { historyOptions: options({ marketRecentLimit: 2, anchorMonths: [] }) },
       now: new Date("2026-06-04T00:00:00.000Z"),
     });
@@ -338,7 +350,13 @@ describe("loadHistoricalContext", () => {
     });
 
     const context = await reader.load({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: { historyOptions: options() },
       now,
       spotlightSymbols: ["AAPL"],
@@ -389,7 +407,13 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: { historyOptions: options({ marketRecentLimit: 2, tickerRecentLimit: 1 }) },
       now,
       spotlightSymbols: ["AAPL"],
@@ -580,7 +604,13 @@ describe("loadHistoricalContext", () => {
       },
     });
 
-    const command = { jobType: "daily", assetClass: "equity", depth: "brief" } as const;
+    const command = {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 5,
+      legacyAlias: "daily",
+    } as const;
     const selectionOptions = options({ marketRecentLimit: 2, anchorMonths: [] });
 
     const withoutLane = await loadHistoricalContext({
@@ -640,7 +670,13 @@ describe("loadHistoricalContext", () => {
 
     const context = await loadHistoricalContext({
       dataDir,
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: {
         historyOptions: options({ marketRecentLimit: 3, anchorMonths: [], missCorrectionLimit: 1 }),
       },
@@ -715,7 +751,13 @@ describe("loadHistoricalContext", () => {
   test("appends extraGaps to gaps and reflects their count in audit.gapCount", async () => {
     const context = await loadHistoricalContext({
       dataDir: tempRunsDir(),
-      command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: { historyOptions: options() },
       now: new Date("2026-06-04T00:00:00.000Z"),
       extraGaps: ["Unable to read alpha-search watchlist for spotlight enrichment"],

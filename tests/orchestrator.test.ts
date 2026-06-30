@@ -310,7 +310,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       runConfig,
       provider,
@@ -378,7 +384,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -687,7 +699,13 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
     const daily = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: { ...config, dataDir },
       provider,
       collectedSources: collected,
@@ -748,7 +766,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: { ...config, dataDir },
       provider,
       collectedSources: collectedSourceBundle({
@@ -996,7 +1020,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1312,8 +1342,20 @@ describe("runResearchJob", () => {
         symbol: "BTC",
         depth: "deep" as const,
       },
-      { jobType: "daily" as const, assetClass: "equity" as const, depth: "deep" as const },
-      { jobType: "weekly" as const, assetClass: "equity" as const, depth: "deep" as const },
+      {
+        jobType: "market-overview" as const,
+        assetClass: "equity" as const,
+        depth: "deep" as const,
+        horizonTradingDays: 5,
+        legacyAlias: "daily" as const,
+      },
+      {
+        jobType: "market-overview" as const,
+        assetClass: "equity" as const,
+        depth: "deep" as const,
+        horizonTradingDays: 15,
+        legacyAlias: "weekly" as const,
+      },
     ];
 
     for (const command of commands) {
@@ -1346,7 +1388,7 @@ describe("runResearchJob", () => {
       });
 
       let expectedCalls = command.depth === "deep" ? 6 : 4;
-      if (command.jobType === "daily" || command.jobType === "weekly") {
+      if (command.jobType === "market-overview") {
         expectedCalls = command.depth === "deep" ? 7 : 5;
       }
       expect(calls).toBe(expectedCalls);
@@ -1368,7 +1410,13 @@ describe("runResearchJob", () => {
 
   test("creates a daily Research View from mocked sources and model output", async () => {
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -1407,7 +1455,7 @@ describe("runResearchJob", () => {
     });
 
     expect(result.report).toMatchObject({
-      jobType: "daily",
+      jobType: "market-overview",
       assetClass: "equity",
       evidenceQuality: "medium",
       notFinancialAdvice: true,
@@ -1476,7 +1524,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1612,7 +1666,13 @@ describe("runResearchJob", () => {
 
   test("ignores extended sources for market update source lists", async () => {
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -1703,7 +1763,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1726,9 +1792,9 @@ describe("runResearchJob", () => {
       };
     };
 
-    expect(result.report.jobType).toBe("weekly");
-    expect(result.report.extras?.marketUpdateCadence).toBe("weekly");
-    expect(result.trace.marketUpdateCadence).toBe("weekly");
+    expect(result.report.jobType).toBe("market-overview");
+    expect(result.report.extras?.legacyMarketUpdateAlias).toBe("weekly");
+    expect(result.trace.legacyMarketUpdateAlias).toBe("weekly");
     expect(result.markdown).toContain("# equity Market Overview");
     expect(result.report.predictions[0]?.horizonTradingDays).toBe(15);
     expect(result.report.dataGaps).toContain(
@@ -1776,7 +1842,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -1829,7 +1901,13 @@ describe("runResearchJob", () => {
     const dataDir = join(tmpdir(), `market-bot-test-${Date.now()}`);
     dataDirs.push(dataDir);
     const result = await persistResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: {
         ...config,
         dataDir,
@@ -2876,7 +2954,13 @@ describe("runResearchJob", () => {
 
   test("caps Evidence Quality and adds deterministic gaps for sparse sources", async () => {
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -2908,7 +2992,13 @@ describe("runResearchJob", () => {
 
   test("does not cap Evidence Quality for missing Market Context", async () => {
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -2959,7 +3049,13 @@ describe("runResearchJob", () => {
 
   test("does not cap Evidence Quality for missing optional news credentials", async () => {
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -3158,7 +3254,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3262,7 +3364,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3371,7 +3479,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3482,7 +3596,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3596,7 +3716,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3655,7 +3781,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "deep" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3723,7 +3855,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -3936,7 +4074,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -4038,7 +4182,13 @@ describe("runResearchJob", () => {
     };
 
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider,
       collectedSources: collectedSourceBundle({
@@ -4064,7 +4214,13 @@ describe("runResearchJob", () => {
 
   test("logs prediction validation errors to trace when malformed predictions are dropped", async () => {
     const result = await runResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config,
       provider: providerReturning(
         JSON.stringify({
@@ -4125,7 +4281,13 @@ describe("runResearchJob", () => {
     dataDirs.push(dataDir);
 
     const result = await persistResearchJob({
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       config: {
         ...config,
         dataDir,
@@ -4175,7 +4337,7 @@ describe("runResearchJob", () => {
     expect(await Bun.file(join(result.artifacts.runDir, "report.json")).exists()).toBe(true);
     expect(entries).toMatchObject([
       {
-        lane: "daily:equity",
+        lane: "market-overview:equity",
         canonicalUrl: "https://example.test/apple-suppliers",
         title: "Apple supplier demand improves",
         provider: "yahoo-news",

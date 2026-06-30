@@ -32,6 +32,9 @@ function overrideKey(command: ResearchCommand): string {
   if (isInstrumentCommand(command)) {
     return command.jobType;
   }
+  if (command.jobType === "market-overview" && command.legacyAlias !== undefined) {
+    return `${command.legacyAlias}-${command.assetClass}`;
+  }
   return `${command.jobType}-${command.assetClass}`;
 }
 

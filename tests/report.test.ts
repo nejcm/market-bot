@@ -159,7 +159,13 @@ function assembleWithSpotlights(
   extras: Record<string, unknown> | undefined,
   context: ResearchContext,
   command?:
-    | { readonly jobType: "daily"; readonly assetClass: "equity"; readonly depth: "brief" }
+    | {
+        readonly jobType: "market-overview";
+        readonly assetClass: "equity";
+        readonly depth: "brief";
+        readonly horizonTradingDays: 5;
+        readonly legacyAlias: "daily";
+      }
     | {
         readonly jobType: "equity";
         readonly assetClass: "equity";
@@ -167,7 +173,13 @@ function assembleWithSpotlights(
         readonly depth: "brief";
       },
 ): ResearchReport {
-  const resolvedCommand = command ?? { jobType: "daily", assetClass: "equity", depth: "brief" };
+  const resolvedCommand = command ?? {
+    jobType: "market-overview",
+    assetClass: "equity",
+    depth: "brief",
+    horizonTradingDays: 5,
+    legacyAlias: "daily",
+  };
   return assembleResearchReport({
     runId: "spotlight-run",
     generatedAt: "2026-06-01T00:00:00.000Z",
@@ -833,9 +845,11 @@ describe("report schema and rendering", () => {
 
   test("dedupes model and deterministic data gaps by normalized text", () => {
     const command = {
-      jobType: "daily" as const,
+      jobType: "market-overview" as const,
       assetClass: "equity" as const,
       depth: "brief" as const,
+      horizonTradingDays: 5,
+      legacyAlias: "daily" as const,
     };
     const targetKindMix = { favored: ["relative", "range"] as const, minNonDirection: 1 };
     const depthProfile: DepthProfile = {
@@ -1234,9 +1248,11 @@ describe("report schema and rendering", () => {
 
   test("model confidence cannot lower a deterministic evidence-quality assessment", () => {
     const command = {
-      jobType: "daily" as const,
+      jobType: "market-overview" as const,
       assetClass: "equity" as const,
       depth: "brief" as const,
+      horizonTradingDays: 5,
+      legacyAlias: "daily" as const,
     };
     const depthProfile = assemblyDepthProfile("SPY");
     const context: ResearchContext = {
@@ -1304,7 +1320,13 @@ describe("report schema and rendering", () => {
     };
 
     const sources = buildSourceList(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: [],
@@ -1800,7 +1822,13 @@ describe("report schema and rendering", () => {
     ];
 
     const sources = buildSourceList(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: snapshots,
@@ -1849,7 +1877,13 @@ describe("report schema and rendering", () => {
     ];
 
     const sources = buildSourceList(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       collectedSources({
         rawSnapshots: [],
         marketSnapshots: snapshots,

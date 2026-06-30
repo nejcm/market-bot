@@ -65,7 +65,13 @@ describe("runConfig profiles", () => {
 describe("resolveRunParams — fallback chain", () => {
   test("env AppConfig provides quickModel and synthesisModel when combo has none", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
 
@@ -75,7 +81,13 @@ describe("resolveRunParams — fallback chain", () => {
 
   test("codex AppConfig overrides provide default run models", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       {
         ...baseConfig,
         provider: "codex",
@@ -101,7 +113,13 @@ describe("resolveRunParams — fallback chain", () => {
     };
 
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
       patchedConfig,
     );
@@ -112,7 +130,13 @@ describe("resolveRunParams — fallback chain", () => {
 
   test("brief depth uses combo-level values", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
 
@@ -124,7 +148,13 @@ describe("resolveRunParams — fallback chain", () => {
 
   test("deep depth merges deep sub-block over combo", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "deep" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
 
@@ -136,7 +166,13 @@ describe("resolveRunParams — fallback chain", () => {
 
   test("deep sub-block does not override unset fields (falls back to combo)", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "deep" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
 
@@ -184,7 +220,13 @@ describe("resolveRunParams — run keys", () => {
 
   test("weekly-equity deep has cross-asset themes in focus", () => {
     const result = resolveRunParams(
-      { jobType: "weekly", assetClass: "equity", depth: "deep" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       baseConfig,
     );
 
@@ -193,11 +235,23 @@ describe("resolveRunParams — run keys", () => {
 
   test("daily and weekly aliases resolve through market-overview profiles", () => {
     const daily = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
     const weekly = resolveRunParams(
-      { jobType: "weekly", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 15,
+        legacyAlias: "weekly",
+      },
       baseConfig,
     );
 
@@ -284,11 +338,23 @@ describe("resolveRunParams — run keys", () => {
 
   test("daily-crypto keeps depth profile but uses crypto prediction subjects", () => {
     const equity = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
     const crypto = resolveRunParams(
-      { jobType: "daily", assetClass: "crypto", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "crypto",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
 
@@ -301,7 +367,13 @@ describe("resolveRunParams — run keys", () => {
 
   test("modelParams is undefined by default (no sampling knobs seeded)", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       baseConfig,
     );
 
@@ -310,7 +382,13 @@ describe("resolveRunParams — run keys", () => {
 
   test("AppConfig modelParams flow into resolved run params", () => {
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { ...baseConfig, modelParams: { reasoningEffort: "medium" } },
     );
 
@@ -327,7 +405,13 @@ describe("resolveRunParams — run keys", () => {
     };
 
     const result = resolveRunParams(
-      { jobType: "daily", assetClass: "equity", depth: "brief" },
+      {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       { ...baseConfig, modelParams: { reasoningEffort: "low" } },
       patchedConfig,
     );

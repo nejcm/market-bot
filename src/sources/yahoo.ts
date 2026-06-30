@@ -1,12 +1,13 @@
 import { isInstrumentCommand } from "../cli/args";
-import type {
-  AssetClass,
-  InstrumentIdentity,
-  MarketBenchmark,
-  MarketFundamentals,
-  MarketSnapshot,
-  OhlcvBar,
-  SourceGap,
+import {
+  isMarketUpdateJobType,
+  type AssetClass,
+  type InstrumentIdentity,
+  type MarketBenchmark,
+  type MarketFundamentals,
+  type MarketSnapshot,
+  type OhlcvBar,
+  type SourceGap,
 } from "../domain/types";
 import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
@@ -466,10 +467,7 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     .map((e) => e.result)
     .filter((r): r is SourceGap => !isFetchJsonResult(r));
 
-  const isMarketUpdate =
-    command.jobType === "market-overview" ||
-    command.jobType === "daily" ||
-    command.jobType === "weekly";
+  const isMarketUpdate = isMarketUpdateJobType(command.jobType);
   const moverResults = fetched.filter((e) => isMarketUpdate && isMoverRole(e.role));
   const regimeSnapshots = fetched.flatMap((e) =>
     isMarketUpdate && isMoverRole(e.role)

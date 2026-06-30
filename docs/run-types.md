@@ -40,8 +40,8 @@ Run key mapping (`toRunKey`):
 
 - `equity` / `crypto` &rarr; `equity` / `crypto`.
 - `research` &rarr; `research-equity`.
-- `market-overview`, `daily`, `weekly` &rarr; `market-overview-{assetClass}`
-  (legacy market updates share the market-overview profile).
+- `market-overview` &rarr; `market-overview-{assetClass}`. Deprecated
+  `daily` / `weekly` CLI invocations are normalized before config resolution.
 
 ### Source Collection
 
@@ -188,10 +188,10 @@ Both map to `market-overview-{assetClass}` profile (same as
 - `daily` &rarr; 5 trading days.
 - `weekly` &rarr; 15 trading days.
 
-For new CLI runs, `resolveRunParams` receives the canonical market-overview
-command and uses `horizonTradingDays` for `defaultPredictionHorizon`. The
-legacy `daily` / `weekly` branch remains for compatibility with direct internal
-callers and old artifact-shaped tests.
+For new CLI and Research Console runs, `resolveRunParams` receives the
+canonical market-overview command and uses `horizonTradingDays` for
+`defaultPredictionHorizon`. Legacy `daily` / `weekly` values remain valid only
+as persisted `JobType` values on artifact/history read paths.
 
 ### Data and Stages
 

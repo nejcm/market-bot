@@ -54,7 +54,13 @@ function requestExecutor(overrides: Partial<SourceRequestExecutor> = {}): Source
 
 function collectContext(overrides: Partial<CollectContext> = {}): CollectContext {
   return {
-    command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+    command: {
+      jobType: "market-overview",
+      assetClass: "equity",
+      depth: "brief",
+      horizonTradingDays: 5,
+      legacyAlias: "daily",
+    },
     fetchedAt,
     newsLimit: 1,
     cryptoMoverLimit: 2,
@@ -653,7 +659,13 @@ describe("market context provider collection", () => {
     const cachedFetchedAt = "2026-05-18T00:00:00.000Z";
     const result = await marketContextAdapter.collect(
       collectContext({
-        command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+        command: {
+          jobType: "market-overview",
+          assetClass: "equity",
+          depth: "brief",
+          horizonTradingDays: 5,
+          legacyAlias: "daily",
+        },
         fredApiKey: "fred-key",
         request: requestExecutor({
           json: async ({ adapter }) => {
@@ -689,7 +701,13 @@ describe("market context provider collection", () => {
   test("emits missing-key Market Context gap for market updates", async () => {
     const result = await marketContextAdapter.collect(
       collectContext({
-        command: { jobType: "weekly", assetClass: "crypto", depth: "brief" },
+        command: {
+          jobType: "market-overview",
+          assetClass: "crypto",
+          depth: "brief",
+          horizonTradingDays: 15,
+          legacyAlias: "weekly",
+        },
       }),
     );
 
@@ -731,7 +749,13 @@ describe("news provider collection", () => {
 
     await finnhubNewsAdapter.collect(
       collectContext({
-        command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+        command: {
+          jobType: "market-overview",
+          assetClass: "crypto",
+          depth: "brief",
+          horizonTradingDays: 5,
+          legacyAlias: "daily",
+        },
         finnhubApiToken: "finnhub-token",
         request: requestExecutor({
           json: async (request) => {
@@ -947,7 +971,13 @@ describe("news provider collection", () => {
   test("caps Finnhub normalized sources after provider fetch", async () => {
     const result = await finnhubNewsAdapter.collect(
       collectContext({
-        command: { jobType: "daily", assetClass: "crypto", depth: "brief" },
+        command: {
+          jobType: "market-overview",
+          assetClass: "crypto",
+          depth: "brief",
+          horizonTradingDays: 5,
+          legacyAlias: "daily",
+        },
         finnhubApiToken: "finnhub-token",
         request: requestExecutor({
           json: async ({ adapter }) => ({

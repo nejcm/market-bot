@@ -1,5 +1,10 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import type { AssetClass, Source, SourceGap } from "../domain/types";
+import {
+  isMarketUpdateJobType,
+  type AssetClass,
+  type Source,
+  type SourceGap,
+} from "../domain/types";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
 import { isUsListing } from "../sources/instrument-capability";
@@ -249,10 +254,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   {
     lane: "market-context",
     evidenceClass: () => "material",
-    applies: (command) =>
-      command.jobType === "market-overview" ||
-      command.jobType === "daily" ||
-      command.jobType === "weekly",
+    applies: (command) => isMarketUpdateJobType(command.jobType),
     sourceIds: (sources) => sources.marketContext?.items.flatMap((item) => item.sourceIds) ?? [],
     gapMatches: (gap) => gap.capability === "market-context",
   },

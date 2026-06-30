@@ -1,4 +1,5 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { marketUpdateHorizonBucketOf } from "../domain/types";
 
 const TRACKING_PARAMS = new Set(["fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref", "spm"]);
 
@@ -15,15 +16,9 @@ export function newsQuery(command: ResearchCommand): string {
 }
 
 export function recencyDays(command: ResearchCommand): number {
-  if (
-    command.jobType === "daily" ||
-    (command.jobType === "market-overview" && command.horizonTradingDays <= 5)
-  ) {
-    return 3;
-  }
-
-  if (command.jobType === "market-overview" || command.jobType === "weekly") {
-    return 10;
+  const bucket = marketUpdateHorizonBucketOf(command);
+  if (bucket !== undefined) {
+    return bucket === "1-5d" ? 3 : 10;
   }
 
   return 30;

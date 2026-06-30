@@ -32,12 +32,15 @@ async function waitFor(predicate: () => boolean): Promise<void> {
 
 describe("research console app jobs", () => {
   test("converts typed requests to allowlisted CLI argv", () => {
-    expect(jobRequestArgv({ jobType: "daily", assetClass: "equity", depth: "deep" })).toEqual([
-      "daily",
-      "--asset",
-      "equity",
-      "--deep",
-    ]);
+    expect(
+      jobRequestArgv({
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "deep",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      }),
+    ).toEqual(["market-overview", "--asset", "equity", "--horizon", "5", "--deep"]);
     expect(jobRequestArgv({ jobType: "equity", symbol: "aapl", depth: "deep" })).toEqual([
       "equity",
       "aapl",

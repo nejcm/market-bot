@@ -35,9 +35,11 @@ Base goal text.
 `;
 
 const dailyEquityCommand = {
-  jobType: "daily" as const,
+  jobType: "market-overview" as const,
   assetClass: "equity" as const,
   depth: "brief" as const,
+  horizonTradingDays: 5,
+  legacyAlias: "daily" as const,
 };
 
 const tickerCommand = {
@@ -186,9 +188,11 @@ Unexpected system delta.
     cleanups.push(cleanup);
 
     const weeklyCommand = {
-      jobType: "weekly" as const,
+      jobType: "market-overview" as const,
       assetClass: "equity" as const,
       depth: "brief" as const,
+      horizonTradingDays: 15,
+      legacyAlias: "weekly" as const,
     };
     const result = await loadStagePrompt("critique", weeklyCommand, dir);
 

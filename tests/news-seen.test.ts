@@ -27,7 +27,13 @@ describe("news seen index", () => {
     await recordSeenNewsSources({
       path,
       retentionDays: 30,
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       runId: "run-1",
       seenAt: "2026-05-01T00:00:00.000Z",
       sources: [
@@ -41,7 +47,13 @@ describe("news seen index", () => {
     await recordSeenNewsSources({
       path,
       retentionDays: 30,
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       runId: "run-2",
       seenAt: "2026-05-02T00:00:00.000Z",
       sources: [
@@ -57,7 +69,7 @@ describe("news seen index", () => {
 
     expect(entries).toEqual([
       {
-        lane: "daily:equity",
+        lane: "market-overview:equity",
         canonicalUrl: "https://example.test/story",
         title: "Updated title",
         provider: "marketaux",
@@ -93,7 +105,13 @@ describe("news seen index", () => {
     await recordSeenNewsSources({
       path,
       retentionDays: 30,
-      command: { jobType: "daily", assetClass: "equity", depth: "brief" },
+      command: {
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays: 5,
+        legacyAlias: "daily",
+      },
       runId: "run-1",
       seenAt: "2026-05-15T00:00:00.000Z",
       sources: [newsSource({ url: "https://example.test/new" })],

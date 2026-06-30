@@ -173,7 +173,7 @@ data/
 ## Development
 
 ```sh
-bun run check    # lint + fmt:check + typecheck + test — must pass before merge
+bun run check    # fmt + lint + fmt:check + typecheck + test — must pass before merge
 bun test
 bun run typecheck
 bun run lint
@@ -204,7 +204,7 @@ assets/        Logo and favicons
 - [`.env.example`](./.env.example) — environment variable template
 - [docs/configuration.md](./docs/configuration.md) — configuration reference and provider notes
 - [docs/conventions.md](./docs/conventions.md) — code style, testing, commits
-- [docs/adr/](./docs/adr/) — design decisions
+- [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index (many ADR files are superseded redirects)
 - [SECURITY.md](./SECURITY.md) — vulnerability reporting
 
 ## Contributing

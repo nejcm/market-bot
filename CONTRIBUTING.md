@@ -13,19 +13,19 @@ bunx lefthook install
 
 ## Development scripts
 
-| Script              | What it does                                     |
-| ------------------- | ------------------------------------------------ |
-| `bun test`          | Run all tests                                    |
-| `bun run typecheck` | TypeScript type-check (no emit)                  |
-| `bun run lint`      | Lint with oxlint (errors only block)             |
-| `bun run lint:fix`  | Lint and auto-fix                                |
-| `bun run fmt`       | Format with oxfmt                                |
-| `bun run fmt:check` | Check formatting without writing                 |
-| `bun run knip`      | Find unused exports and dependencies             |
-| `bun run audit`     | Check for high-severity vulnerabilities          |
-| `bun run check`     | Run lint + fmt:check + typecheck + test in order |
-| `bun run app`       | Build and serve the Research Console             |
-| `bun run app:dev`   | Start the console API and Vite dev server        |
+| Script              | What it does                                           |
+| ------------------- | ------------------------------------------------------ |
+| `bun test`          | Run all tests                                          |
+| `bun run typecheck` | TypeScript type-check (no emit)                        |
+| `bun run lint`      | Lint with oxlint (errors only block)                   |
+| `bun run lint:fix`  | Lint and auto-fix                                      |
+| `bun run fmt`       | Format with oxfmt                                      |
+| `bun run fmt:check` | Check formatting without writing                       |
+| `bun run knip`      | Find unused exports and dependencies                   |
+| `bun run audit`     | Check for high-severity vulnerabilities                |
+| `bun run check`     | Run fmt + lint + fmt:check + typecheck + test in order |
+| `bun run app`       | Build and serve the Research Console                   |
+| `bun run app:dev`   | Start the console API and Vite dev server              |
 
 ## Git hooks (via lefthook)
 

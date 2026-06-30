@@ -27,11 +27,11 @@
 
 ## Checks
 
-- [ ] `bun run check` passes locally (lint + fmt:check + typecheck + test)
+- [ ] `bun run check` passes locally (fmt + lint + fmt:check + typecheck + test)
 - [ ] Tests added or updated for the change
 - [ ] No secrets in code, tests, fixtures, or artifacts
 - [ ] Updated `docs/configuration.md` if a new env var was added
-- [ ] No Node/Prettier/ESLint/Biome introduced (Bun + oxc only, ADR 0003)
+- [ ] No Node/Prettier/ESLint/Biome introduced (Bun + oxc only, ADR 0002)
 
 ## Notes for reviewers
 

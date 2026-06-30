@@ -9,20 +9,22 @@ Guidance for LLM coding agents working on this repo. Human contributors: see [CO
 - [docs/architecture.md](./docs/architecture.md) — layout, subsystems, data flow
 - [docs/conventions.md](./docs/conventions.md) — code style, testing, commits
 - [docs/configuration.md](./docs/configuration.md) — env vars
-- [docs/adr/](./docs/adr/) — accepted design decisions
+- [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index; many ADR files are superseded redirects, cite only canonical records
 
 ## Non-negotiables
 
 1. **Research-only.** No buy/sell/hold calls, sizing, or execution language ([ADR 0001](./docs/adr/0001-research-only-boundary.md)).
 2. **Predictions must be observable.** Resolvable from public price data ([ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md)).
 3. **No secrets in code, tests, or fixtures.** Env vars only.
-4. **Bun + oxc only.** Do not add Node, Prettier, ESLint, or Biome ([ADR 0003](./docs/adr/0003-oxc-toolchain.md)).
+4. **Bun + oxc only.** Do not add Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-typescript-bun-orchestration.md)).
 5. **Scope discipline.** No speculative abstractions, no bundled refactors, no unsolicited planning docs.
 
 ## Definition of done
 
+Final check after code edits. Run before completing the task or at sensible mid points.
+
 ```sh
-bun run check    # lint + fmt:check + typecheck + test
+bun run check    # fmt + lint + fmt:check + typecheck + test
 ```
 
 Must pass. Do not bypass hooks (`--no-verify`) or skip CI. Add tests in the same change as the code. Update [docs/configuration.md](./docs/configuration.md) when adding an env var.

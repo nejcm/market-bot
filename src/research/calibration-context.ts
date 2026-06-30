@@ -49,7 +49,7 @@ function readNumberWhere(
 
 // Runtime schema validation at the disk boundary: summary.json is untrusted on read.
 // Malformed or schema-drifted fields are dropped rather than cast through with `as`.
-// Mirrors the custom-validation pattern in src/report/schema.ts (no Zod, per ADR 0003).
+// Mirrors the custom-validation pattern in src/report/schema.ts (no Zod).
 export function parseCalibrationContext(value: unknown): CalibrationContext | undefined {
   if (!isRecord(value)) {
     return undefined;

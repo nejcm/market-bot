@@ -201,6 +201,42 @@ describe("createOpenAIProvider", () => {
     });
   });
 
+  test("rejects JSON response format with Responses web search", async () => {
+    const provider = createOpenAIProvider({
+      provider: "openai",
+      apiKey: "test-key",
+      quickModel: "quick",
+      synthesisModel: "synthesis",
+      modelTimeoutMs: 120_000,
+      dataDir: "data/runs",
+      promptDir: "prompts",
+      sourceOptions: {
+        equityMoverLimit: 5,
+        cryptoMoverLimit: 5,
+        newsLimit: 8,
+        sourceTimeoutMs: 1000,
+      },
+      evidenceRequestOptions: {
+        maxRounds: 0,
+        maxToolCalls: 0,
+        sourceBudget: 0,
+      },
+      webGatherOptions,
+      webGatherDisabled: false,
+      webProfileReuseDaysBySubjectKind: { company: 30, "crypto-asset": 7, theme: 7 },
+      alphaSearchOptions,
+    });
+
+    await expect(
+      provider.generate({
+        model: "synthesis",
+        webSearch: true,
+        responseFormat: "json",
+        messages: [{ role: "user", content: "Find current context." }],
+      }),
+    ).rejects.toThrow("OpenAI web search does not support JSON response format");
+  });
+
   test("spreads ModelParams into request body when set", async () => {
     const requests: Request[] = [];
     const fetchImpl = async (

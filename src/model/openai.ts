@@ -78,6 +78,9 @@ export function createOpenAIProvider(
     name: config.provider,
     generate: async (request: ModelRequest): Promise<ModelResponse> => {
       if (request.webSearch === true) {
+        if (request.responseFormat === "json") {
+          throw new Error("OpenAI web search does not support JSON response format");
+        }
         const response = await fetchImpl(`${baseUrl}/responses`, {
           method: "POST",
           headers: {

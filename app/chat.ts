@@ -177,8 +177,11 @@ export async function handleRunChat(
       ? `${systemPrompt}\n\n# Run artifacts\n\n${contextBlock}`
       : systemPrompt;
 
-  // Web search is opt-in and restricted to the codex provider only.
-  const webSearchActive = deps.chatConfig.webSearch && deps.provider.name === "codex";
+  const webSearchActive =
+    deps.chatConfig.webSearch &&
+    (deps.provider.name === "codex" ||
+      deps.provider.name === "openai" ||
+      deps.provider.name === "anthropic");
   const finalSystemContent = webSearchActive
     ? `${systemContent}\n\n${WEB_SEARCH_GUIDANCE}`
     : systemContent;

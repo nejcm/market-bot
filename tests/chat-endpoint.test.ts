@@ -358,7 +358,7 @@ describe("chat endpoint", () => {
     expect(captured.systemContent).toContain("live web lookup");
   });
 
-  test("does not enable web search on non-codex provider even when chatConfig.webSearch is true", async () => {
+  test("enables web search on openai provider when chatConfig.webSearch is true", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "chat-ws-"));
     setupRunDir(dataDir, "run-ws-openai");
 
@@ -379,6 +379,64 @@ describe("chat endpoint", () => {
       url,
       chatDeps(dataDir, {
         provider: openaiProvider,
+        chatConfig: defaultChatConfig({ webSearch: true }),
+      }),
+    );
+
+    expect(captured.webSearch).toBe(true);
+    expect(captured.systemContent).toContain("Web search");
+  });
+
+  test("enables web search on anthropic provider when chatConfig.webSearch is true", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-ws-"));
+    setupRunDir(dataDir, "run-ws-anthropic");
+
+    const captured = { webSearch: false as boolean | undefined, systemContent: "" };
+    const anthropicProvider: ModelProvider = {
+      name: "anthropic",
+      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+        captured.webSearch = req.webSearch;
+        captured.systemContent = req.messages[0]?.content ?? "";
+        return { content: "searched", tokenEstimate: 10, costEstimateUsd: 0 };
+      },
+    };
+
+    const request = chatRequest("run-ws-anthropic", [{ role: "user", content: "latest news?" }]);
+    const url = new URL(request.url);
+    await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, {
+        provider: anthropicProvider,
+        chatConfig: defaultChatConfig({ webSearch: true }),
+      }),
+    );
+
+    expect(captured.webSearch).toBe(true);
+    expect(captured.systemContent).toContain("Web search");
+  });
+
+  test("does not enable web search on openai-compatible provider", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-ws-"));
+    setupRunDir(dataDir, "run-ws-compatible");
+
+    const captured = { webSearch: false as boolean | undefined, systemContent: "" };
+    const compatibleProvider: ModelProvider = {
+      name: "openai-compatible",
+      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+        captured.webSearch = req.webSearch;
+        captured.systemContent = req.messages[0]?.content ?? "";
+        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+      },
+    };
+
+    const request = chatRequest("run-ws-compatible", [{ role: "user", content: "latest news?" }]);
+    const url = new URL(request.url);
+    await handleRunChat(
+      request,
+      url,
+      chatDeps(dataDir, {
+        provider: compatibleProvider,
         chatConfig: defaultChatConfig({ webSearch: true }),
       }),
     );

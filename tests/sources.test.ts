@@ -1440,6 +1440,63 @@ describe("SEC fundamental evidence", () => {
       ),
     ).toBe(false);
   });
+
+  test("flags a stale SEC revenue period older than the freshness threshold", () => {
+    const result = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  secFact(100, {
+                    fy: 2025,
+                    fp: "Q1",
+                    filed: "2025-01-15",
+                    start: "2024-10-01",
+                    end: "2025-01-01",
+                  }),
+                ],
+              },
+            },
+          },
+        },
+      },
+      "2026-06-28T00:00:00.000Z",
+    );
+
+    expect(result?.gaps.some((gap) => gap.message.includes("Stale SEC revenue period"))).toBe(true);
+    expect(result?.metrics.revenue).toBe(100);
+  });
+
+  test("does not flag revenue within the freshness threshold", () => {
+    const result = summarizeSecFundamentals(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  secFact(100, {
+                    fy: 2026,
+                    fp: "Q2",
+                    filed: "2026-05-01",
+                    start: "2025-10-01",
+                    end: "2026-03-28",
+                  }),
+                ],
+              },
+            },
+          },
+        },
+      },
+      "2026-06-28T00:00:00.000Z",
+    );
+
+    expect(result?.gaps.some((gap) => gap.message.includes("Stale SEC revenue period"))).toBe(
+      false,
+    );
+  });
 });
 
 describe("extended evidence provider collection", () => {

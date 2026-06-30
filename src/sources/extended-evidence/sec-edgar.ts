@@ -1,5 +1,6 @@
 import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
 import { isInstrumentCommand } from "../../cli/args";
+import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
@@ -323,6 +324,19 @@ function isFactObservableAsOf(fact: SecFactValue, analysisAsOf?: string): boolea
   );
 }
 
+// True when the revenue period end is older than SEC_FRESHNESS_DAYS relative to
+// AnalysisAsOf. Matches the freshness pattern in valuation-comps.ts's
+// IsFreshPeriodEnd; flags the gap without suppressing the metric so downstream
+// Consumers can still use it.
+function isStalePeriodEnd(periodEnd: string, analysisAsOf: string): boolean {
+  const periodMs = Date.parse(periodEnd);
+  const cutoffMs = Date.parse(analysisAsOf);
+  if (!Number.isFinite(periodMs) || !Number.isFinite(cutoffMs)) {
+    return false;
+  }
+  return cutoffMs - periodMs > SEC_FRESHNESS_DAYS * DAY_MS;
+}
+
 function compareFactRecency(a: SecFactValue, b: SecFactValue): number {
   const periodEnd = (b.end ?? "").localeCompare(a.end ?? "");
   if (periodEnd !== 0) {
@@ -564,6 +578,22 @@ export function summarizeSecFundamentals(
     return undefined;
   }
 
+  const staleRevenueGap =
+    typeof metrics.revenuePeriodEnd === "string" &&
+    analysisAsOf !== undefined &&
+    isStalePeriodEnd(metrics.revenuePeriodEnd, analysisAsOf)
+      ? [
+          sourceGap({
+            source: "sec-edgar",
+            message: `Stale SEC revenue period: period end ${metrics.revenuePeriodEnd} exceeds ${SEC_FRESHNESS_DAYS} days`,
+            provider: "sec-edgar",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ]
+      : [];
+
   const gaps: SourceGap[] = [
     ...(missingFacts.length > 0
       ? [
@@ -591,6 +621,7 @@ export function summarizeSecFundamentals(
           }),
         ]
       : []),
+    ...staleRevenueGap,
   ];
 
   return {

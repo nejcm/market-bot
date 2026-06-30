@@ -19,12 +19,16 @@ Guidance for LLM coding agents working on this repo. Human contributors: see [CO
 4. **Bun + oxc only.** Do not add Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-typescript-bun-orchestration.md)).
 5. **Scope discipline.** No speculative abstractions, no bundled refactors, no unsolicited planning docs.
 
-## Definition of done
+## Final Quality Check
 
-Final check after code edits. Run before completing the task or at sensible mid points.
+After making code changes, run the quality check suite to ensure your changes meet project standards. Execute this command at natural completion points or when you've reached a stable state:
 
 ```sh
 bun run check    # fmt + lint + fmt:check + typecheck + test
 ```
 
-Must pass. Do not bypass hooks (`--no-verify`) or skip CI. Add tests in the same change as the code. Update [docs/configuration.md](./docs/configuration.md) when adding an env var.
+Requirements:
+- All checks must pass before marking the task as complete
+- Never bypass Git hooks with --no-verify or skip CI checks
+- Include tests within the same commit as the code changes
+- Update docs/configuration.md when introducing new env variables

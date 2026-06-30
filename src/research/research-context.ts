@@ -707,7 +707,7 @@ function buildForecastDiversityGuidance(
   }
   shapes.push("conditional (if-then when evidence supports a setup)");
 
-  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and horizon variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. The count is still a soft target; do not pad with low-conviction forecasts.`;
+  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and horizon variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against correlated benchmarks (e.g. SPY, QQQ, IWM) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
 function predictionDslInstruction(command: ResearchCommand): string {
@@ -724,7 +724,7 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
     mix.minNonDirection !== undefined && mix.minNonDirection > 0
       ? ` Aim for at least ${String(mix.minNonDirection)} prediction(s) using a kind other than \`direction\` where the evidence supports it.`
       : "";
-  return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip.${floor}`;
+  return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip. Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off 0.5.${floor}`;
 }
 
 function buildPredictionRepairInstruction(context: ResearchContext): string {

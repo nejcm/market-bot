@@ -1169,6 +1169,9 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
     );
     expect(instruction).toContain("Use bare `direction` only when no better-measured kind fits");
     expect(instruction).toContain(
+      "Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off 0.5",
+    );
+    expect(instruction).toContain(
       "Aim for at least 1 prediction(s) using a kind other than `direction`",
     );
   });
@@ -2566,6 +2569,14 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).toContain("range (outside [Lo, Hi])");
     expect(instruction).toContain("conditional");
     expect(instruction).toContain("soft target");
+    // Distinguishes informative kind from informative probability: a better-measured
+    // Kind near 0.5 against correlated benchmarks is not automatically informative.
+    expect(instruction).toContain("informative only when its probability departs from 0.5");
+    expect(instruction).toContain("restate one view rather than adding independent signal");
+    // Guidance only — no post-emission rejection/trim/retry vocabulary is introduced.
+    expect(instruction).not.toContain("reject");
+    expect(instruction).not.toContain("trim");
+    expect(instruction).not.toContain("retry");
   });
 
   test("brief instrument runs do not include forecast diversity guidance", () => {

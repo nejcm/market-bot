@@ -8,20 +8,16 @@ import type {
 } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
-import {
-  isBusinessFrameworkPosture,
-  isBusinessFrameworkSectionName,
-  isBusinessLifecyclePhase,
-  type BusinessFrameworkArtifact,
-  type BusinessFrameworkMetric,
-  type BusinessFrameworkPosture,
-  type BusinessFrameworkSectionName,
-  type BusinessLifecyclePhase,
+import type {
+  BusinessFrameworkArtifact,
+  BusinessFrameworkMetric,
+  BusinessFrameworkPosture,
+  BusinessFrameworkSectionName,
+  BusinessLifecyclePhase,
 } from "../../src/sources/extended-evidence/business-framework";
-import {
-  WEB_SUBJECT_PROFILE_QUESTION_KEYS,
-  type WebSubjectProfileArtifact,
-  type WebSubjectProfileQuestionKey,
+import type {
+  WebSubjectProfileArtifact,
+  WebSubjectProfileQuestionKey,
 } from "../../src/sources/extended-evidence/web-subject-profile";
 import type {
   FinancialLensArtifact,
@@ -29,6 +25,69 @@ import type {
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
+
+const BUSINESS_FRAMEWORK_SECTION_NAMES = [
+  "Business",
+  "Phase",
+  "Moat",
+  "Growth",
+  "Management",
+  "Risk",
+  "Valuation",
+] as const;
+
+const BUSINESS_FRAMEWORK_PHASES = [
+  "startup",
+  "hyper-growth",
+  "operating-leverage",
+  "capital-return",
+  "decline",
+] as const;
+
+const BUSINESS_FRAMEWORK_POSTURES = [
+  "criteria-supported",
+  "criteria-mixed",
+  "criteria-not-supported",
+  "insufficient-data",
+] as const;
+
+const WEB_SUBJECT_PROFILE_QUESTION_KEYS = {
+  company: [
+    "whatItDoes",
+    "howItMakesMoney",
+    "customers",
+    "geography",
+    "purchaseRecurrence",
+    "pricingPower",
+    "recessionCyclicality",
+    "managementTrackRecord",
+    "capitalAllocation",
+    "companyKpis",
+    "riskFactors",
+  ],
+  "crypto-asset": [
+    "whatItDoes",
+    "valueAccrual",
+    "supplyIssuance",
+    "usageAdoption",
+    "governanceBuilders",
+    "competitionMoat",
+    "keyRisks",
+  ],
+  theme: ["whatItIs", "whyNow", "beneficiaries", "headwinds", "keyDebates", "howItPlaysOut"],
+} as const;
+
+function isBusinessFrameworkSectionName(value: string): value is BusinessFrameworkSectionName {
+  return (BUSINESS_FRAMEWORK_SECTION_NAMES as readonly string[]).includes(value);
+}
+
+function isBusinessLifecyclePhase(value: string): value is BusinessLifecyclePhase {
+  return (BUSINESS_FRAMEWORK_PHASES as readonly string[]).includes(value);
+}
+
+function isBusinessFrameworkPosture(value: string): value is BusinessFrameworkPosture {
+  return (BUSINESS_FRAMEWORK_POSTURES as readonly string[]).includes(value);
+}
 
 export {
   extendedEvidenceItems,

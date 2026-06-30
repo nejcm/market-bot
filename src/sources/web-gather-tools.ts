@@ -149,7 +149,7 @@ function webGatherGap(
     source,
     message,
     provider: EXA_PROVIDER,
-    capability: "evidence-request",
+    capability: "web-gather",
     cause,
     evidenceQualityImpact: "extended-evidence-cap",
   });
@@ -417,7 +417,7 @@ async function executeWebFetch(
 function exaFailureGap(gap: SourceGap): SourceGap {
   return sourceGapWithContext(gap, {
     provider: EXA_PROVIDER,
-    capability: "evidence-request",
+    capability: "web-gather",
     evidenceQualityImpact: "extended-evidence-cap",
   });
 }

@@ -173,6 +173,7 @@ export type SourceGapCapability =
   | "extended-evidence"
   | "market-context"
   | "evidence-request"
+  | "web-gather"
   | "cache";
 
 export type SourceGapCause =

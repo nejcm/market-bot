@@ -17,6 +17,7 @@ An ephemeral, per-Run Artifact interactive question-and-answer surface in the Re
 ## Web Gather
 
 A bounded deep-run evidence loop that lets the model request on-subject Exa `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
+Web-gather failures carry the `web-gather` Source Gap capability; this is taxonomy for gap attribution, not a separate Evidence Lane.
 
 ## Web Evidence
 
@@ -231,6 +232,7 @@ An optional Source Provider that contributes citeable evidence without driving d
 ## Source Gap
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.
+`web-gather` Source Gaps are separate from `evidence-request` Source Gaps because the loops have different tools, budgets, and validation rules; both still flow through existing Source Plan lanes such as `subject-profile` or extended-evidence lanes.
 
 ## Source Plan
 

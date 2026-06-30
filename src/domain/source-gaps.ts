@@ -34,6 +34,7 @@ const SOURCE_GAP_CAPABILITY_TABLE = {
   "extended-evidence": true,
   "market-context": true,
   "evidence-request": true,
+  "web-gather": true,
   cache: true,
 } satisfies Record<SourceGapCapability, true>;
 
@@ -229,7 +230,7 @@ export function isExtendedEvidenceQualityGap(gap: SourceGap): boolean {
 
 export function extendedEvidenceGap(gap: SourceGap): SourceGap {
   return sourceGapWithContext(gap, {
-    capability: "extended-evidence",
+    capability: gap.capability ?? "extended-evidence",
     evidenceQualityImpact: "extended-evidence-cap",
   });
 }

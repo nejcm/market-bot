@@ -345,8 +345,9 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
       sources.webSubjectProfile === undefined ? "supplemental" : "material",
     applies: (command) =>
       command.depth === "deep" &&
-      command.assetClass === "equity" &&
-      (isInstrumentCommand(command) || command.jobType === "research"),
+      (command.jobType === "research" ||
+        (isInstrumentCommand(command) &&
+          (command.assetClass === "equity" || command.assetClass === "crypto"))),
     sourceIds: (sources) => sources.webSubjectProfile?.sourceIds ?? [],
     gapMatches: (gap) => gap.source === "web-subject-profile",
   },

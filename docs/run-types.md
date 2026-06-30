@@ -316,6 +316,8 @@ Run key `crypto` &rarr; `INSTRUMENT_RUN_PARAMS` profile (same params as equity).
 - No verified market snapshot sidecar.
 - No evidence-request loop (`supportsEvidenceRequest: false`).
 - Web-gather loop enabled for deep runs (Exa key + budgets).
+- Deep crypto runs include the `subject-profile` Source Plan lane for cited Web
+  Subject Profile evidence.
 
 ### Model Stages
 

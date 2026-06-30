@@ -656,7 +656,7 @@ describe("web gather tools", () => {
       expect.objectContaining({
         source: "exa-search",
         provider: "exa",
-        capability: "evidence-request",
+        capability: "web-gather",
         cause: "fetch-failed",
         evidenceQualityImpact: "extended-evidence-cap",
       }),

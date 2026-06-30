@@ -530,12 +530,14 @@ describe("runWebGatherLoop", () => {
       expect.objectContaining({
         source: "web-gather",
         message: "Web gather stage returned invalid JSON",
+        capability: "web-gather",
       }),
     ]);
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "web-gather",
         message: "Web gather stage returned invalid JSON",
+        capability: "web-gather",
       }),
     );
   });

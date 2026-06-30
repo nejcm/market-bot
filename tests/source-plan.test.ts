@@ -242,9 +242,14 @@ describe("source plan", () => {
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("on-chain");
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("subject-profile");
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).not.toContain("derivatives-volatility");
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "on-chain")).toMatchObject({
       status: "gap",
+      evidenceClass: "supplemental",
+    });
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
+      status: "not-covered",
       evidenceClass: "supplemental",
     });
   });

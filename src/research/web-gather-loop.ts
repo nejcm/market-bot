@@ -597,7 +597,7 @@ function reject(
       source: "web-gather",
       message: `${tool}: ${reason}`,
       provider: "exa",
-      capability: "evidence-request",
+      capability: "web-gather",
       cause: "validation-failed",
       evidenceQualityImpact: "extended-evidence-cap",
     }),
@@ -609,7 +609,7 @@ function webGatherMalformedGap(message: string): SourceGap {
     source: "web-gather",
     message,
     provider: "exa",
-    capability: "evidence-request",
+    capability: "web-gather",
     cause: "malformed-response",
     evidenceQualityImpact: "extended-evidence-cap",
   });

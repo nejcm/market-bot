@@ -7,6 +7,7 @@ import { validateResearchReport } from "../src/report/schema";
 import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
 import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
 
@@ -1657,30 +1658,34 @@ describe("report schema and rendering", () => {
 
   test("writes canonical research subject extras", () => {
     const depthProfile = assemblyDepthProfile("SMH");
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "semis",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
     const assembled = assembleResearchReport({
       runId: "research-semis",
       generatedAt: "2026-06-01T00:00:00.000Z",
-      command: {
-        jobType: "research",
-        assetClass: "equity",
-        subject: "semis",
-        subjectKey: "semiconductors",
-        predictionProxySymbol: "SMH",
-        depth: "brief",
-      },
+      command,
       payload: {
         summary: "Semiconductor evidence is mixed.",
         confidence: "medium",
       },
       predResult: { predictions: [], errors: [] },
-      collectedSources: collectedSources(),
+      collectedSources: collectedSources({ resolvedSubject }),
       depthProfile,
-      context: assemblyContext(depthProfile),
+      context: { ...assemblyContext(depthProfile), resolvedSubject },
       sources: [],
     });
 
-    expect(assembled.extras?.researchSubject).toEqual({
+    expect(assembled.extras?.researchSubject).toMatchObject({
       input: "semis",
+      normalizedInput: "semis",
+      status: "resolved",
       subjectKey: "semiconductors",
     });
     expect(assembled.extras?.proxyResolution).toEqual({
@@ -2341,16 +2346,17 @@ function marketUpdateReport(delta: Record<string, unknown>): ResearchReport {
 
 describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
   test("attaches registry sources as kind:reference for resolved research subjects", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    } as const;
     const sources = buildSourceList(
-      {
-        jobType: "research",
-        assetClass: "equity",
-        subject: "chip stocks",
-        subjectKey: "semiconductors",
-        predictionProxySymbol: "SMH",
-        depth: "brief",
-      },
-      collectedSources(),
+      command,
+      collectedSources({ resolvedSubject: resolveResearchSubject(command)! }),
       undefined,
       "2026-06-01T00:00:00.000Z",
     );
@@ -2387,17 +2393,18 @@ describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
   });
 
   test("requires caller timestamp for resolved registry source provenance", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    } as const;
     expect(() =>
       buildSourceList(
-        {
-          jobType: "research",
-          assetClass: "equity",
-          subject: "chip stocks",
-          subjectKey: "semiconductors",
-          predictionProxySymbol: "SMH",
-          depth: "brief",
-        },
-        collectedSources(),
+        command,
+        collectedSources({ resolvedSubject: resolveResearchSubject(command)! }),
         undefined,
         undefined as never,
       ),
@@ -2419,21 +2426,23 @@ describe("registry provenance sources in buildSourceList (phase 2.1)", () => {
 describe("researchPredictionGate gap text (phase 2.4)", () => {
   test("always emits gap when resolved subject has no proxy, even with zero model predictions", () => {
     const depthProfile = assemblyDepthProfile("SMH");
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI capex",
+      subjectKey: "ai-infrastructure",
+      depth: "brief",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
     const assembled = assembleResearchReport({
       runId: "research-ai-infra",
       generatedAt: "2026-06-01T00:00:00.000Z",
-      command: {
-        jobType: "research",
-        assetClass: "equity",
-        subject: "AI capex",
-        subjectKey: "ai-infrastructure",
-        depth: "brief",
-      },
+      command,
       payload: { summary: "AI infrastructure evidence.", confidence: "medium" },
       predResult: { predictions: [], errors: [] },
-      collectedSources: collectedSources(),
+      collectedSources: collectedSources({ resolvedSubject }),
       depthProfile,
-      context: assemblyContext(depthProfile),
+      context: { ...assemblyContext(depthProfile), resolvedSubject },
       sources: [],
     });
 
@@ -2445,16 +2454,18 @@ describe("researchPredictionGate gap text (phase 2.4)", () => {
 
   test("drops predictions and emits gap for resolved-no-proxy subject even when model emits some", () => {
     const depthProfile = assemblyDepthProfile("NVDA");
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI capex",
+      subjectKey: "ai-infrastructure",
+      depth: "brief",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
     const assembled = assembleResearchReport({
       runId: "research-ai-infra-2",
       generatedAt: "2026-06-01T00:00:00.000Z",
-      command: {
-        jobType: "research",
-        assetClass: "equity",
-        subject: "AI capex",
-        subjectKey: "ai-infrastructure",
-        depth: "brief",
-      },
+      command,
       payload: { summary: "AI infrastructure evidence.", confidence: "medium" },
       predResult: {
         predictions: [
@@ -2467,10 +2478,11 @@ describe("researchPredictionGate gap text (phase 2.4)", () => {
         errors: [],
       },
       collectedSources: collectedSources({
+        resolvedSubject,
         marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
       }),
       depthProfile,
-      context: assemblyContext(depthProfile),
+      context: { ...assemblyContext(depthProfile), resolvedSubject },
       sources: [],
     });
 

@@ -3,6 +3,7 @@ import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "./extended-evidence/web-subject-profile";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
+import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 import type {
   AssetClass,
   ExtendedEvidence,
@@ -133,6 +134,7 @@ export interface CollectedSources {
   readonly newsAnalytics?: NewsCollectionAnalytics;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
+  readonly resolvedSubject?: ResolvedResearchSubject;
   readonly earningsSetup?: EarningsSetupCollected;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly financialLenses?: FinancialLensArtifact;

@@ -8,6 +8,7 @@ import { marketContextGap, sourceGap } from "../src/domain/source-gaps";
 import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { isRecord } from "../src/sources/guards";
 import { readNewsSeenEntries } from "../src/sources/news-seen";
 import {
@@ -2013,6 +2014,56 @@ describe("runResearchJob", () => {
     await expect(readFile(join(result.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain(
       "spotlight-selection",
     );
+  });
+
+  test("persists resolved research subject sidecar", async () => {
+    const dataDir = join(tmpdir(), `market-bot-research-subject-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "brief",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const result = await persistResearchJob({
+      command,
+      config: { ...config, dataDir },
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "Semiconductor evidence is sourced.",
+          keyFindings: [{ text: "SMH is liquid.", sourceIds: ["market-smh"] }],
+          bullCase: [],
+          bearCase: [],
+          risks: [],
+          catalysts: [],
+          scenarios: [],
+          confidence: "medium",
+          dataGaps: [],
+          predictions: [],
+        }),
+      ),
+      collectedSources: collectedSourceBundle({
+        resolvedSubject,
+        marketSnapshots: [marketSnapshot({ sourceId: "market-smh", symbol: "SMH" })],
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const sidecar = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "resolved-subject.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(sidecar).toMatchObject({
+      input: "chip stocks",
+      normalizedInput: "chip stocks",
+      status: "resolved",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+    });
   });
 
   test("persists ticker valuation comps sidecar", async () => {

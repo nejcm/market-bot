@@ -9,6 +9,7 @@ import type { CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { MarketUpdateDelta } from "./market-update-delta";
 import type { StagePlaybooks } from "./playbooks";
+import type { ResolvedResearchSubject } from "./research-subject-identity";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 import type { BuildSourcePlanResult } from "./source-plan";
 
@@ -43,6 +44,7 @@ export interface ResearchContext {
   readonly webGather?: WebGatherContext;
   readonly domainPlaybooks?: readonly StagePlaybooks[];
   readonly historicalContext?: HistoricalResearchContext;
+  readonly resolvedSubject?: ResolvedResearchSubject;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
   // Carrier only — deterministic post-hoc delta, not added to the model evidence payload.

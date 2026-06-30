@@ -218,6 +218,8 @@ function marketDataApplies(command: ResearchCommand, collectedSources: Collected
   return (
     command.jobType !== "research" ||
     command.predictionProxySymbol !== undefined ||
+    (collectedSources.resolvedSubject?.status === "resolved" &&
+      collectedSources.resolvedSubject.predictionProxySymbol === undefined) ||
     collectedSources.marketSnapshots.length > 0 ||
     collectedSources.sourceGaps.some(isMarketDataLaneGap)
   );
@@ -485,6 +487,25 @@ function coverageStatus(
   return gapIds.length > 0 ? "gap" : "not-covered";
 }
 
+function noProxySourcePlanGap(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  lane: EvidenceLane,
+): readonly string[] | undefined {
+  if (
+    lane !== "market-data" ||
+    command.jobType !== "research" ||
+    collectedSources.resolvedSubject?.status !== "resolved" ||
+    collectedSources.resolvedSubject.subjectKey === undefined ||
+    collectedSources.resolvedSubject.predictionProxySymbol !== undefined
+  ) {
+    return undefined;
+  }
+  return [
+    `researchSubjectProxy: subject ${collectedSources.resolvedSubject.subjectKey} has no listed prediction proxy; market-data lane cannot be covered`,
+  ];
+}
+
 export function buildSourcePlan(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -499,14 +520,18 @@ export function buildSourcePlan(
     const sourceIds = [...new Set(definition.sourceIds(collectedSources))];
     const matchedGaps = collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
     const sourceGapIds = matchedGaps.map((_, index) => gapId(definition.lane, index));
+    const syntheticNoProxyGap = noProxySourcePlanGap(command, collectedSources, definition.lane);
     const gapIds =
-      sourceIds.length === 0 && evidenceClass === "core" && sourceGapIds.length === 0
+      sourceIds.length === 0 &&
+      evidenceClass === "core" &&
+      (sourceGapIds.length === 0 || syntheticNoProxyGap !== undefined)
         ? [gapId(definition.lane, 0)]
         : sourceGapIds;
     const gapLines =
-      sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
+      syntheticNoProxyGap ??
+      (sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
         ? syntheticMissingGap(definition.lane)
-        : matchedGaps.map((gap) => gapText(gap));
+        : matchedGaps.map((gap) => gapText(gap)));
     const entries = ledgerEntriesForLane(definition.lane, sourceIds, collectedSources, gapIds);
     ledger.push(...entries);
     return {

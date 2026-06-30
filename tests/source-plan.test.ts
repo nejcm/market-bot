@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { sourceGap } from "../src/domain/source-gaps";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { buildSourcePlan } from "../src/research/source-plan";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
@@ -116,6 +117,33 @@ describe("source plan", () => {
       status: "gap",
       evidenceClass: "core",
       gapText: ["yahoo-research-proxy: source request failed with status 500"],
+    });
+  });
+
+  test("surfaces no-proxy gap for resolved research subjects without prediction proxy", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI capex",
+      subjectKey: "ai-infrastructure",
+      depth: "brief",
+    } as const;
+    const plan = buildSourcePlan(
+      command,
+      collectedSources({
+        resolvedSubject: resolveResearchSubject(command)!,
+        newsSources: [newsSource({ id: "news-ai-infra", provider: "yahoo-news" })],
+      }),
+      generatedAt,
+    );
+
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("market-data");
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
+      status: "gap",
+      evidenceClass: "core",
+      gapText: [
+        "researchSubjectProxy: subject ai-infrastructure has no listed prediction proxy; market-data lane cannot be covered",
+      ],
     });
   });
 

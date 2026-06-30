@@ -8,7 +8,10 @@ import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
 import { renderRunAnalyticsConsole } from "./research/run-analytics-console";
-import { resolveResearchSubjectProxy } from "./research/subject-registry";
+import {
+  commandWithResolvedResearchSubject,
+  resolveResearchSubject,
+} from "./research/research-subject-identity";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
@@ -227,11 +230,14 @@ export async function runCli(
   }
 
   const provider = (dependencies.createProvider ?? createProvider)(config);
-  const researchCommand = enrichResearchSubjectCommand(asResearchCommand(command));
+  const rawResearchCommand = asResearchCommand(command);
+  const resolvedSubject = resolveResearchSubject(rawResearchCommand);
+  const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
   const collectedSources = await (dependencies.collectSources ?? collectSources)(
     researchCommand,
     config.sourceOptions,
     {
+      ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
       peerUniverse: {
         provider,
         model: config.quickModel,
@@ -288,24 +294,4 @@ function asResearchCommand(command: ReturnType<typeof parseArgs>): ResearchComma
   }
 
   throw new Error(`Unsupported research command: ${command.jobType}`);
-}
-
-function enrichResearchSubjectCommand(command: ResearchCommand): ResearchCommand {
-  if (command.jobType !== "research") {
-    return command;
-  }
-
-  const resolution = resolveResearchSubjectProxy(command.subject);
-  const subjectKey = resolution.subject?.subjectKey;
-  if (resolution.status !== "resolved" || subjectKey === undefined) {
-    return command;
-  }
-
-  return {
-    ...command,
-    subjectKey,
-    ...(resolution.predictionProxySymbol !== undefined
-      ? { predictionProxySymbol: resolution.predictionProxySymbol }
-      : {}),
-  };
 }

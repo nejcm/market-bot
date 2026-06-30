@@ -93,6 +93,7 @@ import {
   type SourceLedgerArtifact,
   type SourcePlanArtifact,
 } from "./source-plan";
+import { resolveResearchSubject } from "./research-subject-identity";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -509,8 +510,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const calibrationContext = await loadCalibrationContext(input.config.dataDir);
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);
   let { collectedSources } = input;
+  const resolvedSubject = collectedSources.resolvedSubject ?? resolveResearchSubject(input.command);
+  if (resolvedSubject !== undefined && collectedSources.resolvedSubject === undefined) {
+    collectedSources = { ...collectedSources, resolvedSubject };
+  }
   let context: ResearchContext = {
     analysisAsOf: generatedAt,
+    ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     depthProfile: buildDepthProfileFromParams(input.command, runParams),
     runParams,
     marketRegime: addMarketContextToRegime(
@@ -1015,6 +1021,12 @@ export async function persistResearchJob(
     join(artifacts.runDir, RUN_ARTIFACT_FILES.historicalContext),
     result.historicalContext,
   );
+  if (input.command.jobType === "research") {
+    await writeJson(
+      join(artifacts.runDir, RUN_ARTIFACT_FILES.resolvedSubject),
+      result.collectedSources.resolvedSubject ?? null,
+    );
+  }
   if (result.trace.webGatherLoop !== undefined) {
     await writeJson(
       join(artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit),

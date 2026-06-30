@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
 import { summarizeMarketRegime } from "../src/research/regime";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import {
   collectSources,
   createCollectContext,
@@ -2844,14 +2845,15 @@ describe("collectSources", () => {
 
 describe("researchNewsRelevanceTargets", () => {
   test("returns proxy + non-proxy representatives for a resolved registry subject", () => {
-    const targets = researchNewsRelevanceTargets({
+    const command = {
       jobType: "research",
       assetClass: "equity",
       subject: "chip stocks",
       subjectKey: "semiconductors",
       predictionProxySymbol: "SMH",
       depth: "brief",
-    });
+    } as const;
+    const targets = researchNewsRelevanceTargets(command, resolveResearchSubject(command));
 
     // Semiconductors: proxy=SMH (with displayName+aliases as name), plus NVDA, AMD, AVGO
     const symbols = targets.map((t) => t.symbol);
@@ -2869,13 +2871,14 @@ describe("researchNewsRelevanceTargets", () => {
   });
 
   test("returns all representatives when there is no proxy (e.g. ai-infrastructure)", () => {
-    const targets = researchNewsRelevanceTargets({
+    const command = {
       jobType: "research",
       assetClass: "equity",
       subject: "AI capex",
       subjectKey: "ai-infrastructure",
       depth: "brief",
-    });
+    } as const;
+    const targets = researchNewsRelevanceTargets(command, resolveResearchSubject(command));
 
     // Ai-infrastructure has no proxy; all three representatives should be returned
     const symbols = targets.map((t) => t.symbol);
@@ -2885,12 +2888,13 @@ describe("researchNewsRelevanceTargets", () => {
   });
 
   test("returns empty array for unresolved subject", () => {
-    const targets = researchNewsRelevanceTargets({
+    const command = {
       jobType: "research",
       assetClass: "equity",
       subject: "completely unknown niche",
       depth: "brief",
-    });
+    } as const;
+    const targets = researchNewsRelevanceTargets(command, resolveResearchSubject(command));
 
     expect(targets).toHaveLength(0);
   });

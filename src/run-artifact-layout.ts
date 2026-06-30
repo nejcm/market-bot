@@ -36,6 +36,7 @@ export const RUN_ARTIFACT_FILES = {
   evidenceLanes: `${NORMALIZED_DIR}/evidence-lanes.json`,
   sourceLedger: `${NORMALIZED_DIR}/source-ledger.json`,
   historicalContext: `${NORMALIZED_DIR}/historical-context.json`,
+  resolvedSubject: `${NORMALIZED_DIR}/resolved-subject.json`,
   verifiedMarketSnapshot: `${NORMALIZED_DIR}/verified-market-snapshot.json`,
   instrumentIdentity: `${NORMALIZED_DIR}/instrument-identity.json`,
   valuationComps: `${NORMALIZED_DIR}/valuation-comps.json`,

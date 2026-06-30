@@ -34,7 +34,6 @@ import { addBusinessFrameworkEvidence } from "./extended-evidence/business-frame
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import { collectValuationComps } from "./extended-evidence/valuation-comps";
-import { resolveResearchSubjectProxy } from "../research/subject-registry";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
 import {
   makePeerUniverseCacheReader,
@@ -44,6 +43,7 @@ import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/
 import { evidenceSource } from "./extended-evidence/common";
 import type { ModelProvider } from "../model/types";
 import type { PeerUniverseFallbackContext } from "../research/peer-universe";
+import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 
 interface HostState {
   queue: Promise<void>;
@@ -357,26 +357,30 @@ function tickerNewsRelevanceTargets(
 // Exported for testing; internal callers use this directly.
 export function researchNewsRelevanceTargets(
   command: ResearchCommand,
+  resolvedSubject?: ResolvedResearchSubject,
 ): readonly NewsRelevanceTarget[] {
   if (command.jobType !== "research") {
     return [];
   }
-  const resolution = resolveResearchSubjectProxy(command.subject);
-  if (resolution.subject === undefined) {
+  if (
+    resolvedSubject?.representativeInstruments === undefined ||
+    resolvedSubject.subjectKey === undefined
+  ) {
     return [];
   }
-  const entry = resolution.subject;
   const targets: NewsRelevanceTarget[] = [];
 
   // Proxy target: use the subject display name + aliases as the name for broad topic matching
-  if (entry.predictionProxy !== undefined) {
-    const topicName = [entry.displayName, ...entry.aliases].join(" ");
-    targets.push({ symbol: entry.predictionProxy.symbol, name: topicName });
+  if (resolvedSubject.predictionProxySymbol !== undefined) {
+    const topicName = [resolvedSubject.displayName, ...(resolvedSubject.aliases ?? [])]
+      .filter((value): value is string => value !== undefined)
+      .join(" ");
+    targets.push({ symbol: resolvedSubject.predictionProxySymbol, name: topicName });
   }
 
   // Non-proxy representative instruments by symbol and name
-  for (const instrument of entry.representativeInstruments) {
-    if (instrument.symbol === entry.predictionProxy?.symbol) {
+  for (const instrument of resolvedSubject.representativeInstruments) {
+    if (instrument.symbol === resolvedSubject.predictionProxySymbol) {
       continue;
     }
     targets.push({
@@ -578,6 +582,7 @@ export interface CollectSourcesRuntimeOptions {
   readonly fetchImpl?: FetchLike;
   readonly retryDelaysMs?: readonly number[];
   readonly peerUniverse?: PeerUniverseSeam;
+  readonly resolvedSubject?: ResolvedResearchSubject;
 }
 
 function peerUniverseFallbackFor(
@@ -623,6 +628,7 @@ export async function collectSources(
   const requestFetchImpl = runtime.fetchImpl ?? fetch;
   const requestRetryDelaysMs = runtime.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
   const peerUniverseSeam = runtime.peerUniverse;
+  const resolvedSubject = "resolvedSubject" in runtime ? runtime.resolvedSubject : undefined;
   const { context: ctx, staleFallbackGaps } = createCollectContext(
     command,
     sourceOptions,
@@ -668,7 +674,7 @@ export async function collectSources(
   } else if (command.jobType === "research") {
     newsContext = contextWithNewsRelevanceTargets(
       identityCtx,
-      researchNewsRelevanceTargets(command),
+      researchNewsRelevanceTargets(command, resolvedSubject),
     );
   }
   const [
@@ -744,6 +750,7 @@ export async function collectSources(
     ...(enrichmentResult.identityResult?.identity !== undefined
       ? { resolvedInstrumentIdentity: enrichmentResult.identityResult.identity }
       : {}),
+    ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     ...(enrichmentResult.earningsSetup !== undefined
       ? { earningsSetup: enrichmentResult.earningsSetup }
       : {}),

@@ -32,7 +32,6 @@ import {
   buildResearchForecastErrorBlock,
 } from "./prior-forecast-errors";
 import { buildCalibrationBlock } from "./calibration-context";
-import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
 export type {
@@ -87,12 +86,12 @@ export function deterministicSourceGaps(
   // Model can cite the gap instead of silently substituting a mover (Phase 2.2).
   const researchRepresentativeGaps: string[] = [];
   if (command.jobType === "research") {
-    const resolution = resolveResearchSubjectProxy(command.subject);
-    if (resolution.subject !== undefined) {
+    const { resolvedSubject } = collectedSources;
+    if (resolvedSubject?.representativeInstruments !== undefined) {
       const liveSymbols = new Set(
         collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
       );
-      for (const instrument of resolution.subject.representativeInstruments) {
+      for (const instrument of resolvedSubject.representativeInstruments) {
         if (!liveSymbols.has(instrument.symbol.toUpperCase())) {
           const label =
             instrument.name !== undefined
@@ -308,29 +307,32 @@ function buildEvidencePayload(
   // So the model quotes named representatives instead of generic movers (Phase 2.2).
   const registrySubjectBlock: Record<string, unknown> = {};
   if (command.jobType === "research") {
-    const resolution = resolveResearchSubjectProxy(command.subject);
-    if (resolution.subject !== undefined) {
+    const resolvedSubject = context.resolvedSubject ?? collectedSources.resolvedSubject;
+    if (
+      resolvedSubject?.subjectKey !== undefined &&
+      resolvedSubject.representativeInstruments !== undefined &&
+      resolvedSubject.sources !== undefined
+    ) {
       const liveSymbols = new Set(
         collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
       );
-      const entry = resolution.subject;
       registrySubjectBlock.registrySubject = {
-        subjectKey: entry.subjectKey,
-        displayName: entry.displayName,
-        representativeInstruments: entry.representativeInstruments.map((instrument) => ({
+        subjectKey: resolvedSubject.subjectKey,
+        displayName: resolvedSubject.displayName,
+        representativeInstruments: resolvedSubject.representativeInstruments.map((instrument) => ({
           symbol: instrument.symbol,
           ...(instrument.name !== undefined ? { name: instrument.name } : {}),
           instrumentType: instrument.instrumentType,
           sourceIds: instrument.sourceIds,
           hasLiveSnapshot: liveSymbols.has(instrument.symbol.toUpperCase()),
         })),
-        provenanceSources: entry.sources.map((src) => ({
+        provenanceSources: resolvedSubject.sources.map((src) => ({
           sourceId: src.sourceId,
           title: src.title,
           ...(src.url !== undefined ? { url: src.url } : {}),
         })),
-        ...(entry.predictionProxy !== undefined
-          ? { predictionProxy: { symbol: entry.predictionProxy.symbol } }
+        ...(resolvedSubject.predictionProxySymbol !== undefined
+          ? { predictionProxy: { symbol: resolvedSubject.predictionProxySymbol } }
           : {}),
         instruction:
           "Quote the named representative instruments and cite their sourceIds in findings and predictions. Prefer registry representatives over generic market movers for this subject.",

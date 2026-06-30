@@ -30,7 +30,6 @@ import {
   commandResearchSubjectIdentity,
   researchIdentityExtras,
 } from "./research-subject-identity";
-import { resolveResearchSubjectProxy } from "./subject-registry";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { buildSourcePlan } from "./source-plan";
@@ -124,15 +123,19 @@ function marketSnapshotProvider(snapshot: MarketSnapshot): string {
 // Build registry provenance sources for research commands. Registry sources
 // Are static reference entries (kind "reference") so findings and predictions can
 // Cite them instead of leaning on generic mover fallback (Phase 2.1).
-function registryProvenanceSources(command: ResearchCommand, fetchedAt: string): readonly Source[] {
+function registryProvenanceSources(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  fetchedAt: string,
+): readonly Source[] {
   if (command.jobType !== "research") {
     return [];
   }
-  const resolution = resolveResearchSubjectProxy(command.subject);
-  if (resolution.subject === undefined) {
+  const { resolvedSubject } = collectedSources;
+  if (resolvedSubject?.sources === undefined) {
     return [];
   }
-  return resolution.subject.sources.map(
+  return resolvedSubject.sources.map(
     (srcEntry): Source => ({
       id: srcEntry.sourceId,
       title: srcEntry.title,
@@ -221,7 +224,11 @@ export function buildSourceList(
   // Checked-in subject registry entries in findings/predictions (Phase 2.1).
   const registrySources =
     command.jobType === "research"
-      ? registryProvenanceSources(command, fetchedAt ?? missingRegistryProvenanceFetchedAt(command))
+      ? registryProvenanceSources(
+          command,
+          collectedSources,
+          fetchedAt ?? missingRegistryProvenanceFetchedAt(command),
+        )
       : [];
 
   return [
@@ -538,12 +545,12 @@ function researchPredictionGate(input: {
     // So the absence of predictions is disclosed, not implicit (Phase 2.4).
     // Use registry resolution as the discriminator — identity.subjectKey is caller-provided
     // And not proof that the subject actually matched a registry entry.
-    const resolution = resolveResearchSubjectProxy(input.command.subject);
-    if (resolution.subject !== undefined) {
+    const { resolvedSubject } = input.collectedSources;
+    if (resolvedSubject?.subjectKey !== undefined) {
       return {
         predictions: [],
         gaps: [
-          `researchProxyForecastGate: subject ${resolution.subject.subjectKey} has no listed prediction proxy; predictions cannot be emitted`,
+          `researchProxyForecastGate: subject ${resolvedSubject.subjectKey} has no listed prediction proxy; predictions cannot be emitted`,
         ],
       };
     }
@@ -909,7 +916,10 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),
-      ...researchIdentityExtras(command),
+      ...researchIdentityExtras(
+        command,
+        context.resolvedSubject ?? collectedSources.resolvedSubject,
+      ),
       ...(isMarketUpdateJobType(command.jobType) && context.marketUpdateDelta !== undefined
         ? { marketUpdateDelta: context.marketUpdateDelta }
         : {}),

@@ -9,6 +9,7 @@ import {
   deterministicSourceGaps,
   type ResearchContext,
 } from "../src/research/research-context";
+import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { buildSpotlightCandidates } from "../src/research/spotlights";
 import { buildCalibrationSummary, type ResolvedPair } from "../src/scoring/calibration";
 import type {
@@ -1946,10 +1947,12 @@ describe("phase 2.2 — registrySubject in evidence payload", () => {
       predictionProxySymbol: "SMH",
       depth: "brief",
     };
+    const resolvedSubject = resolveResearchSubject(command)!;
     const prompt = buildStagePrompt(
       "specialist-analysis",
       command,
       collectedSources({
+        resolvedSubject,
         marketSnapshots: [
           marketSnapshot({ sourceId: "market-smh", symbol: "SMH" }),
           marketSnapshot({ sourceId: "market-nvda", symbol: "NVDA" }),
@@ -1957,7 +1960,7 @@ describe("phase 2.2 — registrySubject in evidence payload", () => {
         newsSources: [newsSource()],
       }),
       config,
-      researchContext(command),
+      { ...researchContext(command), resolvedSubject },
       { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
     );
     const parsed = JSON.parse(prompt) as {
@@ -2027,10 +2030,12 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
       predictionProxySymbol: "SMH",
       depth: "brief",
     };
+    const resolvedSubject = resolveResearchSubject(command)!;
     // Only SMH has a snapshot; NVDA, AMD, AVGO are absent
     const gaps = deterministicSourceGaps(
       command,
       collectedSources({
+        resolvedSubject,
         marketSnapshots: [marketSnapshot({ sourceId: "market-smh", symbol: "SMH" })],
         newsSources: [newsSource()],
       }),

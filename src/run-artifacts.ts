@@ -46,18 +46,19 @@ import {
   type SourcePlanArtifact,
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
-import type {
-  BusinessFrameworkArtifact,
-  BusinessFrameworkGapCode,
-  BusinessFrameworkPosture,
-  BusinessFrameworkSectionName,
-  BusinessLifecyclePhase,
+import {
+  isBusinessFrameworkGapCode,
+  isBusinessFrameworkPosture,
+  isBusinessFrameworkSectionName,
+  isBusinessLifecyclePhase,
+  type BusinessFrameworkArtifact,
 } from "./sources/extended-evidence/business-framework";
-import type {
-  WebSubjectProfileAnswer,
-  WebSubjectProfileArtifact,
-  WebSubjectProfileFact,
-  WebSubjectProfileQuestionKey,
+import {
+  LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS,
+  WEB_SUBJECT_PROFILE_QUESTION_KEYS,
+  type WebSubjectProfileAnswer,
+  type WebSubjectProfileArtifact,
+  type WebSubjectProfileFact,
 } from "./sources/extended-evidence/web-subject-profile";
 import {
   isRecord,
@@ -811,58 +812,6 @@ const FINANCIAL_LENS_UNITS: ReadonlySet<string> = new Set([
   "number",
   "text",
 ]);
-const BUSINESS_FRAMEWORK_SECTION_NAMES: ReadonlySet<string> = new Set<BusinessFrameworkSectionName>(
-  ["Business", "Phase", "Moat", "Growth", "Management", "Risk", "Valuation"],
-);
-const BUSINESS_FRAMEWORK_PHASES: ReadonlySet<string> = new Set<BusinessLifecyclePhase>([
-  "startup",
-  "hyper-growth",
-  "operating-leverage",
-  "capital-return",
-  "decline",
-]);
-const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFrameworkPosture>([
-  "criteria-supported",
-  "criteria-mixed",
-  "criteria-not-supported",
-  "insufficient-data",
-]);
-const LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
-  Record<SubjectKind, readonly WebSubjectProfileQuestionKey[]>
-> = {
-  company: [
-    "whatItDoes",
-    "howItMakesMoney",
-    "customers",
-    "geography",
-    "purchaseRecurrence",
-    "pricingPower",
-    "recessionCyclicality",
-  ],
-  "crypto-asset": [
-    "whatItDoes",
-    "valueAccrual",
-    "supplyIssuance",
-    "usageAdoption",
-    "governanceBuilders",
-    "competitionMoat",
-    "keyRisks",
-  ],
-  theme: ["whatItIs", "whyNow", "beneficiaries", "headwinds", "keyDebates", "howItPlaysOut"],
-};
-const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<
-  Record<SubjectKind, readonly WebSubjectProfileQuestionKey[]>
-> = {
-  ...LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS,
-  company: [
-    ...LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS.company,
-    "managementTrackRecord",
-    "capitalAllocation",
-    "companyKpis",
-    "riskFactors",
-  ],
-};
-
 function hasFinancialLensMetricShape(value: unknown): boolean {
   return (
     isRecord(value) &&
@@ -907,17 +856,6 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
   return value as unknown as FinancialLensArtifact;
 }
 
-const BUSINESS_FRAMEWORK_GAP_CODES: ReadonlySet<string> = new Set<BusinessFrameworkGapCode>([
-  "segment-mix",
-  "customer-concentration",
-  "purchase-recurrence",
-  "management-track-record",
-  "capital-allocation",
-  "company-kpis",
-  "risk-factors",
-  "analyst-consensus",
-]);
-
 function hasBusinessFrameworkGaps(value: unknown, version: 1 | 2): boolean {
   return (
     Array.isArray(value) &&
@@ -926,7 +864,7 @@ function hasBusinessFrameworkGaps(value: unknown, version: 1 | 2): boolean {
         ? typeof gap === "string"
         : isRecord(gap) &&
           typeof gap.code === "string" &&
-          BUSINESS_FRAMEWORK_GAP_CODES.has(gap.code) &&
+          isBusinessFrameworkGapCode(gap.code) &&
           typeof gap.text === "string",
     )
   );
@@ -936,9 +874,9 @@ function hasBusinessFrameworkSectionShape(value: unknown, version: 1 | 2): boole
   return (
     isRecord(value) &&
     typeof value.name === "string" &&
-    BUSINESS_FRAMEWORK_SECTION_NAMES.has(value.name) &&
+    isBusinessFrameworkSectionName(value.name) &&
     typeof value.posture === "string" &&
-    BUSINESS_FRAMEWORK_POSTURES.has(value.posture) &&
+    isBusinessFrameworkPosture(value.posture) &&
     typeof value.summary === "string" &&
     Array.isArray(value.metrics) &&
     value.metrics.every(hasFinancialLensMetricShape) &&
@@ -956,7 +894,7 @@ function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifac
     readString(value, "generatedAt") === undefined ||
     readString(value, "symbol") === undefined ||
     typeof value.phase !== "string" ||
-    !BUSINESS_FRAMEWORK_PHASES.has(value.phase) ||
+    !isBusinessLifecyclePhase(value.phase) ||
     !Array.isArray(value.sections) ||
     !value.sections.every((section) => hasBusinessFrameworkSectionShape(section, version)) ||
     readStringArray(value, "sourceIds") === undefined ||
@@ -987,8 +925,8 @@ function readWebSubjectProfileQuestions(
   const entries: [string, WebSubjectProfileAnswer][] = [];
   const keys =
     version === 2
-      ? LEGACY_WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind]
-      : WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind];
+      ? LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]
+      : WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind];
   for (const key of keys) {
     const answer = readWebSubjectProfileAnswer(value[key]);
     if (answer === undefined) {

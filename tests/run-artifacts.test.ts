@@ -230,18 +230,18 @@ describe("loadRunArtifact", () => {
           summary: "Business evidence incomplete.",
           metrics: [],
           sourceIds: [],
-          gaps: [{ code: "segment-mix", text: "Segment mix unavailable" }],
+          gaps: [{ code: "pricing-power", text: "Pricing power unavailable" }],
         },
       ],
       sourceIds: [],
-      gaps: [{ code: "segment-mix", text: "Segment mix unavailable" }],
+      gaps: [{ code: "cyclicality", text: "Cyclicality unavailable" }],
     });
 
     const { artifact } = await loadRunArtifact(runDir);
 
     expect(artifact?.businessFramework?.version).toBe(2);
     expect(artifact?.businessFramework?.gaps).toEqual([
-      { code: "segment-mix", text: "Segment mix unavailable" },
+      { code: "cyclicality", text: "Cyclicality unavailable" },
     ]);
   });
 

@@ -8,14 +8,21 @@ import type {
 } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
-import type {
-  BusinessFrameworkArtifact,
-  BusinessFrameworkMetric,
-  BusinessFrameworkPosture,
-  BusinessFrameworkSectionName,
-  BusinessLifecyclePhase,
+import {
+  isBusinessFrameworkPosture,
+  isBusinessFrameworkSectionName,
+  isBusinessLifecyclePhase,
+  type BusinessFrameworkArtifact,
+  type BusinessFrameworkMetric,
+  type BusinessFrameworkPosture,
+  type BusinessFrameworkSectionName,
+  type BusinessLifecyclePhase,
 } from "../../src/sources/extended-evidence/business-framework";
-import type { WebSubjectProfileArtifact } from "../../src/sources/extended-evidence/web-subject-profile";
+import {
+  WEB_SUBJECT_PROFILE_QUESTION_KEYS,
+  type WebSubjectProfileArtifact,
+  type WebSubjectProfileQuestionKey,
+} from "../../src/sources/extended-evidence/web-subject-profile";
 import type {
   FinancialLensArtifact,
   FinancialLensMetric,
@@ -580,22 +587,6 @@ export function financialLensStatTiles(
   );
 }
 
-const BUSINESS_FRAMEWORK_SECTION_NAMES: ReadonlySet<string> = new Set<BusinessFrameworkSectionName>(
-  ["Business", "Phase", "Moat", "Growth", "Management", "Risk", "Valuation"],
-);
-const BUSINESS_FRAMEWORK_PHASES: ReadonlySet<string> = new Set<BusinessLifecyclePhase>([
-  "startup",
-  "hyper-growth",
-  "operating-leverage",
-  "capital-return",
-  "decline",
-]);
-const BUSINESS_FRAMEWORK_POSTURES: ReadonlySet<string> = new Set<BusinessFrameworkPosture>([
-  "criteria-supported",
-  "criteria-mixed",
-  "criteria-not-supported",
-  "insufficient-data",
-]);
 const BUSINESS_FRAMEWORK_UNITS: ReadonlySet<string> = new Set<BusinessFrameworkMetric["unit"]>([
   "ratio",
   "ratio-percent",
@@ -645,10 +636,9 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
     return undefined;
   }
   const phase = readStringField(record, "phase");
-  if (phase === undefined || !BUSINESS_FRAMEWORK_PHASES.has(phase)) {
+  if (phase === undefined || !isBusinessLifecyclePhase(phase)) {
     return undefined;
   }
-  const typedPhase = phase as BusinessLifecyclePhase;
   const rawSections = Array.isArray(record.sections) ? record.sections : [];
   const sections = rawSections.flatMap((item): readonly BusinessFrameworkSectionView[] => {
     const section = readRecord(item);
@@ -662,13 +652,11 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
       name === undefined ||
       posture === undefined ||
       summary === undefined ||
-      !BUSINESS_FRAMEWORK_SECTION_NAMES.has(name) ||
-      !BUSINESS_FRAMEWORK_POSTURES.has(posture)
+      !isBusinessFrameworkSectionName(name) ||
+      !isBusinessFrameworkPosture(posture)
     ) {
       return [];
     }
-    const typedName = name as BusinessFrameworkSectionName;
-    const typedPosture = posture as BusinessFrameworkPosture;
     const text = readStringField(section, "text");
     const metrics = Array.isArray(section.metrics)
       ? section.metrics.flatMap((metric) => {
@@ -678,8 +666,8 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
       : [];
     return [
       {
-        name: typedName,
-        posture: typedPosture,
+        name,
+        posture,
         summary,
         ...(text !== undefined ? { text } : {}),
         metrics,
@@ -689,7 +677,7 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
     ];
   });
   return {
-    phase: typedPhase,
+    phase,
     sections,
     sourceIds: stringArray(record.sourceIds),
     gaps: businessFrameworkGapTexts(record.gaps),
@@ -720,38 +708,32 @@ export function businessFrameworkView(
   );
 }
 
-const WEB_SUBJECT_PROFILE_QUESTIONS: Readonly<Record<string, readonly [string, string][]>> = {
-  company: [
-    ["whatItDoes", "What it does"],
-    ["howItMakesMoney", "How it makes money"],
-    ["customers", "Customers"],
-    ["geography", "Geography"],
-    ["purchaseRecurrence", "Purchase recurrence"],
-    ["pricingPower", "Pricing power"],
-    ["recessionCyclicality", "Recession cyclicality"],
-    ["managementTrackRecord", "Management track record"],
-    ["capitalAllocation", "Capital allocation"],
-    ["companyKpis", "Company-specific KPIs"],
-    ["riskFactors", "Disclosed risk factors"],
-  ],
-  "crypto-asset": [
-    ["whatItDoes", "What it does"],
-    ["valueAccrual", "Value accrual"],
-    ["supplyIssuance", "Supply and issuance"],
-    ["usageAdoption", "Usage and adoption"],
-    ["governanceBuilders", "Governance and builders"],
-    ["competitionMoat", "Competition and moat"],
-    ["keyRisks", "Key risks"],
-  ],
-  theme: [
-    ["whatItIs", "What it is"],
-    ["whyNow", "Why now"],
-    ["beneficiaries", "Beneficiaries"],
-    ["headwinds", "Headwinds"],
-    ["keyDebates", "Key debates"],
-    ["howItPlaysOut", "How it plays out"],
-  ],
-};
+const WEB_SUBJECT_PROFILE_QUESTION_LABELS: Readonly<Record<WebSubjectProfileQuestionKey, string>> =
+  {
+    whatItDoes: "What it does",
+    howItMakesMoney: "How it makes money",
+    customers: "Customers",
+    geography: "Geography",
+    purchaseRecurrence: "Purchase recurrence",
+    pricingPower: "Pricing power",
+    recessionCyclicality: "Recession cyclicality",
+    managementTrackRecord: "Management track record",
+    capitalAllocation: "Capital allocation",
+    companyKpis: "Company-specific KPIs",
+    riskFactors: "Disclosed risk factors",
+    valueAccrual: "Value accrual",
+    supplyIssuance: "Supply and issuance",
+    usageAdoption: "Usage and adoption",
+    governanceBuilders: "Governance and builders",
+    competitionMoat: "Competition and moat",
+    keyRisks: "Key risks",
+    whatItIs: "What it is",
+    whyNow: "Why now",
+    beneficiaries: "Beneficiaries",
+    headwinds: "Headwinds",
+    keyDebates: "Key debates",
+    howItPlaysOut: "How it plays out",
+  };
 
 function webProfileFacts(value: unknown): readonly WebSubjectProfileFactView[] {
   return Array.isArray(value)
@@ -771,20 +753,20 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
   }
   const rawQuestions = readRecord(record.questions);
   const subjectKind = readStringField(record, "subjectKind");
-  const labels =
-    WEB_SUBJECT_PROFILE_QUESTIONS[subjectKind ?? "company"] ??
-    WEB_SUBJECT_PROFILE_QUESTIONS.company ??
-    [];
+  const keys =
+    subjectKind === "company" || subjectKind === "crypto-asset" || subjectKind === "theme"
+      ? WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]
+      : WEB_SUBJECT_PROFILE_QUESTION_KEYS.company;
   const questions =
     rawQuestions === undefined
       ? []
-      : labels.flatMap(([key, label]): readonly WebSubjectProfileQuestionView[] => {
+      : keys.flatMap((key): readonly WebSubjectProfileQuestionView[] => {
           const question = readRecord(rawQuestions[key]);
           const answer = readStringField(question, "answer");
           const sourceIds = stringArray(question?.sourceIds);
           return answer === undefined || answer === "" || sourceIds.length === 0
             ? []
-            : [{ key, label, answer, sourceIds }];
+            : [{ key, label: WEB_SUBJECT_PROFILE_QUESTION_LABELS[key], answer, sourceIds }];
         });
   const rawSummary = readRecord(record.subjectSummary);
   const summaryAnswer = readStringField(rawSummary, "answer");

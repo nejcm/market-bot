@@ -10,45 +10,62 @@ import type {
 } from "../../domain/types";
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
 
+const LEGACY_COMPANY_QUESTION_KEYS = [
+  "whatItDoes",
+  "howItMakesMoney",
+  "customers",
+  "geography",
+  "purchaseRecurrence",
+  "pricingPower",
+  "recessionCyclicality",
+] as const;
+const COMPANY_QUESTION_KEYS = [
+  ...LEGACY_COMPANY_QUESTION_KEYS,
+  "managementTrackRecord",
+  "capitalAllocation",
+  "companyKpis",
+  "riskFactors",
+] as const;
+const CRYPTO_QUESTION_KEYS = [
+  "whatItDoes",
+  "valueAccrual",
+  "supplyIssuance",
+  "usageAdoption",
+  "governanceBuilders",
+  "competitionMoat",
+  "keyRisks",
+] as const;
+const THEME_QUESTION_KEYS = [
+  "whatItIs",
+  "whyNow",
+  "beneficiaries",
+  "headwinds",
+  "keyDebates",
+  "howItPlaysOut",
+] as const;
+
+export const LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS = {
+  company: LEGACY_COMPANY_QUESTION_KEYS,
+  "crypto-asset": CRYPTO_QUESTION_KEYS,
+  theme: THEME_QUESTION_KEYS,
+} as const satisfies Readonly<Record<SubjectKind, readonly string[]>>;
+
+export const WEB_SUBJECT_PROFILE_QUESTION_KEYS = {
+  company: COMPANY_QUESTION_KEYS,
+  "crypto-asset": CRYPTO_QUESTION_KEYS,
+  theme: THEME_QUESTION_KEYS,
+} as const satisfies Readonly<Record<SubjectKind, readonly string[]>>;
+
+export type WebSubjectProfileLegacyCompanyQuestionKey =
+  (typeof LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS.company)[number];
 export type WebSubjectProfileCompanyQuestionKey =
-  | "whatItDoes"
-  | "howItMakesMoney"
-  | "customers"
-  | "geography"
-  | "purchaseRecurrence"
-  | "pricingPower"
-  | "recessionCyclicality"
-  | "managementTrackRecord"
-  | "capitalAllocation"
-  | "companyKpis"
-  | "riskFactors";
-
-type WebSubjectProfileLegacyCompanyQuestionKey = Exclude<
-  WebSubjectProfileCompanyQuestionKey,
-  "managementTrackRecord" | "capitalAllocation" | "companyKpis" | "riskFactors"
->;
-
+  (typeof WEB_SUBJECT_PROFILE_QUESTION_KEYS.company)[number];
 export type WebSubjectProfileCryptoQuestionKey =
-  | "whatItDoes"
-  | "valueAccrual"
-  | "supplyIssuance"
-  | "usageAdoption"
-  | "governanceBuilders"
-  | "competitionMoat"
-  | "keyRisks";
-
+  (typeof WEB_SUBJECT_PROFILE_QUESTION_KEYS)["crypto-asset"][number];
 export type WebSubjectProfileThemeQuestionKey =
-  | "whatItIs"
-  | "whyNow"
-  | "beneficiaries"
-  | "headwinds"
-  | "keyDebates"
-  | "howItPlaysOut";
-
+  (typeof WEB_SUBJECT_PROFILE_QUESTION_KEYS.theme)[number];
 export type WebSubjectProfileQuestionKey =
-  | WebSubjectProfileCompanyQuestionKey
-  | WebSubjectProfileCryptoQuestionKey
-  | WebSubjectProfileThemeQuestionKey;
+  (typeof WEB_SUBJECT_PROFILE_QUESTION_KEYS)[SubjectKind][number];
 
 export interface WebSubjectProfileAnswer {
   readonly answer: string;
@@ -111,32 +128,6 @@ export interface WebSubjectProfileSubject {
   readonly symbol?: string;
   readonly assetClass?: "equity" | "crypto";
 }
-
-const QUESTION_KEYS: Readonly<Record<SubjectKind, readonly WebSubjectProfileQuestionKey[]>> = {
-  company: [
-    "whatItDoes",
-    "howItMakesMoney",
-    "customers",
-    "geography",
-    "purchaseRecurrence",
-    "pricingPower",
-    "recessionCyclicality",
-    "managementTrackRecord",
-    "capitalAllocation",
-    "companyKpis",
-    "riskFactors",
-  ],
-  "crypto-asset": [
-    "whatItDoes",
-    "valueAccrual",
-    "supplyIssuance",
-    "usageAdoption",
-    "governanceBuilders",
-    "competitionMoat",
-    "keyRisks",
-  ],
-  theme: ["whatItIs", "whyNow", "beneficiaries", "headwinds", "keyDebates", "howItPlaysOut"],
-};
 
 const EMPTY_ANSWER: WebSubjectProfileAnswer = { answer: "", sourceIds: [] };
 
@@ -205,7 +196,7 @@ export function webSubjectProfileRequiredShape(subjectKind: SubjectKind): Record
     subjectLabel: "string",
     subjectSummary: { answer: "string", sourceIds: ["web-source-id"] },
     questions: Object.fromEntries(
-      QUESTION_KEYS[subjectKind].map((key) => [
+      WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].map((key) => [
         key,
         { answer: "string", sourceIds: ["web-source-id"] },
       ]),
@@ -382,7 +373,7 @@ function readQuestions(
     return { error: "questions must be an object" };
   }
   const entries: [string, WebSubjectProfileAnswer][] = [];
-  for (const key of QUESTION_KEYS[subjectKind]) {
+  for (const key of WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]) {
     const answer = readAnswer(value[key], webSourceIds);
     if ("error" in answer) {
       return { error: `${key}: ${answer.error}` };
@@ -448,7 +439,9 @@ function profileSourceIds(profile: ParsedProfile): readonly string[] {
 function emptyQuestions(
   subjectKind: SubjectKind,
 ): Readonly<Record<string, WebSubjectProfileAnswer>> {
-  return Object.fromEntries(QUESTION_KEYS[subjectKind].map((key) => [key, EMPTY_ANSWER]));
+  return Object.fromEntries(
+    WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].map((key) => [key, EMPTY_ANSWER]),
+  );
 }
 
 function emptyArtifact(

@@ -1,4 +1,4 @@
-import { marketSpotlightOptions, type AppConfig } from "../config";
+import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
@@ -18,11 +18,8 @@ import {
   type Mover,
   type ResearchReport,
   type RunTrace,
-  type SourceGap,
 } from "../domain/types";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
-import { rankMovers } from "../movers/ranking";
-import { buildMarketUpdateDelta } from "./market-update-delta";
 import type { ModelProvider } from "../model/types";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
@@ -54,9 +51,7 @@ import { loadCalibrationContext } from "./calibration-context";
 import {
   buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
-  buildSpotlightSelectionPrompt,
   buildStagePrompt,
-  moverLimitFor,
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
@@ -66,26 +61,13 @@ import {
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
-import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
+import { runWebEvidencePhase } from "./web-evidence-phase";
 import {
-  buildWebSubjectProfileEvidence,
-  buildWebSubjectProfileFailureEvidence,
-  isCompanyProfileSecSource,
-  webSubjectProfileSubjectForCommand,
-} from "../sources/extended-evidence/web-subject-profile";
-import {
-  attachReusableWebSubjectProfile,
-  findReusableWebSubjectProfile,
-  latestSecFilingDate,
-} from "./web-subject-profile-reuse";
-import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
-import {
-  buildSpotlightCandidates,
   loadAlphaWatchlistForSpotlights,
-  parseSpotlightSelection,
   type SpotlightCandidate,
   type SpotlightSelectionResult,
 } from "./spotlights";
+import { emptySpotlightSelectionFor, runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import {
   buildSourcePlan,
@@ -94,6 +76,8 @@ import {
   type SourcePlanArtifact,
 } from "./source-plan";
 import { resolveResearchSubject } from "./research-subject-identity";
+
+export { reconcileBusinessFrameworkEvidence } from "./web-evidence-phase";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -276,230 +260,90 @@ async function runPlaybookSelection(
   };
 }
 
-function spotlightCap(command: ResearchCommand, config: AppConfig): number {
-  const options = marketSpotlightOptions(config);
-  return command.depth === "deep" ? options.deepLimit : options.briefLimit;
-}
-
-function emptySpotlightSelection(cap: number, candidateCount: number): SpotlightSelectionResult {
-  return {
-    selected: [],
-    rejected: [],
-    audit: {
-      cap,
-      candidateCount,
-      selectedCount: 0,
-      rejectedCount: 0,
-      malformed: false,
-    },
-  };
-}
-
 function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
   return marketUpdateMetadataOf(command) ?? {};
 }
 
-async function runSpotlightSelection(
-  input: RunResearchJobInput,
-  collectedSources: CollectedSources,
-  context: ResearchContext,
-  candidates: readonly SpotlightCandidate[],
-  cap: number,
-): Promise<{
-  readonly output?: StageOutput;
-  readonly selection: SpotlightSelectionResult;
-}> {
-  if (cap <= 0 || candidates.length === 0) {
-    return { selection: emptySpotlightSelection(cap, candidates.length) };
-  }
-  const loaded = await loadStagePrompt(
-    "spotlight-selection",
-    input.command,
-    input.config.promptDir,
-  );
-  const response = await input.provider.generate({
-    model: context.runParams.quickModel,
-    ...(context.runParams.modelParams !== undefined
-      ? { params: context.runParams.modelParams }
-      : {}),
-    responseFormat: "json",
-    messages: [
-      {
-        role: "system",
-        content: loaded.system,
-      },
-      {
-        role: "user",
-        content: buildSpotlightSelectionPrompt(
-          input.command,
-          collectedSources,
-          context,
-          loaded,
-          candidates,
-          cap,
-        ),
-      },
-    ],
-  });
-  return {
-    output: {
-      stage: "spotlight-selection",
-      content: response.content,
-      tokenEstimate: response.tokenEstimate,
-      costEstimateUsd: response.costEstimateUsd,
-    },
-    selection: parseSpotlightSelection(response.content, candidates, cap),
-  };
-}
-
-function refreshSpotlightSelection(
-  selection: SpotlightSelectionResult,
-  candidates: readonly SpotlightCandidate[],
-): SpotlightSelectionResult {
-  const candidateBySymbol = new Map(candidates.map((candidate) => [candidate.symbol, candidate]));
-  return {
-    ...(selection.rationale !== undefined ? { rationale: selection.rationale } : {}),
-    selected: selection.selected.flatMap((item) => {
-      const candidate = candidateBySymbol.get(item.symbol);
-      return candidate === undefined ? [] : [{ ...item, candidate }];
-    }),
-    rejected: selection.rejected,
-    audit: selection.audit,
-  };
-}
-
-async function runWebSubjectProfileExtraction(input: {
+async function runForecastDisagreementPhase(input: {
   readonly jobInput: RunResearchJobInput;
-  readonly collectedSources: CollectedSources;
-  readonly context: ResearchContext;
   readonly generatedAt: string;
   readonly runParams: ResolvedRunParams;
-  readonly secFilingBasisDate?: string;
+  readonly report: ResearchReport;
 }): Promise<{
-  readonly collectedSources: CollectedSources;
-  readonly output?: StageOutput;
+  readonly report: ResearchReport;
+  readonly challengerModels: readonly string[];
+  readonly stageOutputs: readonly StageOutput[];
+  readonly artifact?: ForecastDisagreementArtifact;
 }> {
-  const webSources = input.collectedSources.extendedSources.filter(
-    (source) => source.kind === "web",
+  const challengerModels = forecastDisagreementModels(
+    input.jobInput,
+    input.runParams.synthesisModel,
   );
-  const subject = webSubjectProfileSubjectForCommand(input.jobInput.command);
-  if (subject === undefined) {
-    return { collectedSources: input.collectedSources };
-  }
-  // Company profiles may cite SEC 10-K/10-Q filing text (high-trust primary)
-  // Alongside gathered web Sources, so include them in the allowed-source set.
-  const secSources =
-    subject.subjectKind === "company"
-      ? input.collectedSources.extendedSources.filter(isCompanyProfileSecSource)
-      : [];
-  const allowedSources = [...webSources, ...secSources];
-  if (allowedSources.length === 0) {
-    return { collectedSources: input.collectedSources };
-  }
-  try {
-    const output = (await runStage(
-      "web-subject-profile",
-      input.runParams.quickModel,
-      input.jobInput,
-      input.collectedSources,
-      input.context,
-    )) as StageOutput & { readonly stage: "web-subject-profile" };
-    const result = buildWebSubjectProfileEvidence({
-      command: input.jobInput.command,
-      subject,
-      generatedAt: input.generatedAt,
-      modelContent: output.content,
-      webSources: allowedSources,
-      extendedEvidence: input.collectedSources.extendedEvidence,
-      ...(subject.subjectKind === "company" && input.secFilingBasisDate !== undefined
-        ? { secFilingBasisDate: input.secFilingBasisDate }
-        : {}),
-    });
-    return {
-      collectedSources: {
-        ...input.collectedSources,
-        ...(result.extendedEvidence !== undefined
-          ? { extendedEvidence: result.extendedEvidence }
+  let { report } = input;
+  if (challengerModels.length > 0 && report.predictions.length > 0) {
+    try {
+      const loaded = await loadStagePrompt(
+        "forecast-disagreement",
+        input.jobInput.command,
+        input.jobInput.config.promptDir,
+      );
+      const disagreement = await runForecastDisagreement({
+        generatedAt: input.generatedAt,
+        provider: input.jobInput.provider,
+        providerName: input.jobInput.provider.name,
+        baselineModel: input.runParams.synthesisModel,
+        challengerModels,
+        ...(input.runParams.modelParams !== undefined
+          ? { modelParams: input.runParams.modelParams }
           : {}),
-        ...(result.artifact !== undefined ? { webSubjectProfile: result.artifact } : {}),
-        sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
-      },
-      output,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const result = buildWebSubjectProfileFailureEvidence({
-      command: input.jobInput.command,
-      subject,
-      generatedAt: input.generatedAt,
-      message: `Web Subject Profile stage failed (${message})`,
-      cause: "malformed-response",
-      extendedEvidence: input.collectedSources.extendedEvidence,
-      ...(subject.subjectKind === "company" && input.secFilingBasisDate !== undefined
-        ? { secFilingBasisDate: input.secFilingBasisDate }
-        : {}),
+        loaded,
+        report: {
+          runId: report.runId,
+          generatedAt: report.generatedAt,
+          summary: report.summary,
+          keyFindings: report.keyFindings,
+          bullCase: report.bullCase,
+          bearCase: report.bearCase,
+          risks: report.risks,
+          catalysts: report.catalysts,
+          scenarios: report.scenarios,
+          predictions: report.predictions,
+        },
+      });
+      report = validateResearchReport({
+        ...report,
+        dataGaps: [...report.dataGaps, ...disagreement.dataGaps],
+        extras: {
+          ...report.extras,
+          forecastDisagreement: compactForecastDisagreementExtra(disagreement.artifact),
+        },
+      });
+      return {
+        report,
+        challengerModels,
+        stageOutputs: disagreement.stageOutputs,
+        artifact: disagreement.artifact,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      report = validateResearchReport({
+        ...report,
+        dataGaps: [
+          ...report.dataGaps,
+          `forecastDisagreement: stage failed (${message}); uncertainty signal unavailable`,
+        ],
+      });
+    }
+  } else if (challengerModels.length > 0) {
+    report = validateResearchReport({
+      ...report,
+      dataGaps: [
+        ...report.dataGaps,
+        "forecastDisagreement: skipped because report emitted no predictions",
+      ],
     });
-    return {
-      collectedSources: {
-        ...input.collectedSources,
-        ...(result.extendedEvidence !== undefined
-          ? { extendedEvidence: result.extendedEvidence }
-          : {}),
-        ...(result.artifact !== undefined ? { webSubjectProfile: result.artifact } : {}),
-        sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
-      },
-    };
   }
-}
-
-/**
- * Post-web evidence reconciliation: when a non-empty Web Subject Profile exists
- * alongside a Business Framework, reconcile GAP[0] if the profile carries cited
- * answers for howItMakesMoney/customers/purchaseRecurrence.
- *
- * Swaps the reconciled artifact and regenerated framework SourceGap onto
- * collectedSources. Postures and phase are never changed.
- *
- * @param {CollectedSources} collectedSources - The collected sources to reconcile.
- * @returns {CollectedSources} Updated collected sources with reconciled framework.
- */
-export function reconcileBusinessFrameworkEvidence(
-  collectedSources: CollectedSources,
-): CollectedSources {
-  const framework = collectedSources.businessFramework;
-  const profile = collectedSources.webSubjectProfile;
-  if (framework === undefined || profile === undefined || profile.sourceIds.length === 0) {
-    return collectedSources;
-  }
-  const result = reconcileBusinessFramework(framework, profile);
-  if (result.artifact === framework) {
-    // No change — reconciliation was a no-op.
-    return collectedSources;
-  }
-  /*
-   * The collector writes the framework gap to both collectedSources.sourceGaps and
-   * collectedSources.extendedEvidence.gaps, and extendedEvidence is projected wholesale
-   * into the synthesis prompt. Swap the old gap for the regenerated one (or drop it) in
-   * BOTH places so synthesis never sees a gap reconciliation already cleared.
-   */
-  const oldGapSource = "business-framework";
-  const replaceGap = (gaps: readonly SourceGap[]): readonly SourceGap[] => {
-    const kept = gaps.filter((gap) => gap.source !== oldGapSource);
-    return result.sourceGap !== undefined ? [...kept, result.sourceGap] : kept;
-  };
-  const extendedEvidence =
-    collectedSources.extendedEvidence === undefined
-      ? undefined
-      : {
-          ...collectedSources.extendedEvidence,
-          gaps: replaceGap(collectedSources.extendedEvidence.gaps),
-        };
-  return {
-    ...collectedSources,
-    businessFramework: result.artifact,
-    sourceGaps: replaceGap(collectedSources.sourceGaps),
-    ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
-  };
+  return { report, challengerModels, stageOutputs: [] };
 }
 
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
@@ -563,167 +407,37 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
-  const currentSecFilingDate = latestSecFilingDate(collectedSources.extendedEvidence);
-  let webGatherLoop: Awaited<ReturnType<typeof runWebGatherLoop>> = {
+  const webEvidence = await runWebEvidencePhase({
+    command: input.command,
+    config: input.config,
     collectedSources,
-    stageOutputs: [],
-  };
-  let webSubjectProfile: Awaited<ReturnType<typeof runWebSubjectProfileExtraction>> | undefined =
-    undefined;
-  const webGatherEnabled = isWebGatherLoopEnabled(input.command, input.config);
-  // When Exa/web-gather is unavailable, a US-listed equity --deep run can still
-  // Build a company profile from SEC 10-K/10-Q filing text alone (10-K-first
-  // Sourcing). The presence of a SEC filing Source implies a US listing, since
-  // The SEC evidence tool only runs for US listings.
-  const secOnlyCompanyProfile =
-    !webGatherEnabled &&
-    isInstrumentCommand(input.command) &&
-    input.command.assetClass === "equity" &&
-    input.command.depth === "deep" &&
-    collectedSources.extendedSources.some(isCompanyProfileSecSource);
-  if (webGatherEnabled) {
-    const reusableWebSubjectProfile = await findReusableWebSubjectProfile({
-      dataDir: input.config.dataDir,
-      command: input.command,
-      now,
-      reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
-      ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
-    });
-    if (reusableWebSubjectProfile !== undefined) {
-      collectedSources = attachReusableWebSubjectProfile({
-        command: input.command,
-        collectedSources,
-        reuse: reusableWebSubjectProfile,
-      });
-    } else {
-      webGatherLoop = await runWebGatherLoop({
-        command: input.command,
-        config: input.config,
-        collectedSources,
-        context,
-        now,
-        ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
-        ...(input.sourceRetryDelaysMs !== undefined
-          ? { retryDelaysMs: input.sourceRetryDelaysMs }
-          : {}),
-        generateRound: (currentSources, roundContext, priorStages) =>
-          runStage(
-            "web-gather",
-            runParams.quickModel,
-            input,
-            currentSources,
-            roundContext,
-            priorStages,
-          ) as Promise<StageOutput & { readonly stage: "web-gather" }>,
-      });
-      ({ collectedSources } = webGatherLoop);
-      webSubjectProfile = await runWebSubjectProfileExtraction({
-        jobInput: input,
-        collectedSources,
-        context,
-        generatedAt,
-        runParams,
-        ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
-      });
-      ({ collectedSources } = webSubjectProfile);
-    }
-    collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
-  } else if (secOnlyCompanyProfile) {
-    webSubjectProfile = await runWebSubjectProfileExtraction({
-      jobInput: input,
-      collectedSources,
-      context,
-      generatedAt,
-      runParams,
-      ...(currentSecFilingDate !== undefined ? { secFilingBasisDate: currentSecFilingDate } : {}),
-    });
-    ({ collectedSources } = webSubjectProfile);
-    collectedSources = reconcileBusinessFrameworkEvidence(collectedSources);
-  }
-  let spotlightCandidates: readonly SpotlightCandidate[] | undefined = undefined;
-  let spotlightSelection: SpotlightSelectionResult | undefined = undefined;
-  let spotlightOutput: StageOutput | undefined = undefined;
-  let marketUpdateMovers: readonly Mover[] | undefined = undefined;
-  if (isMarketUpdateJobType(input.command.jobType)) {
-    const marketOnlyHistoricalContext = historicalContext;
-    const currentMarketSymbols = [
-      ...new Set(
-        collectedSources.marketSnapshots
-          .filter((snapshot) => snapshot.assetClass === input.command.assetClass)
-          .map((snapshot) => snapshot.symbol.toUpperCase()),
-      ),
-    ];
-    if (currentMarketSymbols.length > 0) {
-      historicalContext = await historicalContextReader.load({
-        command: input.command,
-        config: input.config,
-        now,
-        spotlightSymbols: currentMarketSymbols,
-        extraGaps: alphaGaps,
-      });
-      context = { ...context, historicalContext };
-    }
-    const cap = spotlightCap(input.command, input.config);
-    const { candidateLimit } = marketSpotlightOptions(input.config);
-    spotlightCandidates = buildSpotlightCandidates({
-      marketSnapshots: collectedSources.marketSnapshots.filter(
-        (snapshot) => snapshot.assetClass === input.command.assetClass,
-      ),
-      historicalContext,
-      candidateLimit,
-      ...(alpha.watchlist !== undefined ? { alphaWatchlist: alpha.watchlist } : {}),
-    });
-    const spotlight = await runSpotlightSelection(
-      input,
-      collectedSources,
-      { ...context, spotlightCandidates },
-      spotlightCandidates,
-      cap,
-    );
-    spotlightSelection = spotlight.selection;
-    spotlightOutput = spotlight.output;
-    if (spotlightSelection.selected.length > 0) {
-      historicalContext = await historicalContextReader.load({
-        command: input.command,
-        config: input.config,
-        now,
-        spotlightSymbols: spotlightSelection.selected.map((item) => item.symbol),
-        extraGaps: alphaGaps,
-      });
-      spotlightCandidates = buildSpotlightCandidates({
-        marketSnapshots: collectedSources.marketSnapshots.filter(
-          (snapshot) => snapshot.assetClass === input.command.assetClass,
-        ),
-        historicalContext,
-        candidateLimit,
-        ...(alpha.watchlist !== undefined ? { alphaWatchlist: alpha.watchlist } : {}),
-      });
-      spotlightSelection = refreshSpotlightSelection(spotlightSelection, spotlightCandidates);
-    } else {
-      historicalContext = marketOnlyHistoricalContext;
-    }
-    marketUpdateMovers = rankMovers(
-      collectedSources.marketSnapshots.filter(
-        (snapshot) => snapshot.assetClass === input.command.assetClass,
-      ),
-      moverLimitFor(input.command, input.config),
-    );
-    const marketUpdateDelta = await buildMarketUpdateDelta({
-      dataDir: input.config.dataDir,
-      command: input.command,
-      now,
-      currentMovers: marketUpdateMovers,
-      currentRegime: context.marketRegime,
-      moverLimit: moverLimitFor(input.command, input.config),
-    });
-    context = {
-      ...context,
-      historicalContext,
-      spotlightCandidates: spotlightSelection.selected.map((item) => item.candidate),
-      spotlightSelection,
-      marketUpdateDelta,
-    };
-  }
+    context,
+    generatedAt,
+    now,
+    ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
+    ...(input.sourceRetryDelaysMs !== undefined
+      ? { retryDelaysMs: input.sourceRetryDelaysMs }
+      : {}),
+    generateStage: (stage, currentSources, stageContext, priorStages = []) =>
+      runStage(stage, runParams.quickModel, input, currentSources, stageContext, priorStages),
+  });
+  ({ collectedSources } = webEvidence);
+  const { webGatherLoop, webSubjectProfile } = webEvidence;
+  const marketUpdate = await runMarketUpdatePhase({
+    command: input.command,
+    config: input.config,
+    provider: input.provider,
+    collectedSources,
+    context,
+    historicalContext,
+    historicalContextReader,
+    alpha,
+    alphaGaps,
+    now,
+  });
+  ({ context, historicalContext } = marketUpdate);
+  const { spotlightCandidates, spotlightSelection, spotlightOutput, marketUpdateMovers } =
+    marketUpdate;
   const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };
@@ -787,76 +501,18 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         reprompt,
       ),
   });
-  let { report } = synthesis;
-  const postSynthesisWarnings = auditPostSynthesisReport(report);
-  let forecastDisagreement: ForecastDisagreementArtifact | undefined = undefined;
-  let forecastDisagreementStageOutputs: readonly StageOutput[] = [];
+  const postSynthesisWarnings = auditPostSynthesisReport(synthesis.report);
+  const forecastDisagreementPhase = await runForecastDisagreementPhase({
+    jobInput: input,
+    generatedAt,
+    runParams,
+    report: synthesis.report,
+  });
+  const { report, challengerModels } = forecastDisagreementPhase;
+  const forecastDisagreement = forecastDisagreementPhase.artifact;
+  const forecastDisagreementStageOutputs = forecastDisagreementPhase.stageOutputs;
   const configuredForecastDisagreementModels =
     input.config.forecastDisagreementOptions?.challengerModels ?? [];
-  const challengerModels = forecastDisagreementModels(input, runParams.synthesisModel);
-  if (challengerModels.length > 0 && report.predictions.length > 0) {
-    // The whole stage is optional, evidence-only, and must never fail the run.
-    // Per-challenger errors are already non-fatal inside runForecastDisagreement.
-    // This guard degrades prompt-load or unexpected stage failures into a data gap.
-    // See ADR 0023 for the non-fatal contract.
-    try {
-      const loaded = await loadStagePrompt(
-        "forecast-disagreement",
-        input.command,
-        input.config.promptDir,
-      );
-      const disagreement = await runForecastDisagreement({
-        generatedAt,
-        provider: input.provider,
-        providerName: input.provider.name,
-        baselineModel: runParams.synthesisModel,
-        challengerModels,
-        ...(runParams.modelParams !== undefined ? { modelParams: runParams.modelParams } : {}),
-        loaded,
-        report: {
-          runId: report.runId,
-          generatedAt: report.generatedAt,
-          summary: report.summary,
-          keyFindings: report.keyFindings,
-          bullCase: report.bullCase,
-          bearCase: report.bearCase,
-          risks: report.risks,
-          catalysts: report.catalysts,
-          scenarios: report.scenarios,
-          predictions: report.predictions,
-        },
-      });
-      forecastDisagreement = disagreement.artifact;
-      forecastDisagreementStageOutputs = disagreement.stageOutputs;
-      report = validateResearchReport({
-        ...report,
-        dataGaps: [...report.dataGaps, ...disagreement.dataGaps],
-        extras: {
-          ...report.extras,
-          forecastDisagreement: compactForecastDisagreementExtra(disagreement.artifact),
-        },
-      });
-    } catch (error) {
-      forecastDisagreement = undefined;
-      forecastDisagreementStageOutputs = [];
-      const message = error instanceof Error ? error.message : String(error);
-      report = validateResearchReport({
-        ...report,
-        dataGaps: [
-          ...report.dataGaps,
-          `forecastDisagreement: stage failed (${message}); uncertainty signal unavailable`,
-        ],
-      });
-    }
-  } else if (challengerModels.length > 0 && report.predictions.length === 0) {
-    report = validateResearchReport({
-      ...report,
-      dataGaps: [
-        ...report.dataGaps,
-        "forecastDisagreement: skipped because report emitted no predictions",
-      ],
-    });
-  }
   const {
     predictionErrors,
     predictionRetryErrors,
@@ -1067,8 +723,7 @@ export async function persistResearchJob(
     );
     await writeJson(
       join(artifacts.runDir, RUN_ARTIFACT_FILES.spotlightSelection),
-      result.spotlightSelection ??
-        emptySpotlightSelection(spotlightCap(input.command, input.config), 0),
+      result.spotlightSelection ?? emptySpotlightSelectionFor(input.command, input.config),
     );
     await writeJson(
       join(artifacts.runDir, RUN_ARTIFACT_FILES.movers),

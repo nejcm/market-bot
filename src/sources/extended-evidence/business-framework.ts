@@ -10,27 +10,47 @@ import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
-export type BusinessFrameworkSectionName =
-  | "Business"
-  | "Phase"
-  | "Moat"
-  | "Growth"
-  | "Management"
-  | "Risk"
-  | "Valuation";
+export const BUSINESS_FRAMEWORK_SECTION_NAMES = [
+  "Business",
+  "Phase",
+  "Moat",
+  "Growth",
+  "Management",
+  "Risk",
+  "Valuation",
+] as const;
+export type BusinessFrameworkSectionName = (typeof BUSINESS_FRAMEWORK_SECTION_NAMES)[number];
 
-export type BusinessLifecyclePhase =
-  | "startup"
-  | "hyper-growth"
-  | "operating-leverage"
-  | "capital-return"
-  | "decline";
+export const BUSINESS_FRAMEWORK_PHASES = [
+  "startup",
+  "hyper-growth",
+  "operating-leverage",
+  "capital-return",
+  "decline",
+] as const;
+export type BusinessLifecyclePhase = (typeof BUSINESS_FRAMEWORK_PHASES)[number];
 
-export type BusinessFrameworkPosture =
-  | "criteria-supported"
-  | "criteria-mixed"
-  | "criteria-not-supported"
-  | "insufficient-data";
+export const BUSINESS_FRAMEWORK_POSTURES = [
+  "criteria-supported",
+  "criteria-mixed",
+  "criteria-not-supported",
+  "insufficient-data",
+] as const;
+export type BusinessFrameworkPosture = (typeof BUSINESS_FRAMEWORK_POSTURES)[number];
+
+export function isBusinessFrameworkSectionName(
+  value: string,
+): value is BusinessFrameworkSectionName {
+  return (BUSINESS_FRAMEWORK_SECTION_NAMES as readonly string[]).includes(value);
+}
+
+export function isBusinessLifecyclePhase(value: string): value is BusinessLifecyclePhase {
+  return (BUSINESS_FRAMEWORK_PHASES as readonly string[]).includes(value);
+}
+
+export function isBusinessFrameworkPosture(value: string): value is BusinessFrameworkPosture {
+  return (BUSINESS_FRAMEWORK_POSTURES as readonly string[]).includes(value);
+}
 
 export interface BusinessFrameworkMetric {
   readonly key: string;
@@ -83,27 +103,25 @@ interface PhaseClassificationInput {
   readonly dividendYield?: number | undefined;
 }
 
-const SECTION_ORDER: readonly BusinessFrameworkSectionName[] = [
-  "Business",
-  "Phase",
-  "Moat",
-  "Growth",
-  "Management",
-  "Risk",
-  "Valuation",
-];
+const SECTION_ORDER = BUSINESS_FRAMEWORK_SECTION_NAMES;
 
-export type BusinessFrameworkGapCode =
-  | "segment-mix"
-  | "customer-concentration"
-  | "purchase-recurrence"
-  | "management-track-record"
-  | "capital-allocation"
-  | "company-kpis"
-  | "risk-factors"
-  | "analyst-consensus"
-  | "pricing-power"
-  | "cyclicality";
+export const BUSINESS_FRAMEWORK_GAP_CODES = [
+  "segment-mix",
+  "customer-concentration",
+  "purchase-recurrence",
+  "management-track-record",
+  "capital-allocation",
+  "company-kpis",
+  "risk-factors",
+  "analyst-consensus",
+  "pricing-power",
+  "cyclicality",
+] as const;
+export type BusinessFrameworkGapCode = (typeof BUSINESS_FRAMEWORK_GAP_CODES)[number];
+
+export function isBusinessFrameworkGapCode(value: string): value is BusinessFrameworkGapCode {
+  return (BUSINESS_FRAMEWORK_GAP_CODES as readonly string[]).includes(value);
+}
 
 export interface BusinessFrameworkGap {
   readonly code: BusinessFrameworkGapCode;

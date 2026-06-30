@@ -18,6 +18,7 @@ import { resolutionDate } from "../scoring/exchange-calendar";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
 import type { WebSubjectProfileArtifact } from "../sources/extended-evidence/web-subject-profile";
+import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
 import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
@@ -349,16 +350,6 @@ function mergeSpotlightsExtra(modelSpotlights: unknown, defaultSpotlights: unkno
   };
 }
 
-const BUSINESS_FRAMEWORK_SECTION_NAMES = new Set([
-  "Business",
-  "Phase",
-  "Moat",
-  "Growth",
-  "Management",
-  "Risk",
-  "Valuation",
-]);
-
 function modelBusinessFrameworkSections(
   extra: unknown,
 ): ReadonlyMap<string, { readonly text: string; readonly sourceIds: readonly string[] }> {
@@ -373,7 +364,7 @@ function modelBusinessFrameworkSections(
     if (!isRecord(item) || typeof item.name !== "string" || typeof item.text !== "string") {
       continue;
     }
-    if (!BUSINESS_FRAMEWORK_SECTION_NAMES.has(item.name)) {
+    if (!isBusinessFrameworkSectionName(item.name)) {
       continue;
     }
     sections.set(item.name, {

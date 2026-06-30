@@ -414,6 +414,61 @@ describe("buildStagePrompt", () => {
     expect(parsed.requiredShape).not.toHaveProperty("confidence");
   });
 
+  test("final-synthesis shape carries one exemplar prediction regardless of target count", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const baseDepthProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+      }),
+      config,
+      {
+        // A high target count must not inflate the schema example array — the count
+        // Is a soft target carried by the instruction, not by exemplar length.
+        depthProfile: { ...baseDepthProfile, targetPredictions: 8 },
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 6,
+          minimumScenarios: 3,
+          targetPredictions: 8,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["AAPL"],
+          focus: ["thesis"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly requiredShape?: { readonly predictions?: readonly { readonly id?: string }[] };
+    };
+
+    expect(parsed.requiredShape?.predictions).toHaveLength(1);
+    expect(parsed.requiredShape?.predictions?.[0]?.id).toBe("pred-1");
+    // The soft target count still reaches the model through the instruction text.
+    expect(parsed.instruction).toContain("Emit up to 8 predictions");
+  });
+
   test("crypto final-synthesis prompt omits equity-only IV and VIX prediction shapes", () => {
     const command: ResearchCommand = {
       jobType: "crypto",

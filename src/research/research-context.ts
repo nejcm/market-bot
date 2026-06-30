@@ -458,15 +458,20 @@ function finalReportShape(
     catalysts: [{ text: "string", sourceIds: ["source-id"] }],
     scenarios: [{ name: "string", description: "string", sourceIds: ["source-id"] }],
     dataGaps: ["string"],
-    predictions: Array.from({ length: depthProfile.targetPredictions }, (_, idx) => ({
-      id: `pred-${String(idx + 1)}`,
-      kind: predictionKinds,
-      subject: exampleSubject,
-      measurableAs: `close(${exampleSubject}, +${String(depthProfile.defaultPredictionHorizon)}) > close(${exampleSubject}, 0)`,
-      horizonTradingDays: depthProfile.defaultPredictionHorizon,
-      probability: 0.6,
-      sourceIds: ["source-id"],
-    })),
+    // One exemplar only: the schema shows prediction shape, while the soft target
+    // Count lives in depthProfile.targetPredictions and the instruction text. A
+    // Target-length array here would apply count pressure toward the target.
+    predictions: [
+      {
+        id: "pred-1",
+        kind: predictionKinds,
+        subject: exampleSubject,
+        measurableAs: `close(${exampleSubject}, +${String(depthProfile.defaultPredictionHorizon)}) > close(${exampleSubject}, 0)`,
+        horizonTradingDays: depthProfile.defaultPredictionHorizon,
+        probability: 0.6,
+        sourceIds: ["source-id"],
+      },
+    ],
     extras: {
       historicalContext: {
         summary: "string",

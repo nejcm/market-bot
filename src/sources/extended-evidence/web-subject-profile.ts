@@ -406,7 +406,7 @@ function readAnswer(
   const sourceIds = nonEmptyStringArrayValue(value.sourceIds);
   const invalid = sourceIds.find((sourceId) => !webSourceIds.has(sourceId));
   if (sourceIds.length === 0 || invalid !== undefined) {
-    return { error: "answer sourceIds must resolve to gathered web Sources" };
+    return { error: "answer sourceIds must resolve to allowed profile Sources" };
   }
   return { answer: { answer, sourceIds } };
 }
@@ -427,7 +427,7 @@ function readFacts(
     const sourceIds = nonEmptyStringArrayValue(item.sourceIds);
     const invalid = sourceIds.find((sourceId) => !webSourceIds.has(sourceId));
     if (claim === undefined || sourceIds.length === 0 || invalid !== undefined) {
-      return { error: "every fact must have claim and gathered-web sourceIds" };
+      return { error: "every fact must have claim and allowed profile sourceIds" };
     }
     facts.push({ claim, sourceIds });
   }

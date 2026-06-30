@@ -311,6 +311,14 @@ describe("report schema and rendering", () => {
         instrument: { assetClass: "equity", symbol: "AAPL" },
         items: [
           {
+            category: "valuation",
+            title: "Unrelated form metric",
+            summary: "A non-SEC item happens to use a form metric.",
+            sourceIds: ["web-aapl-12345678"],
+            observedAt: "1999-01-01T00:00:00.000Z",
+            metrics: { form: "10-K", filingDate: "1999-01-01" },
+          },
+          {
             category: "sec-edgar",
             title: "AAPL SEC 10-K",
             summary: "10-K filed 2025-11-01 for period 2025-09-30.",
@@ -365,6 +373,7 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain(
       "**Basis:** 10-K filed 2025-11-01 (period 2025-09-30); 10-Q for period 2026-03-31.",
     );
+    expect(markdown).not.toContain("**Basis:** 10-K filed 1999-01-01");
     expect(markdown).not.toContain("Current-year 10-Q unavailable");
   });
 

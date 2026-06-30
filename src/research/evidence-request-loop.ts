@@ -85,7 +85,7 @@ const MAX_RATIONALE_TRACE_LENGTH = 500;
 export async function runEvidenceRequestLoop(
   input: EvidenceRequestLoopInput,
 ): Promise<EvidenceRequestLoopResult> {
-  if (!isEvidenceRequestLoopEnabled(input.command, input.config)) {
+  if (!isRequiredEvidenceRequestEnabled(input.command, input.config)) {
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
   const { command } = input;
@@ -123,7 +123,7 @@ export async function runEvidenceRequestLoop(
     collectContext.context,
     input.collectedSources.resolvedInstrumentIdentity,
   );
-  if (availableTools.length === 0) {
+  if (availableTools.length === 0 || !isOptionalEvidenceRequestLoopEnabled(input.config)) {
     // No optional tools (e.g., Tradier not configured). SEC retrieval is already
     // Done; the optional model-driven loop is skipped without a model round.
     return {
@@ -205,7 +205,7 @@ export async function runEvidenceRequestLoop(
   };
 }
 
-function isEvidenceRequestLoopEnabled(
+function isRequiredEvidenceRequestEnabled(
   command: ResearchCommand,
   config: AppConfig,
 ): command is InstrumentCommand {
@@ -213,6 +213,12 @@ function isEvidenceRequestLoopEnabled(
     isInstrumentCommand(command) &&
     runTypeSupportsEvidenceRequest(command.jobType) &&
     command.depth === "deep" &&
+    config.sourceOptions.secUserAgent !== undefined
+  );
+}
+
+function isOptionalEvidenceRequestLoopEnabled(config: AppConfig): boolean {
+  return (
     config.evidenceRequestOptions.maxRounds > 0 &&
     config.evidenceRequestOptions.maxToolCalls > 0 &&
     config.evidenceRequestOptions.sourceBudget > 0

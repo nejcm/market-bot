@@ -462,7 +462,7 @@ describe("report schema and rendering", () => {
     };
     const uncitedAnswer = {
       answer: "Not disclosed in cited filings.",
-      sourceIds: [tenKSourceId],
+      sourceIds: [tenQSourceId],
     };
     const webReport: ResearchReport = {
       ...report,
@@ -547,9 +547,11 @@ describe("report schema and rendering", () => {
             riskFactors: uncitedAnswer,
           },
           recentMaterialEvents: [],
-          factLedger: [{ claim: "Apple sells devices and services.", sourceIds: [tenKSourceId] }],
+          factLedger: [
+            { claim: "Recent quarterly filing was fetched.", sourceIds: [tenQSourceId] },
+          ],
           openGaps: [],
-          sourceIds: [tenKSourceId, webSourceId],
+          sourceIds: [tenKSourceId, tenQSourceId, webSourceId],
         },
       },
     };

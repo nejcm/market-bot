@@ -56,6 +56,7 @@ interface TradierBucketIv extends TradierBucket {
 const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
 const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
 const SEC_PACKET_MIN_CHARS = 50;
+const SEC_SECTION_MIN_ALPHA_CHARS = 40;
 
 export function availableEvidenceRequestTools(
   ctx: CollectContext,
@@ -238,51 +239,68 @@ const SEC_SECTION_BUDGETS = {
 // ITEM header (to avoid bleeding into the following section) or `maxChars`.
 function boundedSection(text: string, start: number, maxChars: number): string {
   const afterStart = text.slice(start);
-  const skipChars = 50;
-  const nextItem = /ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]/iu.exec(afterStart.slice(skipChars));
-  const endOffset = nextItem !== null ? skipChars + nextItem.index : afterStart.length;
+  const nextItem = /ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]/iu.exec(afterStart.slice(1));
+  const endOffset = nextItem !== null ? 1 + nextItem.index : afterStart.length;
   return truncateText(afterStart.slice(0, Math.min(endOffset, maxChars)), maxChars);
 }
 
-// Builds a deterministic bounded section packet from a normalized SEC HTML filing. Covers Business, Risk Factors, MD&A, segment/geography disclosures, and notes — each with its own char budget. Returns undefined when the document is malformed or too short to yield any recognizable section, so the caller can degrade to an explicit gap instead of projecting a bad excerpt.
+function substantiveAlphaCount(value: string): number {
+  return [...value.matchAll(/\p{L}/gu)].length;
+}
+
+function selectSection(text: string, pattern: RegExp, maxChars: number): string | undefined {
+  const matches = [...text.matchAll(pattern)];
+  return matches
+    .map((match) => boundedSection(text, match.index ?? 0, maxChars))
+    .filter((section) => substantiveAlphaCount(section) >= SEC_SECTION_MIN_ALPHA_CHARS)
+    .toSorted((a, b) => b.length - a.length)[0];
+}
+
+// Builds a deterministic bounded section packet from a normalized SEC HTML filing.
 function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): string | undefined {
   if (normalized.length < SEC_PACKET_MIN_CHARS) {
     return undefined;
   }
   const parts: string[] = [];
-  const businessMatch = /ITEM\s+1\b[.\u2010-\u2015:-]?\s*BUSINESS/iu.exec(normalized);
-  if (businessMatch !== null) {
-    parts.push(
-      `[Business] ${boundedSection(normalized, businessMatch.index, SEC_SECTION_BUDGETS.business)}`,
-    );
+  const business = selectSection(
+    normalized,
+    /ITEM\s+1\b[.\u2010-\u2015:-]?\s*BUSINESS/giu,
+    SEC_SECTION_BUDGETS.business,
+  );
+  if (business !== undefined) {
+    parts.push(`[Business] ${business}`);
   }
-  const riskMatch = /ITEM\s+1A\b[.\u2010-\u2015:-]?\s*RISK\s+FACTORS/iu.exec(normalized);
-  if (riskMatch !== null) {
-    parts.push(
-      `[Risk Factors] ${boundedSection(normalized, riskMatch.index, SEC_SECTION_BUDGETS.riskFactors)}`,
-    );
+  const riskFactors = selectSection(
+    normalized,
+    /ITEM\s+1A\b[.\u2010-\u2015:-]?\s*RISK\s+FACTORS/giu,
+    SEC_SECTION_BUDGETS.riskFactors,
+  );
+  if (riskFactors !== undefined) {
+    parts.push(`[Risk Factors] ${riskFactors}`);
   }
   const mdnaPattern =
     form === "10-K"
-      ? /ITEM\s+7\b[.\u2010-\u2015:-]?\s*MANAGEMENT/iu
-      : /ITEM\s+2\b[.\u2010-\u2015:-]?\s*MANAGEMENT/iu;
-  const mdnaMatch = mdnaPattern.exec(normalized);
-  if (mdnaMatch !== null) {
-    parts.push(`[MD&A] ${boundedSection(normalized, mdnaMatch.index, SEC_SECTION_BUDGETS.mdna)}`);
+      ? /ITEM\s+7\b[.\u2010-\u2015:-]?\s*MANAGEMENT/giu
+      : /ITEM\s+2\b[.\u2010-\u2015:-]?\s*MANAGEMENT/giu;
+  const mdna = selectSection(normalized, mdnaPattern, SEC_SECTION_BUDGETS.mdna);
+  if (mdna !== undefined) {
+    parts.push(`[MD&A] ${mdna}`);
   }
-  const segmentMatch =
-    /SEGMENT\s+(INFORMATION|REPORTING|DATA|RESULTS|REVENUE)|GEOGRAPH(IC|IES|Y)\s+(REVENUE|SALES|DISCLOSURE|INFORMATION|DATA|BREAKDOWN)/iu.exec(
-      normalized,
-    );
-  if (segmentMatch !== null) {
-    const segStart = Math.max(0, segmentMatch.index - 200);
-    parts.push(`[Segments] ${boundedSection(normalized, segStart, SEC_SECTION_BUDGETS.segments)}`);
+  const segments = selectSection(
+    normalized,
+    /SEGMENT\s+(INFORMATION|REPORTING|DATA|RESULTS|REVENUE)|GEOGRAPH(IC|IES|Y)\s+(REVENUE|SALES|DISCLOSURE|INFORMATION|DATA|BREAKDOWN)/giu,
+    SEC_SECTION_BUDGETS.segments,
+  );
+  if (segments !== undefined) {
+    parts.push(`[Segments] ${segments}`);
   }
-  const notesMatch = /NOTES?\s+TO\s+(CONSOLIDATED\s+)?FINANCIAL\s+STATEMENTS/iu.exec(normalized);
-  if (notesMatch !== null) {
-    parts.push(
-      `[Notes] ${boundedSection(normalized, notesMatch.index, SEC_SECTION_BUDGETS.notes)}`,
-    );
+  const notes = selectSection(
+    normalized,
+    /NOTES?\s+TO\s+(CONSOLIDATED\s+)?FINANCIAL\s+STATEMENTS/giu,
+    SEC_SECTION_BUDGETS.notes,
+  );
+  if (notes !== undefined) {
+    parts.push(`[Notes] ${notes}`);
   }
   if (parts.length === 0) {
     return undefined;
@@ -489,7 +507,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   }
 
   if (sources.length === 0) {
-    return emptyOutput(gaps, sharedRawSnapshots);
+    return emptyOutput(gaps, rawSnapshots);
   }
 
   return { rawSnapshots, sources, items, gaps };

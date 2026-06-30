@@ -427,6 +427,33 @@ describe("SEC latest filing evidence tool", () => {
     expect(snippet).toContain("[Notes]");
   });
 
+  test("section packet skips table-of-contents item headings", async () => {
+    const body = [
+      "Table of Contents ITEM 1. BUSINESS 5 ITEM 1A. RISK FACTORS 12 ITEM 7. MANAGEMENT'S DISCUSSION 30",
+      "ITEM 1. BUSINESS Apple designs consumer electronics, services, software, and accessories for global customers.",
+      "ITEM 1A. RISK FACTORS Actual risk disclosure includes supply concentration, regulation, and platform competition.",
+      "ITEM 7. MANAGEMENT'S DISCUSSION Actual MD&A discusses revenue growth, margins, liquidity, and segment trends.",
+    ].join(" ");
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-K"], ["a10k.htm"])),
+          text: async ({ adapter }) => textResult(adapter, body),
+        }),
+      }),
+    );
+
+    const snippet = result.sources[0]?.snippet ?? "";
+    expect(snippet).toContain("Apple designs consumer electronics");
+    expect(snippet).toContain("Actual risk disclosure");
+    expect(snippet).toContain("Actual MD&A discusses revenue growth");
+    expect(snippet).not.toContain("BUSINESS 5");
+  });
+
   test("malformed or too-short documents degrade to an explicit gap", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
@@ -443,6 +470,7 @@ describe("SEC latest filing evidence tool", () => {
 
     expect(result.sources).toEqual([]);
     expect(result.items).toEqual([]);
+    expect(result.rawSnapshots).toHaveLength(3);
     expect(result.gaps).toEqual([
       expect.objectContaining({
         source: "sec-edgar",

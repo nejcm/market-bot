@@ -42,7 +42,7 @@ function gapCode(gap: BusinessFrameworkGapValue): BusinessFrameworkGapCode | und
 // "Not disclosed" carries sourceIds but is not substantive evidence, so it must
 // Not clear its mapped Business Framework gap.
 const NON_ANSWER_RE =
-  /^(not\s+disclosed|undisclosed|no\s+disclosure|not\s+quantified|not\s+available)\b/iu;
+  /(^|\b)(not\s+(disclosed|quantified|available|provided|broken\s+out)|undisclosed|no\s+(disclosure|quantified\s+disclosure)|does\s+not\s+disclose|is\s+not\s+broken\s+out|are\s+not\s+broken\s+out)\b/iu;
 
 function isNonAnswer(text: string): boolean {
   return NON_ANSWER_RE.test(text.trim());

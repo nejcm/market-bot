@@ -25,6 +25,7 @@ function companyProfile(
     Record<
       | "howItMakesMoney"
       | "customers"
+      | "geography"
       | "purchaseRecurrence"
       | "managementTrackRecord"
       | "capitalAllocation"
@@ -45,7 +46,7 @@ function companyProfile(
       whatItDoes: answer("Consumer electronics"),
       howItMakesMoney: overrides.howItMakesMoney ?? answer("Hardware and services", ["segment"]),
       customers: overrides.customers ?? answer("Consumers and enterprises", ["customers"]),
-      geography: answer("Worldwide"),
+      geography: overrides.geography ?? answer("Worldwide"),
       purchaseRecurrence:
         overrides.purchaseRecurrence ?? answer("Upgrades and subscriptions", ["recurrence"]),
       pricingPower: answer("Premium pricing"),
@@ -151,14 +152,28 @@ describe("reconcileBusinessFramework", () => {
   test("a cited non-answer does not clear its Business Framework gap", () => {
     const profile = companyProfile({
       howItMakesMoney: { answer: "Not disclosed in cited filings.", sourceIds: ["segment"] },
+      customers: {
+        answer: "The company does not disclose customer concentration.",
+        sourceIds: ["customers"],
+      },
+      geography: {
+        answer: "Geographic revenue is not broken out in the filing.",
+        sourceIds: ["geo"],
+      },
     });
     const result = reconcileBusinessFramework(framework(), profile);
 
     expect(result.artifact.gaps).toContain(gap("segment-mix"));
+    expect(result.artifact.gaps).toContain(gap("customer-concentration"));
+    expect(result.artifact.gaps).toContain(gap("geographic-mix"));
     expect(result.artifact.reconciliation?.resolvedGaps).not.toContain("segment-mix");
+    expect(result.artifact.reconciliation?.resolvedGaps).not.toContain("customer-concentration");
+    expect(result.artifact.reconciliation?.resolvedGaps).not.toContain("geographic-mix");
     expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("segment");
+    expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("customers");
+    expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("geo");
     // Substantive answers still clear their own gaps.
-    expect(result.artifact.reconciliation?.resolvedGaps).toContain("customer-concentration");
+    expect(result.artifact.reconciliation?.resolvedGaps).toContain("purchase-recurrence");
   });
 
   test("removes a resolved code from every section", () => {

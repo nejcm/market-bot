@@ -864,6 +864,38 @@ describe("runResearchJob", () => {
     expect(result.trace.evidenceRequestLoop?.executedTools).toEqual(["sec_latest_filing"]);
   });
 
+  test("runs deterministic SEC retrieval when optional evidence loop budgets are disabled", async () => {
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...evidenceConfig,
+        evidenceRequestOptions: { maxRounds: 0, maxToolCalls: 0, sourceBudget: 0 },
+      },
+      provider: providerReturning(modelReport("AAPL", "extended-sec-edgar-aapl-10q")),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      sourceFetchImpl: secEvidenceFetch,
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.trace.stages).not.toContain("evidence-request");
+    expect(result.trace.evidenceRequestLoop).toMatchObject({
+      rounds: 0,
+      acceptedRequests: [],
+      rejectedRequests: [],
+      sourceUnitsUsed: 0,
+      executedTools: ["sec_latest_filing"],
+    });
+    expect(result.report.sources.map((source) => source.id)).toContain(
+      "extended-sec-edgar-aapl-10q",
+    );
+  });
+
   test("selects playbooks after evidence request and injects them downstream", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {

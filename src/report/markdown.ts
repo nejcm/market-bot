@@ -596,16 +596,41 @@ function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): s
   return filingDate !== undefined ? `10-Q filed ${filingDate}` : "10-Q";
 }
 
+const PROFILE_NON_ANSWER_RE =
+  /(^|\b)(not\s+(disclosed|quantified|available|provided|broken\s+out)|undisclosed|no\s+(disclosure|quantified\s+disclosure)|does\s+not\s+disclose|is\s+not\s+broken\s+out|are\s+not\s+broken\s+out)\b/iu;
+
+function substantiveAnswerSourceIds(value: unknown): readonly string[] {
+  if (!isRecord(value) || typeof value.answer !== "string") {
+    return [];
+  }
+  const answer = value.answer.trim();
+  return answer === "" || PROFILE_NON_ANSWER_RE.test(answer)
+    ? []
+    : readStringArray(value.sourceIds);
+}
+
+function profileAnswerSourceIds(profile: Record<string, unknown>): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const sourceId of substantiveAnswerSourceIds(profile.subjectSummary)) {
+    ids.add(sourceId);
+  }
+  const questions = isRecord(profile.questions) ? profile.questions : {};
+  for (const question of Object.values(questions)) {
+    for (const sourceId of substantiveAnswerSourceIds(question)) {
+      ids.add(sourceId);
+    }
+  }
+  return ids;
+}
+
 // Renders the SEC filing basis/verification line for company profiles from the
 // 10-K/10-Q filing items actually cited by the accepted profile, plus a
-// Disclosure when only the annual 10-K is cited. Filings fetched but not cited
-// By the profile are excluded so the Basis reflects the documents the profile
-// Used rather than every retrieved SEC item.
+// Disclosure when only the annual 10-K is cited.
 function companyFilingBasisLine(
   report: ResearchReport,
   profile: Record<string, unknown>,
 ): string | undefined {
-  const citedSourceIds = new Set(readStringArray(profile.sourceIds));
+  const citedSourceIds = profileAnswerSourceIds(profile);
   if (citedSourceIds.size === 0) {
     return undefined;
   }

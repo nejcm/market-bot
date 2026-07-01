@@ -22,7 +22,7 @@ Continue from the `/run-review latest AAPL run` analysis. The user asked for the
 
 ## Complete Findings
 
-1. Prediction quality regressed
+1. [DONE] Prediction quality regressed
    - Symptom: Latest emits more forecasts, but most are near-base-rate; `signalTargetMet` flipped false.
    - Evidence:
      - Latest `analytics.json:predictions = { count: 4, nearBaseRateCount: 3, informativeCount: 1, signalTargetMet: false }`
@@ -35,7 +35,7 @@ Continue from the `/run-review latest AAPL run` analysis. The user asked for the
    - Severity: High
    - Effort: Medium
 
-2. SEC source-gap duplication inflates gap telemetry
+2. [DONE] SEC source-gap duplication inflates gap telemetry
    - Symptom: Latest repeats the same SEC missing-fact gap.
    - Evidence:
      - Latest `normalized/source-gaps.json` contains `sec-edgar: Missing SEC company facts: grossProfit` twice.
@@ -105,4 +105,3 @@ Continue from the `/run-review latest AAPL run` analysis. The user asked for the
 - For prediction quality: inspect forecast generation/report assembly around near-base-rate telemetry, target soft count, and relative forecast diversity.
 - For web-profile accounting: inspect reuse path for `web-subject-profile` and `analytics.json:webSources` role aggregation.
 - For calibration behavior: decide whether same-slice negative skill should be prompt-only guidance, a warning, or a stricter forecast-shape/near-base-rate policy.
-

@@ -16,7 +16,8 @@ Fresh-agent handoff for implementing the approved Source Gap telemetry dedupe pl
 - Original review handoff: `plans/2026-07-01-aapl-run-review-handoff.md`
 - Relevant finding: item 2, "SEC source-gap duplication inflates gap telemetry".
 - No implementation changes were made in the interrupted implementation turn.
-- The plan below was approved by the user.
+- The plan below was approved by the user, then refined after adversarial review.
+- Refinement outcome: keep the boundary-dedupe approach, but make research-path scope, intentional count changes, historical comparability, first-wins metadata, and test coverage explicit.
 
 ## Approved Plan
 
@@ -24,9 +25,10 @@ Fresh-agent handoff for implementing the approved Source Gap telemetry dedupe pl
 
 ## Summary
 
-- Fix item 2 by making canonical run Source Gap telemetry unique by normalized disclosed text: `source: message`.
+- Fix item 2 for research jobs by making canonical run Source Gap telemetry unique by normalized disclosed text: `source: message`.
 - Apply exact dedupe only; keep overlapping but non-identical gaps like `grossProfit` and `grossProfit, capex`.
 - Affect future runs only. Do not rewrite or reinterpret historical run artifacts.
+- Scope is the research job path (`src/research/orchestrator.ts`). Alpha-search is out of scope and keeps its existing `compactUnmappedSecFilingGaps()` convention.
 
 ## Key Changes
 
@@ -35,24 +37,39 @@ Fresh-agent handoff for implementing the approved Source Gap telemetry dedupe pl
   - nested `extendedEvidence.gaps`
   - nested `marketContext.gaps`, if present
 - Call the helper at the final collected-source boundary in orchestration after evidence/web phases and before source planning, analytics, report assembly, and artifact writing.
-- Keep schemas stable: no raw emission count, no new analytics fields, no migration.
-- Update `CONTEXT.md` under `Source Gap` to state canonical persisted telemetry deduplicates identical normalized disclosed gap text.
+- Keep field names stable: no raw emission count, no new analytics fields, no migration. Counts and persisted arrays intentionally change for future research runs.
+- Use existing first-wins metadata behavior from `dedupeSourceGaps()`: if duplicate `source: message` entries differ in metadata, the first occurrence survives. Do not add worst-case metadata merging in this fix.
+- Add a short code comment at the final normalization point so later phases do not append gaps after canonicalization without noticing the boundary.
+- Update `CONTEXT.md` under `Source Gap` to state canonical persisted research-run telemetry deduplicates identical normalized disclosed gap text prospectively, and that pre-change run comparisons may include duplicate-counting artifacts.
 
 ## Tests
 
 - Unit test exact dedupe keeps first occurrence and removes identical normalized duplicates.
-- Regression test a collected-source bundle with duplicate `sec-edgar: Missing SEC company facts: grossProfit` produces:
+- Unit test the normalization helper dedupes top-level `sourceGaps`, nested `extendedEvidence.gaps`, and nested `marketContext.gaps`.
+- Regression test a research collected-source bundle with duplicate `sec-edgar: Missing SEC company facts: grossProfit` produces:
   - one top-level source gap
   - one regulatory-filings lane gap text
   - analytics source-gap totals/bySource based on deduped gaps
   - deduped `extendedEvidence.gaps`
+- Confirm analytics value changes intentionally include source-gap totals, evidence-lane `gapCount`, trace `evidenceLanes.gapCount`, and extended-evidence gap counts.
 - Confirm overlapping SEC messages are preserved as distinct.
 
 ## Assumptions
 
 - "Canonical telemetry" means future normalized artifacts, evidence lanes, and analytics, not old run files.
 - Exact text identity is the only dedupe key; no provider-specific merging or subset logic.
+- Alpha-search remains out of scope because the reviewed AAPL finding is in the research path and alpha-search already has SEC-specific source-gap compaction.
+- Historical cross-run comparisons spanning this change date/code version need a breakpoint note; do not treat count drops alone as evidence of improved provider coverage.
 - No ADR is needed because this is a small reversible telemetry convention; glossary update is enough.
+
+## Adversarial Review Disposition
+
+- Accepted: alpha-search scope must be explicit.
+- Accepted: `dedupeSourceGaps()` is first-wins by normalized report text; document this instead of silently relying on it.
+- Accepted: schemas stay stable but gap counts and persisted gap arrays intentionally change.
+- Accepted: add a prospective-counting note to `CONTEXT.md` to avoid misleading cross-run trend analysis.
+- Partially accepted: add tests around current downstream surfaces and the normalization helper. Do not invent a fake post-normalization phase just to test a nonexistent path.
+- Rejected for this fix: worst-case metadata merge and origin-level SEC fact dedupe. Both are larger semantic changes than the approved low-effort telemetry correction.
 
 ## Whole Q&A
 

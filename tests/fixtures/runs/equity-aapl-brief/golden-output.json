@@ -695,12 +695,7 @@
     "assetClass": "equity",
     "symbol": "AAPL",
     "depth": "brief",
-    "codeVersion": {
-      "branch": "master",
-      "commit": "965a7a6f4e9de8158fb61949cd04557e7f1861f3",
-      "commitShort": "965a7a6f4e9d",
-      "dirty": true
-    },
+    "codeVersion": "<codeVersion>",
     "reproducibility": {
       "effectiveConfigHash": "<effectiveConfigHash>",
       "dirtySourceHash": "<dirtySourceHash>"

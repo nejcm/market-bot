@@ -16,9 +16,6 @@ export interface DataCassetteRecorder {
   readonly fetch: FetchLike;
 }
 
-const REDACTED_HEADER_VALUE = "[redacted]";
-const SENSITIVE_HEADER_NAMES = new Set(["authorization", "user-agent", "x-api-key"]);
-
 async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value);
   const buffer = await crypto.subtle.digest("SHA-256", data);
@@ -77,18 +74,6 @@ function storedHeaders(headers: Headers): Record<string, string> {
   return result;
 }
 
-export function sanitizedRequestHeaders(init: RequestInit | undefined): Record<string, string> {
-  const result: Record<string, string> = {};
-  const headers = new Headers(init?.headers);
-  for (const [key, value] of headers.entries()) {
-    const normalizedKey = key.toLowerCase();
-    result[normalizedKey] = SENSITIVE_HEADER_NAMES.has(normalizedKey)
-      ? REDACTED_HEADER_VALUE
-      : value;
-  }
-  return result;
-}
-
 export function makeReplayFetch(cassette: DataCassette): FetchLike {
   return async (input, init) => {
     const key = await dataCassetteKey(input, init);
@@ -108,7 +93,6 @@ export function createRecordingFetch(baseFetch: FetchLike = fetch): DataCassette
   return {
     cassette: () => ({ entries }),
     fetch: async (input, init) => {
-      sanitizedRequestHeaders(init);
       const key = await dataCassetteKey(input, init);
       const response = await baseFetch(input, init);
       const body = await response.clone().text();

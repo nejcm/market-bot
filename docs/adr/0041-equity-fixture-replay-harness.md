@@ -30,7 +30,7 @@ collector and cache behavior.
 - `CollectedSources` injection remains useful for narrow unit tests, but it is not the primary
   pipeline fixture tier because it bypasses collection internals.
 - Fixture recording is a dev-only command that captures both seams, stores canonicalized requests,
-  drops sensitive request headers, and fails if known token values appear in written fixture files.
+  writes scrubbed golden output, and fails if known token values appear in written fixture files.
 
 ## Consequences
 
@@ -45,6 +45,7 @@ collector and cache behavior.
 ## Implementation validation
 
 - `tests/support/run-fixtures/` implements data and LLM cassettes plus isolated fixture runs.
-- `scripts/record-fixture-run.ts` records live fixture cassettes.
-- `scripts/replay-fixture-run.ts` replays a fixture with replayed or live LLM output.
+- `scripts/record-fixture-run.ts` records live fixture cassettes and golden output.
+- `scripts/replay-fixture-run.ts` replays a fixture with replayed or live LLM output and can refresh
+  golden output with `--write-golden`.
 - `tests/equity-fixture-run.test.ts` runs brief and deep AAPL fixtures through the real pipeline.

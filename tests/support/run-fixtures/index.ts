@@ -56,6 +56,11 @@ export interface RunFixtureResult extends PersistedResearchJobResult {
   readonly cleanup: () => Promise<void>;
 }
 
+interface FixtureDataDir {
+  readonly dataDir: string;
+  readonly tempRoot?: string;
+}
+
 const FIXTURE_ROOT = join(import.meta.dir, "../../fixtures/runs");
 
 async function readJson<T>(path: string): Promise<T> {
@@ -85,7 +90,18 @@ export async function loadFixture(name: string): Promise<LoadedFixture> {
   };
 }
 
-export async function createFixtureConfig(meta: FixtureMeta, dataDir: string): Promise<AppConfig> {
+async function fixtureDataDir(
+  name: string,
+  requestedDataDir: string | undefined,
+): Promise<FixtureDataDir> {
+  if (requestedDataDir !== undefined) {
+    return { dataDir: requestedDataDir };
+  }
+  const tempRoot = await mkdtemp(join(tmpdir(), `market-bot-${name}-`));
+  return { dataDir: join(tempRoot, "runs"), tempRoot };
+}
+
+export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConfig {
   const config = resolveConfig(
     {
       MARKET_BOT_PROVIDER: "openai",
@@ -134,9 +150,9 @@ export async function runFixture(
 ): Promise<RunFixtureResult> {
   const resolvedOptions = options ?? { llm: "replay" };
   const fixture = await loadFixture(name);
-  const tempRoot = await mkdtemp(join(tmpdir(), `market-bot-${name}-`));
-  const dataDir = resolvedOptions.dataDir ?? join(tempRoot, "runs");
-  const config = await createFixtureConfig(fixture.meta, dataDir);
+  const { dataDir: requestedDataDir } = resolvedOptions;
+  const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
+  const config = createFixtureConfig(fixture.meta, dataDir);
   const fetchImpl = makeReplayFetch(fixture.dataCassette);
   const provider =
     resolvedOptions.provider ??
@@ -156,7 +172,7 @@ export async function runFixture(
       provider,
       model: config.quickModel,
       cachePath:
-        config.sourceOptions.peerUniverseLearnedPath ?? join(tempRoot, "peer-universe.json"),
+        config.sourceOptions.peerUniverseLearnedPath ?? join(dataDir, "..", "peer-universe.json"),
     },
   });
   const result = await persistResearchJob({
@@ -173,7 +189,7 @@ export async function runFixture(
     ...result,
     dataDir,
     cleanup: async () => {
-      if (resolvedOptions.keepDataDir !== true && resolvedOptions.dataDir === undefined) {
+      if (resolvedOptions.keepDataDir !== true && tempRoot !== undefined) {
         await rm(tempRoot, { recursive: true, force: true });
       }
     },

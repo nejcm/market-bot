@@ -23,6 +23,8 @@
   report assembly run.
 - Keep fixture harness helpers under `tests/support/run-fixtures/`; tests should only load fixtures,
   run them, scrub output, and assert invariants.
+- Refresh fixture golden output with `bun run scripts/replay-fixture-run.ts <fixture-name>
+--write-golden` after intentional deterministic output changes.
 - Do not loosen an assertion to make a flaky test pass — find the cause.
 
 ## Commits

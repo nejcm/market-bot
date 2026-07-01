@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, type ResearchCommand } from "../src/cli/args";
@@ -13,7 +13,9 @@ import {
 } from "../src/research/research-subject-identity";
 import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
 import { createRecordingProvider } from "../tests/support/run-fixtures/llm-cassette";
+import { goldenOutputPath, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
 import type { FixtureMeta } from "../tests/support/run-fixtures";
+import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
 
 function usage(): never {
   throw new Error(
@@ -36,39 +38,6 @@ function researchCommand(argv: readonly string[]): ResearchCommand {
 
 function commandArgv(raw: readonly string[]): readonly string[] {
   return raw.filter((arg) => arg !== "--brief");
-}
-
-function knownSecretValues(env: Record<string, string | undefined>): readonly string[] {
-  return [
-    env.OPENAI_API_KEY,
-    env.MARKET_BOT_OPENAI_API_KEY,
-    env.ANTHROPIC_API_KEY,
-    env.MARKET_BOT_ANTHROPIC_API_KEY,
-    env.MARKET_BOT_MARKETAUX_API_TOKEN,
-    env.MARKET_BOT_FINNHUB_API_TOKEN,
-    env.MARKET_BOT_FRED_API_KEY,
-    env.MARKET_BOT_TRADIER_API_TOKEN,
-    env.MARKET_BOT_GLASSNODE_API_KEY,
-    env.MARKET_BOT_MASSIVE_API_KEY,
-    env.MARKET_BOT_POLYGON_API_KEY,
-    env.MARKET_BOT_EXA_API_KEY,
-  ].filter((value): value is string => value !== undefined && value.length >= 8);
-}
-
-async function assertNoSecrets(dir: string, secrets: readonly string[]): Promise<void> {
-  if (secrets.length === 0) {
-    return;
-  }
-  const files = ["data-cassette.json", "llm-cassette.json", "meta.json"];
-  await Promise.all(
-    files.map(async (file) => {
-      const content = await readFile(join(dir, file), "utf8");
-      const leaked = secrets.find((secret) => content.includes(secret));
-      if (leaked !== undefined) {
-        throw new Error(`Secret-like value leaked into ${file}`);
-      }
-    }),
-  );
 }
 
 async function main(): Promise<void> {
@@ -107,7 +76,7 @@ async function main(): Promise<void> {
         config.sourceOptions.peerUniverseLearnedPath ?? join(tempRoot, "peer-universe.json"),
     },
   });
-  await persistResearchJob({
+  const result = await persistResearchJob({
     command,
     config,
     provider: providerRecorder.provider,
@@ -143,7 +112,16 @@ async function main(): Promise<void> {
     "utf8",
   );
   await writeFile(join(fixtureDir, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`, "utf8");
-  await assertNoSecrets(fixtureDir, knownSecretValues(process.env));
+  await writeGoldenOutput(result.artifacts.runDir, fixtureName);
+  await assertNoSecretsInFiles(
+    [
+      join(fixtureDir, "data-cassette.json"),
+      join(fixtureDir, "llm-cassette.json"),
+      join(fixtureDir, "meta.json"),
+      goldenOutputPath(fixtureName),
+    ],
+    knownSecretValues(process.env),
+  );
   process.stdout.write(`${fixtureDir}\n`);
 }
 

@@ -1,13 +1,6 @@
 # Testing
 
-This project uses Bun test, oxfmt, oxlint, and TypeScript. Install dependencies first:
-
-```sh
-bun install
-```
-
-No provider keys are required for the normal test suite. Tests must not hit real network APIs unless
-they are explicitly manual scripts documented below.
+This project uses Bun test, oxfmt, oxlint, and TypeScript.
 
 ## Common commands
 
@@ -19,8 +12,6 @@ bun run lint
 bun run fmt:check
 bun run check            # fmt + lint + fmt:check + typecheck + test
 ```
-
-Run `bun run check` before committing or marking a change complete.
 
 ## Static equity fixture tests
 

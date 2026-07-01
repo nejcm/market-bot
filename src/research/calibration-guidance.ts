@@ -45,20 +45,40 @@ export function assessNegativeCalibration(
   if (metric === undefined) {
     return { actionable: false, reason: "slice-unavailable" };
   }
+  const lowerConfidenceBound =
+    metric.brierStandardError === undefined
+      ? undefined
+      : metric.brierScore - ACTIONABLE_CALIBRATION_Z * metric.brierStandardError;
   if (metric.count < MIN_ACTIONABLE_CALIBRATION_OUTCOMES) {
-    return { actionable: false, reason: "below-outcome-floor" };
+    return {
+      actionable: false,
+      reason: "below-outcome-floor",
+      ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
+    };
   }
   if (metric.runCount === undefined || metric.brierStandardError === undefined) {
     return { actionable: false, reason: "uncertainty-unavailable" };
   }
   if (metric.runCount < MIN_ACTIONABLE_CALIBRATION_RUNS) {
-    return { actionable: false, reason: "below-run-floor" };
+    return {
+      actionable: false,
+      reason: "below-run-floor",
+      ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
+    };
   }
-  const lowerConfidenceBound =
+  const actionableLowerConfidenceBound =
     metric.brierScore - ACTIONABLE_CALIBRATION_Z * metric.brierStandardError;
-  return lowerConfidenceBound > BASE_RATE_BRIER
-    ? { actionable: true, reason: "actionable-negative", lowerConfidenceBound }
-    : { actionable: false, reason: "not-negative-with-confidence", lowerConfidenceBound };
+  return actionableLowerConfidenceBound > BASE_RATE_BRIER
+    ? {
+        actionable: true,
+        reason: "actionable-negative",
+        lowerConfidenceBound: actionableLowerConfidenceBound,
+      }
+    : {
+        actionable: false,
+        reason: "not-negative-with-confidence",
+        lowerConfidenceBound: actionableLowerConfidenceBound,
+      };
 }
 
 export function applicableCalibrationSlices(

@@ -109,7 +109,11 @@ A research-only evidence signal that measures how much configured same-provider 
 
 ## Calibration
 
-An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. Applicable calibration guides probability discipline and forecast-shape selection, but does not determine whether current evidence supports a Prediction or independently suppress Prediction count. It never rejects an emitted Prediction or authorizes confidence inflation; it is not investment conviction, model endorsement, or a trade signal.
+An aggregate, descriptive measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, reliability bins, and slices. Calibration reporting does not determine whether current evidence supports a Prediction, control Prediction count, reject a forecast shape, or reject an emitted Prediction. It is not investment conviction, model endorsement, or a trade signal.
+
+## Actionable Negative Calibration
+
+A Calibration slice whose underperformance is supported by at least 30 resolved Predictions, 10 distinct Runs, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound strictly above the 0.25 baseline. Asset class, job type, default Prediction-horizon bucket, and current Market Regime qualify independently. Only qualifying slices guide probability discipline in primary synthesis and the Forecast Completion Pass; they cannot suppress count, reject forecast shapes, or change evidence requirements. Legacy Calibration without uncertainty fields is descriptive but non-actionable.
 
 ## Regime-Sliced Calibration
 

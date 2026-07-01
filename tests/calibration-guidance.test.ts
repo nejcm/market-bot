@@ -39,6 +39,17 @@ describe("assessNegativeCalibration", () => {
     ).toMatchObject({ actionable: true, reason: "actionable-negative" });
   });
 
+  test("reports a calculable bound even when a sample gate fails", () => {
+    expect(
+      assessNegativeCalibration({
+        brierScore: 0.4,
+        count: 29,
+        runCount: 10,
+        brierStandardError: 0.05,
+      }).lowerConfidenceBound,
+    ).toBeCloseTo(0.287_93);
+  });
+
   test("is non-actionable when the lower bound equals 0.25", () => {
     const standardError = 0.05;
     expect(

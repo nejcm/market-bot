@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30
+2026-07-01
 
 ## Context
 
@@ -32,10 +32,17 @@ must share one contract.
 - Completion candidates must pass the existing observable, citation, subject, and redundancy
   gates and must sit outside the inclusive 0.45-0.55 Near-Base-Rate band. Primary-synthesis
   Predictions inside that band remain valid; models must not pad either path with coin flips.
-- Applicable calibration slices with sufficient resolved samples may add prompt-time guidance to
-  temper probability confidence and favor well-measured shapes when Brier skill is negative.
-  Calibration does not independently suppress count, reject emitted forecasts, or make prediction
-  count a hard target.
+- Calibration reporting remains descriptive. Each slice keeps prediction-weighted Brier scoring
+  and adds its distinct Run count plus a Run-clustered standard error when calculable.
+- Calibration affects primary synthesis and Forecast Completion only through Actionable Negative
+  Calibration. Asset class, job type, default Prediction-horizon bucket, and current Market Regime
+  are assessed independently. A slice qualifies only with at least 30 resolved Predictions and 10
+  distinct Runs and when its Bonferroni-adjusted 98.75% one-sided lower bound
+  (`Brier - 2.2414 × standard error`) is strictly above the 0.25 baseline.
+- Only qualifying slices enter the synthesis prompt, where they guide probability discipline.
+  Calibration cannot suppress Prediction count, reject forecast shapes, change evidence-support
+  requirements, or reject emitted forecasts. Legacy summaries without uncertainty fields remain
+  readable but cannot activate guidance.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
   listed proxy and emits no predictions when no proxy resolves.
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast
@@ -63,13 +70,18 @@ price adjustment, or calendar semantics requires a scoring-version migration.
 - Fewer supported forecasts are preferred to artificial calibration volume.
 - Completion failures are non-fatal and retain the already-valid report.
 - Legacy artifacts retain stored claims and legacy score semantics.
-- Calibration consumers must interpret current Brier skill within the limitations above.
+- Thin Calibration slices remain visible and are labeled unreliable; reporting thresholds do not
+  grant synthesis authority.
+- Calibration consumers must interpret current Brier skill and confidence bounds within the
+  limitations above.
 
 ## Implementation validation
 
 - `src/forecast/observable.ts` owns parsing, canonicalization, and expression shape.
 - `src/research/report-assembly.ts` applies subject gates, trims, and shortfalls.
 - `src/scoring/resolver.ts`, `close-cache.ts`, and `calibration.ts` implement current scoring.
+- `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and
+  analytics.
 - `src/research/forecast-disagreement.ts` keeps challenger output separate from canonical scores.
 
 ## Supersedes

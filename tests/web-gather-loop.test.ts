@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { ModelParams } from "../src/model/types";
+import type { Source } from "../src/domain/types";
 import { runWebGatherLoop, type WebGatherStageOutput } from "../src/research/web-gather-loop";
 import type { ResearchContext } from "../src/research/research-context";
 import type { FetchLike } from "../src/sources/types";
@@ -118,6 +119,18 @@ const exaFetch: FetchLike = async (input) => {
     ],
   });
 };
+
+function secFilingSource(overrides: Partial<Source> = {}): Source {
+  return {
+    id: "extended-sec-edgar-aapl-10k",
+    title: "AAPL SEC 10-K",
+    fetchedAt: "2026-05-01T00:00:00.000Z",
+    kind: "extended-evidence",
+    provider: "sec-edgar",
+    snippet: "[Business] Apple designs and sells devices. [Risk Factors] Supply chain risk.",
+    ...overrides,
+  };
+}
 
 describe("runWebGatherLoop", () => {
   test("skips outside enabled deep web-gather scope", async () => {
@@ -568,5 +581,174 @@ describe("runWebGatherLoop", () => {
         capability: "web-gather",
       }),
     );
+  });
+
+  test("derives SEC filing coverage from a gathered 10-K packet for company subjects", async () => {
+    const prompts: ResearchContext[] = [];
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async (_sources, roundContext) => {
+        prompts.push(roundContext);
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(prompts[0]?.webGather?.secFilingCoverage).toEqual({
+      present: true,
+      sections: ["Business", "Risk Factors"],
+    });
+    expect(result.audit?.acceptedRequests).toEqual([]);
+  });
+
+  test("omits SEC filing coverage when no filing packet was collected", async () => {
+    const prompts: ResearchContext[] = [];
+    await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async (_sources, roundContext) => {
+        prompts.push(roundContext);
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(prompts[0]?.webGather?.secFilingCoverage).toBeUndefined();
+  });
+
+  test("omits SEC filing coverage for crypto subjects even with extended sources present", async () => {
+    const prompts: ResearchContext[] = [];
+    await runWebGatherLoop({
+      command: {
+        jobType: "crypto",
+        assetClass: "crypto",
+        symbol: "BTC",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        extendedSources: [secFilingSource({ symbol: "BTC" })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async (_sources, roundContext) => {
+        prompts.push(roundContext);
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(prompts[0]?.webGather?.secFilingCoverage).toBeUndefined();
+  });
+
+  test("rejects a background search that duplicates SEC-covered filing sections", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model overview", searchType: "background" },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        reason: expect.stringContaining("sec-covered-durable-profile"),
+      }),
+    ]);
+  });
+
+  test("accepts a background search covering an SEC-covered topic when the rationale states a gap", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "AAPL Apple recent business model update",
+                searchType: "background",
+              },
+              rationale: "the filing is missing a recent update to the business model",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("accepts a background search for a topic the SEC packet does not cover", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple management track record", searchType: "background" },
+              rationale: "durable profile area not in the filing packet",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
   });
 });

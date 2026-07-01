@@ -73,4 +73,6 @@ export interface WebGatherContext {
   readonly sourceBudget: number;
   readonly surfacedUrls: readonly string[];
   readonly subjectTerms: readonly string[];
+  // Durable business-profile sections already sourced from a company's SEC 10-K/10-Q packet (see secFilingSectionPacket), so the model spends Exa budget on recency, corroboration, or genuine gaps instead of re-gathering filed facts. Absent for crypto, themes, and companies without a gathered filing packet.
+  readonly secFilingCoverage?: { readonly present: boolean; readonly sections: readonly string[] };
 }

@@ -18,6 +18,7 @@ An ephemeral, per-Run Artifact interactive question-and-answer surface in the Re
 
 A bounded deep-run evidence loop that lets the model request on-subject Exa `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
 Web-gather failures carry the `web-gather` Source Gap capability; this is taxonomy for gap attribution, not a separate Evidence Lane.
+For company subjects, Web Gather derives which durable business-profile sections a gathered SEC 10-K/10-Q packet already covers (see [[web-subject-profile]]) and passes that coverage into the model context so Exa budget targets recency, corroboration, or genuine gaps instead of re-gathering filed facts; a background `web_search` that duplicates covered filing sections without such a rationale is rejected as `sec-covered-durable-profile`, visible in the web-gather audit.
 
 ## Web Evidence
 

@@ -4,6 +4,7 @@ import { runTypeSupportsWebGather } from "../domain/run-types";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
+  Source,
   SourceGap,
   WebGatherSanitizerAudit,
   WebGatherLoopAudit,
@@ -24,7 +25,10 @@ import {
   type WebGatherSubject,
   type WebGatherToolOutput,
 } from "../sources/web-gather-tools";
-import { webSubjectProfileSubjectForCommand } from "../sources/extended-evidence/web-subject-profile";
+import {
+  isCompanyProfileSecSource,
+  webSubjectProfileSubjectForCommand,
+} from "../sources/extended-evidence/web-subject-profile";
 import {
   runJsonToolLoop,
   type JsonToolLoopAccepted,
@@ -87,6 +91,7 @@ interface ValidationState {
   readonly surfacedUrls: Set<string>;
   readonly subject: WebGatherSubject;
   readonly subjectTerms: readonly string[];
+  readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
   readonly config: AppConfig;
   readonly round: number;
 }
@@ -94,6 +99,28 @@ interface ValidationState {
 const ALLOWED_TOOLS: ReadonlySet<string> = new Set(Object.keys(WEB_GATHER_TOOL_UNITS));
 const AVAILABLE_TOOLS: readonly WebGatherToolName[] = ["web_search", "web_fetch"];
 const MAX_RATIONALE_TRACE_LENGTH = 500;
+// Section markers emitted by `secFilingSectionPacket` (see evidence-request-tools.ts). Detecting coverage from the packet's own markers avoids hard-coding a separate question-key map and stays honest about partial packets.
+const SEC_FILING_SECTION_MARKERS = [
+  "Business",
+  "Risk Factors",
+  "MD&A",
+  "Segments",
+  "Notes",
+] as const;
+// Keyword signals tying a background web_search query to a durable-profile area the SEC packet already covers. Deliberately conservative: only queries matching these topics are eligible for rejection, so genuinely uncovered background research is never blocked.
+const SEC_COVERED_TOPIC_PATTERNS: Readonly<
+  Record<(typeof SEC_FILING_SECTION_MARKERS)[number], RegExp>
+> = {
+  Business:
+    /business model|business overview|what (it|the company) does|core business|products? and services|how it makes money/iu,
+  "Risk Factors": /risk factors|key risks|business risks/iu,
+  "MD&A": /md&a|management discussion|results of operations/iu,
+  Segments: /segments?|segment revenue|geographic (revenue|breakdown|mix)|geography/iu,
+  Notes: /notes to (the )?financial statements|financial statement notes/iu,
+};
+// Rationale/query language that signals a background search is not merely duplicating filed facts (recency, corroboration, or an explicit gap the filing does not cover).
+const SEC_COVERAGE_ESCAPE_RE =
+  /recent|latest|current|update|corroborat|verify|confirm|\bgap\b|not covered|uncovered|missing/iu;
 const COMMON_COMPANY_SUFFIXES = new Set([
   "inc",
   "incorporated",
@@ -128,6 +155,55 @@ const THEME_STOPWORDS = new Set([
   "with",
 ]);
 
+// Derives which durable business-profile sections a company's SEC 10-K/10-Q packet already covers, from the section markers `secFilingSectionPacket` embeds in the packet snippet. Company subjects only; crypto/theme subjects and companies without a gathered packet return undefined, identical to today's behavior (no coverage signal, no rejections).
+function secFilingCoverageFromSources(
+  subject: WebGatherSubject,
+  extendedSources: readonly Source[],
+): WebGatherContext["secFilingCoverage"] {
+  if (subject.subjectKind !== "company") {
+    return undefined;
+  }
+  const secSources = extendedSources.filter((source) => isCompanyProfileSecSource(source));
+  if (secSources.length === 0) {
+    return undefined;
+  }
+  const sections = new Set<string>();
+  for (const source of secSources) {
+    const snippet = source.snippet ?? "";
+    for (const marker of SEC_FILING_SECTION_MARKERS) {
+      if (snippet.includes(`[${marker}]`)) {
+        sections.add(marker);
+      }
+    }
+  }
+  return { present: true, sections: [...sections].toSorted() };
+}
+
+// Rejects a background web_search that targets a durable-profile topic the SEC filing packet already covers and whose rationale gives no recency, corroboration, or explicit gap justification. Returns undefined (accept) for every other case, including when no coverage was derived, non-background searches, and off-topic background searches.
+function secCoverageRejectionReason(
+  parsedArgs: { readonly query: string; readonly searchType: WebSearchType },
+  rationale: string,
+  coverage: WebGatherContext["secFilingCoverage"],
+): string | undefined {
+  if (
+    parsedArgs.searchType !== "background" ||
+    coverage === undefined ||
+    !coverage.present ||
+    coverage.sections.length === 0
+  ) {
+    return undefined;
+  }
+  const targetsCoveredTopic = coverage.sections.some((section) =>
+    SEC_COVERED_TOPIC_PATTERNS[section as keyof typeof SEC_COVERED_TOPIC_PATTERNS]?.test(
+      parsedArgs.query,
+    ),
+  );
+  if (!targetsCoveredTopic || SEC_COVERAGE_ESCAPE_RE.test(rationale)) {
+    return undefined;
+  }
+  return "web_search duplicates SEC filing coverage (sec-covered-durable-profile); add a recency, corroboration, or explicit gap rationale for background queries";
+}
+
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
   if (!isWebGatherLoopEnabled(input.command, input.config)) {
     const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config);
@@ -147,6 +223,10 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
   const subjectTerms = subjectTermsForRun(command, input.collectedSources, subject);
+  const secFilingCoverage = secFilingCoverageFromSources(
+    subject,
+    input.collectedSources.extendedSources,
+  );
   const collectContext = createCollectContext(
     command,
     input.config.sourceOptions,
@@ -183,6 +263,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           sourceBudget: input.config.webGatherOptions.sourceBudget,
           surfacedUrls: [...surfacedUrls].toSorted(),
           subjectTerms,
+          ...(secFilingCoverage !== undefined ? { secFilingCoverage } : {}),
         }),
         roundState.priorStages,
       ),
@@ -194,6 +275,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           surfacedUrls,
           subject,
           subjectTerms,
+          secFilingCoverage,
           config: input.config,
           round: roundState.round,
         },
@@ -377,6 +459,14 @@ function validateRequest(
         rationale,
         "web_search query must mention the run subject",
       );
+    }
+    const secCoverageReason = secCoverageRejectionReason(
+      parsedArgs,
+      rationale,
+      state.secFilingCoverage,
+    );
+    if (secCoverageReason !== undefined) {
+      return reject(state.round, tool, args, rationale, secCoverageReason);
     }
     return validateAcceptedRequest(
       { tool: typedTool, args: parsedArgs, rationale },

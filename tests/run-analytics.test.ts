@@ -508,6 +508,61 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources!.unused).toBe(1);
     expect(analytics.webSources!.usageRatio).toBe(0.8);
     expect(analytics.webSources!.usageWarning).toBeUndefined();
+    expect(analytics.reusedProfileWebSources).toBeUndefined();
+  });
+
+  test("separates reused profile web sources from current-run web coverage", () => {
+    const report = researchReport({
+      generatedAt: "2026-07-01T00:00:00.000Z",
+      sources: [webSource("web-1"), webSource("web-2"), webSource("web-3")],
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
+      predictions: [prediction({ sourceIds: ["web-2"] })],
+    });
+    const collected = collectedSourceBundle({
+      webSubjectProfile: webProfile,
+      webSubjectProfileReuse: {
+        runDirName: "2026-06-28-aapl",
+        generatedAt: "2026-06-28T00:00:00.000Z",
+      },
+    });
+
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeUndefined();
+    expect(analytics.webSources?.usageWarning).toBeUndefined();
+    expect(analytics.reusedProfileWebSources).toEqual({
+      accepted: 3,
+      reportCited: 2,
+      generatedAt: "2026-06-28T00:00:00.000Z",
+      ageDays: 3,
+      runDirName: "2026-06-28-aapl",
+    });
+  });
+
+  test("treats a current-run Web Subject Profile as current-run coverage without reuse marker", () => {
+    const report = researchReport({
+      sources: [webSource("web-1"), webSource("web-2"), webSource("web-3")],
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
+    });
+    const collected = collectedSourceBundle({ webSubjectProfile: webProfile });
+
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources?.accepted).toBe(3);
+    expect(analytics.webSources?.profileUsed).toBe(3);
+    expect(analytics.reusedProfileWebSources).toBeUndefined();
   });
 
   test("omits webSources block when no web sources are accepted", () => {

@@ -35,7 +35,8 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 - Sanitize Exa-controlled titles, publishers, summaries, and snippets before model exposure. Raw
   payloads remain exact in audit snapshots. Only the profile-extraction stage sees sanitized web
   prose; later stages receive metadata and the cited structured profile.
-- Persist web-source role and sanitizer telemetry. Empty sanitized content emits a non-fatal gap.
+- Persist current-run web-source role telemetry, optional reused-profile web-source telemetry, and
+  sanitizer telemetry. Empty sanitized content emits a non-fatal gap.
 - Persist fingerprints of effective non-secret configuration and dirty source state for audit.
 
 ## Current governance limitations

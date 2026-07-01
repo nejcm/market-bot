@@ -11,6 +11,7 @@ import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationContext } from "./research-context-types";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
+import { DAY_MS } from "../config/shared";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -168,6 +169,13 @@ export interface RunAnalytics {
     readonly usageRatio: number;
     readonly usageWarning?: string;
   };
+  readonly reusedProfileWebSources?: {
+    readonly accepted: number;
+    readonly reportCited: number;
+    readonly generatedAt: string;
+    readonly ageDays: number;
+    readonly runDirName: string;
+  };
   readonly runShape: {
     readonly traceStages: readonly string[];
     readonly stages: readonly {
@@ -306,6 +314,15 @@ function dateAgeDays(fromDate: string, toDate: string): number | undefined {
   return Math.max(0, Math.round((to - from) / (24 * 60 * 60 * 1000)));
 }
 
+function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number {
+  const from = Date.parse(fromTimestamp);
+  const to = Date.parse(toTimestamp);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor((to - from) / DAY_MS));
+}
+
 function calibrationMetricSlice(
   metrics: Record<string, { readonly brierScore: number; readonly count: number }> | undefined,
   key: string | undefined,
@@ -389,15 +406,21 @@ function verifiedMarketSnapshotFreshness(
 function webSourceRoles(
   report: ResearchReport,
   collectedSources: CollectedSources,
-): { webSources: NonNullable<RunAnalytics["webSources"]> } | Record<string, never> {
+): Pick<RunAnalytics, "webSources" | "reusedProfileWebSources"> {
   const acceptedIds = new Set(
     report.sources.filter((source) => source.kind === "web").map((source) => source.id),
   );
-  if (acceptedIds.size === 0) {
+  if (acceptedIds.size === 0 && collectedSources.webSubjectProfileReuse === undefined) {
     return {};
   }
+  const reusedProfileIds = new Set(
+    collectedSources.webSubjectProfileReuse === undefined
+      ? []
+      : (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => acceptedIds.has(id)),
+  );
+  const currentRunIds = new Set([...acceptedIds].filter((id) => !reusedProfileIds.has(id)));
   const profileUsedIds = new Set(
-    (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => acceptedIds.has(id)),
+    (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => currentRunIds.has(id)),
   );
   const reportCitedIds = new Set(
     [
@@ -412,22 +435,44 @@ function webSourceRoles(
       .flatMap((item) => item.sourceIds)
       .filter((id) => acceptedIds.has(id)),
   );
+  const currentRunReportCitedIds = new Set(
+    [...reportCitedIds].filter((id) => currentRunIds.has(id)),
+  );
   const usedUnion = new Set([...profileUsedIds, ...reportCitedIds]);
-  const usageRatio = usedUnion.size / acceptedIds.size;
+  const currentRunUsedUnion = new Set([...usedUnion].filter((id) => currentRunIds.has(id)));
+  const usageRatio = currentRunIds.size === 0 ? 0 : currentRunUsedUnion.size / currentRunIds.size;
   return {
-    webSources: {
-      accepted: acceptedIds.size,
-      profileUsed: profileUsedIds.size,
-      reportCited: reportCitedIds.size,
-      unused: acceptedIds.size - usedUnion.size,
-      usageRatio,
-      ...(acceptedIds.size >= 4 && usageRatio < 0.25
-        ? {
-            usageWarning:
-              "Accepted web-source usage is disproportionately low; review gather relevance and synthesis citations.",
-          }
-        : {}),
-    },
+    ...(currentRunIds.size === 0
+      ? {}
+      : {
+          webSources: {
+            accepted: currentRunIds.size,
+            profileUsed: profileUsedIds.size,
+            reportCited: currentRunReportCitedIds.size,
+            unused: currentRunIds.size - currentRunUsedUnion.size,
+            usageRatio,
+            ...(currentRunIds.size >= 4 && usageRatio < 0.25
+              ? {
+                  usageWarning:
+                    "Accepted web-source usage is disproportionately low; review gather relevance and synthesis citations.",
+                }
+              : {}),
+          },
+        }),
+    ...(collectedSources.webSubjectProfileReuse !== undefined
+      ? {
+          reusedProfileWebSources: {
+            accepted: reusedProfileIds.size,
+            reportCited: [...reportCitedIds].filter((id) => reusedProfileIds.has(id)).length,
+            generatedAt: collectedSources.webSubjectProfileReuse.generatedAt,
+            ageDays: timestampAgeDays(
+              collectedSources.webSubjectProfileReuse.generatedAt,
+              report.generatedAt,
+            ),
+            runDirName: collectedSources.webSubjectProfileReuse.runDirName,
+          },
+        }
+      : {}),
   };
 }
 

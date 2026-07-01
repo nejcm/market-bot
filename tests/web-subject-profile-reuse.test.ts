@@ -461,6 +461,10 @@ describe("Web Subject Profile reuse", () => {
     });
 
     expect(attached.webSubjectProfile?.sourceIds).toEqual([webSource.id]);
+    expect(attached.webSubjectProfileReuse).toEqual({
+      runDirName: "prior-aapl",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+    });
     expect(attached.extendedSources).toEqual([webSource]);
     expect(attached.sourceGaps).toHaveLength(1);
     expect(attached.extendedEvidence?.items).toEqual([

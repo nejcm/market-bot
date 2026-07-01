@@ -140,6 +140,10 @@ export interface CollectedSources {
   readonly financialLenses?: FinancialLensArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
+  readonly webSubjectProfileReuse?: {
+    readonly runDirName: string;
+    readonly generatedAt: string;
+  };
 }
 
 export interface ExtendedEvidenceCollectionResult {

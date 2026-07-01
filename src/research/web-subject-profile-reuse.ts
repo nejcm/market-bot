@@ -115,6 +115,10 @@ export function attachReusableWebSubjectProfile(input: {
     extendedSources: mergeSources(input.collectedSources.extendedSources, input.reuse.sources),
     ...(result.extendedEvidence !== undefined ? { extendedEvidence: result.extendedEvidence } : {}),
     webSubjectProfile: input.reuse.profile,
+    webSubjectProfileReuse: {
+      runDirName: input.reuse.runDirName,
+      generatedAt: input.reuse.profile.generatedAt,
+    },
     sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
   };
 }

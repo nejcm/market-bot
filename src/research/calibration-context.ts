@@ -245,9 +245,13 @@ export function buildCalibrationBlock(
     (
       slice,
     ): slice is typeof slice & {
-      readonly metric: CalibrationMetric;
+      readonly metric: CalibrationMetric & { readonly runCount: number };
       readonly lowerConfidenceBound: number;
-    } => slice.actionable && slice.metric !== undefined && slice.lowerConfidenceBound !== undefined,
+    } =>
+      slice.actionable &&
+      slice.metric !== undefined &&
+      slice.metric.runCount !== undefined &&
+      slice.lowerConfidenceBound !== undefined,
   );
   if (actionableSlices.length === 0) {
     return undefined;

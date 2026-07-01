@@ -1,4 +1,5 @@
 import { predictions, type PredictionView } from "../src/run-artifact-projection";
+import { isRecord, readNumber } from "../src/sources/guards";
 
 export {
   extendedEvidenceItems,
@@ -8,10 +9,8 @@ export {
   type ExtendedEvidenceItemView,
 } from "../src/report-search-entries";
 
-// Report-derived view projections (scenarios, predictions, sources, data gap helpers)
-// Live in src/run-artifact-projection.ts per ADR 0016; this module re-exports them so
-// Existing app/API callers keep their import paths. Score/analytics-derived views below
-// (forecast disagreement, miss autopsies, prediction scores, target health) stay local.
+// Report-derived views live in src/run-artifact-projection.ts; re-exported here so app/API
+// Import paths stay stable. Score/analytics-derived views stay local (see docs/architecture.md).
 export {
   formatShortfallGap,
   predictions,
@@ -91,18 +90,10 @@ export interface PredictionTargetHealth {
   readonly targetMet: boolean;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
+// Verbatim string reader: unlike guards.readString this preserves empty/whitespace values.
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
-}
-
-function readNumber(record: Record<string, unknown>, key: string): number | undefined {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function readPredictionScoreStatus(

@@ -167,13 +167,9 @@ export function runSearchResultFromIndexRow(
   };
 }
 
-// The report-derived view projections below (scenarios, predictions, sources, data
-// Gap helpers) previously lived in app/report-artifact-view.ts. They are moved here
-// So all report-derived read projections share one module per ADR 0016; that file now
-// Re-exports them for existing app/API callers. Score/analytics-derived views (forecast
-// Disagreement, miss autopsies, prediction scores, target health) stay in
-// App/report-artifact-view.ts — they read score.json/missAutopsy.json/extras alongside
-// The report and are out of this phase's scope.
+// Report-derived read projections (scenarios, predictions, sources, data-gap helpers)
+// Share this module per ADR 0016; app/report-artifact-view.ts re-exports them and keeps
+// Only score/analytics-derived views. See docs/architecture.md for the boundary rationale.
 
 export interface ScenarioView {
   readonly name: string;

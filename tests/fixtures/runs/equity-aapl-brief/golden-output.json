@@ -697,8 +697,7 @@
     "depth": "brief",
     "codeVersion": "<codeVersion>",
     "reproducibility": {
-      "effectiveConfigHash": "<effectiveConfigHash>",
-      "dirtySourceHash": "<dirtySourceHash>"
+      "effectiveConfigHash": "<effectiveConfigHash>"
     },
     "sourceFunnel": {
       "rawSnapshots": {

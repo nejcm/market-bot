@@ -22,6 +22,8 @@ const VOLATILE_KEYS = new Set([
   "codeVersion",
 ]);
 
+const OPTIONAL_VOLATILE_KEYS = new Set(["dirtySourceHash"]);
+
 async function readJson(path: string): Promise<JsonValue> {
   return JSON.parse(await readFile(path, "utf8")) as JsonValue;
 }
@@ -42,10 +44,9 @@ function scrub(value: JsonValue): JsonValue {
   }
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        VOLATILE_KEYS.has(key) ? `<${key}>` : scrub(item),
-      ]),
+      Object.entries(value)
+        .filter(([key]) => !OPTIONAL_VOLATILE_KEYS.has(key))
+        .map(([key, item]) => [key, VOLATILE_KEYS.has(key) ? `<${key}>` : scrub(item)]),
     );
   }
   if (typeof value === "string") {

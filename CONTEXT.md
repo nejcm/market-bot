@@ -233,6 +233,7 @@ An optional Source Provider that contributes citeable evidence without driving d
 
 A disclosed absence, weakness, failure, or staleness in Source Provider evidence that affects report reliability.
 Canonical persisted research-run telemetry deduplicates identical normalized disclosed gap text (`source: message`) prospectively. Comparisons to pre-change runs may include duplicate-counting artifacts rather than true provider coverage changes.
+When duplicates carry different metadata, the first normalized occurrence is retained.
 `web-gather` Source Gaps are separate from `evidence-request` Source Gaps because the loops have different tools, budgets, and validation rules; both still flow through existing Source Plan lanes such as `subject-profile` or extended-evidence lanes.
 
 ## Source Plan

@@ -4098,11 +4098,13 @@ describe("runResearchJob", () => {
       "sec-edgar: Missing SEC company facts: grossProfit",
       "sec-edgar: Missing SEC company facts: grossProfit, capex",
     ]);
+    expect(regulatoryLane?.gapIds).toHaveLength(2);
     expect(result.analytics.sourceFunnel.sourceGaps).toEqual({
       total: 2,
       bySource: { "sec-edgar": 2 },
     });
     expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(2);
+    expect(result.analytics.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
     expect(result.trace.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
     expect(result.report.dataGaps).toContain("sec-edgar: Missing SEC company facts: grossProfit");
     expect(result.report.dataGaps).toContain(

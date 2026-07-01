@@ -715,7 +715,7 @@ describe("buildStagePrompt", () => {
     // Per-kind slice (direction) and per-horizon bucket (1-5d) are surfaced as directives.
     expect(block).toContain("direction");
     expect(block).toContain("1-5d");
-    expect(block).toContain("base rates");
+    expect(block).not.toContain("emit only evidence-backed forecasts");
   });
 
   test("injects current-regime calibration only at the sample floor", () => {
@@ -756,7 +756,7 @@ describe("buildStagePrompt", () => {
           sourceIds: [],
         },
         calibrationContext: {
-          byMarketRegime: { mixed: { brierScore: 0.2, count: 5 } },
+          byMarketRegime: { mixed: { brierScore: 0.3, count: 5 } },
         },
       },
       { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
@@ -767,6 +767,11 @@ describe("buildStagePrompt", () => {
 
     expect(parsed.evidence?.priorCalibration).toContain("Current-regime calibration (mixed");
     expect(parsed.evidence?.priorCalibration).toContain("n=5");
+    expect(parsed.evidence?.priorCalibration).toContain("emit only evidence-backed forecasts");
+    expect(parsed.evidence?.priorCalibration).toContain("predictionShortfall");
+    expect(parsed.evidence?.priorCalibration).not.toContain("reject");
+    expect(parsed.evidence?.priorCalibration).not.toContain("trim");
+    expect(parsed.evidence?.priorCalibration).not.toContain("retry");
   });
 
   test("omits current-regime calibration below the sample floor", () => {

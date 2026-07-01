@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { isMarketRegimeLabel } from "../domain/types";
+import type { ResearchCommand } from "../cli/args";
+import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
 import { isRecord, readNumber, readString } from "../sources/guards";
-import { brierSkillScore } from "../scoring/calibration";
+import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
 import type { CalibrationContext, ResearchContext } from "./research-context-types";
 
@@ -216,22 +217,43 @@ function renderMetricSlice(
   }
 }
 
-const CURRENT_REGIME_CALIBRATION_SAMPLE_FLOOR = 5;
-
 function renderCurrentRegimeCalibration(
   calibration: CalibrationContext,
   context: Pick<ResearchContext, "marketRegime">,
 ): string | undefined {
   const metric = calibration.byMarketRegime?.[context.marketRegime.label];
-  if (metric === undefined || metric.count < CURRENT_REGIME_CALIBRATION_SAMPLE_FLOOR) {
+  if (metric === undefined || metric.count < MIN_CALIBRATION_SAMPLE) {
     return undefined;
   }
-  return `Current-regime calibration (${context.marketRegime.label}, all run types): skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}). Use this alongside the run-type and horizon slices; ignore thinner regime slices below n=${String(CURRENT_REGIME_CALIBRATION_SAMPLE_FLOOR)}.`;
+  return `Current-regime calibration (${context.marketRegime.label}, all run types): skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}). Use this alongside the run-type and horizon slices; ignore thinner regime slices below n=${String(MIN_CALIBRATION_SAMPLE)}.`;
+}
+
+function isActionableNegative(metric: CalibrationMetric | undefined): boolean {
+  return (
+    metric !== undefined &&
+    metric.count >= MIN_CALIBRATION_SAMPLE &&
+    brierSkillScore(metric.brierScore) < 0
+  );
+}
+
+function hasActionableNegativeSlice(
+  calibration: CalibrationContext,
+  command: ResearchCommand,
+  context: Pick<ResearchContext, "depthProfile" | "marketRegime">,
+): boolean {
+  const horizonBucket = marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon);
+  return [
+    calibration.byAssetClass?.[command.assetClass],
+    calibration.byJobType?.[command.jobType],
+    calibration.byHorizonBucket?.[horizonBucket],
+    calibration.byMarketRegime?.[context.marketRegime.label],
+  ].some((metric) => isActionableNegative(metric));
 }
 
 export function buildCalibrationBlock(
   calibration: CalibrationContext | undefined,
-  context: Pick<ResearchContext, "marketRegime">,
+  command: ResearchCommand,
+  context: Pick<ResearchContext, "depthProfile" | "marketRegime">,
 ): string | undefined {
   if (calibration === undefined) {
     return undefined;
@@ -266,12 +288,11 @@ export function buildCalibrationBlock(
       }
     }
   }
-  const beforeSlices = lines.length;
   renderMetricSlice(lines, "Per-kind calibration", calibration.byKind);
   renderMetricSlice(lines, "Per-horizon calibration", calibration.byHorizonBucket);
-  if (lines.length > beforeSlices) {
+  if (hasActionableNegativeSlice(calibration, command, context)) {
     lines.push(
-      "In any slice with negative skill, shade probabilities toward base rates: there you are currently worse than always stating 0.5.",
+      "Applicable calibration is negative: emit only evidence-backed forecasts whose probability is outside the 0.45-0.55 near-base-rate band. Prefer fewer forecasts plus predictionShortfall over near-0.5 padding. Do not inflate confidence just to escape the band.",
     );
   }
   return lines.length > 0 ? lines.join("\n") : undefined;

@@ -27,6 +27,9 @@ must share one contract.
 - Earnings forecasts anchor their origin and due date to the declared earnings event and timing.
 - Prediction count is a soft `targetPredictions`, not a quota. Shortfalls are disclosed. One
   replacement-only retry may follow a redundancy trim; models must not pad with 0.5 forecasts.
+- Applicable calibration slices with sufficient resolved samples may add prompt-time guidance to
+  emit fewer, evidence-backed forecasts when Brier skill is negative. This guidance does not reject
+  emitted forecasts or make prediction count a hard target.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
   listed proxy and emits no predictions when no proxy resolves.
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast

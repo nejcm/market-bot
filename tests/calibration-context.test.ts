@@ -4,9 +4,11 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  buildCalibrationBlock,
   loadCalibrationContext,
   parseCalibrationContext,
 } from "../src/research/calibration-context";
+import type { ResearchContext } from "../src/research/research-context-types";
 import type { CalibrationSummary } from "../src/scoring/types";
 
 async function writeSummary(value: unknown): Promise<string> {
@@ -40,6 +42,75 @@ function validSummary(): CalibrationSummary {
     conditionalPredictions: { activatedCount: 0, voidedCount: 0 },
   };
 }
+
+const command = {
+  jobType: "equity",
+  assetClass: "equity",
+  symbol: "AAPL",
+  depth: "deep",
+} as const;
+
+function calibrationRunContext(
+  defaultPredictionHorizon = 5,
+): Pick<ResearchContext, "depthProfile" | "marketRegime"> {
+  return {
+    depthProfile: {
+      depth: "deep",
+      analystStyle: "fuller analyst-style",
+      minimumKeyFindings: 5,
+      minimumScenarios: 3,
+      targetPredictions: 4,
+      defaultPredictionHorizon,
+      predictionSubjects: ["AAPL"],
+      focus: ["ticker research"],
+      targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+    },
+    marketRegime: {
+      assetClass: "equity",
+      label: "mixed",
+      proxyCount: 1,
+      drivers: [],
+      sourceIds: [],
+    },
+  };
+}
+
+describe("buildCalibrationBlock", () => {
+  test.each([
+    ["asset class", { byAssetClass: { equity: { brierScore: 0.3, count: 5 } } }],
+    ["job type", { byJobType: { equity: { brierScore: 0.3, count: 5 } } }],
+    ["default horizon", { byHorizonBucket: { "1-5d": { brierScore: 0.3, count: 5 } } }],
+    ["current regime", { byMarketRegime: { mixed: { brierScore: 0.3, count: 5 } } }],
+  ])("adds selectivity guidance for an actionable negative %s slice", (_name, calibration) => {
+    const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
+
+    expect(block).toContain("emit only evidence-backed forecasts");
+    expect(block).toContain("outside the 0.45-0.55 near-base-rate band");
+    expect(block).toContain("fewer forecasts plus predictionShortfall");
+    expect(block).toContain("Do not inflate confidence");
+  });
+
+  test.each([
+    ["below sample floor", { byAssetClass: { equity: { brierScore: 0.3, count: 4 } } }],
+    ["zero skill", { byJobType: { equity: { brierScore: 0.25, count: 5 } } }],
+    ["positive skill", { byHorizonBucket: { "1-5d": { brierScore: 0.2, count: 5 } } }],
+    ["non-applicable", { byAssetClass: { crypto: { brierScore: 0.3, count: 5 } } }],
+  ])("omits selectivity guidance for a %s slice", (_name, calibration) => {
+    const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
+
+    expect(block ?? "").not.toContain("emit only evidence-backed forecasts");
+  });
+
+  test("uses the depth profile default forecast horizon", () => {
+    const block = buildCalibrationBlock(
+      { byHorizonBucket: { "11-15d": { brierScore: 0.3, count: 5 } } },
+      command,
+      calibrationRunContext(15),
+    );
+
+    expect(block).toContain("emit only evidence-backed forecasts");
+  });
+});
 
 describe("parseCalibrationContext", () => {
   test("returns undefined for non-record inputs", () => {

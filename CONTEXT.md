@@ -105,7 +105,7 @@ A research-only evidence signal that measures how much configured same-provider 
 
 ## Calibration
 
-An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. It describes forecast accuracy; it is not investment conviction, model endorsement, or a trade signal.
+An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. Negative applicable calibration with sufficient resolved samples can guide prompt-time forecast selectivity toward fewer, evidence-backed Predictions outside the Near-Base-Rate band, with any count shortfall disclosed. It never rejects an emitted Prediction or authorizes confidence inflation. It describes forecast accuracy; it is not investment conviction, model endorsement, or a trade signal.
 
 ## Regime-Sliced Calibration
 

@@ -4053,6 +4053,18 @@ describe("runResearchJob", () => {
       cause: "provider-data-missing",
       evidenceQualityImpact: "extended-evidence-cap",
     });
+    const macroContextGap = sourceGap({
+      source: "fred-market-context",
+      message: "Missing macro context: DGS10",
+      capability: "market-context",
+      cause: "provider-data-missing",
+    });
+    const macroContextDuplicate = sourceGap({
+      source: "fred-market-context",
+      message: " Missing macro   context: DGS10 ",
+      capability: "market-context",
+      cause: "validation-failed",
+    });
     const provider: ModelProvider = {
       name: "mock",
       generate: async (request) => {
@@ -4081,6 +4093,11 @@ describe("runResearchJob", () => {
           items: [],
           gaps: [grossProfitGap, grossProfitDuplicate, overlappingGap],
         },
+        marketContext: {
+          assetClass: "equity",
+          items: [],
+          gaps: [macroContextGap, macroContextDuplicate],
+        },
         sourceGaps: [grossProfitGap, grossProfitDuplicate, overlappingGap],
       }),
       now: new Date("2026-05-19T00:00:00.000Z"),
@@ -4094,6 +4111,7 @@ describe("runResearchJob", () => {
       grossProfitGap,
       overlappingGap,
     ]);
+    expect(result.collectedSources.marketContext?.gaps).toEqual([macroContextGap]);
     expect(regulatoryLane?.gapText).toEqual([
       "sec-edgar: Missing SEC company facts: grossProfit",
       "sec-edgar: Missing SEC company facts: grossProfit, capex",
@@ -4104,6 +4122,7 @@ describe("runResearchJob", () => {
       bySource: { "sec-edgar": 2 },
     });
     expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(2);
+    expect(result.analytics.evidenceQuality.marketContext.gapCount).toBe(1);
     expect(result.analytics.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
     expect(result.trace.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
     expect(result.report.dataGaps).toContain("sec-edgar: Missing SEC company facts: grossProfit");

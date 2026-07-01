@@ -1,4 +1,5 @@
 import {
+  NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
   type ResearchReport,
   type RunTrace,
@@ -192,9 +193,6 @@ export interface RunAnalytics {
 // ---------------------------------------------------------------------------
 // Forecast-quality telemetry constants (analytics-only, never rejection gates)
 // ---------------------------------------------------------------------------
-
-/** Predictions within this distance of 0.5 probability are "near base rate". */
-const NEAR_BASE_RATE_BAND = 0.05;
 
 /**
  * Minimum fraction of emitted predictions that must be outside the near-base-rate

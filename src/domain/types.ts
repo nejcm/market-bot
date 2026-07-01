@@ -464,6 +464,9 @@ export type PredictionKind =
   | "earnings-move"
   | "conditional";
 
+/** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
+export const NEAR_BASE_RATE_BAND = 0.05;
+
 export interface Prediction {
   readonly id: string;
   readonly claim: string;

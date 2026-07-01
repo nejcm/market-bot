@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NEAR_BASE_RATE_BAND } from "../src/domain/types";
 import {
   buildCalibrationBlock,
   loadCalibrationContext,
@@ -77,18 +78,36 @@ function calibrationRunContext(
 
 describe("buildCalibrationBlock", () => {
   test.each([
-    ["asset class", { byAssetClass: { equity: { brierScore: 0.3, count: 5 } } }],
-    ["job type", { byJobType: { equity: { brierScore: 0.3, count: 5 } } }],
-    ["default horizon", { byHorizonBucket: { "1-5d": { brierScore: 0.3, count: 5 } } }],
-    ["current regime", { byMarketRegime: { mixed: { brierScore: 0.3, count: 5 } } }],
-  ])("adds selectivity guidance for an actionable negative %s slice", (_name, calibration) => {
-    const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
+    [
+      "asset class",
+      "asset class equity",
+      { byAssetClass: { equity: { brierScore: 0.3, count: 5 } } },
+    ],
+    ["job type", "job type equity", { byJobType: { equity: { brierScore: 0.3, count: 5 } } }],
+    [
+      "default horizon",
+      "default horizon 1-5d",
+      { byHorizonBucket: { "1-5d": { brierScore: 0.3, count: 5 } } },
+    ],
+    [
+      "current regime",
+      "current regime mixed",
+      { byMarketRegime: { mixed: { brierScore: 0.3, count: 5 } } },
+    ],
+  ])(
+    "adds selectivity guidance and evidence for an actionable negative %s slice",
+    (_name, triggerLabel, calibration) => {
+      const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
+      const bandLow = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
+      const bandHigh = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
 
-    expect(block).toContain("emit only evidence-backed forecasts");
-    expect(block).toContain("outside the 0.45-0.55 near-base-rate band");
-    expect(block).toContain("fewer forecasts plus predictionShortfall");
-    expect(block).toContain("Do not inflate confidence");
-  });
+      expect(block).toContain(`${triggerLabel}: skill -0.20 (Brier 0.300, n=5)`);
+      expect(block).toContain("emit only evidence-backed forecasts");
+      expect(block).toContain(`outside the ${bandLow}-${bandHigh} near-base-rate band`);
+      expect(block).toContain("fewer forecasts plus predictionShortfall");
+      expect(block).toContain("Do not inflate confidence");
+    },
+  );
 
   test.each([
     ["below sample floor", { byAssetClass: { equity: { brierScore: 0.3, count: 4 } } }],

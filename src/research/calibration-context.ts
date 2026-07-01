@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
-import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
+import {
+  isMarketRegimeLabel,
+  marketUpdateHorizonBucket,
+  NEAR_BASE_RATE_BAND,
+} from "../domain/types";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
@@ -228,7 +232,7 @@ function renderCurrentRegimeCalibration(
   return `Current-regime calibration (${context.marketRegime.label}, all run types): skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}). Use this alongside the run-type and horizon slices; ignore thinner regime slices below n=${String(MIN_CALIBRATION_SAMPLE)}.`;
 }
 
-function isActionableNegative(metric: CalibrationMetric | undefined): boolean {
+function isActionableNegative(metric: CalibrationMetric | undefined): metric is CalibrationMetric {
   return (
     metric !== undefined &&
     metric.count >= MIN_CALIBRATION_SAMPLE &&
@@ -236,18 +240,32 @@ function isActionableNegative(metric: CalibrationMetric | undefined): boolean {
   );
 }
 
-function hasActionableNegativeSlice(
+interface ApplicableCalibrationSlice {
+  readonly label: string;
+  readonly metric: CalibrationMetric;
+}
+
+function actionableNegativeSlices(
   calibration: CalibrationContext,
   command: ResearchCommand,
   context: Pick<ResearchContext, "depthProfile" | "marketRegime">,
-): boolean {
+): readonly ApplicableCalibrationSlice[] {
   const horizonBucket = marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon);
   return [
-    calibration.byAssetClass?.[command.assetClass],
-    calibration.byJobType?.[command.jobType],
-    calibration.byHorizonBucket?.[horizonBucket],
-    calibration.byMarketRegime?.[context.marketRegime.label],
-  ].some((metric) => isActionableNegative(metric));
+    {
+      label: `asset class ${command.assetClass}`,
+      metric: calibration.byAssetClass?.[command.assetClass],
+    },
+    { label: `job type ${command.jobType}`, metric: calibration.byJobType?.[command.jobType] },
+    {
+      label: `default horizon ${horizonBucket}`,
+      metric: calibration.byHorizonBucket?.[horizonBucket],
+    },
+    {
+      label: `current regime ${context.marketRegime.label}`,
+      metric: calibration.byMarketRegime?.[context.marketRegime.label],
+    },
+  ].flatMap(({ label, metric }) => (isActionableNegative(metric) ? [{ label, metric }] : []));
 }
 
 export function buildCalibrationBlock(
@@ -290,9 +308,18 @@ export function buildCalibrationBlock(
   }
   renderMetricSlice(lines, "Per-kind calibration", calibration.byKind);
   renderMetricSlice(lines, "Per-horizon calibration", calibration.byHorizonBucket);
-  if (hasActionableNegativeSlice(calibration, command, context)) {
+  const negativeSlices = actionableNegativeSlices(calibration, command, context);
+  if (negativeSlices.length > 0) {
+    lines.push("Actionable negative applicable slices:");
+    for (const { label, metric } of negativeSlices) {
+      lines.push(
+        `  ${label}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)})`,
+      );
+    }
+    const bandLow = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
+    const bandHigh = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
     lines.push(
-      "Applicable calibration is negative: emit only evidence-backed forecasts whose probability is outside the 0.45-0.55 near-base-rate band. Prefer fewer forecasts plus predictionShortfall over near-0.5 padding. Do not inflate confidence just to escape the band.",
+      `Applicable calibration is negative: emit only evidence-backed forecasts whose probability is outside the ${bandLow}-${bandHigh} near-base-rate band. Prefer fewer forecasts plus predictionShortfall over near-0.5 padding. Do not inflate confidence just to escape the band.`,
     );
   }
   return lines.length > 0 ? lines.join("\n") : undefined;

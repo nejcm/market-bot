@@ -14,6 +14,7 @@ import {
 } from "../artifacts";
 import {
   isMarketUpdateJobType,
+  marketUpdateHorizonBucket,
   marketUpdateMetadataOf,
   type Mover,
   type ResearchReport,
@@ -615,6 +616,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stageOutputs,
     targetPredictions: context.depthProfile.targetPredictions,
     sourcePlanSummary: sourcePlanning.evidenceLanes.summary,
+    calibrationGuidanceKeys: {
+      assetClass: input.command.assetClass,
+      jobType: input.command.jobType,
+      predictionHorizon: marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon),
+      marketRegime: context.marketRegime.label,
+    },
     ...(calibrationContext !== undefined ? { calibrationContext } : {}),
   });
 

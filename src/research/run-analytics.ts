@@ -10,6 +10,13 @@ import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-g
 import { isRecord } from "../sources/guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
+import type { CalibrationMetric } from "../scoring/types";
+import {
+  applicableCalibrationSlices,
+  type ApplicableCalibrationKeys,
+  type CalibrationGuidanceDimension,
+  type CalibrationGuidanceReason,
+} from "./calibration-guidance";
 import type { CalibrationContext } from "./research-context-types";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
@@ -29,6 +36,7 @@ export interface BuildRunAnalyticsInput {
   readonly targetPredictions: number;
   readonly sourcePlanSummary?: EvidenceLaneSummaryV2;
   readonly calibrationContext?: CalibrationContext;
+  readonly calibrationGuidanceKeys?: ApplicableCalibrationKeys;
 }
 
 export interface RunAnalytics {
@@ -162,6 +170,7 @@ export interface RunAnalytics {
     readonly assetClass?: RunAnalyticsCalibrationSlice;
     readonly jobType?: RunAnalyticsCalibrationSlice;
     readonly marketUpdateHorizonBucket?: RunAnalyticsCalibrationSlice;
+    readonly guidanceAssessments?: readonly RunAnalyticsCalibrationGuidanceAssessment[];
   };
   readonly verifiedMarketSnapshot?: {
     readonly symbol: string;
@@ -217,6 +226,18 @@ export interface RunAnalyticsCalibrationSlice {
   readonly brierScore: number;
   readonly brierSkillScore: number;
   readonly count: number;
+}
+
+export interface RunAnalyticsCalibrationGuidanceAssessment {
+  readonly dimension: CalibrationGuidanceDimension;
+  readonly key: string;
+  readonly brierScore?: number;
+  readonly count?: number;
+  readonly runCount?: number;
+  readonly brierStandardError?: number;
+  readonly lowerConfidenceBound?: number;
+  readonly actionable: boolean;
+  readonly reason: CalibrationGuidanceReason;
 }
 
 function countBy<T>(
@@ -330,7 +351,7 @@ function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number | 
 }
 
 function calibrationMetricSlice(
-  metrics: Record<string, { readonly brierScore: number; readonly count: number }> | undefined,
+  metrics: Record<string, CalibrationMetric> | undefined,
   key: string | undefined,
 ): RunAnalyticsCalibrationSlice | undefined {
   if (metrics === undefined || key === undefined) {
@@ -368,12 +389,35 @@ function calibrationAtGeneration(
     calibration.byMarketUpdateHorizonBucket,
     input.trace.marketUpdateHorizonBucket,
   );
+  const guidanceAssessments =
+    input.calibrationGuidanceKeys === undefined
+      ? undefined
+      : applicableCalibrationSlices(calibration, input.calibrationGuidanceKeys).map(
+          ({ dimension, key, metric, actionable, reason, lowerConfidenceBound }) => ({
+            dimension,
+            key,
+            ...(metric !== undefined
+              ? {
+                  brierScore: metric.brierScore,
+                  count: metric.count,
+                  ...(metric.runCount !== undefined ? { runCount: metric.runCount } : {}),
+                  ...(metric.brierStandardError !== undefined
+                    ? { brierStandardError: metric.brierStandardError }
+                    : {}),
+                }
+              : {}),
+            ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
+            actionable,
+            reason,
+          }),
+        );
   if (
     calibration.generatedAt === undefined &&
     calibration.resolvedCount === undefined &&
     assetClass === undefined &&
     jobType === undefined &&
-    marketUpdateHorizonBucket === undefined
+    marketUpdateHorizonBucket === undefined &&
+    guidanceAssessments === undefined
   ) {
     return undefined;
   }
@@ -386,6 +430,7 @@ function calibrationAtGeneration(
     ...(assetClass !== undefined ? { assetClass } : {}),
     ...(jobType !== undefined ? { jobType } : {}),
     ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
+    ...(guidanceAssessments !== undefined ? { guidanceAssessments } : {}),
   };
 }
 

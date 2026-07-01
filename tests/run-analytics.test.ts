@@ -209,6 +209,20 @@ describe("run analytics", () => {
         resolvedCount: 12,
         byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
         byJobType: { equity: { brierScore: 0.22, count: 6 } },
+        byHorizonBucket: {
+          "1-5d": {
+            brierScore: 0.4,
+            count: 30,
+            runCount: 10,
+            brierStandardError: 0.05,
+          },
+        },
+      },
+      calibrationGuidanceKeys: {
+        assetClass: "equity",
+        jobType: "equity",
+        predictionHorizon: "1-5d",
+        marketRegime: "mixed",
       },
     });
 
@@ -268,7 +282,46 @@ describe("run analytics", () => {
         count: 8,
       },
       jobType: { key: "equity", brierScore: 0.22, brierSkillScore: 0.12, count: 6 },
+      guidanceAssessments: [
+        {
+          dimension: "assetClass",
+          key: "equity",
+          brierScore: 0.2,
+          count: 8,
+          actionable: false,
+          reason: "below-outcome-floor",
+        },
+        {
+          dimension: "jobType",
+          key: "equity",
+          brierScore: 0.22,
+          count: 6,
+          actionable: false,
+          reason: "below-outcome-floor",
+        },
+        {
+          dimension: "predictionHorizon",
+          key: "1-5d",
+          brierScore: 0.4,
+          count: 30,
+          runCount: 10,
+          brierStandardError: 0.05,
+          actionable: true,
+          reason: "actionable-negative",
+        },
+        {
+          dimension: "marketRegime",
+          key: "mixed",
+          actionable: false,
+          reason: "slice-unavailable",
+        },
+      ],
     });
+    expect(
+      analytics.calibrationAtGeneration?.guidanceAssessments?.find(
+        ({ dimension }) => dimension === "predictionHorizon",
+      )?.lowerConfidenceBound,
+    ).toBeCloseTo(0.287_93);
     expect(analytics.verifiedMarketSnapshot).toEqual({
       symbol: "AAPL",
       analysisDate: "2026-05-19",

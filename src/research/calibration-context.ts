@@ -3,8 +3,9 @@ import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
 import { isRecord, readNumber, readString } from "../sources/guards";
-import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "../scoring/calibration";
+import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
+import { applicableCalibrationSlices } from "./calibration-guidance";
 import type { CalibrationContext, ResearchContext } from "./research-context-types";
 
 export async function loadCalibrationContext(
@@ -209,70 +210,21 @@ function formatSkill(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
-// Render a per-slice calibration section (by kind / by horizon) as a directive. Each slice shows
-// Brier skill vs the always-0.5 baseline so the model sees where it currently has no edge.
-function renderMetricSlice(
-  lines: string[],
-  title: string,
-  metricsByKey: Record<string, CalibrationMetric> | undefined,
-): void {
-  const entries = metricsByKey === undefined ? [] : Object.entries(metricsByKey);
-  if (entries.length === 0) {
-    return;
+function calibrationSliceLabel(dimension: string, key: string): string {
+  switch (dimension) {
+    case "assetClass": {
+      return `asset class ${key}`;
+    }
+    case "jobType": {
+      return `job type ${key}`;
+    }
+    case "predictionHorizon": {
+      return `default horizon ${key}`;
+    }
+    default: {
+      return `current regime ${key}`;
+    }
   }
-  lines.push(`${title} (Brier skill vs always-0.5; negative means worse than a coin flip):`);
-  for (const [key, metric] of entries) {
-    lines.push(
-      `  ${key}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)})`,
-    );
-  }
-}
-
-function renderCurrentRegimeCalibration(
-  calibration: CalibrationContext,
-  context: Pick<ResearchContext, "marketRegime">,
-): string | undefined {
-  const metric = calibration.byMarketRegime?.[context.marketRegime.label];
-  if (metric === undefined || metric.count < MIN_CALIBRATION_SAMPLE) {
-    return undefined;
-  }
-  return `Current-regime calibration (${context.marketRegime.label}, all run types): skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}). Use this alongside the run-type and horizon slices; ignore thinner regime slices below n=${String(MIN_CALIBRATION_SAMPLE)}.`;
-}
-
-function isActionableNegative(metric: CalibrationMetric | undefined): metric is CalibrationMetric {
-  return (
-    metric !== undefined &&
-    metric.count >= MIN_CALIBRATION_SAMPLE &&
-    brierSkillScore(metric.brierScore) < 0
-  );
-}
-
-interface ApplicableCalibrationSlice {
-  readonly label: string;
-  readonly metric: CalibrationMetric;
-}
-
-function actionableNegativeSlices(
-  calibration: CalibrationContext,
-  command: ResearchCommand,
-  context: Pick<ResearchContext, "depthProfile" | "marketRegime">,
-): readonly ApplicableCalibrationSlice[] {
-  const horizonBucket = marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon);
-  return [
-    {
-      label: `asset class ${command.assetClass}`,
-      metric: calibration.byAssetClass?.[command.assetClass],
-    },
-    { label: `job type ${command.jobType}`, metric: calibration.byJobType?.[command.jobType] },
-    {
-      label: `default horizon ${horizonBucket}`,
-      metric: calibration.byHorizonBucket?.[horizonBucket],
-    },
-    {
-      label: `current regime ${context.marketRegime.label}`,
-      metric: calibration.byMarketRegime?.[context.marketRegime.label],
-    },
-  ].flatMap(({ label, metric }) => (isActionableNegative(metric) ? [{ label, metric }] : []));
 }
 
 export function buildCalibrationBlock(
@@ -283,49 +235,32 @@ export function buildCalibrationBlock(
   if (calibration === undefined) {
     return undefined;
   }
-  const lines: string[] = [];
-  const currentRegimeLine = renderCurrentRegimeCalibration(calibration, context);
-  if (currentRegimeLine !== undefined) {
-    lines.push(currentRegimeLine);
+  const horizonBucket = marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon);
+  const actionableSlices = applicableCalibrationSlices(calibration, {
+    assetClass: command.assetClass,
+    jobType: command.jobType,
+    predictionHorizon: horizonBucket,
+    marketRegime: context.marketRegime.label,
+  }).filter(
+    (
+      slice,
+    ): slice is typeof slice & {
+      readonly metric: CalibrationMetric;
+      readonly lowerConfidenceBound: number;
+    } => slice.actionable && slice.metric !== undefined && slice.lowerConfidenceBound !== undefined,
+  );
+  if (actionableSlices.length === 0) {
+    return undefined;
   }
-  if (typeof calibration.brierScore === "number") {
-    lines.push(`Overall Brier score: ${calibration.brierScore.toFixed(3)} (lower is better)`);
+  const lines = ["Actionable negative calibration slices:"];
+  for (const slice of actionableSlices) {
+    const { metric } = slice;
     lines.push(
-      `Brier skill vs always-0.5 baseline: ${formatSkill(brierSkillScore(calibration.brierScore))} (>0 beats always-stating-0.5, <0 is worse)`,
+      `  ${calibrationSliceLabel(slice.dimension, slice.key)}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}, runs=${String(metric.runCount)}, lower bound=${slice.lowerConfidenceBound.toFixed(3)})`,
     );
   }
-  if (typeof calibration.resolvedCount === "number") {
-    lines.push(`Resolved predictions: ${calibration.resolvedCount}`);
-  }
-  if (calibration.conditionalPredictions !== undefined) {
-    lines.push(
-      `Conditional Predictions: ${String(calibration.conditionalPredictions.activatedCount)} activated, ${String(calibration.conditionalPredictions.voidedCount)} voided/excluded`,
-    );
-  }
-  if (Array.isArray(calibration.bins) && calibration.bins.length > 0) {
-    lines.push("Bin summary (stated probability band vs actual hit rate):");
-    for (const bin of calibration.bins) {
-      const validBin = parseCalibrationBin(bin);
-      if (validBin !== undefined) {
-        lines.push(
-          `  ${validBin.label}: actual hit ${validBin.hitRate.toFixed(2)} (n=${String(validBin.totalCount)})`,
-        );
-      }
-    }
-  }
-  renderMetricSlice(lines, "Per-kind calibration", calibration.byKind);
-  renderMetricSlice(lines, "Per-horizon calibration", calibration.byHorizonBucket);
-  const negativeSlices = actionableNegativeSlices(calibration, command, context);
-  if (negativeSlices.length > 0) {
-    lines.push("Actionable negative applicable slices:");
-    for (const { label, metric } of negativeSlices) {
-      lines.push(
-        `  ${label}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)})`,
-      );
-    }
-    lines.push(
-      `Applicable calibration is negative: treat prior probabilities as a warning to stay evidence-led and temper confidence. Do not treat calibration alone as evidence that a current forecast is unavailable or as a reason to suppress the prediction count. Do not inflate confidence to avoid a near-base-rate probability.`,
-    );
-  }
-  return lines.length > 0 ? lines.join("\n") : undefined;
+  lines.push(
+    "Use these slices only to discipline probability confidence. They must not suppress prediction count, reject forecast shapes, or change evidence-support requirements.",
+  );
+  return lines.join("\n");
 }

@@ -953,6 +953,23 @@ describe("renderCalibrationConsole", () => {
     expect(output).toContain("Resolved:");
   });
 
+  test("labels displayed sub-floor slices as thin and unreliable", () => {
+    const pairs = makePairs(MIN_CALIBRATION_SAMPLE).map((pair, index) => ({
+      ...pair,
+      prediction: {
+        ...pair.prediction,
+        kind: index === 0 ? ("relative" as const) : ("direction" as const),
+      },
+    }));
+
+    expect(renderCalibrationConsole(buildCalibrationSummary(pairs, at))).toContain(
+      "n=4 [thin/unreliable]",
+    );
+    expect(renderCalibrationMarkdown(buildCalibrationSummary(pairs, at))).toContain(
+      "4 (thin/unreliable)",
+    );
+  });
+
   test("renders small-sample warning in markdown below minimum threshold", () => {
     const summary = buildCalibrationSummary(makePairs(MIN_CALIBRATION_SAMPLE - 1), at);
     const output = renderCalibrationMarkdown(summary);

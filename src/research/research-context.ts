@@ -288,7 +288,10 @@ function buildEvidencePayload(
     ),
     moverLimitFor(command, config),
   );
-  const calibrationBlock = buildCalibrationBlock(context.calibrationContext, command, context);
+  const calibrationBlock =
+    stage === "final-synthesis"
+      ? buildCalibrationBlock(context.calibrationContext, command, context)
+      : undefined;
   const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
   const priorThematicForecastErrors = buildResearchForecastErrorBlock(

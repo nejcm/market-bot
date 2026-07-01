@@ -17,7 +17,7 @@ function metricRows(
 ): readonly string[] {
   return entries.map(
     ([key, m]) =>
-      `  ${key.padEnd(labelWidth)}  ${fmtSkill(brierSkillScore(m.brierScore)).padStart(6)}   n=${String(m.count)}`,
+      `  ${key.padEnd(labelWidth)}  ${fmtSkill(brierSkillScore(m.brierScore)).padStart(6)}   n=${String(m.count)}${m.count < MIN_CALIBRATION_SAMPLE ? " [thin/unreliable]" : ""}`,
   );
 }
 

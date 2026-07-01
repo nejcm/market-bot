@@ -109,7 +109,7 @@ describe("buildStagePrompt", () => {
       depth: "brief",
     });
     const prompt = buildStagePrompt(
-      "specialist-analysis",
+      "final-synthesis",
       command,
       collectedSources({
         rawSnapshots: [],
@@ -593,7 +593,7 @@ describe("buildStagePrompt", () => {
     });
   });
 
-  test("renders prior calibration from real CalibrationSummary JSON without undefined", () => {
+  test("keeps legacy CalibrationSummary JSON readable but non-actionable", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
@@ -606,7 +606,7 @@ describe("buildStagePrompt", () => {
     const calibrationContext = structuredClone(summary) as never;
 
     const prompt = buildStagePrompt(
-      "specialist-analysis",
+      "final-synthesis",
       command,
       collectedSources({
         rawSnapshots: [],
@@ -646,28 +646,38 @@ describe("buildStagePrompt", () => {
     };
     const block = parsed.evidence?.priorCalibration;
 
-    expect(block).toBeDefined();
-    expect(block).not.toContain("undefined");
-    expect(block).not.toContain("NaN");
-    // Renders the real bin label, hit rate, and sample count from CalibrationSummary.
-    expect(block).toContain("0.6-0.7");
-    expect(block).toContain("0.50");
-    expect(block).toContain("n=2");
+    expect(block).toBeUndefined();
   });
 
-  test("surfaces overall skill and per-kind / per-horizon calibration slices", () => {
+  test("surfaces only qualifying applicable calibration slices during completion", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
     });
-    const summary = buildCalibrationSummary([
-      resolvedPair("pred-1", 0.65, "hit"),
-      resolvedPair("pred-2", 0.65, "miss"),
-    ]);
-    const calibrationContext = structuredClone(summary) as never;
+    const calibrationContext = {
+      brierScore: 0.9,
+      resolvedCount: 100,
+      byKind: { direction: { brierScore: 0.9, count: 100 } },
+      byAssetClass: {
+        equity: {
+          brierScore: 0.4,
+          count: 30,
+          runCount: 10,
+          brierStandardError: 0.05,
+        },
+      },
+      byHorizonBucket: {
+        "1-5d": {
+          brierScore: 0.3,
+          count: 30,
+          runCount: 10,
+          brierStandardError: 0.03,
+        },
+      },
+    };
 
     const prompt = buildStagePrompt(
-      "specialist-analysis",
+      "final-synthesis",
       command,
       collectedSources({
         rawSnapshots: [],
@@ -701,30 +711,34 @@ describe("buildStagePrompt", () => {
         calibrationContext,
       },
       { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      [],
+      { requestedCount: 1, existingPredictions: [] },
     );
     const parsed = JSON.parse(prompt) as {
       readonly evidence?: { readonly priorCalibration?: string };
+      readonly predictionCompletion?: unknown;
     };
     const block = parsed.evidence?.priorCalibration;
 
     expect(block).toBeDefined();
-    expect(block).not.toContain("undefined");
-    expect(block).not.toContain("NaN");
-    // Overall Brier skill vs the 0.5 baseline is surfaced alongside raw Brier.
-    expect(block).toContain("Brier skill");
-    // Per-kind slice (direction) and per-horizon bucket (1-5d) are surfaced as directives.
-    expect(block).toContain("direction");
-    expect(block).toContain("1-5d");
-    expect(block).not.toContain("Do not treat calibration alone");
+    expect(block).toContain("asset class equity");
+    expect(block).not.toContain("Overall");
+    expect(block).not.toContain("direction");
+    expect(block).not.toContain("default horizon 1-5d");
+    expect(block).toContain("only to discipline probability confidence");
+    expect(parsed.predictionCompletion).toBeDefined();
   });
 
-  test("injects current-regime calibration only at the sample floor", () => {
+  test("injects statistically actionable current-regime calibration", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
     });
     const prompt = buildStagePrompt(
-      "specialist-analysis",
+      "final-synthesis",
       command,
       collectedSources({
         rawSnapshots: [],
@@ -756,7 +770,14 @@ describe("buildStagePrompt", () => {
           sourceIds: [],
         },
         calibrationContext: {
-          byMarketRegime: { mixed: { brierScore: 0.3, count: 5 } },
+          byMarketRegime: {
+            mixed: {
+              brierScore: 0.4,
+              count: 30,
+              runCount: 10,
+              brierStandardError: 0.05,
+            },
+          },
         },
       },
       { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
@@ -765,21 +786,20 @@ describe("buildStagePrompt", () => {
       readonly evidence?: { readonly priorCalibration?: string };
     };
 
-    expect(parsed.evidence?.priorCalibration).toContain("Current-regime calibration (mixed");
-    expect(parsed.evidence?.priorCalibration).toContain("n=5");
-    expect(parsed.evidence?.priorCalibration).toContain("Do not treat calibration alone");
-    expect(parsed.evidence?.priorCalibration).not.toContain("reject");
+    expect(parsed.evidence?.priorCalibration).toContain("current regime mixed");
+    expect(parsed.evidence?.priorCalibration).toContain("n=30");
+    expect(parsed.evidence?.priorCalibration).toContain("must not suppress prediction count");
     expect(parsed.evidence?.priorCalibration).not.toContain("trim");
     expect(parsed.evidence?.priorCalibration).not.toContain("retry");
   });
 
-  test("omits current-regime calibration below the sample floor", () => {
+  test("omits statistically inconclusive current-regime calibration", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
     });
     const prompt = buildStagePrompt(
-      "specialist-analysis",
+      "final-synthesis",
       command,
       collectedSources({
         rawSnapshots: [],
@@ -811,7 +831,14 @@ describe("buildStagePrompt", () => {
           sourceIds: [],
         },
         calibrationContext: {
-          byMarketRegime: { mixed: { brierScore: 0.2, count: 4 } },
+          byMarketRegime: {
+            mixed: {
+              brierScore: 0.3,
+              count: 30,
+              runCount: 10,
+              brierStandardError: 0.03,
+            },
+          },
         },
       },
       { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },

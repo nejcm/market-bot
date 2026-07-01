@@ -76,54 +76,72 @@ function calibrationRunContext(
 }
 
 describe("buildCalibrationBlock", () => {
+  const actionableMetric = {
+    brierScore: 0.4,
+    count: 30,
+    runCount: 10,
+    brierStandardError: 0.05,
+  };
+
   test.each([
-    [
-      "asset class",
-      "asset class equity",
-      { byAssetClass: { equity: { brierScore: 0.3, count: 5 } } },
-    ],
-    ["job type", "job type equity", { byJobType: { equity: { brierScore: 0.3, count: 5 } } }],
-    [
-      "default horizon",
-      "default horizon 1-5d",
-      { byHorizonBucket: { "1-5d": { brierScore: 0.3, count: 5 } } },
-    ],
-    [
-      "current regime",
-      "current regime mixed",
-      { byMarketRegime: { mixed: { brierScore: 0.3, count: 5 } } },
-    ],
+    ["asset class", "asset class equity", { byAssetClass: { equity: actionableMetric } }],
+    ["job type", "job type equity", { byJobType: { equity: actionableMetric } }],
+    ["default horizon", "default horizon 1-5d", { byHorizonBucket: { "1-5d": actionableMetric } }],
+    ["current regime", "current regime mixed", { byMarketRegime: { mixed: actionableMetric } }],
   ])(
-    "adds selectivity guidance and evidence for an actionable negative %s slice",
+    "adds probability guidance for an actionable negative %s slice",
     (_name, triggerLabel, calibration) => {
       const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
-      expect(block).toContain(`${triggerLabel}: skill -0.20 (Brier 0.300, n=5)`);
-      expect(block).toContain("temper confidence");
-      expect(block).toContain("Do not treat calibration alone");
-      expect(block).toContain("reason to suppress the prediction count");
-      expect(block).toContain("Do not inflate confidence");
+      expect(block).toContain(`${triggerLabel}: skill -0.60 (Brier 0.400, n=30, runs=10`);
+      expect(block).toContain("only to discipline probability confidence");
+      expect(block).toContain("must not suppress prediction count");
+      expect(block).toContain("reject forecast shapes");
+      expect(block).toContain("change evidence-support requirements");
     },
   );
 
   test.each([
-    ["below sample floor", { byAssetClass: { equity: { brierScore: 0.3, count: 4 } } }],
-    ["zero skill", { byJobType: { equity: { brierScore: 0.25, count: 5 } } }],
-    ["positive skill", { byHorizonBucket: { "1-5d": { brierScore: 0.2, count: 5 } } }],
-    ["non-applicable", { byAssetClass: { crypto: { brierScore: 0.3, count: 5 } } }],
-  ])("omits selectivity guidance for a %s slice", (_name, calibration) => {
-    const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
-
-    expect(block ?? "").not.toContain("Do not treat calibration alone");
+    ["below outcome floor", { byAssetClass: { equity: { ...actionableMetric, count: 29 } } }],
+    ["below run floor", { byJobType: { equity: { ...actionableMetric, runCount: 9 } } }],
+    [
+      "statistically inconclusive",
+      {
+        byHorizonBucket: {
+          "1-5d": { ...actionableMetric, brierScore: 0.3, brierStandardError: 0.03 },
+        },
+      },
+    ],
+    ["legacy", { byAssetClass: { equity: { brierScore: 0.4, count: 30 } } }],
+    ["non-applicable", { byAssetClass: { crypto: actionableMetric } }],
+  ])("omits calibration entirely for a %s slice", (_name, calibration) => {
+    expect(buildCalibrationBlock(calibration, command, calibrationRunContext())).toBeUndefined();
   });
 
   test("uses the depth profile default forecast horizon", () => {
     const block = buildCalibrationBlock(
-      { byHorizonBucket: { "11-15d": { brierScore: 0.3, count: 5 } } },
+      { byHorizonBucket: { "11-15d": actionableMetric } },
       command,
       calibrationRunContext(15),
     );
 
-    expect(block).toContain("Do not treat calibration alone");
+    expect(block).toContain("default horizon 11-15d");
+  });
+
+  test("includes only qualifying applicable slices", () => {
+    const block = buildCalibrationBlock(
+      {
+        byAssetClass: { equity: actionableMetric },
+        byJobType: { equity: { ...actionableMetric, count: 29 } },
+        byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric },
+      },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toContain("asset class equity");
+    expect(block).toContain("default horizon 1-5d");
+    expect(block).not.toContain("job type equity");
+    expect(block).not.toContain("6-10d");
   });
 });
 

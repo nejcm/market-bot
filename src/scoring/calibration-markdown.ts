@@ -30,7 +30,11 @@ function renderMetricTable(lines: string[], table: MetricTable): void {
   lines.push(`| ${label} | Brier | Count |`);
   lines.push("|---|---|---|");
   for (const [key, metrics] of Object.entries(metricsByKey)) {
-    lines.push(`| ${key} | ${formatBrier(metrics.brierScore)} | ${String(metrics.count)} |`);
+    const count =
+      metrics.count < MIN_CALIBRATION_SAMPLE
+        ? `${String(metrics.count)} (thin/unreliable)`
+        : String(metrics.count);
+    lines.push(`| ${key} | ${formatBrier(metrics.brierScore)} | ${count} |`);
   }
   lines.push("");
 }

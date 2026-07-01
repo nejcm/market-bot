@@ -20,6 +20,7 @@ describe the current system; superseded records remain as link-preserving histor
 | [0025](./0025-market-overview-fold.md)                          | Market overview and horizon semantics                     |
 | [0028](./0028-deterministic-source-plan-subsystem.md)           | Evidence governance, temporal integrity, and web evidence |
 | [0029](./0029-console-run-chat.md)                              | Ephemeral Run Chat and optional live web search           |
+| [0041](./0041-equity-fixture-replay-harness.md)                 | Fixture replay harness for equity runs                    |
 
 ## Conventions
 

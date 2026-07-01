@@ -1,0 +1,2256 @@
+{
+  "report": {
+    "runId": "<runId>",
+    "jobType": "equity",
+    "assetClass": "equity",
+    "symbol": "AAPL",
+    "generatedAt": "<generatedAt>",
+    "summary": "equity-aapl-brief replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.",
+    "keyFindings": [
+      {
+        "text": "AAPL has a current fixture market snapshot and verified close history.",
+        "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"]
+      },
+      {
+        "text": "Fixture news coverage is intentionally narrow for regression determinism.",
+        "sourceIds": ["news-equity-1"]
+      }
+    ],
+    "bullCase": [
+      {
+        "text": "The fixture shows positive price momentum in the latest close sequence.",
+        "sourceIds": ["verified-snapshot-AAPL"]
+      }
+    ],
+    "bearCase": [
+      {
+        "text": "The fixture omits live optional providers, limiting corroboration.",
+        "sourceIds": ["news-equity-1"]
+      }
+    ],
+    "risks": [
+      {
+        "text": "Static cassette inputs can become stale versus live market conditions.",
+        "sourceIds": ["market-yahoo-equity-aapl"]
+      }
+    ],
+    "catalysts": [
+      {
+        "text": "AAPL fixture news remains the only current catalyst input.",
+        "sourceIds": ["news-equity-1"]
+      }
+    ],
+    "scenarios": [
+      {
+        "name": "Base",
+        "description": "AAPL remains within a fixture-defined evidence envelope.",
+        "sourceIds": ["market-yahoo-equity-aapl"]
+      }
+    ],
+    "evidenceQuality": "medium",
+    "dataGaps": [
+      "Fixture replay uses static source cassettes.",
+      "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+      "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
+      "sec-edgar: No SEC company facts found for AAPL",
+      "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
+      "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt",
+      "financial-lens: Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence",
+      "business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+      "predictionShortfall: emitted 0 of 3 target predictions; evidence did not support more"
+    ],
+    "predictions": [],
+    "sources": [
+      {
+        "id": "market-yahoo-equity-aapl",
+        "title": "AAPL market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "Apple Inc.",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "AAPL"
+            }
+          ]
+        }
+      },
+      {
+        "id": "market-yahoo-equity-spy",
+        "title": "SPY market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "SPY",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "SPY proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "SPY"
+            }
+          ]
+        }
+      },
+      {
+        "id": "market-yahoo-equity-qqq",
+        "title": "QQQ market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "QQQ",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "QQQ proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "QQQ"
+            }
+          ]
+        }
+      },
+      {
+        "id": "market-yahoo-equity-iwm",
+        "title": "IWM market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "IWM",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "IWM proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "IWM"
+            }
+          ]
+        }
+      },
+      {
+        "id": "market-yahoo-equity-dia",
+        "title": "DIA market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "DIA",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "DIA proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "DIA"
+            }
+          ]
+        }
+      },
+      {
+        "id": "market-yahoo-equity-^vix",
+        "title": "^VIX market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "^VIX",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "CBOE",
+          "quoteCurrency": "USD",
+          "displayName": "^VIX proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX"
+            }
+          ]
+        }
+      },
+      {
+        "id": "market-yahoo-equity-^vix3m",
+        "title": "^VIX3M market snapshot",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "^VIX3M",
+        "provider": "yahoo",
+        "identity": {
+          "exchange": "CBOE",
+          "quoteCurrency": "USD",
+          "displayName": "^VIX3M proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX3M"
+            }
+          ]
+        }
+      },
+      {
+        "id": "verified-snapshot-AAPL",
+        "title": "AAPL verified market snapshot (OHLCV + indicators, 2026-05-01)",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "yahoo"
+      },
+      {
+        "id": "news-equity-1",
+        "title": "Apple fixture headline",
+        "url": "https://example.com/apple-fixture",
+        "publisher": "Example News",
+        "fetchedAt": "2026-06-15T13:30:00.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "canonicalUrl": "https://example.com/apple-fixture",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Example News",
+            "fetchedAt": "2026-06-15T13:30:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "extended-sec-edgar-aapl-filings",
+        "title": "AAPL SEC filings",
+        "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "sec-edgar",
+        "identity": {
+          "displayName": "Apple Inc.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000320193"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "AAPL"
+            }
+          ]
+        }
+      }
+    ],
+    "extendedEvidence": {
+      "instrument": {
+        "symbol": "AAPL",
+        "assetClass": "equity"
+      },
+      "items": [
+        {
+          "category": "sec-edgar",
+          "title": "AAPL SEC Fundamental Evidence",
+          "summary": "Recent SEC filings: 8-K 2026-05-01.",
+          "sourceIds": ["extended-sec-edgar-aapl-filings"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0000320193"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "AAPL"
+              }
+            ]
+          }
+        },
+        {
+          "category": "yahoo-fundamentals",
+          "title": "AAPL Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
+          "sourceIds": ["market-yahoo-equity-aapl"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "trailingPE": 31,
+            "forwardPE": 28,
+            "priceToBook": 45,
+            "epsTrailingTwelveMonths": 6.4,
+            "sharesOutstanding": 15000000000
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Apple Inc.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "AAPL"
+              }
+            ]
+          }
+        },
+        {
+          "category": "financial-lens",
+          "title": "AAPL Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
+          "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "qualityPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "financialStrengthPosture": "insufficient-data",
+            "valuePosture": "insufficient-data",
+            "peRatio": 31,
+            "forwardPe": 28,
+            "priceToBook": 45,
+            "momentumPosture": "criteria-mixed",
+            "latestClose": 216.6,
+            "sma50": 206.8,
+            "rsi14": 100,
+            "macdHistogram": 2.220446049250313e-15
+          }
+        },
+        {
+          "category": "business-framework",
+          "title": "AAPL Business Framework Evidence",
+          "summary": "Business Framework: Business insufficient-data; Phase classification (Phase operating-leverage); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
+          "sourceIds": [
+            "extended-sec-edgar-aapl-filings",
+            "market-yahoo-equity-aapl",
+            "verified-snapshot-AAPL"
+          ],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "phase": "operating-leverage",
+            "businessPosture": "insufficient-data",
+            "phasePosture": "insufficient-data",
+            "moatPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "managementPosture": "insufficient-data",
+            "riskPosture": "insufficient-data",
+            "valuationPosture": "insufficient-data"
+          },
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0000320193"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "AAPL"
+              }
+            ]
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "source": "sec-edgar",
+          "message": "No SEC company facts found for AAPL",
+          "provider": "sec-edgar",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-events",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "fred-macro",
+          "message": "MARKET_BOT_FRED_API_KEY is not set",
+          "provider": "fred",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "tradier-options",
+          "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+          "provider": "tradier",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "valuation",
+          "message": "Valuation Evidence unavailable for AAPL: missing revenue, cash, debt",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "financial-lens",
+          "message": "Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "business-framework",
+          "message": "Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        }
+      ]
+    },
+    "notFinancialAdvice": true,
+    "extras": {
+      "historicalContext": {
+        "summary": "No prior run artifacts matched this research scope.",
+        "sourceIds": [],
+        "gaps": ["No prior ticker runs found for AAPL", "No prior equity market-update runs found"]
+      },
+      "businessFramework": {
+        "version": 2,
+        "phase": "operating-leverage",
+        "sourceIds": [
+          "extended-sec-edgar-aapl-filings",
+          "market-yahoo-equity-aapl",
+          "verified-snapshot-AAPL"
+        ],
+        "gaps": [
+          {
+            "code": "business-description",
+            "text": "Business description is not available from current normalized sources"
+          },
+          {
+            "code": "geographic-mix",
+            "text": "Geographic revenue mix is not available from current normalized sources"
+          },
+          {
+            "code": "segment-mix",
+            "text": "Segment mix is not available from current normalized sources"
+          },
+          {
+            "code": "customer-concentration",
+            "text": "Customer concentration is not available from current normalized sources"
+          },
+          {
+            "code": "purchase-recurrence",
+            "text": "Purchase recurrence is not available from current normalized sources"
+          },
+          {
+            "code": "pricing-power",
+            "text": "Pricing power evidence is not available from current normalized sources"
+          },
+          {
+            "code": "company-kpis",
+            "text": "Company-specific KPI evidence is not available from current normalized sources"
+          },
+          {
+            "code": "analyst-consensus",
+            "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+          },
+          {
+            "code": "management-track-record",
+            "text": "Management track record is not available from current normalized sources"
+          },
+          {
+            "code": "capital-allocation",
+            "text": "Capital allocation commentary is not available from current normalized sources"
+          },
+          {
+            "code": "risk-factors",
+            "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+          },
+          {
+            "code": "cyclicality",
+            "text": "Recession cyclicality evidence is not available from current normalized sources"
+          }
+        ],
+        "sections": [
+          {
+            "name": "Business",
+            "posture": "insufficient-data",
+            "summary": "Business insufficient-data",
+            "metrics": [],
+            "sourceIds": ["extended-sec-edgar-aapl-filings"],
+            "gaps": [
+              {
+                "code": "business-description",
+                "text": "Business description is not available from current normalized sources"
+              },
+              {
+                "code": "geographic-mix",
+                "text": "Geographic revenue mix is not available from current normalized sources"
+              },
+              {
+                "code": "segment-mix",
+                "text": "Segment mix is not available from current normalized sources"
+              },
+              {
+                "code": "customer-concentration",
+                "text": "Customer concentration is not available from current normalized sources"
+              },
+              {
+                "code": "purchase-recurrence",
+                "text": "Purchase recurrence is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Phase",
+            "posture": "insufficient-data",
+            "summary": "Phase classification (Phase operating-leverage)",
+            "metrics": [
+              {
+                "key": "phase",
+                "label": "Phase",
+                "value": "operating-leverage",
+                "unit": "text",
+                "sourceIds": ["extended-sec-edgar-aapl-filings", "market-yahoo-equity-aapl"]
+              }
+            ],
+            "sourceIds": ["extended-sec-edgar-aapl-filings", "market-yahoo-equity-aapl"],
+            "gaps": []
+          },
+          {
+            "name": "Moat",
+            "posture": "insufficient-data",
+            "summary": "Moat insufficient-data",
+            "metrics": [],
+            "sourceIds": ["extended-sec-edgar-aapl-filings"],
+            "gaps": [
+              {
+                "code": "segment-mix",
+                "text": "Segment mix is not available from current normalized sources"
+              },
+              {
+                "code": "customer-concentration",
+                "text": "Customer concentration is not available from current normalized sources"
+              },
+              {
+                "code": "purchase-recurrence",
+                "text": "Purchase recurrence is not available from current normalized sources"
+              },
+              {
+                "code": "pricing-power",
+                "text": "Pricing power evidence is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Growth",
+            "posture": "insufficient-data",
+            "summary": "Growth insufficient-data",
+            "metrics": [],
+            "sourceIds": ["extended-sec-edgar-aapl-filings"],
+            "gaps": [
+              {
+                "code": "company-kpis",
+                "text": "Company-specific KPI evidence is not available from current normalized sources"
+              },
+              {
+                "code": "analyst-consensus",
+                "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+              }
+            ]
+          },
+          {
+            "name": "Management",
+            "posture": "insufficient-data",
+            "summary": "Management insufficient-data",
+            "metrics": [],
+            "sourceIds": [],
+            "gaps": [
+              {
+                "code": "management-track-record",
+                "text": "Management track record is not available from current normalized sources"
+              },
+              {
+                "code": "capital-allocation",
+                "text": "Capital allocation commentary is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Risk",
+            "posture": "insufficient-data",
+            "summary": "Risk insufficient-data",
+            "metrics": [],
+            "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"],
+            "gaps": [
+              {
+                "code": "risk-factors",
+                "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+              },
+              {
+                "code": "cyclicality",
+                "text": "Recession cyclicality evidence is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Valuation",
+            "posture": "insufficient-data",
+            "summary": "Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x)",
+            "metrics": [
+              {
+                "key": "trailingPE",
+                "label": "Trailing PE",
+                "value": 31,
+                "unit": "ratio",
+                "sourceIds": ["market-yahoo-equity-aapl"]
+              },
+              {
+                "key": "forwardPE",
+                "label": "Forward PE",
+                "value": 28,
+                "unit": "ratio",
+                "sourceIds": ["market-yahoo-equity-aapl"]
+              }
+            ],
+            "sourceIds": ["market-yahoo-equity-aapl"],
+            "gaps": []
+          }
+        ]
+      },
+      "depth": "brief",
+      "depthProfile": {
+        "depth": "brief",
+        "analystStyle": "concise brief",
+        "minimumKeyFindings": 4,
+        "minimumScenarios": 1,
+        "targetPredictions": 3,
+        "defaultPredictionHorizon": 5,
+        "predictionSubjects": ["AAPL"],
+        "focus": ["thesis", "evidence", "risks", "data gaps"],
+        "targetKindMix": {
+          "favored": ["relative", "range"],
+          "minNonDirection": 1
+        }
+      },
+      "marketRegime": {
+        "assetClass": "equity",
+        "label": "risk-on",
+        "proxyCount": 6,
+        "drivers": [
+          "equity breadth proxies positive: 4/4",
+          "trend positive: 4/4 proxies above 50-day average",
+          "VIX term structure contango: VIX 16.00 vs VIX3M 18.00"
+        ],
+        "sourceIds": [
+          "market-yahoo-equity-spy",
+          "market-yahoo-equity-qqq",
+          "market-yahoo-equity-iwm",
+          "market-yahoo-equity-dia",
+          "market-yahoo-equity-^vix",
+          "market-yahoo-equity-^vix3m"
+        ]
+      }
+    }
+  },
+  "analytics": {
+    "version": 2,
+    "runId": "<runId>",
+    "generatedAt": "<generatedAt>",
+    "jobType": "equity",
+    "assetClass": "equity",
+    "symbol": "AAPL",
+    "depth": "brief",
+    "codeVersion": {
+      "branch": "master",
+      "commit": "965a7a6f4e9de8158fb61949cd04557e7f1861f3",
+      "commitShort": "965a7a6f4e9d",
+      "dirty": true
+    },
+    "reproducibility": {
+      "effectiveConfigHash": "<effectiveConfigHash>",
+      "dirtySourceHash": "<dirtySourceHash>"
+    },
+    "sourceFunnel": {
+      "rawSnapshots": {
+        "total": 7,
+        "byAdapter": {
+          "yahoo-ticker": 1,
+          "yahoo-regime": 1,
+          "yahoo-news": 1,
+          "sec-tickers": 1,
+          "sec-companyfacts": 1,
+          "sec-submissions": 1,
+          "yahoo-verified-chart": 1
+        }
+      },
+      "reportSources": {
+        "total": 10,
+        "byKind": {
+          "market-data": 8,
+          "news": 1,
+          "extended-evidence": 1
+        },
+        "byProvider": {
+          "yahoo": 8,
+          "yahoo-news": 1,
+          "sec-edgar": 1
+        }
+      },
+      "sourceGaps": {
+        "total": 9,
+        "bySource": {
+          "marketaux-news": 1,
+          "finnhub-news": 1,
+          "sec-edgar": 1,
+          "finnhub-events": 1,
+          "fred-macro": 1,
+          "tradier-options": 1,
+          "valuation": 1,
+          "financial-lens": 1,
+          "business-framework": 1
+        }
+      },
+      "sourceGapClasses": {
+        "missingCredential": 5,
+        "fetchFailed": 0,
+        "unsupportedCoverage": 0,
+        "other": 4
+      },
+      "dataGaps": {
+        "total": 11
+      }
+    },
+    "newsDedupe": {
+      "fetchedNewsSourcesByProvider": {
+        "marketaux": 0,
+        "finnhub": 0,
+        "yahoo-news": 1,
+        "massive": 0
+      },
+      "fetchedNewsSourceCount": 1,
+      "canonicalDedupedNewsSourceCount": 1,
+      "canonicalDuplicateNewsSourceCount": 0,
+      "persistentSuppressedNewsSourceCount": 0,
+      "relevantBeforeSeenFilterCount": 1,
+      "relevantSuppressedBySeenFilterCount": 0,
+      "relevantSelectedCount": 1,
+      "repeatFallbackKeptCount": 0,
+      "relevantRepeatKeptCount": 0,
+      "selectedNewsSourceCount": 1,
+      "selectedRelevantTickerNewsSourceCount": 1,
+      "selectedGenericTickerNewsSourceCount": 0,
+      "repeatFallbackUsed": false
+    },
+    "evidenceQuality": {
+      "label": "medium",
+      "assessment": {
+        "version": 1,
+        "rubricVersion": 1,
+        "label": "medium",
+        "checks": [
+          {
+            "capability": "market-data",
+            "evidenceClass": "core",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "not-applicable",
+            "passed": true,
+            "reasons": []
+          },
+          {
+            "capability": "supplemental-market",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["supplemental-market: evidence missing or unusable"]
+          },
+          {
+            "capability": "news",
+            "evidenceClass": "material",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "fail",
+            "passed": false,
+            "reasons": ["news: corroboration check failed"]
+          },
+          {
+            "capability": "verified-price-history",
+            "evidenceClass": "core",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "not-applicable",
+            "passed": true,
+            "reasons": []
+          },
+          {
+            "capability": "regulatory-filings",
+            "evidenceClass": "material",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "not-applicable",
+            "passed": true,
+            "reasons": []
+          },
+          {
+            "capability": "corporate-events",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["corporate-events: evidence missing or unusable"]
+          },
+          {
+            "capability": "macro-indicators",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["macro-indicators: evidence missing or unusable"]
+          },
+          {
+            "capability": "derivatives-volatility",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["derivatives-volatility: evidence missing or unusable"]
+          },
+          {
+            "capability": "target-valuation",
+            "evidenceClass": "material",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["target-valuation: evidence missing or unusable"]
+          }
+        ],
+        "limitingReasons": [
+          "news: corroboration check failed",
+          "target-valuation: evidence missing or unusable"
+        ]
+      },
+      "dataGapCount": 11,
+      "extendedEvidence": {
+        "itemCount": 4,
+        "gapCount": 7,
+        "itemsByCategory": {
+          "sec-edgar": 1,
+          "yahoo-fundamentals": 1,
+          "financial-lens": 1,
+          "business-framework": 1
+        },
+        "gapsBySource": {
+          "sec-edgar": 1,
+          "finnhub-events": 1,
+          "fred-macro": 1,
+          "tradier-options": 1,
+          "valuation": 1,
+          "financial-lens": 1,
+          "business-framework": 1
+        }
+      },
+      "marketContext": {
+        "itemCount": 0,
+        "gapCount": 0,
+        "itemsByCategory": {},
+        "gapsBySource": {}
+      }
+    },
+    "predictions": {
+      "count": 0,
+      "retryErrorCount": 0,
+      "validationErrorCount": 0,
+      "trimWarningCount": 0,
+      "completion": {
+        "attempted": true,
+        "initialCount": 0,
+        "acceptedCount": 0,
+        "rejectedCount": 0,
+        "outcome": "no-eligible-candidates"
+      },
+      "replacementAttempted": false,
+      "byKind": {},
+      "horizonTradingDays": {},
+      "citedCount": 0,
+      "uncitedCount": 0,
+      "targetCount": 3,
+      "targetMet": false,
+      "shortfall": {
+        "emittedCount": 0,
+        "targetCount": 3,
+        "missingCount": 3,
+        "disclosed": true
+      },
+      "nearBaseRateCount": 0,
+      "informativeCount": 0,
+      "signalTargetMet": true,
+      "mixWarnings": []
+    },
+    "postSynthesisAudit": {
+      "warningCount": 1,
+      "byCode": {
+        "weak-evidence-posture-missing": 1
+      }
+    },
+    "sourcePlan": {
+      "plannedLaneCount": 9,
+      "coreLaneCount": 2,
+      "materialLaneCount": 3,
+      "supplementalLaneCount": 4
+    },
+    "evidenceLanes": {
+      "coveredLaneCount": 4,
+      "gapLaneCount": 4,
+      "coreGapLaneCount": 0,
+      "materialGapLaneCount": 1,
+      "sourceCount": 10,
+      "gapCount": 7,
+      "coverageRatio": 0.4444444444444444
+    },
+    "verifiedMarketSnapshot": {
+      "symbol": "AAPL",
+      "analysisDate": "2026-06-15",
+      "latestSessionDate": "2026-05-01",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "latestSessionAgeDays": 45
+    },
+    "runShape": {
+      "traceStages": [
+        "source-collection",
+        "playbook-selection",
+        "specialist-analysis",
+        "critique",
+        "final-synthesis",
+        "final-synthesis"
+      ],
+      "stages": [
+        {
+          "stage": "playbook-selection",
+          "tokenEstimate": "<tokenEstimate>",
+          "costEstimateUsd": "<costEstimateUsd>"
+        },
+        {
+          "stage": "specialist-analysis",
+          "tokenEstimate": "<tokenEstimate>",
+          "costEstimateUsd": "<costEstimateUsd>"
+        },
+        {
+          "stage": "critique",
+          "tokenEstimate": "<tokenEstimate>",
+          "costEstimateUsd": "<costEstimateUsd>"
+        },
+        {
+          "stage": "final-synthesis",
+          "tokenEstimate": "<tokenEstimate>",
+          "costEstimateUsd": "<costEstimateUsd>"
+        },
+        {
+          "stage": "final-synthesis",
+          "tokenEstimate": "<tokenEstimate>",
+          "costEstimateUsd": "<costEstimateUsd>"
+        }
+      ],
+      "tokenEstimate": "<tokenEstimate>",
+      "costEstimateUsd": "<costEstimateUsd>",
+      "durationMs": 0
+    }
+  },
+  "markdown": "# AAPL equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\n\n## Summary\n\nequity-aapl-brief replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\n\n\n## Key Findings\n\n- AAPL has a current fixture market snapshot and verified close history. [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- Fixture news coverage is intentionally narrow for regression determinism. [news-equity-1]\n\n## Bull Case\n\n- The fixture shows positive price momentum in the latest close sequence. [verified-snapshot-AAPL]\n\n## Bear Case\n\n- The fixture omits live optional providers, limiting corroboration. [news-equity-1]\n\n## Risks\n\n- Static cassette inputs can become stale versus live market conditions. [market-yahoo-equity-aapl]\n\n## Catalysts\n\n- AAPL fixture news remains the only current catalyst input. [news-equity-1]\n\n\n## Scenarios\n\n- **Base:** AAPL remains within a fixture-defined evidence envelope. [market-yahoo-equity-aapl]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (insufficient-data): Business insufficient-data [extended-sec-edgar-aapl-filings]\n- **Phase**: Phase classification \\(Phase operating-leverage\\) [extended-sec-edgar-aapl-filings] [market-yahoo-equity-aapl]\n- **Moat** (insufficient-data): Moat insufficient-data [extended-sec-edgar-aapl-filings]\n- **Growth** (insufficient-data): Growth insufficient-data [extended-sec-edgar-aapl-filings]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (insufficient-data): Risk insufficient-data [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-aapl]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **AAPL SEC Fundamental Evidence:** Recent SEC filings: 8-K 2026-05-01. [extended-sec-edgar-aapl-filings]\n- **AAPL Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-aapl]\n- **AAPL Financial Lens Evidence:** Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- **AAPL Business Framework Evidence:** Business Framework: Business insufficient-data; Phase classification \\(Phase operating-leverage\\); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-aapl-filings] [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for AAPL\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- Fixture replay uses static source cassettes.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- sec-edgar: No SEC company facts found for AAPL\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence\n- business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 3 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-aapl] AAPL market snapshot\n- [verified-snapshot-AAPL] AAPL verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [news-equity-1] Apple fixture headline\n- [extended-sec-edgar-aapl-filings] AAPL SEC filings\n- 6 uncited normalized source(s) omitted from markdown (yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "normalized": {
+    "business-framework.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "symbol": "AAPL",
+      "phase": "operating-leverage",
+      "sections": [
+        {
+          "name": "Business",
+          "posture": "insufficient-data",
+          "summary": "Business insufficient-data",
+          "metrics": [],
+          "sourceIds": ["extended-sec-edgar-aapl-filings"],
+          "gaps": [
+            {
+              "code": "business-description",
+              "text": "Business description is not available from current normalized sources"
+            },
+            {
+              "code": "geographic-mix",
+              "text": "Geographic revenue mix is not available from current normalized sources"
+            },
+            {
+              "code": "segment-mix",
+              "text": "Segment mix is not available from current normalized sources"
+            },
+            {
+              "code": "customer-concentration",
+              "text": "Customer concentration is not available from current normalized sources"
+            },
+            {
+              "code": "purchase-recurrence",
+              "text": "Purchase recurrence is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Phase",
+          "posture": "insufficient-data",
+          "summary": "Phase classification (Phase operating-leverage)",
+          "metrics": [
+            {
+              "key": "phase",
+              "label": "Phase",
+              "value": "operating-leverage",
+              "unit": "text",
+              "sourceIds": ["extended-sec-edgar-aapl-filings", "market-yahoo-equity-aapl"]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "market-yahoo-equity-aapl"],
+          "gaps": []
+        },
+        {
+          "name": "Moat",
+          "posture": "insufficient-data",
+          "summary": "Moat insufficient-data",
+          "metrics": [],
+          "sourceIds": ["extended-sec-edgar-aapl-filings"],
+          "gaps": [
+            {
+              "code": "segment-mix",
+              "text": "Segment mix is not available from current normalized sources"
+            },
+            {
+              "code": "customer-concentration",
+              "text": "Customer concentration is not available from current normalized sources"
+            },
+            {
+              "code": "purchase-recurrence",
+              "text": "Purchase recurrence is not available from current normalized sources"
+            },
+            {
+              "code": "pricing-power",
+              "text": "Pricing power evidence is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Growth",
+          "posture": "insufficient-data",
+          "summary": "Growth insufficient-data",
+          "metrics": [],
+          "sourceIds": ["extended-sec-edgar-aapl-filings"],
+          "gaps": [
+            {
+              "code": "company-kpis",
+              "text": "Company-specific KPI evidence is not available from current normalized sources"
+            },
+            {
+              "code": "analyst-consensus",
+              "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+            }
+          ]
+        },
+        {
+          "name": "Management",
+          "posture": "insufficient-data",
+          "summary": "Management insufficient-data",
+          "metrics": [],
+          "sourceIds": [],
+          "gaps": [
+            {
+              "code": "management-track-record",
+              "text": "Management track record is not available from current normalized sources"
+            },
+            {
+              "code": "capital-allocation",
+              "text": "Capital allocation commentary is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Risk",
+          "posture": "insufficient-data",
+          "summary": "Risk insufficient-data",
+          "metrics": [],
+          "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"],
+          "gaps": [
+            {
+              "code": "risk-factors",
+              "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+            },
+            {
+              "code": "cyclicality",
+              "text": "Recession cyclicality evidence is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Valuation",
+          "posture": "insufficient-data",
+          "summary": "Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x)",
+          "metrics": [
+            {
+              "key": "trailingPE",
+              "label": "Trailing PE",
+              "value": 31,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            },
+            {
+              "key": "forwardPE",
+              "label": "Forward PE",
+              "value": 28,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-aapl"],
+          "gaps": []
+        }
+      ],
+      "sourceIds": [
+        "extended-sec-edgar-aapl-filings",
+        "market-yahoo-equity-aapl",
+        "verified-snapshot-AAPL"
+      ],
+      "gaps": [
+        {
+          "code": "business-description",
+          "text": "Business description is not available from current normalized sources"
+        },
+        {
+          "code": "geographic-mix",
+          "text": "Geographic revenue mix is not available from current normalized sources"
+        },
+        {
+          "code": "segment-mix",
+          "text": "Segment mix is not available from current normalized sources"
+        },
+        {
+          "code": "customer-concentration",
+          "text": "Customer concentration is not available from current normalized sources"
+        },
+        {
+          "code": "purchase-recurrence",
+          "text": "Purchase recurrence is not available from current normalized sources"
+        },
+        {
+          "code": "pricing-power",
+          "text": "Pricing power evidence is not available from current normalized sources"
+        },
+        {
+          "code": "company-kpis",
+          "text": "Company-specific KPI evidence is not available from current normalized sources"
+        },
+        {
+          "code": "analyst-consensus",
+          "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+        },
+        {
+          "code": "management-track-record",
+          "text": "Management track record is not available from current normalized sources"
+        },
+        {
+          "code": "capital-allocation",
+          "text": "Capital allocation commentary is not available from current normalized sources"
+        },
+        {
+          "code": "risk-factors",
+          "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+        },
+        {
+          "code": "cyclicality",
+          "text": "Recession cyclicality evidence is not available from current normalized sources"
+        }
+      ]
+    },
+    "evidence-lanes.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "lanes": [
+        {
+          "lane": "market-data",
+          "evidenceClass": "core",
+          "status": "covered",
+          "coveredSourceIds": [
+            "market-yahoo-equity-aapl",
+            "market-yahoo-equity-spy",
+            "market-yahoo-equity-qqq",
+            "market-yahoo-equity-iwm",
+            "market-yahoo-equity-dia",
+            "market-yahoo-equity-^vix",
+            "market-yahoo-equity-^vix3m"
+          ],
+          "gapIds": [],
+          "gapText": [],
+          "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
+        },
+        {
+          "lane": "supplemental-market",
+          "evidenceClass": "supplemental",
+          "status": "not-covered",
+          "coveredSourceIds": [],
+          "gapIds": [],
+          "gapText": [],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "news",
+          "evidenceClass": "material",
+          "status": "covered",
+          "coveredSourceIds": ["news-equity-1"],
+          "gapIds": ["news:gap:1", "news:gap:2"],
+          "gapText": [
+            "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+            "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN"
+          ],
+          "freshnessNotes": ["latest evidence timestamp 2026-06-15T13:30:00.000Z"]
+        },
+        {
+          "lane": "verified-price-history",
+          "evidenceClass": "core",
+          "status": "covered",
+          "coveredSourceIds": ["verified-snapshot-AAPL"],
+          "gapIds": [],
+          "gapText": [],
+          "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
+        },
+        {
+          "lane": "regulatory-filings",
+          "evidenceClass": "material",
+          "status": "covered",
+          "coveredSourceIds": ["extended-sec-edgar-aapl-filings"],
+          "gapIds": ["regulatory-filings:gap:1"],
+          "gapText": ["sec-edgar: No SEC company facts found for AAPL"],
+          "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
+        },
+        {
+          "lane": "corporate-events",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["corporate-events:gap:1"],
+          "gapText": ["finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set"],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "macro-indicators",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["macro-indicators:gap:1"],
+          "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "derivatives-volatility",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["derivatives-volatility:gap:1"],
+          "gapText": ["tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "target-valuation",
+          "evidenceClass": "material",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["target-valuation:gap:1"],
+          "gapText": [
+            "valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt"
+          ],
+          "freshnessNotes": []
+        }
+      ],
+      "summary": {
+        "plannedLaneCount": 9,
+        "coreLaneCount": 2,
+        "materialLaneCount": 3,
+        "supplementalLaneCount": 4,
+        "coveredLaneCount": 4,
+        "gapLaneCount": 4,
+        "coreGapLaneCount": 0,
+        "materialGapLaneCount": 1,
+        "sourceCount": 10,
+        "gapCount": 7,
+        "coverageRatio": 0.4444444444444444
+      }
+    },
+    "extended-evidence.json": {
+      "instrument": {
+        "symbol": "AAPL",
+        "assetClass": "equity"
+      },
+      "items": [
+        {
+          "category": "sec-edgar",
+          "title": "AAPL SEC Fundamental Evidence",
+          "summary": "Recent SEC filings: 8-K 2026-05-01.",
+          "sourceIds": ["extended-sec-edgar-aapl-filings"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0000320193"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "AAPL"
+              }
+            ]
+          }
+        },
+        {
+          "category": "yahoo-fundamentals",
+          "title": "AAPL Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
+          "sourceIds": ["market-yahoo-equity-aapl"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "trailingPE": 31,
+            "forwardPE": 28,
+            "priceToBook": 45,
+            "epsTrailingTwelveMonths": 6.4,
+            "sharesOutstanding": 15000000000
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Apple Inc.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "AAPL"
+              }
+            ]
+          }
+        },
+        {
+          "category": "financial-lens",
+          "title": "AAPL Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
+          "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "qualityPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "financialStrengthPosture": "insufficient-data",
+            "valuePosture": "insufficient-data",
+            "peRatio": 31,
+            "forwardPe": 28,
+            "priceToBook": 45,
+            "momentumPosture": "criteria-mixed",
+            "latestClose": 216.6,
+            "sma50": 206.8,
+            "rsi14": 100,
+            "macdHistogram": 2.220446049250313e-15
+          }
+        },
+        {
+          "category": "business-framework",
+          "title": "AAPL Business Framework Evidence",
+          "summary": "Business Framework: Business insufficient-data; Phase classification (Phase operating-leverage); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
+          "sourceIds": [
+            "extended-sec-edgar-aapl-filings",
+            "market-yahoo-equity-aapl",
+            "verified-snapshot-AAPL"
+          ],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "phase": "operating-leverage",
+            "businessPosture": "insufficient-data",
+            "phasePosture": "insufficient-data",
+            "moatPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "managementPosture": "insufficient-data",
+            "riskPosture": "insufficient-data",
+            "valuationPosture": "insufficient-data"
+          },
+          "identity": {
+            "displayName": "Apple Inc.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0000320193"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "AAPL"
+              }
+            ]
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "source": "sec-edgar",
+          "message": "No SEC company facts found for AAPL",
+          "provider": "sec-edgar",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-events",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "fred-macro",
+          "message": "MARKET_BOT_FRED_API_KEY is not set",
+          "provider": "fred",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "tradier-options",
+          "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+          "provider": "tradier",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "valuation",
+          "message": "Valuation Evidence unavailable for AAPL: missing revenue, cash, debt",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "financial-lens",
+          "message": "Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "business-framework",
+          "message": "Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        }
+      ]
+    },
+    "extended-sources.json": [
+      {
+        "id": "extended-sec-edgar-aapl-filings",
+        "title": "AAPL SEC filings",
+        "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "sec-edgar",
+        "identity": {
+          "displayName": "Apple Inc.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000320193"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "AAPL"
+            }
+          ]
+        }
+      }
+    ],
+    "financial-lenses.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "AAPL",
+      "lenses": [
+        {
+          "name": "Quality",
+          "posture": "insufficient-data",
+          "metrics": [],
+          "sourceIds": []
+        },
+        {
+          "name": "Growth",
+          "posture": "insufficient-data",
+          "metrics": [],
+          "sourceIds": []
+        },
+        {
+          "name": "Financial Strength",
+          "posture": "insufficient-data",
+          "metrics": [],
+          "sourceIds": ["market-yahoo-equity-aapl"]
+        },
+        {
+          "name": "Value",
+          "posture": "insufficient-data",
+          "metrics": [
+            {
+              "key": "peRatio",
+              "label": "PE",
+              "value": 31,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            },
+            {
+              "key": "forwardPe",
+              "label": "Forward PE",
+              "value": 28,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            },
+            {
+              "key": "priceToBook",
+              "label": "Price/book",
+              "value": 45,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-aapl"]
+        },
+        {
+          "name": "Momentum",
+          "posture": "criteria-mixed",
+          "metrics": [
+            {
+              "key": "latestClose",
+              "label": "Latest close",
+              "value": 216.6,
+              "unit": "currency",
+              "sourceIds": ["verified-snapshot-AAPL"],
+              "currency": "USD"
+            },
+            {
+              "key": "sma50",
+              "label": "SMA50",
+              "value": 206.8,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-AAPL"]
+            },
+            {
+              "key": "rsi14",
+              "label": "RSI14",
+              "value": 100,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-AAPL"]
+            },
+            {
+              "key": "macdHistogram",
+              "label": "MACD histogram",
+              "value": 2.220446049250313e-15,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-AAPL"]
+            }
+          ],
+          "sourceIds": ["verified-snapshot-AAPL"]
+        }
+      ],
+      "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"]
+    },
+    "historical-context.json": {
+      "generatedAt": "<generatedAt>",
+      "recentDays": 0,
+      "anchorMonths": [],
+      "runs": [],
+      "sources": [],
+      "gaps": ["No prior ticker runs found for AAPL", "No prior equity market-update runs found"],
+      "audit": {
+        "scannedRunCount": 0,
+        "malformedRunCount": 0,
+        "malformedScoreCount": 0,
+        "candidateRunCount": 0,
+        "selectedRunCount": 0,
+        "recentSelectedCount": 0,
+        "anchorSelectedCount": 0,
+        "sameSymbolSelectedCount": 0,
+        "spotlightSymbolSelectedCount": 0,
+        "sameSubjectSelectedCount": 0,
+        "sameHorizonSelectedCount": 0,
+        "crossHorizonSelectedCount": 0,
+        "resolvedMissRunCount": 0,
+        "missCorrectionSelectedCount": 0,
+        "gapCount": 2
+      },
+      "artifactDeltas": []
+    },
+    "instrument-identity.json": {
+      "exchange": "NasdaqGS",
+      "quoteCurrency": "USD",
+      "displayName": "Apple Inc.",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "AAPL"
+        }
+      ]
+    },
+    "market-context.json": null,
+    "market-snapshots.json": [
+      {
+        "sourceId": "market-yahoo-equity-aapl",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "name": "Apple Inc.",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "Apple Inc.",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "AAPL"
+            }
+          ]
+        },
+        "price": 198.5,
+        "changePercent24h": 1.4,
+        "volume": 62000000,
+        "marketCap": 3000000000000,
+        "open": 197.5,
+        "previousClose": 197.1,
+        "averageVolume": 62001000,
+        "fiftyDayAverage": 195.5,
+        "fundamentals": {
+          "trailingPE": 31,
+          "forwardPE": 28,
+          "priceToBook": 45,
+          "epsTrailingTwelveMonths": 6.4,
+          "sharesOutstanding": 15000000000
+        },
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "sourceId": "market-yahoo-equity-spy",
+        "assetClass": "equity",
+        "symbol": "SPY",
+        "name": "SPY proxy",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "SPY proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "SPY"
+            }
+          ]
+        },
+        "price": 520,
+        "changePercent24h": 0.5,
+        "volume": 70000000,
+        "open": 519,
+        "previousClose": 519.5,
+        "averageVolume": 70001000,
+        "fiftyDayAverage": 517,
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "sourceId": "market-yahoo-equity-qqq",
+        "assetClass": "equity",
+        "symbol": "QQQ",
+        "name": "QQQ proxy",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "QQQ proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "QQQ"
+            }
+          ]
+        },
+        "price": 450,
+        "changePercent24h": 0.7,
+        "volume": 55000000,
+        "open": 449,
+        "previousClose": 449.3,
+        "averageVolume": 55001000,
+        "fiftyDayAverage": 447,
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "sourceId": "market-yahoo-equity-iwm",
+        "assetClass": "equity",
+        "symbol": "IWM",
+        "name": "IWM proxy",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "IWM proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "IWM"
+            }
+          ]
+        },
+        "price": 210,
+        "changePercent24h": 0.2,
+        "volume": 30000000,
+        "open": 209,
+        "previousClose": 209.8,
+        "averageVolume": 30001000,
+        "fiftyDayAverage": 207,
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "sourceId": "market-yahoo-equity-dia",
+        "assetClass": "equity",
+        "symbol": "DIA",
+        "name": "DIA proxy",
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "DIA proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "DIA"
+            }
+          ]
+        },
+        "price": 390,
+        "changePercent24h": 0.3,
+        "volume": 20000000,
+        "open": 389,
+        "previousClose": 389.7,
+        "averageVolume": 20001000,
+        "fiftyDayAverage": 387,
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "sourceId": "market-yahoo-equity-^vix",
+        "assetClass": "equity",
+        "symbol": "^VIX",
+        "name": "^VIX proxy",
+        "identity": {
+          "exchange": "CBOE",
+          "quoteCurrency": "USD",
+          "displayName": "^VIX proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX"
+            }
+          ]
+        },
+        "price": 16,
+        "changePercent24h": -2,
+        "volume": 0,
+        "open": 15,
+        "previousClose": 18,
+        "averageVolume": 1000,
+        "fiftyDayAverage": 13,
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "sourceId": "market-yahoo-equity-^vix3m",
+        "assetClass": "equity",
+        "symbol": "^VIX3M",
+        "name": "^VIX3M proxy",
+        "identity": {
+          "exchange": "CBOE",
+          "quoteCurrency": "USD",
+          "displayName": "^VIX3M proxy",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX3M"
+            }
+          ]
+        },
+        "price": 18,
+        "changePercent24h": -1,
+        "volume": 0,
+        "open": 17,
+        "previousClose": 19,
+        "averageVolume": 1000,
+        "fiftyDayAverage": 15,
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      }
+    ],
+    "news-sources.json": [
+      {
+        "id": "news-equity-1",
+        "title": "Apple fixture headline",
+        "url": "https://example.com/apple-fixture",
+        "publisher": "Example News",
+        "fetchedAt": "2026-06-15T13:30:00.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "canonicalUrl": "https://example.com/apple-fixture",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Example News",
+            "fetchedAt": "2026-06-15T13:30:00.000Z"
+          }
+        ]
+      }
+    ],
+    "source-gaps.json": [
+      {
+        "source": "marketaux-news",
+        "message": "missing MARKET_BOT_MARKETAUX_API_TOKEN",
+        "provider": "marketaux",
+        "capability": "news",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "finnhub-news",
+        "message": "missing MARKET_BOT_FINNHUB_API_TOKEN",
+        "provider": "finnhub",
+        "capability": "news",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "No SEC company facts found for AAPL",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-events",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "fred-macro",
+        "message": "MARKET_BOT_FRED_API_KEY is not set",
+        "provider": "fred",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "tradier-options",
+        "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+        "provider": "tradier",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "valuation",
+        "message": "Valuation Evidence unavailable for AAPL: missing revenue, cash, debt",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "financial-lens",
+        "message": "Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "business-framework",
+        "message": "Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      }
+    ],
+    "source-ledger.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "sources": [
+        {
+          "id": "market-yahoo-equity-aapl",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-spy",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-qqq",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-iwm",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-dia",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-^vix",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-^vix3m",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "news-equity-1",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-06-15T13:30:00.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "verified-snapshot-AAPL",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "verified-price-history",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "extended-sec-edgar-aapl-filings",
+          "kind": "extended-evidence",
+          "provider": "sec-edgar",
+          "fetchedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "regulatory-filings",
+          "posture": "covered",
+          "relatedGapIds": ["regulatory-filings:gap:1"]
+        }
+      ]
+    },
+    "source-plan.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "run": {
+        "jobType": "equity",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "depth": "brief"
+      },
+      "lanes": [
+        {
+          "lane": "market-data",
+          "evidenceClass": "core",
+          "appliesToRun": true,
+          "capability": "market-data"
+        },
+        {
+          "lane": "supplemental-market",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "supplemental-market"
+        },
+        {
+          "lane": "news",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "news"
+        },
+        {
+          "lane": "verified-price-history",
+          "evidenceClass": "core",
+          "appliesToRun": true,
+          "capability": "verified-price-history"
+        },
+        {
+          "lane": "regulatory-filings",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "regulatory-filings"
+        },
+        {
+          "lane": "corporate-events",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "corporate-events"
+        },
+        {
+          "lane": "macro-indicators",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "macro-indicators"
+        },
+        {
+          "lane": "derivatives-volatility",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "derivatives-volatility"
+        },
+        {
+          "lane": "target-valuation",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "target-valuation"
+        }
+      ]
+    },
+    "supplemental-market-snapshots.json": [],
+    "valuation-comps.json": null,
+    "verified-market-snapshot.json": {
+      "symbol": "AAPL",
+      "assetClass": "equity",
+      "analysisDate": "2026-06-15",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "latestSessionDate": "2026-05-01",
+      "ohlcv": {
+        "date": "2026-05-01",
+        "open": 215.6,
+        "high": 217.6,
+        "low": 213.6,
+        "close": 216.6,
+        "volume": 50089000
+      },
+      "indicators": {
+        "ema10": 214.79999999999993,
+        "sma50": 206.8,
+        "sma200": null,
+        "rsi14": 100,
+        "macd": 2.799999999999983,
+        "macdSignal": 2.7999999999999807,
+        "macdHistogram": 2.220446049250313e-15,
+        "bollUpper": 217.41302503786832,
+        "bollMiddle": 212.8,
+        "bollLower": 208.1869749621317,
+        "atr14": 4
+      },
+      "recentCloses": [
+        {
+          "date": "2026-04-02",
+          "close": 205
+        },
+        {
+          "date": "2026-04-03",
+          "close": 205.4
+        },
+        {
+          "date": "2026-04-04",
+          "close": 205.8
+        },
+        {
+          "date": "2026-04-05",
+          "close": 206.2
+        },
+        {
+          "date": "2026-04-06",
+          "close": 206.6
+        },
+        {
+          "date": "2026-04-07",
+          "close": 207
+        },
+        {
+          "date": "2026-04-08",
+          "close": 207.4
+        },
+        {
+          "date": "2026-04-09",
+          "close": 207.8
+        },
+        {
+          "date": "2026-04-10",
+          "close": 208.2
+        },
+        {
+          "date": "2026-04-11",
+          "close": 208.6
+        },
+        {
+          "date": "2026-04-12",
+          "close": 209
+        },
+        {
+          "date": "2026-04-13",
+          "close": 209.4
+        },
+        {
+          "date": "2026-04-14",
+          "close": 209.8
+        },
+        {
+          "date": "2026-04-15",
+          "close": 210.2
+        },
+        {
+          "date": "2026-04-16",
+          "close": 210.6
+        },
+        {
+          "date": "2026-04-17",
+          "close": 211
+        },
+        {
+          "date": "2026-04-18",
+          "close": 211.4
+        },
+        {
+          "date": "2026-04-19",
+          "close": 211.8
+        },
+        {
+          "date": "2026-04-20",
+          "close": 212.2
+        },
+        {
+          "date": "2026-04-21",
+          "close": 212.6
+        },
+        {
+          "date": "2026-04-22",
+          "close": 213
+        },
+        {
+          "date": "2026-04-23",
+          "close": 213.4
+        },
+        {
+          "date": "2026-04-24",
+          "close": 213.8
+        },
+        {
+          "date": "2026-04-25",
+          "close": 214.2
+        },
+        {
+          "date": "2026-04-26",
+          "close": 214.6
+        },
+        {
+          "date": "2026-04-27",
+          "close": 215
+        },
+        {
+          "date": "2026-04-28",
+          "close": 215.4
+        },
+        {
+          "date": "2026-04-29",
+          "close": 215.8
+        },
+        {
+          "date": "2026-04-30",
+          "close": 216.2
+        },
+        {
+          "date": "2026-05-01",
+          "close": 216.6
+        }
+      ]
+    },
+    "web-subject-profile.json": null
+  }
+}

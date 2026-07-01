@@ -71,7 +71,7 @@ function compareText(left: string, right: string): number {
   return 0;
 }
 
-function canonicalRequestUrl(url: string): string {
+export function canonicalRequestUrl(url: string): string {
   try {
     const parsed = new URL(url);
     parsed.hash = "";

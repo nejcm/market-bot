@@ -1,0 +1,51 @@
+{
+  "entries": {
+    "playbook-selection|fixture-quick": [
+      {
+        "content": "{\"selections\":[]}",
+        "tokenEstimate": 10,
+        "costEstimateUsd": 0
+      }
+    ],
+    "specialist-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-aapl-deep specialist analysis\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "critique|fixture-quick": [
+      {
+        "content": "{\"critique\":\"equity-aapl-deep critique\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "final-synthesis|fixture-synthesis": [
+      {
+        "content": "{\"summary\":\"equity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\",\"keyFindings\":[{\"text\":\"AAPL has a current fixture market snapshot and verified close history.\",\"sourceIds\":[\"market-yahoo-equity-aapl\",\"verified-snapshot-AAPL\"]},{\"text\":\"Fixture news coverage is intentionally narrow for regression determinism.\",\"sourceIds\":[\"news-equity-1\"]}],\"bullCase\":[{\"text\":\"The fixture shows positive price momentum in the latest close sequence.\",\"sourceIds\":[\"verified-snapshot-AAPL\"]}],\"bearCase\":[{\"text\":\"The fixture omits live optional providers, limiting corroboration.\",\"sourceIds\":[\"news-equity-1\"]}],\"risks\":[{\"text\":\"Static cassette inputs can become stale versus live market conditions.\",\"sourceIds\":[\"market-yahoo-equity-aapl\"]}],\"catalysts\":[{\"text\":\"AAPL fixture news remains the only current catalyst input.\",\"sourceIds\":[\"news-equity-1\"]}],\"scenarios\":[{\"name\":\"Base\",\"description\":\"AAPL remains within a fixture-defined evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-aapl\"]}],\"dataGaps\":[\"Fixture replay uses static source cassettes.\"],\"predictions\":[]}",
+        "tokenEstimate": 50,
+        "costEstimateUsd": 0
+      },
+      {
+        "content": "{\"summary\":\"equity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\",\"keyFindings\":[{\"text\":\"AAPL has a current fixture market snapshot and verified close history.\",\"sourceIds\":[\"market-yahoo-equity-aapl\",\"verified-snapshot-AAPL\"]},{\"text\":\"Fixture news coverage is intentionally narrow for regression determinism.\",\"sourceIds\":[\"news-equity-1\"]}],\"bullCase\":[{\"text\":\"The fixture shows positive price momentum in the latest close sequence.\",\"sourceIds\":[\"verified-snapshot-AAPL\"]}],\"bearCase\":[{\"text\":\"The fixture omits live optional providers, limiting corroboration.\",\"sourceIds\":[\"news-equity-1\"]}],\"risks\":[{\"text\":\"Static cassette inputs can become stale versus live market conditions.\",\"sourceIds\":[\"market-yahoo-equity-aapl\"]}],\"catalysts\":[{\"text\":\"AAPL fixture news remains the only current catalyst input.\",\"sourceIds\":[\"news-equity-1\"]}],\"scenarios\":[{\"name\":\"Base\",\"description\":\"AAPL remains within a fixture-defined evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-aapl\"]}],\"dataGaps\":[\"Fixture replay uses static source cassettes.\"],\"predictions\":[]}",
+        "tokenEstimate": 50,
+        "costEstimateUsd": 0
+      }
+    ],
+    "instrument-evidence-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-aapl-deep instrument evidence\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "market-behavior-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-aapl-deep market behavior\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ]
+  }
+}

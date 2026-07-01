@@ -18,6 +18,11 @@
 - Add tests in the same change as the code. TDD preferred for fixes.
 - **AAA structure** (Arrange / Act / Assert) with descriptive names.
 - **Mock at the source adapter seam**, not at `fetch`.
+- Static run fixtures are the exception to the usual unit-test seam: they mock only HTTP `fetch`
+  and `ModelProvider.generate` so the real source adapters, cache, normalization, orchestration, and
+  report assembly run.
+- Keep fixture harness helpers under `tests/support/run-fixtures/`; tests should only load fixtures,
+  run them, scrub output, and assert invariants.
 - Do not loosen an assertion to make a flaky test pass — find the cause.
 
 ## Commits

@@ -10,10 +10,10 @@ import {
   predictionClaim,
   type ReportSearchScope,
 } from "./report-search-entries";
+import { readDepth } from "./run-artifact-projection";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { PredictionScore } from "./scoring/types";
-import { isRecord } from "./sources/guards";
 import type {
   ArtifactFileRow,
   PredictionRow,
@@ -22,15 +22,6 @@ import type {
   ScoreRow,
   SearchEntryRow,
 } from "./run-artifact-index-types";
-
-function readDepth(report: ResearchReport): string | undefined {
-  const { extras } = report;
-  if (!isRecord(extras)) {
-    return;
-  }
-  const value = extras.depth;
-  return typeof value === "string" ? value : undefined;
-}
 
 function sourceIdsJson(sourceIds: readonly string[]): string {
   return JSON.stringify(sourceIds);

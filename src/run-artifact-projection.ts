@@ -1,11 +1,13 @@
 import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } from "../app/types";
+import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { ReportSearchCandidate } from "./report-search-entries";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
-import { isRecord, parseStringArrayJson } from "./sources/guards";
+import { isRecord, parseStringArrayJson, readNumber, stringArrayValue } from "./sources/guards";
 
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SNIPPET_RADIUS = 72;
+const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
 
 // Local, non-trimming string reader for summary projection.
 // Values are preserved verbatim, unlike guards.readString which drops empty/whitespace.
@@ -19,7 +21,10 @@ function arrayCount(record: Record<string, unknown>, key: string): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
-function readDepth(report: Record<string, unknown>): string | undefined {
+// Shared with run-artifact-index-rows.ts: both read the same extras.depth field
+// Off a parsed report, one for the disk summary path (untyped Record) and one for the
+// Index row path (typed ResearchReport). The narrow parameter type accepts either.
+export function readDepth(report: { readonly extras?: unknown }): string | undefined {
   const { extras } = report;
   return isRecord(extras) ? readString(extras, "depth") : undefined;
 }
@@ -160,4 +165,164 @@ export function runSearchResultFromIndexRow(
     snippet: searchSnippet(row.text, query),
     sourceIds: parseStringArrayJson(row.source_ids_json),
   };
+}
+
+// The report-derived view projections below (scenarios, predictions, sources, data
+// Gap helpers) previously lived in app/report-artifact-view.ts. They are moved here
+// So all report-derived read projections share one module per ADR 0016; that file now
+// Re-exports them for existing app/API callers. Score/analytics-derived views (forecast
+// Disagreement, miss autopsies, prediction scores, target health) stay in
+// App/report-artifact-view.ts — they read score.json/missAutopsy.json/extras alongside
+// The report and are out of this phase's scope.
+
+export interface ScenarioView {
+  readonly name: string;
+  readonly description: string;
+  readonly sourceIds: readonly string[];
+}
+
+export function scenarios(report: Record<string, unknown> | undefined): readonly ScenarioView[] {
+  const value = report?.scenarios;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const name = readString(item, "name");
+      const description = readString(item, "description");
+      return name === undefined || description === undefined
+        ? []
+        : [{ name, description, sourceIds: stringArrayValue(item.sourceIds) }];
+    });
+}
+
+export interface PredictionView {
+  readonly id: string;
+  readonly claim: string;
+  readonly kind?: string;
+  readonly subject?: string;
+  readonly measurableAs?: string;
+  readonly probability?: number;
+  readonly horizonTradingDays?: number;
+  readonly sourceIds: readonly string[];
+}
+
+export function predictions(
+  report: Record<string, unknown> | undefined,
+): readonly PredictionView[] {
+  const value = report?.predictions;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const id = readString(item, "id");
+      const storedClaim = readString(item, "claim");
+      const measurableAs = readString(item, "measurableAs");
+      const claim =
+        measurableAs === undefined
+          ? storedClaim
+          : renderClaimForMeasurableAs(measurableAs, storedClaim);
+      const kind = readString(item, "kind");
+      const subject = readString(item, "subject");
+      const probability = readNumber(item, "probability");
+      const horizonTradingDays = readNumber(item, "horizonTradingDays");
+      return id === undefined || claim === undefined
+        ? []
+        : [
+            {
+              id,
+              claim,
+              ...(kind !== undefined ? { kind } : {}),
+              ...(subject !== undefined ? { subject } : {}),
+              ...(measurableAs !== undefined ? { measurableAs } : {}),
+              ...(probability !== undefined ? { probability } : {}),
+              ...(horizonTradingDays !== undefined ? { horizonTradingDays } : {}),
+              sourceIds: stringArrayValue(item.sourceIds),
+            },
+          ];
+    });
+}
+
+export interface SourceView {
+  readonly id: string;
+  readonly title: string;
+  readonly kind?: string;
+  readonly provider?: string;
+  readonly url?: string;
+}
+
+function readHttpUrl(record: Record<string, unknown>, key: string): string | undefined {
+  const value = readString(record, key);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function sources(report: Record<string, unknown> | undefined): readonly SourceView[] {
+  const value = report?.sources;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item) => {
+      const id = readString(item, "id");
+      const title = readString(item, "title");
+      const kind = readString(item, "kind");
+      const provider = readString(item, "provider");
+      const url = readHttpUrl(item, "url");
+      return id === undefined || title === undefined
+        ? []
+        : [
+            {
+              id,
+              title,
+              ...(kind !== undefined ? { kind } : {}),
+              ...(provider !== undefined ? { provider } : {}),
+              ...(url !== undefined ? { url } : {}),
+            },
+          ];
+    });
+}
+
+export interface SplitDataGaps {
+  readonly shortfalls: readonly string[];
+  readonly otherGaps: readonly string[];
+}
+
+export function splitDataGaps(gaps: readonly string[]): SplitDataGaps {
+  const shortfalls: string[] = [];
+  const otherGaps: string[] = [];
+
+  for (const gap of gaps) {
+    if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
+      shortfalls.push(gap);
+    } else {
+      otherGaps.push(gap);
+    }
+  }
+
+  return { shortfalls, otherGaps };
+}
+
+export function formatShortfallGap(gap: string): string {
+  if (!gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
+    return gap;
+  }
+
+  const message = gap.slice(PREDICTION_SHORTFALL_PREFIX.length).trimStart();
+  return message === "" ? gap : message;
 }

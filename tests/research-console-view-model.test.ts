@@ -37,6 +37,7 @@ import {
   runLabel,
   runPath,
   runTrend,
+  scenarios,
   sources,
   formatShortfallGap,
   splitDataGaps,
@@ -297,6 +298,22 @@ describe("research console app view model", () => {
       },
       { id: "s2", title: "Blocked" },
     ]);
+  });
+
+  test("extracts scenarios and drops entries missing a name or description", () => {
+    const report = {
+      scenarios: [
+        { name: "Bull", description: "Rally continues", sourceIds: ["s1", 7] },
+        { name: "No description" },
+        { description: "No name" },
+        "not a record",
+      ],
+    };
+
+    expect(scenarios(report)).toEqual([
+      { name: "Bull", description: "Rally continues", sourceIds: ["s1"] },
+    ]);
+    expect(scenarios({ scenarios: "not an array" })).toEqual([]);
   });
 
   test("groups structured search results by run", () => {

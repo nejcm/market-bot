@@ -1,4 +1,4 @@
-import { renderClaimForMeasurableAs } from "../src/forecast/observable";
+import { predictions, type PredictionView } from "../src/run-artifact-projection";
 
 export {
   extendedEvidenceItems,
@@ -8,22 +8,21 @@ export {
   type ExtendedEvidenceItemView,
 } from "../src/report-search-entries";
 
-export interface ScenarioView {
-  readonly name: string;
-  readonly description: string;
-  readonly sourceIds: readonly string[];
-}
-
-export interface PredictionView {
-  readonly id: string;
-  readonly claim: string;
-  readonly kind?: string;
-  readonly subject?: string;
-  readonly measurableAs?: string;
-  readonly probability?: number;
-  readonly horizonTradingDays?: number;
-  readonly sourceIds: readonly string[];
-}
+// Report-derived view projections (scenarios, predictions, sources, data gap helpers)
+// Live in src/run-artifact-projection.ts per ADR 0016; this module re-exports them so
+// Existing app/API callers keep their import paths. Score/analytics-derived views below
+// (forecast disagreement, miss autopsies, prediction scores, target health) stay local.
+export {
+  formatShortfallGap,
+  predictions,
+  scenarios,
+  sources,
+  splitDataGaps,
+  type PredictionView,
+  type ScenarioView,
+  type SourceView,
+  type SplitDataGaps,
+} from "../src/run-artifact-projection";
 
 export type PredictionScoreStatus =
   | "pending"
@@ -86,26 +85,11 @@ export interface ForecastGroup {
   readonly forecasts: readonly ScoredForecast[];
 }
 
-export interface SourceView {
-  readonly id: string;
-  readonly title: string;
-  readonly kind?: string;
-  readonly provider?: string;
-  readonly url?: string;
-}
-
-export interface SplitDataGaps {
-  readonly shortfalls: readonly string[];
-  readonly otherGaps: readonly string[];
-}
-
 export interface PredictionTargetHealth {
   readonly count: number;
   readonly target: number;
   readonly targetMet: boolean;
 }
-
-const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -116,86 +100,9 @@ function readString(record: Record<string, unknown>, key: string): string | unde
   return typeof value === "string" ? value : undefined;
 }
 
-function readHttpUrl(record: Record<string, unknown>, key: string): string | undefined {
-  const value = readString(record, key);
-  if (value === undefined) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function readNumber(record: Record<string, unknown>, key: string): number | undefined {
   const value = record[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readSourceIds(record: Record<string, unknown>): readonly string[] {
-  const { sourceIds } = record;
-  return Array.isArray(sourceIds)
-    ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
-    : [];
-}
-
-export function scenarios(report: Record<string, unknown> | undefined): readonly ScenarioView[] {
-  const value = report?.scenarios;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const name = readString(item, "name");
-      const description = readString(item, "description");
-      return name === undefined || description === undefined
-        ? []
-        : [{ name, description, sourceIds: readSourceIds(item) }];
-    });
-}
-
-export function predictions(
-  report: Record<string, unknown> | undefined,
-): readonly PredictionView[] {
-  const value = report?.predictions;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const id = readString(item, "id");
-      const storedClaim = readString(item, "claim");
-      const measurableAs = readString(item, "measurableAs");
-      const claim =
-        measurableAs === undefined
-          ? storedClaim
-          : renderClaimForMeasurableAs(measurableAs, storedClaim);
-      const kind = readString(item, "kind");
-      const subject = readString(item, "subject");
-      const probability = readNumber(item, "probability");
-      const horizonTradingDays = readNumber(item, "horizonTradingDays");
-      return id === undefined || claim === undefined
-        ? []
-        : [
-            {
-              id,
-              claim,
-              ...(kind !== undefined ? { kind } : {}),
-              ...(subject !== undefined ? { subject } : {}),
-              ...(measurableAs !== undefined ? { measurableAs } : {}),
-              ...(probability !== undefined ? { probability } : {}),
-              ...(horizonTradingDays !== undefined ? { horizonTradingDays } : {}),
-              sourceIds: readSourceIds(item),
-            },
-          ];
-    });
 }
 
 function readPredictionScoreStatus(
@@ -430,58 +337,6 @@ export function forecastRollup(items: readonly ScoredForecast[]): ForecastRollup
     voided,
     pending: items.length - resolvedItems.length,
   };
-}
-
-export function sources(report: Record<string, unknown> | undefined): readonly SourceView[] {
-  const value = report?.sources;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item) => isRecord(item))
-    .flatMap((item) => {
-      const id = readString(item, "id");
-      const title = readString(item, "title");
-      const kind = readString(item, "kind");
-      const provider = readString(item, "provider");
-      const url = readHttpUrl(item, "url");
-      return id === undefined || title === undefined
-        ? []
-        : [
-            {
-              id,
-              title,
-              ...(kind !== undefined ? { kind } : {}),
-              ...(provider !== undefined ? { provider } : {}),
-              ...(url !== undefined ? { url } : {}),
-            },
-          ];
-    });
-}
-
-export function splitDataGaps(gaps: readonly string[]): SplitDataGaps {
-  const shortfalls: string[] = [];
-  const otherGaps: string[] = [];
-
-  for (const gap of gaps) {
-    if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
-      shortfalls.push(gap);
-    } else {
-      otherGaps.push(gap);
-    }
-  }
-
-  return { shortfalls, otherGaps };
-}
-
-export function formatShortfallGap(gap: string): string {
-  if (!gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
-    return gap;
-  }
-
-  const message = gap.slice(PREDICTION_SHORTFALL_PREFIX.length).trimStart();
-  return message === "" ? gap : message;
 }
 
 function readDepthProfileTarget(report?: Record<string, unknown>): number | undefined {

@@ -182,7 +182,8 @@ bun run app      # build and serve Research Console at 127.0.0.1:4173
 bun run app:dev  # start API + Vite dev server
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for hooks, commit format, and CI expectations.
+See [docs/testing.md](./docs/testing.md) for test setup, fixture replay commands, and manual eval
+mode. See [CONTRIBUTING.md](./CONTRIBUTING.md) for hooks, commit format, and CI expectations.
 
 ## Project layout
 
@@ -203,6 +204,7 @@ assets/        Logo and favicons
 - [docs/architecture.md](./docs/architecture.md) — subsystems and data flow
 - [`.env.example`](./.env.example) — environment variable template
 - [docs/configuration.md](./docs/configuration.md) — configuration reference and provider notes
+- [docs/testing.md](./docs/testing.md) — test commands and fixture replay workflows
 - [docs/conventions.md](./docs/conventions.md) — code style, testing, commits
 - [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index (many ADR files are superseded redirects)
 - [SECURITY.md](./SECURITY.md) — vulnerability reporting

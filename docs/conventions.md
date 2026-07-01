@@ -14,6 +14,9 @@
 
 ## Testing
 
+See [testing.md](./testing.md) for test commands, fixture replay setup, golden refresh, eval mode,
+and fixture recording.
+
 - Tests live in `tests/`, named `*.test.ts`, run with `bun test`.
 - Add tests in the same change as the code. TDD preferred for fixes.
 - **AAA structure** (Arrange / Act / Assert) with descriptive names.

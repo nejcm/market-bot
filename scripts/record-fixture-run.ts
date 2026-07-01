@@ -40,6 +40,23 @@ function commandArgv(raw: readonly string[]): readonly string[] {
   return raw.filter((arg) => arg !== "--brief");
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function removeTempRoot(tempRoot: string, runError: unknown): Promise<void> {
+  try {
+    await rm(tempRoot, { recursive: true, force: true });
+  } catch (cleanupError) {
+    if (runError === undefined) {
+      throw cleanupError;
+    }
+    process.stderr.write(
+      `Failed to remove fixture recorder temp dir ${tempRoot}: ${errorMessage(cleanupError)}\n`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const [fixtureName, ...rawCommand] = process.argv.slice(2);
   if (fixtureName === undefined || rawCommand.length === 0) {
@@ -51,6 +68,7 @@ async function main(): Promise<void> {
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
   const command = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
   const tempRoot = await mkdtemp(join(tmpdir(), `market-bot-record-${fixtureName}-`));
+  let runError: unknown = undefined;
   try {
     const now = new Date();
     const resolvedConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
@@ -124,8 +142,11 @@ async function main(): Promise<void> {
       knownSecretValues(process.env),
     );
     process.stdout.write(`${fixtureDir}\n`);
+  } catch (error) {
+    runError = error;
+    throw error;
   } finally {
-    await rm(tempRoot, { recursive: true, force: true });
+    await removeTempRoot(tempRoot, runError);
   }
 }
 

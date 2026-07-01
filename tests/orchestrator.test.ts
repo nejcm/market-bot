@@ -2023,6 +2023,46 @@ describe("runResearchJob", () => {
     });
   });
 
+  test("skips completion when thematic research has no prediction proxy", async () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI capex",
+      subjectKey: "ai-infrastructure",
+      depth: "brief",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const result = await runResearchJob({
+      command,
+      config,
+      provider: providerReturning(
+        JSON.stringify({
+          summary: "AI infrastructure evidence is sourced.",
+          keyFindings: [{ text: "NVDA is liquid.", sourceIds: ["market-nvda"] }],
+          bullCase: [],
+          bearCase: [],
+          risks: [],
+          catalysts: [],
+          scenarios: [],
+          dataGaps: [],
+          predictions: [],
+        }),
+      ),
+      collectedSources: collectedSourceBundle({
+        resolvedSubject,
+        marketSnapshots: [marketSnapshot({ sourceId: "market-nvda", symbol: "NVDA" })],
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.trace.predictionCompletion).toBeUndefined();
+    expect(result.report.dataGaps).toContain(
+      "researchProxyForecastGate: subject ai-infrastructure has no listed prediction proxy; predictions cannot be emitted",
+    );
+  });
+
   test("persists ticker valuation comps sidecar", async () => {
     const dataDir = join(tmpdir(), `market-bot-valuation-comps-${Date.now()}`);
     dataDirs.push(dataDir);
@@ -2967,6 +3007,7 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
     expect(result.report.dataGaps).toContain("No usable news sources were collected");
     expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
+    expect(result.trace.predictionCompletion).toBeUndefined();
   });
 
   test("does not cap Evidence Quality for missing Market Context", async () => {
@@ -3194,7 +3235,7 @@ describe("runResearchJob", () => {
     expect(result.report.evidenceQuality).toBe("low");
   });
 
-  test("ships with a shortfall gap without reprompting when predictions fall below target", async () => {
+  test("attempts completion once and keeps the shortfall when no candidate is returned", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -3211,7 +3252,7 @@ describe("runResearchJob", () => {
             catalysts: [],
             scenarios: [],
             confidence: "medium",
-            dataGaps: [],
+            dataGaps: ["A fifth prediction was not emitted because evidence was weak."],
             predictions: [],
           }),
           tokenEstimate: 100,
@@ -3233,11 +3274,23 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    // The count is a soft target (ADR 0004); a clean below-target result ships unrepaired.
-    expect(prompts.filter((prompt) => prompt.stage === "final-synthesis")).toHaveLength(1);
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    expect(finalPrompts).toHaveLength(2);
+    expect(finalPrompts[1]?.predictionCompletion).toMatchObject({
+      requestedCount: 2,
+      existingPredictions: [],
+    });
     expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      initialCount: 0,
+      targetCount: 2,
+      acceptedPredictionIds: [],
+      outcome: "no-eligible-candidates",
+    });
     expect(result.report.predictions).toHaveLength(0);
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+    expect(result.report.dataGaps.filter((gap) => gap.includes("prediction"))).toEqual([
+      "predictionShortfall: emitted 0 of 2 target predictions; evidence did not support more",
+    ]);
   });
 
   test("records redundancy trims without reprompting when post-trim count meets target", async () => {
@@ -3260,7 +3313,7 @@ describe("runResearchJob", () => {
         finalCalls += 1;
         if (finalCalls === 1) {
           // Emit 4 predictions; one is a redundant adjacent → trimmed to 3.
-          // Deep market-overview-equity target is 3, so 3 >= 3 — no replacement retry.
+          // Deep market-overview-equity target is 3, so 3 >= 3 — no completion pass.
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
@@ -3320,7 +3373,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        throw new Error("at-target redundancy trims must not retry final synthesis");
+        throw new Error("at-target redundancy trims must not trigger completion");
       },
     };
 
@@ -3429,7 +3482,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        throw new Error("redundancy-only trims must not retry final synthesis");
+        throw new Error("at-target redundancy trims must not trigger completion");
       },
     };
 
@@ -3460,7 +3513,7 @@ describe("runResearchJob", () => {
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
   });
 
-  test("fires exactly one replacement retry when redundant trim drops below target", async () => {
+  test("fires exactly one completion pass when redundant trim drops below target", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;
     const provider: ModelProvider = {
@@ -3521,7 +3574,7 @@ describe("runResearchJob", () => {
         }
 
         if (finalCalls === 2) {
-          // Replacement attempt returns 3 distinct predictions → reaches target.
+          // Completion response includes the existing prediction plus two additions.
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
@@ -3540,7 +3593,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        throw new Error("replacement retry must fire at most once");
+        throw new Error("completion pass must fire at most once");
       },
     };
 
@@ -3561,21 +3614,27 @@ describe("runResearchJob", () => {
     const redundancyReason =
       "Prediction pred-adjacent: redundant direction forecast for SPY at 6 trading days (within 2 trading days of accepted 5d)";
 
-    // Exactly one replacement attempt (2 total final-synthesis calls).
     expect(finalPrompts).toHaveLength(2);
-    // First call has no repair prompt.
     expect(finalPrompts[0]?.predictionRepromptErrors).toBeUndefined();
-    // Second call carries the trim reasons and predictionRepair instruction.
-    expect(finalPrompts[1]?.predictionRepromptErrors).toContainEqual(redundancyReason);
-    expect(finalPrompts[1]?.predictionRepair).toBeDefined();
-    // Result ships the broadened replacement set.
+    expect(finalPrompts[1]?.predictionRepromptErrors).toBeUndefined();
+    expect(finalPrompts[1]?.predictionCompletion).toMatchObject({
+      requestedCount: 2,
+      existingPredictions: [{ id: "pred-1" }],
+    });
     expect(result.report.predictions).toHaveLength(3);
-    expect(result.trace.predictionRetryErrors).toContainEqual(redundancyReason);
-    expect(result.trace.predictionReplacementAttempted).toBe(true);
+    expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
+    expect(result.trace.predictionTrimWarnings).toContainEqual(redundancyReason);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      initialCount: 1,
+      targetCount: 3,
+      acceptedPredictionIds: ["pred-2", "pred-3"],
+      rejectedCandidateCount: 1,
+      outcome: "improved",
+    });
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
   });
 
-  test("accepts replacement result without second retry when still below target", async () => {
+  test("accepts partial completion without a second pass", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;
     const provider: ModelProvider = {
@@ -3635,7 +3694,7 @@ describe("runResearchJob", () => {
         }
 
         if (finalCalls === 2) {
-          // Replacement emits 2 (no redundancy) — still below target 3 but accepted.
+          // One duplicate and one addition leave the report below target.
           return {
             content: JSON.stringify({
               summary: "Evidence is sourced.",
@@ -3654,7 +3713,7 @@ describe("runResearchJob", () => {
           };
         }
 
-        throw new Error("residual shortfall must not trigger a second replacement retry");
+        throw new Error("residual shortfall must not trigger a second completion pass");
       },
     };
 
@@ -3673,15 +3732,17 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
 
-    // Exactly one replacement attempt, no second retry.
     expect(finalPrompts).toHaveLength(2);
-    expect(result.trace.predictionReplacementAttempted).toBe(true);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      acceptedPredictionIds: ["pred-2"],
+      outcome: "improved",
+    });
     expect(result.report.predictions).toHaveLength(2);
     // Shortfall gap present because 2 < 3 target.
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
-  test("does not retry replacement when below target without redundant trim", async () => {
+  test("attempts completion for a clean shortfall without replacing accepted predictions", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -3732,11 +3793,239 @@ describe("runResearchJob", () => {
 
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
 
-    // Clean below-target: no redundancy → no replacement retry (ADR 0004).
-    expect(finalPrompts).toHaveLength(1);
-    expect(result.trace.predictionReplacementAttempted).toBeUndefined();
+    expect(finalPrompts).toHaveLength(2);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      acceptedPredictionIds: [],
+      outcome: "no-eligible-candidates",
+    });
     expect(result.report.predictions).toHaveLength(1);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+  });
+
+  test("merges only informative valid completion candidates and preserves the base report", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        finalCalls += 1;
+        if (finalCalls === 1) {
+          return {
+            content: JSON.stringify({
+              summary: "Base report remains authoritative.",
+              keyFindings: [{ text: "SPY evidence is sourced.", sourceIds: ["market-aapl"] }],
+              bullCase: [],
+              bearCase: [],
+              risks: [],
+              catalysts: [],
+              scenarios: [],
+              dataGaps: [],
+              predictions: [mockPredictions(1)[0]],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return {
+          content: JSON.stringify({
+            summary: "This completion prose must be ignored.",
+            predictions: [
+              mockPredictions(1)[0],
+              {
+                ...(mockPredictions(2)[1] as Record<string, unknown>),
+                id: "near-low",
+                probability: 0.45,
+              },
+              {
+                ...(mockPredictions(3)[2] as Record<string, unknown>),
+                id: "near-high",
+                probability: 0.55,
+              },
+              {
+                ...(mockPredictions(2, "AAPL")[1] as Record<string, unknown>),
+                id: "off-subject",
+              },
+              {
+                ...(mockPredictions(4)[3] as Record<string, unknown>),
+                id: "unknown-source",
+                sourceIds: ["missing-source"],
+              },
+              {
+                id: "shorter-collision",
+                kind: "direction",
+                subject: "SPY",
+                measurableAs: "close(SPY, +4) > close(SPY, 0)",
+                horizonTradingDays: 4,
+                probability: 0.6,
+                sourceIds: ["market-aapl"],
+              },
+              {
+                id: "valid-range",
+                kind: "range",
+                subject: "SPY",
+                measurableAs: "close(SPY, +10) outside [450, 550]",
+                horizonTradingDays: 10,
+                probability: 0.65,
+                sourceIds: ["market-aapl"],
+              },
+            ],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const [, completionPrompt] = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    expect(Object.keys((completionPrompt?.requiredShape ?? {}) as object)).toEqual(["predictions"]);
+    expect(result.report.summary).toBe("Base report remains authoritative.");
+    expect(result.report.predictions.map((prediction) => prediction.id)).toEqual([
+      "pred-1",
+      "valid-range",
+    ]);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      acceptedPredictionIds: ["valid-range"],
+      rejectedCandidateCount: 6,
+      outcome: "improved",
+    });
+    expect(result.trace.predictionCompletion?.rejectionReasons.join(" ")).toContain(
+      "near-base-rate",
+    );
+    expect(result.trace.predictionCompletion?.rejectionReasons.join(" ")).toContain(
+      "unknown sourceId",
+    );
+  });
+
+  test("keeps the accepted report when completion fails", async () => {
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        finalCalls += 1;
+        if (finalCalls === 2) {
+          throw new Error("completion unavailable");
+        }
+        return {
+          content: JSON.stringify({
+            summary: "Base report remains available.",
+            keyFindings: [{ text: "SPY evidence is sourced.", sourceIds: ["market-aapl"] }],
+            bullCase: [],
+            bearCase: [],
+            risks: [],
+            catalysts: [],
+            scenarios: [],
+            dataGaps: [],
+            predictions: [mockPredictions(1)[0]],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.summary).toBe("Base report remains available.");
+    expect(result.report.predictions.map((prediction) => prediction.id)).toEqual(["pred-1"]);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      acceptedPredictionIds: [],
+      outcome: "failed",
+      failureReason: "completion unavailable",
+    });
+  });
+
+  test("keeps the accepted report when completion returns malformed JSON", async () => {
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage !== "final-synthesis") {
+          return {
+            content: emptySelectionStageReport(prompt.stage),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        finalCalls += 1;
+        return {
+          content:
+            finalCalls === 2
+              ? "{not-json"
+              : JSON.stringify({
+                  summary: "Base report remains available.",
+                  keyFindings: [{ text: "SPY evidence is sourced.", sourceIds: ["market-aapl"] }],
+                  bullCase: [],
+                  bearCase: [],
+                  risks: [],
+                  catalysts: [],
+                  scenarios: [],
+                  dataGaps: [],
+                  predictions: [mockPredictions(1)[0]],
+                }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "deep" }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.predictions.map((prediction) => prediction.id)).toEqual(["pred-1"]);
+    expect(result.trace.predictionCompletion?.outcome).toBe("failed");
+    expect(result.trace.predictionCompletion?.failureReason).toContain("JSON");
   });
 
   test("re-prompts synthesis once when report findings omit source IDs", async () => {

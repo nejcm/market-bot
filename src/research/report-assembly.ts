@@ -669,6 +669,16 @@ function withoutDeterministicGapRestatements(
   );
 }
 
+function withoutModelPredictionCountGaps(modelGaps: readonly string[]): readonly string[] {
+  return modelGaps.filter((gap) => {
+    const normalized = gap.toLowerCase();
+    return !(
+      /\bpredictions?\b/u.test(normalized) &&
+      /\b(?:count|emit|emits|emitted|emitting|fewer|more|shortfall|target)\b/u.test(normalized)
+    );
+  });
+}
+
 const NUMERIC_CLAIM_PATTERN = /(?:[$€£]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
 const CURRENT_SNAPSHOT_CLAIM_PATTERN =
@@ -796,7 +806,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   const dataGapsRaw = uniqueDataGaps([
     ...withoutDeterministicGapRestatements(
       withoutModelProviderGapDuplicates(
-        nonEmptyStringArrayValue(payload.dataGaps),
+        withoutModelPredictionCountGaps(nonEmptyStringArrayValue(payload.dataGaps)),
         collectedSources.sourceGaps,
       ),
       deterministicGaps,

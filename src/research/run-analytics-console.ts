@@ -68,6 +68,11 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
     `Run quality — ${analytics.jobType}${subjectLabel(analytics)} (${analytics.runId})`,
     predictionLine(predictions),
   ];
+  if (predictions.completion !== undefined) {
+    lines.push(
+      `  Completion: ${predictions.completion.outcome} · ${String(predictions.completion.acceptedCount)} accepted, ${String(predictions.completion.rejectedCount)} rejected`,
+    );
+  }
 
   if (evidenceLanes !== undefined) {
     lines.push(evidenceLaneLine(evidenceLanes));

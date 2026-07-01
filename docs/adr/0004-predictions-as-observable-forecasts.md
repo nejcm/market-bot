@@ -25,11 +25,17 @@ must share one contract.
   forecasts mean `P(B | A)`; a false antecedent produces a terminal `voided` result excluded from
   Brier and reliability metrics.
 - Earnings forecasts anchor their origin and due date to the declared earnings event and timing.
-- Prediction count is a soft `targetPredictions`, not a quota. Shortfalls are disclosed. One
-  replacement-only retry may follow a redundancy trim; models must not pad with 0.5 forecasts.
+- Prediction count is a soft `targetPredictions`, not a quota. After a high- or medium-evidence
+  report is valid but below target, one best-effort, predictions-only Forecast Completion Pass may
+  add candidates. It preserves the accepted report and Predictions, never retries itself, and
+  leaves any remaining shortfall deterministically disclosed.
+- Completion candidates must pass the existing observable, citation, subject, and redundancy
+  gates and must sit outside the inclusive 0.45-0.55 Near-Base-Rate band. Primary-synthesis
+  Predictions inside that band remain valid; models must not pad either path with coin flips.
 - Applicable calibration slices with sufficient resolved samples may add prompt-time guidance to
-  emit fewer, evidence-backed forecasts when Brier skill is negative. This guidance does not reject
-  emitted forecasts or make prediction count a hard target.
+  temper probability confidence and favor well-measured shapes when Brier skill is negative.
+  Calibration does not independently suppress count, reject emitted forecasts, or make prediction
+  count a hard target.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
   listed proxy and emits no predictions when no proxy resolves.
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast
@@ -55,6 +61,7 @@ price adjustment, or calendar semantics requires a scoring-version migration.
 
 - Displayed claims and scored events cannot diverge when the DSL parses.
 - Fewer supported forecasts are preferred to artificial calibration volume.
+- Completion failures are non-fatal and retain the already-valid report.
 - Legacy artifacts retain stored claims and legacy score semantics.
 - Calibration consumers must interpret current Brier skill within the limitations above.
 

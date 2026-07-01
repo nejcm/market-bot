@@ -89,11 +89,15 @@ A Prediction whose scored event is conditional on an earlier observable event. I
 
 ## Near-Base-Rate Prediction
 
-An emitted Prediction whose stated probability sits within a small fixed band of 0.5 (a coin flip), labeled as analytics-only forecast-quality telemetry. It measures stated confidence after generation and is distinct from forecast-kind priority, which shapes generation by favoring better-measured kinds over bare `direction`. It is never a rejection gate and does not change prediction-count or horizon policy; it is not investment conviction, model endorsement, or a trade signal.
+An emitted Prediction whose stated probability sits within a small fixed band of 0.5 (a coin flip), labeled as forecast-quality telemetry. It remains valid in primary synthesis, but an optional Forecast Completion Pass does not merge Near-Base-Rate candidates because they add count without informative coverage. It is not investment conviction, model endorsement, or a trade signal.
 
 ## Forecast-Shape Diversity Guidance
 
-Soft prompt-time guidance that enumerates distinct forecast shapes (direction, relative, range, volatility, earnings, conditional) available from deterministic context on deep instrument runs. It encourages exploring shape and horizon variety before stopping but does not change the soft-target semantics of `targetPredictions`; a below-target result still ships via `predictionShortfall`. It is not a validation gate, rejection reason, or reprompt trigger.
+Soft prompt-time guidance that enumerates distinct forecast shapes (direction, relative, range, volatility, earnings, conditional) available from deterministic context on deep instrument runs. It encourages exploring shape and horizon variety before stopping but does not change the soft-target semantics of `targetPredictions`. It is not a validation gate or rejection reason.
+
+## Forecast Completion Pass
+
+One best-effort, predictions-only model pass after a high- or medium-evidence report is valid but remains below its soft Prediction target. It preserves the report and accepted Predictions, merging only additional valid, cited, on-subject, non-redundant, non-Near-Base-Rate candidates; failure leaves a deterministic Prediction Shortfall.
 
 ## Prediction Subject
 
@@ -105,7 +109,7 @@ A research-only evidence signal that measures how much configured same-provider 
 
 ## Calibration
 
-An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. Negative applicable calibration with sufficient resolved samples can guide prompt-time forecast selectivity toward fewer, evidence-backed Predictions outside the Near-Base-Rate band, with any count shortfall disclosed. It never rejects an emitted Prediction or authorizes confidence inflation. It describes forecast accuracy; it is not investment conviction, model endorsement, or a trade signal.
+An aggregate measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, and reliability bins. Applicable calibration guides probability discipline and forecast-shape selection, but does not determine whether current evidence supports a Prediction or independently suppress Prediction count. It never rejects an emitted Prediction or authorizes confidence inflation; it is not investment conviction, model endorsement, or a trade signal.
 
 ## Regime-Sliced Calibration
 

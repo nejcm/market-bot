@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
-import {
-  isMarketRegimeLabel,
-  marketUpdateHorizonBucket,
-  NEAR_BASE_RATE_BAND,
-} from "../domain/types";
+import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "../scoring/calibration";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
@@ -316,10 +312,8 @@ export function buildCalibrationBlock(
         `  ${label}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)})`,
       );
     }
-    const bandLow = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
-    const bandHigh = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
     lines.push(
-      `Applicable calibration is negative: emit only evidence-backed forecasts whose probability is outside the ${bandLow}-${bandHigh} near-base-rate band. Prefer fewer forecasts plus predictionShortfall over near-0.5 padding. Do not inflate confidence just to escape the band.`,
+      `Applicable calibration is negative: treat prior probabilities as a warning to stay evidence-led and temper confidence. Do not treat calibration alone as evidence that a current forecast is unavailable or as a reason to suppress the prediction count. Do not inflate confidence to avoid a near-base-rate probability.`,
     );
   }
   return lines.length > 0 ? lines.join("\n") : undefined;

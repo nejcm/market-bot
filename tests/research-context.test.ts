@@ -715,7 +715,7 @@ describe("buildStagePrompt", () => {
     // Per-kind slice (direction) and per-horizon bucket (1-5d) are surfaced as directives.
     expect(block).toContain("direction");
     expect(block).toContain("1-5d");
-    expect(block).not.toContain("emit only evidence-backed forecasts");
+    expect(block).not.toContain("Do not treat calibration alone");
   });
 
   test("injects current-regime calibration only at the sample floor", () => {
@@ -767,8 +767,7 @@ describe("buildStagePrompt", () => {
 
     expect(parsed.evidence?.priorCalibration).toContain("Current-regime calibration (mixed");
     expect(parsed.evidence?.priorCalibration).toContain("n=5");
-    expect(parsed.evidence?.priorCalibration).toContain("emit only evidence-backed forecasts");
-    expect(parsed.evidence?.priorCalibration).toContain("predictionShortfall");
+    expect(parsed.evidence?.priorCalibration).toContain("Do not treat calibration alone");
     expect(parsed.evidence?.priorCalibration).not.toContain("reject");
     expect(parsed.evidence?.priorCalibration).not.toContain("trim");
     expect(parsed.evidence?.priorCalibration).not.toContain("retry");

@@ -103,6 +103,25 @@ describe("run analytics console", () => {
     expect(output).toContain("1 informative, 2 near base rate (below signal floor)");
   });
 
+  test("renders completion counters when present", () => {
+    const analytics = baseAnalytics();
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      predictions: {
+        ...analytics.predictions,
+        completion: {
+          attempted: true,
+          initialCount: 2,
+          acceptedCount: 2,
+          rejectedCount: 1,
+          outcome: "improved",
+        },
+      },
+    });
+
+    expect(output).toContain("Completion: improved · 2 accepted, 1 rejected");
+  });
+
   test("renders evidence lanes with a limiting-gap note", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({

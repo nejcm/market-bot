@@ -478,6 +478,17 @@ export interface Prediction {
   readonly sourceIds: readonly string[];
 }
 
+export interface PredictionCompletionAudit {
+  readonly attempted: true;
+  readonly initialCount: number;
+  readonly targetCount: number;
+  readonly acceptedPredictionIds: readonly string[];
+  readonly rejectedCandidateCount: number;
+  readonly rejectionReasons: readonly string[];
+  readonly outcome: "improved" | "no-eligible-candidates" | "failed";
+  readonly failureReason?: string;
+}
+
 export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
 
 export type MarketRegimeLabel = (typeof MARKET_REGIME_LABELS)[number];
@@ -596,6 +607,8 @@ export interface RunTrace {
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionTrimWarnings?: readonly string[];
+  readonly predictionCompletion?: PredictionCompletionAudit;
+  /** Legacy artifacts only. New runs write predictionCompletion. */
   readonly predictionReplacementAttempted?: boolean;
   readonly predictionErrors?: readonly string[];
   readonly reportValidationRetryErrors?: readonly string[];

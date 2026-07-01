@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NEAR_BASE_RATE_BAND } from "../src/domain/types";
 import {
   buildCalibrationBlock,
   loadCalibrationContext,
@@ -98,13 +97,10 @@ describe("buildCalibrationBlock", () => {
     "adds selectivity guidance and evidence for an actionable negative %s slice",
     (_name, triggerLabel, calibration) => {
       const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
-      const bandLow = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
-      const bandHigh = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
-
       expect(block).toContain(`${triggerLabel}: skill -0.20 (Brier 0.300, n=5)`);
-      expect(block).toContain("emit only evidence-backed forecasts");
-      expect(block).toContain(`outside the ${bandLow}-${bandHigh} near-base-rate band`);
-      expect(block).toContain("fewer forecasts plus predictionShortfall");
+      expect(block).toContain("temper confidence");
+      expect(block).toContain("Do not treat calibration alone");
+      expect(block).toContain("reason to suppress the prediction count");
       expect(block).toContain("Do not inflate confidence");
     },
   );
@@ -117,7 +113,7 @@ describe("buildCalibrationBlock", () => {
   ])("omits selectivity guidance for a %s slice", (_name, calibration) => {
     const block = buildCalibrationBlock(calibration, command, calibrationRunContext());
 
-    expect(block ?? "").not.toContain("emit only evidence-backed forecasts");
+    expect(block ?? "").not.toContain("Do not treat calibration alone");
   });
 
   test("uses the depth profile default forecast horizon", () => {
@@ -127,7 +123,7 @@ describe("buildCalibrationBlock", () => {
       calibrationRunContext(15),
     );
 
-    expect(block).toContain("emit only evidence-backed forecasts");
+    expect(block).toContain("Do not treat calibration alone");
   });
 });
 

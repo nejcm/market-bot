@@ -1,8 +1,15 @@
 import type { ResearchCommand } from "../cli/args";
-import type { ResearchReport, Source } from "../domain/types";
+import {
+  NEAR_BASE_RATE_BAND,
+  type Prediction,
+  type PredictionCompletionAudit,
+  type ResearchReport,
+  type Source,
+} from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import type { StageLabel } from "./prompt-loader";
-import type { ResearchContext } from "./research-context";
+import type { PredictionCompletionPrompt, ResearchContext } from "./research-context";
+import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
   assembleResearchReport,
   parseModelPayload,
@@ -21,6 +28,7 @@ export interface StageReprompt {
   readonly predictionErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
+  readonly predictionCompletion?: PredictionCompletionPrompt;
 }
 
 interface FinalSynthesisState {
@@ -59,7 +67,7 @@ export interface SynthesizeReportUntilValidResult {
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
-  readonly predictionReplacementAttempted: boolean;
+  readonly predictionCompletion?: PredictionCompletionAudit;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
 }
@@ -73,40 +81,49 @@ export async function synthesizeReportUntilValid(
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
   });
+  const validated = await validateBaseReport(input, predictionProgress);
+  const completion = await runPredictionCompletion(input, validated.progress, validated.report);
+  const report = buildReport(input, completion.progress.state);
+  return {
+    report,
+    stageOutputs: completion.progress.stageOutputs,
+    predictionRetryErrors: completion.progress.predictionRetryErrors,
+    predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
+    ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
+    predictionErrors: validated.progress.state.predResult.errors,
+    reportValidationErrors: validated.reportValidationErrors,
+  };
+}
 
-  /*
-   * After hard-error retries settle, check whether a redundant trim dropped the
-   * prediction count below target. If so, fire exactly one replacement attempt
-   * through the existing predictionRepair path (ADR 0004 carve-out).
-   */
-  const replacementResult = await runRedundantTrimReplacement(input, predictionProgress);
+async function validateBaseReport(
+  input: SynthesizeReportUntilValidInput,
+  progress: SynthesisProgress,
+): Promise<{
+  readonly progress: SynthesisProgress;
+  readonly report: ResearchReport;
+  readonly reportValidationErrors: readonly string[];
+}> {
   let reportValidationErrors: readonly string[] = [];
-
   try {
-    const report = buildReport(input, replacementResult.progress.state);
     return {
-      report,
-      stageOutputs: replacementResult.progress.stageOutputs,
-      predictionRetryErrors: replacementResult.progress.predictionRetryErrors,
-      predictionTrimWarnings: predictionTrimWarnings(replacementResult.progress.state.predResult),
-      predictionReplacementAttempted: replacementResult.attempted,
-      predictionErrors: replacementResult.progress.state.predResult.errors,
+      progress,
+      report: buildReport(input, progress.state),
       reportValidationErrors,
     };
   } catch (error: unknown) {
     reportValidationErrors = [errorMessage(error)];
   }
 
-  const reportRetryPredictionErrors = replacementResult.progress.state.predResult.errors;
+  const reportRetryPredictionErrors = progress.state.predResult.errors;
   const validationState = await runAndReadFinalSynthesis(input, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
-    stageOutputs: [...replacementResult.progress.stageOutputs, validationState.output],
+    stageOutputs: [...progress.stageOutputs, validationState.output],
     predictionRetryErrors: uniqueStrings([
-      ...replacementResult.progress.predictionRetryErrors,
+      ...progress.predictionRetryErrors,
       ...reportRetryPredictionErrors,
     ]),
   };
@@ -127,14 +144,9 @@ export async function synthesizeReportUntilValid(
     };
   }
 
-  const report = buildReport(input, validationProgress.state);
   return {
-    report,
-    stageOutputs: validationProgress.stageOutputs,
-    predictionRetryErrors: validationProgress.predictionRetryErrors,
-    predictionTrimWarnings: predictionTrimWarnings(validationProgress.state.predResult),
-    predictionReplacementAttempted: replacementResult.attempted,
-    predictionErrors: validationProgress.state.predResult.errors,
+    progress: validationProgress,
+    report: buildReport(input, validationProgress.state),
     reportValidationErrors,
   };
 }
@@ -146,12 +158,6 @@ async function runPredictionReprompts(
   return Array.from({ length: input.maxPredictionReprompts }).reduce<Promise<SynthesisProgress>>(
     async (progressPromise) => {
       const progress = await progressPromise;
-      /*
-       * The prediction count is a soft target (ADR 0004), not a hard floor: a
-       * below-target result is disclosed as a predictionShortfall data gap during
-       * report assembly, never repaired by reprompting for more. Prediction trims
-       * are telemetry, not retryable validation errors.
-       */
       const retryErrors = progress.state.predResult.errors;
       if (retryErrors.length === 0) {
         return progress;
@@ -185,45 +191,205 @@ async function runAndReadFinalSynthesis(
   return { output, payload, predResult };
 }
 
-interface RedundantTrimReplacementResult {
+interface PredictionCompletionResult {
   readonly progress: SynthesisProgress;
-  readonly attempted: boolean;
+  readonly audit?: PredictionCompletionAudit;
 }
 
-/*
- * After hard-error retries settle, fire at most one replacement attempt when a
- * redundant trim dropped the emitted prediction count below targetPredictions.
- *
- * Rules (ADR 0004 carve-out):
- * - At most one attempt — separate from maxPredictionReprompts (hard errors).
- * - Redundant trim warnings are passed as predictionErrors to trigger the
- *   existing buildPredictionRepairInstruction guidance.
- * - If the replacement re-introduces redundancy or doesn't improve, accept and stop.
- * - A clean below-target result (no redundant trim) is never retried here.
- */
-async function runRedundantTrimReplacement(
+function completionSubjects(
   input: SynthesizeReportUntilValidInput,
-  progress: SynthesisProgress,
-): Promise<RedundantTrimReplacementResult> {
-  const trimWarnings = predictionTrimWarnings(progress.state.predResult);
-  const emittedCount = progress.state.predResult.predictions.length;
-  const target = input.context.depthProfile.targetPredictions;
-
-  if (trimWarnings.length === 0 || emittedCount >= target) {
-    return { progress, attempted: false };
+): ReadonlySet<string> | undefined {
+  if (input.command.jobType !== "research") {
+    return input.allowedSubjects !== undefined && input.allowedSubjects.size > 0
+      ? input.allowedSubjects
+      : undefined;
   }
 
-  const state = await runAndReadFinalSynthesis(input, {
-    predictionErrors: [...trimWarnings],
-  });
+  const proxy = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
+  const hasSnapshot =
+    proxy !== undefined &&
+    input.collectedSources.marketSnapshots.some(
+      (snapshot) => snapshot.symbol.toUpperCase() === proxy.toUpperCase(),
+    );
+  return proxy !== undefined && hasSnapshot ? new Set([proxy]) : undefined;
+}
+
+function completionEligible(
+  input: SynthesizeReportUntilValidInput,
+  report: ResearchReport,
+): ReadonlySet<string> | undefined {
+  const quality = input.context.evidenceQualityAssessment?.label;
+  const target = input.context.depthProfile.targetPredictions;
+  if (
+    (quality !== "high" && quality !== "medium") ||
+    target === 0 ||
+    report.predictions.length >= target
+  ) {
+    return undefined;
+  }
+  return completionSubjects(input);
+}
+
+function isNearBaseRate(prediction: Prediction): boolean {
+  return Math.abs(prediction.probability - 0.5) <= NEAR_BASE_RATE_BAND + Number.EPSILON;
+}
+
+function candidateRejectionReasons(result: ReturnType<typeof readPredictions>): readonly string[] {
+  return uniqueStrings([...result.errors, ...result.issues.map((issue) => issue.message)]);
+}
+
+function mergeCompletionCandidates(input: {
+  readonly candidates: unknown;
+  readonly existing: readonly Prediction[];
+  readonly targetCount: number;
+  readonly knownSourceIds: ReadonlySet<string>;
+  readonly allowedSubjects: ReadonlySet<string>;
+}): {
+  readonly predictions: readonly Prediction[];
+  readonly acceptedPredictionIds: readonly string[];
+  readonly rejectedCandidateCount: number;
+  readonly rejectionReasons: readonly string[];
+} {
+  const candidates = Array.isArray(input.candidates) ? input.candidates : [];
+  const accepted = [...input.existing];
+  const acceptedPredictionIds: string[] = [];
+  const rejectionReasons: string[] = [];
+  let rejectedCandidateCount = 0;
+
+  for (const rawCandidate of candidates) {
+    if (accepted.length >= input.targetCount) {
+      rejectedCandidateCount += 1;
+      rejectionReasons.push("prediction completion target already met");
+      continue;
+    }
+
+    const candidateResult = readPredictions(
+      [rawCandidate],
+      input.knownSourceIds,
+      input.allowedSubjects,
+    );
+    const [candidate] = candidateResult.predictions;
+    if (candidate === undefined) {
+      rejectedCandidateCount += 1;
+      rejectionReasons.push(...candidateRejectionReasons(candidateResult));
+      continue;
+    }
+    if (isNearBaseRate(candidate)) {
+      rejectedCandidateCount += 1;
+      rejectionReasons.push(
+        `Prediction ${candidate.id}: near-base-rate probability is not eligible for completion`,
+      );
+      continue;
+    }
+
+    const combined = readPredictions(
+      [...accepted, candidate],
+      input.knownSourceIds,
+      input.allowedSubjects,
+    );
+    const preservesExisting = accepted.every((prediction) =>
+      combined.predictions.some((combinedPrediction) => combinedPrediction.id === prediction.id),
+    );
+    const addsCandidate =
+      combined.predictions.length === accepted.length + 1 &&
+      combined.predictions.some((prediction) => prediction.id === candidate.id);
+    if (!preservesExisting || !addsCandidate) {
+      rejectedCandidateCount += 1;
+      const reasons = candidateRejectionReasons(combined).filter((reason) =>
+        reason.includes(candidate.id),
+      );
+      rejectionReasons.push(
+        ...(reasons.length > 0
+          ? reasons
+          : [`Prediction ${candidate.id}: conflicts with an accepted prediction`]),
+      );
+      continue;
+    }
+
+    accepted.push(candidate);
+    acceptedPredictionIds.push(candidate.id);
+  }
+
   return {
-    progress: {
-      state,
-      stageOutputs: [...progress.stageOutputs, state.output],
-      predictionRetryErrors: uniqueStrings([...progress.predictionRetryErrors, ...trimWarnings]),
-    },
-    attempted: true,
+    predictions: accepted,
+    acceptedPredictionIds,
+    rejectedCandidateCount,
+    rejectionReasons: uniqueStrings(rejectionReasons),
   };
+}
+
+async function runPredictionCompletion(
+  input: SynthesizeReportUntilValidInput,
+  progress: SynthesisProgress,
+  report: ResearchReport,
+): Promise<PredictionCompletionResult> {
+  const allowedSubjects = completionEligible(input, report);
+  if (allowedSubjects === undefined) {
+    return { progress };
+  }
+
+  const initialCount = report.predictions.length;
+  const targetCount = input.context.depthProfile.targetPredictions;
+  let output: StageOutput | undefined = undefined;
+  try {
+    output = await input.runFinalSynthesis(input.priorStages, {
+      allowedSourceIds: [...input.knownSourceIds].toSorted(),
+      predictionCompletion: {
+        requestedCount: targetCount - initialCount,
+        existingPredictions: report.predictions,
+      },
+    });
+    const payload = parseModelPayload(output.content);
+    const merged = mergeCompletionCandidates({
+      candidates: payload.predictions,
+      existing: report.predictions,
+      targetCount,
+      knownSourceIds: input.knownSourceIds,
+      allowedSubjects,
+    });
+    const state: FinalSynthesisState = {
+      output,
+      payload: progress.state.payload,
+      predResult: {
+        predictions: merged.predictions,
+        errors: progress.state.predResult.errors,
+        issues: progress.state.predResult.issues,
+      },
+    };
+    return {
+      progress: {
+        state,
+        stageOutputs: [...progress.stageOutputs, output],
+        predictionRetryErrors: progress.predictionRetryErrors,
+      },
+      audit: {
+        attempted: true,
+        initialCount,
+        targetCount,
+        acceptedPredictionIds: merged.acceptedPredictionIds,
+        rejectedCandidateCount: merged.rejectedCandidateCount,
+        rejectionReasons: merged.rejectionReasons,
+        outcome: merged.acceptedPredictionIds.length > 0 ? "improved" : "no-eligible-candidates",
+      },
+    };
+  } catch (error: unknown) {
+    return {
+      progress: {
+        ...progress,
+        ...(output !== undefined ? { stageOutputs: [...progress.stageOutputs, output] } : {}),
+      },
+      audit: {
+        attempted: true,
+        initialCount,
+        targetCount,
+        acceptedPredictionIds: [],
+        rejectedCandidateCount: 0,
+        rejectionReasons: [],
+        outcome: "failed",
+        failureReason: errorMessage(error),
+      },
+    };
+  }
 }
 
 function buildReport(

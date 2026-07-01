@@ -1,6 +1,6 @@
 ---
 name: improve-market-runs
-description: Iteratively improve market-bot run quality by running a requested market, equity, crypto, research, or alpha-search job; invoking run-review on the new artifact; comparing against the prior comparable run; fixing the top evidence-backed code or prompt issues; rerunning; and repeating until measured improvement, stagnation, or a hard iteration cap. Use when the user asks to improve a market-bot run, continuously improve runs, run/fix/rerun research artifacts, improve a deep equity run such as MSFT, or loop with run-review until quality improves.
+description: Iteratively improve market-bot run quality by running a run jobs; invoking run-review on the new artifact; comparing against the prior comparable run; fixing the top evidence-backed code or prompt issues; rerunning; and repeating until measured improvement, stagnation, or a hard iteration cap.
 ---
 
 # Improve Market Runs

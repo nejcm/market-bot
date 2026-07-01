@@ -1,4 +1,0 @@
-interface:
-  display_name: "Improve Market Runs"
-  short_description: "Run, review, fix, rerun market artifacts."
-  default_prompt: "Use improve-market-runs to run a bounded improvement loop for the requested market-bot run target, invoke run-review, fix the top evidence-backed issues, rerun, and stop on measured improvement, stagnation, or the iteration cap."

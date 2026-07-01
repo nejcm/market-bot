@@ -1,4 +1,0 @@
-interface:
-  display_name: "Run Review"
-  short_description: "Review a market-bot run against comparable prior runs"
-  default_prompt: "Use run-review to analyze the supplied market-bot run directory and produce a ranked, evidence-backed list of issues and improvements without making changes."

@@ -202,6 +202,33 @@ describe("parseCalibrationContext", () => {
     expect(parsed?.byKind).toEqual({ direction: { brierScore: 0.25, count: 2 } });
   });
 
+  test("reads valid uncertainty fields and drops malformed optional fields", () => {
+    const parsed = parseCalibrationContext({
+      byAssetClass: {
+        equity: {
+          brierScore: 0.3,
+          count: 30,
+          runCount: 10,
+          brierStandardError: 0.02,
+        },
+        crypto: {
+          brierScore: 0.3,
+          count: 30,
+          runCount: 31,
+          brierStandardError: -0.1,
+        },
+      },
+    });
+
+    expect(parsed?.byAssetClass?.equity).toEqual({
+      brierScore: 0.3,
+      count: 30,
+      runCount: 10,
+      brierStandardError: 0.02,
+    });
+    expect(parsed?.byAssetClass?.crypto).toEqual({ brierScore: 0.3, count: 30 });
+  });
+
   test("filters malformed market-regime slices and coverage counts", () => {
     const parsed = parseCalibrationContext({
       byMarketRegime: {

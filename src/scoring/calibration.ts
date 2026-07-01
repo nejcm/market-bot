@@ -57,6 +57,36 @@ function brierScore(pairs: readonly ResolvedPair[]): number {
   return sum / pairs.length;
 }
 
+function brierLoss({ prediction, score }: ResolvedPair): number {
+  const outcome = score.outcome === "hit" ? 1 : 0;
+  const diff = prediction.probability - outcome;
+  return diff * diff;
+}
+
+function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
+  const mean = brierScore(pairs);
+  const clusterSums = new Map<string, number>();
+  for (const pair of pairs) {
+    clusterSums.set(pair.runId, (clusterSums.get(pair.runId) ?? 0) + (brierLoss(pair) - mean));
+  }
+  const runCount = clusterSums.size;
+  if (runCount < 2) {
+    return { brierScore: mean, count: pairs.length, runCount };
+  }
+  const squaredClusterSum = [...clusterSums.values()].reduce(
+    (total, clusterSum) => total + clusterSum * clusterSum,
+    0,
+  );
+  const variance =
+    (runCount / (runCount - 1)) * (squaredClusterSum / (pairs.length * pairs.length));
+  return {
+    brierScore: mean,
+    count: pairs.length,
+    runCount,
+    brierStandardError: Math.sqrt(variance),
+  };
+}
+
 // Brier skill score vs the always-0.5 baseline. Positive beats a coin flip, negative trails it.
 // For binary Brier in [0, 1] the skill lands in [-3, 1].
 export function brierSkillScore(brier: number): number {
@@ -105,7 +135,7 @@ function groupMetrics(
   const result: Record<string, CalibrationMetric> = {};
 
   for (const [key, groupPairs] of groups) {
-    result[key] = { brierScore: brierScore(groupPairs), count: groupPairs.length };
+    result[key] = calibrationMetric(groupPairs);
   }
 
   return result;
@@ -138,7 +168,7 @@ function buildByMarketRegime(pairs: readonly ResolvedPair[]): Record<string, Cal
   for (const label of MARKET_REGIME_LABELS) {
     const inLabel = pairs.filter(({ marketRegimeLabel }) => marketRegimeLabel === label);
     if (inLabel.length >= MIN_CALIBRATION_SAMPLE) {
-      result[label] = { brierScore: brierScore(inLabel), count: inLabel.length };
+      result[label] = calibrationMetric(inLabel);
     }
   }
   return result;

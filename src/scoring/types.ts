@@ -62,6 +62,8 @@ export interface CalibrationBin {
 export interface CalibrationMetric {
   readonly brierScore: number;
   readonly count: number;
+  readonly runCount?: number;
+  readonly brierStandardError?: number;
 }
 
 export interface ConditionalCalibrationSummary {

@@ -558,6 +558,54 @@ describe("buildCalibrationSummary", () => {
     expect(summary.byAssetClass["crypto"]).toBeDefined();
   });
 
+  test("reports run-clustered Brier standard error with unequal cluster sizes", () => {
+    const pairs = [
+      {
+        prediction: { ...basePrediction, probability: 1 },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r1",
+      },
+      {
+        prediction: { ...basePrediction, probability: 1 },
+        score: makeScore("miss"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r1",
+      },
+      {
+        prediction: { ...basePrediction, probability: 0 },
+        score: makeScore("miss"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r2",
+      },
+    ];
+
+    const metric = buildCalibrationSummary(pairs).byAssetClass.equity;
+
+    expect(metric?.brierScore).toBeCloseTo(1 / 3);
+    expect(metric?.runCount).toBe(2);
+    expect(metric?.brierStandardError).toBeCloseTo(2 / 9);
+  });
+
+  test("omits clustered uncertainty when all predictions come from one run", () => {
+    const pairs = Array.from({ length: 3 }, (_, index) => ({
+      prediction: { ...basePrediction, id: `p-${String(index)}` },
+      score: makeScore(index === 0 ? "hit" : "miss"),
+      assetClass: "equity" as const,
+      jobType: "daily" as const,
+      runId: "r1",
+    }));
+
+    expect(buildCalibrationSummary(pairs).byAssetClass.equity).toMatchObject({
+      count: 3,
+      runCount: 1,
+    });
+    expect(buildCalibrationSummary(pairs).byAssetClass.equity?.brierStandardError).toBeUndefined();
+  });
+
   test("includes activated conditional predictions and reports voided exclusions", () => {
     const pairs = [
       {

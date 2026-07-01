@@ -144,7 +144,18 @@ function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
   if (brierScore === undefined || count === undefined) {
     return undefined;
   }
-  return { brierScore, count };
+  const runCount = readNumberWhere(value, "runCount", isPositiveCount);
+  const brierStandardError = readNumberWhere(
+    value,
+    "brierStandardError",
+    (candidate) => candidate >= 0,
+  );
+  return {
+    brierScore,
+    count,
+    ...(runCount !== undefined && runCount <= count ? { runCount } : {}),
+    ...(brierStandardError !== undefined ? { brierStandardError } : {}),
+  };
 }
 
 function parseMetricMap(value: unknown): Record<string, CalibrationMetric> | undefined {

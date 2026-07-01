@@ -545,6 +545,58 @@ describe("web source roles accounting", () => {
     });
   });
 
+  test("omits reused profile web source telemetry when no reused profile sources are accepted", () => {
+    const report = researchReport({
+      generatedAt: "2026-07-01T00:00:00.000Z",
+      sources: [
+        { id: "news-1", title: "News", fetchedAt: "2026-07-01T00:00:00.000Z", kind: "news" },
+      ],
+    });
+    const collected = collectedSourceBundle({
+      webSubjectProfile: webProfile,
+      webSubjectProfileReuse: {
+        runDirName: "2026-06-28-aapl",
+        generatedAt: "2026-06-28T00:00:00.000Z",
+      },
+    });
+
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeUndefined();
+    expect(analytics.reusedProfileWebSources).toBeUndefined();
+  });
+
+  test("omits reused profile web source telemetry when reuse age cannot be computed", () => {
+    const report = researchReport({
+      generatedAt: "2026-07-01T00:00:00.000Z",
+      sources: [webSource("web-1")],
+    });
+    const collected = collectedSourceBundle({
+      webSubjectProfile: webProfile,
+      webSubjectProfileReuse: {
+        runDirName: "2026-06-28-aapl",
+        generatedAt: "not-a-timestamp",
+      },
+    });
+
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeUndefined();
+    expect(analytics.reusedProfileWebSources).toBeUndefined();
+  });
+
   test("treats a current-run Web Subject Profile as current-run coverage without reuse marker", () => {
     const report = researchReport({
       sources: [webSource("web-1"), webSource("web-2"), webSource("web-3")],

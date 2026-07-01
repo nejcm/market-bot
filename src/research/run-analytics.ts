@@ -314,11 +314,11 @@ function dateAgeDays(fromDate: string, toDate: string): number | undefined {
   return Math.max(0, Math.round((to - from) / (24 * 60 * 60 * 1000)));
 }
 
-function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number {
+function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number | undefined {
   const from = Date.parse(fromTimestamp);
   const to = Date.parse(toTimestamp);
   if (!Number.isFinite(from) || !Number.isFinite(to)) {
-    return 0;
+    return undefined;
   }
   return Math.max(0, Math.floor((to - from) / DAY_MS));
 }
@@ -407,17 +407,20 @@ function webSourceRoles(
   report: ResearchReport,
   collectedSources: CollectedSources,
 ): Pick<RunAnalytics, "webSources" | "reusedProfileWebSources"> {
+  const reuse = collectedSources.webSubjectProfileReuse;
   const acceptedIds = new Set(
     report.sources.filter((source) => source.kind === "web").map((source) => source.id),
   );
-  if (acceptedIds.size === 0 && collectedSources.webSubjectProfileReuse === undefined) {
+  if (acceptedIds.size === 0 && reuse === undefined) {
     return {};
   }
   const reusedProfileIds = new Set(
-    collectedSources.webSubjectProfileReuse === undefined
+    reuse === undefined
       ? []
       : (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => acceptedIds.has(id)),
   );
+  const reusedProfileAgeDays =
+    reuse === undefined ? undefined : timestampAgeDays(reuse.generatedAt, report.generatedAt);
   const currentRunIds = new Set([...acceptedIds].filter((id) => !reusedProfileIds.has(id)));
   const profileUsedIds = new Set(
     (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => currentRunIds.has(id)),
@@ -459,17 +462,14 @@ function webSourceRoles(
               : {}),
           },
         }),
-    ...(collectedSources.webSubjectProfileReuse !== undefined
+    ...(reuse !== undefined && reusedProfileIds.size > 0 && reusedProfileAgeDays !== undefined
       ? {
           reusedProfileWebSources: {
             accepted: reusedProfileIds.size,
             reportCited: [...reportCitedIds].filter((id) => reusedProfileIds.has(id)).length,
-            generatedAt: collectedSources.webSubjectProfileReuse.generatedAt,
-            ageDays: timestampAgeDays(
-              collectedSources.webSubjectProfileReuse.generatedAt,
-              report.generatedAt,
-            ),
-            runDirName: collectedSources.webSubjectProfileReuse.runDirName,
+            generatedAt: reuse.generatedAt,
+            ageDays: reusedProfileAgeDays,
+            runDirName: reuse.runDirName,
           },
         }
       : {}),

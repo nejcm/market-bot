@@ -76,6 +76,23 @@ describe("source gaps", () => {
     ).toEqual([gap]);
   });
 
+  test("dedupes source gaps with first occurrence metadata", () => {
+    const first = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const duplicate = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+      cause: "validation-failed",
+      evidenceQualityImpact: "core-cap",
+    });
+
+    expect(dedupeSourceGaps([first, duplicate])).toEqual([first]);
+  });
+
   test("identifies unmapped SEC filing gaps by source and message pattern", () => {
     const unmapped = sourceGap({
       source: "sec-alpha-search",

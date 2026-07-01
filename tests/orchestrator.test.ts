@@ -4031,6 +4031,85 @@ describe("runResearchJob", () => {
     );
   });
 
+  test("normalizes duplicate source gaps before source planning and analytics", async () => {
+    const grossProfitGap = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+      capability: "extended-evidence",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const grossProfitDuplicate = sourceGap({
+      source: "sec-edgar",
+      message: " Missing SEC   company facts: grossProfit ",
+      capability: "extended-evidence",
+      cause: "validation-failed",
+      evidenceQualityImpact: "core-cap",
+    });
+    const overlappingGap = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit, capex",
+      capability: "extended-evidence",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0,
+          };
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir: tempDataDir("market-bot-source-gap-dedupe") },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [],
+          gaps: [grossProfitGap, grossProfitDuplicate, overlappingGap],
+        },
+        sourceGaps: [grossProfitGap, grossProfitDuplicate, overlappingGap],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const regulatoryLane = result.evidenceLanes.lanes.find(
+      (lane) => lane.lane === "regulatory-filings",
+    );
+
+    expect(result.collectedSources.sourceGaps).toEqual([grossProfitGap, overlappingGap]);
+    expect(result.collectedSources.extendedEvidence?.gaps).toEqual([
+      grossProfitGap,
+      overlappingGap,
+    ]);
+    expect(regulatoryLane?.gapText).toEqual([
+      "sec-edgar: Missing SEC company facts: grossProfit",
+      "sec-edgar: Missing SEC company facts: grossProfit, capex",
+    ]);
+    expect(result.analytics.sourceFunnel.sourceGaps).toEqual({
+      total: 2,
+      bySource: { "sec-edgar": 2 },
+    });
+    expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(2);
+    expect(result.trace.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
+    expect(result.report.dataGaps).toContain("sec-edgar: Missing SEC company facts: grossProfit");
+    expect(result.report.dataGaps).toContain(
+      "sec-edgar: Missing SEC company facts: grossProfit, capex",
+    );
+  });
+
   test("re-prompts when report validation retry regresses prediction validity", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;

@@ -69,6 +69,7 @@ import {
 } from "./spotlights";
 import { emptySpotlightSelectionFor, runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
+import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
   buildSourcePlan,
   type EvidenceLanesArtifact,
@@ -438,6 +439,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   ({ context, historicalContext } = marketUpdate);
   const { spotlightCandidates, spotlightSelection, spotlightOutput, marketUpdateMovers } =
     marketUpdate;
+  // Final canonical source-gap boundary; later phases must not append gaps without re-normalizing.
+  collectedSources = normalizeCanonicalSourceGaps(collectedSources);
   const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };

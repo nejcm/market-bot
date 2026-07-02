@@ -267,7 +267,7 @@ When duplicates carry different metadata, the first normalized occurrence is ret
 
 ## Source Plan
 
-The deterministic, no-model set of Evidence Lanes a run intends to cover, each marked required or optional with the real provider path that would supply it. It records intended coverage before synthesis so actual evidence can be compared against it. It adds no provider calls, model calls, report fields, or scored Prediction behavior. See [ADR 0028](./docs/adr/0028-deterministic-source-plan-subsystem.md).
+The deterministic, no-model set of Evidence Lanes a run intends to cover, classified core, material, or supplemental by checked-in policy. It is built from the resolved command and checked-in research subject before source collection begins — collection outcomes, credentials, and provider availability cannot change it — so actual evidence is graded against frozen pre-collection intent. It adds no provider calls, model calls, report fields, or scored Prediction behavior. See [ADR 0028](./docs/adr/0028-deterministic-source-plan-subsystem.md).
 
 ## Evidence Lane
 

@@ -33,7 +33,7 @@ import {
 } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
-import { buildSourcePlan } from "./source-plan";
+import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 
 // ---------------------------------------------------------------------------
 // Raw model payload
@@ -830,7 +830,8 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
   const evidenceQuality =
     context.evidenceQualityAssessment?.label ??
     assessEvidenceQuality(
-      context.sourcePlanning ?? buildSourcePlan(command, collectedSources, generatedAt),
+      context.sourcePlanning ??
+        assessSourcePlan(buildSourcePlan(command, generatedAt), collectedSources, generatedAt),
       generatedAt,
     ).label;
   const modelExtras =

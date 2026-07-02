@@ -14,6 +14,7 @@ import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,
 } from "../../../src/research/research-subject-identity";
+import { buildSourcePlan } from "../../../src/research/source-plan";
 import { makeReplayFetch, type DataCassette } from "./data-cassette";
 import { makeReplayProvider, type LlmCassette } from "./llm-cassette";
 
@@ -163,6 +164,7 @@ export async function runFixture(
   const resolvedSubject = resolveResearchSubject(rawCommand);
   const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
   const now = new Date(fixture.meta.now);
+  const sourcePlan = buildSourcePlan(command, now.toISOString(), resolvedSubject);
   const collectedSources = await collectSources(command, config.sourceOptions, {
     now,
     fetchImpl,
@@ -180,6 +182,7 @@ export async function runFixture(
     config,
     provider,
     collectedSources,
+    sourcePlan,
     now,
     endClock: () => now,
     sourceFetchImpl: fetchImpl,

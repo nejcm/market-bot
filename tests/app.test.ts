@@ -189,6 +189,67 @@ describe("runCli", () => {
     expect(calls).toEqual(["persist", "score", "calibration", "index"]);
   });
 
+  test("freezes the Source Plan before source collection begins", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-plan-order-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const events: string[] = [];
+    let clockCalls = 0;
+    const provider: ModelProvider = {
+      name: "test",
+      generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+    };
+    const runDir = join(dataDir, "run-1");
+    let receivedSourcePlan: unknown;
+
+    await runCli(["equity", "AAPL", "--deep"], {
+      createProvider: () => provider,
+      collectSources: async () => {
+        events.push("collect");
+        return collectedSources();
+      },
+      persistResearchJob: async (input) => {
+        events.push("persist");
+        receivedSourcePlan = input.sourcePlan;
+        return {
+          report: researchReport({ runId: "run-1" }),
+          markdown: "",
+          trace: {},
+          analytics: analyticsStub,
+          stageOutputs: [],
+          collectedSources: collectedSources(),
+          historicalContext: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as unknown as PersistedResearchJobResult;
+      },
+      runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+      buildAndWriteCalibration: async () => null,
+      writeThroughRunArtifactIndex: async () => {},
+      now: () => {
+        clockCalls += 1;
+        events.push(`clock-${String(clockCalls)}`);
+        return new Date(Date.UTC(2026, 5, 1, 0, 0, clockCalls));
+      },
+    });
+
+    // The plan's clock capture happens before the collect call, which happens
+    // Before persistence receives the frozen plan.
+    expect(events.indexOf("clock-1")).toBeLessThan(events.indexOf("collect"));
+    expect(events.indexOf("collect")).toBeLessThan(events.indexOf("persist"));
+    expect(receivedSourcePlan).toMatchObject({
+      version: 2,
+      generatedAt: "2026-06-01T00:00:01.000Z",
+      run: { jobType: "equity", symbol: "AAPL", depth: "deep" },
+    });
+  });
+
   test("reports when calibration has no resolved predictions to write", async () => {
     const dataDir = join(
       tmpdir(),

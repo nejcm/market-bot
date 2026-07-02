@@ -8,6 +8,7 @@ import {
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
 import { isUsListing } from "../sources/instrument-capability";
+import { resolveResearchSubject, type ResolvedResearchSubject } from "./research-subject-identity";
 
 export const EVIDENCE_LANES = [
   "market-data",
@@ -195,13 +196,17 @@ export interface BuildSourcePlanResult {
   readonly sourceLedger: SourceLedgerArtifactV2;
 }
 
+// Lane applicability and evidence class are pre-collection policy: they derive
+// Only from the resolved command, checked-in research subject, asset class, and
+// Depth — never from collected outcomes, credentials, provider availability, or
+// Successful fetches. sourceIds/gapMatches run post-collection in assessment.
 interface LaneDefinition {
   readonly lane: EvidenceLane;
-  readonly evidenceClass: (
+  readonly evidenceClass: (command: ResearchCommand) => EvidenceClass;
+  readonly applies: (
     command: ResearchCommand,
-    collectedSources: CollectedSources,
-  ) => EvidenceClass;
-  readonly applies: (command: ResearchCommand, collectedSources: CollectedSources) => boolean;
+    resolvedSubject: ResolvedResearchSubject | undefined,
+  ) => boolean;
   readonly sourceIds: (collectedSources: CollectedSources) => readonly string[];
   readonly gapMatches: (gap: SourceGap) => boolean;
 }
@@ -214,14 +219,14 @@ function isMarketDataLaneGap(gap: SourceGap): boolean {
   );
 }
 
-function marketDataApplies(command: ResearchCommand, collectedSources: CollectedSources): boolean {
+function marketDataApplies(
+  command: ResearchCommand,
+  resolvedSubject: ResolvedResearchSubject | undefined,
+): boolean {
   return (
     command.jobType !== "research" ||
     command.predictionProxySymbol !== undefined ||
-    (collectedSources.resolvedSubject?.status === "resolved" &&
-      collectedSources.resolvedSubject.predictionProxySymbol === undefined) ||
-    collectedSources.marketSnapshots.length > 0 ||
-    collectedSources.sourceGaps.some(isMarketDataLaneGap)
+    resolvedSubject?.status === "resolved"
   );
 }
 
@@ -273,20 +278,20 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   {
     lane: "regulatory-filings",
     evidenceClass: () => "material",
-    applies: (command, sources) =>
+    applies: (command) =>
       isInstrumentCommand(command) &&
       command.assetClass === "equity" &&
-      isUsListing(command.symbol, sources.resolvedInstrumentIdentity),
+      isUsListing(command.symbol),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "sec-edgar"),
     gapMatches: (gap) => gap.source.startsWith("sec-"),
   },
   {
     lane: "corporate-events",
     evidenceClass: (command) => (command.depth === "deep" ? "material" : "supplemental"),
-    applies: (command, sources) =>
+    applies: (command) =>
       isInstrumentCommand(command) &&
       command.assetClass === "equity" &&
-      isUsListing(command.symbol, sources.resolvedInstrumentIdentity),
+      isUsListing(command.symbol),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "equity-events"),
     gapMatches: (gap) => gap.source.startsWith("finnhub-events"),
   },
@@ -299,27 +304,17 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   },
   {
     lane: "derivatives-volatility",
-    evidenceClass: (_command, sources) => {
-      const capabilityAvailable =
-        extendedEvidenceSourceIds(sources, "options-iv").length > 0 ||
-        sources.sourceGaps.some(
-          (gap) => gap.source.startsWith("tradier-") && gap.cause !== "missing-credential",
-        );
-      return sources.earningsSetup !== undefined && capabilityAvailable
-        ? "material"
-        : "supplemental";
-    },
-    applies: (command, sources) =>
+    evidenceClass: () => "supplemental",
+    applies: (command) =>
       isInstrumentCommand(command) &&
       command.assetClass === "equity" &&
-      isUsListing(command.symbol, sources.resolvedInstrumentIdentity),
+      isUsListing(command.symbol),
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "options-iv"),
     gapMatches: (gap) => gap.source.startsWith("tradier-"),
   },
   {
     lane: "on-chain",
-    evidenceClass: (_command, sources) =>
-      extendedEvidenceSourceIds(sources, "on-chain").length > 0 ? "material" : "supplemental",
+    evidenceClass: () => "supplemental",
     applies: (command) => isInstrumentCommand(command) && command.assetClass === "crypto",
     sourceIds: (sources) => extendedEvidenceSourceIds(sources, "on-chain"),
     gapMatches: (gap) => gap.source.startsWith("glassnode-"),
@@ -334,8 +329,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   },
   {
     lane: "peer-valuation",
-    evidenceClass: (_command, sources) =>
-      sources.valuationComps?.target.usable === true ? "supplemental" : "material",
+    evidenceClass: () => "supplemental",
     applies: (command) =>
       isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep",
     sourceIds: (sources) => sources.valuationComps?.peers.flatMap((peer) => peer.sourceIds) ?? [],
@@ -343,8 +337,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   },
   {
     lane: "subject-profile",
-    evidenceClass: (_command, sources) =>
-      sources.webSubjectProfile === undefined ? "supplemental" : "material",
+    evidenceClass: () => "supplemental",
     applies: (command) =>
       command.depth === "deep" &&
       (command.jobType === "research" ||
@@ -488,13 +481,13 @@ function coverageStatus(
 }
 
 function noProxySourcePlanGap(
-  command: ResearchCommand,
+  run: SourcePlanRun,
   collectedSources: CollectedSources,
   lane: EvidenceLane,
 ): readonly string[] | undefined {
   if (
     lane !== "market-data" ||
-    command.jobType !== "research" ||
+    run.jobType !== "research" ||
     collectedSources.resolvedSubject?.status !== "resolved" ||
     collectedSources.resolvedSubject.subjectKey === undefined ||
     collectedSources.resolvedSubject.predictionProxySymbol !== undefined
@@ -506,36 +499,78 @@ function noProxySourcePlanGap(
   ];
 }
 
+// Builds the immutable v2 Source Plan from the resolved command and checked-in
+// Research subject only. Call it before the first source-provider I/O so the
+// Plan records pre-collection intent; collection outcomes cannot change it.
 export function buildSourcePlan(
   command: ResearchCommand,
+  generatedAt: string,
+  resolvedSubject?: ResolvedResearchSubject,
+): SourcePlanArtifactV2 {
+  const subject = resolvedSubject ?? resolveResearchSubject(command);
+  const planned = LANE_DEFINITIONS.filter((definition) => definition.applies(command, subject));
+  return {
+    version: 2,
+    generatedAt,
+    run: {
+      jobType: command.jobType,
+      assetClass: command.assetClass,
+      ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
+      ...(command.jobType === "research" ? { subject: command.subject } : {}),
+      depth: command.depth,
+    },
+    lanes: planned.map((definition) => ({
+      lane: definition.lane,
+      evidenceClass: definition.evidenceClass(command),
+      appliesToRun: true,
+      capability: definition.lane,
+    })),
+  };
+}
+
+const LANE_DEFINITIONS_BY_LANE = new Map(
+  LANE_DEFINITIONS.map((definition) => [definition.lane, definition]),
+);
+
+// Grades collected sources against the frozen plan after collection: every
+// Planned lane gets a coverage entry, and lane identity plus evidence class
+// Come from the plan, never from collection outcomes.
+export function assessSourcePlan(
+  sourcePlan: SourcePlanArtifactV2,
   collectedSources: CollectedSources,
   generatedAt: string,
 ): BuildSourcePlanResult {
-  const planned = LANE_DEFINITIONS.filter((definition) =>
-    definition.applies(command, collectedSources),
-  );
   const ledger: SourceLedgerEntry[] = [];
-  const coverage = planned.map((definition): EvidenceLaneCoverageV2 => {
-    const evidenceClass = definition.evidenceClass(command, collectedSources);
-    const sourceIds = [...new Set(definition.sourceIds(collectedSources))];
-    const matchedGaps = collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
-    const sourceGapIds = matchedGaps.map((_, index) => gapId(definition.lane, index));
-    const syntheticNoProxyGap = noProxySourcePlanGap(command, collectedSources, definition.lane);
+  const coverage = sourcePlan.lanes.map((planLane): EvidenceLaneCoverageV2 => {
+    const definition = LANE_DEFINITIONS_BY_LANE.get(planLane.lane);
+    const { evidenceClass } = planLane;
+    const sourceIds =
+      definition === undefined ? [] : [...new Set(definition.sourceIds(collectedSources))];
+    const matchedGaps =
+      definition === undefined
+        ? []
+        : collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
+    const sourceGapIds = matchedGaps.map((_, index) => gapId(planLane.lane, index));
+    const syntheticNoProxyGap = noProxySourcePlanGap(
+      sourcePlan.run,
+      collectedSources,
+      planLane.lane,
+    );
     const gapIds =
       sourceIds.length === 0 &&
       evidenceClass === "core" &&
       (sourceGapIds.length === 0 || syntheticNoProxyGap !== undefined)
-        ? [gapId(definition.lane, 0)]
+        ? [gapId(planLane.lane, 0)]
         : sourceGapIds;
     const gapLines =
       syntheticNoProxyGap ??
       (sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
-        ? syntheticMissingGap(definition.lane)
+        ? syntheticMissingGap(planLane.lane)
         : matchedGaps.map((gap) => gapText(gap)));
-    const entries = ledgerEntriesForLane(definition.lane, sourceIds, collectedSources, gapIds);
+    const entries = ledgerEntriesForLane(planLane.lane, sourceIds, collectedSources, gapIds);
     ledger.push(...entries);
     return {
-      lane: definition.lane,
+      lane: planLane.lane,
       evidenceClass,
       status: coverageStatus(sourceIds, gapIds),
       coveredSourceIds: sourceIds,
@@ -546,23 +581,7 @@ export function buildSourcePlan(
   });
 
   return {
-    sourcePlan: {
-      version: 2,
-      generatedAt,
-      run: {
-        jobType: command.jobType,
-        assetClass: command.assetClass,
-        ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
-        ...(command.jobType === "research" ? { subject: command.subject } : {}),
-        depth: command.depth,
-      },
-      lanes: planned.map((definition) => ({
-        lane: definition.lane,
-        evidenceClass: definition.evidenceClass(command, collectedSources),
-        appliesToRun: true,
-        capability: definition.lane,
-      })),
-    },
+    sourcePlan,
     evidenceLanes: {
       version: 2,
       generatedAt,

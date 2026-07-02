@@ -72,10 +72,12 @@ import { emptySpotlightSelectionFor, runMarketUpdatePhase } from "./market-updat
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
+  assessSourcePlan,
   buildSourcePlan,
   type EvidenceLanesArtifact,
   type SourceLedgerArtifact,
   type SourcePlanArtifact,
+  type SourcePlanArtifactV2,
 } from "./source-plan";
 import { resolveResearchSubject } from "./research-subject-identity";
 
@@ -87,6 +89,12 @@ export interface RunResearchJobInput {
   readonly runConfig?: RunConfig;
   readonly provider: ModelProvider;
   readonly collectedSources: CollectedSources;
+  // The frozen pre-collection Source Plan. Callers that run collection build it
+  // Before the first source-provider I/O and pass it here; when omitted (tests,
+  // Replays of pre-existing collected sources) the orchestrator derives the
+  // Identical plan from the command, since plan contents never depend on
+  // Collection outcomes.
+  readonly sourcePlan?: SourcePlanArtifactV2;
   readonly now?: Date;
   readonly endClock?: () => Date;
   readonly sourceFetchImpl?: FetchLike;
@@ -443,7 +451,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     marketUpdate;
   // Final canonical source-gap boundary; later phases must not append gaps without re-normalizing.
   collectedSources = normalizeCanonicalSourceGaps(collectedSources);
-  const sourcePlanning = buildSourcePlan(input.command, collectedSources, generatedAt);
+  // The fallback plan must derive from checked-in subject resolution only, not
+  // The collection-carried resolvedSubject, so it matches a pre-collection build.
+  const frozenSourcePlan = input.sourcePlan ?? buildSourcePlan(input.command, generatedAt);
+  const sourcePlanning = assessSourcePlan(frozenSourcePlan, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };
   const plannedStages = plannedResearchStages(input.command);

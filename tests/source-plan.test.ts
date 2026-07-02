@@ -1,15 +1,30 @@
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { sourceGap } from "../src/domain/source-gaps";
-import { resolveResearchSubject } from "../src/research/research-subject-identity";
-import { buildSourcePlan } from "../src/research/source-plan";
+import type { ResearchCommand } from "../src/cli/args";
+import { assessEvidenceQuality } from "../src/research/evidence-quality";
+import {
+  resolveResearchSubject,
+  type ResolvedResearchSubject,
+} from "../src/research/research-subject-identity";
+import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
+import type { CollectedSources } from "../src/sources/types";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 
 const generatedAt = "2026-05-19T00:00:00.000Z";
 
+function plannedAndAssessed(
+  command: ResearchCommand,
+  collected: CollectedSources,
+  resolvedSubject?: ResolvedResearchSubject,
+) {
+  const sourcePlan = buildSourcePlan(command, generatedAt, resolvedSubject);
+  return assessSourcePlan(sourcePlan, collected, generatedAt);
+}
+
 describe("source plan", () => {
   test("covers only lanes backed by collected sources and records required gaps", () => {
-    const plan = buildSourcePlan(
+    const plan = plannedAndAssessed(
       { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       collectedSources({
         marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
@@ -46,7 +61,6 @@ describe("source plan", () => {
           }),
         ],
       }),
-      generatedAt,
     );
 
     expect(plan.sourcePlan.version).toBe(2);
@@ -76,12 +90,11 @@ describe("source plan", () => {
   });
 
   test("does not require market data for unresolved research subjects", () => {
-    const plan = buildSourcePlan(
+    const plan = plannedAndAssessed(
       { jobType: "research", assetClass: "equity", subject: "unknown niche", depth: "brief" },
       collectedSources({
         newsSources: [newsSource({ id: "news-subject", provider: "yahoo-news" })],
       }),
-      generatedAt,
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toEqual(["supplemental-market", "news"]);
@@ -89,7 +102,7 @@ describe("source plan", () => {
   });
 
   test("keeps required market-data gap for resolved research proxy failures", () => {
-    const plan = buildSourcePlan(
+    const plan = plannedAndAssessed(
       {
         jobType: "research",
         assetClass: "equity",
@@ -110,7 +123,6 @@ describe("source plan", () => {
           }),
         ],
       }),
-      generatedAt,
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("market-data");
@@ -129,13 +141,14 @@ describe("source plan", () => {
       subjectKey: "ai-infrastructure",
       depth: "brief",
     } as const;
-    const plan = buildSourcePlan(
+    const resolvedSubject = resolveResearchSubject(command);
+    const plan = plannedAndAssessed(
       command,
       collectedSources({
-        resolvedSubject: resolveResearchSubject(command)!,
+        resolvedSubject: resolvedSubject!,
         newsSources: [newsSource({ id: "news-ai-infra", provider: "yahoo-news" })],
       }),
-      generatedAt,
+      resolvedSubject,
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("market-data");
@@ -149,7 +162,7 @@ describe("source plan", () => {
   });
 
   test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
-    const plan = buildSourcePlan(
+    const plan = plannedAndAssessed(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       collectedSources({
         supplementalMarketSnapshots: [
@@ -160,7 +173,6 @@ describe("source plan", () => {
           }),
         ],
       }),
-      generatedAt,
     );
 
     expect(
@@ -171,7 +183,7 @@ describe("source plan", () => {
   });
 
   test("maps valuation peer-comp source IDs and gaps into the valuation lane", () => {
-    const plan = buildSourcePlan(
+    const plan = plannedAndAssessed(
       { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
       collectedSources({
         marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
@@ -216,7 +228,6 @@ describe("source plan", () => {
           }),
         ],
       }),
-      generatedAt,
     );
 
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "target-valuation")).toMatchObject(
@@ -241,7 +252,7 @@ describe("source plan", () => {
   });
 
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {
-    const plan = buildSourcePlan(
+    const plan = plannedAndAssessed(
       { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       collectedSources({
         marketSnapshots: [
@@ -261,7 +272,6 @@ describe("source plan", () => {
           }),
         ],
       }),
-      generatedAt,
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("on-chain");
@@ -277,16 +287,16 @@ describe("source plan", () => {
     });
   });
 
-  test("makes derivatives material only for a dated event context", () => {
+  test("keeps derivatives supplemental regardless of dated event context", () => {
     const command = {
       jobType: "equity" as const,
       assetClass: "equity" as const,
       symbol: "AAPL",
       depth: "deep" as const,
     };
-    const withoutEvent = buildSourcePlan(command, collectedSources(), generatedAt);
-    const withEventAndCapability = buildSourcePlan(
-      command,
+    const sourcePlan = buildSourcePlan(command, generatedAt);
+    const withEventAndCapability = assessSourcePlan(
+      sourcePlan,
       collectedSources({
         earningsSetup: {
           event: {
@@ -316,12 +326,84 @@ describe("source plan", () => {
     );
 
     expect(
-      withoutEvent.sourcePlan.lanes.find((lane) => lane.lane === "derivatives-volatility")
-        ?.evidenceClass,
+      sourcePlan.lanes.find((lane) => lane.lane === "derivatives-volatility")?.evidenceClass,
     ).toBe("supplemental");
     expect(
-      withEventAndCapability.sourcePlan.lanes.find((lane) => lane.lane === "derivatives-volatility")
-        ?.evidenceClass,
-    ).toBe("material");
+      withEventAndCapability.evidenceLanes.lanes.find(
+        (lane) => lane.lane === "derivatives-volatility",
+      )?.evidenceClass,
+    ).toBe("supplemental");
+  });
+
+  test("plan contents are unchanged by differing collection outcomes", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "deep" as const,
+    };
+    const sourcePlan = buildSourcePlan(command, generatedAt);
+    const frozen = structuredClone(sourcePlan);
+
+    const emptyOutcome = assessSourcePlan(sourcePlan, collectedSources(), generatedAt);
+    const richOutcome = assessSourcePlan(
+      sourcePlan,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource({ id: "news-yahoo-aapl", provider: "yahoo-news", kind: "news" })],
+        sourceGaps: [
+          sourceGap({
+            source: "yahoo-verified-chart",
+            message: "source request failed with status 500",
+            capability: "market-data",
+            cause: "fetch-failed",
+            evidenceQualityImpact: "core-cap",
+          }),
+        ],
+      }),
+      generatedAt,
+    );
+
+    expect(emptyOutcome.sourcePlan).toEqual(frozen);
+    expect(richOutcome.sourcePlan).toEqual(frozen);
+    expect(sourcePlan).toEqual(frozen);
+  });
+
+  test("assessment covers every planned lane", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "deep" as const,
+    };
+    const sourcePlan = buildSourcePlan(command, generatedAt);
+    const assessed = assessSourcePlan(sourcePlan, collectedSources(), generatedAt);
+
+    expect(assessed.evidenceLanes.lanes.map((lane) => lane.lane)).toEqual(
+      sourcePlan.lanes.map((lane) => lane.lane),
+    );
+    expect(assessed.evidenceLanes.summary.plannedLaneCount).toBe(sourcePlan.lanes.length);
+  });
+
+  test("missing core evidence degrades Evidence Quality without aborting", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "deep" as const,
+    };
+    const assessed = assessSourcePlan(
+      buildSourcePlan(command, generatedAt),
+      collectedSources(),
+      generatedAt,
+    );
+    const quality = assessEvidenceQuality(assessed, generatedAt);
+
+    expect(quality.label).toBe("low");
+    expect(
+      assessed.evidenceLanes.lanes
+        .filter((lane) => lane.evidenceClass === "core")
+        .every((lane) => lane.status !== "covered"),
+    ).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30
+2026-06-30 (amended 2026-07-02: Source Plan frozen before collection)
 
 ## Context
 
@@ -15,11 +15,21 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 
 ## Decision
 
-- Build deterministic Source Plan, Evidence Lanes, and Source Ledger sidecars from the run type,
-  depth, asset class, dated-event context, collected sources, and gaps.
-- Classify applicable capability lanes as core, material, or supplemental. Evidence Quality is
-  derived entirely from observable lane coverage, freshness, corroboration, traceability, and gap
-  severity; synthesis cannot author or lower it.
+- Build the immutable v2 Source Plan before the first source-provider I/O, deriving lane
+  applicability and evidence class only from the resolved command, checked-in research subject,
+  asset class, depth, and checked-in policy — never from collected outcomes, credentials,
+  provider availability, or successful fetches. `generatedAt` is captured before collection.
+- After collection, assess the frozen plan: Evidence Lanes and the Source Ledger grade coverage,
+  gaps, freshness, and corroboration for every planned lane against collected sources and gaps.
+  All three artifacts remain the existing v2 family; the tolerant v1/v2 reader is unchanged, and
+  historical run directories are not rewritten (their plans were produced after collection).
+- Classify applicable capability lanes as core, material, or supplemental. Because planned classes
+  are pre-collection policy, outcome-dependent class promotion (e.g. derivatives-volatility to
+  material on a dated earnings event, on-chain/subject-profile to material when collected,
+  peer-valuation to material when the target is unusable) no longer occurs; those lanes are
+  planned supplemental. Evidence Quality is derived entirely from observable lane coverage,
+  freshness, corroboration, traceability, and gap severity; synthesis cannot author or lower it.
+  Missing core evidence lowers Evidence Quality but does not abort synthesis.
 - `low` means required/core evidence is unusable; `medium` means core evidence is complete but
   material optional coverage or corroboration is missing; `high` requires complete core and
   sufficiently broad, fresh, corroborated material evidence. Supplemental gaps do not lower it.

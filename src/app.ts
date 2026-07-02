@@ -7,6 +7,7 @@ import { createProvider } from "./model/factory";
 import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
+import { buildSourcePlan } from "./research/source-plan";
 import { renderRunAnalyticsConsole } from "./research/run-analytics-console";
 import {
   commandWithResolvedResearchSubject,
@@ -233,6 +234,9 @@ export async function runCli(
   const rawResearchCommand = asResearchCommand(command);
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
   const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
+  // Freeze the Source Plan before the first source-provider I/O so it records
+  // Pre-collection intent (ADR 0028); collection outcomes cannot change it.
+  const sourcePlan = buildSourcePlan(researchCommand, now().toISOString(), resolvedSubject);
   const collectedSources = await (dependencies.collectSources ?? collectSources)(
     researchCommand,
     config.sourceOptions,
@@ -257,6 +261,7 @@ export async function runCli(
     config,
     provider,
     collectedSources,
+    sourcePlan,
     now: invokedAt,
   });
 

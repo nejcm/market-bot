@@ -236,6 +236,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   );
   const sanitizerAudits: WebGatherSanitizerAudit[] = [];
   const freshnessAudits: (WebGatherToolOutput["freshness"] | undefined)[] = [];
+  const fetchFallbackAudits: (WebGatherToolOutput["fetchFallback"] | undefined)[] = [];
 
   const loop = await runJsonToolLoop<
     CollectedSources,
@@ -295,6 +296,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       );
       sanitizerAudits.push(outputWithStale.sanitizer);
       freshnessAudits.push(outputWithStale.freshness);
+      fetchFallbackAudits.push(outputWithStale.fetchFallback);
       return {
         state: mergeToolOutput(command, currentSources, outputWithStale),
         gaps: outputWithStale.gaps,
@@ -311,6 +313,9 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         ...entry,
         sanitizer: sanitizerAudits[index]!,
         ...(freshnessAudits[index] !== undefined ? { freshness: freshnessAudits[index] } : {}),
+        ...(fetchFallbackAudits[index] !== undefined
+          ? { fetchFallback: fetchFallbackAudits[index] }
+          : {}),
       })),
       sanitizer: aggregateSanitizerAudit(sanitizerAudits),
     },

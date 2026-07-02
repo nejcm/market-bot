@@ -117,7 +117,12 @@ export async function requestFirecrawlScrape(
 
 // Response shape: { success, data: { web: [{ title, description, url, markdown, ... }] }, creditsUsed }.
 export function parseFirecrawlSearchResults(payload: unknown): FirecrawlResultsParse {
-  if (!isRecord(payload) || !isRecord(payload.data) || !Array.isArray(payload.data.web)) {
+  if (
+    !isRecord(payload) ||
+    payload.success === false ||
+    !isRecord(payload.data) ||
+    !Array.isArray(payload.data.web)
+  ) {
     return { results: [], malformed: true };
   }
   const items = payload.data.web;
@@ -153,12 +158,22 @@ export function parseFirecrawlSearchResults(payload: unknown): FirecrawlResultsP
 // Response shape: { success, data: { markdown, html, metadata } }.
 export function parseFirecrawlScrapeResult(url: string, payload: unknown): FirecrawlResultsParse {
   const validatedUrl = validatedFirecrawlUrl(url);
-  if (!isRecord(payload) || !isRecord(payload.data) || validatedUrl === undefined) {
+  if (
+    !isRecord(payload) ||
+    payload.success === false ||
+    !isRecord(payload.data) ||
+    validatedUrl === undefined
+  ) {
     return { results: [], malformed: true };
   }
   const text = optionalString(payload.data, "markdown");
   if (text === undefined) {
     return { results: [], malformed: true };
   }
-  return { results: [{ url: validatedUrl, text, highlights: [] }], malformed: false };
+  const creditsUsed = readNumber(payload, "creditsUsed");
+  return {
+    results: [{ url: validatedUrl, text, highlights: [] }],
+    malformed: false,
+    ...(creditsUsed !== undefined ? { creditsUsed } : {}),
+  };
 }

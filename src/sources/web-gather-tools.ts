@@ -6,6 +6,7 @@ import type {
   Source,
   SourceGap,
   SubjectKind,
+  WebGatherFetchFallbackAudit,
   WebGatherSanitizerAudit,
   WebGatherToolName,
   WebSearchType,
@@ -43,6 +44,7 @@ export interface WebGatherToolOutput {
   readonly gaps: readonly SourceGap[];
   readonly sanitizer: WebGatherSanitizerAudit;
   readonly freshness?: WebSearchFreshnessAudit;
+  readonly fetchFallback?: WebGatherFetchFallbackAudit;
 }
 
 export interface WebSearchFreshnessAudit {
@@ -410,12 +412,17 @@ async function maybeFirecrawlSearchFallback(
     emptyMessage: `Firecrawl returned no usable web search results for "${parsed.query}"`,
     parse: (payload) => parseFirecrawlSearchResults(payload),
   });
-  const gaps = [...exaGaps, ...resolved.gaps];
+  // When Firecrawl recovered the request, the Exa shortfall is closed, so it is not surfaced as a
+  // Data gap; the freshness audit still records the attempt. When the fallback also fails, the Exa
+  // Shortfall plus the Firecrawl failure gap are both disclosed.
+  const fallbackServed = resolved.servedProvider === FIRECRAWL_PROVIDER;
+  const gaps = fallbackServed ? [...resolved.gaps] : [...exaGaps, ...resolved.gaps];
   rememberSurfacedUrls(resolved.results, surfacedUrls);
+  const servedProvider = resolved.results.length > 0 ? resolved.servedProvider : undefined;
   const freshness: WebSearchFreshnessAudit = {
     ...exa.freshness,
     attemptedProviders: [EXA_PROVIDER, FIRECRAWL_PROVIDER],
-    servedProvider: resolved.servedProvider,
+    ...(servedProvider !== undefined ? { servedProvider } : {}),
     fallbackReason: exa.fallbackReason,
     ...(resolved.creditsUsed !== undefined ? { firecrawlCreditsUsed: resolved.creditsUsed } : {}),
   };
@@ -617,6 +624,7 @@ async function executeWebFetch(
       exaResults: [],
       exaRawSnapshots: [],
       exaRawRef: "",
+      fallbackReason: "hard-failure",
     });
   }
   const { results, malformed } = readExaResults(fetched.payload);
@@ -626,6 +634,7 @@ async function executeWebFetch(
       exaResults: [],
       exaRawSnapshots: [fetched.rawSnapshot],
       exaRawRef: "",
+      fallbackReason: "hard-failure",
     });
   }
 
@@ -634,6 +643,7 @@ async function executeWebFetch(
     exaResults: results,
     exaRawSnapshots: [fetched.rawSnapshot],
     exaRawRef: fetched.rawSnapshot.id,
+    fallbackReason: "empty",
   });
 }
 
@@ -642,6 +652,7 @@ interface ExaFetchOutcome {
   readonly exaResults: readonly WebGatherProviderResult[];
   readonly exaRawSnapshots: readonly RawSourceSnapshot[];
   readonly exaRawRef: string;
+  readonly fallbackReason: "hard-failure" | "empty";
 }
 
 // Attempts a Firecrawl scrape when Exa's /contents call hard-fails, is malformed, or returns no usable content, and MARKET_BOT_FIRECRAWL_API_KEY is configured. Mirrors maybeFirecrawlSearchFallback's fallback-only policy for web_fetch.
@@ -683,20 +694,33 @@ async function maybeFirecrawlFetchFallback(
     emptyMessage: `Firecrawl returned no usable fetched content for ${url}`,
     parse: (payload) => parseFirecrawlScrapeResult(url, payload),
   });
-  const gaps = [...exaGaps, ...resolved.gaps];
+  // As in the search fallback, a successful Firecrawl scrape closes the Exa shortfall, so it is not
+  // Surfaced as a data gap; the fetchFallback audit still records the attempt and paid credits.
+  const fallbackServed = resolved.servedProvider === FIRECRAWL_PROVIDER;
+  const gaps = fallbackServed ? [...resolved.gaps] : [...exaGaps, ...resolved.gaps];
+  const servedProvider = resolved.results.length > 0 ? resolved.servedProvider : undefined;
+  const fetchFallback: WebGatherFetchFallbackAudit = {
+    attemptedProviders: [EXA_PROVIDER, FIRECRAWL_PROVIDER],
+    ...(servedProvider !== undefined ? { servedProvider } : {}),
+    fallbackReason: exa.fallbackReason,
+    ...(resolved.creditsUsed !== undefined ? { firecrawlCreditsUsed: resolved.creditsUsed } : {}),
+  };
   if (resolved.results.length === 0) {
-    return emptyOutput(gaps, resolved.rawSnapshots);
+    return { ...emptyOutput(gaps, resolved.rawSnapshots), fetchFallback };
   }
-  return finishWebFetchOutput(
-    ctx,
-    subject,
-    resolved.results,
-    resolved.rawSnapshots,
-    resolved.rawRef,
-    resolved.servedProvider,
-    gaps,
-    url,
-  );
+  return {
+    ...finishWebFetchOutput(
+      ctx,
+      subject,
+      resolved.results,
+      resolved.rawSnapshots,
+      resolved.rawRef,
+      resolved.servedProvider,
+      gaps,
+      url,
+    ),
+    fetchFallback,
+  };
 }
 
 function finishWebFetchOutput(

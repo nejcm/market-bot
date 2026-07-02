@@ -137,6 +137,15 @@ describe("firecrawl search parsing", () => {
     expect(parseFirecrawlSearchResults({ success: false }).malformed).toBe(true);
   });
 
+  test("treats success: false as malformed even when parseable data is present", () => {
+    const parsed = parseFirecrawlSearchResults({
+      success: false,
+      data: { web: [{ url: "https://firecrawl.example/a", title: "A" }] },
+    });
+    expect(parsed.malformed).toBe(true);
+    expect(parsed.results).toEqual([]);
+  });
+
   test("flags malformed when every entry is unparseable but drops bad ones otherwise", () => {
     expect(
       parseFirecrawlSearchResults({ success: true, data: { web: [{ title: "no url" }] } })
@@ -177,5 +186,14 @@ describe("firecrawl scrape parsing", () => {
       parseFirecrawlScrapeResult("https://example.test/apple", { success: true, data: {} })
         .malformed,
     ).toBe(true);
+  });
+
+  test("treats success: false as malformed even when markdown is present", () => {
+    const parsed = parseFirecrawlScrapeResult("https://example.test/apple", {
+      success: false,
+      data: { markdown: "Apple sells devices." },
+    });
+    expect(parsed.malformed).toBe(true);
+    expect(parsed.results).toEqual([]);
   });
 });

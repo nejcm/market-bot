@@ -792,6 +792,8 @@ describe("firecrawl fallback", () => {
       fallbackReason: "hard-failure",
       firecrawlCreditsUsed: 3,
     });
+    // A recovered request must not surface the Exa shortfall as a data gap.
+    expect(result.gaps).toEqual([]);
     expect(surfacedUrls.has("https://firecrawl.example/aapl-1")).toBe(true);
   });
 
@@ -902,9 +904,10 @@ describe("firecrawl fallback", () => {
     ]);
     expect(result.freshness).toMatchObject({
       attemptedProviders: ["exa", "firecrawl"],
-      servedProvider: "exa",
       fallbackReason: "hard-failure",
     });
+    // Nothing was served, so no provider is claimed as the server.
+    expect(result.freshness?.servedProvider).toBeUndefined();
   });
 
   test("emits provider-tagged gap when Firecrawl response is malformed", async () => {
@@ -980,6 +983,7 @@ describe("firecrawl fallback", () => {
             }
             return jsonResult(adapter, {
               success: true,
+              creditsUsed: 1,
               data: { markdown: "Apple sells devices and services.", metadata: {} },
             });
           },
@@ -999,5 +1003,45 @@ describe("firecrawl fallback", () => {
       kind: "web",
       snippet: "Apple sells devices and services.",
     });
+    // Web_fetch fallback records provider-attempt provenance and paid credits.
+    expect(result.fetchFallback).toEqual({
+      attemptedProviders: ["exa", "firecrawl"],
+      servedProvider: "firecrawl",
+      fallbackReason: "hard-failure",
+      firecrawlCreditsUsed: 1,
+    });
+    // A recovered fetch must not surface the Exa shortfall as a data gap.
+    expect(result.gaps).toEqual([]);
+  });
+
+  test("keeps the Exa gap and records fetch fallback when the Firecrawl scrape also fails", async () => {
+    const surfacedUrls = new Set(["https://example.test/apple"]);
+    const result = await executeWebGatherTool(
+      "web_fetch",
+      { url: "https://example.test/apple" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "exa-contents") {
+              return gap("exa-contents", "status 500");
+            }
+            return gap("firecrawl-scrape", "status 503");
+          },
+        }),
+      }),
+      surfacedUrls,
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "exa-contents", provider: "exa" }),
+      expect.objectContaining({ source: "firecrawl-scrape", provider: "firecrawl" }),
+    ]);
+    expect(result.fetchFallback).toMatchObject({
+      attemptedProviders: ["exa", "firecrawl"],
+      fallbackReason: "hard-failure",
+    });
+    expect(result.fetchFallback?.servedProvider).toBeUndefined();
   });
 });

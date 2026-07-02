@@ -20,6 +20,12 @@
     messageCreatedAt,
     textFromParts,
   } from "./run-chat-message-utils";
+  import {
+    isSearchDisclosureVisible,
+    parseRunChatSearchCapability,
+    RUN_CHAT_SEARCH_DISCLOSURE,
+    type RunChatSearchCapability,
+  } from "./run-chat-search-capability";
 
   interface Props {
     readonly runId: string;
@@ -32,14 +38,7 @@
   let copyFeedback:
     | { readonly messageId: string; readonly status: "copied" | "failed" }
     | undefined = $state();
-  let searchCapability:
-    | {
-        readonly configured: boolean;
-        readonly supported: boolean;
-        readonly effective: boolean;
-        readonly reason: string;
-      }
-    | undefined = $state();
+  let searchCapability: RunChatSearchCapability | undefined = $state();
   let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   function createChat(id: string): Chat {
@@ -73,21 +72,11 @@
     fetch(`/api/runs/${encodeURIComponent(id)}/chat/search-capability`)
       .then((response) => (response.ok ? response.json() : undefined))
       .then((value: unknown) => {
-        if (id !== runId || typeof value !== "object" || value === null) {
+        const parsed = parseRunChatSearchCapability(value);
+        if (id !== runId || parsed === undefined) {
           return;
         }
-        const candidate = value as {
-          readonly configured?: unknown;
-          readonly supported?: unknown;
-          readonly effective?: unknown;
-          readonly reason?: unknown;
-        };
-        searchCapability = {
-          configured: candidate.configured === true,
-          supported: candidate.supported === true,
-          effective: candidate.effective === true,
-          reason: typeof candidate.reason === "string" ? candidate.reason : "provider-unsupported",
-        };
+        searchCapability = parsed;
       })
       .catch(() => {
         if (id === runId) {
@@ -227,17 +216,12 @@
       </div>
     {/if}
 
-    {#if searchCapability?.effective === true}
+    {#if isSearchDisclosureVisible(searchCapability)}
       <div
         class="mb-3 flex gap-2 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-3 py-2 text-[12px] leading-normal text-[#6f5518]"
       >
         <Globe2Icon class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <div>
-          Live web search is enabled for this chat. Questions and selected run
-          context may be sent to Codex and external web requests may be made;
-          web findings remain ephemeral and do not update run artifacts,
-          Evidence Quality, or predictions.
-        </div>
+        <div>{RUN_CHAT_SEARCH_DISCLOSURE}</div>
       </div>
     {/if}
 

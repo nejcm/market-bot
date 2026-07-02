@@ -805,7 +805,7 @@ describe("runWebGatherLoop", () => {
     expect(
       result.collectedSources.extendedSources.every((source) => source.provider === "firecrawl"),
     ).toBe(true);
-    expect(result.audit?.acceptedRequests[0]?.freshness).toMatchObject({
+    expect(result.audit?.acceptedRequests[0]?.fallback).toMatchObject({
       attemptedProviders: ["exa", "firecrawl"],
       servedProvider: "firecrawl",
       fallbackReason: "hard-failure",

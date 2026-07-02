@@ -2,49 +2,16 @@ import { isRecord, optionalString, readNumber, readString } from "./guards";
 import { encodeQuery } from "./news-utils";
 import type { CollectContext, FetchJsonResult, FetchLike } from "./types";
 import type { SourceGap } from "../domain/types";
+import {
+  validatedWebUrl,
+  type WebGatherProviderResult,
+  type WebGatherResultsParse,
+} from "./web-gather-emit";
 
 export const FIRECRAWL_PROVIDER = "firecrawl";
 const FIRECRAWL_API_URL = "https://api.firecrawl.dev/v2";
 const FIRECRAWL_SEARCH_ADAPTER = "firecrawl-search";
 const FIRECRAWL_SCRAPE_ADAPTER = "firecrawl-scrape";
-const FIRECRAWL_MAX_URL_CHARS = 2048;
-
-// Structurally compatible with web-gather-tools.ts's provider result shape (url, title?, summary?, text?, highlights) so Firecrawl results flow through the same sanitize/emit path as Exa results. `highlights` is always empty: Firecrawl has no highlight equivalent.
-export interface FirecrawlWebResult {
-  readonly url: string;
-  readonly title?: string;
-  readonly summary?: string;
-  readonly text?: string;
-  readonly highlights: readonly string[];
-}
-
-export interface FirecrawlResultsParse {
-  readonly results: readonly FirecrawlWebResult[];
-  readonly malformed: boolean;
-  readonly creditsUsed?: number;
-}
-
-// Same http(s)-only, no-credentials, bounded-length validation Exa results get in web-gather-tools.ts's validatedWebUrl, duplicated here to keep the two provider adapters independently importable without a circular module dependency between them.
-function validatedFirecrawlUrl(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (trimmed === undefined || trimmed === "" || trimmed.length > FIRECRAWL_MAX_URL_CHARS) {
-    return undefined;
-  }
-  try {
-    const parsed = new URL(trimmed);
-    if (
-      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
-      parsed.username !== "" ||
-      parsed.password !== ""
-    ) {
-      return undefined;
-    }
-    const normalized = parsed.toString();
-    return normalized.length <= FIRECRAWL_MAX_URL_CHARS ? normalized : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function firecrawlRequestInit(apiKey: string, body: unknown): RequestInit {
   return {
@@ -115,8 +82,8 @@ export async function requestFirecrawlScrape(
   });
 }
 
-// Response shape: { success, data: { web: [{ title, description, url, markdown, ... }] }, creditsUsed }.
-export function parseFirecrawlSearchResults(payload: unknown): FirecrawlResultsParse {
+// Response shape: { success, data: { web: [{ title, description, url, markdown, ... }] }, creditsUsed }. `highlights` is always empty: Firecrawl has no highlight equivalent.
+export function parseFirecrawlSearchResults(payload: unknown): WebGatherResultsParse {
   if (
     !isRecord(payload) ||
     payload.success === false ||
@@ -126,11 +93,11 @@ export function parseFirecrawlSearchResults(payload: unknown): FirecrawlResultsP
     return { results: [], malformed: true };
   }
   const items = payload.data.web;
-  const results = items.flatMap((value): FirecrawlWebResult[] => {
+  const results = items.flatMap((value): WebGatherProviderResult[] => {
     if (!isRecord(value)) {
       return [];
     }
-    const url = validatedFirecrawlUrl(readString(value, "url"));
+    const url = validatedWebUrl(readString(value, "url"));
     if (url === undefined) {
       return [];
     }
@@ -156,8 +123,8 @@ export function parseFirecrawlSearchResults(payload: unknown): FirecrawlResultsP
 }
 
 // Response shape: { success, data: { markdown, html, metadata } }.
-export function parseFirecrawlScrapeResult(url: string, payload: unknown): FirecrawlResultsParse {
-  const validatedUrl = validatedFirecrawlUrl(url);
+export function parseFirecrawlScrapeResult(url: string, payload: unknown): WebGatherResultsParse {
+  const validatedUrl = validatedWebUrl(url);
   if (
     !isRecord(payload) ||
     payload.success === false ||

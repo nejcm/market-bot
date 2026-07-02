@@ -786,7 +786,7 @@ describe("firecrawl fallback", () => {
     expect(result.sources).toHaveLength(2);
     expect(result.sources.every((source) => source.provider === "firecrawl")).toBe(true);
     expect(result.sources[0]?.snippet).toBe("Apple designs devices and services worldwide.");
-    expect(result.freshness).toMatchObject({
+    expect(result.fallback).toEqual({
       attemptedProviders: ["exa", "firecrawl"],
       servedProvider: "firecrawl",
       fallbackReason: "hard-failure",
@@ -822,7 +822,7 @@ describe("firecrawl fallback", () => {
     // Exa initial + widen retry, then Firecrawl fallback.
     expect(adapters).toEqual(["exa-search", "exa-search", "firecrawl-search"]);
     expect(result.sources.every((source) => source.provider === "firecrawl")).toBe(true);
-    expect(result.freshness).toMatchObject({
+    expect(result.fallback).toMatchObject({
       servedProvider: "firecrawl",
       fallbackReason: "thin",
     });
@@ -852,8 +852,7 @@ describe("firecrawl fallback", () => {
 
     expect(adapters).toEqual(["exa-search"]);
     expect(result.sources.every((source) => source.provider === "exa")).toBe(true);
-    expect(result.freshness?.attemptedProviders).toBeUndefined();
-    expect(result.freshness?.servedProvider).toBeUndefined();
+    expect(result.fallback).toBeUndefined();
   });
 
   test("does not fall back when Firecrawl key is unset", async () => {
@@ -902,12 +901,12 @@ describe("firecrawl fallback", () => {
       expect.objectContaining({ source: "exa-search", provider: "exa" }),
       expect.objectContaining({ source: "firecrawl-search", provider: "firecrawl" }),
     ]);
-    expect(result.freshness).toMatchObject({
+    expect(result.fallback).toMatchObject({
       attemptedProviders: ["exa", "firecrawl"],
       fallbackReason: "hard-failure",
     });
     // Nothing was served, so no provider is claimed as the server.
-    expect(result.freshness?.servedProvider).toBeUndefined();
+    expect(result.fallback?.servedProvider).toBeUndefined();
   });
 
   test("emits provider-tagged gap when Firecrawl response is malformed", async () => {
@@ -1003,8 +1002,8 @@ describe("firecrawl fallback", () => {
       kind: "web",
       snippet: "Apple sells devices and services.",
     });
-    // Web_fetch fallback records provider-attempt provenance and paid credits.
-    expect(result.fetchFallback).toEqual({
+    // The web_fetch fallback records provider-attempt provenance and paid credits.
+    expect(result.fallback).toEqual({
       attemptedProviders: ["exa", "firecrawl"],
       servedProvider: "firecrawl",
       fallbackReason: "hard-failure",
@@ -1038,10 +1037,10 @@ describe("firecrawl fallback", () => {
       expect.objectContaining({ source: "exa-contents", provider: "exa" }),
       expect.objectContaining({ source: "firecrawl-scrape", provider: "firecrawl" }),
     ]);
-    expect(result.fetchFallback).toMatchObject({
+    expect(result.fallback).toMatchObject({
       attemptedProviders: ["exa", "firecrawl"],
       fallbackReason: "hard-failure",
     });
-    expect(result.fetchFallback?.servedProvider).toBeUndefined();
+    expect(result.fallback?.servedProvider).toBeUndefined();
   });
 });

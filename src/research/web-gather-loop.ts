@@ -19,12 +19,15 @@ import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collec
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   executeWebGatherTool,
-  aggregateSanitizerAudit,
   MAX_WEB_GATHER_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
+} from "../sources/web-gather-tools";
+import {
+  aggregateSanitizerAudit,
+  isSurfacedUrl,
   type WebGatherSubject,
   type WebGatherToolOutput,
-} from "../sources/web-gather-tools";
+} from "../sources/web-gather-emit";
 import {
   isCompanyProfileSecSource,
   webSubjectProfileSubjectForCommand,
@@ -234,9 +237,11 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
-  const sanitizerAudits: WebGatherSanitizerAudit[] = [];
-  const freshnessAudits: (WebGatherToolOutput["freshness"] | undefined)[] = [];
-  const fetchFallbackAudits: (WebGatherToolOutput["fetchFallback"] | undefined)[] = [];
+  const executionAudits: {
+    readonly sanitizer: WebGatherSanitizerAudit;
+    readonly freshness?: NonNullable<WebGatherToolOutput["freshness"]>;
+    readonly fallback?: NonNullable<WebGatherToolOutput["fallback"]>;
+  }[] = [];
 
   const loop = await runJsonToolLoop<
     CollectedSources,
@@ -294,9 +299,13 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
         executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
       );
-      sanitizerAudits.push(outputWithStale.sanitizer);
-      freshnessAudits.push(outputWithStale.freshness);
-      fetchFallbackAudits.push(outputWithStale.fetchFallback);
+      executionAudits.push({
+        sanitizer: outputWithStale.sanitizer,
+        ...(outputWithStale.freshness !== undefined
+          ? { freshness: outputWithStale.freshness }
+          : {}),
+        ...(outputWithStale.fallback !== undefined ? { fallback: outputWithStale.fallback } : {}),
+      });
       return {
         state: mergeToolOutput(command, currentSources, outputWithStale),
         gaps: outputWithStale.gaps,
@@ -311,13 +320,9 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       ...loop.audit,
       acceptedRequests: loop.audit.acceptedRequests.map((entry, index) => ({
         ...entry,
-        sanitizer: sanitizerAudits[index]!,
-        ...(freshnessAudits[index] !== undefined ? { freshness: freshnessAudits[index] } : {}),
-        ...(fetchFallbackAudits[index] !== undefined
-          ? { fetchFallback: fetchFallbackAudits[index] }
-          : {}),
+        ...executionAudits[index]!,
       })),
-      sanitizer: aggregateSanitizerAudit(sanitizerAudits),
+      sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
     },
   };
 }
@@ -675,10 +680,6 @@ function isOnSubjectQuery(
   return subjectTerms.some((term) =>
     term.includes(" ") ? ` ${normalized} `.includes(` ${term} `) : tokens.has(term),
   );
-}
-
-function isSurfacedUrl(url: string, surfacedUrls: ReadonlySet<string>): boolean {
-  return surfacedUrls.has(url) || surfacedUrls.has(canonicalizeUrl(url) ?? "");
 }
 
 function requestKey(request: ModelWebGatherRequest): string {

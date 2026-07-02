@@ -68,6 +68,7 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 - `src/research/source-plan.ts` and `evidence-quality.ts` implement deterministic authority.
 - `src/sources/cache.ts` implements freshness and stale-audit behavior.
 - `src/research/web-gather-loop.ts`, `src/sources/web-gather-tools.ts`,
+  `src/sources/web-gather-emit.ts` (shared provider-neutral sanitize/emit path),
   `src/sources/firecrawl-web-tools.ts`, and `web-text-sanitizer.ts` implement bounded sanitized web
   evidence, SEC-coverage-aware Stage-1 gating, and the Firecrawl fallback.
 - `src/research/web-subject-profile-reuse.ts` implements reuse.

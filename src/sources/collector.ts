@@ -1077,6 +1077,9 @@ export function createCollectContext(
         ? { massiveApiKey: sourceOptions.massiveApiKey }
         : {}),
       ...(sourceOptions.exaApiKey !== undefined ? { exaApiKey: sourceOptions.exaApiKey } : {}),
+      ...(sourceOptions.firecrawlApiKey !== undefined
+        ? { firecrawlApiKey: sourceOptions.firecrawlApiKey }
+        : {}),
       ...(sourceOptions.secUserAgent !== undefined
         ? { secUserAgent: sourceOptions.secUserAgent }
         : {}),

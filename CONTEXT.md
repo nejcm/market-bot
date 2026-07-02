@@ -16,13 +16,13 @@ An ephemeral, per-Run Artifact interactive question-and-answer surface in the Re
 
 ## Web Gather
 
-A bounded deep-run evidence loop that lets the model request on-subject Exa `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
+A bounded deep-run evidence loop that lets the model request on-subject `web_search` and allowlisted `web_fetch` calls through the cached Source Provider seam. Exa is the primary provider; when a configured Exa call hard-fails or returns empty/thin results, a Firecrawl fallback may serve the same request (fallback-only — it never runs in place of a missing `MARKET_BOT_EXA_API_KEY`, and web gather stays gated on Exa). It persists gathered web Sources, gaps, and audit sidecars for later citation and replay. It is not investment conviction, a recommendation, or a trade signal.
 Web-gather failures carry the `web-gather` Source Gap capability; this is taxonomy for gap attribution, not a separate Evidence Lane.
 For company subjects, Web Gather derives which durable business-profile sections a gathered SEC 10-K/10-Q packet already covers (see [[web-subject-profile]]) and passes that coverage into the model context so Exa budget targets recency, corroboration, or genuine gaps instead of re-gathering filed facts; a background `web_search` that duplicates covered filing sections without such a rationale is rejected as `sec-covered-durable-profile`, visible in the web-gather audit.
 
 ## Web Evidence
 
-Low-trust Source evidence gathered from the open web and tagged with `kind: "web"` and provider metadata. Web Evidence can support cited qualitative business-model claims but cannot widen run scope, prediction subjects, or Evidence Quality above the extended-evidence cap. It is not investment conviction, a recommendation, or a trade signal.
+Low-trust Source evidence gathered from the open web and tagged with `kind: "web"` and provider metadata (`exa` or the `firecrawl` fallback). Web Evidence can support cited qualitative business-model claims but cannot widen run scope, prediction subjects, or Evidence Quality above the extended-evidence cap. It is not investment conviction, a recommendation, or a trade signal.
 
 ## Raw Web Snapshot
 

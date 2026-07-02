@@ -237,6 +237,11 @@ export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
     readonly endPublishedDate: string;
     readonly livecrawl: boolean;
     readonly widened: boolean;
+    // Present only when the configured Exa call hard-failed or returned empty/thin results and MARKET_BOT_FIRECRAWL_API_KEY was set, triggering a fallback attempt.
+    readonly attemptedProviders?: readonly string[];
+    readonly servedProvider?: string;
+    readonly fallbackReason?: "hard-failure" | "empty" | "thin";
+    readonly firecrawlCreditsUsed?: number;
   };
 }
 

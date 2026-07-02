@@ -401,6 +401,7 @@ describe("resolveConfig", () => {
         MARKET_BOT_TRADIER_API_TOKEN: "tradier-token",
         MARKET_BOT_GLASSNODE_API_KEY: "glassnode-key",
         MARKET_BOT_EXA_API_KEY: "exa-key",
+        MARKET_BOT_FIRECRAWL_API_KEY: "firecrawl-key",
         MARKET_BOT_SEC_USER_AGENT: "market-bot test@example.test",
       }).sourceOptions,
     ).toMatchObject({
@@ -408,6 +409,7 @@ describe("resolveConfig", () => {
       tradierApiToken: "tradier-token",
       glassnodeApiKey: "glassnode-key",
       exaApiKey: "exa-key",
+      firecrawlApiKey: "firecrawl-key",
       secUserAgent: "market-bot test@example.test",
     });
   });

@@ -46,6 +46,7 @@ export interface CollectContext {
   readonly glassnodeApiKey?: string;
   readonly massiveApiKey?: string;
   readonly exaApiKey?: string;
+  readonly firecrawlApiKey?: string;
   readonly secUserAgent?: string;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;

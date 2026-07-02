@@ -93,6 +93,33 @@ function stage(content: unknown): WebGatherStageOutput {
   };
 }
 
+const firecrawlLoopFetch: FetchLike = async (input) => {
+  const url = String(input);
+  if (url.includes("api.exa.ai")) {
+    return new Response("boom", { status: 500 });
+  }
+  return Response.json({
+    success: true,
+    creditsUsed: 2,
+    data: {
+      web: [
+        {
+          url: "https://firecrawl.example/aapl-1",
+          title: "Apple overview",
+          description: "Apple designs devices.",
+          markdown: "Apple designs devices and services.",
+        },
+        {
+          url: "https://firecrawl.example/aapl-2",
+          title: "Apple segments",
+          description: "Apple reports segments.",
+          markdown: "Apple reports products and services segments.",
+        },
+      ],
+    },
+  });
+};
+
 const exaFetch: FetchLike = async (input) => {
   const url = String(input);
   if (url.includes("/contents")) {
@@ -720,6 +747,69 @@ describe("runWebGatherLoop", () => {
       expect.objectContaining({ tool: "web_search" }),
     ]);
     expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("keeps web-gather skipped when only Firecrawl is configured (fallback-only policy)", async () => {
+    const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        sourceOptions: { ...sourceOptionsWithoutExa, firecrawlApiKey: "firecrawl-key" },
+      },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => stage({ requests: [] }),
+    });
+
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        provider: "exa",
+        cause: "missing-credential",
+      }),
+    );
+  });
+
+  test("serves Firecrawl sources through the loop when Exa fails", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        sourceOptions: { ...config.sourceOptions, firecrawlApiKey: "firecrawl-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: firecrawlLoopFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model", searchType: "background" },
+              rationale: "profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.collectedSources.extendedSources).toHaveLength(2);
+    expect(
+      result.collectedSources.extendedSources.every((source) => source.provider === "firecrawl"),
+    ).toBe(true);
+    expect(result.audit?.acceptedRequests[0]?.freshness).toMatchObject({
+      attemptedProviders: ["exa", "firecrawl"],
+      servedProvider: "firecrawl",
+      fallbackReason: "hard-failure",
+    });
   });
 
   test("accepts a background search for a topic the SEC packet does not cover", async () => {

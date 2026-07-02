@@ -11,11 +11,21 @@ import type {
   WebSearchType,
 } from "../domain/types";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
+import {
+  FIRECRAWL_PROVIDER,
+  firecrawlTbsForSearchType,
+  parseFirecrawlScrapeResult,
+  parseFirecrawlSearchResults,
+  requestFirecrawlScrape,
+  requestFirecrawlSearch,
+  type FirecrawlResultsParse,
+} from "./firecrawl-web-tools";
 import { isRecord, optionalString, readString, stringArrayValue } from "./guards";
 import { canonicalizeUrl, encodeQuery } from "./news-utils";
 import {
   isFetchJsonResult,
   type CollectContext,
+  type FetchJsonResult,
   type FetchLike,
   type RawSourceSnapshot,
 } from "./types";
@@ -42,6 +52,12 @@ export interface WebSearchFreshnessAudit {
   readonly endPublishedDate: string;
   readonly livecrawl: boolean;
   readonly widened: boolean;
+  // Present only when the configured Exa call hard-failed or returned empty/thin results and
+  // MARKET_BOT_FIRECRAWL_API_KEY was set, triggering a Firecrawl fallback attempt.
+  readonly attemptedProviders?: readonly string[];
+  readonly servedProvider?: string;
+  readonly fallbackReason?: "hard-failure" | "empty" | "thin";
+  readonly firecrawlCreditsUsed?: number;
 }
 
 export interface WebGatherSubject {
@@ -79,7 +95,8 @@ const ZERO_SANITIZER_AUDIT: WebGatherSanitizerAudit = {
   removedChromeHtmlCount: 0,
 };
 
-interface ExaResult {
+// Shared shape both Exa and Firecrawl results are normalized into before sanitize/emit, so `outputFromResults` and `webResultSource` reuse the same path regardless of which provider served the request.
+interface WebGatherProviderResult {
   readonly id?: string;
   readonly url: string;
   readonly title?: string;
@@ -90,12 +107,12 @@ interface ExaResult {
   readonly highlights: readonly string[];
 }
 
-interface ExaResultsParse {
-  readonly results: readonly ExaResult[];
+interface WebGatherResultsParse {
+  readonly results: readonly WebGatherProviderResult[];
   readonly malformed: boolean;
 }
 
-interface SanitizedExaSource {
+interface SanitizedWebResult {
   readonly source: Source;
   readonly sanitizer: WebGatherSanitizerAudit;
   readonly emptyAfterSanitize: boolean;
@@ -143,14 +160,23 @@ function emptyOutput(
 function webGatherGap(
   message: string,
   cause: NonNullable<SourceGap["cause"]>,
-  source = EXA_PROVIDER,
+  options: { readonly source?: string; readonly provider?: string } = {},
 ): SourceGap {
+  const source = options.source ?? EXA_PROVIDER;
   return sourceGap({
     source,
     message,
-    provider: EXA_PROVIDER,
+    provider: options.provider ?? source,
     capability: "web-gather",
     cause,
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
+function firecrawlFailureGap(gap: SourceGap): SourceGap {
+  return sourceGapWithContext(gap, {
+    provider: FIRECRAWL_PROVIDER,
+    capability: "web-gather",
     evidenceQualityImpact: "extended-evidence-cap",
   });
 }
@@ -245,16 +271,38 @@ async function executeWebSearch(
     initialWindowDays,
     parsed.searchType !== "background",
   );
+  const baseFreshness = (
+    widened: boolean,
+    effectiveWindowDays?: number,
+  ): WebSearchFreshnessAudit => ({
+    searchType: parsed.searchType,
+    ...(initialWindowDays !== undefined ? { initialWindowDays } : {}),
+    ...(effectiveWindowDays !== undefined ? { effectiveWindowDays } : {}),
+    endPublishedDate: ctx.fetchedAt,
+    livecrawl: parsed.searchType !== "background",
+    widened,
+  });
   if (!isFetchJsonResult(initial)) {
-    return emptyOutput([exaFailureGap(initial)]);
+    return maybeFirecrawlSearchFallback(ctx, subject, surfacedUrls, parsed, {
+      exaGaps: [exaFailureGap(initial)],
+      exaResults: [],
+      exaRawSnapshots: [],
+      exaRawRef: "",
+      freshness: baseFreshness(false),
+      fallbackReason: "hard-failure",
+    });
   }
 
   const initialParsed = readExaResults(initial.payload);
   if (initialParsed.malformed) {
-    return emptyOutput(
-      [webGatherGap("Exa search response was malformed", "malformed-response")],
-      [initial.rawSnapshot],
-    );
+    return maybeFirecrawlSearchFallback(ctx, subject, surfacedUrls, parsed, {
+      exaGaps: [webGatherGap("Exa search response was malformed", "malformed-response")],
+      exaResults: [],
+      exaRawSnapshots: [initial.rawSnapshot],
+      exaRawRef: "",
+      freshness: baseFreshness(false, initialWindowDays),
+      fallbackReason: "hard-failure",
+    });
   }
 
   const shouldWiden =
@@ -276,38 +324,203 @@ async function executeWebSearch(
     initial.rawSnapshot,
     ...(fallbackResult !== undefined ? [fallbackResult.rawSnapshot] : []),
   ];
-  rememberSurfacedUrls(results, surfacedUrls);
-  const output = outputFromResults(
-    ctx,
-    subject,
-    results,
-    rawSnapshots,
+  const rawRef =
     useFallback && fallbackResult !== undefined
       ? fallbackResult.rawSnapshot.id
-      : initial.rawSnapshot.id,
-    { emptyMessage: `Exa returned no usable web search results for "${parsed.query}"` },
-  );
-  const fallbackGaps: SourceGap[] = [];
+      : initial.rawSnapshot.id;
+  const exaGaps: SourceGap[] = [];
   if (fallback !== undefined && !isFetchJsonResult(fallback)) {
-    fallbackGaps.push(exaFailureGap(fallback));
+    exaGaps.push(exaFailureGap(fallback));
   } else if (fallbackParsed?.malformed === true) {
-    fallbackGaps.push(
-      webGatherGap("Widened Exa search response was malformed", "malformed-response"),
-    );
+    exaGaps.push(webGatherGap("Widened Exa search response was malformed", "malformed-response"));
   }
   const effectiveWindowDays = shouldWiden ? fallbackWindowDays : initialWindowDays;
-  return {
-    ...output,
-    gaps: [...output.gaps, ...fallbackGaps],
-    freshness: {
-      searchType: parsed.searchType,
-      ...(initialWindowDays !== undefined ? { initialWindowDays } : {}),
-      ...(effectiveWindowDays !== undefined ? { effectiveWindowDays } : {}),
-      endPublishedDate: ctx.fetchedAt,
-      livecrawl: parsed.searchType !== "background",
-      widened: shouldWiden,
-    },
+
+  return maybeFirecrawlSearchFallback(ctx, subject, surfacedUrls, parsed, {
+    exaGaps,
+    exaResults: results,
+    exaRawSnapshots: rawSnapshots,
+    exaRawRef: rawRef,
+    freshness: baseFreshness(shouldWiden, effectiveWindowDays),
+    fallbackReason: results.length === 0 ? "empty" : "thin",
+  });
+}
+
+interface ExaSearchOutcome {
+  readonly exaGaps: readonly SourceGap[];
+  readonly exaResults: readonly WebGatherProviderResult[];
+  readonly exaRawSnapshots: readonly RawSourceSnapshot[];
+  readonly exaRawRef: string;
+  readonly freshness: WebSearchFreshnessAudit;
+  readonly fallbackReason: "hard-failure" | "empty" | "thin";
+}
+
+// Attempts a Firecrawl fallback when Exa is unusable (hard failure, malformed, or fewer than MIN_USABLE_SEARCH_RESULTS results) and MARKET_BOT_FIRECRAWL_API_KEY is configured. When Exa is usable, or no Firecrawl key is set, behavior is identical to the pre-fallback Exa-only path (fallback-only policy: Firecrawl never runs in place of a missing Exa key).
+async function maybeFirecrawlSearchFallback(
+  ctx: CollectContext,
+  subject: WebGatherSubject,
+  surfacedUrls: Set<string>,
+  parsed: {
+    readonly query: string;
+    readonly searchType: WebSearchType;
+    readonly numResults: number;
+  },
+  exa: ExaSearchOutcome,
+): Promise<WebGatherToolOutput> {
+  const exaUsable = exa.exaResults.length >= MIN_USABLE_SEARCH_RESULTS;
+  if (exaUsable || ctx.firecrawlApiKey === undefined) {
+    rememberSurfacedUrls(exa.exaResults, surfacedUrls);
+    if (exa.exaResults.length === 0 && exa.exaGaps.length > 0) {
+      return { ...emptyOutput(exa.exaGaps, exa.exaRawSnapshots), freshness: exa.freshness };
+    }
+    return finishWebSearchOutput(
+      ctx,
+      subject,
+      exa.exaResults,
+      exa.exaRawSnapshots,
+      exa.exaRawRef,
+      EXA_PROVIDER,
+      exa.exaGaps,
+      exa.freshness,
+      parsed.query,
+    );
+  }
+
+  const exaGaps =
+    exa.exaGaps.length > 0
+      ? exa.exaGaps
+      : [
+          webGatherGap(
+            exa.exaResults.length === 0
+              ? `Exa returned no usable web search results for "${parsed.query}"`
+              : `Exa returned only ${String(exa.exaResults.length)} usable web search result(s) for "${parsed.query}"`,
+            "provider-data-missing",
+          ),
+        ];
+  const tbs = firecrawlTbsForSearchType(parsed.searchType);
+  const firecrawlFetch = await requestFirecrawlSearch(
+    ctx,
+    ctx.firecrawlApiKey,
+    parsed.query,
+    parsed.numResults,
+    tbs,
+  );
+  const resolved = resolveFirecrawlFallback(firecrawlFetch, exa, {
+    malformedMessage: "Firecrawl search response was malformed",
+    emptyMessage: `Firecrawl returned no usable web search results for "${parsed.query}"`,
+    parse: (payload) => parseFirecrawlSearchResults(payload),
+  });
+  const gaps = [...exaGaps, ...resolved.gaps];
+  rememberSurfacedUrls(resolved.results, surfacedUrls);
+  const freshness: WebSearchFreshnessAudit = {
+    ...exa.freshness,
+    attemptedProviders: [EXA_PROVIDER, FIRECRAWL_PROVIDER],
+    servedProvider: resolved.servedProvider,
+    fallbackReason: exa.fallbackReason,
+    ...(resolved.creditsUsed !== undefined ? { firecrawlCreditsUsed: resolved.creditsUsed } : {}),
   };
+  if (resolved.results.length === 0) {
+    return { ...emptyOutput(gaps, resolved.rawSnapshots), freshness };
+  }
+  return finishWebSearchOutput(
+    ctx,
+    subject,
+    resolved.results,
+    resolved.rawSnapshots,
+    resolved.rawRef,
+    resolved.servedProvider,
+    gaps,
+    freshness,
+    parsed.query,
+  );
+}
+
+interface ResolvedFirecrawlFallback {
+  readonly results: readonly WebGatherProviderResult[];
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly rawRef: string;
+  readonly servedProvider: string;
+  readonly gaps: readonly SourceGap[];
+  readonly creditsUsed?: number;
+}
+
+// Folds a Firecrawl fetch into a fallback outcome; usable content becomes the served provider.
+// Failure, malformed, or empty preserves the Exa results and adds a provider-tagged gap.
+function resolveFirecrawlFallback(
+  firecrawlFetch: FetchJsonResult | SourceGap,
+  exa: {
+    readonly exaResults: readonly WebGatherProviderResult[];
+    readonly exaRawSnapshots: readonly RawSourceSnapshot[];
+    readonly exaRawRef: string;
+  },
+  options: {
+    readonly malformedMessage: string;
+    readonly emptyMessage: string;
+    readonly parse: (payload: unknown) => FirecrawlResultsParse;
+  },
+): ResolvedFirecrawlFallback {
+  const exaOutcome: ResolvedFirecrawlFallback = {
+    results: exa.exaResults,
+    rawSnapshots: exa.exaRawSnapshots,
+    rawRef: exa.exaRawRef,
+    servedProvider: EXA_PROVIDER,
+    gaps: [],
+  };
+  if (!isFetchJsonResult(firecrawlFetch)) {
+    return { ...exaOutcome, gaps: [firecrawlFailureGap(firecrawlFetch)] };
+  }
+  const rawSnapshots = [...exa.exaRawSnapshots, firecrawlFetch.rawSnapshot];
+  const parsed = options.parse(firecrawlFetch.payload);
+  const { creditsUsed } = parsed;
+  const withCredits = creditsUsed !== undefined ? { creditsUsed } : {};
+  if (parsed.malformed) {
+    return {
+      ...exaOutcome,
+      rawSnapshots,
+      ...withCredits,
+      gaps: [
+        webGatherGap(options.malformedMessage, "malformed-response", {
+          source: FIRECRAWL_PROVIDER,
+        }),
+      ],
+    };
+  }
+  if (parsed.results.length === 0) {
+    return {
+      ...exaOutcome,
+      rawSnapshots,
+      ...withCredits,
+      gaps: [
+        webGatherGap(options.emptyMessage, "provider-data-missing", { source: FIRECRAWL_PROVIDER }),
+      ],
+    };
+  }
+  return {
+    results: parsed.results,
+    rawSnapshots,
+    rawRef: firecrawlFetch.rawSnapshot.id,
+    servedProvider: FIRECRAWL_PROVIDER,
+    gaps: [],
+    ...withCredits,
+  };
+}
+
+function finishWebSearchOutput(
+  ctx: CollectContext,
+  subject: WebGatherSubject,
+  results: readonly WebGatherProviderResult[],
+  rawSnapshots: readonly RawSourceSnapshot[],
+  rawRef: string,
+  provider: string,
+  gaps: readonly SourceGap[],
+  freshness: WebSearchFreshnessAudit,
+  query: string,
+): WebGatherToolOutput {
+  const output = outputFromResults(ctx, subject, results, rawSnapshots, rawRef, {
+    emptyMessage: `${provider === FIRECRAWL_PROVIDER ? "Firecrawl" : "Exa"} returned no usable web search results for "${query}"`,
+    provider,
+  });
+  return { ...output, gaps: [...output.gaps, ...gaps], freshness };
 }
 
 function searchWindowDays(searchType: WebSearchType): number | undefined {
@@ -399,19 +612,108 @@ async function executeWebFetch(
     fetch: exaEndpointFetch,
   });
   if (!isFetchJsonResult(fetched)) {
-    return emptyOutput([exaFailureGap(fetched)]);
+    return maybeFirecrawlFetchFallback(ctx, subject, parsed.url, {
+      exaGaps: [exaFailureGap(fetched)],
+      exaResults: [],
+      exaRawSnapshots: [],
+      exaRawRef: "",
+    });
   }
   const { results, malformed } = readExaResults(fetched.payload);
   if (malformed) {
-    return emptyOutput(
-      [webGatherGap("Exa contents response was malformed", "malformed-response")],
-      [fetched.rawSnapshot],
+    return maybeFirecrawlFetchFallback(ctx, subject, parsed.url, {
+      exaGaps: [webGatherGap("Exa contents response was malformed", "malformed-response")],
+      exaResults: [],
+      exaRawSnapshots: [fetched.rawSnapshot],
+      exaRawRef: "",
+    });
+  }
+
+  return maybeFirecrawlFetchFallback(ctx, subject, parsed.url, {
+    exaGaps: [],
+    exaResults: results,
+    exaRawSnapshots: [fetched.rawSnapshot],
+    exaRawRef: fetched.rawSnapshot.id,
+  });
+}
+
+interface ExaFetchOutcome {
+  readonly exaGaps: readonly SourceGap[];
+  readonly exaResults: readonly WebGatherProviderResult[];
+  readonly exaRawSnapshots: readonly RawSourceSnapshot[];
+  readonly exaRawRef: string;
+}
+
+// Attempts a Firecrawl scrape when Exa's /contents call hard-fails, is malformed, or returns no usable content, and MARKET_BOT_FIRECRAWL_API_KEY is configured. Mirrors maybeFirecrawlSearchFallback's fallback-only policy for web_fetch.
+async function maybeFirecrawlFetchFallback(
+  ctx: CollectContext,
+  subject: WebGatherSubject,
+  url: string,
+  exa: ExaFetchOutcome,
+): Promise<WebGatherToolOutput> {
+  const exaUsable = exa.exaResults.length > 0;
+  if (exaUsable || ctx.firecrawlApiKey === undefined) {
+    if (!exaUsable && exa.exaGaps.length > 0) {
+      return emptyOutput(exa.exaGaps, exa.exaRawSnapshots);
+    }
+    return finishWebFetchOutput(
+      ctx,
+      subject,
+      exa.exaResults,
+      exa.exaRawSnapshots,
+      exa.exaRawRef,
+      EXA_PROVIDER,
+      exa.exaGaps,
+      url,
     );
   }
 
-  return outputFromResults(ctx, subject, results, [fetched.rawSnapshot], fetched.rawSnapshot.id, {
-    emptyMessage: `Exa returned no usable fetched content for ${parsed.url}`,
+  const exaGaps =
+    exa.exaGaps.length > 0
+      ? exa.exaGaps
+      : [
+          webGatherGap(
+            `Exa returned no usable fetched content for ${url}`,
+            "provider-data-missing",
+          ),
+        ];
+  const firecrawlFetch = await requestFirecrawlScrape(ctx, ctx.firecrawlApiKey, url);
+  const resolved = resolveFirecrawlFallback(firecrawlFetch, exa, {
+    malformedMessage: `Firecrawl returned no usable fetched content for ${url}`,
+    emptyMessage: `Firecrawl returned no usable fetched content for ${url}`,
+    parse: (payload) => parseFirecrawlScrapeResult(url, payload),
   });
+  const gaps = [...exaGaps, ...resolved.gaps];
+  if (resolved.results.length === 0) {
+    return emptyOutput(gaps, resolved.rawSnapshots);
+  }
+  return finishWebFetchOutput(
+    ctx,
+    subject,
+    resolved.results,
+    resolved.rawSnapshots,
+    resolved.rawRef,
+    resolved.servedProvider,
+    gaps,
+    url,
+  );
+}
+
+function finishWebFetchOutput(
+  ctx: CollectContext,
+  subject: WebGatherSubject,
+  results: readonly WebGatherProviderResult[],
+  rawSnapshots: readonly RawSourceSnapshot[],
+  rawRef: string,
+  provider: string,
+  gaps: readonly SourceGap[],
+  url: string,
+): WebGatherToolOutput {
+  const output = outputFromResults(ctx, subject, results, rawSnapshots, rawRef, {
+    emptyMessage: `${provider === FIRECRAWL_PROVIDER ? "Firecrawl" : "Exa"} returned no usable fetched content for ${url}`,
+    provider,
+  });
+  return { ...output, gaps: [...output.gaps, ...gaps] };
 }
 
 function exaFailureGap(gap: SourceGap): SourceGap {
@@ -422,11 +724,11 @@ function exaFailureGap(gap: SourceGap): SourceGap {
   });
 }
 
-function readExaResults(payload: unknown): ExaResultsParse {
+function readExaResults(payload: unknown): WebGatherResultsParse {
   if (!isRecord(payload) || !Array.isArray(payload.results)) {
     return { results: [], malformed: true };
   }
-  const results = payload.results.flatMap((value): ExaResult[] => {
+  const results = payload.results.flatMap((value): WebGatherProviderResult[] => {
     if (!isRecord(value)) {
       return [];
     }
@@ -489,7 +791,10 @@ function webSourceFallbackTitle(url: string): string {
   return new URL(url).hostname;
 }
 
-function rememberSurfacedUrls(results: readonly ExaResult[], surfacedUrls: Set<string>): void {
+function rememberSurfacedUrls(
+  results: readonly WebGatherProviderResult[],
+  surfacedUrls: Set<string>,
+): void {
   for (const result of results) {
     surfacedUrls.add(result.url);
     const canonicalUrl = canonicalizeUrl(result.url);
@@ -506,25 +811,29 @@ function isSurfacedUrl(url: string, surfacedUrls: ReadonlySet<string>): boolean 
 function outputFromResults(
   ctx: CollectContext,
   subject: WebGatherSubject,
-  results: readonly ExaResult[],
+  results: readonly WebGatherProviderResult[],
   rawSnapshots: readonly RawSourceSnapshot[],
   rawRef: string,
-  options: { readonly emptyMessage: string },
+  options: { readonly emptyMessage: string; readonly provider?: string },
 ): WebGatherToolOutput {
+  const provider = options.provider ?? EXA_PROVIDER;
   const sanitizedSources = results.map((result) =>
-    exaSource(subject, ctx.fetchedAt, result, rawRef),
+    webResultSource(subject, ctx.fetchedAt, result, rawRef, provider),
   );
   const sources = sanitizedSources.map((result) => result.source);
   if (sources.length === 0) {
-    return emptyOutput([webGatherGap(options.emptyMessage, "provider-data-missing")], rawSnapshots);
+    return emptyOutput(
+      [webGatherGap(options.emptyMessage, "provider-data-missing", { source: provider })],
+      rawSnapshots,
+    );
   }
   const gaps = sanitizedSources
     .filter((result) => result.emptyAfterSanitize)
     .map((result) =>
       webGatherGap(
-        `Exa result text was empty after sanitization for ${result.source.url ?? result.source.id}`,
+        `${provider} result text was empty after sanitization for ${result.source.url ?? result.source.id}`,
         "provider-data-missing",
-        "web-gather",
+        { source: "web-gather", provider },
       ),
     );
   return {
@@ -536,12 +845,13 @@ function outputFromResults(
   };
 }
 
-function exaSource(
+function webResultSource(
   subject: WebGatherSubject,
   fallbackFetchedAt: string,
-  result: ExaResult,
+  result: WebGatherProviderResult,
   rawRef: string,
-): SanitizedExaSource {
+  provider: string,
+): SanitizedWebResult {
   const canonicalUrl = canonicalizeUrl(result.url);
   const fetchedAt = normalizedPublishedDate(result.publishedDate) ?? fallbackFetchedAt;
   const title = sanitizeOptionalWebText(result.title, MAX_TITLE_CHARS);
@@ -557,7 +867,7 @@ function exaSource(
     kind: "web",
     ...(subject.assetClass !== undefined ? { assetClass: subject.assetClass } : {}),
     ...(subject.symbol !== undefined ? { symbol: subject.symbol } : {}),
-    provider: EXA_PROVIDER,
+    provider,
     ...(result.id !== undefined ? { providerArticleId: result.id } : {}),
     ...(canonicalUrl !== undefined ? { canonicalUrl } : {}),
     rawRef,
@@ -600,7 +910,7 @@ function exaSource(
   };
 }
 
-function webSnippetText(result: ExaResult): string | undefined {
+function webSnippetText(result: WebGatherProviderResult): string | undefined {
   const highlighted = result.highlights.join("\n");
   return highlighted.trim() !== "" ? highlighted : result.text;
 }

@@ -732,3 +732,272 @@ describe("web gather tools", () => {
     ]);
   });
 });
+
+describe("firecrawl fallback", () => {
+  const firecrawlSearchPayload = {
+    success: true,
+    creditsUsed: 3,
+    data: {
+      web: [
+        {
+          url: "https://firecrawl.example/aapl-1",
+          title: "Apple overview",
+          description: "Apple designs devices and services.",
+          markdown: "Apple designs devices and services worldwide.",
+        },
+        {
+          url: "https://firecrawl.example/aapl-2",
+          title: "Apple segments",
+          description: "Apple reports products and services segments.",
+          markdown: "Apple reports products and services segments.",
+        },
+      ],
+    },
+  };
+
+  test("falls back to Firecrawl search when Exa hard-fails", async () => {
+    const requests: { readonly adapter: string; readonly url: string; readonly body: unknown }[] =
+      [];
+    const surfacedUrls = new Set<string>();
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model", searchType: "background" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ url, adapter, init }) => {
+            requests.push({ adapter, url, body: JSON.parse(String(init?.body)) });
+            if (adapter === "exa-search") {
+              return gap("exa-search", "status 500");
+            }
+            return jsonResult(adapter, firecrawlSearchPayload);
+          },
+        }),
+      }),
+      surfacedUrls,
+    );
+
+    expect(requests.map((entry) => entry.adapter)).toEqual(["exa-search", "firecrawl-search"]);
+    expect(requests[1]?.body).toMatchObject({
+      query: "AAPL business model",
+      sources: [{ type: "web" }],
+      scrapeOptions: { formats: [{ type: "markdown" }], onlyMainContent: true },
+    });
+    expect(result.sources).toHaveLength(2);
+    expect(result.sources.every((source) => source.provider === "firecrawl")).toBe(true);
+    expect(result.sources[0]?.snippet).toBe("Apple designs devices and services worldwide.");
+    expect(result.freshness).toMatchObject({
+      attemptedProviders: ["exa", "firecrawl"],
+      servedProvider: "firecrawl",
+      fallbackReason: "hard-failure",
+      firecrawlCreditsUsed: 3,
+    });
+    expect(surfacedUrls.has("https://firecrawl.example/aapl-1")).toBe(true);
+  });
+
+  test("falls back to Firecrawl search on thin Exa results after widen", async () => {
+    const adapters: string[] = [];
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL recent news", searchType: "news" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            adapters.push(adapter);
+            if (adapter === "exa-search") {
+              return jsonResult(adapter, {
+                results: [{ url: "https://exa.example/one", title: "Only one" }],
+              });
+            }
+            return jsonResult(adapter, firecrawlSearchPayload);
+          },
+        }),
+      }),
+      new Set(),
+    );
+
+    // Exa initial + widen retry, then Firecrawl fallback.
+    expect(adapters).toEqual(["exa-search", "exa-search", "firecrawl-search"]);
+    expect(result.sources.every((source) => source.provider === "firecrawl")).toBe(true);
+    expect(result.freshness).toMatchObject({
+      servedProvider: "firecrawl",
+      fallbackReason: "thin",
+    });
+  });
+
+  test("does not call Firecrawl when Exa returns enough results", async () => {
+    const adapters: string[] = [];
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model", searchType: "background" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            adapters.push(adapter);
+            return jsonResult(adapter, {
+              results: [
+                { url: "https://exa.example/one", title: "One", summary: "First." },
+                { url: "https://exa.example/two", title: "Two", summary: "Second." },
+              ],
+            });
+          },
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(adapters).toEqual(["exa-search"]);
+    expect(result.sources.every((source) => source.provider === "exa")).toBe(true);
+    expect(result.freshness?.attemptedProviders).toBeUndefined();
+    expect(result.freshness?.servedProvider).toBeUndefined();
+  });
+
+  test("does not fall back when Firecrawl key is unset", async () => {
+    const adapters: string[] = [];
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model", searchType: "background" },
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            adapters.push(adapter);
+            return gap("exa-search", "status 500");
+          },
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(adapters).toEqual(["exa-search"]);
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "exa-search", provider: "exa", cause: "fetch-failed" }),
+    ]);
+  });
+
+  test("emits provider-tagged Firecrawl gap when the fallback also fails, keeping the Exa gap", async () => {
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model", searchType: "background" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "exa-search") {
+              return gap("exa-search", "status 500");
+            }
+            return gap("firecrawl-search", "status 503");
+          },
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "exa-search", provider: "exa" }),
+      expect.objectContaining({ source: "firecrawl-search", provider: "firecrawl" }),
+    ]);
+    expect(result.freshness).toMatchObject({
+      attemptedProviders: ["exa", "firecrawl"],
+      servedProvider: "exa",
+      fallbackReason: "hard-failure",
+    });
+  });
+
+  test("emits provider-tagged gap when Firecrawl response is malformed", async () => {
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model", searchType: "background" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "exa-search") {
+              return jsonResult(adapter, { results: [] });
+            }
+            return jsonResult(adapter, { success: true, data: { notWeb: [] } });
+          },
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "firecrawl",
+        provider: "firecrawl",
+        cause: "malformed-response",
+        message: "Firecrawl search response was malformed",
+      }),
+    );
+  });
+
+  test("maps freshness windows to Firecrawl tbs filters", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    for (const searchType of ["news", "current-subject", "background"] as const) {
+      await executeWebGatherTool(
+        "web_search",
+        { query: `AAPL ${searchType}`, searchType },
+        baseCtx({
+          firecrawlApiKey: "firecrawl-key",
+          request: requestExecutor({
+            json: async ({ adapter, init }) => {
+              if (adapter === "exa-search") {
+                return gap("exa-search", "status 500");
+              }
+              bodies.push(JSON.parse(String(init?.body)));
+              return jsonResult(adapter, firecrawlSearchPayload);
+            },
+          }),
+        }),
+        new Set(),
+      );
+    }
+
+    expect(bodies[0]?.tbs).toBe("qdr:m");
+    expect(bodies[1]?.tbs).toBe("qdr:y");
+    expect(bodies[2]?.tbs).toBeUndefined();
+  });
+
+  test("falls back to Firecrawl scrape when Exa contents fails", async () => {
+    const surfacedUrls = new Set(["https://example.test/apple"]);
+    const requests: { readonly adapter: string; readonly url: string; readonly body: unknown }[] =
+      [];
+    const result = await executeWebGatherTool(
+      "web_fetch",
+      { url: "https://example.test/apple" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ url, adapter, init }) => {
+            requests.push({ adapter, url, body: JSON.parse(String(init?.body)) });
+            if (adapter === "exa-contents") {
+              return gap("exa-contents", "status 500");
+            }
+            return jsonResult(adapter, {
+              success: true,
+              data: { markdown: "Apple sells devices and services.", metadata: {} },
+            });
+          },
+        }),
+      }),
+      surfacedUrls,
+    );
+
+    expect(requests.map((entry) => entry.adapter)).toEqual(["exa-contents", "firecrawl-scrape"]);
+    expect(requests[1]?.body).toMatchObject({
+      url: "https://example.test/apple",
+      formats: ["markdown"],
+      onlyMainContent: true,
+    });
+    expect(result.sources[0]).toMatchObject({
+      provider: "firecrawl",
+      kind: "web",
+      snippet: "Apple sells devices and services.",
+    });
+  });
+});

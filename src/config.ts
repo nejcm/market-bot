@@ -17,6 +17,8 @@ export interface SourceOptions {
   readonly glassnodeApiKey?: string;
   readonly massiveApiKey?: string;
   readonly exaApiKey?: string;
+  // Fallback provider for web-gather when a configured Exa call hard-fails or returns empty/thin results. Never a substitute for a missing exaApiKey; see isWebGatherLoopEnabled.
+  readonly firecrawlApiKey?: string;
   readonly secUserAgent?: string;
   readonly cacheDir?: string;
   readonly cacheDisabled?: boolean;
@@ -575,6 +577,9 @@ export function resolveConfig(
       ...(massiveApiKey !== undefined ? { massiveApiKey } : {}),
       ...(readOptionalString(env.MARKET_BOT_EXA_API_KEY) !== undefined
         ? { exaApiKey: readOptionalString(env.MARKET_BOT_EXA_API_KEY) as string }
+        : {}),
+      ...(readOptionalString(env.MARKET_BOT_FIRECRAWL_API_KEY) !== undefined
+        ? { firecrawlApiKey: readOptionalString(env.MARKET_BOT_FIRECRAWL_API_KEY) as string }
         : {}),
       secUserAgent: readOptionalString(env.MARKET_BOT_SEC_USER_AGENT) ?? DEFAULT_SEC_USER_AGENT,
       cacheDir: env.MARKET_BOT_CACHE_DIR ?? "data/cache",

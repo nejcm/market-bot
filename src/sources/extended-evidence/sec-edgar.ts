@@ -45,6 +45,11 @@ export interface SecFundamentalsSummary {
   readonly gaps: readonly SourceGap[];
 }
 
+export interface SecSicClassification {
+  readonly sic: string;
+  readonly sicDescription?: string;
+}
+
 export interface SecCompanyFactsResult {
   readonly symbol: string;
   readonly cik?: string;
@@ -55,6 +60,10 @@ export interface SecCompanyFactsResult {
   readonly metrics?: Record<string, number | string>;
   readonly summary?: string;
   readonly revenuePeriodEnd?: string;
+  readonly sicClassification?: SecSicClassification;
+  readonly filingsSummary?: string;
+  readonly submissionsUrl?: string;
+  readonly submissionsFetchedAt?: string;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
 }
@@ -257,6 +266,25 @@ function summarizeSecFilings(payload: unknown): string | undefined {
       (value) => value.startsWith("10-K ") || value.startsWith("10-Q ") || value.startsWith("8-K "),
     );
   return filings.length > 0 ? `Recent SEC filings: ${filings.slice(0, 5).join(", ")}.` : undefined;
+}
+
+// SIC arrives as a string in current SEC submissions payloads, but tolerate a
+// Numeric encoding; provenance is always the submissions endpoint itself.
+export function extractSecSic(payload: unknown): SecSicClassification | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+  const sicText = readString(payload, "sic")?.trim();
+  const sicNumber = readNumber(payload, "sic");
+  const sic = sicText !== undefined && sicText !== "" ? sicText : sicNumber?.toString();
+  if (sic === undefined || !/^\d{3,4}$/u.test(sic)) {
+    return undefined;
+  }
+  const sicDescription = readString(payload, "sicDescription")?.trim();
+  return {
+    sic: sic.padStart(4, "0"),
+    ...(sicDescription !== undefined && sicDescription !== "" ? { sicDescription } : {}),
+  };
 }
 
 function readFiscalYear(value: Record<string, unknown>): number | undefined {
@@ -675,10 +703,32 @@ export async function fetchSecCompanyFactsForSymbol(
     adapter: "sec-companyfacts",
     init: secInit,
   });
+  const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
+  const submissions = await ctx.request.json({
+    url: submissionsUrl,
+    adapter: "sec-submissions",
+    init: secInit,
+  });
+  const sicClassification = isFetchJsonResult(submissions)
+    ? extractSecSic(submissions.payload)
+    : undefined;
+  const filingsSummary = isFetchJsonResult(submissions)
+    ? summarizeSecFilings(submissions.payload)
+    : undefined;
+  const submissionsFields = {
+    submissionsUrl,
+    ...(sicClassification !== undefined ? { sicClassification } : {}),
+    ...(filingsSummary !== undefined ? { filingsSummary } : {}),
+    ...(isFetchJsonResult(submissions)
+      ? { submissionsFetchedAt: submissions.rawSnapshot.fetchedAt }
+      : {}),
+  };
+  const submissionsGaps = isFetchJsonResult(submissions) ? [] : [submissions];
 
   const rawSnapshots = [
     tickers.rawSnapshot,
     ...(isFetchJsonResult(facts) ? [facts.rawSnapshot] : []),
+    ...(isFetchJsonResult(submissions) ? [submissions.rawSnapshot] : []),
   ];
   if (!isFetchJsonResult(facts)) {
     return {
@@ -686,8 +736,9 @@ export async function fetchSecCompanyFactsForSymbol(
       cik: match.cik,
       identity,
       sourceUrl: factsUrl,
+      ...submissionsFields,
       rawSnapshots,
-      gaps: [facts],
+      gaps: [facts, ...submissionsGaps],
     };
   }
 
@@ -722,8 +773,9 @@ export async function fetchSecCompanyFactsForSymbol(
             : {}),
         }
       : {}),
+    ...submissionsFields,
     rawSnapshots,
-    gaps: [...(fundamentals?.gaps ?? []), ...emptyFactsGap],
+    gaps: [...(fundamentals?.gaps ?? []), ...emptyFactsGap, ...submissionsGaps],
   };
 }
 
@@ -754,32 +806,20 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps: factsResult.gaps };
   }
 
-  const secInit = secRequestInit(ctx.secUserAgent);
-  const submissionsUrl = `https://data.sec.gov/submissions/CIK${factsResult.cik}.json`;
-  const submissions = await ctx.request.json({
-    url: submissionsUrl,
-    adapter: "sec-submissions",
-    init: secInit,
-  });
-  const rawSnapshots = [
-    ...factsResult.rawSnapshots,
-    ...(isFetchJsonResult(submissions) ? [submissions.rawSnapshot] : []),
-  ];
-  const fetchGaps = isFetchJsonResult(submissions) ? [] : [submissions];
+  const { rawSnapshots, filingsSummary } = factsResult;
   const items: CollectedItem[] = [];
 
-  const filingsSummary = isFetchJsonResult(submissions)
-    ? summarizeSecFilings(submissions.payload)
-    : undefined;
   const filingsSource =
-    isFetchJsonResult(submissions) && filingsSummary !== undefined
+    filingsSummary !== undefined &&
+    factsResult.submissionsUrl !== undefined &&
+    factsResult.submissionsFetchedAt !== undefined
       ? evidenceSource(
           `extended-sec-edgar-${command.symbol.toLowerCase()}-filings`,
           `${command.symbol} SEC filings`,
           "sec-edgar",
           command,
-          submissions.rawSnapshot.fetchedAt,
-          submissionsUrl,
+          factsResult.submissionsFetchedAt,
+          factsResult.submissionsUrl,
           factsResult.identity,
         )
       : undefined;
@@ -807,6 +847,20 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   if (sources.length > 0 && summaries.length > 0) {
     const primarySource = fundamentalsSource ?? filingsSource;
     if (primarySource !== undefined) {
+      const metrics =
+        factsResult.metrics !== undefined
+          ? {
+              ...factsResult.metrics,
+              ...(factsResult.sicClassification !== undefined
+                ? {
+                    sic: factsResult.sicClassification.sic,
+                    ...(factsResult.sicClassification.sicDescription !== undefined
+                      ? { sicDescription: factsResult.sicClassification.sicDescription }
+                      : {}),
+                  }
+                : {}),
+            }
+          : undefined;
       items.push({
         source: primarySource,
         sources,
@@ -816,7 +870,7 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           summary: summaries.join(" "),
           sourceIds: sources.map((source) => source.id),
           observedAt: primarySource.fetchedAt,
-          ...(factsResult.metrics !== undefined ? { metrics: factsResult.metrics } : {}),
+          ...(metrics !== undefined ? { metrics } : {}),
           identity: factsResult.identity,
         },
       });
@@ -826,6 +880,6 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   return {
     rawSnapshots,
     items,
-    gaps: [...fetchGaps, ...factsResult.gaps],
+    gaps: factsResult.gaps,
   };
 }

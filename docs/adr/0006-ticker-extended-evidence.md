@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30
+2026-06-30 (amended 2026-07-02: deterministic peer comparability gates)
 
 ## Context
 
@@ -35,6 +35,16 @@ verified snapshots, fundamentals, valuation peers, and post-web reconciliation.
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
   Learned results are cached and revalidated.
+- Peer median/IQR aggregates include only candidates that pass deterministic comparability gates:
+  a two-digit SEC SIC group matching the target's, and market cap and annualized revenue each
+  inclusively within 0.2x-5x of the target's, in addition to the existing freshness and
+  valuation-input checks. SIC classification is normalized from the already-fetched SEC
+  submissions payload for the target and every candidate. Missing SIC, market cap, annualized
+  revenue, or freshness excludes a candidate with a recorded deterministic reason, and at least
+  three qualifying peers are required before median/IQR aggregates are emitted. The gates apply
+  equally to mapped, registry-derived, cached, and model-proposed candidates; business-model
+  metadata may explain a candidate but cannot override a failed gate. Rejected candidates and
+  their reasons are retained as screening context.
 - Web Subject Profile answers may deterministically clear matching atomic Business Framework gaps.
   Reconciliation uses structured cited fields only and does not alter postures or Evidence Quality.
 
@@ -44,8 +54,10 @@ verified snapshots, fundamentals, valuation peers, and post-web reconciliation.
   dates for non-US listings.
 - SEC duration selection cannot always distinguish quarter-only from year-to-date facts. Derived
   annualized metrics must preserve period metadata and be treated as screening evidence.
-- Model-proposed peers are validated as real and fetchable, not as economically comparable.
-  Sector, business-model, and size similarity remain weakly grounded and must be disclosed.
+- Peer comparability gates enforce SIC industry group and size similarity deterministically, but
+  finer economic comparability (business model, segment mix, growth profile) remains weakly
+  grounded and must be disclosed. Two-digit SIC groups are coarse and can admit peers with
+  different economics or reject conglomerates classified under a different group.
 - Company profile reuse can remain valid through material non-filing events until its TTL expires.
 
 ## Consequences

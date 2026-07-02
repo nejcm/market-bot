@@ -260,7 +260,11 @@ describe("collectSources", () => {
       }
 
       if (url.includes("submissions")) {
-        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+        return jsonResponse({
+          sic: "3674",
+          sicDescription: "Semiconductors & Related Devices",
+          filings: { recent: { form: [], filingDate: [] } },
+        });
       }
 
       if (url.includes("/v8/finance/chart")) {
@@ -353,7 +357,11 @@ describe("collectSources", () => {
         return jsonResponse(collectorSecPayload());
       }
       if (url.includes("submissions")) {
-        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+        return jsonResponse({
+          sic: "3674",
+          sicDescription: "Semiconductors & Related Devices",
+          filings: { recent: { form: [], filingDate: [] } },
+        });
       }
       if (url.includes("/v8/finance/chart")) {
         return jsonResponse({ chart: { result: [] } });

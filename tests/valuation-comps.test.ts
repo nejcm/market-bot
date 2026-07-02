@@ -133,6 +133,8 @@ function valuationEvidence(): ExtendedEvidence {
           revenuePeriodEnd: "2026-06-29",
           cash: 10,
           debt: 20,
+          sic: "3674",
+          sicDescription: "Semiconductors & Related Devices",
         },
       },
       {
@@ -152,6 +154,8 @@ function valuationEvidence(): ExtendedEvidence {
           revenuePeriodEnd: "2026-06-29",
           annualizedRevenue: 400,
           evToAnnualizedRevenue: 2.525,
+          sic: "3674",
+          sicDescription: "Semiconductors & Related Devices",
         },
       },
     ],
@@ -174,12 +178,30 @@ function requestExecutor(
         }
       >
     >;
+    readonly sicOverrides?: Readonly<Record<string, { readonly sic?: string | undefined }>>;
   } = {},
 ): SourceRequestExecutor {
+  const symbolByCik: Readonly<Record<string, string>> = {
+    "0000000001": "AMD",
+    "0000000002": "AVGO",
+    "0000000003": "ANET",
+    "0000000004": "VRT",
+  };
   return {
     json: async ({ adapter, url }) => {
       if (adapter === "yahoo-valuation-peers") {
         return rawJson(adapter, yahooPayload(options.quoteOverrides), options.quoteFetchedAt);
+      }
+      if (adapter === "sec-submissions") {
+        const cik = url.match(/CIK(?<cik>\d+)\.json/u)?.groups?.cik ?? "";
+        const symbol = symbolByCik[cik] ?? "AMD";
+        const sic = Object.hasOwn(options.sicOverrides ?? {}, symbol)
+          ? options.sicOverrides?.[symbol]?.sic
+          : "3674";
+        return rawJson(adapter, {
+          ...(sic !== undefined ? { sic } : {}),
+          sicDescription: "Semiconductors & Related Devices",
+        });
       }
       if (adapter === "sec-tickers") {
         return rawJson(adapter, {
@@ -191,12 +213,6 @@ function requestExecutor(
       }
       if (adapter === "sec-companyfacts") {
         const cik = url.match(/CIK(?<cik>\d+)\.json/u)?.groups?.cik ?? "";
-        const symbolByCik: Readonly<Record<string, string>> = {
-          "0000000001": "AMD",
-          "0000000002": "AVGO",
-          "0000000003": "ANET",
-          "0000000004": "VRT",
-        };
         const symbol = symbolByCik[cik] ?? "AMD";
         return rawJson(adapter, secPayload(options.secOverrides?.[symbol]));
       }
@@ -292,6 +308,173 @@ describe("collectValuationComps", () => {
     expect(result.sources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
     );
+  });
+
+  test("excludes peers whose two-digit SIC group differs from the target", async () => {
+    const result = await collectValuationComps(
+      collectContext(requestExecutor({ sicOverrides: { AMD: { sic: "7372" } } })),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    expect(result.artifact.summary.usablePeerCount).toBe(3);
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "SIC group mismatch (peer 73 vs target 36)",
+      }),
+    ]);
+  });
+
+  test("excludes peers missing SIC classification with a deterministic reason", async () => {
+    const result = await collectValuationComps(
+      collectContext(requestExecutor({ sicOverrides: { AMD: { sic: undefined } } })),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({ symbol: "AMD", reason: "missing SIC classification" }),
+    ]);
+  });
+
+  test("excludes every peer when the target SIC is unavailable", async () => {
+    const evidence = valuationEvidence();
+    const noSicItems = evidence.items.map((item) =>
+      item.category === "valuation"
+        ? {
+            ...item,
+            metrics: Object.fromEntries(
+              Object.entries(item.metrics ?? {}).filter(
+                ([key]) => key !== "sic" && key !== "sicDescription",
+              ),
+            ),
+          }
+        : item,
+    );
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      { ...evidence, items: noSicItems },
+    );
+
+    expect(result.artifact.summary.usablePeerCount).toBe(0);
+    expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
+    expect(result.artifact.excludedPeers[0]?.reason).toBe("target SIC classification unavailable");
+  });
+
+  test("market cap gate is inclusive at 0.2x and 5x and excludes outside it", async () => {
+    const boundary = await collectValuationComps(
+      collectContext(
+        requestExecutor({ quoteOverrides: { AMD: { marketCap: 200 }, AVGO: { marketCap: 5000 } } }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+    expect(boundary.artifact.summary.usablePeerCount).toBe(4);
+    expect(boundary.artifact.excludedPeers).toEqual([]);
+
+    const outside = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          quoteOverrides: { AMD: { marketCap: 199 }, AVGO: { marketCap: 5001 } },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+    expect(outside.artifact.summary.usablePeerCount).toBe(2);
+    expect(outside.artifact.excludedPeers).toEqual([
+      expect.objectContaining({ symbol: "AMD", reason: "market cap outside 0.2x-5x of target" }),
+      expect.objectContaining({ symbol: "AVGO", reason: "market cap outside 0.2x-5x of target" }),
+    ]);
+  });
+
+  test("annualized revenue gate is inclusive at 0.2x and 5x and excludes outside it", async () => {
+    const boundary = await collectValuationComps(
+      collectContext(
+        requestExecutor({ secOverrides: { AMD: { revenue: 20 }, AVGO: { revenue: 500 } } }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+    expect(boundary.artifact.summary.usablePeerCount).toBe(4);
+    expect(boundary.artifact.excludedPeers).toEqual([]);
+
+    const outside = await collectValuationComps(
+      collectContext(
+        requestExecutor({ secOverrides: { AMD: { revenue: 19 }, AVGO: { revenue: 501 } } }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+    expect(outside.artifact.summary.usablePeerCount).toBe(2);
+    expect(outside.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "annualized revenue outside 0.2x-5x of target",
+      }),
+      expect.objectContaining({
+        symbol: "AVGO",
+        reason: "annualized revenue outside 0.2x-5x of target",
+      }),
+    ]);
   });
 
   test("labels comps screening-only when fewer than three peers are usable", async () => {
@@ -519,6 +702,12 @@ describe("collectValuationComps", () => {
         if (adapter === "sec-companyfacts") {
           return rawJson(adapter, secPayload());
         }
+        if (adapter === "sec-submissions") {
+          return rawJson(adapter, {
+            sic: "3674",
+            sicDescription: "Semiconductors & Related Devices",
+          });
+        }
         throw new Error(`unexpected adapter ${adapter}`);
       },
       text: async () => {
@@ -563,6 +752,89 @@ describe("collectValuationComps", () => {
 
     expect(result.artifact.peers.map((peer) => peer.symbol)).toEqual(["AMD", "AVGO", "ANET"]);
     expect(result.artifact.summary.usablePeerCount).toBe(3);
+    expect(result.artifact.summary.valuationSupportability).toBe("supported");
+    expect(result.artifact.summary.peerMedianEvToAnnualizedRevenue).toBeDefined();
+    expect(result.artifact.summary.peerP25EvToAnnualizedRevenue).toBeDefined();
+    expect(result.artifact.summary.peerP75EvToAnnualizedRevenue).toBeDefined();
+  });
+
+  test("cached peer universes cannot bypass comparability gates", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+      items: valuationEvidence().items.map((item) => ({
+        ...item,
+        sourceIds: item.sourceIds.map((id) => id.replace("nvda", "zzzz")),
+      })),
+    };
+    const cachedUniverse: PeerUniverse = {
+      targetSymbol: "ZZZZ",
+      provenance: "model-proposed-validated",
+      peers: [
+        {
+          symbol: "AMD",
+          name: "Advanced Micro Devices",
+          role: "core",
+          rationale: "peer",
+          sourceIds: ["sec-company-tickers"],
+        },
+        {
+          symbol: "AVGO",
+          name: "Broadcom",
+          role: "core",
+          rationale: "peer",
+          sourceIds: ["sec-company-tickers"],
+        },
+        {
+          symbol: "ANET",
+          name: "Arista Networks",
+          role: "secondary",
+          rationale: "peer",
+          sourceIds: ["sec-company-tickers"],
+        },
+      ],
+      sources: [
+        {
+          sourceId: "sec-company-tickers",
+          title: "SEC company_tickers.json directory",
+          url: "https://www.sec.gov/files/company_tickers.json",
+        },
+      ],
+    };
+    const cachedOptions: ValuationCompsOptions = {
+      peerUniverseFallback: {
+        cacheRead: async () => cachedUniverse,
+        cacheWrite: async () => {},
+        propose: async () => {
+          throw new Error("cache hit must not propose");
+        },
+      },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor({ sicOverrides: { AMD: { sic: "7372" } } })),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      cachedOptions,
+    );
+
+    expect(result.artifact.summary.usablePeerCount).toBe(2);
+    expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "SIC group mismatch (peer 73 vs target 36)",
+      }),
+    ]);
   });
 
   test("resolves model-proposed-validated universe via injected fallback", async () => {
@@ -647,6 +919,93 @@ describe("collectValuationComps", () => {
       (item) => item.category === "valuation",
     )?.summary;
     expect(valuationSummary).toContain("Peer set provenance: model-proposed");
+  });
+
+  test("model-proposed candidates cannot bypass comparability gates", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+      items: valuationEvidence().items.map((item) => ({
+        ...item,
+        sourceIds: item.sourceIds.map((id) => id.replace("nvda", "zzzz")),
+      })),
+    };
+    const fallbackOptions: ValuationCompsOptions = {
+      peerUniverseFallback: {
+        cacheRead: cacheMiss,
+        cacheWrite: async () => {},
+        propose: async (symbol) => ({
+          universe: {
+            targetSymbol: symbol,
+            provenance: "model-proposed-validated",
+            peers: [
+              {
+                symbol: "AMD",
+                name: "Advanced Micro Devices",
+                role: "core",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+              {
+                symbol: "AVGO",
+                name: "Broadcom",
+                role: "core",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+              {
+                symbol: "ANET",
+                name: "Arista Networks",
+                role: "secondary",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+            ],
+            sources: [
+              {
+                sourceId: "sec-company-tickers",
+                title: "SEC company_tickers.json directory",
+                url: "https://www.sec.gov/files/company_tickers.json",
+              },
+            ],
+          },
+          audit: {
+            proposed: 3,
+            survived: 3,
+            rejectedByDirectory: 0,
+            rejectedByEtf: 0,
+            rejectedByListing: 0,
+            modelId: "test-model",
+          },
+        }),
+      },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor({ sicOverrides: { ANET: { sic: "7372" } } })),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      fallbackOptions,
+    );
+
+    expect(result.artifact.provenance).toBe("model-proposed-validated");
+    expect(result.artifact.summary.usablePeerCount).toBe(2);
+    expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "ANET",
+        reason: "SIC group mismatch (peer 73 vs target 36)",
+      }),
+    ]);
   });
 
   test("falls back to unsupported-coverage gap when fallback yields too few survivors", async () => {

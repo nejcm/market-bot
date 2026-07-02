@@ -27,6 +27,12 @@ import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
 
 const MIN_USABLE_PEERS = 3;
 
+// Deterministic peer-comparability size gate: a peer qualifies for the primary
+// Aggregate only when its market cap and annualized revenue are inclusively
+// Within 0.2x-5x of the target's.
+const SIZE_GATE_MIN_RATIO = 0.2;
+const SIZE_GATE_MAX_RATIO = 5;
+
 export type ValuationSupportability = "screening-only" | "supported" | "not-supportable";
 
 export interface ValuationCompsRow {
@@ -34,6 +40,8 @@ export interface ValuationCompsRow {
   readonly name?: string;
   readonly role?: PeerUniversePeer["role"];
   readonly rationale?: string;
+  readonly sic?: string;
+  readonly sicDescription?: string;
   readonly marketCap?: number;
   readonly cash?: number;
   readonly debt?: number;
@@ -174,8 +182,10 @@ export async function collectValuationComps(
     })),
   );
   const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
-  const peers = peerSecResults.map((entry) => peerRow(entry, ctx.fetchedAt));
-  const excludedPeers = peers.flatMap((row) => excludedPeer(row, universe.peers, ctx.fetchedAt));
+  const peers = peerSecResults.map((entry) => peerRow(entry, ctx.fetchedAt, target));
+  const excludedPeers = peers.flatMap((row) =>
+    excludedPeer(row, universe.peers, ctx.fetchedAt, target),
+  );
   const peerGaps = [
     ...quoteGap,
     ...peerSecResults.flatMap((entry) => entry.sec.gaps),
@@ -276,6 +286,8 @@ function targetRow(
   const netDebt = readNumberMetric(item.metrics, "netDebt");
   const revenuePeriodMonths = readNumberMetric(item.metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(item.metrics, "revenuePeriodEnd");
+  const sic = readStringMetric(item.metrics, "sic");
+  const sicDescription = readStringMetric(item.metrics, "sicDescription");
   const usable =
     isFreshDate(snapshot?.observedAt, generatedAt) &&
     marketCap !== undefined &&
@@ -289,6 +301,8 @@ function targetRow(
     isFreshPeriodEnd(revenuePeriodEnd, generatedAt);
   return {
     symbol: symbol.toUpperCase(),
+    ...(sic !== undefined ? { sic } : {}),
+    ...(sicDescription !== undefined ? { sicDescription } : {}),
     ...(marketCap !== undefined ? { marketCap } : {}),
     ...(cash !== undefined ? { cash } : {}),
     ...(debt !== undefined ? { debt } : {}),
@@ -305,7 +319,73 @@ function targetRow(
   };
 }
 
-function peerRow(entry: PeerCollection, generatedAt: string): ValuationCompsRow {
+// Two-digit SIC group of a normalized four-digit SIC code; the comparability
+// Gate matches at group granularity (e.g. 3674 and 3672 both map to "36").
+function sicGroup(sic: string): string {
+  return sic.slice(0, 2);
+}
+
+function withinSizeGate(peerValue: number, targetValue: number): boolean {
+  return (
+    targetValue > 0 &&
+    peerValue >= SIZE_GATE_MIN_RATIO * targetValue &&
+    peerValue <= SIZE_GATE_MAX_RATIO * targetValue
+  );
+}
+
+type ComparabilityInputs = Pick<ValuationCompsRow, "sic" | "marketCap" | "annualizedRevenue">;
+
+const SIZE_GATE_LABEL = `${SIZE_GATE_MIN_RATIO}x-${SIZE_GATE_MAX_RATIO}x`;
+
+// Deterministic comparability gate applied to every candidate regardless of
+// Provenance (mapped, registry, cached, or model-proposed). Returns the first
+// Failed-gate reason, or undefined when the candidate is comparable to the
+// Target. Business-model metadata (role/rationale) never overrides a failure.
+function comparabilityFailure(
+  row: ComparabilityInputs,
+  target: ComparabilityInputs,
+): string | undefined {
+  if (row.sic === undefined) {
+    return "missing SIC classification";
+  }
+  if (target.sic === undefined) {
+    return "target SIC classification unavailable";
+  }
+  if (sicGroup(row.sic) !== sicGroup(target.sic)) {
+    return `SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`;
+  }
+  if (row.marketCap === undefined) {
+    return "missing market cap";
+  }
+  if (target.marketCap === undefined) {
+    return "target market cap unavailable";
+  }
+  if (target.marketCap <= 0) {
+    return "target market cap not positive";
+  }
+  if (!withinSizeGate(row.marketCap, target.marketCap)) {
+    return `market cap outside ${SIZE_GATE_LABEL} of target`;
+  }
+  if (row.annualizedRevenue === undefined) {
+    return "missing annualized revenue";
+  }
+  if (target.annualizedRevenue === undefined) {
+    return "target annualized revenue unavailable";
+  }
+  if (target.annualizedRevenue <= 0) {
+    return "target annualized revenue not positive";
+  }
+  if (!withinSizeGate(row.annualizedRevenue, target.annualizedRevenue)) {
+    return `annualized revenue outside ${SIZE_GATE_LABEL} of target`;
+  }
+  return undefined;
+}
+
+function peerRow(
+  entry: PeerCollection,
+  generatedAt: string,
+  target: ValuationCompsRow,
+): ValuationCompsRow {
   const { peer, quote, sec } = entry;
   const { metrics } = sec;
   const marketCap = quote?.marketCap;
@@ -333,7 +413,7 @@ function peerRow(entry: PeerCollection, generatedAt: string): ValuationCompsRow 
     ...(quote?.sourceId !== undefined ? [quote.sourceId] : []),
     ...(sec.sourceId !== undefined ? [sec.sourceId] : []),
   ]);
-  const usable =
+  const inputsUsable =
     isFreshDate(quote?.observedAt, generatedAt) &&
     marketCap !== undefined &&
     cash !== undefined &&
@@ -343,11 +423,15 @@ function peerRow(entry: PeerCollection, generatedAt: string): ValuationCompsRow 
     isFreshPeriodEnd(revenuePeriodEnd, generatedAt) &&
     evToAnnualizedRevenue !== undefined &&
     Number.isFinite(evToAnnualizedRevenue);
-  return {
+  const row: Omit<ValuationCompsRow, "usable"> = {
     symbol: peer.symbol,
     ...(peer.name !== undefined ? { name: peer.name } : {}),
     role: peer.role,
     rationale: peer.rationale,
+    ...(sec.sicClassification !== undefined ? { sic: sec.sicClassification.sic } : {}),
+    ...(sec.sicClassification?.sicDescription !== undefined
+      ? { sicDescription: sec.sicClassification.sicDescription }
+      : {}),
     ...(marketCap !== undefined ? { marketCap } : {}),
     ...(cash !== undefined ? { cash } : {}),
     ...(debt !== undefined ? { debt } : {}),
@@ -360,7 +444,10 @@ function peerRow(entry: PeerCollection, generatedAt: string): ValuationCompsRow 
     ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),
     ...(quote?.observedAt !== undefined ? { quoteObservedAt: quote.observedAt } : {}),
     sourceIds,
-    usable,
+  };
+  return {
+    ...row,
+    usable: inputsUsable && comparabilityFailure(row, target) === undefined,
   };
 }
 
@@ -368,6 +455,7 @@ function excludedPeer(
   row: ValuationCompsRow,
   peers: readonly PeerUniversePeer[],
   generatedAt: string,
+  target: ValuationCompsRow,
 ): readonly ExcludedValuationPeer[] {
   if (row.usable) {
     return [];
@@ -380,13 +468,17 @@ function excludedPeer(
     {
       symbol: row.symbol,
       role: peer.role,
-      reason: exclusionReason(row, generatedAt),
+      reason: exclusionReason(row, generatedAt, target),
       sourceIds: row.sourceIds,
     },
   ];
 }
 
-function exclusionReason(row: ValuationCompsRow, generatedAt: string): string {
+function exclusionReason(
+  row: ValuationCompsRow,
+  generatedAt: string,
+  target: ValuationCompsRow,
+): string {
   if (row.quoteObservedAt === undefined) {
     return "missing quote";
   }
@@ -411,7 +503,10 @@ function exclusionReason(row: ValuationCompsRow, generatedAt: string): string {
   if (!isFreshDate(row.quoteObservedAt, generatedAt)) {
     return "stale quote";
   }
-  return "stale SEC revenue period";
+  if (!isFreshPeriodEnd(row.revenuePeriodEnd, generatedAt)) {
+    return "stale SEC revenue period";
+  }
+  return comparabilityFailure(row, target) ?? "not usable";
 }
 
 function buildArtifact(

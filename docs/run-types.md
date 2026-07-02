@@ -276,6 +276,15 @@ positive. If budgets are positive but the Exa key is absent, the run continues
 degraded and emits a `search-unavailable` `SourceGap`. Subject kind = `company`.
 Searches and fetches must mention the company symbol or display name.
 
+Exa is the primary web-gather provider. When a configured Exa search/fetch
+hard-fails or returns empty/thin results, a configured Firecrawl fallback may
+serve the same request (fallback-only — it never substitutes for a missing Exa
+key). The web-gather audit records attempted providers, the served provider,
+and the fallback reason. Stage-1 gather also rejects background searches that
+duplicate business-profile sections already covered by the deterministic SEC
+10-K/10-Q packet unless a recency, corroboration, or explicit-gap rationale is
+given (see [ADR 0028](./adr/0028-deterministic-source-plan-subsystem.md)).
+
 ### Model Stages
 
 - Planned stages: `specialist-analysis`, `instrument-evidence-analysis`,
@@ -324,7 +333,8 @@ match the equity instrument profile, but the profiles are independently owned.
 - No verified market snapshot sidecar.
 - No evidence-request loop (`supportsEvidenceRequest: false`).
 - Web-gather loop enabled for deep runs (Exa key + budgets); positive budgets
-  without an Exa key emit a `search-unavailable` `SourceGap`.
+  without an Exa key emit a `search-unavailable` `SourceGap`. A configured
+  Firecrawl fallback may serve failed or thin Exa requests.
 - Deep crypto runs include the `subject-profile` Source Plan lane for cited Web
   Subject Profile evidence.
 
@@ -397,7 +407,8 @@ as `semis`, `chip stocks`, or `ai infrastructure` to:
 - No evidence-request loop.
 - Web-gather loop enabled for deep runs when an Exa key is present and budgets
   are positive; positive budgets without an Exa key emit a `search-unavailable`
-  `SourceGap`. Subject kind = `theme` or `company` depending on the registry
+  `SourceGap`. A configured Firecrawl fallback may serve failed or thin Exa
+  requests. Subject kind = `theme` or `company` depending on the registry
   entry.
 
 ### Registry Provenance

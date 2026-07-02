@@ -7,6 +7,7 @@
   import SendHorizontalIcon from "@lucide/svelte/icons/send-horizontal";
   import LoaderIcon from "@lucide/svelte/icons/loader";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
+  import Globe2Icon from "@lucide/svelte/icons/globe-2";
   import { Button } from "$lib/components/ui/button";
   import {
     loadRunChatMessages,
@@ -31,6 +32,14 @@
   let copyFeedback:
     | { readonly messageId: string; readonly status: "copied" | "failed" }
     | undefined = $state();
+  let searchCapability:
+    | {
+        readonly configured: boolean;
+        readonly supported: boolean;
+        readonly effective: boolean;
+        readonly reason: string;
+      }
+    | undefined = $state();
   let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   function createChat(id: string): Chat {
@@ -54,8 +63,37 @@
       trackedRunId = runId;
       chat = createChat(runId);
       inputText = "";
+      searchCapability = undefined;
       clearCopyFeedback();
     }
+  });
+
+  $effect(() => {
+    const id = runId;
+    fetch(`/api/runs/${encodeURIComponent(id)}/chat/search-capability`)
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((value: unknown) => {
+        if (id !== runId || typeof value !== "object" || value === null) {
+          return;
+        }
+        const candidate = value as {
+          readonly configured?: unknown;
+          readonly supported?: unknown;
+          readonly effective?: unknown;
+          readonly reason?: unknown;
+        };
+        searchCapability = {
+          configured: candidate.configured === true,
+          supported: candidate.supported === true,
+          effective: candidate.effective === true,
+          reason: typeof candidate.reason === "string" ? candidate.reason : "provider-unsupported",
+        };
+      })
+      .catch(() => {
+        if (id === runId) {
+          searchCapability = undefined;
+        }
+      });
   });
 
   $effect(() => {
@@ -185,6 +223,20 @@
         <div class="text-sm text-muted-foreground">
           <p>Ask anything about this research run.</p>
           <p class="mt-1 text-xs">The model sees the full run artifacts.</p>
+        </div>
+      </div>
+    {/if}
+
+    {#if searchCapability?.effective === true}
+      <div
+        class="mb-3 flex gap-2 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-3 py-2 text-[12px] leading-normal text-[#6f5518]"
+      >
+        <Globe2Icon class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div>
+          Live web search is enabled for this chat. Questions and selected run
+          context may be sent to Codex and external web requests may be made;
+          web findings remain ephemeral and do not update run artifacts,
+          Evidence Quality, or predictions.
         </div>
       </div>
     {/if}

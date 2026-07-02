@@ -20,6 +20,20 @@ interface ChatRequestBody {
   readonly messages?: readonly UIMessage[];
 }
 
+type RunChatSearchCapabilityReason =
+  | "provider-unsupported"
+  | "probe-failed"
+  | "codex-search-unsupported"
+  | "disabled-by-server-policy"
+  | "active";
+
+export interface RunChatSearchCapability {
+  readonly configured: boolean;
+  readonly supported: boolean;
+  readonly effective: boolean;
+  readonly reason: RunChatSearchCapabilityReason;
+}
+
 export interface ReadyChatDeps {
   readonly status: "ready";
   readonly provider: ModelProvider;
@@ -54,6 +68,13 @@ function textResponse(text: string, status = 200): Response {
   return new Response(text, {
     status,
     headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(`${JSON.stringify(value)}\n`, {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
   });
 }
 
@@ -125,12 +146,69 @@ When you do consult the web:
 - Make clear when a claim comes from a live web lookup rather than the run's artifacts.
 - Web findings are ephemeral context for this conversation only — they are not persisted research Sources and do not affect scored predictions or evidence quality.`.trimStart();
 
+export async function runChatSearchCapability(
+  deps: ChatEndpointDeps,
+): Promise<RunChatSearchCapability> {
+  if (deps.status === "unavailable") {
+    return {
+      configured: false,
+      supported: false,
+      effective: false,
+      reason: "provider-unsupported",
+    };
+  }
+
+  if (!deps.chatConfig.webSearch) {
+    return {
+      configured: false,
+      supported: false,
+      effective: false,
+      reason: "disabled-by-server-policy",
+    };
+  }
+
+  if (deps.provider.name !== "codex" || deps.provider.webSearchCapability === undefined) {
+    return {
+      configured: true,
+      supported: false,
+      effective: false,
+      reason: "provider-unsupported",
+    };
+  }
+
+  const capability = await deps.provider
+    .webSearchCapability()
+    .catch(() => ({ supported: false, reason: "probe-failed" as const }));
+  if (!capability.supported) {
+    return {
+      configured: true,
+      supported: false,
+      effective: false,
+      reason: capability.reason === "probe-failed" ? "probe-failed" : "codex-search-unsupported",
+    };
+  }
+
+  return {
+    configured: true,
+    supported: true,
+    effective: true,
+    reason: "active",
+  };
+}
+
 export async function handleRunChat(
   request: Request,
   url: URL,
   deps: ChatEndpointDeps,
 ): Promise<Response | undefined> {
   const chatMatch = /^\/api\/runs\/([^/]+)\/chat$/u.exec(url.pathname);
+  const searchCapabilityMatch = /^\/api\/runs\/([^/]+)\/chat\/search-capability$/u.exec(
+    url.pathname,
+  );
+  if (searchCapabilityMatch !== null && request.method === "GET") {
+    return jsonResponse(await runChatSearchCapability(deps));
+  }
+
   if (chatMatch === null || request.method !== "POST") {
     return undefined;
   }
@@ -177,11 +255,8 @@ export async function handleRunChat(
       ? `${systemPrompt}\n\n# Run artifacts\n\n${contextBlock}`
       : systemPrompt;
 
-  const webSearchActive =
-    deps.chatConfig.webSearch &&
-    (deps.provider.name === "codex" ||
-      deps.provider.name === "openai" ||
-      deps.provider.name === "anthropic");
+  const searchCapability = await runChatSearchCapability(deps);
+  const webSearchActive = searchCapability.effective;
   const finalSystemContent = webSearchActive
     ? `${systemContent}\n\n${WEB_SEARCH_GUIDANCE}`
     : systemContent;

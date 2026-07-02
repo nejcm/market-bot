@@ -29,7 +29,15 @@ export interface ModelResponse {
   readonly costEstimateUsd: number;
 }
 
+export type WebSearchCapabilityReason = "provider-unsupported" | "probe-failed" | "supported";
+
+export interface WebSearchCapability {
+  readonly supported: boolean;
+  readonly reason: WebSearchCapabilityReason;
+}
+
 export interface ModelProvider {
   readonly name: string;
   readonly generate: (request: ModelRequest) => Promise<ModelResponse>;
+  readonly webSearchCapability?: () => Promise<WebSearchCapability>;
 }

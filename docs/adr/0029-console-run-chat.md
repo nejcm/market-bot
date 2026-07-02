@@ -23,18 +23,20 @@ remain separate from Run Artifacts, and optionally answer questions requiring cu
 - Same-origin POST validation protects the local paid-model endpoint. The server binds to localhost
   by default and provides no authentication or TLS.
 - Chat follows the explicit boundary exception in ADR 0001.
-- Live web search is opt-in at the model-request level and active only when console configuration
-  enables it and the selected provider is Codex.
-- Codex live search receives `tools.web_search=true` and `web_search=live`. Other providers ignore
-  the optional request field.
+- Live web search is enabled by default at the console configuration level, but active only when the
+  selected provider is Codex and a once-per-process capability probe confirms the local Codex CLI
+  advertises live-search support.
+- Codex live search receives `tools.web_search=true` and `web_search=live`. Other providers run chat
+  without live search until provider-specific support is explicitly implemented.
+- The client discloses active live search in the Run Chat UI because questions and selected run
+  context may be sent to Codex and external web requests may be made.
 - Web findings are ephemeral conversational context. They are not persisted Sources, do not affect
   Evidence Quality or predictions, and must be cited inline by URL/title when used.
 
 ## Current operational limitations
 
-- Configuration defaults web search to enabled, but unsupported providers silently run without it.
-- The Codex provider accepts CLI version 0.125.0+, while the live-search keys were documented as
-  verified on 0.141.0. There is no separate runtime capability probe.
+- Configuration defaults web search to enabled, but unsupported providers run without it.
+- Non-Codex model providers do not currently expose Run Chat live search.
 - Same-origin localhost protection does not replace authentication if the console is exposed.
 - Chat sends selected artifact and user content to the configured model provider and may incur paid
   model or web-search usage.

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppConfig } from "../config";
-import type { ModelProvider, ModelRequest, ModelResponse } from "./types";
+import type { ModelProvider, ModelRequest, ModelResponse, WebSearchCapability } from "./types";
 
 const MIN_CODEX_VERSION = [0, 125, 0] as const;
 
@@ -199,6 +199,17 @@ async function preflight(spawnImpl: SpawnImpl): Promise<void> {
   }
 }
 
+async function probeWebSearchCapability(spawnImpl: SpawnImpl): Promise<WebSearchCapability> {
+  const result = await spawnImpl(["codex", "--help"], "").catch(() => null);
+  if (result === null || result.exitCode !== 0) {
+    return { supported: false, reason: "probe-failed" };
+  }
+  const output = `${result.stdout}\n${result.stderr}`;
+  return output.includes("--search")
+    ? { supported: true, reason: "supported" }
+    : { supported: false, reason: "provider-unsupported" };
+}
+
 export function createCodexProvider(
   config: AppConfig,
   spawnImpl: SpawnImpl = defaultSpawn,
@@ -210,6 +221,7 @@ export function createCodexProvider(
 
   let preflightDone = false;
   let preflightPromise: Promise<void> | null = null;
+  let webSearchCapabilityPromise: Promise<WebSearchCapability> | null = null;
 
   function ensurePreflight(): Promise<void> {
     if (preflightDone) {
@@ -225,6 +237,10 @@ export function createCodexProvider(
 
   return {
     name: "codex",
+    webSearchCapability: () => {
+      webSearchCapabilityPromise ??= probeWebSearchCapability(spawnImpl);
+      return webSearchCapabilityPromise;
+    },
     generate: async (request: ModelRequest): Promise<ModelResponse> => {
       await ensurePreflight();
 

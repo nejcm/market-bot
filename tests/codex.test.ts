@@ -135,6 +135,42 @@ describe("createCodexProvider — preflight", () => {
 });
 
 describe("createCodexProvider — generate", () => {
+  test("probes web search capability once from codex help", async () => {
+    const calls: string[][] = [];
+    const spawn: SpawnImpl = async (args) => {
+      calls.push(args);
+      if (args[1] === "--help") {
+        return { stdout: "Usage: codex exec --search", stderr: "", exitCode: 0 };
+      }
+      return { stdout: "", stderr: "", exitCode: 1 };
+    };
+    const provider = createCodexProvider(baseConfig, spawn);
+
+    expect(provider.webSearchCapability).not.toBeUndefined();
+    await expect(provider.webSearchCapability!()).resolves.toEqual({
+      supported: true,
+      reason: "supported",
+    });
+    await expect(provider.webSearchCapability!()).resolves.toEqual({
+      supported: true,
+      reason: "supported",
+    });
+
+    expect(calls.filter((args) => args[1] === "--help")).toHaveLength(1);
+  });
+
+  test("reports failed web search capability probe", async () => {
+    const failure = { stdout: "", stderr: "boom", exitCode: 1 };
+    const spawn: SpawnImpl = async () => failure;
+    const provider = createCodexProvider(baseConfig, spawn);
+
+    expect(provider.webSearchCapability).not.toBeUndefined();
+    await expect(provider.webSearchCapability!()).resolves.toEqual({
+      supported: false,
+      reason: "probe-failed",
+    });
+  });
+
   test("parses agent_message content from event stream", async () => {
     const spawn = makeSpawn({
       exec: { exitCode: 0, stdout: agentMessageStream("hello world", 20) },

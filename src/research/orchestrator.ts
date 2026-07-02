@@ -70,6 +70,7 @@ import {
 } from "./spotlights";
 import { emptySpotlightSelectionFor, runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
+import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
   assessSourcePlan,
@@ -518,11 +519,15 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ),
   });
   const postSynthesisWarnings = auditPostSynthesisReport(synthesis.report);
+  // Deterministic Report Integrity Audit: prune blocking violations from the
+  // Schema-valid synthesis output before forecast disagreement so pruned
+  // Predictions never reach challengers, persistence, or scoring.
+  const integrityAudit = auditReportIntegrity(synthesis.report);
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput: input,
     generatedAt,
     runParams,
-    report: synthesis.report,
+    report: validateResearchReport(integrityAudit.report),
   });
   const { report, challengerModels } = forecastDisagreementPhase;
   const forecastDisagreement = forecastDisagreementPhase.artifact;
@@ -593,6 +598,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           },
         }
       : {}),
+    reportIntegrityAudit: {
+      reportIntegrity: integrityAudit.reportIntegrity,
+      researchQuality: integrityAudit.researchQuality,
+      prunedItemCount: integrityAudit.prunedItemCount,
+      advisoryWarningCount: integrityAudit.advisoryWarningCount,
+      pruned: integrityAudit.pruned,
+    },
     sourcePlan: {
       plannedLaneCount: sourcePlanning.evidenceLanes.summary.plannedLaneCount,
       coreLaneCount: sourcePlanning.evidenceLanes.summary.coreLaneCount,

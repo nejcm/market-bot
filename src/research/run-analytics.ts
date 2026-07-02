@@ -1,6 +1,7 @@
 import {
   NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
+  type ReportIntegrity,
   type ResearchReport,
   type RunTrace,
   type Source,
@@ -148,6 +149,12 @@ export interface RunAnalytics {
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly byCode: Readonly<Record<string, number>>;
+  };
+  readonly reportIntegrity?: {
+    readonly label: ReportIntegrity;
+    readonly researchQuality: ReportIntegrity;
+    readonly prunedItemCount: number;
+    readonly advisoryWarningCount: number;
   };
   readonly sourcePlan?: {
     readonly plannedLaneCount: number;
@@ -682,6 +689,16 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       mixWarnings,
     },
     ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
+    ...(trace.reportIntegrityAudit !== undefined
+      ? {
+          reportIntegrity: {
+            label: trace.reportIntegrityAudit.reportIntegrity,
+            researchQuality: trace.reportIntegrityAudit.researchQuality,
+            prunedItemCount: trace.reportIntegrityAudit.prunedItemCount,
+            advisoryWarningCount: trace.reportIntegrityAudit.advisoryWarningCount,
+          },
+        }
+      : {}),
     ...(sourcePlanSummary !== undefined
       ? {
           sourcePlan: {

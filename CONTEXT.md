@@ -236,7 +236,19 @@ The guarantee that current evidence contains only facts observable on or before 
 
 ## Post-Synthesis Audit
 
-A deterministic, no-model inspection of a finished Research View that flags weak-evidence hygiene in report claims — for example a numeric or technical claim cited only to prior reports, or a weak claim missing an evidence-posture label. It is warn-only telemetry: warnings are recorded in analytics and trace but do not block, rewrite, or trigger re-synthesis. It surfaces where synthesis discipline can improve; it is not a research-only boundary check, a correctness guarantee, model endorsement, or a trade signal. The hard research-only boundary remains enforced separately by report validation.
+A deterministic, no-model inspection of a finished Research View that flags weak-evidence hygiene in report claims — for example a numeric or technical claim cited only to prior reports, or a weak claim missing an evidence-posture label. It is warn-only telemetry: warnings are recorded in analytics and trace but do not block, rewrite, or trigger re-synthesis. It surfaces where synthesis discipline can improve; it is not a research-only boundary check, a correctness guarantee, model endorsement, or a trade signal. The hard research-only boundary remains enforced separately by report validation, and enforced pruning of unsupported claims belongs to the distinct [[report-integrity-audit]].
+
+## Report Integrity Audit
+
+A deterministic, no-model pruning pass that runs after schema-valid synthesis and before forecast disagreement, distinct from the warn-only [[post-synthesis-audit]]. It removes blocking violations — numeric or technical findings, scenarios, and Predictions without an eligible supporting source (structural eligibility only; bare years, forecast-horizon wording, and cited historical forecast outcomes are exempt) — then validates and persists the pruned report. Uncited numeric summary sentences and missing evidence-posture labels stay advisory telemetry and are never pruned. Predictions removed here never enter scoring. See [ADR 0011](./docs/adr/0011-fixed-coverage-panel-for-deep-research.md).
+
+## Report Integrity
+
+A per-report grade stamped by the Report Integrity Audit: `high` when the report needed no pruning, `medium` when pruning occurred but required analytical sections (key findings, risks, scenarios) remain populated, `low` when pruning emptied a previously populated required section. Optional on historical reports at tolerant read boundaries; stamped on every new report write.
+
+## Research Quality
+
+The worse of Evidence Quality and Report Integrity, stamped alongside Report Integrity on every new report write. It summarizes how much of the run's output is both evidence-backed and structurally supported; it is not investment conviction or a trade signal.
 
 ## Source
 

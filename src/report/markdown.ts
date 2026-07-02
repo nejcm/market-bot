@@ -813,6 +813,12 @@ export function renderMarkdownReport(report: ResearchReport): string {
     "",
     `Generated: ${report.generatedAt}`,
     `Evidence Quality: ${researchReportEvidenceQuality(report)}`,
+    ...(report.reportIntegrity !== undefined
+      ? [`Report Integrity: ${report.reportIntegrity}`]
+      : []),
+    ...(report.researchQuality !== undefined
+      ? [`Research Quality: ${report.researchQuality}`]
+      : []),
     "",
     "## Summary",
     "",

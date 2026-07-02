@@ -5,6 +5,7 @@ import {
   SOURCE_KINDS,
   isMarketRegimeLabel,
   type AssetClass,
+  isReportIntegrity,
   type ExtendedEvidence,
   type ExtendedEvidenceCategory,
   type ExtendedEvidenceItem,
@@ -493,6 +494,8 @@ function readReport(value: unknown): ResearchReport | undefined {
     ...(evidenceQuality !== undefined
       ? { evidenceQuality }
       : { confidence: legacyConfidence ?? "low" }),
+    ...(isReportIntegrity(value.reportIntegrity) ? { reportIntegrity: value.reportIntegrity } : {}),
+    ...(isReportIntegrity(value.researchQuality) ? { researchQuality: value.researchQuality } : {}),
     dataGaps: stringArrayValue(value.dataGaps),
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),

@@ -80,22 +80,30 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
 
 function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
   return [
-    ...(isNumericOrTechnical(claim.text) &&
+    ...(isNumericOrTechnicalClaim(claim.text) &&
     !isHistoricalForecastOutcome(claim.text) &&
     hasNoSupportingSource(claim.sourceIds)
       ? [unsupportedNumericWarning(claim)]
       : []),
-    ...(shouldCarryPosture(claim) && !hasPostureLabel(claim.text)
+    ...(shouldCarryPostureLabel(claim.text, claim.sourceIds) && !hasPostureLabel(claim.text)
       ? [missingPostureWarning(claim)]
       : []),
   ];
 }
 
-function isNumericOrTechnical(text: string): boolean {
+export function isNumericOrTechnicalClaim(text: string): boolean {
   return NUMERIC_CLAIM_PATTERN.test(text) || TECHNICAL_INDICATOR_PATTERN.test(text);
 }
 
-function isHistoricalForecastOutcome(text: string): boolean {
+export function isTechnicalClaim(text: string): boolean {
+  return TECHNICAL_INDICATOR_PATTERN.test(text);
+}
+
+export function isNumericClaim(text: string): boolean {
+  return NUMERIC_CLAIM_PATTERN.test(text);
+}
+
+export function isHistoricalForecastOutcome(text: string): boolean {
   return (
     HISTORICAL_OUTCOME_CONTEXT_PATTERN.test(text) &&
     FORECAST_OUTCOME_PATTERN.test(text) &&
@@ -103,15 +111,15 @@ function isHistoricalForecastOutcome(text: string): boolean {
   );
 }
 
-function hasNoSupportingSource(sourceIds: readonly string[]): boolean {
+export function hasNoSupportingSource(sourceIds: readonly string[]): boolean {
   return sourceIds.every((sourceId) => sourceId.startsWith("history-report-"));
 }
 
-function shouldCarryPosture(claim: AuditClaim): boolean {
-  return hasNoSupportingSource(claim.sourceIds) || WEAK_POSTURE_CLAIM_PATTERN.test(claim.text);
+export function shouldCarryPostureLabel(text: string, sourceIds: readonly string[]): boolean {
+  return hasNoSupportingSource(sourceIds) || WEAK_POSTURE_CLAIM_PATTERN.test(text);
 }
 
-function hasPostureLabel(text: string): boolean {
+export function hasPostureLabel(text: string): boolean {
   const normalized = text.toLowerCase();
   return EVIDENCE_POSTURE_LABELS.some((label) => normalized.includes(label));
 }

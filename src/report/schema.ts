@@ -1,4 +1,5 @@
 import {
+  isReportIntegrity,
   SOURCE_KINDS,
   type EvidenceQuality,
   type KeyFinding,
@@ -499,6 +500,16 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
     throw new Error("Research report evidenceQuality conflicts with legacy confidence");
   }
   assertEvidenceQuality(evidenceQuality);
+  // Report Integrity / Research Quality are optional at tolerant read
+  // Boundaries (historical reports predate them) but must be valid when set.
+  for (const [field, value] of [
+    ["reportIntegrity", report.reportIntegrity],
+    ["researchQuality", report.researchQuality],
+  ] as const) {
+    if (value !== undefined && !isReportIntegrity(value)) {
+      throw new Error(`Research report ${field} must be high, medium, or low`);
+    }
+  }
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));
 

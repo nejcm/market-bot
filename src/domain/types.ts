@@ -526,6 +526,16 @@ export interface Scenario {
   readonly sourceIds: readonly string[];
 }
 
+// Report Integrity grades the deterministic post-synthesis pruning outcome;
+// Research Quality is the worse of Evidence Quality and Report Integrity.
+// Both are optional at tolerant read boundaries (historical reports predate
+// Them) and stamped on every new report write.
+export type ReportIntegrity = "high" | "medium" | "low";
+
+export function isReportIntegrity(value: unknown): value is ReportIntegrity {
+  return value === "high" || value === "medium" || value === "low";
+}
+
 export interface ResearchReport {
   readonly runId: string;
   readonly jobType: JobType;
@@ -542,6 +552,8 @@ export interface ResearchReport {
   readonly scenarios: readonly Scenario[];
   readonly evidenceQuality?: EvidenceQuality;
   readonly confidence?: EvidenceQuality;
+  readonly reportIntegrity?: ReportIntegrity;
+  readonly researchQuality?: ReportIntegrity;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
@@ -625,6 +637,17 @@ export interface RunTrace {
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly warnings: readonly PostSynthesisAuditWarning[];
+  };
+  readonly reportIntegrityAudit?: {
+    readonly reportIntegrity: ReportIntegrity;
+    readonly researchQuality: ReportIntegrity;
+    readonly prunedItemCount: number;
+    readonly advisoryWarningCount: number;
+    readonly pruned: readonly {
+      readonly location: string;
+      readonly text: string;
+      readonly sourceIds: readonly string[];
+    }[];
   };
   readonly sourcePlan?: {
     readonly plannedLaneCount: number;

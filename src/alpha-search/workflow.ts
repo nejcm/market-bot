@@ -312,6 +312,10 @@ function buildAlphaSearchReport(input: {
     rankedCandidates: input.rankedCandidates,
     validLeads,
   });
+  const evidenceQuality =
+    validLeads.length > 0 && input.sourceGaps.filter(isCoreEvidenceQualityGap).length === 0
+      ? ("medium" as const)
+      : ("low" as const);
 
   return validateResearchReport({
     runId: input.runId,
@@ -328,10 +332,12 @@ function buildAlphaSearchReport(input: {
     // Only quality-capping (core) gaps should downgrade confidence.
     // No-cap gaps such as pre-ticker SEC filings are disclosed in dataGaps,
     // Yet must not pin an otherwise-clean run with valid leads to "low".
-    evidenceQuality:
-      validLeads.length > 0 && input.sourceGaps.filter(isCoreEvidenceQualityGap).length === 0
-        ? "medium"
-        : "low",
+    evidenceQuality,
+    // Alpha-search reports are assembled deterministically from validated
+    // Candidates (no model synthesis), so Report Integrity is structurally
+    // High and Research Quality reduces to Evidence Quality.
+    reportIntegrity: "high",
+    researchQuality: evidenceQuality,
     dataGaps: gaps,
     predictions: [],
     sources: input.sources,

@@ -128,6 +128,26 @@ describe("loadRunArtifact", () => {
     expect(artifact?.marketSnapshots[0]?.benchmark?.symbol).toBe("SPY");
   });
 
+  test("loads historical reports without report-integrity fields and keeps stamped ones", async () => {
+    const dataDir = tempRunsDir();
+    const legacyDir = join(dataDir, "run-legacy");
+    await writeJson(join(legacyDir, "report.json"), researchReport({ runId: "run-legacy" }));
+    const stampedDir = join(dataDir, "run-stamped");
+    await writeJson(
+      join(stampedDir, "report.json"),
+      researchReport({ runId: "run-stamped", reportIntegrity: "medium", researchQuality: "low" }),
+    );
+
+    const legacy = await loadRunArtifact(legacyDir);
+    const stamped = await loadRunArtifact(stampedDir);
+
+    expect(legacy.status.report).toBe("ok");
+    expect(legacy.artifact?.report.reportIntegrity).toBeUndefined();
+    expect(legacy.artifact?.report.researchQuality).toBeUndefined();
+    expect(stamped.artifact?.report.reportIntegrity).toBe("medium");
+    expect(stamped.artifact?.report.researchQuality).toBe("low");
+  });
+
   test("loads verified market snapshot through the run artifact seam", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "verified");

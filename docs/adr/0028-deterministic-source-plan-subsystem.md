@@ -64,7 +64,9 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 - News-provider prose is injected into model evidence without the Exa sanitizer. It remains an
   untrusted-content gap in the current implementation.
 - The sanitizer does not detect all Unicode homoglyph/confusable attacks.
-- Post-synthesis unsupported-claim auditing is warning-only under ADR 0011.
+- Post-synthesis unsupported-claim auditing is warning-only under ADR 0011; the separate Report
+  Integrity Audit (ADR 0011) prunes structurally unsupported claims but makes no
+  semantic-entailment guarantee.
 - Company profile TTL reuse does not invalidate on every possible material non-filing event.
 
 ## Consequences

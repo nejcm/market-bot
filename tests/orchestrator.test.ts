@@ -1106,8 +1106,13 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.report.keyFindings[0]?.text).toBe("Sector RSI14 is 70.");
+    // The warn-only Post-Synthesis Audit still records both warnings on the
+    // Pre-prune report, while the Report Integrity Audit removes the uncited
+    // Technical finding before persistence and stamps the report grades.
+    expect(result.report.keyFindings.map((finding) => finding.text)).toEqual([]);
     expect(result.report.predictions).toHaveLength(6);
+    expect(result.report.reportIntegrity).toBe("low");
+    expect(result.report.researchQuality).toBe("low");
     expect(result.trace.postSynthesisAudit?.warningCount).toBe(2);
     expect(result.trace.postSynthesisAudit?.warnings.map((warning) => warning.code)).toEqual([
       "unsupported-numeric-claim",
@@ -1119,6 +1124,18 @@ describe("runResearchJob", () => {
         "unsupported-numeric-claim": 1,
         "weak-evidence-posture-missing": 1,
       },
+    });
+    expect(result.trace.reportIntegrityAudit).toMatchObject({
+      reportIntegrity: "low",
+      researchQuality: "low",
+      prunedItemCount: 1,
+      pruned: [expect.objectContaining({ location: "keyFindings[0]" })],
+    });
+    expect(result.analytics.reportIntegrity).toEqual({
+      label: "low",
+      researchQuality: "low",
+      prunedItemCount: 1,
+      advisoryWarningCount: result.trace.reportIntegrityAudit?.advisoryWarningCount ?? -1,
     });
   });
 

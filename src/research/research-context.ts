@@ -18,6 +18,7 @@ import {
 } from "./verified-snapshot-contract";
 import { MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS } from "../forecast/observable";
 import type { HistoricalResearchContext } from "./historical-context";
+import { sanitizeModelInputText } from "../sources/model-input-sanitizer";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage } from "./playbooks";
 import type {
   CalibrationContext,
@@ -282,6 +283,12 @@ function buildEvidencePayload(
   config: AppConfig,
   context: ResearchContext,
 ): Record<string, unknown> {
+  const historicalContext =
+    context.historicalContext === undefined
+      ? undefined
+      : sanitizeHistoricalContextForModel(context.historicalContext);
+  const promptContext =
+    historicalContext === undefined ? context : { ...context, historicalContext };
   const movers = rankMovers(
     collectedSources.marketSnapshots.filter(
       (snapshot) => snapshot.assetClass === command.assetClass,
@@ -292,12 +299,9 @@ function buildEvidencePayload(
     stage === "final-synthesis"
       ? buildCalibrationBlock(context.calibrationContext, command, context)
       : undefined;
-  const priorThesisErrors = buildPriorThesisErrorBlock(command, context.historicalContext);
-  const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
-  const priorThematicForecastErrors = buildResearchForecastErrorBlock(
-    command,
-    context.historicalContext,
-  );
+  const priorThesisErrors = buildPriorThesisErrorBlock(command, historicalContext);
+  const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, promptContext);
+  const priorThematicForecastErrors = buildResearchForecastErrorBlock(command, historicalContext);
   const deterministicCitationGuidance =
     "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, or verifiedMarketSnapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
@@ -353,8 +357,8 @@ function buildEvidencePayload(
     supplementalMarketSnapshots: collectedSources.supplementalMarketSnapshots,
     newsSources: collectedSources.newsSources,
     ...evidenceProjections,
-    ...(context.historicalContext !== undefined
-      ? { historicalContext: compactHistoricalContext(context.historicalContext) }
+    ...(historicalContext !== undefined
+      ? { historicalContext: compactHistoricalContext(historicalContext) }
       : {}),
     ...(context.spotlightCandidates !== undefined
       ? { spotlightCandidates: context.spotlightCandidates }
@@ -381,16 +385,78 @@ function buildEvidencePayload(
 }
 
 function compactHistoricalContext(context: HistoricalResearchContext): Record<string, unknown> {
+  const safeContext = sanitizeHistoricalContextForModel(context);
   return {
-    generatedAt: context.generatedAt,
-    recentDays: context.recentDays,
-    anchorMonths: context.anchorMonths,
-    sourceIds: context.sources.map((source) => source.id),
-    runs: context.runs,
-    gaps: context.gaps,
-    audit: context.audit,
-    artifactDeltas: context.artifactDeltas,
+    generatedAt: safeContext.generatedAt,
+    recentDays: safeContext.recentDays,
+    anchorMonths: safeContext.anchorMonths,
+    sourceIds: safeContext.sources.map((source) => source.id),
+    runs: safeContext.runs,
+    gaps: safeContext.gaps,
+    audit: safeContext.audit,
+    artifactDeltas: safeContext.artifactDeltas,
   };
+}
+
+function sanitizeHistoricalContextForModel(
+  context: HistoricalResearchContext,
+): HistoricalResearchContext {
+  return {
+    ...context,
+    runs: context.runs.map((run) => ({
+      ...run,
+      summary: sanitizeHistoricalProse(run.summary),
+      keyFindings: run.keyFindings.flatMap((finding) => {
+        const text = sanitizeHistoricalProse(finding.text);
+        return text === "" ? [] : [{ ...finding, text }];
+      }),
+      risks: run.risks.flatMap((finding) => {
+        const text = sanitizeHistoricalProse(finding.text);
+        return text === "" ? [] : [{ ...finding, text }];
+      }),
+      catalysts: run.catalysts.flatMap((finding) => {
+        const text = sanitizeHistoricalProse(finding.text);
+        return text === "" ? [] : [{ ...finding, text }];
+      }),
+      dataGaps: run.dataGaps
+        .map((value) => sanitizeHistoricalProse(value))
+        .filter((value) => value !== ""),
+      predictions: run.predictions.map((prediction) => ({
+        ...prediction,
+        claim: sanitizeHistoricalProse(prediction.claim),
+      })),
+      ...(run.keyExtras !== undefined
+        ? { keyExtras: sanitizeHistoricalUnknown(run.keyExtras) as Record<string, unknown> }
+        : {}),
+    })),
+    gaps: context.gaps
+      .map((value) => sanitizeHistoricalProse(value))
+      .filter((value) => value !== ""),
+  };
+}
+
+function sanitizeHistoricalProse(value: string): string {
+  return (
+    sanitizeModelInputText(value, {
+      profile: "legacy-history",
+      fieldRole: "prose",
+    }).text ?? ""
+  );
+}
+
+function sanitizeHistoricalUnknown(value: unknown): unknown {
+  if (typeof value === "string") {
+    return sanitizeHistoricalProse(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((nested) => sanitizeHistoricalUnknown(nested));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, sanitizeHistoricalUnknown(nested)]),
+    );
+  }
+  return value;
 }
 
 function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<string, unknown> {

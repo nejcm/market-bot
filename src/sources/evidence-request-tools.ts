@@ -14,6 +14,12 @@ import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
 import {
+  aggregateModelInputSanitization,
+  sanitizeModelInputText,
+  type ModelInputSanitizationAggregate,
+  type ModelInputSanitizationAggregateEntry,
+} from "./model-input-sanitizer";
+import {
   isFetchJsonResult,
   isFetchTextResult,
   latestRawSnapshotFetchedAt,
@@ -33,6 +39,7 @@ export interface EvidenceRequestToolOutput {
   readonly sources: readonly Source[];
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
+  readonly modelInputSanitization?: ModelInputSanitizationAggregate;
 }
 
 interface SecFiling {
@@ -311,6 +318,7 @@ function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): st
 interface SecFilingSourceItem {
   readonly source: Source;
   readonly item: ExtendedEvidenceItem;
+  readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
 }
 
 function buildSecFilingSourceItem(
@@ -321,13 +329,32 @@ function buildSecFilingSourceItem(
   filingText: FetchTextResult,
 ): SecFilingSourceItem | undefined {
   const formKey = filing.form === "10-K" ? "10k" : "10q";
-  const identity = secIdentity(match);
   const normalized = normalizeFilingText(filingText.payload);
   const packet = secFilingSectionPacket(normalized, filing.form);
   if (packet === undefined) {
     return undefined;
   }
-  const summaryExcerpt = truncateText(packet, SEC_FILING_SUMMARY_EXCERPT_CHARS);
+  const sanitizedPacket = sanitizeModelInputText(packet, {
+    profile: "sec-filing",
+    fieldRole: "snippet",
+  });
+  if (sanitizedPacket.text === undefined) {
+    return undefined;
+  }
+  const sanitizedName =
+    match.name === undefined
+      ? undefined
+      : sanitizeModelInputText(match.name, {
+          profile: "short-metadata",
+          fieldRole: "title",
+          maxChars: 300,
+        });
+  const identity = secIdentity({
+    cik: match.cik,
+    ticker: match.ticker,
+    ...(sanitizedName?.text !== undefined ? { name: sanitizedName.text } : {}),
+  });
+  const summaryExcerpt = truncateText(sanitizedPacket.text, SEC_FILING_SUMMARY_EXCERPT_CHARS);
   const title = `${command.symbol} SEC ${filing.form}`;
   const source: Source = {
     id: `extended-sec-edgar-${command.symbol.toLowerCase()}-${formKey}`,
@@ -340,7 +367,7 @@ function buildSecFilingSourceItem(
     provider: "sec-edgar",
     rawRef: filingText.rawSnapshot.id,
     summary: `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`,
-    snippet: packet,
+    snippet: sanitizedPacket.text,
     identity,
   };
   const item: ExtendedEvidenceItem = {
@@ -359,7 +386,32 @@ function buildSecFilingSourceItem(
     },
     identity,
   };
-  return { source, item };
+  return {
+    source,
+    item,
+    sanitizationEntries: [
+      {
+        provider: "sec-edgar",
+        ingress: "sec-filing-text",
+        profile: "sec-filing",
+        fieldRole: "snippet",
+        droppedItemCount: 0,
+        ...sanitizedPacket.telemetry,
+      },
+      ...(sanitizedName === undefined
+        ? []
+        : [
+            {
+              provider: "sec-edgar",
+              ingress: "sec-tickers",
+              profile: "short-metadata" as const,
+              fieldRole: "title" as const,
+              droppedItemCount: 0,
+              ...sanitizedName.telemetry,
+            },
+          ]),
+    ],
+  };
 }
 
 async function fetchFilingText(
@@ -457,6 +509,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const items: ExtendedEvidenceItem[] = [];
   const gaps: SourceGap[] = [];
   const rawSnapshots: RawSourceSnapshot[] = [...sharedRawSnapshots];
+  const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
 
   // Fetch 10-K (primary annual source)
   if (tenK !== undefined) {
@@ -467,6 +520,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
       if (built !== undefined) {
         sources.push(built.source);
         items.push(built.item);
+        sanitizationEntries.push(...built.sanitizationEntries);
       } else {
         gaps.push(secPacketGap(command.symbol, tenK.form));
       }
@@ -484,6 +538,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
       if (built !== undefined) {
         sources.push(built.source);
         items.push(built.item);
+        sanitizationEntries.push(...built.sanitizationEntries);
       } else {
         gaps.push(secPacketGap(command.symbol, tenQ.form));
       }
@@ -510,7 +565,13 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
     return emptyOutput(gaps, rawSnapshots);
   }
 
-  return { rawSnapshots, sources, items, gaps };
+  return {
+    rawSnapshots,
+    sources,
+    items,
+    gaps,
+    modelInputSanitization: aggregateModelInputSanitization(sanitizationEntries),
+  };
 }
 
 function readTradierExpirations(payload: unknown): readonly string[] {

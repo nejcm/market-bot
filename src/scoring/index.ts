@@ -34,6 +34,7 @@ import {
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, readNumber, readString } from "../sources/guards";
+import { scoringPolicyFor } from "./policy";
 import { resolveOutcome } from "./resolver";
 import {
   loadConditionalCalibrationCountsFromIndex,
@@ -64,7 +65,6 @@ const ZERO_CONDITIONAL_COUNTS: ConditionalCalibrationSummary = {
   activatedCount: 0,
   voidedCount: 0,
 };
-export const SCORING_VERSION = 2;
 
 interface ScoreFile {
   readonly runId: string;
@@ -96,7 +96,7 @@ function unresolvedScore(
     outcome: undefined,
     observedAt: undefined,
     attemptCount,
-    scoringVersion: SCORING_VERSION,
+    scoringVersion: scoringPolicyFor(prediction).version,
     evidence,
   };
 }
@@ -155,7 +155,7 @@ async function scoreOnePrediction(
         outcome: undefined,
         observedAt: now.toISOString(),
         attemptCount,
-        scoringVersion: SCORING_VERSION,
+        scoringVersion: scoringPolicyFor(prediction).version,
         evidence: { reason: "abandoned after max attempts" },
       };
     }
@@ -177,7 +177,7 @@ async function scoreOnePrediction(
       outcome: undefined,
       observedAt: now.toISOString(),
       attemptCount,
-      scoringVersion: SCORING_VERSION,
+      scoringVersion: scoringPolicyFor(prediction).version,
       evidence: resolveResult.evidence,
     };
   }
@@ -190,7 +190,7 @@ async function scoreOnePrediction(
     outcome: resolveResult.outcome,
     observedAt: now.toISOString(),
     attemptCount,
-    scoringVersion: SCORING_VERSION,
+    scoringVersion: scoringPolicyFor(prediction).version,
     evidence: resolveResult.evidence,
   };
 }

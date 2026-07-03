@@ -15,6 +15,7 @@ import type { ObservableForecastIssue } from "../forecast/observable";
 import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
+import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
 import type { WebSubjectProfileArtifact } from "../sources/extended-evidence/web-subject-profile";
@@ -814,6 +815,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     ...deterministicGaps,
     ...gatedPredictions.gaps,
   ]);
+  // Stamp the current scoring policy on every accepted Prediction. The stamp
+  // Is deterministic: model-provided policy metadata never survives assembly.
+  const stampedPredictions = gatedPredictions.predictions.map((candidate) => ({
+    ...candidate,
+    scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
+  }));
   const shortfall = gatedPredictions.predictions.length < depthProfile.targetPredictions;
   const dataGaps = shortfall
     ? [
@@ -872,7 +879,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ? catalystCalendarExtra({
           generatedAt,
           catalysts,
-          predictions: gatedPredictions.predictions,
+          predictions: stampedPredictions,
           collectedSources,
         })
       : undefined;
@@ -895,7 +902,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     scenarios,
     evidenceQuality,
     dataGaps,
-    predictions: gatedPredictions.predictions,
+    predictions: stampedPredictions,
     sources,
     ...((isInstrumentCommand(command) || command.jobType === "research") &&
     collectedSources.extendedEvidence !== undefined

@@ -12,6 +12,7 @@ import {
 } from "../forecast/observable";
 import { isExchangeTradingDay, resolutionDate } from "./exchange-calendar";
 import type { ObservationRepository } from "./observations";
+import { scoringPolicyFor, type ScoringPolicy } from "./policy";
 import type { ScoreOutcome } from "./types";
 import { isRecord } from "../sources/guards";
 
@@ -40,18 +41,47 @@ export type ResolveOutcomeResult =
   | ResolveOutcomeVoided
   | ResolveOutcomeUnresolved;
 
+function ymd(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
 async function closeObservations(
   report: ResearchReport,
   now: Date,
   repo: ObservationRepository,
   subjects: readonly string[],
   horizonTradingDays: number,
+  policy: ScoringPolicy,
 ): Promise<readonly Observation[]> {
   const windows = await Promise.all(
     subjects.map((subject) =>
       repo.window(subject, report.assetClass, new Date(report.generatedAt), now),
     ),
   );
+
+  // Crypto under policy v3 resolves on the target UTC calendar date: the
+  // Outcome close must be observed on exactly that date, not the Nth provider
+  // Session. The full origin-through-target window is kept so within-horizon
+  // Shapes (volatility max) see every intermediate close; endpoint shapes read
+  // First/last. Equity (both policies) and v2 crypto count provider sessions.
+  const cryptoTargetDate =
+    report.assetClass === "crypto"
+      ? policy.cryptoCloseTargetDate(report.generatedAt, horizonTradingDays)
+      : undefined;
+  if (cryptoTargetDate !== undefined) {
+    const originYmd = ymd(new Date(report.generatedAt));
+    const targetYmd = ymd(cryptoTargetDate);
+    const selected = windows.map((window) => {
+      const inRange = window.filter(
+        (observation) => observation.date >= originYmd && observation.date <= targetYmd,
+      );
+      const hasOrigin = inRange.some((observation) => observation.date === originYmd);
+      const hasTarget = inRange.some((observation) => observation.date === targetYmd);
+      return hasOrigin && hasTarget ? inRange : undefined;
+    });
+    return selected.every((range) => range !== undefined) ? selected.flat() : [];
+  }
+
   const required = horizonTradingDays + 1;
   const enough = windows.every((window) => window.length >= required);
 
@@ -62,21 +92,59 @@ async function closeObservations(
   return windows.flatMap((window) => window.slice(0, required));
 }
 
+// First published observation on or after `targetDate`, searching up to the
+// Policy's search-ahead bound (never past `now`). Policy v2 searches zero days
+// Ahead, preserving its exact-date semantics; policy v3 point targets are UTC
+// Calendar days, so weekends and provider holidays publish nothing on the
+// Target itself. A same-date origin/horizon collision from short horizons
+// Stays unresolved via the shape resolvers' same-date guards.
+async function firstAvailablePointObservation(
+  repo: ObservationRepository,
+  request: PointObservationRequest,
+  report: ResearchReport,
+  targetDate: Date,
+  searchAheadDays: number,
+  now: Date,
+): Promise<Observation | undefined> {
+  if (targetDate > now) {
+    return undefined;
+  }
+  const observation = await repo.point(request, report.assetClass, targetDate);
+  if (observation !== undefined || searchAheadDays === 0) {
+    return observation;
+  }
+  return firstAvailablePointObservation(
+    repo,
+    request,
+    report,
+    new Date(targetDate.getTime() + 86_400_000),
+    searchAheadDays - 1,
+    now,
+  );
+}
+
 async function pointObservations(
   report: ResearchReport,
   resDate: Date,
   repo: ObservationRepository,
   requests: readonly PointObservationRequest[],
   includeOrigin: boolean,
+  policy: ScoringPolicy,
+  now: Date,
 ): Promise<readonly Observation[]> {
+  const searchAheadDays = policy.pointObservationSearchAheadDays;
   const originDate = new Date(report.generatedAt);
   const atOrigin = includeOrigin
     ? await Promise.all(
-        requests.map((request) => repo.point(request, report.assetClass, originDate)),
+        requests.map((request) =>
+          firstAvailablePointObservation(repo, request, report, originDate, searchAheadDays, now),
+        ),
       )
     : [];
   const atHorizon = await Promise.all(
-    requests.map((request) => repo.point(request, report.assetClass, resDate)),
+    requests.map((request) =>
+      firstAvailablePointObservation(repo, request, report, resDate, searchAheadDays, now),
+    ),
   );
 
   return [...atOrigin, ...atHorizon].filter(
@@ -183,17 +251,27 @@ async function observationsForStrategy(
   report: ResearchReport,
   now: Date,
   repo: ObservationRepository,
+  policy: ScoringPolicy,
 ): Promise<readonly Observation[]> {
   if (strategy.mode === "close-window") {
-    return closeObservations(report, now, repo, strategy.subjects, strategy.horizonTradingDays);
+    return closeObservations(
+      report,
+      now,
+      repo,
+      strategy.subjects,
+      strategy.horizonTradingDays,
+      policy,
+    );
   }
   if (strategy.mode === "point") {
     return pointObservations(
       report,
-      resolutionDate(report.generatedAt, strategy.horizonTradingDays),
+      policy.pointTargetDate(report.generatedAt, strategy.horizonTradingDays),
       repo,
       strategy.requests,
       strategy.includeOrigin,
+      policy,
+      now,
     );
   }
   if (strategy.mode === "earnings-close-window") {
@@ -208,15 +286,19 @@ async function observationsForStrategy(
   }
   const nested = await Promise.all(
     strategy.strategies.map((nestedStrategy) =>
-      observationsForStrategy(nestedStrategy, report, now, repo),
+      observationsForStrategy(nestedStrategy, report, now, repo, policy),
     ),
   );
   return nested.flat();
 }
 
 // Earnings expressions stay event-anchored even when nested in a conditional.
-// All other base expressions use the report-date horizon.
-function baseExpressionDueDate(expression: ObservableBaseExpression, report: ResearchReport): Date {
+// All other base expressions use the policy clock for their forecast family.
+function baseExpressionDueDate(
+  expression: ObservableBaseExpression,
+  report: ResearchReport,
+  policy: ScoringPolicy,
+): Date {
   const strategy = observationStrategyForExpression(expression);
   if (strategy.mode === "earnings-close-window") {
     return earningsHorizonDate(
@@ -225,7 +307,10 @@ function baseExpressionDueDate(expression: ObservableBaseExpression, report: Res
       strategy.horizonTradingDays,
     );
   }
-  return resolutionDate(report.generatedAt, expression.horizonTradingDays);
+  if (strategy.mode === "point") {
+    return policy.pointTargetDate(report.generatedAt, expression.horizonTradingDays);
+  }
+  return policy.closeDueDate(report.generatedAt, expression.horizonTradingDays, report.assetClass);
 }
 
 function horizonPendingEvidence(reason: string): ResolveOutcomeUnresolved {
@@ -241,12 +326,14 @@ async function resolveBaseExpression(
   report: ResearchReport,
   repo: ObservationRepository,
   now: Date,
+  policy: ScoringPolicy,
 ): Promise<ReturnType<typeof resolveObservableExpression>> {
   const observations = await observationsForStrategy(
     observationStrategyForExpression(expression),
     report,
     now,
     repo,
+    policy,
   );
   return resolveObservableExpression(expression, observations);
 }
@@ -257,13 +344,14 @@ export async function resolveOutcome(
   repo: ObservationRepository,
   now: Date,
 ): Promise<ResolveOutcomeResult> {
+  const policy = scoringPolicyFor(prediction);
   const forecast = observableForecastFromPrediction(prediction);
   if (!("prediction" in forecast)) {
     throw new Error(forecast.message);
   }
   if (forecast.expression.kind === "conditional") {
     const { antecedent, consequent } = forecast.expression;
-    const antecedentDate = baseExpressionDueDate(antecedent, report);
+    const antecedentDate = baseExpressionDueDate(antecedent, report, policy);
     if (antecedentDate > now) {
       return {
         ...horizonPendingEvidence("conditional antecedent horizon not yet elapsed"),
@@ -271,7 +359,7 @@ export async function resolveOutcome(
       };
     }
 
-    const antecedentResult = await resolveBaseExpression(antecedent, report, repo, now);
+    const antecedentResult = await resolveBaseExpression(antecedent, report, repo, now, policy);
     if (antecedentResult.status === "unresolved") {
       return {
         status: "unresolved",
@@ -301,7 +389,7 @@ export async function resolveOutcome(
       };
     }
 
-    const consequentDate = baseExpressionDueDate(consequent, report);
+    const consequentDate = baseExpressionDueDate(consequent, report, policy);
     if (consequentDate > now) {
       return {
         status: "unresolved",
@@ -314,7 +402,7 @@ export async function resolveOutcome(
       };
     }
 
-    const consequentResult = await resolveBaseExpression(consequent, report, repo, now);
+    const consequentResult = await resolveBaseExpression(consequent, report, repo, now, policy);
     if (consequentResult.status !== "resolved") {
       return {
         status: "unresolved",
@@ -338,7 +426,8 @@ export async function resolveOutcome(
 
   const strategy = observationStrategyForForecast(forecast);
 
-  // Earnings kinds use event-anchored due-date checks; all others use report-anchored.
+  // Earnings kinds use event-anchored due-date checks; all others use the
+  // Policy clock for their forecast family (point vs close).
   if (strategy.mode === "earnings-close-window") {
     const timing = readEarningsEventTiming(report);
     const horizonDate = earningsHorizonDate(
@@ -350,13 +439,16 @@ export async function resolveOutcome(
       return horizonPendingEvidence("earnings event horizon not yet elapsed");
     }
   } else {
-    const resDate = resolutionDate(report.generatedAt, prediction.horizonTradingDays);
+    const resDate =
+      strategy.mode === "point"
+        ? policy.pointTargetDate(report.generatedAt, prediction.horizonTradingDays)
+        : policy.closeDueDate(report.generatedAt, prediction.horizonTradingDays, report.assetClass);
     if (resDate > now) {
       return horizonPendingEvidence("horizon not yet elapsed");
     }
   }
 
-  const observations = await observationsForStrategy(strategy, report, now, repo);
+  const observations = await observationsForStrategy(strategy, report, now, repo, policy);
 
   const result = resolveObservableForecast(forecast, observations);
   if (result.status === "unresolved") {

@@ -181,6 +181,8 @@ function mockPredictions(count: number, subject = "SPY"): unknown[] {
       horizonTradingDays: horizon,
       probability: 0.6,
       sourceIds: ["market-aapl"],
+      // Model-provided policy metadata must never survive report assembly.
+      scoringPolicyVersion: 99,
     };
   });
 }
@@ -1111,6 +1113,11 @@ describe("runResearchJob", () => {
     // Technical finding before persistence and stamps the report grades.
     expect(result.report.keyFindings.map((finding) => finding.text)).toEqual([]);
     expect(result.report.predictions).toHaveLength(6);
+    // Assembly stamps the current scoring policy; the model-provided
+    // ScoringPolicyVersion: 99 in the mock payload must not survive.
+    expect(
+      result.report.predictions.every((prediction) => prediction.scoringPolicyVersion === 3),
+    ).toBe(true);
     expect(result.report.reportIntegrity).toBe("low");
     expect(result.report.researchQuality).toBe("low");
     expect(result.trace.postSynthesisAudit?.warningCount).toBe(2);

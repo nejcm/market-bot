@@ -483,9 +483,15 @@ export interface Prediction {
   readonly kind: PredictionKind;
   readonly subject: string;
   readonly measurableAs: string;
+  // Under scoring policy v3 this is the horizon count whose clock the policy
+  // Defines per forecast family; the field name is legacy (ADR 0004).
   readonly horizonTradingDays: number;
   readonly probability: number;
   readonly sourceIds: readonly string[];
+  // Stamped deterministically during report assembly; model-provided values
+  // Are never trusted. Absent on historical forecasts, which resolve
+  // Permanently under scoring policy v2.
+  readonly scoringPolicyVersion?: 3;
 }
 
 export interface PredictionCompletionAudit {

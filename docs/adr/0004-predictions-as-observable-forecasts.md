@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-07-01
+2026-07-01 (amended 2026-07-03: scoring policy v3 registry, stamping, and clocks)
 
 ## Context
 
@@ -49,20 +49,35 @@ must share one contract.
   IDs. The primary synthesis probability remains the only scored probability.
 - Scoring resolves observations through the repository and close cache, then aggregates Brier
   metrics and calibration slices.
+- Scoring interpretation is keyed by the Prediction's persisted `scoringPolicyVersion` through an
+  explicit policy registry (`src/scoring/policy.ts`), not a global constant. Report assembly
+  deterministically stamps the current version (3) on every accepted Prediction; model-provided
+  policy metadata never survives assembly. A missing version resolves permanently under policy v2,
+  historical forecasts and already-resolved scores are never rewritten, and each score result
+  persists the policy version that produced it. `horizonTradingDays` keeps its legacy name; under
+  policy v3 it is the horizon count whose clock the policy defines per forecast family.
+- Policy v3 clocks: equity close forecasts resolve on the Nth provider-observed session after the
+  applicable anchor; crypto close forecasts resolve on the target UTC calendar date, are attempted
+  only after that date has fully elapsed (a partial-day price is never graded), and keep the full
+  origin-through-target close window so within-horizon shapes see intermediate closes; macro and
+  IV forecasts count calendar days and resolve on the first published observation on or after the
+  target date within a bounded search-ahead window; earnings forecasts count provider-observed
+  equity sessions anchored to the declared earnings event. Exchange calendars may schedule
+  resolution retries but are not authoritative for outcomes.
 
 ## Current scoring limitations
 
 - Brier skill uses an always-0.5 reference (`1 - brier / 0.25`), not an empirical event baseline.
   It must not be described as market-relative forecasting skill.
 - Equity close scoring uses raw closes and can be distorted by splits or other corporate actions.
-- Generic due-date calculation uses the US exchange calendar, including crypto and non-US equity
-  reports. Provider-returned observations determine the actual close sequence, but the due gate is
-  not asset/exchange-specific.
+- Policy v2 (all forecasts persisted before stamping) gates every due date on the US exchange
+  calendar, including crypto and macro/IV forecasts; those forecasts resolve permanently under
+  that legacy clock.
 - Conditional forecasts can have low activation rates; calibration output does not yet report
   activation coverage as a first-class metric.
 
 These limitations are implementation facts, not endorsed end-state methodology. Changing baseline,
-price adjustment, or calendar semantics requires a scoring-version migration.
+price adjustment, or calendar semantics requires a new scoring policy version.
 
 ## Consequences
 
@@ -78,7 +93,8 @@ price adjustment, or calendar semantics requires a scoring-version migration.
 ## Implementation validation
 
 - `src/forecast/observable.ts` owns parsing, canonicalization, and expression shape.
-- `src/research/report-assembly.ts` applies subject gates, trims, and shortfalls.
+- `src/research/report-assembly.ts` applies subject gates, trims, shortfalls, and policy stamping.
+- `src/scoring/policy.ts` owns the scoring policy registry and per-version clocks.
 - `src/scoring/resolver.ts`, `close-cache.ts`, and `calibration.ts` implement current scoring.
 - `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and
   analytics.

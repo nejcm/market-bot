@@ -128,6 +128,31 @@ describe("loadRunArtifact", () => {
     expect(artifact?.marketSnapshots[0]?.benchmark?.symbol).toBe("SPY");
   });
 
+  test("keeps persisted scoringPolicyVersion 3 and degrades unknown versions to absent", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "run-policy");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-policy",
+        predictions: [
+          prediction({ id: "p-v3", scoringPolicyVersion: 3 }),
+          { ...prediction({ id: "p-unknown" }), scoringPolicyVersion: 99 } as never,
+          prediction({ id: "p-legacy" }),
+        ],
+      }),
+    );
+
+    const { artifact, status } = await loadRunArtifact(runDir);
+
+    expect(status.report).toBe("ok");
+    const byId = new Map(artifact?.report.predictions.map((p) => [p.id, p.scoringPolicyVersion]));
+    expect(byId.get("p-v3")).toBe(3);
+    // Unknown persisted versions must not survive: they resolve under policy v2.
+    expect(byId.get("p-unknown")).toBeUndefined();
+    expect(byId.get("p-legacy")).toBeUndefined();
+  });
+
   test("loads historical reports without report-integrity fields and keeps stamped ones", async () => {
     const dataDir = tempRunsDir();
     const legacyDir = join(dataDir, "run-legacy");

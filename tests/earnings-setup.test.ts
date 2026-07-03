@@ -368,6 +368,19 @@ describe("resolveOutcome — earnings scoring", () => {
       );
       expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
+
+    test("event-anchored sessions are identical for a policy-v3 stamped prediction", async () => {
+      const result = await resolveOutcome(
+        { ...pred, scoringPolicyVersion: 3 },
+        report,
+        observationRepository([
+          { subject: "AAPL", date: "2026-05-14", value: 190 },
+          { subject: "AAPL", date: "2026-05-15", value: 200 },
+        ]),
+        now,
+      );
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
+    });
   });
 
   describe("AMC timing", () => {

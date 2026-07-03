@@ -80,6 +80,10 @@ A public market quantity value used to resolve a Prediction. An Observation can 
 
 - `probability` always means the probability that `measurableAs` evaluates true; with the asymmetric up/outside grammar, bearish or stays-within-range views are expressed as probabilities below 0.5 on that up/outside event. The public `claim` is rendered from `measurableAs`, not model-authored ([ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md)). Depth profiles set a soft `targetPredictions` count; below-target runs disclose `predictionShortfall` rather than padding ([ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md)).
 
+## Scoring Policy
+
+The versioned contract that maps a Prediction's horizon count onto a clock at resolution time, selected by the Prediction's persisted `scoringPolicyVersion` through an explicit registry — never by a global constant. Report assembly deterministically stamps the current version (3) on every accepted Prediction; model-provided policy metadata never survives. Forecasts without a version resolve permanently under policy v2 (exchange-trading-day clocks for everything), and already-resolved scores are never rewritten. Policy v3 clocks: equity closes count provider-observed sessions, crypto closes resolve on the target UTC calendar date, macro/IV forecasts count calendar days, and earnings forecasts count provider-observed sessions anchored to the declared event; exchange calendars may schedule retries but are not authoritative for outcomes. See [ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md).
+
 ## Prediction Trim
 
 An otherwise valid Prediction dropped from the emitted Research View because redundancy rules removed it. It is telemetry, not a validation failure or a retry reason.

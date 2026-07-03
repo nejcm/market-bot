@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/types";
-import { buildAndWriteAlphaLeadCohorts, runScorePass, SCORING_VERSION } from "../src/scoring/index";
+import { buildAndWriteAlphaLeadCohorts, runScorePass } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";
 import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-state";
@@ -131,7 +131,8 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score?.outcome).toBe("hit");
     expect(score?.evidence).toMatchObject({ maxClose: 22, threshold: 20 });
-    expect(score?.scoringVersion).toBe(SCORING_VERSION);
+    // Unversioned historical predictions resolve permanently under policy v2.
+    expect(score?.scoringVersion).toBe(2);
   });
 
   test("uses the Nth available close session after origin", async () => {

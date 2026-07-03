@@ -281,6 +281,297 @@ describe("resolveOutcome", () => {
     });
   });
 
+  describe("scoring policy clocks", () => {
+    test("macro point observations target trading days under v2 and calendar days under v3", async () => {
+      const requestedDates: string[] = [];
+      const recordingRepo: ObservationRepository = {
+        async point(request, _assetClass, date) {
+          const ymd = date.toISOString().slice(0, 10);
+          requestedDates.push(ymd);
+          return { subject: request.observationSubject, date: ymd, value: 4.2 };
+        },
+        async window() {
+          throw new Error("unexpected window observation request");
+        },
+      };
+      const macroPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-macro-clock",
+        kind: "macro",
+        subject: "DGS10",
+        measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)",
+        claim: "DGS10 rises over 5 trading days.",
+      };
+
+      // GeneratedAt 2026-05-01 is a Friday: +5 trading days lands on 05-08,
+      // While +5 UTC calendar days lands on 05-06.
+      await resolveOutcome(macroPrediction, report, recordingRepo, now);
+      expect(requestedDates).toContain("2026-05-08");
+      expect(requestedDates).not.toContain("2026-05-06");
+
+      requestedDates.length = 0;
+      await resolveOutcome(
+        { ...macroPrediction, scoringPolicyVersion: 3 },
+        report,
+        recordingRepo,
+        now,
+      );
+      expect(requestedDates).toContain("2026-05-06");
+      expect(requestedDates).not.toContain("2026-05-08");
+    });
+
+    test("crypto close forecasts resolve on the target UTC calendar date under v3", async () => {
+      const cryptoReport = researchReport({
+        assetClass: "crypto",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+      });
+      const btcPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-btc-clock",
+        kind: "direction",
+        subject: "BTC",
+        measurableAs: "close(BTC, +3) > close(BTC, 0)",
+        claim: "BTC closes higher over 3 trading days.",
+        horizonTradingDays: 3,
+        scoringPolicyVersion: 3,
+      };
+      // Target UTC date is 2026-05-04 (generatedAt + 3 calendar days).
+      const withTargetDate = [
+        { subject: "BTC", date: "2026-05-01", value: 100_000 },
+        { subject: "BTC", date: "2026-05-02", value: 101_000 },
+        { subject: "BTC", date: "2026-05-03", value: 102_000 },
+        { subject: "BTC", date: "2026-05-04", value: 103_000 },
+      ];
+
+      const resolved = await resolveOutcome(
+        btcPrediction,
+        cryptoReport,
+        observationRepository(withTargetDate),
+        now,
+      );
+      expect(resolved).toMatchObject({
+        status: "resolved",
+        outcome: "hit",
+        evidence: { close0: 100_000, closeN: 103_000 },
+      });
+
+      // Four provider sessions exist but none on the target UTC date: v3 stays
+      // Unresolved where v2 session counting would have resolved.
+      const missingTargetDate = [
+        { subject: "BTC", date: "2026-05-01", value: 100_000 },
+        { subject: "BTC", date: "2026-05-02", value: 101_000 },
+        { subject: "BTC", date: "2026-05-03", value: 102_000 },
+        { subject: "BTC", date: "2026-05-05", value: 103_000 },
+      ];
+      const unresolved = await resolveOutcome(
+        btcPrediction,
+        cryptoReport,
+        observationRepository(missingTargetDate),
+        now,
+      );
+      expect(unresolved).toMatchObject({
+        status: "unresolved",
+        reason: "observation-unavailable",
+      });
+
+      const { scoringPolicyVersion: _stamped, ...legacyPrediction } = btcPrediction;
+      const legacyResolved = await resolveOutcome(
+        legacyPrediction,
+        cryptoReport,
+        observationRepository(missingTargetDate),
+        now,
+      );
+      expect(legacyResolved).toMatchObject({ status: "resolved", outcome: "hit" });
+    });
+
+    test("equity close forecasts count provider-observed sessions under v3", async () => {
+      const result = await resolveWith({ ...basePrediction, scoringPolicyVersion: 3 }, [
+        { subject: "SPY", date: "2026-05-01", value: 500 },
+        { subject: "SPY", date: "2026-05-02", value: 502 },
+        { subject: "SPY", date: "2026-05-03", value: 504 },
+        { subject: "SPY", date: "2026-05-04", value: 506 },
+        { subject: "SPY", date: "2026-05-05", value: 508 },
+        { subject: "SPY", date: "2026-05-08", value: 510 },
+      ]);
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
+    });
+
+    test("iv point observations target trading days under v2 and calendar days under v3", async () => {
+      const requestedDates: string[] = [];
+      const recordingRepo: ObservationRepository = {
+        async point(request, _assetClass, date) {
+          const ymd = date.toISOString().slice(0, 10);
+          requestedDates.push(ymd);
+          return { subject: request.observationSubject, date: ymd, value: 25 };
+        },
+        async window() {
+          throw new Error("unexpected window observation request");
+        },
+      };
+      const ivPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-iv-clock",
+        kind: "iv",
+        subject: "SPY",
+        measurableAs: "iv(SPY, +5) > 20",
+        claim: "SPY implied volatility is above 20 in 5 trading days.",
+      };
+
+      // GeneratedAt 2026-05-01 is a Friday: +5 trading days lands on 05-08,
+      // While +5 UTC calendar days lands on 05-06.
+      await resolveOutcome(ivPrediction, report, recordingRepo, now);
+      expect(requestedDates).toEqual(["2026-05-08"]);
+
+      requestedDates.length = 0;
+      await resolveOutcome(
+        { ...ivPrediction, scoringPolicyVersion: 3 },
+        report,
+        recordingRepo,
+        now,
+      );
+      expect(requestedDates).toEqual(["2026-05-06"]);
+    });
+
+    test("v3 point targets falling on non-publication days resolve on the next published value", async () => {
+      const requestedDates: string[] = [];
+      const weekdayOnlyRepo: ObservationRepository = {
+        async point(request, _assetClass, date) {
+          const ymd = date.toISOString().slice(0, 10);
+          requestedDates.push(ymd);
+          const weekday = date.getUTCDay();
+          if (weekday === 0 || weekday === 6) {
+            return;
+          }
+          return { subject: request.observationSubject, date: ymd, value: 4.2 };
+        },
+        async window() {
+          throw new Error("unexpected window observation request");
+        },
+      };
+      const macroPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-macro-weekend",
+        kind: "macro",
+        subject: "DGS10",
+        horizonTradingDays: 8,
+        measurableAs: "fred(DGS10, +8) > fred(DGS10, 0)",
+        claim: "DGS10 rises over 8 trading days.",
+        scoringPolicyVersion: 3,
+      };
+
+      // GeneratedAt 2026-05-01 + 8 UTC calendar days = 2026-05-09, a Saturday
+      // With no published observation. The resolver searches forward to the
+      // First published value on Monday 2026-05-11.
+      const result = await resolveOutcome(macroPrediction, report, weekdayOnlyRepo, now);
+      expect(requestedDates).toEqual(["2026-05-01", "2026-05-09", "2026-05-10", "2026-05-11"]);
+      expect(result).toMatchObject({
+        status: "resolved",
+        evidence: { date0: "2026-05-01", dateN: "2026-05-11" },
+      });
+    });
+
+    test("crypto volatility forecasts keep the full origin-through-target window under v3", async () => {
+      const cryptoReport = researchReport({
+        assetClass: "crypto",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+      });
+      const volatilityPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-btc-vol",
+        kind: "volatility",
+        subject: "BTC",
+        measurableAs: "max(close(BTC), 0..+3) > 105000",
+        claim: "BTC trades above 105000 within 3 trading days.",
+        horizonTradingDays: 3,
+        scoringPolicyVersion: 3,
+      };
+      // Threshold breached on an intermediate day (05-02), not on the target
+      // UTC date (05-04); the 05-05 close sits outside the horizon window.
+      const closes = [
+        { subject: "BTC", date: "2026-05-01", value: 100_000 },
+        { subject: "BTC", date: "2026-05-02", value: 106_000 },
+        { subject: "BTC", date: "2026-05-03", value: 101_000 },
+        { subject: "BTC", date: "2026-05-04", value: 103_000 },
+        { subject: "BTC", date: "2026-05-05", value: 200_000 },
+      ];
+
+      const intermediateBreach = await resolveOutcome(
+        volatilityPrediction,
+        cryptoReport,
+        observationRepository(closes),
+        now,
+      );
+      expect(intermediateBreach).toMatchObject({
+        status: "resolved",
+        outcome: "hit",
+        evidence: { maxClose: 106_000 },
+      });
+
+      // A breach after the target date must not count toward the outcome.
+      const postTargetBreachOnly = await resolveOutcome(
+        {
+          ...volatilityPrediction,
+          measurableAs: "max(close(BTC), 0..+3) > 150000",
+          claim: "BTC trades above 150000 within 3 trading days.",
+        },
+        cryptoReport,
+        observationRepository(closes),
+        now,
+      );
+      expect(postTargetBreachOnly).toMatchObject({
+        status: "resolved",
+        outcome: "miss",
+        evidence: { maxClose: 106_000 },
+      });
+    });
+
+    test("crypto v3 close resolution waits until the target UTC date has fully elapsed", async () => {
+      const cryptoReport = researchReport({
+        assetClass: "crypto",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+      });
+      const btcPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-btc-gate",
+        kind: "direction",
+        subject: "BTC",
+        measurableAs: "close(BTC, +3) > close(BTC, 0)",
+        claim: "BTC closes higher over 3 trading days.",
+        horizonTradingDays: 3,
+        scoringPolicyVersion: 3,
+      };
+      const throwingRepo: ObservationRepository = {
+        point: async () => {
+          throw new Error("unexpected point observation request");
+        },
+        window: async () => {
+          throw new Error("unexpected window observation request");
+        },
+      };
+
+      // Intraday on the target UTC date (2026-05-04): the daily close is not
+      // Final yet, so no observation may be fetched or graded.
+      const pending = await resolveOutcome(
+        btcPrediction,
+        cryptoReport,
+        throwingRepo,
+        new Date("2026-05-04T12:00:00.000Z"),
+      );
+      expect(pending).toMatchObject({ status: "unresolved", reason: "horizon-not-elapsed" });
+
+      const resolved = await resolveOutcome(
+        btcPrediction,
+        cryptoReport,
+        observationRepository([
+          { subject: "BTC", date: "2026-05-01", value: 100_000 },
+          { subject: "BTC", date: "2026-05-04", value: 103_000 },
+        ]),
+        new Date("2026-05-05T00:00:00.000Z"),
+      );
+      expect(resolved).toMatchObject({ status: "resolved", outcome: "hit" });
+    });
+  });
+
   describe("conditional", () => {
     const conditionalPrediction: Prediction = {
       ...basePrediction,

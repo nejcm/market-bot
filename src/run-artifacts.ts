@@ -29,6 +29,7 @@ import {
   isSourceGapEvidenceQualityImpact,
 } from "./domain/source-gaps";
 import { isPredictionKind, renderClaimForMeasurableAs } from "./forecast/observable";
+import { CURRENT_SCORING_POLICY_VERSION } from "./scoring/policy";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type {
   MissAutopsyCause,
@@ -292,6 +293,10 @@ function readPredictions(value: unknown): readonly Prediction[] {
         horizonTradingDays: item.horizonTradingDays,
         probability: item.probability,
         sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+        // Unknown versions degrade to absent, which resolves under policy v2.
+        ...(item.scoringPolicyVersion === CURRENT_SCORING_POLICY_VERSION
+          ? { scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION }
+          : {}),
       },
     ];
   });

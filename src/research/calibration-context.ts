@@ -60,6 +60,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   const resolvedCount = readNumberWhere(value, "resolvedCount", isCount);
   const missAutopsyCount = readNumberWhere(value, "missAutopsyCount", isCount);
   const brierScore = readNumberWhere(value, "brierScore", isProbability);
+  const hitRate = readNumberWhere(value, "hitRate", isProbability);
   const brierSkill = readNumberWhere(value, "brierSkillScore", isBrierSkill);
   const bins = Array.isArray(value.bins)
     ? value.bins.flatMap((bin) => {
@@ -83,6 +84,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     ...(resolvedCount !== undefined ? { resolvedCount } : {}),
     ...(missAutopsyCount !== undefined ? { missAutopsyCount } : {}),
     ...(brierScore !== undefined ? { brierScore } : {}),
+    ...(hitRate !== undefined ? { hitRate } : {}),
     ...(brierSkill !== undefined ? { brierSkillScore: brierSkill } : {}),
     ...(bins !== undefined ? { bins } : {}),
     ...(byKind !== undefined ? { byKind } : {}),

@@ -577,6 +577,7 @@ describe("calibration view model", () => {
       generatedAt: "2026-06-10T05:53:20.310Z",
       resolvedCount: 13,
       brierScore: 0.2583,
+      hitRate: 0.6154,
       brierSkillScore: -0.0332,
       bins: [
         { pLow: 0.6, pHigh: 0.7, label: "0.6-0.7", hitCount: 4, totalCount: 8, hitRate: 0.5 },
@@ -609,7 +610,7 @@ describe("calibration view model", () => {
   test("extracts the calibration headline", () => {
     expect(calibrationHeadline(detail)).toEqual({
       brierScore: 0.2583,
-      brierSkillScore: -0.0332,
+      hitRate: 0.6154,
       resolvedCount: 13,
       generatedAt: "2026-06-10T05:53:20.310Z",
     });

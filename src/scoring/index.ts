@@ -678,7 +678,12 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
   const marketRegimeLabel = readReportMarketRegimeLabel(report);
   return report.predictions.flatMap((prediction) => {
     const score = scores.find((sc) => sc.predictionId === prediction.id);
-    if (score === undefined || !score.resolved || score.outcome === undefined) {
+    if (
+      score === undefined ||
+      score.scoringVersion !== 3 ||
+      !score.resolved ||
+      score.outcome === undefined
+    ) {
       return [];
     }
     const missAutopsy = autopsyByPrediction.get(prediction.id);
@@ -749,7 +754,11 @@ async function loadCalibrationInputsFromDisk(dataDir: string): Promise<{
     );
     for (const score of artifact.scores) {
       const prediction = predictionsById.get(score.predictionId);
-      if (prediction?.kind === "conditional" && score.status === "voided") {
+      if (
+        prediction?.kind === "conditional" &&
+        score.scoringVersion === 3 &&
+        score.status === "voided"
+      ) {
         voidedCount += 1;
       }
     }
@@ -776,10 +785,6 @@ export async function buildAndWriteCalibration(
       : await withMissAutopsiesFromDisk(dataDir, indexPairs);
   const conditionalCounts =
     indexConditionalCounts ?? diskInputs?.conditionalCounts ?? ZERO_CONDITIONAL_COUNTS;
-
-  if (pairs.length === 0) {
-    return null;
-  }
 
   const summary = buildCalibrationSummary(pairs, now, conditionalCounts);
   const calibrationDir = join(dataDir, "../calibration");

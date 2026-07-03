@@ -27,6 +27,7 @@ function validSummary(): CalibrationSummary {
   return {
     generatedAt: "2026-06-01T00:00:00.000Z",
     resolvedCount: 2,
+    hitRate: 0.5,
     missAutopsyCount: 1,
     brierScore: 0.25,
     brierSkillScore: 0,

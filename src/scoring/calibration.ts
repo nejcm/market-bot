@@ -197,28 +197,30 @@ export function buildCalibrationSummary(
   now: Date = new Date(),
   conditionalPredictions: ConditionalCalibrationSummary = EMPTY_CONDITIONAL_SUMMARY,
 ): CalibrationSummary {
+  const currentPairs = pairs.filter(({ score }) => score.scoringVersion === 3);
   const conditionalActivatedCount =
     conditionalPredictions.activatedCount +
-    pairs.filter(({ prediction }) => prediction.kind === "conditional").length;
-  const overallBrier = brierScore(pairs);
+    currentPairs.filter(({ prediction }) => prediction.kind === "conditional").length;
+  const hitCount = currentPairs.filter(({ score }) => score.outcome === "hit").length;
+  const overallBrier = brierScore(currentPairs);
   return {
     generatedAt: now.toISOString(),
-    resolvedCount: pairs.length,
-    missAutopsyCount: pairs.filter(({ missAutopsy }) => missAutopsy !== undefined).length,
+    resolvedCount: currentPairs.length,
+    hitRate: currentPairs.length === 0 ? 0 : hitCount / currentPairs.length,
+    missAutopsyCount: currentPairs.filter(({ missAutopsy }) => missAutopsy !== undefined).length,
     brierScore: overallBrier,
-    brierSkillScore: brierSkillScore(overallBrier),
-    bins: buildBins(pairs),
-    byKind: groupMetrics(pairs, ({ prediction }) => prediction.kind),
-    byAssetClass: groupMetrics(pairs, ({ assetClass }) => assetClass),
-    byJobType: groupMetrics(pairs, ({ jobType }) => jobType),
+    bins: buildBins(currentPairs),
+    byKind: groupMetrics(currentPairs, ({ prediction }) => prediction.kind),
+    byAssetClass: groupMetrics(currentPairs, ({ assetClass }) => assetClass),
+    byJobType: groupMetrics(currentPairs, ({ jobType }) => jobType),
     byMarketUpdateHorizonBucket: groupMetrics(
-      pairs.filter((pair) => pair.marketUpdateHorizonBucket !== undefined),
+      currentPairs.filter((pair) => pair.marketUpdateHorizonBucket !== undefined),
       (pair) => pair.marketUpdateHorizonBucket ?? "unknown",
     ),
-    byHorizonBucket: groupMetrics(pairs, horizonBucket),
-    byMarketRegime: buildByMarketRegime(pairs),
-    marketRegimeCoverage: buildMarketRegimeCoverage(pairs),
-    byMissAutopsyCause: countMissAutopsies(pairs),
+    byHorizonBucket: groupMetrics(currentPairs, horizonBucket),
+    byMarketRegime: buildByMarketRegime(currentPairs),
+    marketRegimeCoverage: buildMarketRegimeCoverage(currentPairs),
+    byMissAutopsyCause: countMissAutopsies(currentPairs),
     conditionalPredictions: {
       activatedCount: conditionalActivatedCount,
       voidedCount: conditionalPredictions.voidedCount,

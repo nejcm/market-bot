@@ -272,7 +272,7 @@ describe("runCli", () => {
     });
   });
 
-  test("reports when calibration has no resolved predictions to write", async () => {
+  test("writes an explicit empty calibration dashboard with no resolved v3 predictions", async () => {
     const dataDir = join(
       tmpdir(),
       `market-bot-app-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -280,9 +280,10 @@ describe("runCli", () => {
     dataDirs.push(dataDir);
     process.env.MARKET_BOT_DATA_DIR = dataDir;
 
-    await expect(runCli(["calibration"])).resolves.toBe(
-      "Calibration summary not written: no resolved predictions found",
-    );
+    const output = await runCli(["calibration"]);
+    expect(output).toContain("Resolved:    0 predictions");
+    expect(output).toContain("Hit rate:    0.0%");
+    expect(output).toContain("Small sample (0 of 5 minimum)");
   });
 
   test("ignores malformed alpha-search config for unrelated commands", async () => {
@@ -294,9 +295,9 @@ describe("runCli", () => {
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     process.env.MARKET_BOT_APEWISDOM_FILTER = "all/stocks";
 
-    await expect(runCli(["calibration"])).resolves.toBe(
-      "Calibration summary not written: no resolved predictions found",
-    );
+    const output = await runCli(["calibration"]);
+    expect(output).toContain("Resolved:    0 predictions");
+    expect(output).toContain("Small sample (0 of 5 minimum)");
   });
 
   test("validates alpha-search config for alpha-search commands", async () => {

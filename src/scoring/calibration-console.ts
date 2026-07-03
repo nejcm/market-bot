@@ -1,4 +1,4 @@
-import { brierSkillScore, MIN_CALIBRATION_SAMPLE } from "./calibration";
+import { MIN_CALIBRATION_SAMPLE } from "./calibration";
 import type { CalibrationMetric, CalibrationSummary } from "./types";
 
 export { MIN_CALIBRATION_SAMPLE } from "./calibration";
@@ -7,8 +7,8 @@ function fmtBrier(v: number): string {
   return v.toFixed(4);
 }
 
-function fmtSkill(v: number): string {
-  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+function fmtRate(v: number): string {
+  return `${(v * 100).toFixed(1)}%`;
 }
 
 function metricRows(
@@ -17,7 +17,7 @@ function metricRows(
 ): readonly string[] {
   return entries.map(
     ([key, m]) =>
-      `  ${key.padEnd(labelWidth)}  ${fmtSkill(brierSkillScore(m.brierScore)).padStart(6)}   n=${String(m.count)}${m.count < MIN_CALIBRATION_SAMPLE ? " [thin/unreliable]" : ""}`,
+      `  ${key.padEnd(labelWidth)}  Brier ${fmtBrier(m.brierScore)}   n=${String(m.count)}${m.count < MIN_CALIBRATION_SAMPLE ? " [thin/unreliable]" : ""}`,
   );
 }
 
@@ -26,8 +26,8 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
     `Calibration dashboard — ${summary.generatedAt}`,
     "",
     `  Resolved:    ${String(summary.resolvedCount)} predictions`,
+    `  Hit rate:    ${fmtRate(summary.hitRate)}`,
     `  Brier score: ${fmtBrier(summary.brierScore)}`,
-    `  Brier skill: ${fmtSkill(summary.brierSkillScore)}  (0=no edge, +1=perfect, <0=worse than coin flip)`,
     `  Conditional: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
   ];
 

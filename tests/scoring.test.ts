@@ -761,7 +761,10 @@ describe("resolveOutcome trading-day calendar", () => {
   });
 });
 
-const makeScore = predictionScore;
+const makeScore = (
+  outcome: Parameters<typeof predictionScore>[0],
+  overrides: Parameters<typeof predictionScore>[1] = {},
+) => predictionScore(outcome, { scoringVersion: 3, ...overrides });
 
 describe("buildCalibrationSummary", () => {
   test("computes Brier score for a perfectly calibrated set", () => {
@@ -813,9 +816,9 @@ describe("buildCalibrationSummary", () => {
     expect(summary.bins).toHaveLength(0);
   });
 
-  test("reports Brier skill relative to the always-0.5 baseline", () => {
+  test("reports hit rate and omits the legacy baseline-skill field", () => {
     const at = new Date("2026-05-19T00:00:00.000Z");
-    const perfect = buildCalibrationSummary(
+    const summary = buildCalibrationSummary(
       [
         {
           prediction: { ...basePrediction, probability: 1 },
@@ -824,24 +827,8 @@ describe("buildCalibrationSummary", () => {
           jobType: "daily" as const,
           runId: "r1",
         },
-      ],
-      at,
-    );
-    // Brier 0 => skill 1 (perfect).
-    expect(perfect.brierScore).toBe(0);
-    expect(perfect.brierSkillScore).toBe(1);
-
-    const baseline = buildCalibrationSummary(
-      [
         {
-          prediction: { ...basePrediction, probability: 0.5 },
-          score: makeScore("hit"),
-          assetClass: "equity" as const,
-          jobType: "daily" as const,
-          runId: "r1",
-        },
-        {
-          prediction: { ...basePrediction, probability: 0.5 },
+          prediction: { ...basePrediction, probability: 1 },
           score: makeScore("miss"),
           assetClass: "equity" as const,
           jobType: "daily" as const,
@@ -850,25 +837,40 @@ describe("buildCalibrationSummary", () => {
       ],
       at,
     );
-    // Always-0.5 => Brier 0.25 => skill 0 (no edge).
-    expect(baseline.brierScore).toBe(0.25);
-    expect(baseline.brierSkillScore).toBe(0);
+    expect(summary.hitRate).toBe(0.5);
+    expect(summary).not.toHaveProperty("brierSkillScore");
+  });
 
-    const worst = buildCalibrationSummary(
-      [
-        {
-          prediction: { ...basePrediction, probability: 1 },
-          score: makeScore("miss"),
-          assetClass: "equity" as const,
-          jobType: "daily" as const,
-          runId: "r1",
-        },
-      ],
-      at,
-    );
-    // Brier 1 => skill -3 (worst-case binary score).
-    expect(worst.brierScore).toBe(1);
-    expect(worst.brierSkillScore).toBe(-3);
+  test("excludes policy-v2 and unversioned resolved forecasts", () => {
+    const pairs = [
+      {
+        prediction: { ...basePrediction, id: "v3" },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r-v3",
+      },
+      {
+        prediction: { ...basePrediction, id: "v2" },
+        score: makeScore("miss", { scoringVersion: 2 }),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r-v2",
+      },
+      {
+        prediction: { ...basePrediction, id: "legacy" },
+        score: predictionScore("miss"),
+        assetClass: "equity" as const,
+        jobType: "daily" as const,
+        runId: "r-legacy",
+      },
+    ];
+
+    const summary = buildCalibrationSummary(pairs);
+
+    expect(summary.resolvedCount).toBe(1);
+    expect(summary.hitRate).toBe(1);
+    expect(summary.byKind.direction?.count).toBe(1);
   });
 
   test("groups results by kind and assetClass", () => {
@@ -1080,7 +1082,7 @@ describe("buildCalibrationSummary", () => {
     );
   });
 
-  test("renders Brier skill versus the baseline in the markdown summary", () => {
+  test("renders hit rate and omits baseline skill in the markdown summary", () => {
     const summary = buildCalibrationSummary(
       [
         {
@@ -1096,8 +1098,8 @@ describe("buildCalibrationSummary", () => {
 
     const markdown = renderCalibrationMarkdown(summary);
 
-    expect(markdown).toContain("Brier skill");
-    expect(markdown).toContain("+1.0000");
+    expect(markdown).toContain("Overall hit rate: 100.0%");
+    expect(markdown).not.toContain("Brier skill");
   });
 
   test("includes probability=1 in the top bin", () => {
@@ -1282,11 +1284,12 @@ describe("renderCalibrationConsole", () => {
     expect(output).toContain("By horizon");
   });
 
-  test("renders overall Brier score and skill", () => {
+  test("renders resolved count, hit rate, and Brier score without baseline skill", () => {
     const summary = buildCalibrationSummary(makePairs(MIN_CALIBRATION_SAMPLE), at);
     const output = renderCalibrationConsole(summary);
     expect(output).toContain("Brier score:");
-    expect(output).toContain("Brier skill:");
+    expect(output).toContain("Hit rate:");
+    expect(output).not.toContain("Brier skill:");
     expect(output).toContain("Resolved:");
   });
 
@@ -1350,9 +1353,7 @@ describe("renderCalibrationConsole", () => {
     expect(output).toContain("risk-on");
   });
 
-  test("renders per-kind and per-horizon skill scores with correct values", () => {
-    // Direction hits at probability=1 → Brier=0 → skill=+1.00
-    // Volatility misses at probability=0 → Brier=0 → skill=+1.00
+  test("renders per-kind and per-horizon Brier scores", () => {
     const pairs = [
       ...Array.from({ length: 3 }, (_, i) => ({
         prediction: {
@@ -1387,10 +1388,9 @@ describe("renderCalibrationConsole", () => {
     expect(output).toContain("volatility");
     expect(output).toContain("1-5d");
     expect(output).toContain("11-15d");
-    // Both groups: Brier=0 → skill=+1.00
     const kindSection = output.slice(output.indexOf("By kind"));
-    expect(kindSection).toContain("+1.00");
+    expect(kindSection).toContain("Brier 0.0000");
     const horizonSection = output.slice(output.indexOf("By horizon"));
-    expect(horizonSection).toContain("+1.00");
+    expect(horizonSection).toContain("Brier 0.0000");
   });
 });

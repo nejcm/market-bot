@@ -6,8 +6,8 @@ Accepted
 
 ## Date
 
-2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, retry state, and
-split-adjusted equity closes)
+2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, retry state,
+split-adjusted equity closes, and calibration presentation)
 
 ## Context
 
@@ -35,6 +35,14 @@ must share one contract.
   Predictions inside that band remain valid; models must not pad either path with coin flips.
 - Calibration reporting remains descriptive. Each slice keeps prediction-weighted Brier scoring
   and adds its distinct Run count plus a Run-clustered standard error when calculable.
+- Current calibration summaries aggregate resolved policy-v3 forecasts only and present resolved
+  count, hit rate, Brier score, reliability, and explicit small-sample warnings. They do not emit
+  an always-0.5 baseline-skill headline. Historical summaries containing that legacy field remain
+  readable.
+- Empirical baseline skill remains deferred until there are at least 100 resolved policy-v3
+  forecasts overall and at least one event-kind × horizon stratum contains 30 resolved forecasts.
+  Reaching both thresholds triggers a separate baseline-design review rather than an automatic
+  metric change.
 - Calibration affects primary synthesis and Forecast Completion only through Actionable Negative
   Calibration. Asset class, job type, default Prediction-horizon bucket, and current Market Regime
   are assessed independently. A slice qualifies only with at least 30 resolved Predictions and 10
@@ -80,8 +88,10 @@ must share one contract.
 
 ## Current scoring limitations
 
-- Brier skill uses an always-0.5 reference (`1 - brier / 0.25`), not an empirical event baseline.
-  It must not be described as market-relative forecasting skill.
+- Calibration guidance still compares slice Brier confidence bounds with the fixed 0.25 reference
+  as an underperformance gate. Current calibration summaries do not present this as a skill
+  headline, and empirical baseline skill remains deferred to the stated sample thresholds and a
+  separate design review.
 - Legacy policy-v2 equity close scoring uses raw closes and can be distorted by splits or other
   corporate actions.
 - Policy v2 (all forecasts persisted before stamping) gates every due date on the US exchange
@@ -101,8 +111,7 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 - Legacy artifacts retain stored claims and legacy score semantics.
 - Thin Calibration slices remain visible and are labeled unreliable; reporting thresholds do not
   grant synthesis authority.
-- Calibration consumers must interpret current Brier skill and confidence bounds within the
-  limitations above.
+- Calibration consumers must interpret current confidence bounds within the limitations above.
 
 ## Implementation validation
 

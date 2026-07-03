@@ -753,7 +753,7 @@ export async function loadResolvedPairsFromIndex(
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
         JOIN runs r ON r.run_id = p.run_id
-        WHERE s.resolved = 1 AND s.outcome IS NOT NULL`,
+        WHERE s.resolved = 1 AND s.outcome IS NOT NULL AND s.scoring_version = 3`,
       )
       .all() as readonly ResolvedPairQueryRow[];
 
@@ -804,7 +804,7 @@ export async function loadConditionalCalibrationCountsFromIndex(
         `SELECT COUNT(*) AS voided_count
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
-        WHERE p.kind = 'conditional' AND s.status = 'voided'`,
+        WHERE p.kind = 'conditional' AND s.status = 'voided' AND s.scoring_version = 3`,
       )
       .get() as { readonly voided_count: number } | null;
     // Activated conditionals are the resolved conditional pairs already passed

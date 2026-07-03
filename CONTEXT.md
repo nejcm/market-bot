@@ -114,7 +114,7 @@ A research-only evidence signal that measures how much configured same-provider 
 
 ## Calibration
 
-An aggregate, descriptive measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts: Brier score, Brier skill score versus a 0.5 baseline, reliability bins, and slices. Calibration reporting does not determine whether current evidence supports a Prediction, control Prediction count, reject a forecast shape, or reject an emitted Prediction. It is not investment conviction, model endorsement, or a trade signal.
+An aggregate, descriptive measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts. The current dashboard uses resolved policy-v3 forecasts only and reports resolved count, hit rate, Brier score, reliability bins, slices, and explicit small-sample warnings. New summaries do not present baseline skill; historical summaries containing the legacy always-0.5 skill field remain readable. Calibration reporting does not determine whether current evidence supports a Prediction, control Prediction count, reject a forecast shape, or reject an emitted Prediction. It is not investment conviction, model endorsement, or a trade signal.
 
 ## Actionable Negative Calibration
 

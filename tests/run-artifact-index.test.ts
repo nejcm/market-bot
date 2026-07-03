@@ -282,6 +282,16 @@ describe("run artifact index", () => {
             horizonTradingDays: 10,
             probability: 0.62,
           }),
+          prediction({ id: "p-v2" }),
+          prediction({ id: "p-unversioned" }),
+          prediction({
+            id: "p-void-v2",
+            kind: "conditional",
+            subject: "QQQ",
+            measurableAs:
+              "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+            horizonTradingDays: 10,
+          }),
         ],
       }),
     );
@@ -292,6 +302,7 @@ describe("run artifact index", () => {
           predictionId: "p-cal",
           runId: "run-cal",
           observedAt: "2026-06-02T00:00:00.000Z",
+          scoringVersion: 3,
         }),
         {
           predictionId: "p-void",
@@ -301,6 +312,27 @@ describe("run artifact index", () => {
           outcome: undefined,
           observedAt: "2026-06-02T00:00:00.000Z",
           attemptCount: 1,
+          scoringVersion: 3,
+          evidence: { reason: "conditional antecedent did not occur" },
+        },
+        predictionScore("miss", {
+          predictionId: "p-v2",
+          runId: "run-cal",
+          scoringVersion: 2,
+        }),
+        predictionScore("miss", {
+          predictionId: "p-unversioned",
+          runId: "run-cal",
+        }),
+        {
+          predictionId: "p-void-v2",
+          runId: "run-cal",
+          status: "voided",
+          resolved: true,
+          outcome: undefined,
+          observedAt: "2026-06-02T00:00:00.000Z",
+          attemptCount: 1,
+          scoringVersion: 2,
           evidence: { reason: "conditional antecedent did not occur" },
         },
       ],
@@ -356,6 +388,48 @@ describe("run artifact index", () => {
     expect(existsSync(calibrationPath)).toBe(true);
   });
 
+  test("replaces a legacy-only calibration summary with an empty v3 summary", async () => {
+    const { dataDir, dbPath, rootDir } = await tempDataDir();
+    const runDir = join(dataDir, "run-legacy-calibration");
+    const calibrationDir = join(rootDir, "calibration");
+    mkdirSync(runDir, { recursive: true });
+    mkdirSync(calibrationDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "run-legacy-calibration",
+        predictions: [prediction({ id: "p-v2" })],
+      }),
+    );
+    writeJson(join(runDir, "score.json"), {
+      runId: "run-legacy-calibration",
+      scores: [
+        predictionScore("hit", {
+          predictionId: "p-v2",
+          runId: "run-legacy-calibration",
+          scoringVersion: 2,
+        }),
+      ],
+    });
+    writeJson(join(calibrationDir, "summary.json"), {
+      resolvedCount: 1,
+      brierScore: 0.1,
+      brierSkillScore: 0.6,
+    });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+
+    expect(summary?.resolvedCount).toBe(0);
+    expect(summary?.hitRate).toBe(0);
+    expect(summary).not.toHaveProperty("brierSkillScore");
+    const persisted = JSON.parse(
+      await Bun.file(join(calibrationDir, "summary.json")).text(),
+    ) as Record<string, unknown>;
+    expect(persisted.resolvedCount).toBe(0);
+    expect(persisted).not.toHaveProperty("brierSkillScore");
+  });
+
   test("carries the forecast-time market regime label through the index", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     const runDir = join(dataDir, "run-regime");
@@ -386,6 +460,7 @@ describe("run artifact index", () => {
           predictionId: "p-regime",
           runId: "run-regime",
           observedAt: "2026-06-02T00:00:00.000Z",
+          scoringVersion: 3,
         }),
       ],
     });
@@ -420,6 +495,7 @@ describe("run artifact index", () => {
           predictionId: "p-overview",
           runId: "run-overview",
           observedAt: "2026-06-02T00:00:00.000Z",
+          scoringVersion: 3,
         }),
       ],
     });

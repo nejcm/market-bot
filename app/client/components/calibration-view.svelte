@@ -45,12 +45,8 @@
     return value === undefined ? "—" : value.toFixed(3);
   }
 
-  function formatSkill(value: number | undefined): string {
-    if (value === undefined) {
-      return "—";
-    }
-
-    return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
+  function formatRate(value: number | undefined): string {
+    return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
   }
 </script>
 
@@ -104,12 +100,12 @@
       </div>
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="font-mono text-2xl font-medium text-foreground">
-          {formatSkill(headline.brierSkillScore)}
+          {formatRate(headline.hitRate)}
         </div>
         <div class="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-          Brier skill score
+          Hit rate
         </div>
-        <div class="mt-1.5 text-xs text-[#5c6066]">0 = coin-flip baseline · 1 = perfect</div>
+        <div class="mt-1.5 text-xs text-[#5c6066]">resolved outcomes graded as hits</div>
       </div>
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="font-mono text-2xl font-medium text-foreground">

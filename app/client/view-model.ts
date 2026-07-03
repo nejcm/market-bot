@@ -164,7 +164,7 @@ export interface RunTrendPoint {
 
 export interface CalibrationHeadline {
   readonly brierScore?: number;
-  readonly brierSkillScore?: number;
+  readonly hitRate?: number;
   readonly resolvedCount: number;
   readonly generatedAt?: string;
 }
@@ -317,11 +317,11 @@ const HORIZON_BUCKET_ORDER = ["1-5d", "6-10d", "11-15d", "16-20d"];
 export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadline {
   const summary = detail.summary ?? {};
   const brierScore = readFiniteNumber(summary.brierScore);
-  const brierSkillScore = readFiniteNumber(summary.brierSkillScore);
+  const hitRate = readFiniteNumber(summary.hitRate);
   const generatedAt = typeof summary.generatedAt === "string" ? summary.generatedAt : undefined;
   return {
     ...(brierScore !== undefined ? { brierScore } : {}),
-    ...(brierSkillScore !== undefined ? { brierSkillScore } : {}),
+    ...(hitRate !== undefined && hitRate >= 0 && hitRate <= 1 ? { hitRate } : {}),
     resolvedCount: readFiniteNumber(summary.resolvedCount) ?? 0,
     ...(generatedAt !== undefined ? { generatedAt } : {}),
   };

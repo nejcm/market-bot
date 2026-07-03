@@ -92,33 +92,37 @@ async function closeObservations(
   return windows.flatMap((window) => window.slice(0, required));
 }
 
-// First published observation on or after `targetDate`, searching up to the
-// Policy's search-ahead bound (never past `now`). Policy v2 searches zero days
-// Ahead, preserving its exact-date semantics; policy v3 point targets are UTC
-// Calendar days, so weekends and provider holidays publish nothing on the
-// Target itself. A same-date origin/horizon collision from short horizons
-// Stays unresolved via the shape resolvers' same-date guards.
-async function firstAvailablePointObservation(
+// Published observation nearest `date`, walking by `stepDays` up to the
+// Policy's search bound (never past `now`). Policy v2 searches zero days,
+// Preserving its exact-date semantics; policy v3 point dates are UTC calendar
+// Days, so weekends and provider holidays publish nothing on the date itself.
+// Horizon targets walk forward (+1) to the first publication on or after the
+// Target. Origins walk backward (-1): the baseline must be the last value
+// Already published when the forecast was made — a forward origin search
+// Would grade the change from post-forecast data.
+async function nearestPointObservation(
   repo: ObservationRepository,
   request: PointObservationRequest,
   report: ResearchReport,
-  targetDate: Date,
-  searchAheadDays: number,
+  date: Date,
+  stepDays: 1 | -1,
+  remainingDays: number,
   now: Date,
 ): Promise<Observation | undefined> {
-  if (targetDate > now) {
+  if (date > now) {
     return undefined;
   }
-  const observation = await repo.point(request, report.assetClass, targetDate);
-  if (observation !== undefined || searchAheadDays === 0) {
+  const observation = await repo.point(request, report.assetClass, date);
+  if (observation !== undefined || remainingDays === 0) {
     return observation;
   }
-  return firstAvailablePointObservation(
+  return nearestPointObservation(
     repo,
     request,
     report,
-    new Date(targetDate.getTime() + 86_400_000),
-    searchAheadDays - 1,
+    new Date(date.getTime() + stepDays * 86_400_000),
+    stepDays,
+    remainingDays - 1,
     now,
   );
 }
@@ -132,18 +136,18 @@ async function pointObservations(
   policy: ScoringPolicy,
   now: Date,
 ): Promise<readonly Observation[]> {
-  const searchAheadDays = policy.pointObservationSearchAheadDays;
+  const searchDays = policy.pointObservationSearchAheadDays;
   const originDate = new Date(report.generatedAt);
   const atOrigin = includeOrigin
     ? await Promise.all(
         requests.map((request) =>
-          firstAvailablePointObservation(repo, request, report, originDate, searchAheadDays, now),
+          nearestPointObservation(repo, request, report, originDate, -1, searchDays, now),
         ),
       )
     : [];
   const atHorizon = await Promise.all(
     requests.map((request) =>
-      firstAvailablePointObservation(repo, request, report, resDate, searchAheadDays, now),
+      nearestPointObservation(repo, request, report, resDate, 1, searchDays, now),
     ),
   );
 

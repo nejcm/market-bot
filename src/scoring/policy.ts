@@ -32,9 +32,11 @@ export interface ScoringPolicy {
   readonly closeDueDate: (generatedAt: string, horizonDays: number, assetClass: AssetClass) => Date;
   // Report-anchored target date for point (macro/IV) forecasts.
   readonly pointTargetDate: (generatedAt: string, horizonDays: number) => Date;
-  // How many UTC calendar days after a point target date the resolver may
-  // Search for the first published observation. Zero means the exact target
-  // Date only (policy v2, whose targets are always exchange trading days).
+  // How many UTC calendar days around a point observation date the resolver
+  // May search: forward from a horizon target for the first publication on or
+  // After it, backward from the forecast origin for the last publication on
+  // Or before it. Zero means the exact date only (policy v2, whose dates are
+  // Always exchange trading days).
   readonly pointObservationSearchAheadDays: number;
   // For crypto close forecasts: the target UTC calendar date the outcome must
   // Be observed on; absent when provider-session counting applies.

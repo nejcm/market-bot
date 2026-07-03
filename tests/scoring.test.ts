@@ -470,6 +470,52 @@ describe("resolveOutcome", () => {
       });
     });
 
+    test("v3 point origins search backward and never read post-forecast publications", async () => {
+      const requestedDates: string[] = [];
+      const weekdayOnlyRepo: ObservationRepository = {
+        async point(request, _assetClass, date) {
+          const ymd = date.toISOString().slice(0, 10);
+          requestedDates.push(ymd);
+          const weekday = date.getUTCDay();
+          if (weekday === 0 || weekday === 6) {
+            return;
+          }
+          return { subject: request.observationSubject, date: ymd, value: 4.2 };
+        },
+        async window() {
+          throw new Error("unexpected window observation request");
+        },
+      };
+      const weekendReport = researchReport({ generatedAt: "2026-05-02T00:00:00.000Z" });
+      const macroPrediction: Prediction = {
+        ...basePrediction,
+        id: "pred-macro-weekend-origin",
+        kind: "macro",
+        subject: "DGS10",
+        horizonTradingDays: 7,
+        measurableAs: "fred(DGS10, +7) > fred(DGS10, 0)",
+        claim: "DGS10 rises over 7 trading days.",
+        scoringPolicyVersion: 3,
+      };
+
+      // GeneratedAt 2026-05-02 is a Saturday with no publication. The origin
+      // Baseline walks backward to Friday 2026-05-01 — the last value the
+      // Forecast could have seen — while the horizon target (05-09, also a
+      // Saturday) still walks forward to Monday 2026-05-11.
+      const result = await resolveOutcome(macroPrediction, weekendReport, weekdayOnlyRepo, now);
+      expect(requestedDates).toEqual([
+        "2026-05-02",
+        "2026-05-01",
+        "2026-05-09",
+        "2026-05-10",
+        "2026-05-11",
+      ]);
+      expect(result).toMatchObject({
+        status: "resolved",
+        evidence: { date0: "2026-05-01", dateN: "2026-05-11" },
+      });
+    });
+
     test("crypto volatility forecasts keep the full origin-through-target window under v3", async () => {
       const cryptoReport = researchReport({
         assetClass: "crypto",

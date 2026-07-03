@@ -60,10 +60,12 @@ must share one contract.
   applicable anchor; crypto close forecasts resolve on the target UTC calendar date, are attempted
   only after that date has fully elapsed (a partial-day price is never graded), and keep the full
   origin-through-target close window so within-horizon shapes see intermediate closes; macro and
-  IV forecasts count calendar days and resolve on the first published observation on or after the
-  target date within a bounded search-ahead window; earnings forecasts count provider-observed
-  equity sessions anchored to the declared earnings event. Exchange calendars may schedule
-  resolution retries but are not authoritative for outcomes.
+  IV forecasts count calendar days, resolve on the first published observation on or after the
+  target date within a bounded search-ahead window, and baseline against the last observation
+  published on or before the report anchor within the same bound — an origin never reads
+  post-forecast data; earnings forecasts count provider-observed equity sessions anchored to the
+  declared earnings event. Exchange calendars may schedule resolution retries but are not
+  authoritative for outcomes.
 
 ## Current scoring limitations
 

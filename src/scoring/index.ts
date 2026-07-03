@@ -55,7 +55,9 @@ import type {
   PredictionScore,
 } from "./types";
 
-const MAX_SCORE_ATTEMPTS = 5;
+const MAX_OBSERVATION_FAILURES = 4;
+const OBSERVATION_RETRY_DELAYS_DAYS = [1, 3, 7] as const;
+const DAY_MS = 86_400_000;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const ALPHA_VALIDATION_FILE = RUN_ARTIFACT_FILES.alphaValidation;
@@ -79,6 +81,7 @@ export interface ScorePassOptions {
   readonly fredApiKey?: string;
   readonly tradierApiToken?: string;
   readonly massiveApiKey?: string;
+  readonly force?: boolean;
 }
 
 function unresolvedScore(
@@ -87,6 +90,7 @@ function unresolvedScore(
   attemptCount: number,
   evidence: Record<string, unknown>,
   status: PredictionScore["status"] = "pending",
+  nextAttemptAt?: string,
 ): PredictionScore {
   return {
     predictionId: prediction.id,
@@ -96,8 +100,48 @@ function unresolvedScore(
     outcome: undefined,
     observedAt: undefined,
     attemptCount,
+    ...(nextAttemptAt !== undefined ? { nextAttemptAt } : {}),
     scoringVersion: scoringPolicyFor(prediction).version,
     evidence,
+  };
+}
+
+function nextObservationAttemptAt(now: Date, attemptCount: number): string {
+  const delayDays = OBSERVATION_RETRY_DELAYS_DAYS[attemptCount - 1];
+  if (delayDays === undefined) {
+    throw new Error(`No retry delay for observation attempt ${String(attemptCount)}`);
+  }
+  return new Date(now.getTime() + delayDays * DAY_MS).toISOString();
+}
+
+function retryWindowElapsed(
+  score: PredictionScore,
+  now: Date,
+  force: boolean | undefined,
+): boolean {
+  if (force === true || score.nextAttemptAt === undefined) {
+    return true;
+  }
+  const nextAttemptAt = Date.parse(score.nextAttemptAt);
+  return !Number.isFinite(nextAttemptAt) || nextAttemptAt <= now.getTime();
+}
+
+function abandonedScore(
+  prediction: Prediction,
+  report: ResearchReport,
+  attemptCount: number,
+  now: Date,
+): PredictionScore {
+  return {
+    predictionId: prediction.id,
+    runId: report.runId,
+    status: "abandoned",
+    resolved: true,
+    outcome: undefined,
+    observedAt: now.toISOString(),
+    attemptCount,
+    scoringVersion: scoringPolicyFor(prediction).version,
+    evidence: { reason: "abandoned after fourth observation failure" },
   };
 }
 
@@ -129,6 +173,14 @@ async function scoreOnePrediction(
   now: Date,
   options: ScorePassOptions,
 ): Promise<PredictionScore> {
+  if (
+    existingScore !== undefined &&
+    !existingScore.resolved &&
+    existingScore.attemptCount >= MAX_OBSERVATION_FAILURES
+  ) {
+    return abandonedScore(prediction, report, existingScore.attemptCount, now);
+  }
+
   const attemptCount = (existingScore?.attemptCount ?? 0) + 1;
   const repo = observationRepositoryFor(report, now, options);
 
@@ -146,18 +198,8 @@ async function scoreOnePrediction(
         resolveResult.scoreStatus ?? "pending",
       );
     }
-    if (attemptCount >= MAX_SCORE_ATTEMPTS) {
-      return {
-        predictionId: prediction.id,
-        runId: report.runId,
-        status: "abandoned",
-        resolved: true,
-        outcome: undefined,
-        observedAt: now.toISOString(),
-        attemptCount,
-        scoringVersion: scoringPolicyFor(prediction).version,
-        evidence: { reason: "abandoned after max attempts" },
-      };
+    if (attemptCount >= MAX_OBSERVATION_FAILURES) {
+      return abandonedScore(prediction, report, attemptCount, now);
     }
     return unresolvedScore(
       prediction,
@@ -165,6 +207,7 @@ async function scoreOnePrediction(
       attemptCount,
       resolveResult.evidence,
       resolveResult.scoreStatus ?? "pending",
+      nextObservationAttemptAt(now, attemptCount),
     );
   }
 
@@ -357,7 +400,12 @@ async function scoreRunDir(
         // Resolved scores are historical records; version bumps apply only to new scoring writes.
         return false;
       }
-      return prev.attemptCount < MAX_SCORE_ATTEMPTS;
+      if (prev.attemptCount >= MAX_OBSERVATION_FAILURES) {
+        return true;
+      }
+      return (
+        prev.attemptCount < MAX_OBSERVATION_FAILURES && retryWindowElapsed(prev, now, options.force)
+      );
     });
 
     if (pendingPredictions.length > 0) {

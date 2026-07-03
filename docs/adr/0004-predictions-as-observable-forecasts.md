@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-07-01 (amended 2026-07-03: scoring policy v3 registry, stamping, and clocks)
+2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, and retry state)
 
 ## Context
 
@@ -66,6 +66,10 @@ must share one contract.
   post-forecast data; earnings forecasts count provider-observed equity sessions anchored to the
   declared earnings event. Exchange calendars may schedule resolution retries but are not
   authoritative for outcomes.
+- Horizon-not-elapsed waits do not consume scoring attempts. An unavailable observation persists
+  `nextAttemptAt` and retries after 1, 3, and 7 days; the fourth failed observation fetch abandons
+  the forecast. `score --force` bypasses only `nextAttemptAt`, preserving the same resolution and
+  abandonment rules.
 
 ## Current scoring limitations
 

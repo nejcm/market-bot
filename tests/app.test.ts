@@ -133,6 +133,28 @@ describe("scorePassOptions", () => {
 });
 
 describe("runCli", () => {
+  test("passes force only from the explicit score command", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-score-force-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const receivedForces: (boolean | undefined)[] = [];
+
+    await runCli(["score", "--force"], {
+      runScorePass: async (_dataDir, _now, options) => {
+        receivedForces.push(options?.force);
+        return { scored: 0, skipped: 0, touchedRunDirs: [] };
+      },
+      buildAndWriteCalibration: async () => null,
+      writeThroughRunArtifactIndex: async () => {},
+      rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+    });
+
+    expect(receivedForces).toEqual([true]);
+  });
+
   test("scores prediction runs after persisting the new report", async () => {
     const dataDir = join(
       tmpdir(),

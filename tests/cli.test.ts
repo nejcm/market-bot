@@ -134,6 +134,8 @@ describe("parseArgs", () => {
 
   test("parses score command", () => {
     expect(parseArgs(["score"])).toEqual({ jobType: "score" });
+    expect(parseArgs(["score", "--force"])).toEqual({ jobType: "score", force: true });
+    expect(() => parseArgs(["score", "--unknown"])).toThrow("Unknown flag: --unknown");
   });
 
   test("parses calibration command", () => {

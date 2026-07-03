@@ -535,6 +535,7 @@ function readScores(value: unknown): readonly PredictionScore[] | undefined {
         outcome: item.outcome === "hit" || item.outcome === "miss" ? item.outcome : undefined,
         observedAt: typeof item.observedAt === "string" ? item.observedAt : undefined,
         attemptCount: item.attemptCount,
+        ...(typeof item.nextAttemptAt === "string" ? { nextAttemptAt: item.nextAttemptAt } : {}),
         // Carried through at full fidelity so score-writing consumers (scoring/index.ts) can
         // Preserve the version stamped on already-resolved scores. Undefined for legacy files.
         ...(typeof item.scoringVersion === "number" ? { scoringVersion: item.scoringVersion } : {}),

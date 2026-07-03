@@ -256,7 +256,8 @@ export function parseArgs(args: readonly string[]): CliCommand {
   }
 
   if (command === "score") {
-    return { jobType: "score" };
+    rejectUnknownArgs(args, 1, new Set(["--force"]));
+    return args.includes("--force") ? { jobType: "score", force: true } : { jobType: "score" };
   }
 
   if (command === "calibration") {

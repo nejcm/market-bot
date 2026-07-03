@@ -118,7 +118,10 @@ export async function runCli(
   const writeCalibration = dependencies.buildAndWriteCalibration ?? buildAndWriteCalibration;
 
   if (command.jobType === "score") {
-    const result = await runScore(config.dataDir, now(), scorePassOptions(config.sourceOptions));
+    const result = await runScore(config.dataDir, now(), {
+      ...scorePassOptions(config.sourceOptions),
+      ...(command.force === true ? { force: true } : {}),
+    });
     await writeCalibration(config.dataDir);
     await updateRunArtifactIndex(
       config.dataDir,

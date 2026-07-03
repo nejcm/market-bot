@@ -25,6 +25,7 @@ export interface PredictionScore {
   readonly outcome: ScoreOutcome | undefined;
   readonly observedAt: string | undefined;
   readonly attemptCount: number;
+  readonly nextAttemptAt?: string;
   /** Undefined for legacy score files written before scoring logic versioning. */
   readonly scoringVersion?: number;
   readonly evidence: Record<string, unknown>;

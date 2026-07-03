@@ -96,6 +96,203 @@ async function noObservation(): Promise<Observation | undefined> {
 }
 
 describe("runScorePass Observation scoring", () => {
+  test("does not consume attempts while the horizon has not elapsed", async () => {
+    const runDir = await writeRun(
+      "run-pending",
+      report([
+        {
+          id: "pred-pending",
+          claim: "SPY closes higher over 5 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +5) > close(SPY, 0)",
+          horizonTradingDays: 5,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ]),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        throw new Error("unexpected observation request");
+      },
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-05T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    await runScorePass(tmpDir, new Date("2026-05-06T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({ status: "pending", attemptCount: 0 });
+    expect(score?.nextAttemptAt).toBeUndefined();
+  });
+
+  test("schedules observation retries after 1, 3, and 7 days then abandons", async () => {
+    const runDir = await writeRun(
+      "run-retries",
+      report([
+        {
+          id: "pred-retries",
+          claim: "SPY closes higher over 2 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +2) > close(SPY, 0)",
+          horizonTradingDays: 2,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ]),
+    );
+    let observationCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        observationCalls += 1;
+        return [];
+      },
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    const [firstFailure] = await readScores(runDir);
+    expect(firstFailure).toMatchObject({
+      status: "pending",
+      attemptCount: 1,
+      nextAttemptAt: "2026-05-09T00:00:00.000Z",
+    });
+
+    await runScorePass(tmpDir, new Date("2026-05-08T12:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    expect(observationCalls).toBe(1);
+
+    await runScorePass(tmpDir, new Date("2026-05-09T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    const [secondFailure] = await readScores(runDir);
+    expect(secondFailure).toMatchObject({
+      attemptCount: 2,
+      nextAttemptAt: "2026-05-12T00:00:00.000Z",
+    });
+
+    await runScorePass(tmpDir, new Date("2026-05-12T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    const [thirdFailure] = await readScores(runDir);
+    expect(thirdFailure).toMatchObject({
+      attemptCount: 3,
+      nextAttemptAt: "2026-05-19T00:00:00.000Z",
+    });
+
+    await runScorePass(tmpDir, new Date("2026-05-19T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      status: "abandoned",
+      resolved: true,
+      attemptCount: 4,
+      evidence: { reason: "abandoned after fourth observation failure" },
+    });
+    expect(score?.nextAttemptAt).toBeUndefined();
+    expect(observationCalls).toBe(4);
+  });
+
+  test("force bypasses retry timing without changing retry semantics", async () => {
+    const runDir = await writeRun(
+      "run-force",
+      report([
+        {
+          id: "pred-force",
+          claim: "SPY closes higher over 2 trading days.",
+          kind: "direction",
+          subject: "SPY",
+          measurableAs: "close(SPY, +2) > close(SPY, 0)",
+          horizonTradingDays: 2,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ]),
+    );
+    let observationCalls = 0;
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        observationCalls += 1;
+        return [];
+      },
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+    await runScorePass(tmpDir, new Date("2026-05-08T12:00:00.000Z"), {
+      observationRepository: repo,
+      force: true,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      attemptCount: 2,
+      nextAttemptAt: "2026-05-11T12:00:00.000Z",
+    });
+    expect(observationCalls).toBe(2);
+  });
+
+  test("terminalizes a legacy pending score already at four failures", async () => {
+    const prediction: ResearchReport["predictions"][number] = {
+      id: "pred-legacy-pending",
+      claim: "SPY closes higher over 2 trading days.",
+      kind: "direction",
+      subject: "SPY",
+      measurableAs: "close(SPY, +2) > close(SPY, 0)",
+      horizonTradingDays: 2,
+      probability: 0.6,
+      sourceIds: [],
+    };
+    const runDir = await writeRun("run-legacy-pending", report([prediction]));
+    await writeFile(
+      join(runDir, "score.json"),
+      `${JSON.stringify({
+        runId: "run-1",
+        scoredAt: "2026-05-07T00:00:00.000Z",
+        scores: [
+          {
+            predictionId: prediction.id,
+            runId: "run-1",
+            status: "pending",
+            resolved: false,
+            attemptCount: 4,
+            evidence: { reason: "observation unavailable" },
+          },
+        ],
+      })}\n`,
+      "utf8",
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async () => {
+        throw new Error("unexpected fifth observation request");
+      },
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      status: "abandoned",
+      resolved: true,
+      attemptCount: 4,
+    });
+  });
+
   test("scores volatility from the full close window", async () => {
     const runDir = await writeRun(
       "run-1",

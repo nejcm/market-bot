@@ -3,12 +3,13 @@ import type { Observation, PointObservationRequest } from "../forecast/observabl
 import { fetchCoinGeckoCloseWindow } from "../sources/coingecko";
 import { fetchFredObservation } from "../sources/fred";
 import { fetchTradierIvObservation } from "../sources/tradier";
-import { fetchYahooCloseWindow } from "../sources/yahoo";
+import { fetchYahooCloseWindow, fetchYahooSplitAdjustedCloseWindow } from "../sources/yahoo";
 import {
   fetchCloseWithCache,
   fetchWindowWithCache,
   type FetchCloseFn,
   type FetchWindowFn,
+  type WindowFetchOptions,
 } from "./close-cache";
 
 export type { FetchCloseFn, FetchWindowFn, Observation };
@@ -24,6 +25,7 @@ export interface ObservationRepository {
     assetClass: AssetClass,
     from: Date,
     to: Date,
+    options?: WindowFetchOptions,
   ): Promise<readonly Observation[]>;
 }
 
@@ -92,8 +94,11 @@ async function pointValue(
 }
 
 function routeWindowFetch(report: ResearchReport, massiveApiKey?: string): FetchWindowFn {
-  return async (subject, assetClass, from, to) => {
+  return async (subject, assetClass, from, to, options) => {
     if (assetClass === "equity") {
+      if (options?.scoringPolicyVersion === 3) {
+        return fetchYahooSplitAdjustedCloseWindow(subject, from, to);
+      }
       return fetchYahooCloseWindow(subject, from, to, fetch, massiveApiKey);
     }
 
@@ -128,7 +133,7 @@ export function createObservationRepository(
         : { subject: request.observationSubject, date: ymd(date), value };
     },
 
-    async window(subject, assetClass, from, to) {
+    async window(subject, assetClass, from, to, windowOptions) {
       return fetchWindowWithCache(
         subject,
         assetClass,
@@ -137,6 +142,7 @@ export function createObservationRepository(
         options.cacheDir,
         fetchWindow,
         now,
+        windowOptions,
       );
     },
   };

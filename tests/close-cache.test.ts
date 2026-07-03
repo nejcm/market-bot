@@ -189,4 +189,44 @@ describe("fetchCloseWithCache", () => {
 
     expect(calls).toBe(2);
   });
+
+  test("keeps policy-v3 split-adjusted windows separate from legacy raw windows", async () => {
+    let calls = 0;
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-21T00:00:00.000Z");
+    const fetchWindow = async () => {
+      calls += 1;
+      return [{ subject: "SPY", date: "2026-05-19", value: calls === 1 ? 500 : 250 }];
+    };
+
+    const legacy = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow);
+    const policyV3 = await fetchWindowWithCache(
+      "SPY",
+      "equity",
+      from,
+      to,
+      tmpDir,
+      fetchWindow,
+      new Date(),
+      { scoringPolicyVersion: 3 },
+    );
+
+    expect(legacy[0]?.value).toBe(500);
+    expect(policyV3[0]?.value).toBe(250);
+    expect(calls).toBe(2);
+    expect(
+      existsSync(
+        join(
+          tmpDir,
+          "close-windows",
+          "v2",
+          "split-adjusted-close",
+          "yahoo",
+          "equity",
+          "spy",
+          "2026-05-19_2026-05-21.json",
+        ),
+      ),
+    ).toBe(true);
+  });
 });

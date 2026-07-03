@@ -55,7 +55,9 @@ async function closeObservations(
 ): Promise<readonly Observation[]> {
   const windows = await Promise.all(
     subjects.map((subject) =>
-      repo.window(subject, report.assetClass, new Date(report.generatedAt), now),
+      repo.window(subject, report.assetClass, new Date(report.generatedAt), now, {
+        scoringPolicyVersion: policy.version,
+      }),
     ),
   );
 
@@ -220,6 +222,7 @@ async function earningsCloseObservations(
   subject: string,
   eventDate: string,
   horizonTradingDays: number,
+  policy: ScoringPolicy,
 ): Promise<readonly Observation[]> {
   const timing = readEarningsEventTiming(report);
   const originDate = earningsOriginDate(new Date(`${eventDate}T00:00:00Z`), timing);
@@ -229,7 +232,9 @@ async function earningsCloseObservations(
     return [];
   }
 
-  const window = await repo.window(subject, report.assetClass, originDate, now);
+  const window = await repo.window(subject, report.assetClass, originDate, now, {
+    scoringPolicyVersion: policy.version,
+  });
 
   // Count how many trading days we need from origin to horizon.
   // BMO: origin (prior day) + N event days = N+1 closes
@@ -286,6 +291,7 @@ async function observationsForStrategy(
       strategy.subject,
       strategy.eventDate,
       strategy.horizonTradingDays,
+      policy,
     );
   }
   const nested = await Promise.all(

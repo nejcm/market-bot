@@ -515,6 +515,16 @@ export function yahooChartWindowUrl(symbol: string, from: Date, to: Date): strin
   return `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?${params.toString()}`;
 }
 
+function yahooScoringWindowUrl(symbol: string, from: Date, to: Date): string {
+  const start = new Date(from);
+  const end = new Date(to);
+  start.setUTCHours(0, 0, 0, 0);
+  end.setUTCHours(0, 0, 0, 0);
+  const url = new URL(yahooChartWindowUrl(symbol, start, end));
+  url.searchParams.set("events", "div,splits");
+  return url.toString();
+}
+
 function dateFromUnixSeconds(value: unknown): string | undefined {
   return typeof value === "number" ? new Date(value * 1000).toISOString().slice(0, 10) : undefined;
 }
@@ -522,6 +532,7 @@ function dateFromUnixSeconds(value: unknown): string | undefined {
 interface YahooChartQuote {
   readonly timestamps: readonly unknown[];
   readonly quote: Record<string, unknown>;
+  readonly result: Record<string, unknown>;
 }
 
 // Unwrap chart.result[0].timestamp + indicators.quote[0] from a Yahoo chart payload.
@@ -537,7 +548,7 @@ function readYahooChartQuote(payload: unknown): YahooChartQuote | undefined {
   if (!isRecord(quote)) {
     return undefined;
   }
-  return { timestamps: result.timestamp, quote };
+  return { timestamps: result.timestamp, quote, result };
 }
 
 function observationsFromYahooChartPayload(
@@ -638,6 +649,139 @@ export async function fetchYahooCloseWindow(
     fetchImpl,
   );
   return massiveObservations ?? [];
+}
+
+interface YahooSplitEvent {
+  readonly date: string;
+  readonly factor: number;
+}
+
+function splitEventsFromYahooChart(
+  result: Record<string, unknown>,
+): readonly YahooSplitEvent[] | undefined {
+  const { events } = result;
+  if (events === undefined) {
+    return [];
+  }
+  if (!isRecord(events)) {
+    return undefined;
+  }
+  const { splits } = events;
+  if (splits === undefined) {
+    return [];
+  }
+  if (!isRecord(splits)) {
+    return undefined;
+  }
+
+  const parsed: YahooSplitEvent[] = [];
+  const dates = new Set<string>();
+  for (const [timestampKey, value] of Object.entries(splits)) {
+    if (!isRecord(value)) {
+      return undefined;
+    }
+    const timestamp = readNumber(value, "date");
+    const numerator = readNumber(value, "numerator");
+    const denominator = readNumber(value, "denominator");
+    const ratio = readString(value, "splitRatio");
+    const [ratioNumerator, ratioDenominator, ...extra] = ratio?.split(":") ?? [];
+    const parsedNumerator = Number(ratioNumerator);
+    const parsedDenominator = Number(ratioDenominator);
+    if (
+      timestamp === undefined ||
+      numerator === undefined ||
+      denominator === undefined ||
+      numerator <= 0 ||
+      denominator <= 0 ||
+      extra.length > 0 ||
+      !Number.isFinite(parsedNumerator) ||
+      !Number.isFinite(parsedDenominator) ||
+      parsedNumerator <= 0 ||
+      parsedDenominator <= 0 ||
+      Number(timestampKey) !== timestamp ||
+      Math.abs(numerator / denominator - parsedNumerator / parsedDenominator) > 1e-12
+    ) {
+      return undefined;
+    }
+    const date = dateFromUnixSeconds(timestamp);
+    const factor = denominator / numerator;
+    if (date === undefined || !Number.isFinite(factor) || factor <= 0) {
+      return undefined;
+    }
+    if (dates.has(date)) {
+      return undefined;
+    }
+    dates.add(date);
+    parsed.push({ date, factor });
+  }
+  return parsed.toSorted((left, right) => left.date.localeCompare(right.date));
+}
+
+function splitAdjustedObservationsFromYahooChart(
+  symbol: string,
+  payload: unknown,
+): readonly Observation[] {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return [];
+  }
+  const closes = Array.isArray(chart.quote.close) ? chart.quote.close : undefined;
+  const splits = splitEventsFromYahooChart(chart.result);
+  if (
+    closes === undefined ||
+    closes.length !== chart.timestamps.length ||
+    splits === undefined ||
+    chart.timestamps.length === 0
+  ) {
+    return [];
+  }
+
+  const observations: Observation[] = [];
+  let previousDate: string | undefined = undefined;
+  for (let index = 0; index < chart.timestamps.length; index++) {
+    const date = dateFromUnixSeconds(chart.timestamps[index]);
+    const close = closes[index];
+    if (
+      date === undefined ||
+      typeof close !== "number" ||
+      !Number.isFinite(close) ||
+      close <= 0 ||
+      (previousDate !== undefined && date <= previousDate)
+    ) {
+      return [];
+    }
+    const factor = splits
+      .filter((split) => split.date > date)
+      .reduce((product, split) => product * split.factor, 1);
+    const value = close * factor;
+    if (!Number.isFinite(value) || value <= 0) {
+      return [];
+    }
+    observations.push({ subject: symbol, date, value });
+    previousDate = date;
+  }
+  const observationDates = new Set(observations.map((observation) => observation.date));
+  if (splits.some((split) => !observationDates.has(split.date))) {
+    return [];
+  }
+  return observations;
+}
+
+export async function fetchYahooSplitAdjustedCloseWindow(
+  symbol: string,
+  from: Date,
+  to: Date,
+  fetchImpl: FetchLike = fetch,
+): Promise<readonly Observation[]> {
+  const fetched = await fetchYahooJsonWithResilience(
+    yahooScoringWindowUrl(symbol, from, to),
+    fetchImpl,
+    {
+      signal: AbortSignal.timeout(10_000),
+      headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+    },
+  );
+  return fetched.ok ? splitAdjustedObservationsFromYahooChart(symbol, fetched.payload) : [];
 }
 
 export { yahooCredentialFetch, createYahooResilientFetch } from "./yahoo-resilience";

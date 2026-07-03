@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createObservationRepository } from "../src/scoring/observations";
 import type { ResearchReport } from "../src/domain/types";
+import { fetchYahooSplitAdjustedCloseWindow } from "../src/sources/yahoo";
+import type { FetchLike } from "../src/sources/types";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 
@@ -21,6 +23,28 @@ afterEach(() => {
 
 function report(sources: ResearchReport["sources"] = []): ResearchReport {
   return researchReport({ assetClass: "crypto", sources });
+}
+
+function yahooChartPayload(closes: readonly unknown[], events?: Record<string, unknown>): unknown {
+  return {
+    chart: {
+      result: [
+        {
+          timestamp: [
+            Date.parse("2026-05-19T00:00:00.000Z") / 1000,
+            Date.parse("2026-05-20T00:00:00.000Z") / 1000,
+            Date.parse("2026-05-21T00:00:00.000Z") / 1000,
+          ],
+          indicators: { quote: [{ close: closes }] },
+          ...(events === undefined ? {} : { events }),
+        },
+      ],
+    },
+  };
+}
+
+function fetchPayload(payload: unknown): FetchLike {
+  return async () => Response.json(payload);
 }
 
 describe("ObservationRepository point routing", () => {
@@ -114,6 +138,115 @@ describe("ObservationRepository point routing", () => {
 });
 
 describe("ObservationRepository window routing", () => {
+  test("reconstructs dividend-exclusive split-adjusted equity closes from one Yahoo response", async () => {
+    const splitTimestamp = Date.parse("2026-05-20T00:00:00.000Z") / 1000;
+    const requestedUrls: string[] = [];
+    const fetchImpl: FetchLike = async (input) => {
+      requestedUrls.push(String(input));
+      return Response.json(
+        yahooChartPayload([100, 51, 52], {
+          dividends: {
+            [String(splitTimestamp)]: { date: splitTimestamp, amount: 10 },
+          },
+          splits: {
+            [String(splitTimestamp)]: {
+              date: splitTimestamp,
+              numerator: 2,
+              denominator: 1,
+              splitRatio: "2:1",
+            },
+          },
+        }),
+      );
+    };
+
+    const result = await fetchYahooSplitAdjustedCloseWindow(
+      "AAPL",
+      new Date("2026-05-19T18:00:00.000Z"),
+      new Date("2026-05-21T18:00:00.000Z"),
+      fetchImpl,
+    );
+
+    expect(result).toEqual([
+      { subject: "AAPL", date: "2026-05-19", value: 50 },
+      { subject: "AAPL", date: "2026-05-20", value: 51 },
+      { subject: "AAPL", date: "2026-05-21", value: 52 },
+    ]);
+    expect(requestedUrls).toHaveLength(1);
+    const requestUrl = new URL(requestedUrls[0]!);
+    expect(requestUrl.searchParams.get("events")).toBe("div,splits");
+    expect(requestUrl.searchParams.get("period1")).toBe(
+      String(Date.parse("2026-05-19T00:00:00.000Z") / 1000),
+    );
+  });
+
+  test("rejects malformed or inconsistent Yahoo split metadata and incomplete close arrays", async () => {
+    const splitTimestamp = Date.parse("2026-05-20T00:00:00.000Z") / 1000;
+    const from = new Date("2026-05-19T00:00:00.000Z");
+    const to = new Date("2026-05-21T00:00:00.000Z");
+    const split = (overrides: Record<string, unknown>) => ({
+      events: {
+        splits: {
+          [String(splitTimestamp)]: {
+            date: splitTimestamp,
+            numerator: 2,
+            denominator: 1,
+            splitRatio: "2:1",
+            ...overrides,
+          },
+        },
+      },
+    });
+
+    expect(
+      await fetchYahooSplitAdjustedCloseWindow(
+        "AAPL",
+        from,
+        to,
+        fetchPayload(yahooChartPayload([100, 51, 52], split({ denominator: undefined }).events)),
+      ),
+    ).toEqual([]);
+    expect(
+      await fetchYahooSplitAdjustedCloseWindow(
+        "AAPL",
+        from,
+        to,
+        fetchPayload(yahooChartPayload([100, 51, 52], split({ splitRatio: "3:1" }).events)),
+      ),
+    ).toEqual([]);
+    expect(
+      await fetchYahooSplitAdjustedCloseWindow(
+        "AAPL",
+        from,
+        to,
+        fetchPayload(yahooChartPayload([100, null, 52])),
+      ),
+    ).toEqual([]);
+  });
+
+  test("does not mix Massive into a failed policy-v3 Yahoo equity window", async () => {
+    const { calls, fetch: stub } = recordingFetch(() => new Response(null, { status: 400 }));
+    globalThis.fetch = stub;
+    const equityReport = researchReport({ assetClass: "equity" });
+    const repo = createObservationRepository({
+      report: equityReport,
+      massiveApiKey: "massive-key",
+    });
+
+    const result = await repo.window(
+      "AAPL",
+      "equity",
+      new Date("2026-05-19T00:00:00.000Z"),
+      new Date("2026-05-21T00:00:00.000Z"),
+      { scoringPolicyVersion: 3 },
+    );
+
+    expect(result).toEqual([]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("query1.finance.yahoo.com");
+    expect(calls.some((url) => url.includes("api.massive.com"))).toBe(false);
+  });
+
   test("uses report Instrument Identity for CoinGecko window coin id", async () => {
     const { calls, fetch: stub } = recordingFetch(() => ({
       prices: [[Date.parse("2026-05-19T00:00:00.000Z"), 68_000]],

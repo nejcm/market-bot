@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, and retry state)
+2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, retry state, and
+split-adjusted equity closes)
 
 ## Context
 
@@ -70,12 +71,19 @@ must share one contract.
   `nextAttemptAt` and retries after 1, 3, and 7 days; the fourth failed observation fetch abandons
   the forecast. `score --force` bypasses only `nextAttemptAt`, preserving the same resolution and
   abandonment rules.
+- Policy v3 equity close windows come from one Yahoo request containing raw closes and split
+  events. Scoring reconstructs a dividend-exclusive, split-adjusted series; dividends do not enter
+  the adjustment. Request failure, malformed or inconsistent split metadata, or an incomplete
+  close window leaves the forecast unresolved. Massive and other providers cannot fill or replace
+  any portion of a v3 equity resolution window. Legacy policy-v2 forecasts retain their historical
+  raw-close provider behavior.
 
 ## Current scoring limitations
 
 - Brier skill uses an always-0.5 reference (`1 - brier / 0.25`), not an empirical event baseline.
   It must not be described as market-relative forecasting skill.
-- Equity close scoring uses raw closes and can be distorted by splits or other corporate actions.
+- Legacy policy-v2 equity close scoring uses raw closes and can be distorted by splits or other
+  corporate actions.
 - Policy v2 (all forecasts persisted before stamping) gates every due date on the US exchange
   calendar, including crypto and macro/IV forecasts; those forecasts resolve permanently under
   that legacy clock.

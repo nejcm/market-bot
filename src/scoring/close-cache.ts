@@ -2,6 +2,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AssetClass } from "../domain/types";
 import type { Observation } from "../forecast/observable";
+import type { ScoringPolicyVersion } from "./policy";
+
+export interface WindowFetchOptions {
+  readonly scoringPolicyVersion?: ScoringPolicyVersion;
+}
 
 export type FetchCloseFn = (
   symbol: string,
@@ -14,6 +19,7 @@ export type FetchWindowFn = (
   assetClass: AssetClass,
   from: Date,
   to: Date,
+  options?: WindowFetchOptions,
 ) => Promise<readonly Observation[]>;
 
 interface CloseCacheEntry {
@@ -56,7 +62,13 @@ function cacheComponent(value: string): string {
   return value.toLowerCase().replaceAll(/[^a-z0-9._-]/gu, "_");
 }
 
-function closeCacheSemantics(assetClass: AssetClass): CloseCacheSemantics {
+function closeCacheSemantics(
+  assetClass: AssetClass,
+  options?: WindowFetchOptions,
+): CloseCacheSemantics {
+  if (assetClass === "equity" && options?.scoringPolicyVersion === 3) {
+    return { providerSet: "yahoo", priceMode: "split-adjusted-close" };
+  }
   return assetClass === "crypto"
     ? { providerSet: "coingecko", priceMode: "raw-close" }
     : { providerSet: "yahoo-massive", priceMode: "raw-close" };
@@ -87,8 +99,9 @@ function closeWindowCachePath(
   assetClass: AssetClass,
   from: Date,
   to: Date,
+  options?: WindowFetchOptions,
 ): string {
-  const semantics = closeCacheSemantics(assetClass);
+  const semantics = closeCacheSemantics(assetClass, options);
   return join(
     cacheDir,
     "close-windows",
@@ -151,8 +164,9 @@ function windowEntryMatches(
   assetClass: AssetClass,
   from: Date,
   to: Date,
+  options?: WindowFetchOptions,
 ): boolean {
-  const semantics = closeCacheSemantics(assetClass);
+  const semantics = closeCacheSemantics(assetClass, options);
   return (
     entry.schemaVersion === 2 &&
     cacheSymbol(entry.symbol) === cacheSymbol(symbol) &&
@@ -170,11 +184,12 @@ async function readWindow(
   assetClass: AssetClass,
   from: Date,
   to: Date,
+  options?: WindowFetchOptions,
 ): Promise<readonly Observation[] | undefined> {
   try {
     const raw = await readFile(path, "utf8");
     const entry = JSON.parse(raw) as CloseWindowCacheEntry;
-    return windowEntryMatches(entry, symbol, assetClass, from, to) &&
+    return windowEntryMatches(entry, symbol, assetClass, from, to, options) &&
       Array.isArray(entry.observations) &&
       entry.observations.every(isObservation)
       ? entry.observations
@@ -244,24 +259,25 @@ export async function fetchWindowWithCache(
   cacheDir: string | undefined,
   fetchWindow: FetchWindowFn,
   now: Date = new Date(),
+  options?: WindowFetchOptions,
 ): Promise<readonly Observation[]> {
   if (cacheDir === undefined) {
-    return fetchWindow(symbol, assetClass, from, to);
+    return fetchWindow(symbol, assetClass, from, to, options);
   }
 
-  const path = closeWindowCachePath(cacheDir, symbol, assetClass, from, to);
-  const cached = await readWindow(path, symbol, assetClass, from, to);
+  const path = closeWindowCachePath(cacheDir, symbol, assetClass, from, to, options);
+  const cached = await readWindow(path, symbol, assetClass, from, to, options);
   if (cached !== undefined) {
     return cached;
   }
 
-  const observations = await fetchWindow(symbol, assetClass, from, to);
+  const observations = await fetchWindow(symbol, assetClass, from, to, options);
   if (observations.length > 0) {
     await writeWindow(path, {
       schemaVersion: 2,
       symbol,
       assetClass,
-      ...closeCacheSemantics(assetClass),
+      ...closeCacheSemantics(assetClass, options),
       from: ymd(from),
       to: ymd(to),
       observations,

@@ -120,7 +120,10 @@ function partitionScenarios(scenarios: readonly Scenario[]): Partition<Scenario>
   return partitionItems(
     "scenarios",
     scenarios,
-    (scenario) => scenario.description,
+    // A scenario's name can carry the numeric or technical claim ("20%
+    // Downside") while the description stays qualitative, so both fields feed
+    // The blocking check.
+    (scenario) => `${scenario.name}: ${scenario.description}`,
     (scenario) => scenario.sourceIds,
   );
 }
@@ -238,6 +241,10 @@ export function auditReportIntegrity(report: ResearchReport): ReportIntegrityAud
     risks: { before: report.risks.length, after: risks.kept.length },
     scenarios: { before: report.scenarios.length, after: scenarios.kept.length },
   };
+  // Low measures pruning damage only: a required section that was already
+  // Empty before the audit is a synthesis shortfall, not an integrity
+  // Violation (the same report grades high when nothing is pruned), so it
+  // Must not drag an unrelated pruning down to low.
   const emptiedRequiredSection = REQUIRED_SECTIONS.some(
     (section) => sectionState[section].before > 0 && sectionState[section].after === 0,
   );

@@ -126,6 +126,27 @@ describe("auditReportIntegrity", () => {
     expect(result.reportIntegrity).toBe("medium");
   });
 
+  test("unsupported numeric scenario names are pruned despite qualitative descriptions", () => {
+    const report = researchReport({
+      keyFindings: [citedFinding("Cited claim: volume rose 40%.")],
+      risks: [citedFinding("Cited risk.")],
+      scenarios: [
+        { name: "20% downside", description: "Guidance disappoints.", sourceIds: [] },
+        { name: "20% downside", description: "Guidance disappoints.", sourceIds: CITED },
+        { name: "Base", description: "Conditions remain mixed.", sourceIds: [] },
+      ],
+    });
+
+    const result = auditReportIntegrity(report);
+
+    expect(result.pruned.map((item) => item.location)).toEqual(["scenarios[0]"]);
+    expect(result.report.scenarios.map((scenario) => scenario.name)).toEqual([
+      "20% downside",
+      "Base",
+    ]);
+    expect(result.reportIntegrity).toBe("medium");
+  });
+
   test("summary sentences and posture warnings are advisory only and never pruned", () => {
     const summary =
       "Revenue grew 40% with no citation available here. Evidence remains mixed overall.";

@@ -9,6 +9,7 @@ import { marketContextGap, sourceGap } from "../src/domain/source-gaps";
 import type { MarketContext, MarketSnapshot, Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
+import { runScorePass } from "../src/scoring";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { isRecord } from "../src/sources/guards";
 import { readNewsSeenEntries } from "../src/sources/news-seen";
@@ -1144,6 +1145,85 @@ describe("runResearchJob", () => {
       prunedItemCount: 1,
       advisoryWarningCount: result.trace.reportIntegrityAudit?.advisoryWarningCount ?? -1,
     });
+  });
+
+  test("pruned predictions are absent from persisted reports and scoring input", async () => {
+    const dataDir = tempDataDir("market-bot-integrity-scoring");
+    await writeHistoricalRun({
+      dataDir,
+      runId: "prior-aapl",
+      jobType: "equity",
+      generatedAt: "2026-05-18T00:00:00.000Z",
+      symbol: "AAPL",
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        // The last prediction becomes a range forecast whose canonical claim
+        // Renders numeric bounds, supported only by a history source (not
+        // Eligible support), so the Report Integrity Audit must prune it
+        // Before persistence and scoring. Model claim text never survives
+        // Assembly — renderClaim rebuilds it from measurableAs.
+        const predictions = mockPredictions(6, "AAPL").map((prediction, index) =>
+          index === 5
+            ? {
+                ...(prediction as Record<string, unknown>),
+                kind: "range",
+                measurableAs: "close(AAPL, +15) outside [180, 200]",
+                sourceIds: ["history-report-prior-aapl"],
+              }
+            : prediction,
+        );
+        return {
+          content: JSON.stringify({
+            ...(JSON.parse(modelReport("AAPL")) as Record<string, unknown>),
+            predictions,
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const keptIds = ["pred-1", "pred-2", "pred-3", "pred-4", "pred-5"];
+    expect(result.report.predictions.map((prediction) => prediction.id)).toEqual(keptIds);
+    expect(result.trace.reportIntegrityAudit?.pruned).toEqual([
+      expect.objectContaining({ location: "predictions[5]" }),
+    ]);
+
+    const persisted = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),
+    ) as { readonly predictions: readonly { readonly id: string }[] };
+    expect(persisted.predictions.map((prediction) => prediction.id)).toEqual(keptIds);
+
+    // Scoring loads the persisted report, so the pruned prediction must never
+    // Receive a score entry even before any horizon elapses.
+    await runScorePass(dataDir, new Date("2026-05-19T12:00:00.000Z"));
+    const scoreFile = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "score.json"), "utf8"),
+    ) as { readonly scores: readonly { readonly predictionId: string }[] };
+    expect(scoreFile.scores.map((score) => score.predictionId)).toEqual(keptIds);
   });
 
   test("audits rejected duplicate, invalid, and over-budget evidence requests", async () => {

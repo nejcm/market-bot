@@ -92,4 +92,5 @@ Requirements:
 - All checks must pass before marking the task as complete
 - Never bypass Git hooks with --no-verify or skip CI checks
 - Include tests within the same commit as the code changes
+- Do not append `Co-authored-by` trailers to commit messages
 - Update docs/configuration.md when introducing new env variables

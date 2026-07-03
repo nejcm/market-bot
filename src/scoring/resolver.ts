@@ -66,7 +66,7 @@ async function closeObservations(
   // First/last. Equity (both policies) and v2 crypto count provider sessions.
   const cryptoTargetDate =
     report.assetClass === "crypto"
-      ? policy.cryptoCloseTargetDate(report.generatedAt, horizonTradingDays)
+      ? policy.cryptoCloseTargetDate?.(report.generatedAt, horizonTradingDays)
       : undefined;
   if (cryptoTargetDate !== undefined) {
     const originYmd = ymd(new Date(report.generatedAt));

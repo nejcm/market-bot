@@ -37,8 +37,8 @@ export interface ScoringPolicy {
   // Date only (policy v2, whose targets are always exchange trading days).
   readonly pointObservationSearchAheadDays: number;
   // For crypto close forecasts: the target UTC calendar date the outcome must
-  // Be observed on, or undefined when provider-session counting applies.
-  readonly cryptoCloseTargetDate: (generatedAt: string, horizonDays: number) => Date | undefined;
+  // Be observed on; absent when provider-session counting applies.
+  readonly cryptoCloseTargetDate?: (generatedAt: string, horizonDays: number) => Date;
 }
 
 function addUtcCalendarDays(generatedAt: string, days: number): Date {
@@ -59,7 +59,6 @@ const POLICY_V2: ScoringPolicy = {
   closeDueDate: (generatedAt, horizonDays) => resolutionDate(generatedAt, horizonDays),
   pointTargetDate: (generatedAt, horizonDays) => resolutionDate(generatedAt, horizonDays),
   pointObservationSearchAheadDays: 0,
-  cryptoCloseTargetDate: () => {},
 };
 
 const POLICY_V3: ScoringPolicy = {

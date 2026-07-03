@@ -241,8 +241,12 @@ export function auditReportIntegrity(report: ResearchReport): ReportIntegrityAud
   const emptiedRequiredSection = REQUIRED_SECTIONS.some(
     (section) => sectionState[section].before > 0 && sectionState[section].after === 0,
   );
-  const reportIntegrity: ReportIntegrity =
-    pruned.length === 0 ? "high" : (emptiedRequiredSection ? "low" : "medium");
+  let reportIntegrity: ReportIntegrity = "medium";
+  if (pruned.length === 0) {
+    reportIntegrity = "high";
+  } else if (emptiedRequiredSection) {
+    reportIntegrity = "low";
+  }
   const researchQuality = worseQuality(researchReportEvidenceQuality(report), reportIntegrity);
 
   const prunedReport: ResearchReport = {

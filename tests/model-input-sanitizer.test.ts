@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   MODEL_INPUT_FIELD_CAPS,
+  aggregateModelInputSanitization,
   sanitizeModelInputText,
 } from "../src/sources/model-input-sanitizer";
 
@@ -55,5 +56,31 @@ describe("sanitizeModelInputText", () => {
     expect(result.text?.length).toBe(10_000);
     expect(result.telemetry.truncatedFieldCount).toBe(1);
     expect(result.telemetry.truncatedCharCount).toBe(50);
+  });
+
+  test("aggregates telemetry by bounded ingress key", () => {
+    const base = {
+      provider: "yahoo-news",
+      ingress: "news",
+      profile: "news" as const,
+      fieldRole: "title" as const,
+      droppedItemCount: 0,
+      inputChars: 10,
+      outputChars: 8,
+      removedInstructionSpanCount: 1,
+      removedMarkupChromeCount: 0,
+      truncatedFieldCount: 0,
+      truncatedCharCount: 0,
+      emptyAfterSanitizeFieldCount: 0,
+    };
+
+    expect(aggregateModelInputSanitization([base, base]).entries).toEqual([
+      {
+        ...base,
+        inputChars: 20,
+        outputChars: 16,
+        removedInstructionSpanCount: 2,
+      },
+    ]);
   });
 });

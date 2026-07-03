@@ -3,6 +3,8 @@ import type { SourceOptions } from "../config";
 import {
   isMarketUpdateJobType,
   type ExtendedEvidence,
+  type InstrumentIdentity,
+  type MarketBenchmark,
   type MarketSnapshot,
   type Source,
   type SourceGap,
@@ -44,6 +46,86 @@ import { evidenceSource } from "./extended-evidence/common";
 import type { ModelProvider } from "../model/types";
 import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
+import {
+  aggregateModelInputSanitization,
+  sanitizeModelInputText,
+  type ModelInputSanitizationAggregateEntry,
+} from "./model-input-sanitizer";
+
+function rebuildIdentity(
+  identity: InstrumentIdentity,
+  displayName: string | undefined,
+  exchange: string | undefined,
+): InstrumentIdentity {
+  const { displayName: _displayName, exchange: _exchange, ...rest } = identity;
+  return {
+    ...rest,
+    ...(displayName !== undefined ? { displayName } : {}),
+    ...(exchange !== undefined ? { exchange } : {}),
+  };
+}
+
+function rebuildBenchmark(
+  benchmark: MarketBenchmark,
+  name: string | undefined,
+  sector: string | undefined,
+): MarketBenchmark {
+  const { name: _name, sector: _sector, ...rest } = benchmark;
+  return {
+    ...rest,
+    ...(name !== undefined ? { name } : {}),
+    ...(sector !== undefined ? { sector } : {}),
+  };
+}
+
+function sanitizeSnapshotMetadata(snapshot: MarketSnapshot): {
+  readonly snapshot: MarketSnapshot;
+  readonly entries: readonly ModelInputSanitizationAggregateEntry[];
+} {
+  const entries: ModelInputSanitizationAggregateEntry[] = [];
+  function clean(value: string | undefined, fieldRole: "title" | "publisher"): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    const result = sanitizeModelInputText(value, {
+      profile: "short-metadata",
+      fieldRole,
+      maxChars: fieldRole === "title" ? 300 : 200,
+    });
+    entries.push({
+      provider: snapshot.sourceId.split("-")[0] ?? "market-data",
+      ingress: "market-snapshot",
+      profile: "short-metadata",
+      fieldRole,
+      droppedItemCount: 0,
+      ...result.telemetry,
+    });
+    return result.text;
+  }
+  const name = clean(snapshot.name, "title");
+  const displayName = clean(snapshot.identity?.displayName, "title");
+  const exchange = clean(snapshot.identity?.exchange, "publisher");
+  const benchmarkName = clean(snapshot.benchmark?.name, "title");
+  const benchmarkSector = clean(snapshot.benchmark?.sector, "publisher");
+  const identity =
+    snapshot.identity === undefined
+      ? undefined
+      : rebuildIdentity(snapshot.identity, displayName, exchange);
+  const benchmark =
+    snapshot.benchmark === undefined
+      ? undefined
+      : rebuildBenchmark(snapshot.benchmark, benchmarkName, benchmarkSector);
+  const { name: _name, identity: _identity, benchmark: _benchmark, ...snapshotRest } = snapshot;
+  return {
+    snapshot: {
+      ...snapshotRest,
+      ...(name !== undefined ? { name } : {}),
+      ...(identity !== undefined ? { identity } : {}),
+      ...(benchmark !== undefined ? { benchmark } : {}),
+    },
+    entries,
+  };
+}
 
 interface HostState {
   queue: Promise<void>;
@@ -700,6 +782,12 @@ export async function collectSources(
   const supplementalMarketSnapshots = supplementalMarketResults.flatMap(
     (result) => result.supplementalMarketSnapshots,
   );
+  const sanitizedMarket = resolvedMarketResult.marketSnapshots.map((snapshot) =>
+    sanitizeSnapshotMetadata(snapshot),
+  );
+  const sanitizedSupplemental = supplementalMarketSnapshots.map((snapshot) =>
+    sanitizeSnapshotMetadata(snapshot),
+  );
 
   const enrichmentResult = await collectEquityEnrichment({
     command,
@@ -715,6 +803,43 @@ export async function collectSources(
     peerUniverse: peerUniverseSeam,
   });
   staleFallbackGaps.push(...enrichmentResult.earningsSourceGaps);
+  const identityEntries: ModelInputSanitizationAggregateEntry[] = [];
+  const rawIdentity = enrichmentResult.identityResult?.identity;
+  const identityDisplayName =
+    rawIdentity?.displayName === undefined
+      ? undefined
+      : sanitizeModelInputText(rawIdentity.displayName, {
+          profile: "short-metadata",
+          fieldRole: "title",
+          maxChars: 300,
+        });
+  const identityExchange =
+    rawIdentity?.exchange === undefined
+      ? undefined
+      : sanitizeModelInputText(rawIdentity.exchange, {
+          profile: "short-metadata",
+          fieldRole: "publisher",
+          maxChars: 200,
+        });
+  for (const [fieldRole, result] of [
+    ["title", identityDisplayName],
+    ["publisher", identityExchange],
+  ] as const) {
+    if (result !== undefined) {
+      identityEntries.push({
+        provider: "instrument-identity",
+        ingress: "instrument-identity",
+        profile: "short-metadata",
+        fieldRole,
+        droppedItemCount: 0,
+        ...result.telemetry,
+      });
+    }
+  }
+  const resolvedInstrumentIdentity =
+    rawIdentity === undefined
+      ? undefined
+      : rebuildIdentity(rawIdentity, identityDisplayName?.text, identityExchange?.text);
 
   return {
     rawSnapshots: [
@@ -728,8 +853,8 @@ export async function collectSources(
         ? [verifiedSnapshotResult.rawSnapshot]
         : []),
     ],
-    marketSnapshots: resolvedMarketResult.marketSnapshots,
-    supplementalMarketSnapshots,
+    marketSnapshots: sanitizedMarket.map((result) => result.snapshot),
+    supplementalMarketSnapshots: sanitizedSupplemental.map((result) => result.snapshot),
     newsSources: newsResult.newsSources,
     extendedSources: [
       ...extendedResult.sources,
@@ -744,12 +869,20 @@ export async function collectSources(
       : {}),
     marketContextSources: marketContextResult.sources,
     ...(newsResult.newsAnalytics !== undefined ? { newsAnalytics: newsResult.newsAnalytics } : {}),
+    ...(newsResult.modelInputSanitization !== undefined
+      ? {
+          modelInputSanitization: aggregateModelInputSanitization([
+            ...newsResult.modelInputSanitization.entries,
+            ...sanitizedMarket.flatMap((result) => result.entries),
+            ...sanitizedSupplemental.flatMap((result) => result.entries),
+            ...identityEntries,
+          ]),
+        }
+      : {}),
     ...(verifiedSnapshotResult?.snapshot !== undefined
       ? { verifiedMarketSnapshot: verifiedSnapshotResult.snapshot }
       : {}),
-    ...(enrichmentResult.identityResult?.identity !== undefined
-      ? { resolvedInstrumentIdentity: enrichmentResult.identityResult.identity }
-      : {}),
+    ...(resolvedInstrumentIdentity !== undefined ? { resolvedInstrumentIdentity } : {}),
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     ...(enrichmentResult.earningsSetup !== undefined
       ? { earningsSetup: enrichmentResult.earningsSetup }

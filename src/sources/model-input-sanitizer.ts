@@ -34,6 +34,36 @@ export interface ModelInputSanitizationAggregate {
   readonly entries: readonly ModelInputSanitizationAggregateEntry[];
 }
 
+export function aggregateModelInputSanitization(
+  entries: readonly ModelInputSanitizationAggregateEntry[],
+): ModelInputSanitizationAggregate {
+  const totals = new Map<string, ModelInputSanitizationAggregateEntry>();
+  for (const entry of entries) {
+    const key = `${entry.provider}\u0000${entry.ingress}\u0000${entry.profile}\u0000${entry.fieldRole}`;
+    const previous = totals.get(key);
+    totals.set(
+      key,
+      previous === undefined
+        ? entry
+        : {
+            ...entry,
+            inputChars: previous.inputChars + entry.inputChars,
+            outputChars: previous.outputChars + entry.outputChars,
+            removedInstructionSpanCount:
+              previous.removedInstructionSpanCount + entry.removedInstructionSpanCount,
+            removedMarkupChromeCount:
+              previous.removedMarkupChromeCount + entry.removedMarkupChromeCount,
+            truncatedFieldCount: previous.truncatedFieldCount + entry.truncatedFieldCount,
+            truncatedCharCount: previous.truncatedCharCount + entry.truncatedCharCount,
+            emptyAfterSanitizeFieldCount:
+              previous.emptyAfterSanitizeFieldCount + entry.emptyAfterSanitizeFieldCount,
+            droppedItemCount: previous.droppedItemCount + entry.droppedItemCount,
+          },
+    );
+  }
+  return { entries: [...totals.values()] };
+}
+
 export const MODEL_INPUT_FIELD_CAPS = {
   title: 300,
   publisher: 200,

@@ -12,6 +12,110 @@ import {
   type NewsRelevanceTarget,
 } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
+import {
+  MODEL_INPUT_FIELD_CAPS,
+  aggregateModelInputSanitization,
+  sanitizeModelInputText,
+  type ModelInputFieldRole,
+  type ModelInputSanitizationAggregateEntry,
+} from "./model-input-sanitizer";
+
+const STRUCTURED_ID_RE = /^[\w.:/-]{1,200}$/u;
+
+function validatedNewsUrl(value: string | undefined): string | undefined {
+  if (value === undefined || value.length > 2048) {
+    return undefined;
+  }
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      url.username === "" &&
+      url.password === ""
+      ? canonicalizeUrl(value)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function sanitizeNewsSource(
+  source: Source,
+  provider: string,
+): { readonly source?: Source; readonly entries: readonly ModelInputSanitizationAggregateEntry[] } {
+  if (!STRUCTURED_ID_RE.test(source.id) || !Number.isFinite(Date.parse(source.fetchedAt))) {
+    return { entries: [] };
+  }
+  const values: readonly [ModelInputFieldRole, string | undefined][] = [
+    ["title", source.title],
+    ["publisher", source.publisher],
+    ["summary", source.summary],
+    ["snippet", source.snippet],
+  ];
+  const safe = new Map<ModelInputFieldRole, string>();
+  const entries = values.flatMap(([fieldRole, value]) => {
+    if (value === undefined) {
+      return [];
+    }
+    const profile = fieldRole === "publisher" ? "short-metadata" : "news";
+    const sanitized = sanitizeModelInputText(value, {
+      profile,
+      fieldRole,
+      maxChars: MODEL_INPUT_FIELD_CAPS[fieldRole as keyof typeof MODEL_INPUT_FIELD_CAPS],
+    });
+    if (sanitized.text !== undefined) {
+      safe.set(fieldRole, sanitized.text);
+    }
+    return [
+      {
+        provider,
+        ingress: "news",
+        profile,
+        fieldRole,
+        droppedItemCount: 0,
+        ...sanitized.telemetry,
+      } satisfies ModelInputSanitizationAggregateEntry,
+    ];
+  });
+  const title = safe.get("title");
+  const publisher = safe.get("publisher");
+  const summary = safe.get("summary");
+  const snippet = safe.get("snippet");
+  if (title === undefined && summary === undefined && snippet === undefined) {
+    return {
+      entries: entries.map((entry, index) => ({
+        ...entry,
+        droppedItemCount: index === 0 ? 1 : 0,
+      })),
+    };
+  }
+  const canonicalUrl = validatedNewsUrl(source.url);
+  const {
+    title: _title,
+    publisher: _publisher,
+    summary: _summary,
+    snippet: _snippet,
+    url: _url,
+    canonicalUrl: _canonicalUrl,
+    providerArticleId: _providerArticleId,
+    ...rest
+  } = source;
+  const providerArticleId =
+    source.providerArticleId !== undefined && STRUCTURED_ID_RE.test(source.providerArticleId)
+      ? source.providerArticleId
+      : undefined;
+  return {
+    source: {
+      ...rest,
+      title: title ?? `News item from ${provider}`,
+      ...(canonicalUrl !== undefined ? { url: source.url, canonicalUrl } : {}),
+      ...(publisher !== undefined ? { publisher } : {}),
+      ...(summary !== undefined ? { summary } : {}),
+      ...(snippet !== undefined ? { snippet } : {}),
+      ...(providerArticleId !== undefined ? { providerArticleId } : {}),
+    },
+    entries,
+  };
+}
 
 function aliasFor(source: Source): SourceProviderAlias | undefined {
   if (source.provider === undefined) {
@@ -341,12 +445,36 @@ export function createMultiNewsAdapter(
 ): NewsAdapter {
   async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     const results = await Promise.all(adapters.map((adapter) => adapter.collect(ctx)));
+    const sanitizedResults = results.map((result, index) => {
+      const provider = adapters[index]?.provider ?? "unknown";
+      const sanitized = result.newsSources.map((source) => sanitizeNewsSource(source, provider));
+      const droppedItemCount = sanitized.filter((item) => item.source === undefined).length;
+      return {
+        ...result,
+        newsSources: sanitized.flatMap((item) => item.source ?? []),
+        sourceGaps:
+          droppedItemCount === 0
+            ? result.sourceGaps
+            : [
+                ...result.sourceGaps,
+                sourceGap({
+                  source: `${provider}-news`,
+                  provider,
+                  capability: "news",
+                  cause: "validation-failed",
+                  evidenceQualityImpact: "no-cap",
+                  message: `Dropped ${String(droppedItemCount)} news item(s) after model-input validation`,
+                }),
+              ],
+        entries: sanitized.flatMap((item) => item.entries),
+      };
+    });
     const fetchedNewsSourceCount = results.reduce(
       (total, result) => total + result.newsSources.length,
       0,
     );
     const dedupedSources = dedupeByCanonicalUrlOrTitle(
-      results.flatMap((result) => result.newsSources),
+      sanitizedResults.flatMap((result) => result.newsSources),
     );
     const targets = relevanceTargets(ctx);
     const relevantBeforeSeenFilterCount = relevantNewsCount(dedupedSources, targets);
@@ -376,10 +504,10 @@ export function createMultiNewsAdapter(
     const persistentSuppressedNewsSourceCount = dedupedSources.length - filtered.newsSources.length;
 
     return {
-      rawSnapshots: results.flatMap((result) => result.rawSnapshots),
+      rawSnapshots: sanitizedResults.flatMap((result) => result.rawSnapshots),
       newsSources,
       sourceGaps: [
-        ...results.flatMap((result) => result.sourceGaps),
+        ...sanitizedResults.flatMap((result) => result.sourceGaps),
         ...filtered.sourceGaps,
         ...repeatFallbackGaps,
       ],
@@ -401,6 +529,9 @@ export function createMultiNewsAdapter(
         ...selectedRelevanceAnalytics(ctx.command, newsSources, targets),
         repeatFallbackUsed,
       },
+      modelInputSanitization: aggregateModelInputSanitization(
+        sanitizedResults.flatMap((result) => result.entries),
+      ),
     };
   }
 

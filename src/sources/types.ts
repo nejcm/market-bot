@@ -14,6 +14,7 @@ import type {
   SourceGap,
   VerifiedMarketSnapshot,
 } from "../domain/types";
+import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -79,6 +80,7 @@ export interface NewsCollectionResult {
   readonly newsSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
   readonly newsAnalytics?: NewsCollectionAnalytics;
+  readonly modelInputSanitization?: ModelInputSanitizationAggregate;
 }
 
 export interface NewsCollectionAnalytics {
@@ -133,6 +135,7 @@ export interface CollectedSources {
   readonly marketContextSources: readonly Source[];
   readonly sourceGaps: readonly SourceGap[];
   readonly newsAnalytics?: NewsCollectionAnalytics;
+  readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly resolvedSubject?: ResolvedResearchSubject;

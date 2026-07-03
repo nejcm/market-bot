@@ -27,6 +27,24 @@ const trace: RunTrace = {
   stages: ["source-collection", "specialist-analysis", "final-synthesis"],
   tokenEstimate: 300,
   costEstimateUsd: 0.03,
+  modelInputSanitization: {
+    entries: [
+      {
+        provider: "marketaux",
+        ingress: "news",
+        profile: "news",
+        fieldRole: "summary",
+        inputChars: 40,
+        outputChars: 20,
+        removedInstructionSpanCount: 1,
+        removedMarkupChromeCount: 0,
+        truncatedFieldCount: 0,
+        truncatedCharCount: 0,
+        emptyAfterSanitizeFieldCount: 0,
+        droppedItemCount: 0,
+      },
+    ],
+  },
   evidenceRequestLoop: {
     rounds: 1,
     acceptedRequests: [
@@ -239,6 +257,7 @@ describe("run analytics", () => {
       selectedNewsSourceCount: 1,
       repeatFallbackUsed: false,
     });
+    expect(analytics.modelInputSanitization).toEqual(trace.modelInputSanitization);
     expect(analytics.sourceFunnel.sourceGaps.bySource).toEqual({ "marketaux-news": 1 });
     expect(analytics.sourceFunnel.sourceGapClasses).toEqual({
       fetchFailed: 0,

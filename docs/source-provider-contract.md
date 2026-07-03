@@ -18,6 +18,10 @@ Use this checklist before adding or promoting a Source Provider. Provider-level 
 - Map provider payloads into existing normalized shapes only: `Source`, `MarketSnapshot`, `ExtendedEvidence`, `MarketContext`, or `Observation`.
 - If a new normalized artifact shape is needed, make that a separate design decision before implementing the provider.
 - Preserve Instrument Identity fields when the provider exposes useful metadata, such as exchange, quote currency, display name, provider IDs, or aliases. Do not reconcile conflicting provider identities unless a separate design accepts that behavior.
+- Every new provider-controlled prose or short-label path that can reach model context must select
+  an existing profile in `src/sources/model-input-sanitizer.ts` at the provider-neutral normalized
+  emit boundary. Preserve the raw snapshot, validate structured IDs/dates/URLs separately, and carry
+  text-free aggregate telemetry through `modelInputSanitization`.
 - Use the `CollectContext` `ctx.request.json({ url, adapter, init })` seam for JSON source HTTP calls and `ctx.request.text({ url, adapter, init })` for text/HTML source HTTP calls. Adapters describe provider URLs, request headers/init, adapter identity, and any provider-specific fetch wrapper; the collector owns timeout, retry/backoff, cache, rate limiting, circuit breaking, and stale cache fallback for both paths ([ADR 0010](./adr/0010-evidence-request-loop.md)). Source Provider capability composition follows [ADR 0009](./adr/0009-source-provider-modules.md).
 - Make `SourceGap`s carry typed provider/capability/cause meaning plus a stable human-readable message. Causes should distinguish missing credential, fetch failure, circuit open, stale cache fallback, unsupported coverage, repeat fallback, malformed response, validation failure, and provider data missing.
 - Set `SourceGap.evidenceQualityImpact` from source semantics instead of relying on message text. Market Context gaps and supplemental-provider gaps that cannot lower core evidence quality are `no-cap`; missing optional news credentials (MarketAux, Finnhub) also use `no-cap` because Yahoo news still runs; Extended Evidence gaps participate in the Extended Evidence cap check; core market/news/source-collection gaps are core caps.
@@ -28,6 +32,8 @@ Use this checklist before adding or promoting a Source Provider. Provider-level 
 Add source-adapter seam tests for:
 
 - normalized output and Instrument Identity mapping;
+- sanitizer-profile behavior for every model-visible prose or short-label field, including safe
+  factual retention, unsafe-span removal/rejection, field bounds, and unchanged raw snapshots;
 - successful collection for each capability;
 - missing credential and provider failure behavior;
 - registry wiring and asset-class routing;

@@ -72,16 +72,16 @@
         "symbol": "AAPL",
         "provider": "yahoo",
         "identity": {
-          "exchange": "NasdaqGS",
           "quoteCurrency": "USD",
-          "displayName": "Apple Inc.",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "AAPL"
             }
-          ]
+          ],
+          "displayName": "Apple Inc.",
+          "exchange": "NasdaqGS"
         }
       },
       {
@@ -93,16 +93,16 @@
         "symbol": "SPY",
         "provider": "yahoo",
         "identity": {
-          "exchange": "NasdaqGS",
           "quoteCurrency": "USD",
-          "displayName": "SPY proxy",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "SPY"
             }
-          ]
+          ],
+          "displayName": "SPY proxy",
+          "exchange": "NasdaqGS"
         }
       },
       {
@@ -114,16 +114,16 @@
         "symbol": "QQQ",
         "provider": "yahoo",
         "identity": {
-          "exchange": "NasdaqGS",
           "quoteCurrency": "USD",
-          "displayName": "QQQ proxy",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "QQQ"
             }
-          ]
+          ],
+          "displayName": "QQQ proxy",
+          "exchange": "NasdaqGS"
         }
       },
       {
@@ -135,16 +135,16 @@
         "symbol": "IWM",
         "provider": "yahoo",
         "identity": {
-          "exchange": "NasdaqGS",
           "quoteCurrency": "USD",
-          "displayName": "IWM proxy",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "IWM"
             }
-          ]
+          ],
+          "displayName": "IWM proxy",
+          "exchange": "NasdaqGS"
         }
       },
       {
@@ -156,16 +156,16 @@
         "symbol": "DIA",
         "provider": "yahoo",
         "identity": {
-          "exchange": "NasdaqGS",
           "quoteCurrency": "USD",
-          "displayName": "DIA proxy",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "DIA"
             }
-          ]
+          ],
+          "displayName": "DIA proxy",
+          "exchange": "NasdaqGS"
         }
       },
       {
@@ -177,16 +177,16 @@
         "symbol": "^VIX",
         "provider": "yahoo",
         "identity": {
-          "exchange": "CBOE",
           "quoteCurrency": "USD",
-          "displayName": "^VIX proxy",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "^VIX"
             }
-          ]
+          ],
+          "displayName": "^VIX proxy",
+          "exchange": "CBOE"
         }
       },
       {
@@ -198,16 +198,16 @@
         "symbol": "^VIX3M",
         "provider": "yahoo",
         "identity": {
-          "exchange": "CBOE",
           "quoteCurrency": "USD",
-          "displayName": "^VIX3M proxy",
           "aliases": [
             {
               "provider": "yahoo",
               "idKind": "symbol",
               "value": "^VIX3M"
             }
-          ]
+          ],
+          "displayName": "^VIX3M proxy",
+          "exchange": "CBOE"
         }
       },
       {
@@ -221,14 +221,14 @@
       },
       {
         "id": "news-equity-1",
-        "title": "Apple fixture headline",
-        "url": "https://example.com/apple-fixture",
-        "publisher": "Example News",
         "fetchedAt": "2026-06-15T13:30:00.000Z",
         "kind": "news",
         "assetClass": "equity",
         "provider": "yahoo-news",
+        "title": "Apple fixture headline",
+        "url": "https://example.com/apple-fixture",
         "canonicalUrl": "https://example.com/apple-fixture",
+        "publisher": "Example News",
         "providerAliases": [
           {
             "provider": "yahoo-news",
@@ -708,6 +708,108 @@
     "codeVersion": "<codeVersion>",
     "reproducibility": {
       "effectiveConfigHash": "<effectiveConfigHash>"
+    },
+    "modelInputSanitization": {
+      "entries": [
+        {
+          "provider": "yahoo-news",
+          "ingress": "news",
+          "profile": "news",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 22,
+          "outputChars": 22,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "yahoo-news",
+          "ingress": "news",
+          "profile": "short-metadata",
+          "fieldRole": "publisher",
+          "droppedItemCount": 0,
+          "inputChars": 12,
+          "outputChars": 12,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "market",
+          "ingress": "market-snapshot",
+          "profile": "short-metadata",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 136,
+          "outputChars": 136,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "market",
+          "ingress": "market-snapshot",
+          "profile": "short-metadata",
+          "fieldRole": "publisher",
+          "droppedItemCount": 0,
+          "inputChars": 48,
+          "outputChars": 48,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "instrument-identity",
+          "ingress": "instrument-identity",
+          "profile": "short-metadata",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 10,
+          "outputChars": 10,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "instrument-identity",
+          "ingress": "instrument-identity",
+          "profile": "short-metadata",
+          "fieldRole": "publisher",
+          "droppedItemCount": 0,
+          "inputChars": 8,
+          "outputChars": 8,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "historical-artifact",
+          "ingress": "historical-context",
+          "profile": "legacy-history",
+          "fieldRole": "prose",
+          "droppedItemCount": 0,
+          "inputChars": 75,
+          "outputChars": 75,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        }
+      ]
     },
     "sourceFunnel": {
       "rawSnapshots": {
@@ -1701,16 +1803,16 @@
       "artifactDeltas": []
     },
     "instrument-identity.json": {
-      "exchange": "NasdaqGS",
       "quoteCurrency": "USD",
-      "displayName": "Apple Inc.",
       "aliases": [
         {
           "provider": "yahoo",
           "idKind": "symbol",
           "value": "AAPL"
         }
-      ]
+      ],
+      "displayName": "Apple Inc.",
+      "exchange": "NasdaqGS"
     },
     "market-context.json": null,
     "market-snapshots.json": [
@@ -1718,19 +1820,6 @@
         "sourceId": "market-yahoo-equity-aapl",
         "assetClass": "equity",
         "symbol": "AAPL",
-        "name": "Apple Inc.",
-        "identity": {
-          "exchange": "NasdaqGS",
-          "quoteCurrency": "USD",
-          "displayName": "Apple Inc.",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "AAPL"
-            }
-          ]
-        },
         "price": 198.5,
         "changePercent24h": 1.4,
         "volume": 62000000,
@@ -1746,25 +1835,25 @@
           "epsTrailingTwelveMonths": 6.4,
           "sharesOutstanding": 15000000000
         },
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "Apple Inc.",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "AAPL"
+            }
+          ],
+          "displayName": "Apple Inc.",
+          "exchange": "NasdaqGS"
+        }
       },
       {
         "sourceId": "market-yahoo-equity-spy",
         "assetClass": "equity",
         "symbol": "SPY",
-        "name": "SPY proxy",
-        "identity": {
-          "exchange": "NasdaqGS",
-          "quoteCurrency": "USD",
-          "displayName": "SPY proxy",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "SPY"
-            }
-          ]
-        },
         "price": 520,
         "changePercent24h": 0.5,
         "volume": 70000000,
@@ -1772,25 +1861,25 @@
         "previousClose": 519.5,
         "averageVolume": 70001000,
         "fiftyDayAverage": 517,
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "SPY proxy",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "SPY"
+            }
+          ],
+          "displayName": "SPY proxy",
+          "exchange": "NasdaqGS"
+        }
       },
       {
         "sourceId": "market-yahoo-equity-qqq",
         "assetClass": "equity",
         "symbol": "QQQ",
-        "name": "QQQ proxy",
-        "identity": {
-          "exchange": "NasdaqGS",
-          "quoteCurrency": "USD",
-          "displayName": "QQQ proxy",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "QQQ"
-            }
-          ]
-        },
         "price": 450,
         "changePercent24h": 0.7,
         "volume": 55000000,
@@ -1798,25 +1887,25 @@
         "previousClose": 449.3,
         "averageVolume": 55001000,
         "fiftyDayAverage": 447,
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "QQQ proxy",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "QQQ"
+            }
+          ],
+          "displayName": "QQQ proxy",
+          "exchange": "NasdaqGS"
+        }
       },
       {
         "sourceId": "market-yahoo-equity-iwm",
         "assetClass": "equity",
         "symbol": "IWM",
-        "name": "IWM proxy",
-        "identity": {
-          "exchange": "NasdaqGS",
-          "quoteCurrency": "USD",
-          "displayName": "IWM proxy",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "IWM"
-            }
-          ]
-        },
         "price": 210,
         "changePercent24h": 0.2,
         "volume": 30000000,
@@ -1824,25 +1913,25 @@
         "previousClose": 209.8,
         "averageVolume": 30001000,
         "fiftyDayAverage": 207,
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "IWM proxy",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "IWM"
+            }
+          ],
+          "displayName": "IWM proxy",
+          "exchange": "NasdaqGS"
+        }
       },
       {
         "sourceId": "market-yahoo-equity-dia",
         "assetClass": "equity",
         "symbol": "DIA",
-        "name": "DIA proxy",
-        "identity": {
-          "exchange": "NasdaqGS",
-          "quoteCurrency": "USD",
-          "displayName": "DIA proxy",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "DIA"
-            }
-          ]
-        },
         "price": 390,
         "changePercent24h": 0.3,
         "volume": 20000000,
@@ -1850,25 +1939,25 @@
         "previousClose": 389.7,
         "averageVolume": 20001000,
         "fiftyDayAverage": 387,
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "DIA proxy",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "DIA"
+            }
+          ],
+          "displayName": "DIA proxy",
+          "exchange": "NasdaqGS"
+        }
       },
       {
         "sourceId": "market-yahoo-equity-^vix",
         "assetClass": "equity",
         "symbol": "^VIX",
-        "name": "^VIX proxy",
-        "identity": {
-          "exchange": "CBOE",
-          "quoteCurrency": "USD",
-          "displayName": "^VIX proxy",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "^VIX"
-            }
-          ]
-        },
         "price": 16,
         "changePercent24h": -2,
         "volume": 0,
@@ -1876,25 +1965,25 @@
         "previousClose": 18,
         "averageVolume": 1000,
         "fiftyDayAverage": 13,
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "^VIX proxy",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX"
+            }
+          ],
+          "displayName": "^VIX proxy",
+          "exchange": "CBOE"
+        }
       },
       {
         "sourceId": "market-yahoo-equity-^vix3m",
         "assetClass": "equity",
         "symbol": "^VIX3M",
-        "name": "^VIX3M proxy",
-        "identity": {
-          "exchange": "CBOE",
-          "quoteCurrency": "USD",
-          "displayName": "^VIX3M proxy",
-          "aliases": [
-            {
-              "provider": "yahoo",
-              "idKind": "symbol",
-              "value": "^VIX3M"
-            }
-          ]
-        },
         "price": 18,
         "changePercent24h": -1,
         "volume": 0,
@@ -1902,20 +1991,33 @@
         "previousClose": 19,
         "averageVolume": 1000,
         "fiftyDayAverage": 15,
-        "observedAt": "2026-06-15T14:30:00.000Z"
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "name": "^VIX3M proxy",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX3M"
+            }
+          ],
+          "displayName": "^VIX3M proxy",
+          "exchange": "CBOE"
+        }
       }
     ],
     "news-sources.json": [
       {
         "id": "news-equity-1",
-        "title": "Apple fixture headline",
-        "url": "https://example.com/apple-fixture",
-        "publisher": "Example News",
         "fetchedAt": "2026-06-15T13:30:00.000Z",
         "kind": "news",
         "assetClass": "equity",
         "provider": "yahoo-news",
+        "title": "Apple fixture headline",
+        "url": "https://example.com/apple-fixture",
         "canonicalUrl": "https://example.com/apple-fixture",
+        "publisher": "Example News",
         "providerAliases": [
           {
             "provider": "yahoo-news",

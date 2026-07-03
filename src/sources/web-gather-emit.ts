@@ -12,7 +12,14 @@ import type {
 import { sourceGap } from "../domain/source-gaps";
 import { canonicalizeUrl } from "./news-utils";
 import type { CollectContext, RawSourceSnapshot } from "./types";
-import { sanitizeModelInputText, type ModelInputFieldRole } from "./model-input-sanitizer";
+import {
+  aggregateModelInputSanitization,
+  sanitizeModelInputText,
+  type ModelInputFieldRole,
+  type ModelInputSanitizationAggregate,
+  type ModelInputSanitizationAggregateEntry,
+  type ModelInputSanitizerTelemetry,
+} from "./model-input-sanitizer";
 
 // Provider-neutral emit layer for web gather.
 // Normalized provider results are validated, sanitized, and turned into low-trust `web` Sources.
@@ -42,6 +49,7 @@ export interface WebGatherToolOutput {
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
   readonly sanitizer: WebGatherSanitizerAudit;
+  readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly freshness?: WebSearchFreshnessAudit;
   readonly fallback?: WebGatherFallbackAudit;
 }
@@ -85,6 +93,8 @@ interface SanitizedWebResult {
   readonly source: Source;
   readonly sanitizer: WebGatherSanitizerAudit;
   readonly emptyAfterSanitize: boolean;
+  readonly dropped: boolean;
+  readonly modelInputSanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
 }
 
 export function emptyOutput(
@@ -161,28 +171,42 @@ export function outputFromResults(
   const sanitizedSources = results.map((result) =>
     webResultSource(subject, ctx.fetchedAt, result, rawRef, provider),
   );
-  const sources = sanitizedSources.map((result) => result.source);
-  if (sources.length === 0) {
-    return emptyOutput(
-      [webGatherGap(options.emptyMessage, "provider-data-missing", { source: provider })],
-      rawSnapshots,
-    );
-  }
-  const gaps = sanitizedSources
-    .filter((result) => result.emptyAfterSanitize)
-    .map((result) =>
+  const sources = sanitizedSources
+    .filter((result) => !result.dropped)
+    .map((result) => result.source);
+  const droppedCount = sanitizedSources.filter((result) => result.dropped).length;
+  const emptiedContentCount = sanitizedSources.filter(
+    (result) => !result.dropped && result.emptyAfterSanitize,
+  ).length;
+  let gaps: SourceGap[] = [];
+  if (droppedCount > 0) {
+    gaps = [
       webGatherGap(
-        `${provider} result text was empty after sanitization for ${result.source.url ?? result.source.id}`,
+        `${provider} dropped ${String(droppedCount)} result(s) with no safe model-visible prose`,
+        "validation-failed",
+        { source: "web-gather", provider },
+      ),
+    ];
+  } else if (emptiedContentCount > 0) {
+    gaps = [
+      webGatherGap(
+        `${provider} result content was empty after sanitization for ${String(emptiedContentCount)} result(s)`,
         "provider-data-missing",
         { source: "web-gather", provider },
       ),
-    );
+    ];
+  } else if (sources.length === 0) {
+    gaps = [webGatherGap(options.emptyMessage, "provider-data-missing", { source: provider })];
+  }
   return {
     rawSnapshots,
     sources,
     items: [],
     gaps,
     sanitizer: aggregateSanitizerAudit(sanitizedSources.map((result) => result.sanitizer)),
+    modelInputSanitization: aggregateModelInputSanitization(
+      sanitizedSources.flatMap((result) => result.modelInputSanitizationEntries),
+    ),
   };
 }
 
@@ -220,6 +244,26 @@ function webResultSource(
   const hadContentInput = summary.inputPresent || snippet.inputPresent;
   const emptyAfterSanitize =
     hadContentInput && summary.text === undefined && snippet.text === undefined;
+  const dropped =
+    title.text === undefined && summary.text === undefined && snippet.text === undefined;
+  const droppedTelemetry: ModelInputSanitizationAggregateEntry[] = dropped
+    ? [
+        {
+          provider,
+          ingress: "web-gather",
+          profile: "open-web",
+          fieldRole: "prose",
+          droppedItemCount: 1,
+          inputChars: 0,
+          outputChars: 0,
+          removedInstructionSpanCount: 0,
+          removedMarkupChromeCount: 0,
+          truncatedFieldCount: 0,
+          truncatedCharCount: 0,
+          emptyAfterSanitizeFieldCount: 0,
+        },
+      ]
+    : [];
   return {
     source,
     sanitizer: {
@@ -227,27 +271,41 @@ function webResultSource(
       sanitizedSourceCount: hadModelVisibleInput ? 1 : 0,
       emptyAfterSanitizeCount: emptyAfterSanitize ? 1 : 0,
       inputCharCount:
-        title.telemetry.inputCharCount +
-        publisher.telemetry.inputCharCount +
-        summary.telemetry.inputCharCount +
-        snippet.telemetry.inputCharCount,
+        title.telemetry.inputChars +
+        publisher.telemetry.inputChars +
+        summary.telemetry.inputChars +
+        snippet.telemetry.inputChars,
       outputCharCount:
-        title.telemetry.outputCharCount +
-        publisher.telemetry.outputCharCount +
-        summary.telemetry.outputCharCount +
-        snippet.telemetry.outputCharCount,
+        title.telemetry.outputChars +
+        publisher.telemetry.outputChars +
+        summary.telemetry.outputChars +
+        snippet.telemetry.outputChars,
       removedInstructionSpanCount:
         title.telemetry.removedInstructionSpanCount +
         publisher.telemetry.removedInstructionSpanCount +
         summary.telemetry.removedInstructionSpanCount +
         snippet.telemetry.removedInstructionSpanCount,
       removedChromeHtmlCount:
-        title.telemetry.removedChromeHtmlCount +
-        publisher.telemetry.removedChromeHtmlCount +
-        summary.telemetry.removedChromeHtmlCount +
-        snippet.telemetry.removedChromeHtmlCount,
+        title.telemetry.removedMarkupChromeCount +
+        publisher.telemetry.removedMarkupChromeCount +
+        summary.telemetry.removedMarkupChromeCount +
+        snippet.telemetry.removedMarkupChromeCount,
     },
     emptyAfterSanitize,
+    dropped,
+    modelInputSanitizationEntries: [
+      ...[title, publisher, summary, snippet]
+        .filter((field) => field.inputPresent)
+        .map((field) => ({
+          provider,
+          ingress: "web-gather",
+          profile: "open-web" as const,
+          fieldRole: field.fieldRole,
+          droppedItemCount: 0,
+          ...field.telemetry,
+        })),
+      ...droppedTelemetry,
+    ],
   };
 }
 
@@ -275,19 +333,21 @@ function sanitizeOptionalWebText(
 ): {
   readonly text?: string;
   readonly inputPresent: boolean;
-  readonly telemetry: Pick<
-    WebGatherSanitizerAudit,
-    "inputCharCount" | "outputCharCount" | "removedInstructionSpanCount" | "removedChromeHtmlCount"
-  >;
+  readonly fieldRole: ModelInputFieldRole;
+  readonly telemetry: ModelInputSanitizerTelemetry;
 } {
   if (value === undefined) {
     return {
       inputPresent: false,
+      fieldRole,
       telemetry: {
-        inputCharCount: 0,
-        outputCharCount: 0,
+        inputChars: 0,
+        outputChars: 0,
         removedInstructionSpanCount: 0,
-        removedChromeHtmlCount: 0,
+        removedMarkupChromeCount: 0,
+        truncatedFieldCount: 0,
+        truncatedCharCount: 0,
+        emptyAfterSanitizeFieldCount: 0,
       },
     };
   }
@@ -300,12 +360,8 @@ function sanitizeOptionalWebText(
   return {
     ...(text !== undefined ? { text } : {}),
     inputPresent: true,
-    telemetry: {
-      inputCharCount: telemetry.inputChars,
-      outputCharCount: telemetry.outputChars,
-      removedInstructionSpanCount: telemetry.removedInstructionSpanCount,
-      removedChromeHtmlCount: telemetry.removedMarkupChromeCount,
-    },
+    fieldRole,
+    telemetry,
   };
 }
 

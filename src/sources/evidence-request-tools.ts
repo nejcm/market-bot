@@ -119,6 +119,17 @@ function secPacketGap(symbol: string, form: SecFiling["form"]): SourceGap {
   });
 }
 
+function secSanitizationGap(symbol: string, droppedItemCount: number): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC filing sanitization dropped ${String(droppedItemCount)} item(s) for ${symbol}`,
+    provider: "sec-edgar",
+    capability: "evidence-request",
+    cause: "validation-failed",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
 function secTextRequestInit(userAgent: string | undefined): RequestInit | undefined {
   return userAgent === undefined ? undefined : { headers: { "user-agent": userAgent } };
 }
@@ -316,8 +327,8 @@ function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): st
 }
 
 interface SecFilingSourceItem {
-  readonly source: Source;
-  readonly item: ExtendedEvidenceItem;
+  readonly source?: Source;
+  readonly item?: ExtendedEvidenceItem;
   readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
 }
 
@@ -338,8 +349,23 @@ function buildSecFilingSourceItem(
     profile: "sec-filing",
     fieldRole: "snippet",
   });
-  if (sanitizedPacket.text === undefined) {
-    return undefined;
+  if (
+    sanitizedPacket.text === undefined ||
+    substantiveAlphaCount(sanitizedPacket.text) < SEC_SECTION_MIN_ALPHA_CHARS
+  ) {
+    return {
+      sanitizationEntries: [
+        {
+          provider: "sec-edgar",
+          ingress: "sec-filing-text",
+          profile: "sec-filing",
+          fieldRole: "snippet",
+          droppedItemCount: 1,
+          ...sanitizedPacket.telemetry,
+          emptyAfterSanitizeFieldCount: 1,
+        },
+      ],
+    };
   }
   const sanitizedName =
     match.name === undefined
@@ -510,6 +536,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const gaps: SourceGap[] = [];
   const rawSnapshots: RawSourceSnapshot[] = [...sharedRawSnapshots];
   const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
+  let droppedItemCount = 0;
 
   // Fetch 10-K (primary annual source)
   if (tenK !== undefined) {
@@ -518,9 +545,13 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
       rawSnapshots.push(tenKText.rawSnapshot);
       const built = buildSecFilingSourceItem(command, match, tenK, tenKUrl, tenKText);
       if (built !== undefined) {
-        sources.push(built.source);
-        items.push(built.item);
         sanitizationEntries.push(...built.sanitizationEntries);
+        if (built.source !== undefined && built.item !== undefined) {
+          sources.push(built.source);
+          items.push(built.item);
+        } else {
+          droppedItemCount += 1;
+        }
       } else {
         gaps.push(secPacketGap(command.symbol, tenK.form));
       }
@@ -536,9 +567,13 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
       rawSnapshots.push(tenQText.rawSnapshot);
       const built = buildSecFilingSourceItem(command, match, tenQ, tenQUrl, tenQText);
       if (built !== undefined) {
-        sources.push(built.source);
-        items.push(built.item);
         sanitizationEntries.push(...built.sanitizationEntries);
+        if (built.source !== undefined && built.item !== undefined) {
+          sources.push(built.source);
+          items.push(built.item);
+        } else {
+          droppedItemCount += 1;
+        }
       } else {
         gaps.push(secPacketGap(command.symbol, tenQ.form));
       }
@@ -560,9 +595,18 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
       }),
     );
   }
+  if (droppedItemCount > 0) {
+    gaps.push(secSanitizationGap(command.symbol, droppedItemCount));
+  }
 
   if (sources.length === 0) {
-    return emptyOutput(gaps, rawSnapshots);
+    return {
+      rawSnapshots,
+      sources,
+      items,
+      gaps,
+      modelInputSanitization: aggregateModelInputSanitization(sanitizationEntries),
+    };
   }
 
   return {

@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-02: Source Plan frozen before collection)
+2026-06-30 (amended 2026-07-04: generalized untrusted model-input hardening)
 
 ## Context
 
@@ -51,18 +51,18 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
   spent re-gathering filed facts.
 - Web Subject Profiles use fixed cited question sets by subject kind and bounded reuse TTLs.
   Company reuse also considers SEC filing freshness.
-- Sanitize provider-controlled titles, publishers, summaries, and snippets (Exa or Firecrawl) before
-  model exposure through one shared sanitize path. Raw payloads remain exact in audit snapshots. Only
-  the profile-extraction stage sees sanitized web prose; later stages receive metadata and the cited
-  structured profile.
-- Persist current-run web-source role telemetry, optional reused-profile web-source telemetry, and
-  sanitizer telemetry. Empty sanitized content emits a non-fatal gap.
+- Sanitize provider-controlled prose and short labels before model exposure through one shared,
+  profile-aware path. Profiles cover open web, news, SEC filing sections, short metadata, and
+  prompt-bound legacy history. Sanitization occurs at provider-neutral normalized emit boundaries;
+  SEC instruction filtering follows section extraction, and historical artifacts are never
+  rewritten. Raw provider payloads remain unchanged in audit snapshots.
+- Persist generalized, text-free sanitizer aggregates by provider/ingress, profile, and field role
+  in trace and analytics while preserving the existing web-gather sanitizer block. Empty or rejected
+  normalized content emits an aggregated non-fatal validation gap where applicable.
 - Persist fingerprints of effective non-secret configuration and dirty source state for audit.
 
 ## Current governance limitations
 
-- News-provider prose is injected into model evidence without the Exa sanitizer. It remains an
-  untrusted-content gap in the current implementation.
 - The sanitizer does not detect all Unicode homoglyph/confusable attacks.
 - Post-synthesis unsupported-claim auditing is warning-only under ADR 0011; the separate Report
   Integrity Audit (ADR 0011) prunes structurally unsupported claims but makes no
@@ -79,10 +79,9 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 
 - `src/research/source-plan.ts` and `evidence-quality.ts` implement deterministic authority.
 - `src/sources/cache.ts` implements freshness and stale-audit behavior.
-- `src/research/web-gather-loop.ts`, `src/sources/web-gather-tools.ts`,
-  `src/sources/web-gather-emit.ts` (shared provider-neutral sanitize/emit path),
-  `src/sources/firecrawl-web-tools.ts`, and `web-text-sanitizer.ts` implement bounded sanitized web
-  evidence, SEC-coverage-aware Stage-1 gating, and the Firecrawl fallback.
+- `src/sources/model-input-sanitizer.ts`, news collection, SEC filing emission, historical prompt
+  projection, and `src/research/web-gather-loop.ts` implement profile-aware model-input hardening.
+  `src/sources/web-gather-emit.ts` remains the shared provider-neutral Exa/Firecrawl emit path.
 - `src/research/web-subject-profile-reuse.ts` implements reuse.
 - `src/reproducibility.ts` implements configuration and source-state fingerprints.
 

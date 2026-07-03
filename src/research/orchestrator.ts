@@ -27,6 +27,7 @@ import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
 import { recordSeenNewsSources } from "../sources/news-seen";
+import { aggregateModelInputSanitization } from "../sources/model-input-sanitizer";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import {
   synthesizeReportUntilValid,
@@ -54,6 +55,7 @@ import {
   buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
   buildStagePrompt,
+  sanitizeHistoricalContextProjection,
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
@@ -449,6 +451,16 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     now,
   });
   ({ context, historicalContext } = marketUpdate);
+  const historicalProjection = sanitizeHistoricalContextProjection(historicalContext);
+  historicalContext = historicalProjection.context;
+  context = { ...context, historicalContext };
+  collectedSources = {
+    ...collectedSources,
+    modelInputSanitization: aggregateModelInputSanitization([
+      ...(collectedSources.modelInputSanitization?.entries ?? []),
+      ...historicalProjection.modelInputSanitization.entries,
+    ]),
+  };
   const { spotlightCandidates, spotlightSelection, spotlightOutput, marketUpdateMovers } =
     marketUpdate;
   // Final canonical source-gap boundary; later phases must not append gaps without re-normalizing.
@@ -579,6 +591,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
+    modelInputSanitization: collectedSources.modelInputSanitization ?? { entries: [] },
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),
     historicalContext: historicalContext.audit,

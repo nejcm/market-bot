@@ -62,6 +62,28 @@ function sourceGapClassLine(analytics: RunAnalytics): string | undefined {
   return `  Source gaps: ${String(total)} total (${parts.join(", ")})`;
 }
 
+function modelInputSanitizationLine(analytics: RunAnalytics): string | undefined {
+  const entries = analytics.modelInputSanitization?.entries ?? [];
+  const totals = entries.reduce(
+    (sum, entry) => ({
+      instructions: sum.instructions + entry.removedInstructionSpanCount,
+      markupChrome: sum.markupChrome + entry.removedMarkupChromeCount,
+      truncated: sum.truncated + entry.truncatedFieldCount,
+      emptied: sum.emptied + entry.emptyAfterSanitizeFieldCount,
+      dropped: sum.dropped + entry.droppedItemCount,
+    }),
+    { instructions: 0, markupChrome: 0, truncated: 0, emptied: 0, dropped: 0 },
+  );
+  if (Object.values(totals).every((count) => count === 0)) {
+    return undefined;
+  }
+  return `  Model input sanitation: ${String(totals.instructions)} instruction, ${String(
+    totals.markupChrome,
+  )} markup/chrome, ${String(totals.truncated)} truncated, ${String(
+    totals.emptied,
+  )} emptied, ${String(totals.dropped)} dropped`;
+}
+
 export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   const { evidenceLanes, evidenceQuality, postSynthesisAudit, predictions } = analytics;
   const lines: string[] = [
@@ -85,6 +107,11 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   const gapLine = sourceGapClassLine(analytics);
   if (gapLine !== undefined) {
     lines.push(gapLine);
+  }
+
+  const sanitizationLine = modelInputSanitizationLine(analytics);
+  if (sanitizationLine !== undefined) {
+    lines.push(sanitizationLine);
   }
 
   if (postSynthesisAudit !== undefined && postSynthesisAudit.warningCount > 0) {

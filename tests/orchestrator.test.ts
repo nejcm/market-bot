@@ -2053,6 +2053,8 @@ describe("runResearchJob", () => {
     expect(result.analytics.reproducibility).toEqual(result.trace.reproducibility);
     expect(result.trace.evidenceQualityAssessment?.label).toBe(result.report.evidenceQuality);
     expect(result.trace.schemaVersion).toBe(2);
+    expect(result.trace.modelInputSanitization).toBeDefined();
+    expect(result.analytics.modelInputSanitization).toEqual(result.trace.modelInputSanitization);
     expect(result.analytics.evidenceQuality.assessment).toEqual(
       result.trace.evidenceQualityAssessment,
     );

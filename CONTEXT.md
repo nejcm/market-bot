@@ -36,6 +36,15 @@ A raw Source Provider cache that can replay same-day provider payloads only insi
 
 Sanitized normalized web text allowed into model prompts for Web Subject Profile extraction only. It strips high-confidence prompt-risk and page-chrome spans while preserving factual business prose. Later synthesis receives web Source metadata and the cited structured Web Subject Profile, not web snippets.
 
+## Model Input Sanitization
+
+A deterministic, profile-aware boundary for untrusted provider prose, provider-controlled short
+metadata, SEC filing sections, and prompt-bound legacy history. It removes high-confidence
+model-directed instructions while retaining adjacent factual text, leaves raw snapshots and stored
+historical artifacts unchanged, and persists only aggregate counts in `trace.json` and
+`analytics.json`. It is defense in depth alongside the shared model-stage trust rule, not evidence
+validation or a factual-correctness guarantee.
+
 ## Web Source Roles
 
 The accounting roles a current-run gathered web [[source]] can hold on a run that builds a [[web-subject-profile]], tracked as separate counts so raw web volume is not mistaken for evidence coverage. **Current-run** coverage is gathered during this run and appears in `analytics.json:webSources`. **Accepted**: current-run web Sources that survived into the run (`kind: "web"`). **Profile-used**: accepted current-run web Sources the Web Subject Profile cited. **Report-cited**: accepted current-run web Sources referenced in the final Research View's claim or Prediction citations. **Unused**: accepted current-run web Sources that are neither profile-used nor report-cited — the honest noise count. **Reused-profile** coverage is prior-run Web Subject Profile evidence reused in this run and appears separately in `analytics.json:reusedProfileWebSources` with reuse timestamp, age, and source run. These roles are descriptive accounting only, not investment conviction, evidence-lane coverage, or a trade signal.

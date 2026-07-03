@@ -199,4 +199,35 @@ describe("run analytics console", () => {
 
     expect(output).not.toContain("Source gaps:");
   });
+
+  test("renders model-input sanitation only when content changed", () => {
+    const analytics = baseAnalytics();
+    expect(renderRunAnalyticsConsole(analytics)).not.toContain("Model input sanitation:");
+
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      modelInputSanitization: {
+        entries: [
+          {
+            provider: "exa",
+            ingress: "web-gather",
+            profile: "open-web",
+            fieldRole: "snippet",
+            inputChars: 100,
+            outputChars: 70,
+            removedInstructionSpanCount: 1,
+            removedMarkupChromeCount: 2,
+            truncatedFieldCount: 1,
+            truncatedCharCount: 10,
+            emptyAfterSanitizeFieldCount: 0,
+            droppedItemCount: 0,
+          },
+        ],
+      },
+    });
+
+    expect(output).toContain(
+      "Model input sanitation: 1 instruction, 2 markup/chrome, 1 truncated, 0 emptied, 0 dropped",
+    );
+  });
 });

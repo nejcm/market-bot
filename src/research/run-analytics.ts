@@ -50,6 +50,7 @@ export interface RunAnalytics {
   readonly depth: RunTrace["depth"];
   readonly codeVersion?: RunTrace["codeVersion"];
   readonly reproducibility?: RunTrace["reproducibility"];
+  readonly modelInputSanitization?: RunTrace["modelInputSanitization"];
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -616,6 +617,9 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     depth: trace.depth,
     ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
     ...(trace.reproducibility !== undefined ? { reproducibility: trace.reproducibility } : {}),
+    ...(trace.modelInputSanitization !== undefined
+      ? { modelInputSanitization: trace.modelInputSanitization }
+      : {}),
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,

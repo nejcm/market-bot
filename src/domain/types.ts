@@ -228,6 +228,37 @@ export interface WebGatherSanitizerAudit {
   readonly removedChromeHtmlCount: number;
 }
 
+export type ModelInputSanitizerProfile =
+  | "open-web"
+  | "news"
+  | "sec-filing"
+  | "short-metadata"
+  | "legacy-history";
+
+export type ModelInputFieldRole = "title" | "publisher" | "summary" | "snippet" | "prose";
+
+export interface ModelInputSanitizerTelemetry {
+  readonly inputChars: number;
+  readonly outputChars: number;
+  readonly removedInstructionSpanCount: number;
+  readonly removedMarkupChromeCount: number;
+  readonly truncatedFieldCount: number;
+  readonly truncatedCharCount: number;
+  readonly emptyAfterSanitizeFieldCount: number;
+}
+
+export interface ModelInputSanitizationAggregateEntry extends ModelInputSanitizerTelemetry {
+  readonly provider: string;
+  readonly ingress: string;
+  readonly profile: ModelInputSanitizerProfile;
+  readonly fieldRole: ModelInputFieldRole;
+  readonly droppedItemCount: number;
+}
+
+export interface ModelInputSanitizationAggregate {
+  readonly entries: readonly ModelInputSanitizationAggregateEntry[];
+}
+
 export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly sanitizer?: WebGatherSanitizerAudit;
   readonly freshness?: {
@@ -622,6 +653,7 @@ export interface RunTrace {
   readonly stages: readonly string[];
   readonly tokenEstimate: number;
   readonly costEstimateUsd: number;
+  readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
   readonly historicalContext?: HistoricalContextAudit;

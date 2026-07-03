@@ -1,37 +1,22 @@
-export type ModelInputSanitizerProfile =
-  | "open-web"
-  | "news"
-  | "sec-filing"
-  | "short-metadata"
-  | "legacy-history";
+import type {
+  ModelInputFieldRole,
+  ModelInputSanitizationAggregate,
+  ModelInputSanitizationAggregateEntry,
+  ModelInputSanitizerProfile,
+  ModelInputSanitizerTelemetry,
+} from "../domain/types";
 
-export type ModelInputFieldRole = "title" | "publisher" | "summary" | "snippet" | "prose";
-
-export interface ModelInputSanitizerTelemetry {
-  readonly inputChars: number;
-  readonly outputChars: number;
-  readonly removedInstructionSpanCount: number;
-  readonly removedMarkupChromeCount: number;
-  readonly truncatedFieldCount: number;
-  readonly truncatedCharCount: number;
-  readonly emptyAfterSanitizeFieldCount: number;
-}
+export type {
+  ModelInputFieldRole,
+  ModelInputSanitizationAggregate,
+  ModelInputSanitizationAggregateEntry,
+  ModelInputSanitizerProfile,
+  ModelInputSanitizerTelemetry,
+} from "../domain/types";
 
 export interface ModelInputSanitizerResult {
   readonly text?: string;
   readonly telemetry: ModelInputSanitizerTelemetry;
-}
-
-export interface ModelInputSanitizationAggregateEntry extends ModelInputSanitizerTelemetry {
-  readonly provider: string;
-  readonly ingress: string;
-  readonly profile: ModelInputSanitizerProfile;
-  readonly fieldRole: ModelInputFieldRole;
-  readonly droppedItemCount: number;
-}
-
-export interface ModelInputSanitizationAggregate {
-  readonly entries: readonly ModelInputSanitizationAggregateEntry[];
 }
 
 export function aggregateModelInputSanitization(

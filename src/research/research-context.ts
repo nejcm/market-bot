@@ -18,7 +18,12 @@ import {
 } from "./verified-snapshot-contract";
 import { MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS } from "../forecast/observable";
 import type { HistoricalResearchContext } from "./historical-context";
-import { sanitizeModelInputText } from "../sources/model-input-sanitizer";
+import {
+  aggregateModelInputSanitization,
+  sanitizeModelInputText,
+  type ModelInputSanitizationAggregate,
+  type ModelInputSanitizationAggregateEntry,
+} from "../sources/model-input-sanitizer";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage } from "./playbooks";
 import type {
   CalibrationContext,
@@ -400,63 +405,93 @@ function compactHistoricalContext(context: HistoricalResearchContext): Record<st
 
 function sanitizeHistoricalContextForModel(
   context: HistoricalResearchContext,
+  entries?: ModelInputSanitizationAggregateEntry[],
 ): HistoricalResearchContext {
   return {
     ...context,
     runs: context.runs.map((run) => ({
       ...run,
-      summary: sanitizeHistoricalProse(run.summary),
+      summary: sanitizeHistoricalProse(run.summary, entries),
       keyFindings: run.keyFindings.flatMap((finding) => {
-        const text = sanitizeHistoricalProse(finding.text);
+        const text = sanitizeHistoricalProse(finding.text, entries);
         return text === "" ? [] : [{ ...finding, text }];
       }),
       risks: run.risks.flatMap((finding) => {
-        const text = sanitizeHistoricalProse(finding.text);
+        const text = sanitizeHistoricalProse(finding.text, entries);
         return text === "" ? [] : [{ ...finding, text }];
       }),
       catalysts: run.catalysts.flatMap((finding) => {
-        const text = sanitizeHistoricalProse(finding.text);
+        const text = sanitizeHistoricalProse(finding.text, entries);
         return text === "" ? [] : [{ ...finding, text }];
       }),
       dataGaps: run.dataGaps
-        .map((value) => sanitizeHistoricalProse(value))
+        .map((value) => sanitizeHistoricalProse(value, entries))
         .filter((value) => value !== ""),
       predictions: run.predictions.map((prediction) => ({
         ...prediction,
-        claim: sanitizeHistoricalProse(prediction.claim),
+        claim: sanitizeHistoricalProse(prediction.claim, entries),
       })),
       ...(run.keyExtras !== undefined
-        ? { keyExtras: sanitizeHistoricalUnknown(run.keyExtras) as Record<string, unknown> }
+        ? {
+            keyExtras: sanitizeHistoricalUnknown(run.keyExtras, entries) as Record<string, unknown>,
+          }
         : {}),
     })),
     gaps: context.gaps
-      .map((value) => sanitizeHistoricalProse(value))
+      .map((value) => sanitizeHistoricalProse(value, entries))
       .filter((value) => value !== ""),
   };
 }
 
-function sanitizeHistoricalProse(value: string): string {
-  return (
-    sanitizeModelInputText(value, {
-      profile: "legacy-history",
-      fieldRole: "prose",
-    }).text ?? ""
-  );
+function sanitizeHistoricalProse(
+  value: string,
+  entries?: ModelInputSanitizationAggregateEntry[],
+): string {
+  const result = sanitizeModelInputText(value, {
+    profile: "legacy-history",
+    fieldRole: "prose",
+  });
+  entries?.push({
+    provider: "historical-artifact",
+    ingress: "historical-context",
+    profile: "legacy-history",
+    fieldRole: "prose",
+    droppedItemCount: 0,
+    ...result.telemetry,
+  });
+  return result.text ?? "";
 }
 
-function sanitizeHistoricalUnknown(value: unknown): unknown {
+function sanitizeHistoricalUnknown(
+  value: unknown,
+  entries?: ModelInputSanitizationAggregateEntry[],
+): unknown {
   if (typeof value === "string") {
-    return sanitizeHistoricalProse(value);
+    return sanitizeHistoricalProse(value, entries);
   }
   if (Array.isArray(value)) {
-    return value.map((nested) => sanitizeHistoricalUnknown(nested));
+    return value.map((nested) => sanitizeHistoricalUnknown(nested, entries));
   }
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [key, sanitizeHistoricalUnknown(nested)]),
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        sanitizeHistoricalUnknown(nested, entries),
+      ]),
     );
   }
   return value;
+}
+
+export function sanitizeHistoricalContextProjection(context: HistoricalResearchContext): {
+  readonly context: HistoricalResearchContext;
+  readonly modelInputSanitization: ModelInputSanitizationAggregate;
+} {
+  const entries: ModelInputSanitizationAggregateEntry[] = [];
+  return {
+    context: sanitizeHistoricalContextForModel(context, entries),
+    modelInputSanitization: aggregateModelInputSanitization(entries),
+  };
 }
 
 function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<string, unknown> {

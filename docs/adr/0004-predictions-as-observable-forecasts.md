@@ -7,7 +7,7 @@ Accepted
 ## Date
 
 2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, retry state,
-split-adjusted equity closes, and calibration presentation)
+split-adjusted equity closes, provider-window anchor validation, and calibration presentation)
 
 ## Context
 
@@ -72,19 +72,19 @@ must share one contract.
   IV forecasts count calendar days, resolve on the first published observation on or after the
   target date within a bounded search-ahead window, and baseline against the last observation
   published on or before the report anchor within the same bound — an origin never reads
-  post-forecast data; earnings forecasts count provider-observed equity sessions anchored to the
-  declared earnings event. Exchange calendars may schedule resolution retries but are not
-  authoritative for outcomes.
+  post-forecast data; earnings forecasts select their event-relative origin and count forward from
+  provider-observed equity sessions. Exchange calendars may schedule resolution retries but are
+  not authoritative for outcome anchors or outcomes.
 - Horizon-not-elapsed waits do not consume scoring attempts. An unavailable observation persists
   `nextAttemptAt` and retries after 1, 3, and 7 days; the fourth failed observation fetch abandons
   the forecast. `score --force` bypasses only `nextAttemptAt`, preserving the same resolution and
   abandonment rules.
 - Policy v3 equity close windows come from one Yahoo request containing raw closes and split
   events. Scoring reconstructs a dividend-exclusive, split-adjusted series; dividends do not enter
-  the adjustment. Request failure, malformed or inconsistent split metadata, or an incomplete
-  close window leaves the forecast unresolved. Massive and other providers cannot fill or replace
-  any portion of a v3 equity resolution window. Legacy policy-v2 forecasts retain their historical
-  raw-close provider behavior.
+  the adjustment. Request failure, malformed or inconsistent split metadata, an initial observation
+  outside the bounded anchor tolerance, or another incomplete close window leaves the forecast
+  unresolved. Massive and other providers cannot fill or replace any portion of a v3 equity
+  resolution window. Legacy policy-v2 forecasts retain their historical raw-close provider behavior.
 
 ## Current scoring limitations
 

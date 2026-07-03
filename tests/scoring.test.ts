@@ -396,6 +396,48 @@ describe("resolveOutcome", () => {
       expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
 
+    test("leaves a v3 equity forecast unresolved when the provider window starts too late", async () => {
+      const result = await resolveWith({ ...basePrediction, scoringPolicyVersion: 3 }, [
+        { subject: "SPY", date: "2026-05-07", value: 500 },
+        { subject: "SPY", date: "2026-05-08", value: 502 },
+        { subject: "SPY", date: "2026-05-11", value: 504 },
+        { subject: "SPY", date: "2026-05-12", value: 506 },
+        { subject: "SPY", date: "2026-05-13", value: 508 },
+        { subject: "SPY", date: "2026-05-14", value: 510 },
+      ]);
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "observation-unavailable",
+      });
+    });
+
+    test("validates the v3 equity window anchor for every relative-performance subject", async () => {
+      const relativePrediction = {
+        ...basePrediction,
+        id: "pred-relative-window-anchor",
+        kind: "relative" as const,
+        subject: "QQQ:SPY",
+        measurableAs: "close(QQQ, +5) / close(QQQ, 0) > close(SPY, +5) / close(SPY, 0)",
+        claim: "QQQ outperforms SPY.",
+        scoringPolicyVersion: 3 as const,
+      };
+      const result = await resolveWith(relativePrediction, [
+        ...closeWindow("QQQ", [400, 404, 408, 412, 416, 420]),
+        { subject: "SPY", date: "2026-05-07", value: 500 },
+        { subject: "SPY", date: "2026-05-08", value: 502 },
+        { subject: "SPY", date: "2026-05-11", value: 504 },
+        { subject: "SPY", date: "2026-05-12", value: 506 },
+        { subject: "SPY", date: "2026-05-13", value: 508 },
+        { subject: "SPY", date: "2026-05-14", value: 510 },
+      ]);
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "observation-unavailable",
+      });
+    });
+
     test("iv point observations target trading days under v2 and calendar days under v3", async () => {
       const requestedDates: string[] = [];
       const recordingRepo: ObservationRepository = {

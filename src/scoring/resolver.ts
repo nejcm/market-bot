@@ -18,6 +18,9 @@ import { isRecord } from "../sources/guards";
 
 export type { Observation };
 
+const PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS = 5;
+const UTC_DAY_MS = 86_400_000;
+
 export interface ResolveOutcomeResolved {
   readonly status: "resolved";
   readonly outcome: ScoreOutcome;
@@ -43,6 +46,20 @@ export type ResolveOutcomeResult =
 
 function ymd(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function startsWithinProviderAnchorTolerance(
+  window: readonly Observation[],
+  anchor: Date,
+): boolean {
+  const [first] = window;
+  if (first === undefined) {
+    return false;
+  }
+  const anchorTime = Date.parse(`${ymd(anchor)}T00:00:00Z`);
+  const firstTime = Date.parse(`${first.date}T00:00:00Z`);
+  const delay = firstTime - anchorTime;
+  return delay >= 0 && delay <= PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS * UTC_DAY_MS;
 }
 
 async function closeObservations(
@@ -85,7 +102,14 @@ async function closeObservations(
   }
 
   const required = horizonTradingDays + 1;
-  const enough = windows.every((window) => window.length >= required);
+  const anchor = new Date(report.generatedAt);
+  const enough = windows.every(
+    (window) =>
+      window.length >= required &&
+      (report.assetClass !== "equity" ||
+        policy.version !== 3 ||
+        startsWithinProviderAnchorTolerance(window, anchor)),
+  );
 
   if (!enough) {
     return [];
@@ -215,6 +239,23 @@ function earningsHorizonDate(
   return resolutionDate(`${eventDate}T00:00:00Z`, horizonTradingDays);
 }
 
+function providerEarningsObservations(
+  window: readonly Observation[],
+  eventDate: string,
+  timing: EarningsEventTiming,
+  horizonTradingDays: number,
+): readonly Observation[] {
+  const origin = window.findLast((observation) =>
+    timing === "amc" ? observation.date <= eventDate : observation.date < eventDate,
+  );
+  const horizon = window
+    .filter((observation) =>
+      timing === "bmo" ? observation.date >= eventDate : observation.date > eventDate,
+    )
+    .at(horizonTradingDays - 1);
+  return origin === undefined || horizon === undefined ? [] : [origin, horizon];
+}
+
 async function earningsCloseObservations(
   report: ResearchReport,
   now: Date,
@@ -232,9 +273,16 @@ async function earningsCloseObservations(
     return [];
   }
 
-  const window = await repo.window(subject, report.assetClass, originDate, now, {
+  const fetchFrom =
+    policy.version === 3
+      ? shiftCalendarDay(originDate, -PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS)
+      : originDate;
+  const window = await repo.window(subject, report.assetClass, fetchFrom, now, {
     scoringPolicyVersion: policy.version,
   });
+  if (policy.version === 3) {
+    return providerEarningsObservations(window, eventDate, timing, horizonTradingDays);
+  }
 
   // Count how many trading days we need from origin to horizon.
   // BMO: origin (prior day) + N event days = N+1 closes

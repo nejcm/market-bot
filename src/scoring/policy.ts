@@ -19,7 +19,7 @@ import { resolutionDate } from "./exchange-calendar";
 //   Observation on or after the target date (weekends and provider holidays
 //   Publish nothing on the target itself).
 // - Earnings forecasts: provider-observed equity sessions anchored to the
-//   Declared earnings event (identical under both policies).
+//   Declared earnings event.
 
 export type ScoringPolicyVersion = 2 | 3;
 

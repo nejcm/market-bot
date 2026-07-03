@@ -44,8 +44,8 @@ guidance rather than provider-native agents.
   Pruned-item and advisory-warning counts persist in trace and analytics, and pruned predictions
   never reach forecast disagreement, persistence, or scoring. Deterministically assembled
   alpha-search reports stamp `reportIntegrity: high` without a pruning pass.
-- A model repair call and summary-sentence pruning are explicitly deferred (plans/03) until real
-  runs show deterministic pruning fires often enough to justify a repair pass.
+- A model repair call and summary-sentence pruning remain explicitly deferred until real runs show
+  deterministic pruning fires often enough to justify a repair pass.
 
 ## Consequences
 

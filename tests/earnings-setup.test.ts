@@ -381,6 +381,42 @@ describe("resolveOutcome — earnings scoring", () => {
       );
       expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
+
+    test("uses the last provider session before a v3 BMO event after an ad-hoc closure", async () => {
+      const eventDate = "2025-01-10";
+      const requestedFrom: string[] = [];
+      const observations = [
+        { subject: "AAPL", date: "2025-01-08", value: 200 },
+        { subject: "AAPL", date: "2025-01-10", value: 180 },
+        { subject: "AAPL", date: "2025-01-13", value: 190 },
+      ];
+      const repo: ObservationRepository = {
+        async point() {
+          throw new Error("unexpected point observation request");
+        },
+        async window(subject, _assetClass, from) {
+          const fromYmd = from.toISOString().slice(0, 10);
+          requestedFrom.push(fromYmd);
+          return observations.filter(
+            (observation) => observation.subject === subject && observation.date >= fromYmd,
+          );
+        },
+      };
+
+      const result = await resolveOutcome(
+        { ...earningsDirectionPrediction(eventDate), scoringPolicyVersion: 3 },
+        earningsReport("bmo", eventDate),
+        repo,
+        new Date("2025-01-20T00:00:00.000Z"),
+      );
+
+      expect(requestedFrom).toEqual(["2025-01-04"]);
+      expect(result).toMatchObject({
+        status: "resolved",
+        outcome: "miss",
+        evidence: { close0: 200, closeN: 180 },
+      });
+    });
   });
 
   describe("AMC timing", () => {

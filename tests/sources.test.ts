@@ -1647,6 +1647,43 @@ describe("extended evidence provider collection", () => {
     expect(requests.some((request) => request.adapter.startsWith("glassnode-"))).toBe(false);
   });
 
+  test("attaches submissions provenance to target SIC without recent filings", async () => {
+    const result = await equityExtendedEvidenceAdapter.collect(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              // SIC classification present, but no recent filings to summarize.
+              return rawJson(adapter, { sic: "3571", sicDescription: "Electronic Computers" });
+            }
+            if (adapter === "sec-companyfacts") {
+              return rawJson(adapter, secCompanyFactsPayload());
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    const secItem = result.extendedEvidence?.items.find((item) => item.category === "sec-edgar");
+    expect(secItem?.metrics?.sic).toBe("3571");
+    expect(secItem?.summary).not.toContain("Recent SEC filings");
+    expect(secItem?.sourceIds).toEqual([
+      "extended-sec-edgar-aapl-filings",
+      "extended-sec-edgar-aapl-fundamentals",
+    ]);
+    expect(
+      result.sources.find((source) => source.id === "extended-sec-edgar-aapl-filings")?.url,
+    ).toBe("https://data.sec.gov/submissions/CIK0000320193.json");
+  });
+
   test("emits gaps for missing crypto extended evidence tokens", async () => {
     const result = await cryptoExtendedEvidenceAdapter.collect(
       collectContext({

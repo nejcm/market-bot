@@ -409,9 +409,14 @@ function peerRow(
     enterpriseValue !== undefined && annualizedRevenue !== undefined && annualizedRevenue > 0
       ? enterpriseValue / annualizedRevenue
       : undefined;
+  // SIC provenance is the SEC submissions endpoint, not company facts, so a
+  // Row carrying a SIC must reference the submissions source as well.
   const sourceIds = unique([
     ...(quote?.sourceId !== undefined ? [quote.sourceId] : []),
     ...(sec.sourceId !== undefined ? [sec.sourceId] : []),
+    ...(sec.sicClassification !== undefined && sec.submissionsSourceId !== undefined
+      ? [sec.submissionsSourceId]
+      : []),
   ]);
   const inputsUsable =
     isFreshDate(quote?.observedAt, generatedAt) &&
@@ -657,7 +662,25 @@ function sourcesForPeer(command: InstrumentCommand, entry: PeerCollection): read
           entry.sec.identity,
         )
       : undefined;
-  return [quoteSource, secSource].filter((source): source is Source => source !== undefined);
+  // Mirrors the SIC gate in peerRow: every submissions source id referenced by
+  // A row must resolve to an emitted Source.
+  const submissionsSource =
+    entry.sec.sicClassification !== undefined &&
+    entry.sec.submissionsSourceId !== undefined &&
+    entry.sec.submissionsFetchedAt !== undefined
+      ? evidenceSource(
+          entry.sec.submissionsSourceId,
+          `${entry.peer.symbol} SEC filings`,
+          "sec-edgar",
+          { ...command, symbol: entry.peer.symbol },
+          entry.sec.submissionsFetchedAt,
+          entry.sec.submissionsUrl,
+          entry.sec.identity,
+        )
+      : undefined;
+  return [quoteSource, secSource, submissionsSource].filter(
+    (source): source is Source => source !== undefined,
+  );
 }
 
 function isFreshDate(observedAt: string | undefined, generatedAt: string): boolean {

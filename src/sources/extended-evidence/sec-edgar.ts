@@ -63,6 +63,7 @@ export interface SecCompanyFactsResult {
   readonly sicClassification?: SecSicClassification;
   readonly filingsSummary?: string;
   readonly submissionsUrl?: string;
+  readonly submissionsSourceId?: string;
   readonly submissionsFetchedAt?: string;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
@@ -720,7 +721,10 @@ export async function fetchSecCompanyFactsForSymbol(
     ...(sicClassification !== undefined ? { sicClassification } : {}),
     ...(filingsSummary !== undefined ? { filingsSummary } : {}),
     ...(isFetchJsonResult(submissions)
-      ? { submissionsFetchedAt: submissions.rawSnapshot.fetchedAt }
+      ? {
+          submissionsSourceId: `extended-sec-edgar-${symbol.toLowerCase()}-filings`,
+          submissionsFetchedAt: submissions.rawSnapshot.fetchedAt,
+        }
       : {}),
   };
   const submissionsGaps = isFetchJsonResult(submissions) ? [] : [submissions];
@@ -809,12 +813,15 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   const { rawSnapshots, filingsSummary } = factsResult;
   const items: CollectedItem[] = [];
 
+  // The submissions endpoint supplies the SIC classification as well as the
+  // Filings summary, so its source must be attached whenever either datum is
+  // Used — a company with no recent filings still needs SIC provenance.
   const filingsSource =
-    filingsSummary !== undefined &&
-    factsResult.submissionsUrl !== undefined &&
+    (filingsSummary !== undefined || factsResult.sicClassification !== undefined) &&
+    factsResult.submissionsSourceId !== undefined &&
     factsResult.submissionsFetchedAt !== undefined
       ? evidenceSource(
-          `extended-sec-edgar-${command.symbol.toLowerCase()}-filings`,
+          factsResult.submissionsSourceId,
           `${command.symbol} SEC filings`,
           "sec-edgar",
           command,

@@ -310,6 +310,38 @@ describe("collectValuationComps", () => {
     );
   });
 
+  test("attaches submissions provenance to peer SIC even without recent filings", async () => {
+    // The fixture submissions payload carries a SIC but no filings, so the
+    // Submissions source must still be emitted and referenced by the row.
+    const result = await collectValuationComps(
+      collectContext(requestExecutor({ sicOverrides: { AVGO: { sic: undefined } } })),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd?.sic).toBe("3674");
+    expect(amd?.sourceIds).toContain("extended-sec-edgar-amd-filings");
+    expect(
+      result.sources.find((source) => source.id === "extended-sec-edgar-amd-filings")?.url,
+    ).toBe("https://data.sec.gov/submissions/CIK0000000001.json");
+
+    const avgo = result.artifact.peers.find((peer) => peer.symbol === "AVGO");
+    expect(avgo?.sic).toBeUndefined();
+    expect(avgo?.sourceIds).not.toContain("extended-sec-edgar-avgo-filings");
+    expect(result.sources.some((source) => source.id === "extended-sec-edgar-avgo-filings")).toBe(
+      false,
+    );
+  });
+
   test("excludes peers whose two-digit SIC group differs from the target", async () => {
     const result = await collectValuationComps(
       collectContext(requestExecutor({ sicOverrides: { AMD: { sic: "7372" } } })),

@@ -22,6 +22,7 @@ import {
 } from "../domain/types";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
@@ -183,7 +184,7 @@ async function runStage(
     messages: [
       {
         role: "system",
-        content: loaded.system,
+        content: withUntrustedModelInputRule(loaded.system),
       },
       {
         role: "user",
@@ -234,7 +235,7 @@ async function runPlaybookSelection(
     messages: [
       {
         role: "system",
-        content: loaded.system,
+        content: withUntrustedModelInputRule(loaded.system),
       },
       {
         role: "user",

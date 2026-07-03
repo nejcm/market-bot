@@ -570,7 +570,7 @@ describe("web gather tools", () => {
     ]);
   });
 
-  test("reports sanitizer output characters before adapter truncation", async () => {
+  test("reports bounded sanitizer output characters", async () => {
     const summary = "A".repeat(1500);
     const result = await executeWebGatherTool(
       "web_search",
@@ -586,10 +586,10 @@ describe("web gather tools", () => {
       new Set(),
     );
 
-    expect(result.sources[0]?.summary?.length).toBe(1203);
+    expect(result.sources[0]?.summary?.length).toBe(1200);
     expect(result.sanitizer).toMatchObject({
       inputCharCount: summary.length,
-      outputCharCount: summary.length,
+      outputCharCount: 1200,
     });
   });
 

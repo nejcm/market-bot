@@ -14,6 +14,7 @@ import {
 import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
 import type { ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { violatesResearchOnly } from "../domain/research-language";
 import {
   buildReportSearchEntries,
@@ -804,8 +805,9 @@ async function generateNarrative(
     messages: [
       {
         role: "system",
-        content:
+        content: withUntrustedModelInputRule(
           "Write a concise research-only narrative explaining what changed between two historical research thesis states. Do not include buy, sell, hold, sizing, execution, or portfolio language.",
+        ),
       },
       {
         role: "user",

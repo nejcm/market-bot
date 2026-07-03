@@ -1,5 +1,6 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
 import type { ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types";
 import { isRecord } from "../sources/guards";
 import { isUsListing } from "../sources/instrument-capability";
@@ -135,7 +136,7 @@ async function generatePeerProposal(deps: ProposerDeps, target: string): Promise
         max_completion_tokens: 400,
       },
       messages: [
-        { role: "system", content: buildSystemPrompt() },
+        { role: "system", content: withUntrustedModelInputRule(buildSystemPrompt()) },
         { role: "user", content: buildUserPrompt(target, deps.targetName) },
       ],
     });

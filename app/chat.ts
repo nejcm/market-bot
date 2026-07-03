@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RunChatConfig } from "../src/config";
 import type { ModelMessage, ModelProvider } from "../src/model/types";
+import { withUntrustedModelInputRule } from "../src/model/trust-guard";
 import { readRunDetail } from "./artifacts";
 import { buildRunChatContext } from "./chat-context";
 import { isSameOriginPost } from "./server";
@@ -257,9 +258,10 @@ export async function handleRunChat(
 
   const searchCapability = await runChatSearchCapability(deps);
   const webSearchActive = searchCapability.effective;
-  const finalSystemContent = webSearchActive
+  const guardedSystemContent = webSearchActive
     ? `${systemContent}\n\n${WEB_SEARCH_GUIDANCE}`
     : systemContent;
+  const finalSystemContent = withUntrustedModelInputRule(guardedSystemContent);
 
   const model = deps.chatConfig.model ?? deps.provider.name;
   const messages: ModelMessage[] = [{ role: "system", content: finalSystemContent }, ...history];

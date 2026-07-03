@@ -12,7 +12,7 @@ import type {
 import { sourceGap } from "../domain/source-gaps";
 import { canonicalizeUrl } from "./news-utils";
 import type { CollectContext, RawSourceSnapshot } from "./types";
-import { sanitizeModelVisibleWebText } from "./web-text-sanitizer";
+import { sanitizeModelInputText, type ModelInputFieldRole } from "./model-input-sanitizer";
 
 // Provider-neutral emit layer for web gather.
 // Normalized provider results are validated, sanitized, and turned into low-trust `web` Sources.
@@ -195,10 +195,10 @@ function webResultSource(
 ): SanitizedWebResult {
   const canonicalUrl = canonicalizeUrl(result.url);
   const fetchedAt = normalizedPublishedDate(result.publishedDate) ?? fallbackFetchedAt;
-  const title = sanitizeOptionalWebText(result.title, MAX_TITLE_CHARS);
-  const publisher = sanitizeOptionalWebText(result.author, MAX_PUBLISHER_CHARS);
-  const summary = sanitizeOptionalWebText(result.summary, MAX_SUMMARY_CHARS);
-  const snippet = sanitizeOptionalWebText(webSnippetText(result), MAX_SNIPPET_CHARS);
+  const title = sanitizeOptionalWebText(result.title, "title", MAX_TITLE_CHARS);
+  const publisher = sanitizeOptionalWebText(result.author, "publisher", MAX_PUBLISHER_CHARS);
+  const summary = sanitizeOptionalWebText(result.summary, "summary", MAX_SUMMARY_CHARS);
+  const snippet = sanitizeOptionalWebText(webSnippetText(result), "snippet", MAX_SNIPPET_CHARS);
   const source: Source = {
     id: webSourceId(subject.subjectId, canonicalUrl ?? result.url),
     title: title.text ?? webSourceFallbackTitle(result.url),
@@ -268,16 +268,9 @@ function webSnippetText(result: WebGatherProviderResult): string | undefined {
   return highlighted.trim() !== "" ? highlighted : result.text;
 }
 
-function truncate(value: string, maxChars: number): string {
-  const normalized = value.replaceAll(/\s+/gu, " ").trim();
-  if (normalized.length <= maxChars) {
-    return normalized;
-  }
-  return `${normalized.slice(0, maxChars).trimEnd()}...`;
-}
-
 function sanitizeOptionalWebText(
   value: string | undefined,
+  fieldRole: ModelInputFieldRole,
   maxChars: number,
 ): {
   readonly text?: string;
@@ -298,16 +291,20 @@ function sanitizeOptionalWebText(
       },
     };
   }
-  const result = sanitizeModelVisibleWebText(value);
-  const text = result.text === undefined ? undefined : truncate(result.text, maxChars);
+  const result = sanitizeModelInputText(value, {
+    profile: "open-web",
+    fieldRole,
+    maxChars,
+  });
+  const { text, telemetry } = result;
   return {
     ...(text !== undefined ? { text } : {}),
     inputPresent: true,
     telemetry: {
-      inputCharCount: result.telemetry.inputChars,
-      outputCharCount: result.telemetry.outputChars,
-      removedInstructionSpanCount: result.telemetry.removedInstructionSpanCount,
-      removedChromeHtmlCount: result.telemetry.removedChromeHtmlCount,
+      inputCharCount: telemetry.inputChars,
+      outputCharCount: telemetry.outputChars,
+      removedInstructionSpanCount: telemetry.removedInstructionSpanCount,
+      removedChromeHtmlCount: telemetry.removedMarkupChromeCount,
     },
   };
 }

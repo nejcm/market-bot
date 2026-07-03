@@ -1,5 +1,6 @@
 import type { Prediction } from "../domain/types";
 import type { ModelParams, ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import type { LoadedPrompt } from "./prompt-loader";
 import type { StageOutput } from "./final-synthesis";
@@ -263,7 +264,7 @@ export async function runForecastDisagreement(input: {
           ...(input.modelParams !== undefined ? { params: input.modelParams } : {}),
           responseFormat: "json",
           messages: [
-            { role: "system", content: input.loaded.system },
+            { role: "system", content: withUntrustedModelInputRule(input.loaded.system) },
             { role: "user", content: prompt },
           ],
         });

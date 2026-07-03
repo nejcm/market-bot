@@ -2,6 +2,7 @@ import type { ResearchCommand } from "../cli/args";
 import { marketSpotlightOptions, type AppConfig } from "../config";
 import { isMarketUpdateJobType, type Mover } from "../domain/types";
 import type { ModelProvider } from "../model/types";
+import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
@@ -76,7 +77,7 @@ async function runSpotlightSelection(input: {
       : {}),
     responseFormat: "json",
     messages: [
-      { role: "system", content: loaded.system },
+      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
       {
         role: "user",
         content: buildSpotlightSelectionPrompt(

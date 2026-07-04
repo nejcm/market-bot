@@ -15,7 +15,8 @@ import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
 import {
   aggregateModelInputSanitization,
-  sanitizeModelInputText,
+  droppedModelInputItemEntry,
+  sanitizeModelInputField,
   type ModelInputSanitizationAggregate,
   type ModelInputSanitizationAggregateEntry,
 } from "./model-input-sanitizer";
@@ -326,11 +327,18 @@ function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): st
   return parts.join("\n\n");
 }
 
-interface SecFilingSourceItem {
-  readonly source?: Source;
-  readonly item?: ExtendedEvidenceItem;
-  readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
-}
+type SecFilingSourceItem =
+  | {
+      readonly kind: "built";
+      readonly source: Source;
+      readonly item: ExtendedEvidenceItem;
+      readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
+    }
+  | {
+      readonly kind: "dropped";
+      readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
+    }
+  | { readonly kind: "missing" };
 
 function buildSecFilingSourceItem(
   command: InstrumentCommand,
@@ -338,42 +346,44 @@ function buildSecFilingSourceItem(
   filing: SecFiling,
   url: string,
   filingText: FetchTextResult,
-): SecFilingSourceItem | undefined {
+): SecFilingSourceItem {
   const formKey = filing.form === "10-K" ? "10k" : "10q";
   const normalized = normalizeFilingText(filingText.payload);
   const packet = secFilingSectionPacket(normalized, filing.form);
   if (packet === undefined) {
-    return undefined;
+    return { kind: "missing" };
   }
-  const sanitizedPacket = sanitizeModelInputText(packet, {
+  const sanitizedPacket = sanitizeModelInputField(packet, {
+    provider: "sec-edgar",
+    ingress: "sec-filing-text",
     profile: "sec-filing",
-    fieldRole: "snippet",
+    fieldRole: "prose",
   });
   if (
     sanitizedPacket.text === undefined ||
     substantiveAlphaCount(sanitizedPacket.text) < SEC_SECTION_MIN_ALPHA_CHARS
   ) {
     return {
+      kind: "dropped",
       sanitizationEntries: [
-        {
+        sanitizedPacket.entry,
+        droppedModelInputItemEntry({
           provider: "sec-edgar",
           ingress: "sec-filing-text",
           profile: "sec-filing",
-          fieldRole: "snippet",
-          droppedItemCount: 1,
-          ...sanitizedPacket.telemetry,
-          emptyAfterSanitizeFieldCount: 1,
-        },
+          fieldRole: "prose",
+        }),
       ],
     };
   }
   const sanitizedName =
     match.name === undefined
       ? undefined
-      : sanitizeModelInputText(match.name, {
+      : sanitizeModelInputField(match.name, {
+          provider: "sec-edgar",
+          ingress: "sec-tickers",
           profile: "short-metadata",
           fieldRole: "title",
-          maxChars: 300,
         });
   const identity = secIdentity({
     cik: match.cik,
@@ -413,29 +423,12 @@ function buildSecFilingSourceItem(
     identity,
   };
   return {
+    kind: "built",
     source,
     item,
     sanitizationEntries: [
-      {
-        provider: "sec-edgar",
-        ingress: "sec-filing-text",
-        profile: "sec-filing",
-        fieldRole: "snippet",
-        droppedItemCount: 0,
-        ...sanitizedPacket.telemetry,
-      },
-      ...(sanitizedName === undefined
-        ? []
-        : [
-            {
-              provider: "sec-edgar",
-              ingress: "sec-tickers",
-              profile: "short-metadata" as const,
-              fieldRole: "title" as const,
-              droppedItemCount: 0,
-              ...sanitizedName.telemetry,
-            },
-          ]),
+      sanitizedPacket.entry,
+      ...(sanitizedName === undefined ? [] : [sanitizedName.entry]),
     ],
   };
 }
@@ -452,6 +445,61 @@ async function fetchFilingText(
     init: secTextRequestInit(ctx.secUserAgent),
   });
   return { result, url };
+}
+
+async function collectSecFiling(
+  ctx: CollectContext,
+  command: InstrumentCommand,
+  match: { cik: string; ticker: string; name?: string },
+  filing: SecFiling,
+): Promise<{
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly sources: readonly Source[];
+  readonly items: readonly ExtendedEvidenceItem[];
+  readonly gaps: readonly SourceGap[];
+  readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
+  readonly droppedItemCount: number;
+}> {
+  const { result, url } = await fetchFilingText(ctx, filing, match.cik);
+  if (!isFetchTextResult(result)) {
+    return {
+      rawSnapshots: [],
+      sources: [],
+      items: [],
+      gaps: [result],
+      sanitizationEntries: [],
+      droppedItemCount: 0,
+    };
+  }
+  const built = buildSecFilingSourceItem(command, match, filing, url, result);
+  if (built.kind === "missing") {
+    return {
+      rawSnapshots: [result.rawSnapshot],
+      sources: [],
+      items: [],
+      gaps: [secPacketGap(command.symbol, filing.form)],
+      sanitizationEntries: [],
+      droppedItemCount: 0,
+    };
+  }
+  if (built.kind === "dropped") {
+    return {
+      rawSnapshots: [result.rawSnapshot],
+      sources: [],
+      items: [],
+      gaps: [],
+      sanitizationEntries: built.sanitizationEntries,
+      droppedItemCount: 1,
+    };
+  }
+  return {
+    rawSnapshots: [result.rawSnapshot],
+    sources: [built.source],
+    items: [built.item],
+    gaps: [],
+    sanitizationEntries: built.sanitizationEntries,
+    droppedItemCount: 0,
+  };
 }
 
 async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
@@ -538,48 +586,18 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
   let droppedItemCount = 0;
 
-  // Fetch 10-K (primary annual source)
-  if (tenK !== undefined) {
-    const { result: tenKText, url: tenKUrl } = await fetchFilingText(ctx, tenK, match.cik);
-    if (isFetchTextResult(tenKText)) {
-      rawSnapshots.push(tenKText.rawSnapshot);
-      const built = buildSecFilingSourceItem(command, match, tenK, tenKUrl, tenKText);
-      if (built !== undefined) {
-        sanitizationEntries.push(...built.sanitizationEntries);
-        if (built.source !== undefined && built.item !== undefined) {
-          sources.push(built.source);
-          items.push(built.item);
-        } else {
-          droppedItemCount += 1;
-        }
-      } else {
-        gaps.push(secPacketGap(command.symbol, tenK.form));
-      }
-    } else {
-      gaps.push(tenKText);
-    }
-  }
-
-  // Fetch 10-Q (most recent quarterly update)
-  if (tenQ !== undefined) {
-    const { result: tenQText, url: tenQUrl } = await fetchFilingText(ctx, tenQ, match.cik);
-    if (isFetchTextResult(tenQText)) {
-      rawSnapshots.push(tenQText.rawSnapshot);
-      const built = buildSecFilingSourceItem(command, match, tenQ, tenQUrl, tenQText);
-      if (built !== undefined) {
-        sanitizationEntries.push(...built.sanitizationEntries);
-        if (built.source !== undefined && built.item !== undefined) {
-          sources.push(built.source);
-          items.push(built.item);
-        } else {
-          droppedItemCount += 1;
-        }
-      } else {
-        gaps.push(secPacketGap(command.symbol, tenQ.form));
-      }
-    } else {
-      gaps.push(tenQText);
-    }
+  const filingResults = await Promise.all(
+    [tenK, tenQ].flatMap((filing) =>
+      filing === undefined ? [] : [collectSecFiling(ctx, command, match, filing)],
+    ),
+  );
+  for (const result of filingResults) {
+    rawSnapshots.push(...result.rawSnapshots);
+    sources.push(...result.sources);
+    items.push(...result.items);
+    gaps.push(...result.gaps);
+    sanitizationEntries.push(...result.sanitizationEntries);
+    droppedItemCount += result.droppedItemCount;
   }
   // When the latest 10-K is present but metadata lists no 10-Q after it, quarterly coverage is not-applicable (not a missing gap): the issuer has not filed an interim report since its annual.
   // A missing annual 10-K is an explicit core-cap gap even when a 10-Q exists.
@@ -597,16 +615,6 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   }
   if (droppedItemCount > 0) {
     gaps.push(secSanitizationGap(command.symbol, droppedItemCount));
-  }
-
-  if (sources.length === 0) {
-    return {
-      rawSnapshots,
-      sources,
-      items,
-      gaps,
-      modelInputSanitization: aggregateModelInputSanitization(sanitizationEntries),
-    };
   }
 
   return {

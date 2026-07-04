@@ -456,7 +456,7 @@ describe("SEC latest filing evidence tool", () => {
       expect.objectContaining({
         provider: "sec-edgar",
         profile: "sec-filing",
-        fieldRole: "snippet",
+        fieldRole: "prose",
         removedInstructionSpanCount: 2,
       }),
     );
@@ -504,7 +504,7 @@ describe("SEC latest filing evidence tool", () => {
       expect.objectContaining({
         profile: "sec-filing",
         droppedItemCount: 1,
-        emptyAfterSanitizeFieldCount: 1,
+        fieldRole: "prose",
       }),
     );
   });

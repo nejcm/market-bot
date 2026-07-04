@@ -6,7 +6,12 @@ import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
-import type { HistoricalContextReader, HistoricalResearchContext } from "./historical-context";
+import type { HistoricalResearchContext } from "./historical-context";
+import type { SanitizedHistoricalContextReader } from "./historical-context-sanitization";
+import {
+  mergeModelInputSanitization,
+  type ModelInputSanitizationAggregate,
+} from "../sources/model-input-sanitizer";
 import { buildMarketUpdateDelta } from "./market-update-delta";
 import { loadStagePrompt } from "./prompt-loader";
 import {
@@ -125,7 +130,7 @@ export async function runMarketUpdatePhase(input: {
   readonly collectedSources: CollectedSources;
   readonly context: ResearchContext;
   readonly historicalContext: HistoricalResearchContext;
-  readonly historicalContextReader: HistoricalContextReader;
+  readonly historicalContextReader: SanitizedHistoricalContextReader;
   readonly alpha: Awaited<ReturnType<typeof loadAlphaWatchlistForSpotlights>>;
   readonly alphaGaps: readonly string[];
   readonly now: Date;
@@ -136,12 +141,18 @@ export async function runMarketUpdatePhase(input: {
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly spotlightOutput?: StageOutput;
   readonly marketUpdateMovers?: readonly Mover[];
+  readonly modelInputSanitization: ModelInputSanitizationAggregate;
 }> {
   if (!isMarketUpdateJobType(input.command.jobType)) {
-    return { context: input.context, historicalContext: input.historicalContext };
+    return {
+      context: input.context,
+      historicalContext: input.historicalContext,
+      modelInputSanitization: { entries: [] },
+    };
   }
 
   let { historicalContext } = input;
+  let modelInputSanitization: ModelInputSanitizationAggregate = { entries: [] };
   const marketOnlyHistoricalContext = historicalContext;
   const currentMarketSymbols = [
     ...new Set(
@@ -152,13 +163,18 @@ export async function runMarketUpdatePhase(input: {
   ];
   let { context } = input;
   if (currentMarketSymbols.length > 0) {
-    historicalContext = await input.historicalContextReader.load({
+    const loaded = await input.historicalContextReader.load({
       command: input.command,
       config: input.config,
       now: input.now,
       spotlightSymbols: currentMarketSymbols,
       extraGaps: input.alphaGaps,
     });
+    historicalContext = loaded.context;
+    modelInputSanitization = mergeModelInputSanitization(
+      modelInputSanitization,
+      loaded.modelInputSanitization,
+    );
     context = { ...context, historicalContext };
   }
   const cap = spotlightCap(input.command, input.config);
@@ -182,13 +198,18 @@ export async function runMarketUpdatePhase(input: {
   });
   let spotlightSelection = spotlight.selection;
   if (spotlightSelection.selected.length > 0) {
-    historicalContext = await input.historicalContextReader.load({
+    const loaded = await input.historicalContextReader.load({
       command: input.command,
       config: input.config,
       now: input.now,
       spotlightSymbols: spotlightSelection.selected.map((item) => item.symbol),
       extraGaps: input.alphaGaps,
     });
+    historicalContext = loaded.context;
+    modelInputSanitization = mergeModelInputSanitization(
+      modelInputSanitization,
+      loaded.modelInputSanitization,
+    );
     spotlightCandidates = buildSpotlightCandidates({
       marketSnapshots: input.collectedSources.marketSnapshots.filter(
         (snapshot) => snapshot.assetClass === input.command.assetClass,
@@ -230,5 +251,6 @@ export async function runMarketUpdatePhase(input: {
     spotlightSelection,
     ...(spotlight.output !== undefined ? { spotlightOutput: spotlight.output } : {}),
     marketUpdateMovers,
+    modelInputSanitization,
   };
 }

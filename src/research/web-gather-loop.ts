@@ -14,7 +14,7 @@ import type {
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
 import { isRecord, readString } from "../sources/guards";
-import { aggregateModelInputSanitization } from "../sources/model-input-sanitizer";
+import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { canonicalizeUrl } from "../sources/news-utils";
 import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import type { CollectedSources, FetchLike } from "../sources/types";
@@ -737,10 +737,10 @@ function mergeToolOutput(
     sourceGaps: [...collectedSources.sourceGaps, ...gaps],
     ...(output.modelInputSanitization !== undefined
       ? {
-          modelInputSanitization: aggregateModelInputSanitization([
-            ...(collectedSources.modelInputSanitization?.entries ?? []),
-            ...output.modelInputSanitization.entries,
-          ]),
+          modelInputSanitization: mergeModelInputSanitization(
+            collectedSources.modelInputSanitization,
+            output.modelInputSanitization,
+          ),
         }
       : {}),
   };

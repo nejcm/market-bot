@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   MODEL_INPUT_FIELD_CAPS,
   aggregateModelInputSanitization,
+  droppedModelInputItemEntry,
+  mergeModelInputSanitization,
+  sanitizeModelInputField,
   sanitizeModelInputText,
 } from "../src/sources/model-input-sanitizer";
 
@@ -81,6 +84,36 @@ describe("sanitizeModelInputText", () => {
         outputChars: 16,
         removedInstructionSpanCount: 2,
       },
+    ]);
+  });
+
+  test("derives field caps and aggregate context from the field role", () => {
+    const result = sanitizeModelInputField("A".repeat(400), {
+      provider: "provider",
+      ingress: "news",
+      profile: "news",
+      fieldRole: "title",
+    });
+
+    expect(result.text).toHaveLength(MODEL_INPUT_FIELD_CAPS.title);
+    expect(result.entry).toMatchObject({
+      provider: "provider",
+      ingress: "news",
+      fieldRole: "title",
+      truncatedFieldCount: 1,
+    });
+  });
+
+  test("merges optional aggregates and standardizes dropped item entries", () => {
+    const dropped = droppedModelInputItemEntry({
+      provider: "provider",
+      ingress: "news",
+      profile: "news",
+      fieldRole: "prose",
+    });
+
+    expect(mergeModelInputSanitization(undefined, { entries: [dropped] }).entries).toEqual([
+      dropped,
     ]);
   });
 });

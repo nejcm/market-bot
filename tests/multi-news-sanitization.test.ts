@@ -53,4 +53,18 @@ describe("news model-input sanitization", () => {
     expect(result.source?.url).toBeUndefined();
     expect(result.source?.providerArticleId).toBeUndefined();
   });
+
+  test("records required structured-field rejections as dropped items", () => {
+    const result = sanitizeNewsSource(source({ fetchedAt: "not-a-date" }), "yahoo");
+
+    expect(result.source).toBeUndefined();
+    expect(result.entries).toEqual([
+      expect.objectContaining({
+        provider: "yahoo",
+        ingress: "news",
+        fieldRole: "prose",
+        droppedItemCount: 1,
+      }),
+    ]);
+  });
 });

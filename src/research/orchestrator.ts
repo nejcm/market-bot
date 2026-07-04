@@ -27,7 +27,7 @@ import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
 import { recordSeenNewsSources } from "../sources/news-seen";
-import { aggregateModelInputSanitization } from "../sources/model-input-sanitizer";
+import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import {
   synthesizeReportUntilValid,
@@ -41,6 +41,7 @@ import {
   createHistoricalContextReader,
   type HistoricalResearchContext,
 } from "./historical-context";
+import { createSanitizedHistoricalContextReader } from "./historical-context-sanitization";
 import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
@@ -55,7 +56,6 @@ import {
   buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
   buildStagePrompt,
-  sanitizeHistoricalContextProjection,
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
@@ -384,7 +384,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ),
     calibrationContext,
   };
-  const historicalContextReader = await createHistoricalContextReader(input.config.dataDir);
+  const historicalContextReader = createSanitizedHistoricalContextReader(
+    await createHistoricalContextReader(input.config.dataDir),
+  );
   // Read before the first historical-context load so an unreadable watchlist is
   // Surfaced as a cross-run gap (LoadHistoricalContextInput.extraGaps) on every
   // Load in this run, not dropped silently. Cheap (single-file read).
@@ -394,12 +396,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Keeps the signal out of ticker/alpha-search reports, which never enrich.
   const alphaGaps =
     isMarketUpdateJobType(input.command.jobType) && alpha.gap !== undefined ? [alpha.gap] : [];
-  let historicalContext = await historicalContextReader.load({
+  const initialHistoricalContext = await historicalContextReader.load({
     command: input.command,
     config: input.config,
     now,
     extraGaps: alphaGaps,
   });
+  let historicalContext = initialHistoricalContext.context;
   context = { ...context, historicalContext };
   const evidenceLoop = await runEvidenceRequestLoop({
     command: input.command,
@@ -451,15 +454,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     now,
   });
   ({ context, historicalContext } = marketUpdate);
-  const historicalProjection = sanitizeHistoricalContextProjection(historicalContext);
-  historicalContext = historicalProjection.context;
-  context = { ...context, historicalContext };
   collectedSources = {
     ...collectedSources,
-    modelInputSanitization: aggregateModelInputSanitization([
-      ...(collectedSources.modelInputSanitization?.entries ?? []),
-      ...historicalProjection.modelInputSanitization.entries,
-    ]),
+    modelInputSanitization: mergeModelInputSanitization(
+      collectedSources.modelInputSanitization,
+      initialHistoricalContext.modelInputSanitization,
+      marketUpdate.modelInputSanitization,
+    ),
   };
   const { spotlightCandidates, spotlightSelection, spotlightOutput, marketUpdateMovers } =
     marketUpdate;

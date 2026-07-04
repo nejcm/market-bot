@@ -732,7 +732,7 @@
           "emptyAfterSanitizeFieldCount": 0
         },
         {
-          "provider": "market",
+          "provider": "yahoo",
           "ingress": "market-snapshot",
           "profile": "short-metadata",
           "fieldRole": "title",
@@ -746,7 +746,7 @@
           "emptyAfterSanitizeFieldCount": 0
         },
         {
-          "provider": "market",
+          "provider": "yahoo",
           "ingress": "market-snapshot",
           "profile": "short-metadata",
           "fieldRole": "publisher",

@@ -13,9 +13,9 @@ import {
 } from "./types";
 import { yahooNewsAdapter } from "./yahoo-news";
 import {
-  MODEL_INPUT_FIELD_CAPS,
   aggregateModelInputSanitization,
-  sanitizeModelInputText,
+  droppedModelInputItemEntry,
+  sanitizeModelInputField,
   type ModelInputFieldRole,
   type ModelInputSanitizationAggregateEntry,
 } from "./model-input-sanitizer";
@@ -43,38 +43,39 @@ export function sanitizeNewsSource(
   provider: string,
 ): { readonly source?: Source; readonly entries: readonly ModelInputSanitizationAggregateEntry[] } {
   if (!STRUCTURED_ID_RE.test(source.id) || !Number.isFinite(Date.parse(source.fetchedAt))) {
-    return { entries: [] };
+    return {
+      entries: [
+        droppedModelInputItemEntry({
+          provider,
+          ingress: "news",
+          profile: "news",
+          fieldRole: "prose",
+        }),
+      ],
+    };
   }
-  const values: readonly [ModelInputFieldRole, string | undefined][] = [
+  const values = [
     ["title", source.title],
     ["publisher", source.publisher],
     ["summary", source.summary],
     ["snippet", source.snippet],
-  ];
+  ] as const satisfies readonly [ModelInputFieldRole, string | undefined][];
   const safe = new Map<ModelInputFieldRole, string>();
   const entries = values.flatMap(([fieldRole, value]) => {
     if (value === undefined) {
       return [];
     }
     const profile = fieldRole === "publisher" ? "short-metadata" : "news";
-    const sanitized = sanitizeModelInputText(value, {
+    const sanitized = sanitizeModelInputField(value, {
+      provider,
+      ingress: "news",
       profile,
       fieldRole,
-      maxChars: MODEL_INPUT_FIELD_CAPS[fieldRole as keyof typeof MODEL_INPUT_FIELD_CAPS],
     });
     if (sanitized.text !== undefined) {
       safe.set(fieldRole, sanitized.text);
     }
-    return [
-      {
-        provider,
-        ingress: "news",
-        profile,
-        fieldRole,
-        droppedItemCount: 0,
-        ...sanitized.telemetry,
-      } satisfies ModelInputSanitizationAggregateEntry,
-    ];
+    return [sanitized.entry];
   });
   const title = safe.get("title");
   const publisher = safe.get("publisher");
@@ -82,10 +83,15 @@ export function sanitizeNewsSource(
   const snippet = safe.get("snippet");
   if (title === undefined && summary === undefined && snippet === undefined) {
     return {
-      entries: entries.map((entry, index) => ({
-        ...entry,
-        droppedItemCount: index === 0 ? 1 : 0,
-      })),
+      entries: [
+        ...entries,
+        droppedModelInputItemEntry({
+          provider,
+          ingress: "news",
+          profile: "news",
+          fieldRole: "prose",
+        }),
+      ],
     };
   }
   const canonicalUrl = validatedNewsUrl(source.url);

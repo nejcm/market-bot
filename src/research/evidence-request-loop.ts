@@ -11,7 +11,7 @@ import type {
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
 import { isRecord } from "../sources/guards";
-import { aggregateModelInputSanitization } from "../sources/model-input-sanitizer";
+import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import {
   availableEvidenceRequestTools,
   EVIDENCE_REQUEST_TOOL_UNITS,
@@ -389,10 +389,10 @@ function mergeToolOutput(
     sourceGaps: [...collectedSources.sourceGaps, ...gaps],
     ...(output.modelInputSanitization !== undefined
       ? {
-          modelInputSanitization: aggregateModelInputSanitization([
-            ...(collectedSources.modelInputSanitization?.entries ?? []),
-            ...output.modelInputSanitization.entries,
-          ]),
+          modelInputSanitization: mergeModelInputSanitization(
+            collectedSources.modelInputSanitization,
+            output.modelInputSanitization,
+          ),
         }
       : {}),
   };

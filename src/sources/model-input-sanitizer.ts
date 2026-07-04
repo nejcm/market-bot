@@ -19,6 +19,18 @@ export interface ModelInputSanitizerResult {
   readonly telemetry: ModelInputSanitizerTelemetry;
 }
 
+export interface ModelInputSanitizationContext {
+  readonly provider: string;
+  readonly ingress: string;
+  readonly profile: ModelInputSanitizerProfile;
+  readonly fieldRole: ModelInputFieldRole;
+}
+
+export interface SanitizedModelInputField {
+  readonly text?: string;
+  readonly entry: ModelInputSanitizationAggregateEntry;
+}
+
 export function aggregateModelInputSanitization(
   entries: readonly ModelInputSanitizationAggregateEntry[],
 ): ModelInputSanitizationAggregate {
@@ -49,11 +61,20 @@ export function aggregateModelInputSanitization(
   return { entries: [...totals.values()] };
 }
 
+export function mergeModelInputSanitization(
+  ...aggregates: readonly (ModelInputSanitizationAggregate | undefined)[]
+): ModelInputSanitizationAggregate {
+  return aggregateModelInputSanitization(
+    aggregates.flatMap((aggregate) => aggregate?.entries ?? []),
+  );
+}
+
 export const MODEL_INPUT_FIELD_CAPS = {
   title: 300,
   publisher: 200,
   summary: 1200,
   snippet: 1200,
+  prose: undefined,
 } as const;
 
 export const MAX_MODEL_INPUT_SANITIZER_WORK_CHARS = 10_000;
@@ -90,6 +111,42 @@ const CHROME_PATTERNS: readonly RegExp[] = [
   /^(?:share|shared? on|follow us|advertisement|advertising|sponsored)$/iu,
   /^(?:skip to (?:content|main content)|privacy policy|terms of use|all rights reserved)$/iu,
 ];
+
+export function sanitizeModelInputField(
+  input: string,
+  context: ModelInputSanitizationContext,
+): SanitizedModelInputField {
+  const maxChars = MODEL_INPUT_FIELD_CAPS[context.fieldRole];
+  const sanitized = sanitizeModelInputText(input, {
+    profile: context.profile,
+    fieldRole: context.fieldRole,
+    ...(maxChars !== undefined ? { maxChars } : {}),
+  });
+  return {
+    ...(sanitized.text !== undefined ? { text: sanitized.text } : {}),
+    entry: {
+      ...context,
+      droppedItemCount: 0,
+      ...sanitized.telemetry,
+    },
+  };
+}
+
+export function droppedModelInputItemEntry(
+  context: ModelInputSanitizationContext,
+): ModelInputSanitizationAggregateEntry {
+  return {
+    ...context,
+    droppedItemCount: 1,
+    inputChars: 0,
+    outputChars: 0,
+    removedInstructionSpanCount: 0,
+    removedMarkupChromeCount: 0,
+    truncatedFieldCount: 0,
+    truncatedCharCount: 0,
+    emptyAfterSanitizeFieldCount: 0,
+  };
+}
 
 export function sanitizeModelInputText(
   input: string,

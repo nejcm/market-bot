@@ -14,7 +14,8 @@ import { canonicalizeUrl } from "./news-utils";
 import type { CollectContext, RawSourceSnapshot } from "./types";
 import {
   aggregateModelInputSanitization,
-  sanitizeModelInputText,
+  droppedModelInputItemEntry,
+  sanitizeModelInputField,
   type ModelInputFieldRole,
   type ModelInputSanitizationAggregate,
   type ModelInputSanitizationAggregateEntry,
@@ -26,10 +27,6 @@ import {
 // Every provider adapter (Exa, Firecrawl) shares this single model-exposure path.
 
 export const EXA_PROVIDER = "exa";
-const MAX_SNIPPET_CHARS = 1200;
-const MAX_SUMMARY_CHARS = 1200;
-const MAX_TITLE_CHARS = 300;
-const MAX_PUBLISHER_CHARS = 200;
 const MAX_WEB_URL_CHARS = 2048;
 const ISO_DATE_OR_TIMESTAMP_RE =
   /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/u;
@@ -219,10 +216,10 @@ function webResultSource(
 ): SanitizedWebResult {
   const canonicalUrl = canonicalizeUrl(result.url);
   const fetchedAt = normalizedPublishedDate(result.publishedDate) ?? fallbackFetchedAt;
-  const title = sanitizeOptionalWebText(result.title, "title", MAX_TITLE_CHARS);
-  const publisher = sanitizeOptionalWebText(result.author, "publisher", MAX_PUBLISHER_CHARS);
-  const summary = sanitizeOptionalWebText(result.summary, "summary", MAX_SUMMARY_CHARS);
-  const snippet = sanitizeOptionalWebText(webSnippetText(result), "snippet", MAX_SNIPPET_CHARS);
+  const title = sanitizeOptionalWebText(result.title, provider, "title");
+  const publisher = sanitizeOptionalWebText(result.author, provider, "publisher");
+  const summary = sanitizeOptionalWebText(result.summary, provider, "summary");
+  const snippet = sanitizeOptionalWebText(webSnippetText(result), provider, "snippet");
   const source: Source = {
     id: webSourceId(subject.subjectId, canonicalUrl ?? result.url),
     title: title.text ?? webSourceFallbackTitle(result.url),
@@ -248,20 +245,12 @@ function webResultSource(
     title.text === undefined && summary.text === undefined && snippet.text === undefined;
   const droppedTelemetry: ModelInputSanitizationAggregateEntry[] = dropped
     ? [
-        {
+        droppedModelInputItemEntry({
           provider,
           ingress: "web-gather",
           profile: "open-web",
           fieldRole: "prose",
-          droppedItemCount: 1,
-          inputChars: 0,
-          outputChars: 0,
-          removedInstructionSpanCount: 0,
-          removedMarkupChromeCount: 0,
-          truncatedFieldCount: 0,
-          truncatedCharCount: 0,
-          emptyAfterSanitizeFieldCount: 0,
-        },
+        }),
       ]
     : [];
   return {
@@ -294,16 +283,9 @@ function webResultSource(
     emptyAfterSanitize,
     dropped,
     modelInputSanitizationEntries: [
-      ...[title, publisher, summary, snippet]
-        .filter((field) => field.inputPresent)
-        .map((field) => ({
-          provider,
-          ingress: "web-gather",
-          profile: "open-web" as const,
-          fieldRole: field.fieldRole,
-          droppedItemCount: 0,
-          ...field.telemetry,
-        })),
+      ...[title, publisher, summary, snippet].flatMap((field) =>
+        field.entry === undefined ? [] : [field.entry],
+      ),
       ...droppedTelemetry,
     ],
   };
@@ -328,18 +310,17 @@ function webSnippetText(result: WebGatherProviderResult): string | undefined {
 
 function sanitizeOptionalWebText(
   value: string | undefined,
+  provider: string,
   fieldRole: ModelInputFieldRole,
-  maxChars: number,
 ): {
   readonly text?: string;
   readonly inputPresent: boolean;
-  readonly fieldRole: ModelInputFieldRole;
+  readonly entry?: ModelInputSanitizationAggregateEntry;
   readonly telemetry: ModelInputSanitizerTelemetry;
 } {
   if (value === undefined) {
     return {
       inputPresent: false,
-      fieldRole,
       telemetry: {
         inputChars: 0,
         outputChars: 0,
@@ -351,17 +332,18 @@ function sanitizeOptionalWebText(
       },
     };
   }
-  const result = sanitizeModelInputText(value, {
+  const result = sanitizeModelInputField(value, {
+    provider,
+    ingress: "web-gather",
     profile: "open-web",
     fieldRole,
-    maxChars,
   });
-  const { text, telemetry } = result;
+  const { text, entry } = result;
   return {
     ...(text !== undefined ? { text } : {}),
     inputPresent: true,
-    fieldRole,
-    telemetry,
+    entry,
+    telemetry: entry,
   };
 }
 

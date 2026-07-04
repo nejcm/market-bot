@@ -2,32 +2,19 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
   import {
-    extendedEvidenceItems,
-    businessFrameworkView,
-    financialLensStatTiles,
-    webSubjectProfileView,
-    forecastRollup,
-    forecastGroups,
     formatClose,
     formatDate,
     formatDateMinute,
-    horizonMarkers,
-    historicalContextAuditView,
     jsonBlock,
-    predictionTargetHealth,
     runLabel,
-    scenarios,
-    scoredForecasts,
-    sources,
     formatShortfallGap,
-    splitDataGaps,
-    stringArray,
-    textItems,
-    tradingViewUrl,
     valuationMetricTiles,
     type FinancialLensStatTone,
-    type SnapshotView,
   } from "../view-model";
+  import {
+    buildRunWorkspaceView,
+    type RunWorkspaceCaseKey,
+  } from "../run-workspace-view";
   import {
     DATA_SEGMENTS,
     TABS,
@@ -40,7 +27,6 @@
   interface Props {
     readonly activeTab: Tab;
     readonly detail: RunDetail | null;
-    readonly snapshot: SnapshotView | null;
     readonly loadingDetail: boolean;
     readonly selectedFile: string;
     readonly fileContent: string;
@@ -55,7 +41,6 @@
   let {
     activeTab,
     detail,
-    snapshot,
     loadingDetail,
     selectedFile,
     fileContent,
@@ -83,80 +68,56 @@
   let cite = $state<CitePopover | null>(null);
   const sectionEls: Partial<Record<string, HTMLElement>> = {};
 
-  const report = $derived(detail?.report);
-  const reportSummary = $derived(
-    typeof report?.summary === "string" ? report.summary : "",
+  const workspace = $derived(
+    detail === null ? undefined : buildRunWorkspaceView(detail),
   );
-  const findingItems = $derived(textItems(report, "keyFindings"));
-  const scenarioItems = $derived(scenarios(report));
-  const forecastItems = $derived(
-    scoredForecasts(report, detail?.score, detail?.missAutopsy),
+  const reportSummary = $derived(workspace?.report.summary ?? "");
+  const reportMarkdown = $derived(workspace?.report.markdown);
+  const findingItems = $derived(workspace?.report.findings ?? []);
+  const scenarioItems = $derived(workspace?.report.scenarios ?? []);
+  const forecastItems = $derived(workspace?.forecasts.items ?? []);
+  const groupedForecastItems = $derived(workspace?.forecasts.groups ?? []);
+  const forecastStats = $derived(
+    workspace?.forecasts.stats ?? {
+      total: 0,
+      resolved: 0,
+      hits: 0,
+      misses: 0,
+      voided: 0,
+      pending: 0,
+    },
   );
-  const groupedForecastItems = $derived(forecastGroups(forecastItems));
-  const forecastStats = $derived(forecastRollup(forecastItems));
-  const forecastHorizons = $derived(horizonMarkers(forecastItems));
-  const sourceItems = $derived(sources(report));
-  const gapItems = $derived(stringArray(report, "dataGaps"));
-  const splitGaps = $derived(splitDataGaps(gapItems));
-  const extendedEvidence = $derived(extendedEvidenceItems(report));
-  const businessFramework = $derived(
-    businessFrameworkView(report, detail?.businessFramework),
-  );
-  const webSubjectProfile = $derived(
-    webSubjectProfileView(report, detail?.webSubjectProfile),
-  );
-  const financialLensStats = $derived(
-    financialLensStatTiles(detail?.financialLenses),
-  );
-  const targetHealth = $derived(
-    predictionTargetHealth(detail?.analytics, report),
-  );
-  const historicalAudit = $derived(historicalContextAuditView(detail?.trace));
-  const showForecastsSection = $derived(
-    forecastItems.length > 0 ||
-      splitGaps.shortfalls.length > 0 ||
-      targetHealth !== undefined,
-  );
-  const snapshotTradingViewUrl = $derived(
-    snapshot === null ? undefined : tradingViewUrl(snapshot.symbol),
-  );
+  const forecastHorizons = $derived(workspace?.forecasts.horizons ?? []);
+  const sourceItems = $derived(workspace?.sources.items ?? []);
+  const splitGaps = $derived(workspace?.gaps ?? { shortfalls: [], otherGaps: [] });
+  const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
+  const businessFramework = $derived(workspace?.evidence.businessFramework);
+  const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
+  const financialLensStats = $derived(workspace?.report.financialLensStats ?? []);
+  const targetHealth = $derived(workspace?.forecasts.targetHealth);
+  const historicalAudit = $derived(workspace?.evidence.historicalContext);
+  const showForecastsSection = $derived(workspace?.forecasts.visible ?? false);
+  const showGapsSection = $derived(workspace?.gaps.visible ?? false);
+  const snapshot = $derived(workspace?.snapshot?.value);
+  const snapshotTradingViewUrl = $derived(workspace?.snapshot?.tradingViewUrl);
 
-  const CASE_STYLES = [
-    { key: "bullCase", title: "Bull case", edge: "#0F9D58", fg: "#0F9D58" },
-    { key: "bearCase", title: "Bear case", edge: "#9B0F06", fg: "#9B0F06" },
-    { key: "risks", title: "Risks", edge: "#c4b389", fg: "#8a6116" },
-    { key: "catalysts", title: "Catalysts", edge: "#9fc2c8", fg: "#166e7d" },
-  ] as const;
+  const CASE_STYLES: Readonly<
+    Record<RunWorkspaceCaseKey, { readonly edge: string; readonly fg: string }>
+  > = {
+    bullCase: { edge: "#0F9D58", fg: "#0F9D58" },
+    bearCase: { edge: "#9B0F06", fg: "#9B0F06" },
+    risks: { edge: "#c4b389", fg: "#8a6116" },
+    catalysts: { edge: "#9fc2c8", fg: "#166e7d" },
+  };
 
   const caseSections = $derived(
-    CASE_STYLES.map((style) => ({
-      ...style,
-      items: textItems(report, style.key),
-    })).filter((section) => section.items.length > 0),
+    (workspace?.report.cases ?? []).map((section) => ({
+      ...section,
+      ...CASE_STYLES[section.key],
+    })),
   );
 
-  const tocEntries = $derived([
-    ["summary", "Summary", reportSummary !== ""],
-    [
-      "financialLensStats",
-      "Financial lens stats",
-      financialLensStats.length > 0,
-    ],
-    ["findings", "Key findings", findingItems.length > 0],
-    ["cases", "Cases & risks", caseSections.length > 0],
-    ["scenarios", "Scenarios", scenarioItems.length > 0],
-    ["snapshot", "Market snapshot", snapshot !== null],
-    ["history", "Historical context", historicalAudit !== undefined],
-    ["webSubjectProfile", "Web Subject Profile", webSubjectProfile !== undefined],
-    ["businessFramework", "Business framework", businessFramework !== undefined],
-    ["extendedEvidence", "Extended evidence", extendedEvidence.length > 0],
-    ["forecasts", "Forecasts", showForecastsSection],
-    [
-      "gaps",
-      "Data gaps",
-      splitGaps.otherGaps.length > 0 || splitGaps.shortfalls.length > 0,
-    ],
-  ] as const);
+  const tocEntries = $derived(workspace?.tableOfContents ?? []);
 
   const TAB_LABELS: Record<Tab, string> = {
     report: "Report",
@@ -503,7 +464,7 @@
             </section>
           {/if}
 
-          {#if snapshot !== null}
+          {#if snapshot !== undefined}
             <section
               {@attach bindSection("snapshot")}
               class="mt-8.5 scroll-mt-5"
@@ -1057,7 +1018,7 @@
             </section>
           {/if}
 
-          {#if splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0}
+          {#if showGapsSection}
             <section {@attach bindSection("gaps")} class="mt-8.5 scroll-mt-5">
               {#if splitGaps.shortfalls.length > 0}
                 <div
@@ -1116,11 +1077,11 @@
             </section>
           {/if}
 
-          {#if detail.markdown !== undefined}
+          {#if reportMarkdown !== undefined}
             <section class="mt-8.5">
               {@render sectionHeading("Raw markdown")}
               <pre
-                class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{detail.markdown}</pre>
+                class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{reportMarkdown}</pre>
             </section>
           {/if}
         </article>
@@ -1130,16 +1091,14 @@
             ON THIS PAGE
           </div>
           <div class="mt-2.5 flex flex-col gap-0.5 border-l border-border">
-            {#each tocEntries as [key, label, available]}
-              {#if available}
-                <button
-                  class="-ml-px border-l-2 border-transparent py-1 pl-3 text-left text-xs text-[#5c6066] transition hover:border-[#9fc2c8] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  type="button"
-                  onclick={() => scrollToSection(key)}
-                >
-                  {label}
-                </button>
-              {/if}
+            {#each tocEntries as entry}
+              <button
+                class="-ml-px border-l-2 border-transparent py-1 pl-3 text-left text-xs text-[#5c6066] transition hover:border-[#9fc2c8] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                type="button"
+                onclick={() => scrollToSection(entry.key)}
+              >
+                {entry.label}
+              </button>
             {/each}
           </div>
           <div

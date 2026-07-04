@@ -48,9 +48,6 @@
     runIdFromPathname,
     runPath,
     runTrend,
-    VERIFIED_SNAPSHOT_PATH,
-    verifiedSnapshotValue,
-    type SnapshotView,
   } from "./view-model";
 
   let view = $state<View>("dashboard");
@@ -58,7 +55,6 @@
   let selectedRunId = $state("");
   let detail = $state<RunDetail | null>(null);
   let compareDetails = $state<readonly RunDetail[]>([]);
-  let snapshot = $state<SnapshotView | null>(null);
   let instrumentDetail = $state<InstrumentTimelineDetail | null>(null);
   let selectedInstrument = $state<{
     readonly assetClass: string;
@@ -118,7 +114,6 @@
   function clearSelectedRun(): void {
     selectedRunId = "";
     detail = null;
-    snapshot = null;
     loadingDetail = false;
     activeTab = "report";
     selectedFile = "";
@@ -165,7 +160,6 @@
       const nextDetail = await fetchRunDetail(runId);
       if (selectedRunId === runId) {
         detail = nextDetail;
-        void loadSnapshot(nextDetail);
       }
     } catch (caughtError: unknown) {
       if (selectedRunId === runId) {
@@ -199,22 +193,6 @@
     compareDetails = await Promise.all(
       runIds.map((runId) => fetchRunDetail(runId)),
     );
-  }
-
-  async function loadSnapshot(runDetail: RunDetail): Promise<void> {
-    const { runId, jobType, availableFiles } = runDetail.summary;
-    snapshot = null;
-    if (
-      (jobType !== "equity" && jobType !== "crypto") ||
-      !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)
-    ) {
-      return;
-    }
-
-    if (selectedRunId === runId) {
-      snapshot =
-        verifiedSnapshotValue(runDetail.verifiedMarketSnapshot) ?? null;
-    }
   }
 
   async function openRun(
@@ -554,7 +532,6 @@
         <RunWorkspace
           {activeTab}
           {detail}
-          {snapshot}
           {loadingDetail}
           {selectedFile}
           {fileContent}

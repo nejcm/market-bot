@@ -620,15 +620,8 @@ function peerUniverseFallbackFor(
 export async function collectSources(
   command: ResearchCommand,
   sourceOptions: SourceOptions,
-  runtimeOrNow: Date | CollectSourcesRuntimeOptions = {},
-  fetchImpl: FetchLike = fetch,
-  retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
-  peerUniverse?: PeerUniverseSeam,
+  runtime: CollectSourcesRuntimeOptions = {},
 ): Promise<CollectedSources> {
-  const runtime =
-    runtimeOrNow instanceof Date
-      ? { now: runtimeOrNow, fetchImpl, retryDelaysMs, peerUniverse }
-      : runtimeOrNow;
   const now = runtime.now ?? new Date();
   const requestFetchImpl = runtime.fetchImpl ?? fetch;
   const requestRetryDelaysMs = runtime.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;

@@ -282,8 +282,7 @@ describe("collectSources", () => {
         newsLimit: 2,
         sourceTimeoutMs: 1000,
       },
-      new Date("2026-07-15T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.valuationComps?.summary).toMatchObject({
@@ -386,10 +385,11 @@ describe("collectSources", () => {
     const result = await collectSources(
       { jobType: "equity", assetClass: "equity", symbol: "ZZZZ", depth: "deep" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-07-15T00:00:00.000Z"),
-      fetchImpl,
-      undefined,
-      { provider, model: "test-model", cachePath },
+      {
+        now: new Date("2026-07-15T00:00:00.000Z"),
+        fetchImpl,
+        peerUniverse: { provider, model: "test-model", cachePath },
+      },
     );
 
     expect(generate).toHaveBeenCalledTimes(1);
@@ -435,10 +435,15 @@ describe("collectSources", () => {
     await collectSources(
       { jobType: "equity", assetClass: "equity", symbol: "ZZZZ", depth: "brief" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-07-15T00:00:00.000Z"),
-      fetchImpl,
-      undefined,
-      { provider, model: "test-model", cachePath: join(tempCacheDir(), "peers.json") },
+      {
+        now: new Date("2026-07-15T00:00:00.000Z"),
+        fetchImpl,
+        peerUniverse: {
+          provider,
+          model: "test-model",
+          cachePath: join(tempCacheDir(), "peers.json"),
+        },
+      },
     );
 
     expect(generate).not.toHaveBeenCalled();
@@ -496,8 +501,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.rawSnapshots).toHaveLength(6);
@@ -618,8 +622,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual([
@@ -698,9 +701,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
 
     expect(result.newsSources).toHaveLength(1);
@@ -792,8 +793,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources).toHaveLength(1);
@@ -865,8 +865,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual([
@@ -952,8 +951,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["aapl earnings preview"]);
@@ -1029,8 +1027,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
@@ -1089,8 +1086,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.rawSnapshots).toHaveLength(6);
@@ -1133,8 +1129,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
@@ -1196,8 +1191,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     const spySnapshots = result.marketSnapshots.filter((snapshot) => snapshot.symbol === "SPY");
@@ -1279,8 +1273,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
@@ -1339,8 +1332,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots[0]?.benchmark).toMatchObject({
@@ -1395,8 +1387,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots[0]?.benchmark).toMatchObject({
@@ -1451,8 +1442,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots[0]?.symbol).toBe("SPY");
@@ -1510,8 +1500,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots[0]?.benchmark).toBeUndefined();
@@ -1575,9 +1564,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
 
     expect(requestedUrls.some((url) => url === "https://fc.yahoo.com")).toBe(true);
@@ -1653,15 +1640,13 @@ describe("collectSources", () => {
     const daily = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       sourceOptions,
-      now,
-      fetchImpl,
+      { now, fetchImpl },
     );
     const firstRunFetches = requestedUrls.length;
     const weekly = await collectSources(
       legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
       sourceOptions,
-      now,
-      fetchImpl,
+      { now, fetchImpl },
     );
 
     expect(firstRunFetches).toBeGreaterThan(0);
@@ -1701,8 +1686,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
@@ -1748,8 +1732,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots).toHaveLength(1);
@@ -1784,9 +1767,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["BTC"]);
@@ -1822,9 +1803,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["SPY"]);
@@ -1866,8 +1845,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(requestedUrls.some((url) => url.includes("massive.com"))).toBe(false);
@@ -1943,8 +1921,7 @@ describe("collectSources", () => {
         sourceTimeoutMs: 1000,
         massiveApiKey: "massive-key",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL", "SPY"]);
@@ -2055,8 +2032,7 @@ describe("collectSources", () => {
         finnhubApiToken: "finnhub-token",
         massiveApiKey: "massive-key",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.provider)).toEqual([
@@ -2096,8 +2072,7 @@ describe("collectSources", () => {
         sourceTimeoutMs: 1000,
         massiveApiKey: "massive-key",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(requestedUrls.some((url) => url.includes("massive.com"))).toBe(false);
@@ -2146,9 +2121,7 @@ describe("collectSources", () => {
         sourceTimeoutMs: 1000,
         massiveApiKey: "massive-key",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
 
     expect(result.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL"]);
@@ -2202,9 +2175,7 @@ describe("collectSources", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
       { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [0, 0],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [0, 0] },
     );
 
     expect(coinGeckoCalls).toBe(3);
@@ -2276,8 +2247,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources).toHaveLength(2);
@@ -2374,8 +2344,7 @@ describe("collectSources", () => {
         marketauxApiToken: "marketaux-token",
         finnhubApiToken: "finnhub-token",
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.provider)).toEqual(["marketaux"]);
@@ -2446,8 +2415,7 @@ describe("collectSources", () => {
         newsSeenPath,
         newsSeenRetentionDays: 30,
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["Fresh BTC story"]);
@@ -2515,8 +2483,7 @@ describe("collectSources", () => {
         newsSeenPath,
         newsSeenRetentionDays: 30,
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["Repeated BTC story"]);
@@ -2577,8 +2544,7 @@ describe("collectSources", () => {
         newsSeenPath,
         newsSeenRetentionDays: 30,
       },
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl },
     );
 
     expect(result.newsSources.map((source) => source.title)).toEqual(["Repeated BTC story"]);
@@ -2622,16 +2588,12 @@ describe("collectSources", () => {
     await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
       sourceOptions,
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
     const second = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
       sourceOptions,
-      new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl,
-      [],
+      { now: new Date("2026-05-19T00:00:00.000Z"), fetchImpl, retryDelaysMs: [] },
     );
 
     expect(marketAuxCalls).toBe(1);

@@ -677,9 +677,7 @@ describe("collectSources — verified snapshot wiring", () => {
     const result = await collectSources(
       { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sourceOptions,
-      new Date("2026-05-20T00:00:00.000Z"),
-      tickerFetch,
-      [],
+      { now: new Date("2026-05-20T00:00:00.000Z"), fetchImpl: tickerFetch, retryDelaysMs: [] },
     );
 
     expect(result.verifiedMarketSnapshot?.symbol).toBe("AAPL");
@@ -695,9 +693,7 @@ describe("collectSources — verified snapshot wiring", () => {
     const result = await collectSources(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       sourceOptions,
-      new Date("2026-05-20T00:00:00.000Z"),
-      tickerFetch,
-      [],
+      { now: new Date("2026-05-20T00:00:00.000Z"), fetchImpl: tickerFetch, retryDelaysMs: [] },
     );
 
     expect(result.verifiedMarketSnapshot).toBeUndefined();
@@ -713,15 +709,17 @@ describe("collectSources — verified snapshot wiring", () => {
     const result = await collectSources(
       { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       sourceOptions,
-      new Date("2026-05-20T00:00:00.000Z"),
-      (input: string | URL | Request) => {
-        const url = String(input);
-        if (url.includes("/v8/finance/chart/")) {
-          return Promise.reject(new Error("chart unavailable"));
-        }
-        return tickerFetch(input);
+      {
+        now: new Date("2026-05-20T00:00:00.000Z"),
+        fetchImpl: (input: string | URL | Request) => {
+          const url = String(input);
+          if (url.includes("/v8/finance/chart/")) {
+            return Promise.reject(new Error("chart unavailable"));
+          }
+          return tickerFetch(input);
+        },
+        retryDelaysMs: [],
       },
-      [],
     );
 
     expect(result.verifiedMarketSnapshot).toBeUndefined();

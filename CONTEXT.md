@@ -52,7 +52,7 @@ The accounting roles a current-run gathered web [[source]] can hold on a run tha
 ## Web Subject Profile
 
 A deterministic, citation-checked sidecar answering a fixed set of questions about a run's Subject from gathered Web Evidence. For `company` subjects it may also cite the issuer's own SEC 10-K/10-Q filing text (10-K-first sourcing) and renders a filing Basis line. It replaces Web Company Profile; it is not investment conviction, a recommendation, or a trade signal.
-Each Subject Kind has an independent reuse TTL; company reuse also requires a current SEC filing basis.
+Each Subject Kind has an independent reuse TTL; company reuse also requires a current SEC filing basis. Reuse skips profile extraction, not the run's fresh Web Gather loop: eligible deep runs may still gather recency, corroboration, or gap evidence within configured budgets.
 The company question set (7 questions) and the SEC-first sourcing protocol are derived from the analytical substance of `research/research-skill.md`, a non-loaded design reference (not a wired playbook).
 _Avoid_: web dossier, company profile.
 

@@ -2595,7 +2595,7 @@ describe("runResearchJob", () => {
     expect(result.collectedSources.webSubjectProfile).toBeUndefined();
   });
 
-  test("reuses fresh Web Subject Profile and skips web gather", async () => {
+  test("reuses fresh Web Subject Profile, gathers again, and skips profile extraction", async () => {
     const dataDir = tempDataDir("market-bot-web-subject-profile-reuse");
     const priorRunDir = join(dataDir, "prior-aapl");
     const priorWebSource: Source = {
@@ -2678,8 +2678,15 @@ describe("runResearchJob", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
-        if (prompt.stage === "web-gather" || prompt.stage === "web-subject-profile") {
+        if (prompt.stage === "web-subject-profile") {
           throw new Error(`unexpected ${String(prompt.stage)}`);
+        }
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({ requests: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
         }
         if (prompt.stage === "playbook-selection") {
           return {
@@ -2707,7 +2714,29 @@ describe("runResearchJob", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-gather");
+    expect(prompts.filter((prompt) => prompt.stage === "web-gather")).toHaveLength(1);
+    expect(
+      (
+        prompts.find((prompt) => prompt.stage === "web-gather")?.evidence as {
+          webGather?: { reusedProfileCoverage?: unknown };
+        }
+      )?.webGather?.reusedProfileCoverage,
+    ).toEqual({
+      present: true,
+      topics: [
+        "capitalAllocation",
+        "companyKpis",
+        "customers",
+        "geography",
+        "howItMakesMoney",
+        "managementTrackRecord",
+        "pricingPower",
+        "purchaseRecurrence",
+        "recessionCyclicality",
+        "riskFactors",
+        "whatItDoes",
+      ],
+    });
     expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
     expect(result.collectedSources.webSubjectProfile).toMatchObject({
       subjectKind: "company",

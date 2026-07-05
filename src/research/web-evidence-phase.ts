@@ -16,7 +16,20 @@ import {
   attachReusableWebSubjectProfile,
   findReusableWebSubjectProfile,
   latestSecFilingDate,
+  type WebSubjectProfileReuse,
 } from "./web-subject-profile-reuse";
+
+function reusedProfileCoverage(
+  reuse: WebSubjectProfileReuse,
+): NonNullable<ResearchContext["webGather"]>["reusedProfileCoverage"] {
+  return {
+    present: true,
+    topics: Object.entries(reuse.profile.questions)
+      .filter(([, answer]) => answer.sourceIds.length > 0)
+      .map(([topic]) => topic)
+      .toSorted(),
+  };
+}
 
 interface WebEvidencePhaseInput {
   readonly command: ResearchCommand;
@@ -178,6 +191,21 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
         collectedSources,
         reuse: reusableWebSubjectProfile,
       });
+      webGatherLoop = await runWebGatherLoop({
+        command: input.command,
+        config: input.config,
+        collectedSources,
+        context: input.context,
+        now: input.now,
+        reusedProfileCoverage: reusedProfileCoverage(reusableWebSubjectProfile),
+        ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
+        ...(input.retryDelaysMs !== undefined ? { retryDelaysMs: input.retryDelaysMs } : {}),
+        generateRound: (currentSources, roundContext, priorStages) =>
+          input.generateStage("web-gather", currentSources, roundContext, priorStages) as Promise<
+            StageOutput & { readonly stage: "web-gather" }
+          >,
+      });
+      ({ collectedSources } = webGatherLoop);
     } else {
       webGatherLoop = await runWebGatherLoop({
         command: input.command,

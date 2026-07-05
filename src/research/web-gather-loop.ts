@@ -67,6 +67,7 @@ interface WebGatherLoopInput {
   readonly now: Date;
   readonly fetchImpl?: FetchLike;
   readonly retryDelaysMs?: readonly number[];
+  readonly reusedProfileCoverage?: WebGatherContext["reusedProfileCoverage"];
   readonly generateRound: (
     collectedSources: CollectedSources,
     context: ResearchContext,
@@ -96,6 +97,7 @@ interface ValidationState {
   readonly subject: WebGatherSubject;
   readonly subjectTerms: readonly string[];
   readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
+  readonly reusedProfileCoverage: WebGatherContext["reusedProfileCoverage"];
   readonly config: AppConfig;
   readonly round: number;
 }
@@ -125,6 +127,33 @@ const SEC_COVERED_TOPIC_PATTERNS: Readonly<
 // Rationale/query language that signals a background search is not merely duplicating filed facts (recency, corroboration, or an explicit gap the filing does not cover).
 const SEC_COVERAGE_ESCAPE_RE =
   /recent|latest|current|update|corroborat|verify|confirm|\bgap\b|not covered|uncovered|missing/iu;
+const REUSED_PROFILE_TOPIC_PATTERNS: Readonly<Record<string, RegExp>> = {
+  whatItDoes:
+    /what (it|the company) does|business model|business overview|products? and services/iu,
+  howItMakesMoney: /how it makes money|revenue model|revenue streams?|monetization/iu,
+  customers: /customers?|customer base|end markets?/iu,
+  geography: /geograph|regional mix|countries|international exposure/iu,
+  purchaseRecurrence:
+    /purchase recurrence|repeat purchases?|recurring purchases?|replacement cycle/iu,
+  pricingPower: /pricing power|price increases?|pricing strategy/iu,
+  recessionCyclicality: /recession|cyclicality|economic cycle|downturn/iu,
+  managementTrackRecord: /management track record|leadership track record|executive team/iu,
+  capitalAllocation: /capital allocation|buybacks?|dividends?|acquisitions?/iu,
+  companyKpis: /company kpis?|key performance indicators?|operating metrics?/iu,
+  riskFactors: /risk factors?|key risks?|business risks?/iu,
+  valueAccrual: /value accrual|token value|value capture/iu,
+  supplyIssuance: /token supply|issuance|emissions?|inflation schedule/iu,
+  usageAdoption: /usage|adoption|active (users|addresses)|network activity/iu,
+  governanceBuilders: /governance|developers?|builders?|contributors?/iu,
+  competitionMoat: /competition|competitors?|moat|competitive advantage/iu,
+  keyRisks: /key risks?|protocol risks?|network risks?/iu,
+  whatItIs: /what it is|theme overview|definition|industry overview/iu,
+  whyNow: /why now|theme drivers?|current tailwinds?/iu,
+  beneficiaries: /beneficiar|companies? exposed|industry winners?/iu,
+  headwinds: /headwinds?|barriers?|constraints?/iu,
+  keyDebates: /key debates?|controvers|open questions?/iu,
+  howItPlaysOut: /how it plays out|adoption path|scenario|outlook/iu,
+};
 const COMMON_COMPANY_SUFFIXES = new Set([
   "inc",
   "incorporated",
@@ -208,6 +237,28 @@ function secCoverageRejectionReason(
   return "web_search duplicates SEC filing coverage (sec-covered-durable-profile); add a recency, corroboration, or explicit gap rationale for background queries";
 }
 
+function reusedProfileCoverageRejectionReason(
+  parsedArgs: { readonly query: string; readonly searchType: WebSearchType },
+  rationale: string,
+  coverage: WebGatherContext["reusedProfileCoverage"],
+): string | undefined {
+  if (
+    parsedArgs.searchType !== "background" ||
+    coverage === undefined ||
+    !coverage.present ||
+    coverage.topics.length === 0 ||
+    SEC_COVERAGE_ESCAPE_RE.test(rationale)
+  ) {
+    return undefined;
+  }
+  const targetsCoveredTopic = coverage.topics.some((topic) =>
+    REUSED_PROFILE_TOPIC_PATTERNS[topic]?.test(parsedArgs.query),
+  );
+  return targetsCoveredTopic
+    ? "web_search duplicates reused profile coverage (profile-covered-durable-topic); add a recency, corroboration, or explicit gap rationale for background queries"
+    : undefined;
+}
+
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
   if (!isWebGatherLoopEnabled(input.command, input.config)) {
     const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config);
@@ -271,6 +322,9 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           surfacedUrls: [...surfacedUrls].toSorted(),
           subjectTerms,
           ...(secFilingCoverage !== undefined ? { secFilingCoverage } : {}),
+          ...(input.reusedProfileCoverage !== undefined
+            ? { reusedProfileCoverage: input.reusedProfileCoverage }
+            : {}),
         }),
         roundState.priorStages,
       ),
@@ -283,6 +337,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           subject,
           subjectTerms,
           secFilingCoverage,
+          reusedProfileCoverage: input.reusedProfileCoverage,
           config: input.config,
           round: roundState.round,
         },
@@ -478,6 +533,14 @@ function validateRequest(
     );
     if (secCoverageReason !== undefined) {
       return reject(state.round, tool, args, rationale, secCoverageReason);
+    }
+    const reusedProfileCoverageReason = reusedProfileCoverageRejectionReason(
+      parsedArgs,
+      rationale,
+      state.reusedProfileCoverage,
+    );
+    if (reusedProfileCoverageReason !== undefined) {
+      return reject(state.round, tool, args, rationale, reusedProfileCoverageReason);
     }
     return validateAcceptedRequest(
       { tool: typedTool, args: parsedArgs, rationale },

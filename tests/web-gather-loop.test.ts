@@ -749,6 +749,68 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.rejectedRequests).toEqual([]);
   });
 
+  test("rejects a background search that duplicates reused profile coverage", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple revenue model", searchType: "background" },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        reason: expect.stringContaining("profile-covered-durable-topic"),
+      }),
+    ]);
+  });
+
+  test("allows reused profile coverage searches with an explicit corroboration rationale", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple revenue model", searchType: "background" },
+              rationale: "corroborate the reused profile with current independent evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
   test("keeps web-gather skipped when only Firecrawl is configured (fallback-only policy)", async () => {
     const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
     const result = await runWebGatherLoop({

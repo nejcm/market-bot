@@ -75,4 +75,9 @@ export interface WebGatherContext {
   readonly subjectTerms: readonly string[];
   // Durable business-profile sections already sourced from a company's SEC 10-K/10-Q packet (see secFilingSectionPacket), so the model spends Exa budget on recency, corroboration, or genuine gaps instead of re-gathering filed facts. Absent for crypto, themes, and companies without a gathered filing packet.
   readonly secFilingCoverage?: { readonly present: boolean; readonly sections: readonly string[] };
+  // Durable topics already answered by a reused Web Subject Profile. Reuse avoids extraction work, while this coverage steers fresh gathering toward recency, corroboration, and open gaps.
+  readonly reusedProfileCoverage?: {
+    readonly present: boolean;
+    readonly topics: readonly string[];
+  };
 }

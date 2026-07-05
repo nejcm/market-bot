@@ -302,6 +302,58 @@ describe("validatePredictions", () => {
     expect(result.issues[0]?.message).toContain("class broad-us-index");
   });
 
+  test("rejects equivalent broad-index relative benchmarks in reverse acceptance order", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-qqq",
+          kind: "relative",
+          subject: "AAPL:QQQ",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(QQQ, +5) / close(QQQ, 0)",
+        },
+        {
+          ...validPrediction,
+          id: "pred-spy",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid.map((prediction) => prediction.id)).toEqual(["pred-qqq"]);
+    expect(result.issues[0]?.message).toContain("against SPY");
+    expect(result.issues[0]?.message).toContain("accepted benchmark QQQ");
+  });
+
+  test("rejects other equivalent broad-index class members", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-dia",
+          kind: "relative",
+          subject: "AAPL:DIA",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(DIA, +5) / close(DIA, 0)",
+        },
+        {
+          ...validPrediction,
+          id: "pred-ivv",
+          kind: "relative",
+          subject: "AAPL:IVV",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(IVV, +5) / close(IVV, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid.map((prediction) => prediction.id)).toEqual(["pred-dia"]);
+    expect(result.issues[0]?.message).toContain("against IVV");
+    expect(result.issues[0]?.message).toContain("accepted benchmark DIA");
+  });
+
   test("keeps broad-index relative forecasts at different exact horizons", () => {
     const result = validatePredictions(
       [

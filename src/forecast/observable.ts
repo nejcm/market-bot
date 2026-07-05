@@ -1198,6 +1198,8 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
         issues.push(
           issue(
             "redundant-prediction",
+            // Relative benchmark-class collisions always use the detailed message above;
+            // Other forecast kinds use this generic same-kind/subject/horizon message.
             relativeMessage ??
               `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
             prediction.id,

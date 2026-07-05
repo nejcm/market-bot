@@ -12,32 +12,6 @@
 
 market-bot is a Bun + TypeScript CLI that turns public market data into sourced research artifacts with measurable predictions, scoring, and calibration. The project is under active development; CLI commands, configuration, and output formats may change.
 
-Core capabilities:
-
-- Market overview for equity or crypto regime, movers, themes, risks, source gaps, and optional Market Spotlights.
-- Instrument briefs for single-instrument equity or crypto research.
-- Thematic equity research via `research <subject>` with checked-in subject/proxy identity.
-- Alpha search for equity social-momentum discovery that emits Research Leads only.
-- Prediction scoring, calibration, historical context, thesis deltas, and artifact search.
-- Research Console, a local Svelte UI for browsing runs, calibration, provider health, and allowlisted job queueing.
-
-Common commands:
-
-```sh
-bun install
-bun run src/cli.ts market-overview --asset equity
-bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
-bun run src/cli.ts equity AAPL --deep
-bun run src/cli.ts crypto BTC
-bun run src/cli.ts research AI biotech --deep
-bun run src/cli.ts alpha-search --asset equity
-bun run src/cli.ts score
-bun run src/cli.ts calibration
-bun run src/cli.ts history search --query catalyst
-bun run app      # build and serve Research Console at 127.0.0.1:4173
-bun run app:dev  # start API + Vite dev server
-```
-
 Data output layout:
 
 ```text

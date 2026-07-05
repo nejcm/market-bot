@@ -2777,6 +2777,28 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     );
   });
 
+  test("market-overview coverage excludes instrument-only earnings kinds", () => {
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "deep",
+    });
+    const instruction = finalSynthesisInstruction(command, {
+      earningsSetup: {
+        event: {
+          symbol: "AAPL",
+          date: "2026-07-30",
+          timing: "amc",
+          sourceIds: ["earnings-aapl"],
+          fetchedAt: "2026-06-01T00:00:00.000Z",
+        },
+        gaps: [],
+      },
+    });
+
+    expect(instruction).not.toContain("earnings-direction");
+    expect(instruction).not.toContain("earnings-move");
+  });
+
   test("includes earnings shapes when earningsSetup is present", () => {
     const command: ResearchCommand = {
       jobType: "equity",

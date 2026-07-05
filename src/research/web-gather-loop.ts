@@ -129,7 +129,7 @@ const SEC_COVERAGE_ESCAPE_RE =
   /recent|latest|current|update|corroborat|verify|confirm|\bgap\b|not covered|uncovered|missing/iu;
 const REUSED_PROFILE_TOPIC_PATTERNS: Readonly<Record<string, RegExp>> = {
   whatItDoes:
-    /what (it|the company) does|business model|business overview|products? and services/iu,
+    /what (it|the company) does|business model|business overview|protocol overview|network overview|products? and services/iu,
   howItMakesMoney: /how it makes money|revenue model|revenue streams?|monetization/iu,
   customers: /customers?|customer base|end markets?/iu,
   geography: /geograph|regional mix|countries|international exposure/iu,

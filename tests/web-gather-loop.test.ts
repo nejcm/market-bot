@@ -781,6 +781,42 @@ describe("runWebGatherLoop", () => {
     ]);
   });
 
+  test("recognizes crypto protocol overviews as reused what-it-does coverage", async () => {
+    const result = await runWebGatherLoop({
+      command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ assetClass: "crypto", symbol: "BTC", name: "Bitcoin" })],
+      }),
+      context: {
+        ...context,
+        depthProfile: { ...context.depthProfile, predictionSubjects: ["BTC"] },
+        runParams: { ...context.runParams, predictionSubjects: ["BTC"] },
+      },
+      reusedProfileCoverage: { present: true, topics: ["whatItDoes"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "BTC Bitcoin protocol overview", searchType: "background" },
+              rationale: "durable crypto profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        reason: expect.stringContaining("profile-covered-durable-topic"),
+      }),
+    ]);
+  });
+
   test("allows reused profile coverage searches with an explicit corroboration rationale", async () => {
     const result = await runWebGatherLoop({
       command,

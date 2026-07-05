@@ -7,6 +7,7 @@ import {
   buildCalibrationBlock,
   loadCalibrationContext,
   parseCalibrationContext,
+  refreshCalibrationContext,
 } from "../src/research/calibration-context";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { CalibrationSummary } from "../src/scoring/types";
@@ -371,5 +372,28 @@ describe("loadCalibrationContext", () => {
     // Untouched valid fields still load.
     expect(context?.resolvedCount).toBe(2);
     expect(context?.byKind).toEqual({ direction: { brierScore: 0.25, count: 2 } });
+  });
+});
+
+describe("refreshCalibrationContext", () => {
+  test("rebuilds stale calibration from current run artifacts at the supplied clock", async () => {
+    const dataDir = await writeSummary(validSummary());
+    mkdirSync(dataDir, { recursive: true });
+    const now = new Date("2026-07-05T01:02:03.000Z");
+
+    const context = await refreshCalibrationContext(dataDir, now);
+
+    expect(context?.generatedAt).toBe(now.toISOString());
+    expect(context?.resolvedCount).toBe(0);
+  });
+
+  test("returns undefined when refresh fails without loading the stale summary", async () => {
+    const dataDir = await writeSummary(validSummary());
+
+    const context = await refreshCalibrationContext(dataDir, new Date(), async () => {
+      throw new Error("refresh failed");
+    });
+
+    expect(context).toBeUndefined();
   });
 });

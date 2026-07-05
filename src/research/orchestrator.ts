@@ -51,7 +51,7 @@ import {
   type PlaybookSelectionAudit,
   type PlaybookStage,
 } from "./playbooks";
-import { loadCalibrationContext } from "./calibration-context";
+import { refreshCalibrationContext } from "./calibration-context";
 import {
   buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
@@ -366,7 +366,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const generatedAt = now.toISOString();
   const completedAt = (): string => (input.endClock?.() ?? new Date()).toISOString();
   const runId = createRunId(now);
-  const calibrationContext = await loadCalibrationContext(input.config.dataDir);
+  const calibrationContext = await refreshCalibrationContext(input.config.dataDir, now);
   const runParams = resolveRunParams(input.command, input.config, input.runConfig);
   let { collectedSources } = input;
   const resolvedSubject = collectedSources.resolvedSubject ?? resolveResearchSubject(input.command);

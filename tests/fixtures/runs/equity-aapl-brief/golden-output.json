@@ -1052,6 +1052,36 @@
       "gapCount": 7,
       "coverageRatio": 0.4444444444444444
     },
+    "calibrationAtGeneration": {
+      "generatedAt": "<generatedAt>",
+      "resolvedCount": 0,
+      "guidanceAssessments": [
+        {
+          "dimension": "assetClass",
+          "key": "equity",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        },
+        {
+          "dimension": "jobType",
+          "key": "equity",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        },
+        {
+          "dimension": "predictionHorizon",
+          "key": "1-5d",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        },
+        {
+          "dimension": "marketRegime",
+          "key": "risk-on",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        }
+      ]
+    },
     "verifiedMarketSnapshot": {
       "symbol": "AAPL",
       "analysisDate": "2026-06-15",

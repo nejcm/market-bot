@@ -347,6 +347,43 @@ describe("runResearchJob", () => {
     expect(result.trace.startedAt).toBe("2026-05-19T00:00:00.000Z");
     expect(result.trace.completedAt).toBe("2026-05-19T00:00:04.250Z");
     expect(Date.parse(result.trace.completedAt) - Date.parse(result.trace.startedAt)).toBe(4250);
+    expect(result.analytics.calibrationAtGeneration).toMatchObject({
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      resolvedCount: 0,
+    });
+  });
+
+  test("continues without calibration context when the run-start refresh fails", async () => {
+    const root = tempDataDir("market-bot-calibration-refresh-failure");
+    const dataDir = join(root, "runs");
+    await mkdir(root, { recursive: true });
+    await writeFile(join(root, "calibration"), "blocks calibration directory creation", "utf8");
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        return {
+          content: emptySelectionStageReport(prompt.stage),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      config: { ...config, dataDir },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.analytics.calibrationAtGeneration).toBeUndefined();
   });
 
   test("runs deep market updates through the coverage panel before critique and synthesis", async () => {

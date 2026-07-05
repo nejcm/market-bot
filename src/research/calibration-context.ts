@@ -4,6 +4,7 @@ import type { ResearchCommand } from "../cli/args";
 import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
 import { isRecord, readNumber, readString } from "../sources/guards";
 import { brierSkillScore } from "../scoring/calibration";
+import { buildAndWriteCalibration } from "../scoring/index";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
 import { applicableCalibrationSlices } from "./calibration-guidance";
 import type { CalibrationContext, ResearchContext } from "./research-context-types";
@@ -14,6 +15,18 @@ export async function loadCalibrationContext(
   try {
     const raw = await readFile(join(dataDir, "../calibration/summary.json"), "utf8");
     return parseCalibrationContext(JSON.parse(raw));
+  } catch {
+    return undefined;
+  }
+}
+
+export async function refreshCalibrationContext(
+  dataDir: string,
+  now: Date,
+  buildCalibration: typeof buildAndWriteCalibration = buildAndWriteCalibration,
+): Promise<CalibrationContext | undefined> {
+  try {
+    return parseCalibrationContext(await buildCalibration(dataDir, now));
   } catch {
     return undefined;
   }

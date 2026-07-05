@@ -266,6 +266,67 @@ describe("runWebGatherLoop", () => {
     });
   });
 
+  test("dedupes gather sources already present in extendedSources; distinct IDs still append", async () => {
+    const runOptions = {
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model revenue segments", searchType: "background" },
+              rationale: "business profile evidence",
+            },
+          ],
+        }),
+    };
+
+    // Discover the deterministic source the gather emits for the exaFetch URL.
+    const discovery = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+    });
+    const [gathered] = discovery.collectedSources.extendedSources;
+    expect(gathered).toBeDefined();
+
+    // Same ID already present (e.g. carried in via a reused profile) collapses to one entry.
+    const deduped = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [gathered!],
+      }),
+    });
+    expect(
+      deduped.collectedSources.extendedSources.filter((source) => source.id === gathered!.id),
+    ).toHaveLength(1);
+
+    // A distinct pre-existing source is preserved alongside the fresh gather. It is deliberately not a SEC company-profile source (provider/id would gate the web search), so gather still runs and the fresh source is appended next to it.
+    const distinct = secFilingSource({
+      id: "extended-newswire-aapl-1",
+      provider: "newswire",
+      snippet: "Prior gather evidence for Apple.",
+    });
+    const appended = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [distinct],
+      }),
+    });
+    const appendedIds = appended.collectedSources.extendedSources.map((source) => source.id);
+    expect(appendedIds).toHaveLength(2);
+    expect(appendedIds).toContain(distinct.id);
+    expect(appendedIds).toContain(gathered!.id);
+  });
+
   test("rejects off-company web search queries", async () => {
     const result = await runWebGatherLoop({
       command,

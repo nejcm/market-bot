@@ -503,6 +503,77 @@ describe("collectValuationComps", () => {
     expect(result.artifact.excludedPeers[0]?.reason).toBe("target SIC classification unavailable");
   });
 
+  test("subject-registry peers retain full SIC and size gates", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          quoteOverrides: { AVGO: { marketCap: 199 } },
+          sicOverrides: { AMD: { sic: "7372" } },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+      {
+        peerUniverseMappings: {},
+        subjectRegistry: [
+          {
+            subjectKey: "test-semiconductors",
+            displayName: "Test Semiconductors",
+            aliases: ["test semiconductors"],
+            assetClass: "equity",
+            representativeInstruments: [
+              {
+                symbol: "NVDA",
+                name: "NVIDIA",
+                instrumentType: "listed-stock",
+                sourceIds: ["nasdaq-semiconductors"],
+              },
+              {
+                symbol: "AMD",
+                name: "Advanced Micro Devices",
+                instrumentType: "listed-stock",
+                sourceIds: ["nasdaq-semiconductors"],
+              },
+              {
+                symbol: "AVGO",
+                name: "Broadcom",
+                instrumentType: "listed-stock",
+                sourceIds: ["nasdaq-semiconductors"],
+              },
+            ],
+            sources: [
+              {
+                sourceId: "nasdaq-semiconductors",
+                title: "Nasdaq semiconductor listings",
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(result.artifact.summary.gateProfile).toBe("full");
+    expect(result.artifact.summary.usablePeerCount).toBe(0);
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "SIC group mismatch (peer 73 vs target 36)",
+      }),
+      expect.objectContaining({
+        symbol: "AVGO",
+        reason: "market cap outside 0.2x-5x of target",
+      }),
+    ]);
+  });
+
   test("market cap gate is inclusive at 0.2x and 5x and excludes outside it", async () => {
     const boundary = await collectValuationComps(
       collectContext(

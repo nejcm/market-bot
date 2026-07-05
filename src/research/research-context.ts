@@ -3,7 +3,7 @@ import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
-import { marketUpdateHorizonOf, type Prediction } from "../domain/types";
+import { marketUpdateHorizonOf, type Prediction, type PredictionKind } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
 import {
@@ -728,6 +728,60 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
   return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip. Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off 0.5.${floor}`;
 }
 
+export interface PredictionCoverage {
+  readonly coveredKinds: readonly PredictionKind[];
+  readonly uncoveredSupportedKinds: readonly PredictionKind[];
+  readonly coveredExactHorizons: readonly number[];
+}
+
+export function buildPredictionCoverage(
+  predictions: readonly Prediction[],
+  supportedKinds: readonly PredictionKind[],
+): PredictionCoverage {
+  const coveredKindSet = new Set(predictions.map((prediction) => prediction.kind));
+  return {
+    coveredKinds: supportedKinds.filter((kind) => coveredKindSet.has(kind)),
+    uncoveredSupportedKinds: supportedKinds.filter((kind) => !coveredKindSet.has(kind)),
+    coveredExactHorizons: [
+      ...new Set(predictions.map((prediction) => prediction.horizonTradingDays)),
+    ].toSorted((left, right) => left - right),
+  };
+}
+
+function supportedPredictionKinds(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): readonly PredictionKind[] {
+  return [
+    "direction",
+    "relative",
+    ...(command.assetClass === "equity" ? (["volatility", "iv"] as const) : []),
+    "range",
+    "macro",
+    ...(command.depth === "deep" ? (["conditional"] as const) : []),
+    ...(collectedSources.earningsSetup !== undefined
+      ? (["earnings-direction", "earnings-move"] as const)
+      : []),
+  ];
+}
+
+function predictionCoverageGuidance(
+  predictions: readonly Prediction[],
+  supportedKinds: readonly PredictionKind[],
+): string {
+  const coverage = buildPredictionCoverage(predictions, supportedKinds);
+  const coveredKinds = coverage.coveredKinds.length > 0 ? coverage.coveredKinds.join(", ") : "none";
+  const uncoveredKinds =
+    coverage.uncoveredSupportedKinds.length > 0
+      ? coverage.uncoveredSupportedKinds.join(", ")
+      : "none";
+  const coveredHorizons =
+    coverage.coveredExactHorizons.length > 0
+      ? coverage.coveredExactHorizons.map((horizon) => `${String(horizon)}d`).join(", ")
+      : "none";
+  return ` Prediction coverage: covered kinds: ${coveredKinds}; supported kinds not yet represented: ${uncoveredKinds}; covered exact horizons: ${coveredHorizons}. Seek an uncovered supported kind where evidence supports it. Use a different exact horizon only when evidence supports that horizon.`;
+}
+
 function buildPredictionRepairInstruction(context: ResearchContext): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
   const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
@@ -741,12 +795,17 @@ export interface PredictionCompletionPrompt {
 
 function buildPredictionCompletionInstruction(
   command: ResearchCommand,
+  collectedSources: CollectedSources,
   context: ResearchContext,
   completion: PredictionCompletionPrompt,
 ): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
   const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, use an allowed subject and sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${predictionDslInstruction(command)}`;
+  const coverage = predictionCoverageGuidance(
+    completion.existingPredictions,
+    supportedPredictionKinds(command, collectedSources),
+  );
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, use an allowed subject and sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command)}`;
 }
 
 function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> | undefined {
@@ -798,7 +857,7 @@ export function buildStagePrompt(
       : "";
   const predictionInstruction =
     stage === "final-synthesis" && predictionCompletion === undefined
-      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${buildForecastDiversityGuidance(command, collectedSources)}`
+      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources))}${buildForecastDiversityGuidance(command, collectedSources)}`
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0
@@ -853,7 +912,12 @@ export function buildStagePrompt(
       instruction:
         predictionCompletion === undefined
           ? loaded.instruction + predictionInstruction
-          : buildPredictionCompletionInstruction(command, context, predictionCompletion),
+          : buildPredictionCompletionInstruction(
+              command,
+              collectedSources,
+              context,
+              predictionCompletion,
+            ),
       stage,
       stageGoal:
         predictionCompletion === undefined

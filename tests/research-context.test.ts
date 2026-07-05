@@ -733,6 +733,75 @@ describe("buildStagePrompt", () => {
     expect(parsed.predictionCompletion).toBeDefined();
   });
 
+  test("steers completion toward uncovered kinds and reports covered exact horizons", () => {
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "deep",
+    });
+    const existingPrediction = {
+      id: "pred-1",
+      claim: "SPY closes higher than today over 5 trading days",
+      kind: "direction" as const,
+      subject: "SPY",
+      measurableAs: "close(SPY, +5) > close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.6,
+      sourceIds: ["market-spy"],
+    };
+
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        rawSnapshots: [],
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        sourceGaps: [],
+      }),
+      config,
+      {
+        depthProfile: buildDepthProfile(command, config),
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 5,
+          minimumScenarios: 3,
+          targetPredictions: 3,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: ["SPY"],
+          focus: ["market regime", "movers"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      ["market-spy"],
+      { requestedCount: 2, existingPredictions: [existingPrediction] },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction: string };
+
+    expect(parsed.instruction).toContain("covered kinds: direction");
+    expect(parsed.instruction).toContain(
+      "supported kinds not yet represented: relative, volatility, iv, range, macro, conditional",
+    );
+    expect(parsed.instruction).toContain("covered exact horizons: 5d");
+    expect(parsed.instruction).toContain(
+      "Use a different exact horizon only when evidence supports that horizon",
+    );
+  });
+
   test("injects statistically actionable current-regime calibration", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",

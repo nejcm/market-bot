@@ -1002,7 +1002,27 @@ function normalizePredictionSubject(
 // Collapsing them frees prediction slots for genuinely distinct claims.
 export const MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS = 2;
 
+const BROAD_US_INDEX_BENCHMARKS = new Set(["SPY", "QQQ", "DIA", "IVV", "VOO"]);
+const BROAD_US_INDEX_CLASS = "broad-us-index";
+
+function relativeBenchmarkKey(forecast: ObservableForecast): string | undefined {
+  if (forecast.expression.kind !== "relative") {
+    return undefined;
+  }
+  const benchmark = forecast.expression.subjectB;
+  return BROAD_US_INDEX_BENCHMARKS.has(benchmark) ? BROAD_US_INDEX_CLASS : benchmark;
+}
+
 function redundancyKey(forecast: ObservableForecast): string {
+  const benchmark = relativeBenchmarkKey(forecast);
+  if (benchmark !== undefined && forecast.expression.kind === "relative") {
+    return [
+      forecast.prediction.kind,
+      forecast.expression.subjectA,
+      String(forecast.horizonTradingDays),
+      benchmark,
+    ].join("|");
+  }
   return [forecast.prediction.kind, forecast.subject, String(forecast.horizonTradingDays)].join(
     "|",
   );
@@ -1157,10 +1177,29 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
       // Different antecedents.
       const key = redundancyKey(forecast);
       if (kindSubjectHorizonSeen.has(key)) {
+        const relativeExpression =
+          forecast.expression.kind === "relative" ? forecast.expression : undefined;
+        const acceptedRelative =
+          prediction.kind === "relative" && relativeExpression !== undefined
+            ? accepted.find(
+                (candidate) =>
+                  candidate.expression.kind === "relative" &&
+                  candidate.expression.subjectA === relativeExpression.subjectA &&
+                  candidate.horizonTradingDays === horizonTradingDays &&
+                  relativeBenchmarkKey(candidate) === relativeBenchmarkKey(forecast),
+              )
+            : undefined;
+        const relativeMessage =
+          acceptedRelative?.expression.kind === "relative" &&
+          relativeExpression !== undefined &&
+          relativeBenchmarkKey(forecast) === BROAD_US_INDEX_CLASS
+            ? `Prediction ${prediction.id}: redundant relative forecast for ${relativeExpression.subjectA} against ${relativeExpression.subjectB} at ${String(horizonTradingDays)} trading days; accepted benchmark ${acceptedRelative.expression.subjectB} is equivalent in class ${BROAD_US_INDEX_CLASS}`
+            : undefined;
         issues.push(
           issue(
             "redundant-prediction",
-            `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
+            relativeMessage ??
+              `Prediction ${prediction.id}: redundant ${prediction.kind} forecast for ${subject} at ${String(horizonTradingDays)} trading days`,
             prediction.id,
           ),
         );

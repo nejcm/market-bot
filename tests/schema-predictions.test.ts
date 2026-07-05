@@ -275,6 +275,106 @@ describe("validatePredictions", () => {
     expect(result.valid[0]?.claim).toBe("QQQ outperforms SPY over 5 trading days");
   });
 
+  test("rejects equivalent broad-index relative benchmarks at the same exact horizon", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-spy",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+        {
+          ...validPrediction,
+          id: "pred-qqq",
+          kind: "relative",
+          subject: "AAPL:QQQ",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(QQQ, +5) / close(QQQ, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid.map((prediction) => prediction.id)).toEqual(["pred-spy"]);
+    expect(result.issues[0]?.message).toContain("against QQQ");
+    expect(result.issues[0]?.message).toContain("accepted benchmark SPY");
+    expect(result.issues[0]?.message).toContain("class broad-us-index");
+  });
+
+  test("keeps broad-index relative forecasts at different exact horizons", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-spy",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+        {
+          ...validPrediction,
+          id: "pred-qqq",
+          kind: "relative",
+          subject: "AAPL:QQQ",
+          measurableAs: "close(AAPL, +10) / close(AAPL, 0) > close(QQQ, +10) / close(QQQ, 0)",
+          horizonTradingDays: 10,
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(2);
+  });
+
+  test("keeps broad-index and sector relative benchmarks at the same horizon", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-spy",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+        {
+          ...validPrediction,
+          id: "pred-xlk",
+          kind: "relative",
+          subject: "AAPL:XLK",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(XLK, +5) / close(XLK, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(2);
+  });
+
+  test("keeps broad-index relative forecasts for different primary subjects", () => {
+    const result = validatePredictions(
+      [
+        {
+          ...validPrediction,
+          id: "pred-aapl",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+        },
+        {
+          ...validPrediction,
+          id: "pred-msft",
+          kind: "relative",
+          subject: "MSFT:QQQ",
+          measurableAs: "close(MSFT, +5) / close(MSFT, 0) > close(QQQ, +5) / close(QQQ, 0)",
+        },
+      ],
+      knownIds,
+    );
+
+    expect(result.valid).toHaveLength(2);
+  });
+
   test("normalizes bare relative subject from measurableAs", () => {
     const result = validatePredictions(
       [

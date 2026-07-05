@@ -28,6 +28,7 @@ export async function refreshCalibrationContext(
   try {
     return parseCalibrationContext(await buildCalibration(dataDir, now));
   } catch {
+    // A failed refresh must omit calibration rather than expose the stale on-disk summary.
     return undefined;
   }
 }

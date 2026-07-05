@@ -342,7 +342,10 @@ describe("collectValuationComps", () => {
     );
   });
 
-  test("excludes peers whose two-digit SIC group differs from the target", async () => {
+  test("ticker-mapping peers skip the SIC-group gate but keep size gates", async () => {
+    // NVDA resolves via the checked-in ticker-mapping tier: a human-audited peer
+    // Set whose SIC-group gate is skipped, so a mismatched registrant SIC no
+    // Longer excludes an otherwise-comparable peer. Size gates still apply.
     const result = await collectValuationComps(
       collectContext(requestExecutor({ sicOverrides: { AMD: { sic: "7372" } } })),
       command,
@@ -357,16 +360,13 @@ describe("collectValuationComps", () => {
       valuationEvidence(),
     );
 
-    expect(result.artifact.summary.usablePeerCount).toBe(3);
-    expect(result.artifact.excludedPeers).toEqual([
-      expect.objectContaining({
-        symbol: "AMD",
-        reason: "SIC group mismatch (peer 73 vs target 36)",
-      }),
-    ]);
+    expect(result.artifact.summary.usablePeerCount).toBe(4);
+    expect(result.artifact.summary.gateProfile).toBe("curated-no-sic");
+    expect(result.artifact.summary.valuationSupportability).toBe("supported");
+    expect(result.artifact.excludedPeers).toEqual([]);
   });
 
-  test("excludes peers missing SIC classification with a deterministic reason", async () => {
+  test("ticker-mapping peers stay usable when a registrant SIC is missing", async () => {
     const result = await collectValuationComps(
       collectContext(requestExecutor({ sicOverrides: { AMD: { sic: undefined } } })),
       command,
@@ -381,12 +381,11 @@ describe("collectValuationComps", () => {
       valuationEvidence(),
     );
 
-    expect(result.artifact.excludedPeers).toEqual([
-      expect.objectContaining({ symbol: "AMD", reason: "missing SIC classification" }),
-    ]);
+    expect(result.artifact.summary.usablePeerCount).toBe(4);
+    expect(result.artifact.excludedPeers).toEqual([]);
   });
 
-  test("excludes every peer when the target SIC is unavailable", async () => {
+  test("ticker-mapping ignores an unavailable target SIC", async () => {
     const evidence = valuationEvidence();
     const noSicItems = evidence.items.map((item) =>
       item.category === "valuation"
@@ -414,6 +413,91 @@ describe("collectValuationComps", () => {
       { ...evidence, items: noSicItems },
     );
 
+    expect(result.artifact.summary.usablePeerCount).toBe(4);
+    expect(result.artifact.summary.valuationSupportability).toBe("supported");
+    expect(result.artifact.excludedPeers).toEqual([]);
+  });
+
+  test("model-proposed peers still fail the SIC-group gate on target-SIC absence", async () => {
+    // Full-gate provenance (model-proposed-validated) must keep enforcing the
+    // SIC checks the curated tier skips: an unavailable target SIC excludes all.
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+      items: valuationEvidence().items.map((item) => ({
+        ...item,
+        sourceIds: item.sourceIds.map((id) => id.replace("nvda", "zzzz")),
+        ...(item.category === "valuation"
+          ? {
+              metrics: Object.fromEntries(
+                Object.entries(item.metrics ?? {}).filter(
+                  ([key]) => key !== "sic" && key !== "sicDescription",
+                ),
+              ),
+            }
+          : {}),
+      })),
+    };
+    const fallbackOptions: ValuationCompsOptions = {
+      peerUniverseFallback: {
+        cacheRead: async () => ({
+          targetSymbol: "ZZZZ",
+          provenance: "model-proposed-validated",
+          peers: [
+            {
+              symbol: "AMD",
+              name: "Advanced Micro Devices",
+              role: "core",
+              rationale: "peer",
+              sourceIds: ["sec-company-tickers"],
+            },
+            {
+              symbol: "AVGO",
+              name: "Broadcom",
+              role: "core",
+              rationale: "peer",
+              sourceIds: ["sec-company-tickers"],
+            },
+            {
+              symbol: "ANET",
+              name: "Arista Networks",
+              role: "secondary",
+              rationale: "peer",
+              sourceIds: ["sec-company-tickers"],
+            },
+          ],
+          sources: [
+            {
+              sourceId: "sec-company-tickers",
+              title: "SEC company_tickers.json directory",
+              url: "https://www.sec.gov/files/company_tickers.json",
+            },
+          ],
+        }),
+        cacheWrite: async () => {},
+        propose: async () => {
+          throw new Error("cache hit must not propose");
+        },
+      },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      fallbackOptions,
+    );
+
+    expect(result.artifact.summary.gateProfile).toBe("full");
     expect(result.artifact.summary.usablePeerCount).toBe(0);
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
     expect(result.artifact.excludedPeers[0]?.reason).toBe("target SIC classification unavailable");
@@ -706,8 +790,19 @@ describe("collectValuationComps", () => {
         sourceIds: item.sourceIds.map((id) => id.replace("nvda", "aapl")),
       })),
     };
+    // Mirrors the flagship regression: the mega-cap platform peers carry a
+    // Services-group registrant SIC (73) that differs from AAPL's electronics
+    // SIC (35), while DELL sits below the cap band. Under the curated tier the
+    // SIC-mismatched peers stay usable and only DELL is excluded on cap band.
+    const cikBySymbol: Readonly<Record<string, string>> = {
+      "0000000010": "MSFT",
+      "0000000011": "GOOGL",
+      "0000000012": "AMZN",
+      "0000000013": "META",
+      "0000000014": "DELL",
+    };
     const aaplExecutor: SourceRequestExecutor = {
-      json: async ({ adapter }) => {
+      json: async ({ adapter, url }) => {
         if (adapter === "yahoo-valuation-peers") {
           return rawJson(adapter, {
             quoteResponse: {
@@ -717,7 +812,7 @@ describe("collectValuationComps", () => {
                 regularMarketPrice: 100,
                 regularMarketChangePercent: 1,
                 regularMarketVolume: 1_000_000,
-                marketCap: 500,
+                marketCap: symbol === "DELL" ? 100 : 500,
               })),
             },
           });
@@ -735,9 +830,11 @@ describe("collectValuationComps", () => {
           return rawJson(adapter, secPayload());
         }
         if (adapter === "sec-submissions") {
+          const cik = url.match(/CIK(?<cik>\d+)\.json/u)?.groups?.cik ?? "";
+          const symbol = cikBySymbol[cik] ?? "MSFT";
           return rawJson(adapter, {
-            sic: "3674",
-            sicDescription: "Semiconductors & Related Devices",
+            sic: symbol === "DELL" ? "3571" : "7372",
+            sicDescription: symbol === "DELL" ? "Electronic Computers" : "Prepackaged Software",
           });
         }
         throw new Error(`unexpected adapter ${adapter}`);
@@ -760,10 +857,21 @@ describe("collectValuationComps", () => {
       aaplValuation,
     );
 
-    expect(result.artifact.summary.usablePeerCount).toBeGreaterThanOrEqual(3);
+    expect(result.artifact.summary.usablePeerCount).toBe(4);
+    expect(result.artifact.summary.gateProfile).toBe("curated-no-sic");
     expect(result.artifact.summary.valuationSupportability).toBe("supported");
-    expect(result.artifact.peers.map((peer) => peer.symbol)).toContain("MSFT");
-    expect(result.artifact.peers.map((peer) => peer.symbol)).toContain("GOOGL");
+    expect(result.artifact.peers.filter((peer) => peer.usable).map((peer) => peer.symbol)).toEqual([
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+    ]);
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "DELL",
+        reason: "market cap outside 0.2x-5x of target",
+      }),
+    ]);
   });
 
   test("uses injected peer universe mappings", async () => {

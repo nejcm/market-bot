@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-02: deterministic peer comparability gates)
+2026-06-30 (amended 2026-07-02: deterministic peer comparability gates; amended 2026-07-05:
+tier-scoped SIC gate)
 
 ## Context
 
@@ -41,9 +42,18 @@ verified snapshots, fundamentals, valuation peers, and post-web reconciliation.
   valuation-input checks. SIC classification is normalized from the already-fetched SEC
   submissions payload for the target and every candidate. Missing SIC, market cap, annualized
   revenue, or freshness excludes a candidate with a recorded deterministic reason, and at least
-  three qualifying peers are required before median/IQR aggregates are emitted. The gates apply
-  equally to mapped, registry-derived, cached, and model-proposed candidates; business-model
-  metadata may explain a candidate but cannot override a failed gate. Rejected candidates and
+  three qualifying peers are required before median/IQR aggregates are emitted.
+- The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a
+  human-audited comparability judgment, so it runs the `curated-no-sic` gate profile: the three
+  SIC checks (missing peer SIC, unavailable target SIC, group mismatch) are skipped and only the
+  universal size and freshness gates apply. All other tiers (subject-registry, cached, and
+  model-proposed-validated) run the `full` profile with the SIC gate enforced, because the SIC
+  gate exists to screen untrusted provenance and must not second-guess an audited mapping.
+  Applying the registrant SIC uniformly zeroed out the flagship AAPL peer set — its mega-cap
+  platform peers register under services SIC groups while AAPL registers under electronic
+  computers — so the curated tier lost every comp. The applied profile is recorded on the
+  valuation-comps summary (`gateProfile`) for audit. Business-model metadata may explain a
+  candidate but still cannot override any gate that applies to its tier; rejected candidates and
   their reasons are retained as screening context.
 - Web Subject Profile answers may deterministically clear matching atomic Business Framework gaps.
   Reconciliation uses structured cited fields only and does not alter postures or Evidence Quality.

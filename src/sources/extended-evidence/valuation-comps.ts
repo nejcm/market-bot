@@ -81,6 +81,7 @@ export interface ValuationCompsArtifact {
     readonly peerP25EvToAnnualizedRevenue?: number;
     readonly peerP75EvToAnnualizedRevenue?: number;
     readonly valuationSupportability: ValuationSupportability;
+    readonly gateProfile?: ValuationGateProfile;
   };
   readonly sourceIds: readonly string[];
   readonly freshnessFlags: {
@@ -107,6 +108,7 @@ export interface ValuationCompsOptions {
 
 interface PeerCollection {
   readonly peer: PeerUniversePeer;
+  readonly provenance: PeerUniverse["provenance"];
   readonly quote: MarketSnapshot | undefined;
   readonly sec: Awaited<ReturnType<typeof fetchSecCompanyFactsForSymbol>>;
 }
@@ -177,6 +179,7 @@ export async function collectValuationComps(
   const peerSecResults = await Promise.all(
     universe.peers.map(async (peer) => ({
       peer,
+      provenance: universe.provenance,
       quote: quoteBySymbol.get(peer.symbol),
       sec: await fetchSecCompanyFactsForSymbol(ctx, peer.symbol),
     })),
@@ -184,7 +187,7 @@ export async function collectValuationComps(
   const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
   const peers = peerSecResults.map((entry) => peerRow(entry, ctx.fetchedAt, target));
   const excludedPeers = peers.flatMap((row) =>
-    excludedPeer(row, universe.peers, ctx.fetchedAt, target),
+    excludedPeer(row, universe.peers, universe.provenance, ctx.fetchedAt, target),
   );
   const peerGaps = [
     ...quoteGap,
@@ -337,22 +340,36 @@ type ComparabilityInputs = Pick<ValuationCompsRow, "sic" | "marketCap" | "annual
 
 const SIZE_GATE_LABEL = `${SIZE_GATE_MIN_RATIO}x-${SIZE_GATE_MAX_RATIO}x`;
 
-// Deterministic comparability gate applied to every candidate regardless of
-// Provenance (mapped, registry, cached, or model-proposed). Returns the first
+// Which comparability gates apply to a candidate. The checked-in ticker-mapping
+// Tier is a human-audited peer judgment, so it skips the SIC-group gate (whose
+// Job is to screen untrusted provenance); size bands stay universal. All other
+// Tiers get the full gate set.
+export type ValuationGateProfile = "curated-no-sic" | "full";
+
+function gateProfileFor(provenance: PeerUniverse["provenance"]): ValuationGateProfile {
+  return provenance === "ticker-mapping" ? "curated-no-sic" : "full";
+}
+
+// Deterministic comparability gate. Size bands (market cap and annualized
+// Revenue within 0.2x-5x of target) apply to every candidate; the SIC-group
+// Gate is skipped only for the curated-no-sic profile. Returns the first
 // Failed-gate reason, or undefined when the candidate is comparable to the
 // Target. Business-model metadata (role/rationale) never overrides a failure.
 function comparabilityFailure(
   row: ComparabilityInputs,
   target: ComparabilityInputs,
+  gateProfile: ValuationGateProfile,
 ): string | undefined {
-  if (row.sic === undefined) {
-    return "missing SIC classification";
-  }
-  if (target.sic === undefined) {
-    return "target SIC classification unavailable";
-  }
-  if (sicGroup(row.sic) !== sicGroup(target.sic)) {
-    return `SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`;
+  if (gateProfile !== "curated-no-sic") {
+    if (row.sic === undefined) {
+      return "missing SIC classification";
+    }
+    if (target.sic === undefined) {
+      return "target SIC classification unavailable";
+    }
+    if (sicGroup(row.sic) !== sicGroup(target.sic)) {
+      return `SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`;
+    }
   }
   if (row.marketCap === undefined) {
     return "missing market cap";
@@ -452,13 +469,16 @@ function peerRow(
   };
   return {
     ...row,
-    usable: inputsUsable && comparabilityFailure(row, target) === undefined,
+    usable:
+      inputsUsable &&
+      comparabilityFailure(row, target, gateProfileFor(entry.provenance)) === undefined,
   };
 }
 
 function excludedPeer(
   row: ValuationCompsRow,
   peers: readonly PeerUniversePeer[],
+  provenance: PeerUniverse["provenance"],
   generatedAt: string,
   target: ValuationCompsRow,
 ): readonly ExcludedValuationPeer[] {
@@ -473,7 +493,7 @@ function excludedPeer(
     {
       symbol: row.symbol,
       role: peer.role,
-      reason: exclusionReason(row, generatedAt, target),
+      reason: exclusionReason(row, provenance, generatedAt, target),
       sourceIds: row.sourceIds,
     },
   ];
@@ -481,6 +501,7 @@ function excludedPeer(
 
 function exclusionReason(
   row: ValuationCompsRow,
+  provenance: PeerUniverse["provenance"],
   generatedAt: string,
   target: ValuationCompsRow,
 ): string {
@@ -511,7 +532,7 @@ function exclusionReason(
   if (!isFreshPeriodEnd(row.revenuePeriodEnd, generatedAt)) {
     return "stale SEC revenue period";
   }
-  return comparabilityFailure(row, target) ?? "not usable";
+  return comparabilityFailure(row, target, gateProfileFor(provenance)) ?? "not usable";
 }
 
 function buildArtifact(
@@ -551,6 +572,7 @@ function buildArtifact(
           }
         : {}),
       valuationSupportability: supportability,
+      ...(universe !== undefined ? { gateProfile: gateProfileFor(universe.provenance) } : {}),
     },
     sourceIds: unique([
       ...target.sourceIds,

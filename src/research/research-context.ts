@@ -808,6 +808,68 @@ function buildPredictionCompletionInstruction(
   return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, use an allowed subject and sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command)}`;
 }
 
+function buildPrimaryPredictionInstruction(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+): string {
+  const conditionalPredictionInstruction =
+    command.depth === "deep"
+      ? " Deep runs may use Conditional Predictions with measurableAs syntax if (<existing expression>) then (<existing expression>) when evidence supports a conditional setup. For conditional predictions, kind is conditional, subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals."
+      : "";
+  const hasEarningsSetup =
+    isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
+  const hasBusinessFramework =
+    isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
+  const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
+  const earningsPredictionInstruction = hasEarningsSetup
+    ? " An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today. You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps."
+    : "";
+  const businessFrameworkInstruction = hasBusinessFramework
+    ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
+    : "";
+  const webSubjectProfileInstruction = hasWebSubjectProfile
+    ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
+    : "";
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+}
+
+// The steering block actually sent to the model at final-synthesis: the primary prediction
+// Instruction (or the completion instruction when a completion pass runs), plus the repair
+// Instruction when a prediction reprompt is in flight. Returns undefined for non-synthesis stages.
+// Shares its text-building primitives with buildStagePrompt so recorded steering matches what the
+// Prompt carries. Records only the steering block, never the full ~50-65k-token prompt.
+export function buildStageSteeringSegment(
+  stage: StageLabel,
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+  predictionRepromptErrors: readonly string[] = [],
+  predictionCompletion?: PredictionCompletionPrompt,
+): string | undefined {
+  if (stage !== "final-synthesis") {
+    return undefined;
+  }
+  const segments: string[] = [
+    predictionCompletion === undefined
+      ? buildPrimaryPredictionInstruction(command, collectedSources, context)
+      : buildPredictionCompletionInstruction(
+          command,
+          collectedSources,
+          context,
+          predictionCompletion,
+        ),
+  ];
+  if (predictionRepromptErrors.length > 0) {
+    segments.push(buildPredictionRepairInstruction(context));
+  }
+  const steering = segments
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .join("\n\n");
+  return steering.length > 0 ? steering : undefined;
+}
+
 function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> | undefined {
   if (stage !== "final-synthesis") {
     return undefined;
@@ -834,30 +896,14 @@ export function buildStagePrompt(
   allowedSourceIds: readonly string[] = [],
   predictionCompletion?: PredictionCompletionPrompt,
 ): string {
-  const conditionalPredictionInstruction =
-    stage === "final-synthesis" && command.depth === "deep"
-      ? " Deep runs may use Conditional Predictions with measurableAs syntax if (<existing expression>) then (<existing expression>) when evidence supports a conditional setup. For conditional predictions, kind is conditional, subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals."
-      : "";
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
-  const earningsPredictionInstruction =
-    stage === "final-synthesis" && hasEarningsSetup
-      ? " An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today. You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps."
-      : "";
-  const businessFrameworkInstruction =
-    stage === "final-synthesis" && hasBusinessFramework
-      ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
-      : "";
-  const webSubjectProfileInstruction =
-    stage === "final-synthesis" && hasWebSubjectProfile
-      ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
-      : "";
   const predictionInstruction =
     stage === "final-synthesis" && predictionCompletion === undefined
-      ? ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources))}${buildForecastDiversityGuidance(command, collectedSources)}`
+      ? buildPrimaryPredictionInstruction(command, collectedSources, context)
       : "";
   const predictionRepair =
     stage === "final-synthesis" && predictionRepromptErrors.length > 0

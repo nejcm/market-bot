@@ -19,6 +19,8 @@ import {
   type CalibrationGuidanceReason,
 } from "./calibration-guidance";
 import type { CalibrationContext } from "./research-context-types";
+import type { CostPricing } from "../model/pricing";
+import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
 
@@ -26,7 +28,10 @@ export interface RunAnalyticsStage {
   readonly stage: string;
   readonly content: string;
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: CostPricing;
+  readonly attempt?: number;
+  readonly repromptReason?: StageRepromptReason;
 }
 
 export interface BuildRunAnalyticsInput {
@@ -207,10 +212,14 @@ export interface RunAnalytics {
     readonly stages: readonly {
       readonly stage: string;
       readonly tokenEstimate: number;
-      readonly costEstimateUsd: number;
+      readonly costEstimateUsd?: number;
+      readonly costPricing?: CostPricing;
+      readonly attempt?: number;
+      readonly repromptReason?: StageRepromptReason;
     }[];
     readonly tokenEstimate: number;
-    readonly costEstimateUsd: number;
+    readonly costEstimateUsd?: number;
+    readonly costPricing?: readonly CostPricing[];
     readonly durationMs?: number;
   };
 }
@@ -730,10 +739,16 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       stages: input.stageOutputs.map((output) => ({
         stage: output.stage,
         tokenEstimate: output.tokenEstimate,
-        costEstimateUsd: output.costEstimateUsd,
+        ...(output.costEstimateUsd !== undefined
+          ? { costEstimateUsd: output.costEstimateUsd }
+          : {}),
+        ...(output.costPricing !== undefined ? { costPricing: output.costPricing } : {}),
+        ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
+        ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
       })),
       tokenEstimate: trace.tokenEstimate,
-      costEstimateUsd: trace.costEstimateUsd,
+      ...(trace.costEstimateUsd !== undefined ? { costEstimateUsd: trace.costEstimateUsd } : {}),
+      ...(trace.costPricing !== undefined ? { costPricing: trace.costPricing } : {}),
       ...(runDurationMs !== undefined ? { durationMs: runDurationMs } : {}),
     },
   };

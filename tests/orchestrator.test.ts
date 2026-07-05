@@ -1032,8 +1032,12 @@ describe("runResearchJob", () => {
     expect(result.trace.tokenEstimate).toBe(
       result.stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     );
+    const stageCosts = result.stageOutputs.map((output) => output.costEstimateUsd);
+    expect(stageCosts.every((cost) => cost !== undefined)).toBe(true);
     expect(result.trace.costEstimateUsd).toBe(
-      result.stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
+      stageCosts
+        .filter((cost): cost is number => cost !== undefined)
+        .reduce((total, cost) => total + cost, 0),
     );
   });
 
@@ -4488,6 +4492,25 @@ describe("runResearchJob", () => {
       ),
     ).toBe(false);
     expect(result.trace.predictionRetryErrors).toContain(
+      "Prediction bad-relative: subject does not match measurableAs",
+    );
+    const finalOutputs = result.stageOutputs.filter((output) => output.stage === "final-synthesis");
+    expect(finalOutputs[0]?.attempt).toBe(1);
+    expect(finalOutputs[0]?.repromptReason).toBeUndefined();
+    expect(finalOutputs[1]?.attempt).toBe(2);
+    expect(finalOutputs[1]?.repromptReason?.predictionErrors).toContain(
+      "Prediction bad-relative: subject does not match measurableAs",
+    );
+    const traceFinalRecords = result.trace.stageRecords?.filter(
+      (record) => record.stage === "final-synthesis",
+    );
+    expect(traceFinalRecords?.[0]?.attempt).toBe(1);
+    expect(traceFinalRecords?.[1]?.attempt).toBe(2);
+    const analyticsFinalRecords = result.analytics.runShape.stages.filter(
+      (record) => record.stage === "final-synthesis",
+    );
+    expect(analyticsFinalRecords[0]?.attempt).toBe(1);
+    expect(analyticsFinalRecords[1]?.repromptReason?.predictionErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",
     );
   });

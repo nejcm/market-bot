@@ -324,7 +324,6 @@ export function createCodexProvider(
       return {
         content,
         tokenEstimate: estimate,
-        costEstimateUsd: 0,
       };
     },
   };

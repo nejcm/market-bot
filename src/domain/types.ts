@@ -651,8 +651,24 @@ export interface RunTrace {
   readonly completedAt: string;
   readonly sourceGaps: readonly string[];
   readonly stages: readonly string[];
+  readonly stageRecords?: readonly {
+    readonly stage: string;
+    readonly attempt?: number;
+    readonly repromptReason?: {
+      readonly predictionErrors?: readonly string[];
+      readonly reportValidationErrors?: readonly string[];
+      readonly predictionCompletion?: {
+        readonly requestedCount: number;
+        readonly existingPredictions: readonly Prediction[];
+      };
+    };
+  }[];
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: readonly {
+    readonly source: string;
+    readonly asOf: string;
+  }[];
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;

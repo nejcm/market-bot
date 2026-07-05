@@ -167,7 +167,7 @@ export interface ThesisDelta {
     readonly model: string;
     readonly provider: string;
     readonly tokenEstimate: number;
-    readonly costEstimateUsd: number;
+    readonly costEstimateUsd?: number;
   };
 }
 
@@ -825,7 +825,9 @@ async function generateNarrative(
     model,
     provider: provider.name,
     tokenEstimate: response.tokenEstimate,
-    costEstimateUsd: response.costEstimateUsd,
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
   };
 }
 

@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import type { ModelProvider, ModelRequest, ModelResponse } from "./types";
+import { estimateOpenAICost } from "./pricing";
 
 interface OpenAIChoice {
   readonly message?: {
@@ -10,7 +11,15 @@ interface OpenAIChoice {
 interface OpenAIUsage {
   readonly prompt_tokens?: number;
   readonly completion_tokens?: number;
+  readonly input_tokens?: number;
+  readonly output_tokens?: number;
   readonly total_tokens?: number;
+  readonly prompt_tokens_details?: {
+    readonly cached_tokens?: number;
+  };
+  readonly input_tokens_details?: {
+    readonly cached_tokens?: number;
+  };
 }
 
 interface OpenAIResponse {
@@ -118,11 +127,21 @@ export function createOpenAIProvider(
         const tokenEstimate =
           payload.usage?.total_tokens ??
           request.messages.reduce((total, message) => total + message.content.length / 4, 0);
+        const cost =
+          config.provider === "openai"
+            ? estimateOpenAICost(
+                request.model,
+                payload.usage?.input_tokens,
+                payload.usage?.output_tokens,
+                payload.usage?.input_tokens_details?.cached_tokens,
+                payload.output?.filter((item) => item.type === "web_search_call").length,
+              )
+            : undefined;
 
         return {
           content,
           tokenEstimate,
-          costEstimateUsd: 0,
+          ...cost,
         };
       }
 
@@ -174,11 +193,20 @@ export function createOpenAIProvider(
       const tokenEstimate =
         payload.usage?.total_tokens ??
         request.messages.reduce((total, message) => total + message.content.length / 4, 0);
+      const cost =
+        config.provider === "openai"
+          ? estimateOpenAICost(
+              request.model,
+              payload.usage?.prompt_tokens,
+              payload.usage?.completion_tokens,
+              payload.usage?.prompt_tokens_details?.cached_tokens,
+            )
+          : undefined;
 
       return {
         content,
         tokenEstimate,
-        costEstimateUsd: 0,
+        ...cost,
       };
     },
   };

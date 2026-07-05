@@ -1117,12 +1117,20 @@
         {
           "stage": "final-synthesis",
           "tokenEstimate": "<tokenEstimate>",
-          "costEstimateUsd": "<costEstimateUsd>"
+          "costEstimateUsd": "<costEstimateUsd>",
+          "attempt": 1
         },
         {
           "stage": "final-synthesis",
           "tokenEstimate": "<tokenEstimate>",
-          "costEstimateUsd": "<costEstimateUsd>"
+          "costEstimateUsd": "<costEstimateUsd>",
+          "attempt": 2,
+          "repromptReason": {
+            "predictionCompletion": {
+              "requestedCount": 3,
+              "existingPredictions": []
+            }
+          }
         }
       ],
       "tokenEstimate": "<tokenEstimate>",

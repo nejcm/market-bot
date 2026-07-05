@@ -3,7 +3,7 @@ import type { ModelProvider, ModelRequest } from "../../../src/model/types";
 export interface LlmCassetteEntry {
   readonly content: string;
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
 }
 
 export interface LlmCassette {
@@ -86,7 +86,9 @@ export function createRecordingProvider(baseProvider: ModelProvider): LlmRecorde
           {
             content: response.content,
             tokenEstimate: response.tokenEstimate,
-            costEstimateUsd: response.costEstimateUsd,
+            ...(response.costEstimateUsd !== undefined
+              ? { costEstimateUsd: response.costEstimateUsd }
+              : {}),
           },
         ];
         return response;

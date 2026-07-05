@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config";
+import type { CostPricing } from "../model/pricing";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import { runTypeSupportsEvidenceRequest } from "../domain/run-types";
 import type {
@@ -37,7 +38,8 @@ export interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";
   readonly content: string;
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: CostPricing;
 }
 
 export interface EvidenceRequestLoopResult {

@@ -280,13 +280,18 @@ export async function runForecastDisagreement(input: {
             status: "ok",
             predictions,
             tokenEstimate: response.tokenEstimate,
-            costEstimateUsd: response.costEstimateUsd,
+            ...(response.costEstimateUsd !== undefined
+              ? { costEstimateUsd: response.costEstimateUsd }
+              : {}),
           } satisfies ForecastDisagreementParticipant,
           stageOutput: {
             stage: "forecast-disagreement",
             content: response.content,
             tokenEstimate: response.tokenEstimate,
-            costEstimateUsd: response.costEstimateUsd,
+            ...(response.costEstimateUsd !== undefined
+              ? { costEstimateUsd: response.costEstimateUsd }
+              : {}),
+            ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
           } satisfies StageOutput,
         };
       } catch (error) {
@@ -303,7 +308,6 @@ export async function runForecastDisagreement(input: {
             stage: "forecast-disagreement",
             content: JSON.stringify({ model, error: message }),
             tokenEstimate: 0,
-            costEstimateUsd: 0,
           } satisfies StageOutput,
         };
       }

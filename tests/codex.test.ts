@@ -183,7 +183,7 @@ describe("createCodexProvider — generate", () => {
 
     expect(result.content).toBe("hello world");
     expect(result.tokenEstimate).toBe(40);
-    expect(result.costEstimateUsd).toBe(0);
+    expect(result.costEstimateUsd).toBeUndefined();
   });
 
   test("strips JSON fences when responseFormat is json", async () => {

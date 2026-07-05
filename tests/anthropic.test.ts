@@ -87,7 +87,11 @@ describe("createAnthropicProvider", () => {
     expect(response).toEqual({
       content: '{"summary":"ok"}',
       tokenEstimate: 7,
-      costEstimateUsd: 0,
+      costEstimateUsd: 1.15e-4,
+      costPricing: {
+        source: "https://claude.com/pricing#api",
+        asOf: "2026-07-05",
+      },
     });
     expect(String(requests[0]?.url)).toBe("https://api.anthropic.com/v1/messages");
     expect(requests[0]?.headers.get("x-api-key")).toBe("test-anthropic-key");
@@ -177,6 +181,23 @@ describe("createAnthropicProvider", () => {
     });
 
     expect(response.tokenEstimate).toBe(2);
+    expect(response.costEstimateUsd).toBeUndefined();
+  });
+
+  test("leaves cost unknown for an unpriced model", async () => {
+    const provider = createAnthropicProvider(baseConfig, async () =>
+      Response.json({
+        content: [{ type: "text", text: "ok" }],
+        usage: { input_tokens: 3, output_tokens: 4 },
+      }),
+    );
+    const response = await provider.generate({
+      model: "claude-unknown",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(response.costEstimateUsd).toBeUndefined();
+    expect(response.costPricing).toBeUndefined();
   });
 
   test("includes structured error details for failed requests", async () => {

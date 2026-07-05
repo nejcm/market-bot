@@ -7,6 +7,7 @@ import {
   type Source,
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
+import type { CostPricing } from "../model/pricing";
 import type { StageLabel } from "./prompt-loader";
 import type { PredictionCompletionPrompt, ResearchContext } from "./research-context";
 import { commandResearchSubjectIdentity } from "./research-subject-identity";
@@ -17,18 +18,23 @@ import {
   type ModelReportPayload,
 } from "./report-assembly";
 
-export interface StageOutput {
-  readonly stage: StageLabel;
-  readonly content: string;
-  readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
-}
-
 export interface StageReprompt {
   readonly predictionErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
   readonly predictionCompletion?: PredictionCompletionPrompt;
+}
+
+export type StageRepromptReason = Omit<StageReprompt, "allowedSourceIds">;
+
+export interface StageOutput {
+  readonly stage: StageLabel;
+  readonly content: string;
+  readonly tokenEstimate: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: CostPricing;
+  readonly attempt?: number;
+  readonly repromptReason?: StageRepromptReason;
 }
 
 interface FinalSynthesisState {
@@ -75,15 +81,33 @@ export interface SynthesizeReportUntilValidResult {
 export async function synthesizeReportUntilValid(
   input: SynthesizeReportUntilValidInput,
 ): Promise<SynthesizeReportUntilValidResult> {
-  const initialState = await runAndReadFinalSynthesis(input);
-  const predictionProgress = await runPredictionReprompts(input, {
+  let attempt = 0;
+  const trackedInput: SynthesizeReportUntilValidInput = {
+    ...input,
+    runFinalSynthesis: async (priorStages, reprompt) => {
+      attempt += 1;
+      const output = await input.runFinalSynthesis(priorStages, reprompt);
+      const repromptReason = stageRepromptReason(reprompt);
+      return {
+        ...output,
+        attempt,
+        ...(attempt > 1 && repromptReason !== undefined ? { repromptReason } : {}),
+      };
+    },
+  };
+  const initialState = await runAndReadFinalSynthesis(trackedInput);
+  const predictionProgress = await runPredictionReprompts(trackedInput, {
     state: initialState,
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
   });
-  const validated = await validateBaseReport(input, predictionProgress);
-  const completion = await runPredictionCompletion(input, validated.progress, validated.report);
-  const report = buildReport(input, completion.progress.state);
+  const validated = await validateBaseReport(trackedInput, predictionProgress);
+  const completion = await runPredictionCompletion(
+    trackedInput,
+    validated.progress,
+    validated.report,
+  );
+  const report = buildReport(trackedInput, completion.progress.state);
   return {
     report,
     stageOutputs: completion.progress.stageOutputs,
@@ -93,6 +117,24 @@ export async function synthesizeReportUntilValid(
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
   };
+}
+
+function stageRepromptReason(reprompt: StageReprompt | undefined): StageRepromptReason | undefined {
+  if (reprompt === undefined) {
+    return undefined;
+  }
+  const reason = {
+    ...(reprompt.predictionErrors !== undefined
+      ? { predictionErrors: reprompt.predictionErrors }
+      : {}),
+    ...(reprompt.reportValidationErrors !== undefined
+      ? { reportValidationErrors: reprompt.reportValidationErrors }
+      : {}),
+    ...(reprompt.predictionCompletion !== undefined
+      ? { predictionCompletion: reprompt.predictionCompletion }
+      : {}),
+  };
+  return Object.keys(reason).length > 0 ? reason : undefined;
 }
 
 async function validateBaseReport(

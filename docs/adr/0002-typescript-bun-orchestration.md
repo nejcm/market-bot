@@ -30,6 +30,11 @@ of their paths and run-type examples became obsolete.
   optional overrides may be absent.
 - Provider-specific unsupported sampling parameters may be omitted, but provider adapters must
   validate parameters they do send.
+- API-provider cost estimates use checked-in, exact-model input/output prices with source and
+  as-of metadata. Unknown model prices and subscription-backed Codex usage remain absent rather
+  than being reported as zero; a run total is absent when any included stage has unknown cost.
+- Repeated `final-synthesis` stage records retain the stable stage label and carry an incrementing
+  attempt number plus the triggering reprompt reason on subsequent attempts.
 
 ## Consequences
 

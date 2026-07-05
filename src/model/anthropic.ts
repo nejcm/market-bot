@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import type { ModelMessage, ModelProvider, ModelRequest, ModelResponse } from "./types";
+import { estimateAnthropicCost } from "./pricing";
 
 const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -18,6 +19,9 @@ interface AnthropicContentBlock {
 interface AnthropicUsage {
   readonly input_tokens?: number;
   readonly output_tokens?: number;
+  readonly server_tool_use?: {
+    readonly web_search_requests?: number;
+  };
 }
 
 interface AnthropicResponse {
@@ -144,11 +148,17 @@ export function createAnthropicProvider(
         payload.usage?.input_tokens !== undefined || payload.usage?.output_tokens !== undefined
           ? (payload.usage.input_tokens ?? 0) + (payload.usage.output_tokens ?? 0)
           : estimateTokens(request.messages);
+      const cost = estimateAnthropicCost(
+        request.model,
+        payload.usage?.input_tokens,
+        payload.usage?.output_tokens,
+        payload.usage?.server_tool_use?.web_search_requests,
+      );
 
       return {
         content,
         tokenEstimate,
-        costEstimateUsd: 0,
+        ...cost,
       };
     },
   };

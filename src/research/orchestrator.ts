@@ -22,6 +22,7 @@ import {
 } from "../domain/types";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { ModelProvider } from "../model/types";
+import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
@@ -211,7 +212,10 @@ async function runStage(
     stage,
     content: response.content,
     tokenEstimate: response.tokenEstimate,
-    costEstimateUsd: response.costEstimateUsd,
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
+    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
   };
 }
 
@@ -268,11 +272,24 @@ async function runPlaybookSelection(
       stage: "playbook-selection",
       content: response.content,
       tokenEstimate: response.tokenEstimate,
-      costEstimateUsd: response.costEstimateUsd,
+      ...(response.costEstimateUsd !== undefined
+        ? { costEstimateUsd: response.costEstimateUsd }
+        : {}),
+      ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
     },
     audit,
     context: { ...context, domainPlaybooks },
   };
+}
+
+function stageCostPricing(stageOutputs: readonly StageOutput[]): readonly CostPricing[] {
+  return [
+    ...new Map(
+      stageOutputs
+        .flatMap((output) => (output.costPricing === undefined ? [] : [output.costPricing]))
+        .map((pricing) => [`${pricing.source}\n${pricing.asOf}`, pricing]),
+    ).values(),
+  ];
 }
 
 function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
@@ -568,6 +585,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...synthesis.stageOutputs,
     ...forecastDisagreementStageOutputs,
   ];
+  const costEstimateUsd = sumKnownCosts(stageOutputs.map((output) => output.costEstimateUsd));
+  const costPricing = stageCostPricing(stageOutputs);
 
   const trace: RunTrace = {
     schemaVersion: 2,
@@ -590,8 +609,14 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     completedAt: completedAt(),
     sourceGaps: report.dataGaps,
     stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
+    stageRecords: stageOutputs.map((output) => ({
+      stage: output.stage,
+      ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
+      ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
+    })),
     tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
-    costEstimateUsd: stageOutputs.reduce((total, output) => total + output.costEstimateUsd, 0),
+    ...(costEstimateUsd !== undefined ? { costEstimateUsd } : {}),
+    ...(costPricing.length > 0 ? { costPricing } : {}),
     modelInputSanitization: collectedSources.modelInputSanitization ?? { entries: [] },
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),

@@ -769,4 +769,25 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources?.usageRatio).toBe(0);
     expect(analytics.webSources?.usageWarning).toContain("disproportionately low");
   });
+
+  test("omits unknown stage and run costs", () => {
+    const { costEstimateUsd: _costEstimateUsd, ...unknownCostTrace } = trace;
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace: unknownCostTrace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [
+        {
+          stage: "final-synthesis",
+          content: "{}",
+          tokenEstimate: 100,
+          attempt: 1,
+        },
+      ],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.runShape.costEstimateUsd).toBeUndefined();
+    expect(analytics.runShape.stages[0]?.costEstimateUsd).toBeUndefined();
+  });
 });

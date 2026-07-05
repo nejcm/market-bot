@@ -101,7 +101,10 @@ async function runSpotlightSelection(input: {
       stage: "spotlight-selection",
       content: response.content,
       tokenEstimate: response.tokenEstimate,
-      costEstimateUsd: response.costEstimateUsd,
+      ...(response.costEstimateUsd !== undefined
+        ? { costEstimateUsd: response.costEstimateUsd }
+        : {}),
+      ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
     },
     selection: parseSpotlightSelection(response.content, input.candidates, input.cap),
   };

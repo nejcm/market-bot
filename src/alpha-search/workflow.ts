@@ -105,7 +105,7 @@ export interface AlphaSearchRunAnalytics {
   readonly runShape: {
     readonly traceStages: readonly string[];
     readonly tokenEstimate: number;
-    readonly costEstimateUsd: number;
+    readonly costEstimateUsd?: number;
     readonly durationMs?: number;
   };
 }
@@ -457,7 +457,7 @@ function buildAlphaSearchAnalytics(input: {
     runShape: {
       traceStages: trace.stages,
       tokenEstimate: trace.tokenEstimate,
-      costEstimateUsd: trace.costEstimateUsd,
+      ...(trace.costEstimateUsd !== undefined ? { costEstimateUsd: trace.costEstimateUsd } : {}),
       ...(runDurationMs !== undefined ? { durationMs: runDurationMs } : {}),
     },
   };

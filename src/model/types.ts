@@ -1,3 +1,5 @@
+import type { CostPricing } from "./pricing";
+
 export interface ModelMessage {
   readonly role: "system" | "user" | "assistant";
   readonly content: string;
@@ -26,7 +28,8 @@ export interface ModelRequest {
 export interface ModelResponse {
   readonly content: string;
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: CostPricing;
 }
 
 export type WebSearchCapabilityReason = "provider-unsupported" | "probe-failed" | "supported";

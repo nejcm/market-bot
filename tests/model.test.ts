@@ -32,7 +32,7 @@ describe("createOpenAIProvider", () => {
       requests.push(new Request(input, init));
       return Response.json({
         choices: [{ message: { content: '{"summary":"ok"}' } }],
-        usage: { total_tokens: 12 },
+        usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
       });
     };
 
@@ -65,7 +65,7 @@ describe("createOpenAIProvider", () => {
     );
 
     const response = await provider.generate({
-      model: "synthesis",
+      model: "gpt-5.4",
       responseFormat: "json",
       messages: [{ role: "user", content: "Return JSON" }],
     });
@@ -73,11 +73,15 @@ describe("createOpenAIProvider", () => {
     expect(response).toEqual({
       content: '{"summary":"ok"}',
       tokenEstimate: 12,
-      costEstimateUsd: 0,
+      costEstimateUsd: 8e-5,
+      costPricing: {
+        source: "https://developers.openai.com/api/docs/pricing",
+        asOf: "2026-07-05",
+      },
     });
     expect(requests[0]?.headers.get("authorization")).toBe("Bearer test-key");
     await expect(requests[0]?.json()).resolves.toMatchObject({
-      model: "synthesis",
+      model: "gpt-5.4",
       response_format: { type: "json_object" },
     });
   });
@@ -142,7 +146,7 @@ describe("createOpenAIProvider", () => {
             content: [{ type: "output_text", text: "Search-grounded answer" }],
           },
         ],
-        usage: { total_tokens: 21 },
+        usage: { input_tokens: 10, output_tokens: 11, total_tokens: 21 },
       });
     };
     const provider = createOpenAIProvider(
@@ -186,8 +190,8 @@ describe("createOpenAIProvider", () => {
     expect(response).toEqual({
       content: "Search-grounded answer",
       tokenEstimate: 21,
-      costEstimateUsd: 0,
     });
+    expect(response.costEstimateUsd).toBeUndefined();
     expect(String(requests[0]?.url)).toBe("https://api.openai.com/v1/responses");
     await expect(requests[0]?.json()).resolves.toMatchObject({
       model: "synthesis",

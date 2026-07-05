@@ -1,4 +1,5 @@
 import type { JsonToolLoopAudit, SourceGap } from "../domain/types";
+import type { CostPricing } from "../model/pricing";
 import { isRecord } from "../sources/guards";
 
 export interface JsonToolLoopOptions {
@@ -10,7 +11,8 @@ export interface JsonToolLoopOptions {
 export interface JsonToolLoopStageOutput {
   readonly content: string;
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: CostPricing;
 }
 
 export interface JsonToolLoopRoundState<TStage extends JsonToolLoopStageOutput> {

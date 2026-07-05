@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config";
+import type { CostPricing } from "../model/pricing";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { runTypeSupportsWebGather } from "../domain/run-types";
 import type {
@@ -50,7 +51,8 @@ export interface WebGatherStageOutput {
   readonly stage: "web-gather";
   readonly content: string;
   readonly tokenEstimate: number;
-  readonly costEstimateUsd: number;
+  readonly costEstimateUsd?: number;
+  readonly costPricing?: CostPricing;
 }
 
 export interface WebGatherLoopResult {

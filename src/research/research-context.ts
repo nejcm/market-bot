@@ -721,6 +721,20 @@ function isVixAllowedSubject(predictionSubjects: readonly string[]): boolean {
   return predictionSubjects.includes("^VIX");
 }
 
+// True when this run gathered web sources beyond the reused/current profile that carry
+// Model-visible text at final synthesis. Mirrors the includeFreshWebText projection gate so
+// The steering only advertises fresh sources the model can actually read. Drives the fresh-web
+// Preference in buildPrimaryPredictionInstruction (run-review finding #1).
+function hasFreshWebEvidence(collectedSources: CollectedSources): boolean {
+  const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
+  return collectedSources.extendedSources.some(
+    (source) =>
+      source.kind === "web" &&
+      !profileCoveredIds.has(source.id) &&
+      (source.summary !== undefined || source.snippet !== undefined),
+  );
+}
+
 function buildForecastDiversityGuidance(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -924,9 +938,15 @@ function buildPrimaryPredictionInstruction(
     ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
     : "";
   const webSubjectProfileInstruction = hasWebSubjectProfile
-    ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects. Web sources in evidence.webSources that carry a summary were gathered this run beyond the profile; you may cite their sourceIds for recency or corroboration, applying the same low-trust caution."
+    ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
     : "";
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  // Bounded fresh-web steering (run-review finding #1): prefer relevant current-run web sources
+  // For genuinely recent claims over the older pre-cited profile digest, while keeping the
+  // Low-trust boundary and allowing zero fresh citations. Relevance-based, never a source quota.
+  const freshWebInstruction = hasFreshWebEvidence(collectedSources)
+    ? " Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects."
+    : "";
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

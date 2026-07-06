@@ -2898,7 +2898,48 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(fallback!.snippet).toBe("Only snippet");
   });
 
-  test("final-synthesis instruction points to citeable fresh web sources when a profile is attached", () => {
+  test("final-synthesis surfaces fresh web summaries in evidence and steers citing them", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const freshSource = {
+      id: "web-fresh-1",
+      title: "Apple ships new chip",
+      fetchedAt: "2026-07-05T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple announced a new chip this week.",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        extendedSources: [freshSource],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly evidence?: { readonly webSources?: readonly Record<string, unknown>[] };
+    };
+    // Integration-level: the evidence block the model actually receives carries the fresh
+    // Summary, not only the isolated projector unit test (run-review finding #1).
+    const fresh = parsed.evidence?.webSources?.find((source) => source.id === "web-fresh-1");
+    expect(fresh?.summary).toBe("Apple announced a new chip this week.");
+    // And the steering prefers current-run web sources for genuinely recent claims, relevance-based.
+    expect(parsed.instruction).toContain("gathered this run beyond the profile");
+    expect(parsed.instruction).toContain("prefer citing these current-run web sourceIds");
+    expect(parsed.instruction).toContain("relevance-based, not a quota");
+  });
+
+  test("final-synthesis omits fresh-web steering when no fresh web sources were gathered", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -2918,7 +2959,9 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
       { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
     );
     const parsed = JSON.parse(prompt) as { readonly instruction?: string };
-    expect(parsed.instruction).toContain("gathered this run beyond the profile");
+    // Profile framing still present, but no fresh-web preference without fresh sources.
+    expect(parsed.instruction).toContain("Web Subject Profile");
+    expect(parsed.instruction).not.toContain("prefer citing these current-run web sourceIds");
   });
 
   test("web subject profile prompt can see sanitized web summary/snippet", () => {

@@ -610,6 +610,59 @@ describe("web source roles accounting", () => {
     expect(analytics.reusedProfileWebSources).toBeUndefined();
   });
 
+  test("counts a web source cited only in authored extras as extrasCited, not unused", () => {
+    const report = researchReport({
+      sources: [webSource("web-1"), webSource("web-2")],
+      extras: {
+        earningsSetup: {
+          expectationBar: [{ text: "Elevated bar into the print", sourceIds: ["web-1"] }],
+        },
+      },
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeDefined();
+    expect(analytics.webSources!.accepted).toBe(2);
+    // Primary report claims and Predictions cite nothing, so reportCited stays 0.
+    expect(analytics.webSources!.reportCited).toBe(0);
+    // Source web-1 is cited under extras.earningsSetup — real usage, tracked distinctly.
+    expect(analytics.webSources!.extrasCited).toBe(1);
+    // Only web-2 is genuinely unused now.
+    expect(analytics.webSources!.unused).toBe(1);
+    expect(analytics.webSources!.usageRatio).toBe(0.5);
+    expect(analytics.webSources!.usageWarning).toBeUndefined();
+  });
+
+  test("does not double-count a web source cited in both a primary claim and extras", () => {
+    const report = researchReport({
+      sources: [webSource("web-1")],
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
+      extras: {
+        earningsSetup: {
+          expectationBar: [{ text: "Bar", sourceIds: ["web-1"] }],
+        },
+      },
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    // A primary citation dominates: reportCited claims it, extrasCited excludes it.
+    expect(analytics.webSources!.reportCited).toBe(1);
+    expect(analytics.webSources!.extrasCited).toBe(0);
+    expect(analytics.webSources!.unused).toBe(0);
+  });
+
   test("separates reused profile web sources from current-run web coverage", () => {
     const report = researchReport({
       generatedAt: "2026-07-01T00:00:00.000Z",

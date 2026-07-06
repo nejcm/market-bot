@@ -1102,27 +1102,32 @@
         {
           "stage": "playbook-selection",
           "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
           "costEstimateUsd": "<costEstimateUsd>"
         },
         {
           "stage": "specialist-analysis",
           "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
           "costEstimateUsd": "<costEstimateUsd>"
         },
         {
           "stage": "critique",
           "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
           "costEstimateUsd": "<costEstimateUsd>"
         },
         {
           "stage": "final-synthesis",
           "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
           "costEstimateUsd": "<costEstimateUsd>",
           "attempt": 1
         },
         {
           "stage": "final-synthesis",
           "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
           "costEstimateUsd": "<costEstimateUsd>",
           "attempt": 2,
           "repromptReason": {

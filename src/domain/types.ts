@@ -653,6 +653,7 @@ export interface RunTrace {
   readonly stages: readonly string[];
   readonly stageRecords?: readonly {
     readonly stage: string;
+    readonly durationMs?: number;
     readonly attempt?: number;
     readonly repromptReason?: {
       readonly predictionErrors?: readonly string[];

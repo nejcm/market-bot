@@ -28,6 +28,7 @@ export interface RunAnalyticsStage {
   readonly stage: string;
   readonly content: string;
   readonly tokenEstimate: number;
+  readonly durationMs?: number;
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;
   readonly attempt?: number;
@@ -216,6 +217,7 @@ export interface RunAnalytics {
     readonly stages: readonly {
       readonly stage: string;
       readonly tokenEstimate: number;
+      readonly durationMs?: number;
       readonly costEstimateUsd?: number;
       readonly costPricing?: CostPricing;
       readonly attempt?: number;
@@ -794,6 +796,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       stages: input.stageOutputs.map((output) => ({
         stage: output.stage,
         tokenEstimate: output.tokenEstimate,
+        ...(output.durationMs !== undefined ? { durationMs: output.durationMs } : {}),
         ...(output.costEstimateUsd !== undefined
           ? { costEstimateUsd: output.costEstimateUsd }
           : {}),

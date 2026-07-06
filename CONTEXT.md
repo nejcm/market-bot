@@ -113,6 +113,12 @@ Soft prompt-time guidance that enumerates distinct forecast shapes (direction, r
 
 One best-effort, predictions-only model pass after a high- or medium-evidence report is valid but remains below its soft Prediction target. It preserves the report and accepted Predictions, merging only additional valid, cited, on-subject, non-redundant, non-Near-Base-Rate candidates; failure leaves a deterministic Prediction Shortfall.
 
+## Stage Duration
+
+The positive monotonic-clock milliseconds spent awaiting one model-stage generation attempt,
+persisted as optional `durationMs` on `trace.json:stageRecords[]` and
+`analytics.json:runShape.stages[]`. It excludes non-model orchestration work and is telemetry only.
+
 ## Prediction Subject
 
 The instrument or instruments a run's scored Predictions are allowed to be about, declared per run. For `direction`, `range`, `volatility`, and `iv` forecasts it is the forecast subject; for `relative` forecasts it is the primary instrument named before the comparison. Instrument and Market Overview runs enforce that every emitted Prediction's subject belongs to this set, rejecting and retrying off-subject Predictions. Research runs do not apply this gate; their separate research prediction gate is the sole authority. See [ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md).

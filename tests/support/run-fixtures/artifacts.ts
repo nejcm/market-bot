@@ -46,7 +46,12 @@ function scrub(value: JsonValue): JsonValue {
     return Object.fromEntries(
       Object.entries(value)
         .filter(([key]) => !OPTIONAL_VOLATILE_KEYS.has(key))
-        .map(([key, item]) => [key, VOLATILE_KEYS.has(key) ? `<${key}>` : scrub(item)]),
+        .map(([key, item]) => [
+          key,
+          VOLATILE_KEYS.has(key) || (key === "durationMs" && "stage" in value)
+            ? `<${key}>`
+            : scrub(item),
+        ]),
     );
   }
   if (typeof value === "string") {

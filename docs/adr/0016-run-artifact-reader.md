@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30
+2026-06-30 (amended 2026-07-07: additive stage-duration telemetry)
 
 ## Context
 
@@ -17,6 +17,9 @@ queries need faster projections and consistent malformed-data handling.
 
 - Run directories and their files remain canonical. SQLite and history indexes are derived,
   rebuildable query layers.
+- `trace.json:stageRecords[]` and `analytics.json:runShape.stages[]` persist optional `durationMs`
+  values measured with a monotonic clock. This additive field does not change their version 2
+  schemas.
 - `src/run-artifacts.ts` is the canonical shared reader for report, score, market snapshot, and
   verified snapshot data. It parses leniently at full fidelity and exposes absent/malformed status.
 - Keep single-consumer sidecars with their owning consumer rather than expanding the shared reader.

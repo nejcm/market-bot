@@ -27,6 +27,9 @@ function assertInvariants(result: RunFixtureResult, name: string, meta: FixtureM
   expect(result.sourcePlan).toBeDefined();
   expect(result.evidenceLanes.summary.plannedLaneCount).toBeGreaterThan(0);
   expect(result.analytics.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);
+  expect(result.stageOutputs.every((output) => (output.durationMs ?? 0) > 0)).toBe(true);
+  expect(result.trace.stageRecords?.every((record) => (record.durationMs ?? 0) > 0)).toBe(true);
+  expect(result.analytics.runShape.stages.every((stage) => (stage.durationMs ?? 0) > 0)).toBe(true);
   if (name.endsWith("-deep")) {
     expect(result.stageOutputs.map((output) => output.stage)).toEqual(
       expect.arrayContaining(["instrument-evidence-analysis", "market-behavior-analysis"]),

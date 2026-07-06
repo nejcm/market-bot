@@ -3092,6 +3092,11 @@ describe("runResearchJob", () => {
     expect(result.trace.stages.filter((stage) => stage === "forecast-disagreement")).toHaveLength(
       2,
     );
+    expect(
+      result.trace.stageRecords
+        ?.filter((record) => record.stage === "forecast-disagreement")
+        .every((record) => (record.durationMs ?? 0) > 0),
+    ).toBe(true);
     expect(result.trace.forecastDisagreement).toEqual({
       configuredModelCount: 2,
       challengerModelCount: 2,

@@ -75,6 +75,7 @@ async function runSpotlightSelection(input: {
     input.command,
     input.config.promptDir,
   );
+  const startedAt = performance.now();
   const response = await input.provider.generate({
     model: input.context.runParams.quickModel,
     ...(input.context.runParams.modelParams !== undefined
@@ -101,6 +102,7 @@ async function runSpotlightSelection(input: {
       stage: "spotlight-selection",
       content: response.content,
       tokenEstimate: response.tokenEstimate,
+      durationMs: Math.max(performance.now() - startedAt, Number.EPSILON),
       ...(response.costEstimateUsd !== undefined
         ? { costEstimateUsd: response.costEstimateUsd }
         : {}),

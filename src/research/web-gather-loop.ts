@@ -51,6 +51,7 @@ export interface WebGatherStageOutput {
   readonly stage: "web-gather";
   readonly content: string;
   readonly tokenEstimate: number;
+  readonly durationMs?: number;
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;
 }

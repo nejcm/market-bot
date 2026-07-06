@@ -3,7 +3,12 @@ import { resolveRunParams, type ForecastKindMix, type ResolvedRunParams } from "
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
-import { marketUpdateHorizonOf, type Prediction, type PredictionKind } from "../domain/types";
+import {
+  marketUpdateHorizonOf,
+  type Prediction,
+  type PredictionKind,
+  type Source,
+} from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
 import {
@@ -219,6 +224,13 @@ const projectResolvedInstrumentIdentity: EvidenceProjector = (_stage, _command, 
       }
     : {};
 
+// A web source is "fresh" when this run gathered it beyond the reused/current subject profile.
+// The final-synthesis text projection (includeFreshWebText below) and the steering gate
+// (hasFreshWebEvidence) both key off this, so they share one predicate to avoid drifting apart.
+function isFreshWebSource(source: Source, profileCoveredIds: ReadonlySet<string>): boolean {
+  return source.kind === "web" && !profileCoveredIds.has(source.id);
+}
+
 const projectWebSources: EvidenceProjector = (stage, command, collectedSources) => {
   const subjectKind = subjectKindForCommand(command);
   if (subjectKind === undefined) {
@@ -244,7 +256,7 @@ const projectWebSources: EvidenceProjector = (stage, command, collectedSources) 
       )
       .map((source) => {
         const includeFreshWebText =
-          stage === "final-synthesis" && source.kind === "web" && !profileCoveredIds.has(source.id);
+          stage === "final-synthesis" && isFreshWebSource(source, profileCoveredIds);
         const includeSummary =
           (isProfileStage || includeFreshWebText) && source.summary !== undefined;
         // Profile stage carries both fields; fresh final-synthesis text uses snippet
@@ -729,10 +741,19 @@ function hasFreshWebEvidence(collectedSources: CollectedSources): boolean {
   const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
   return collectedSources.extendedSources.some(
     (source) =>
-      source.kind === "web" &&
-      !profileCoveredIds.has(source.id) &&
+      isFreshWebSource(source, profileCoveredIds) &&
       (source.summary !== undefined || source.snippet !== undefined),
   );
+}
+
+// Bounded fresh-web steering (run-review finding #1): prefer relevant current-run web sources for
+// Genuinely recent claims over the older pre-cited profile digest, while keeping the low-trust
+// Boundary and allowing zero fresh citations. Relevance-based, never a source quota. Shared by the
+// Primary and completion prediction instructions so both prediction paths steer identically.
+function buildFreshWebSteering(collectedSources: CollectedSources): string {
+  return hasFreshWebEvidence(collectedSources)
+    ? " Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects."
+    : "";
 }
 
 function buildForecastDiversityGuidance(
@@ -914,7 +935,7 @@ function buildPredictionCompletionInstruction(
     context.depthProfile.predictionSubjects,
   );
   const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 function buildPrimaryPredictionInstruction(
@@ -940,12 +961,7 @@ function buildPrimaryPredictionInstruction(
   const webSubjectProfileInstruction = hasWebSubjectProfile
     ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
     : "";
-  // Bounded fresh-web steering (run-review finding #1): prefer relevant current-run web sources
-  // For genuinely recent claims over the older pre-cited profile digest, while keeping the
-  // Low-trust boundary and allowing zero fresh citations. Relevance-based, never a source quota.
-  const freshWebInstruction = hasFreshWebEvidence(collectedSources)
-    ? " Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects."
-    : "";
+  const freshWebInstruction = buildFreshWebSteering(collectedSources);
   return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 

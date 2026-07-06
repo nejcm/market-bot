@@ -475,9 +475,16 @@ function verifiedMarketSnapshotFreshness(
       };
 }
 
-// Recursively collect every sourceId string reachable under report.extras. Authored extras
-// (earningsSetup, businessFramework, spotlights, historicalContext) nest {text, sourceIds}
-// Bullets at varying depths, so a walk keeps the telemetry robust to extras shape changes.
+// Deterministic extras subtrees that echo source citations the model did not author. The digest
+// Under the webSubjectProfile key is a code-assembled restatement of the run's profile web sources,
+// Already reported as analytics.webSources.profileUsed, so walking it would double-count those ids
+// As authored-extras adoption. Skipping it keeps extrasCited to genuinely model-authored citations.
+const CODE_ASSEMBLED_EXTRAS_KEYS = new Set(["webSubjectProfile"]);
+
+// Recursively collect every sourceId string reachable under report.extras, excluding the
+// Deterministic subtrees above. Authored extras such as earningsSetup, businessFramework,
+// Spotlights, and historicalContext nest {text, sourceIds} bullets at varying depths, so a walk
+// Keeps the telemetry robust to extras shape changes.
 function collectExtrasSourceIds(extras: Record<string, unknown> | undefined): Set<string> {
   const ids = new Set<string>();
   const visit = (value: unknown): void => {
@@ -491,6 +498,9 @@ function collectExtrasSourceIds(extras: Record<string, unknown> | undefined): Se
       return;
     }
     for (const [key, nested] of Object.entries(value)) {
+      if (CODE_ASSEMBLED_EXTRAS_KEYS.has(key)) {
+        continue;
+      }
       if (key === "sourceIds" && Array.isArray(nested)) {
         for (const id of nested) {
           if (typeof id === "string") {

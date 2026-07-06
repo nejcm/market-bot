@@ -2964,6 +2964,46 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(parsed.instruction).not.toContain("prefer citing these current-run web sourceIds");
   });
 
+  test("completion pass steers fresh-web citations for additional predictions", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const freshSource = {
+      id: "web-fresh-1",
+      title: "Apple ships new chip",
+      fetchedAt: "2026-07-05T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple announced a new chip this week.",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        extendedSources: [freshSource],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      [],
+      { requestedCount: 1, existingPredictions: [] },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    // The completion pass authors additional Predictions, so it carries the same bounded
+    // Fresh-web preference as the primary pass (run-review finding #1 follow-up).
+    expect(parsed.instruction).toContain("gathered this run beyond the profile");
+    expect(parsed.instruction).toContain("prefer citing these current-run web sourceIds");
+    expect(parsed.instruction).toContain("relevance-based, not a quota");
+  });
+
   test("web subject profile prompt can see sanitized web summary/snippet", () => {
     const command: ResearchCommand = {
       jobType: "equity",

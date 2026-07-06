@@ -917,6 +917,42 @@ function buildPredictionRepairInstruction(context: ResearchContext): string {
   return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
+// MeasurableAs grammar for the event-anchored earnings kinds, shared verbatim by the primary and
+// Completion prediction instructions. Completion previously advertised earnings-direction and
+// Earnings-move as supported kinds (via coverage guidance) without ever showing their grammar, so
+// The model paired an advertised earnings kind with the plain direction close() grammar and the
+// Validator rejected it with "kind does not match measurableAs" (run-review finding #3). Sharing
+// One string keeps both passes advertising a single consistent surface.
+function earningsForecastGrammar(): string {
+  return "kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today.";
+}
+
+// MeasurableAs grammar for the deep-only conditional kind, shared by the primary and completion
+// Prediction instructions for the same reason as earningsForecastGrammar (run-review finding #3):
+// Completion advertised conditional as a supported kind without pairing it with its grammar.
+function conditionalForecastGrammar(): string {
+  return "kind conditional with measurableAs syntax if (<existing expression>) then (<existing expression>): subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals.";
+}
+
+// Pairs every additional advertised kind with its measurableAs grammar for the completion pass.
+// The base DSL (direction/relative/range/macro plus equity extras) comes from
+// PredictionDslInstruction; this adds the earnings and conditional grammars under the same gates
+// SupportedPredictionKinds uses to advertise them, so the pass never nudges a kind whose grammar
+// The model has not been shown (run-review finding #3).
+function buildCompletionKindGrammar(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): string {
+  const clauses: string[] = [];
+  if (isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined) {
+    clauses.push(`For an earnings-anchored forecast, use ${earningsForecastGrammar()}`);
+  }
+  if (command.depth === "deep") {
+    clauses.push(`For a conditional forecast, use ${conditionalForecastGrammar()}`);
+  }
+  return clauses.length > 0 ? ` ${clauses.join(" ")}` : "";
+}
+
 export interface PredictionCompletionPrompt {
   readonly requestedCount: number;
   readonly existingPredictions: readonly Prediction[];
@@ -938,7 +974,7 @@ function buildPredictionCompletionInstruction(
     context.depthProfile.predictionSubjects,
   );
   const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildCompletionKindGrammar(command, collectedSources)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 function buildPrimaryPredictionInstruction(
@@ -948,7 +984,7 @@ function buildPrimaryPredictionInstruction(
 ): string {
   const conditionalPredictionInstruction =
     command.depth === "deep"
-      ? " Deep runs may use Conditional Predictions with measurableAs syntax if (<existing expression>) then (<existing expression>) when evidence supports a conditional setup. For conditional predictions, kind is conditional, subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals."
+      ? ` Deep runs may use Conditional Predictions when evidence supports a conditional setup — ${conditionalForecastGrammar()}`
       : "";
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
@@ -956,7 +992,7 @@ function buildPrimaryPredictionInstruction(
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
   const earningsPredictionInstruction = hasEarningsSetup
-    ? " An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today. You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps."
+    ? ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`
     : "";
   const businessFrameworkInstruction = hasBusinessFramework
     ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."

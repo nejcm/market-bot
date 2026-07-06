@@ -1112,6 +1112,43 @@ describe("buildStagePrompt", () => {
     expect(instruction).not.toContain("iv(SUBJECT");
   });
 
+  test("completion pairs advertised earnings and conditional kinds with their measurableAs grammar", () => {
+    // Run-review finding #3: completion advertised earnings-direction/earnings-move and conditional
+    // As supported kinds via coverage guidance but only showed the plain direction close() grammar,
+    // So the model emitted an advertised earnings kind with close() and the validator rejected the
+    // Kind/measurableAs mismatch. The completion pass must now show each advertised kind's grammar.
+    const instruction = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-30",
+            timing: "amc",
+            sourceIds: ["earnings-aapl"],
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+          },
+          gaps: [],
+        },
+      },
+    });
+
+    expect(instruction).toContain(
+      "kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0",
+    );
+    expect(instruction).toContain(
+      "kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T",
+    );
+    expect(instruction).toContain(
+      "kind conditional with measurableAs syntax if (<existing expression>) then (<existing expression>)",
+    );
+  });
+
+  test("completion omits earnings grammar when no earnings event is in scope", () => {
+    const instruction = completionInstruction({ predictionSubjects: ["AAPL"] });
+    expect(instruction).not.toContain("earningsReturn(SUBJECT");
+  });
+
   test("injects statistically actionable current-regime calibration", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",

@@ -17,9 +17,9 @@ describe("source gap normalization", () => {
       cause: "validation-failed",
       evidenceQualityImpact: "core-cap",
     });
-    const overlapping = sourceGap({
+    const distinct = sourceGap({
       source: "sec-edgar",
-      message: "Missing SEC company facts: grossProfit, capex",
+      message: "Missing comparable SEC company facts for YoY deltas: capex",
       cause: "provider-data-missing",
       evidenceQualityImpact: "extended-evidence-cap",
     });
@@ -31,11 +31,11 @@ describe("source gap normalization", () => {
 
     const normalized = normalizeCanonicalSourceGaps(
       collectedSources({
-        sourceGaps: [first, duplicate, overlapping],
+        sourceGaps: [first, duplicate, distinct],
         extendedEvidence: {
           instrument: { symbol: "AAPL", assetClass: "equity" },
           items: [],
-          gaps: [first, duplicate, overlapping],
+          gaps: [first, duplicate, distinct],
         },
         marketContext: {
           assetClass: "equity",
@@ -45,8 +45,38 @@ describe("source gap normalization", () => {
       }),
     );
 
-    expect(normalized.sourceGaps).toEqual([first, overlapping]);
-    expect(normalized.extendedEvidence?.gaps).toEqual([first, overlapping]);
+    expect(normalized.sourceGaps).toEqual([first, distinct]);
+    expect(normalized.extendedEvidence?.gaps).toEqual([first, distinct]);
     expect(normalized.marketContext?.gaps).toEqual([marketGap]);
+  });
+
+  test("consolidates nested SEC company-fact gaps at the canonical boundary", () => {
+    const subset = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const superset = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit, capex",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+
+    const normalized = normalizeCanonicalSourceGaps(
+      collectedSources({
+        sourceGaps: [subset, superset],
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [],
+          gaps: [subset, superset],
+        },
+      }),
+    );
+
+    const consolidated = { ...superset };
+    expect(normalized.sourceGaps).toEqual([consolidated]);
+    expect(normalized.extendedEvidence?.gaps).toEqual([consolidated]);
   });
 });

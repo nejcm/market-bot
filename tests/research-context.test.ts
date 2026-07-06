@@ -2512,6 +2512,109 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(sources[0]!.snippet).toBeUndefined();
   });
 
+  test("final-synthesis projects fresh web summary but keeps profile-covered sources bare", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const coveredSource = {
+      id: "web-1",
+      title: "Covered by profile",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Covered summary",
+      snippet: "Covered snippet",
+    };
+    const freshSource = {
+      id: "web-2",
+      title: "Fresh this run",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Fresh summary",
+      snippet: "Fresh snippet",
+    };
+    const evidence = evidenceFor(
+      command,
+      {
+        extendedSources: [coveredSource, freshSource],
+        webSubjectProfile: webProfileForProjection,
+      },
+      "final-synthesis",
+    );
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    const covered = sources.find((source) => source.id === "web-1");
+    const fresh = sources.find((source) => source.id === "web-2");
+    // Source web-1 is in profile.sourceIds, so its facts already arrive via the digest.
+    expect(covered!.summary).toBeUndefined();
+    expect(covered!.snippet).toBeUndefined();
+    // Fresh source web-2 is not in the profile — surface its summary.
+    expect(fresh!.summary).toBe("Fresh summary");
+    // Summary present, so snippet is suppressed for token control.
+    expect(fresh!.snippet).toBeUndefined();
+  });
+
+  test("final-synthesis projects fresh web summary when no profile exists", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const withSummary = {
+      id: "web-2",
+      title: "Fresh with summary",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Fresh summary",
+      snippet: "Fresh snippet",
+    };
+    const snippetOnly = {
+      id: "web-3",
+      title: "Fresh snippet only",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      snippet: "Only snippet",
+    };
+    const evidence = evidenceFor(
+      command,
+      { extendedSources: [withSummary, snippetOnly] },
+      "final-synthesis",
+    );
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    const summarized = sources.find((source) => source.id === "web-2");
+    const fallback = sources.find((source) => source.id === "web-3");
+    expect(summarized!.summary).toBe("Fresh summary");
+    expect(summarized!.snippet).toBeUndefined();
+    // No summary — snippet is the fallback model-visible text.
+    expect(fallback!.summary).toBeUndefined();
+    expect(fallback!.snippet).toBe("Only snippet");
+  });
+
+  test("final-synthesis instruction points to citeable fresh web sources when a profile is attached", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    expect(parsed.instruction).toContain("gathered this run beyond the profile");
+  });
+
   test("web subject profile prompt can see sanitized web summary/snippet", () => {
     const command: ResearchCommand = {
       jobType: "equity",

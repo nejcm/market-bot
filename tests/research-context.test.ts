@@ -419,6 +419,9 @@ describe("buildStagePrompt", () => {
     };
 
     expect(parsed.instruction).toContain("Do not write a claim field");
+    expect(parsed.instruction).toContain(
+      "Every prediction must have probability outside the inclusive 0.45-0.55 near-base-rate band",
+    );
     expect(parsed.instruction).toContain("probability is the probability that the measurableAs");
     expect(parsed.requiredShape?.predictions?.[0]).not.toHaveProperty("claim");
     expect(parsed.requiredShape).not.toHaveProperty("confidence");

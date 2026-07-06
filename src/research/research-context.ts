@@ -695,6 +695,9 @@ export function buildSpotlightSelectionPrompt(
 // Stage prompt
 // ---------------------------------------------------------------------------
 
+const NEAR_BASE_RATE_PROBABILITY_RULE =
+  "probability outside the inclusive 0.45-0.55 near-base-rate band";
+
 // ---------------------------------------------------------------------------
 // Prediction-kind mix guidance (audit finding #10 — emission policy)
 //
@@ -935,7 +938,7 @@ function buildPredictionCompletionInstruction(
     context.depthProfile.predictionSubjects,
   );
   const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 function buildPrimaryPredictionInstruction(
@@ -962,7 +965,7 @@ function buildPrimaryPredictionInstruction(
     ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
     : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

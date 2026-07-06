@@ -425,6 +425,7 @@ function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<
 
 function finalReportShape(
   command: ResearchCommand,
+  collectedSources: CollectedSources,
   depthProfile: DepthProfile,
   hasEarningsSetup: boolean,
   hasBusinessFramework: boolean,
@@ -432,15 +433,15 @@ function finalReportShape(
   webSubjectKind: ReturnType<typeof subjectKindForCommand>,
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
-  const predictionKinds = [
-    "direction",
-    "relative",
-    ...(command.assetClass === "equity" ? ["volatility", "iv"] : []),
-    "range",
-    "macro",
-    "conditional",
-    ...(hasEarningsSetup ? ["earnings-direction", "earnings-move"] : []),
-  ].join("|");
+  // Build the model-visible kind string from the same gated logic that steers the prose
+  // (supportedPredictionKinds), so the required shape never advertises volatility/iv/conditional
+  // When the prompt correctly omits them (no ^VIX subject, no citeable options-iv evidence,
+  // Or a non-deep run). See the 2026-07-05 review: an ungated shape burned the ^VIX candidate.
+  const predictionKinds = supportedPredictionKinds(
+    command,
+    collectedSources,
+    depthProfile.predictionSubjects,
+  ).join("|");
   const earningsSetupShape = hasEarningsSetup
     ? {
         earningsSetup: {
@@ -1022,6 +1023,7 @@ export function buildStagePrompt(
       return {
         predictions: finalReportShape(
           command,
+          collectedSources,
           context.depthProfile,
           hasEarningsSetup,
           hasBusinessFramework,
@@ -1033,6 +1035,7 @@ export function buildStagePrompt(
     if (stage === "final-synthesis") {
       return finalReportShape(
         command,
+        collectedSources,
         context.depthProfile,
         hasEarningsSetup,
         hasBusinessFramework,

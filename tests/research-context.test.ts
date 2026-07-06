@@ -534,6 +534,144 @@ describe("buildStagePrompt", () => {
     expect(kinds).not.toContain("volatility");
   });
 
+  // Returns the individual kinds the equity final-synthesis required shape advertises for pred-1.
+  // The model-visible shape must stay gated in lockstep with the prose: volatility only when ^VIX
+  // Is an allowed subject, iv only with citeable options-iv evidence (2026-07-05 review — an
+  // Ungated shape advertised ^VIX/iv the subject gate then rejected).
+  function equityRequiredShapeKinds(opts: {
+    readonly predictionSubjects: readonly string[];
+    readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
+    readonly depth?: "brief" | "deep";
+  }): readonly string[] {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: opts.depth ?? "deep",
+    };
+    const baseProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+        ...opts.sources,
+      }),
+      config,
+      {
+        depthProfile: { ...baseProfile, predictionSubjects: opts.predictionSubjects },
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 6,
+          minimumScenarios: 3,
+          targetPredictions: 5,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: opts.predictionSubjects,
+          focus: ["thesis"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly requiredShape?: { readonly predictions?: readonly { readonly kind?: string }[] };
+    };
+    return parsed.requiredShape?.predictions?.[0]?.kind?.split("|") ?? [];
+  }
+
+  const optionsIvEvidence: Partial<Parameters<typeof collectedSources>[0]> = {
+    extendedEvidence: {
+      instrument: { symbol: "AAPL", assetClass: "equity" },
+      items: [
+        {
+          category: "options-iv",
+          title: "AAPL options IV",
+          summary: "Near-term IV is elevated.",
+          sourceIds: ["tradier-aapl-options"],
+          observedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      gaps: [],
+    },
+  };
+
+  test("equity final-synthesis shape omits volatility and iv without ^VIX or options-iv evidence", () => {
+    const kinds = equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] });
+
+    expect(kinds).not.toContain("volatility");
+    expect(kinds).not.toContain("iv");
+    // Ungated kinds still appear, so the shape is not simply empty.
+    expect(kinds).toContain("direction");
+    expect(kinds).toContain("relative");
+    expect(kinds).toContain("range");
+    expect(kinds).toContain("macro");
+  });
+
+  test("equity final-synthesis shape advertises volatility only when ^VIX is an allowed subject", () => {
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] })).not.toContain("volatility");
+
+    const withVix = equityRequiredShapeKinds({ predictionSubjects: ["AAPL", "^VIX"] });
+    expect(withVix).toContain("volatility");
+    // ^VIX gates volatility, not iv — no options-iv evidence here.
+    expect(withVix).not.toContain("iv");
+  });
+
+  test("equity final-synthesis shape advertises iv only with citeable options-iv evidence", () => {
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] })).not.toContain("iv");
+
+    const withIv = equityRequiredShapeKinds({
+      predictionSubjects: ["AAPL"],
+      sources: optionsIvEvidence,
+    });
+    expect(withIv).toContain("iv");
+    // Options-iv evidence gates iv, not volatility — ^VIX is not an allowed subject here.
+    expect(withIv).not.toContain("volatility");
+  });
+
+  test("equity final-synthesis shape omits iv when options-iv evidence carries no sourceId", () => {
+    const kinds = equityRequiredShapeKinds({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "Near-term IV is elevated.",
+              sourceIds: [],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      },
+    });
+
+    expect(kinds).not.toContain("iv");
+  });
+
+  test("equity final-synthesis shape gates conditional on deep depth", () => {
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"], depth: "deep" })).toContain(
+      "conditional",
+    );
+    expect(
+      equityRequiredShapeKinds({ predictionSubjects: ["AAPL"], depth: "brief" }),
+    ).not.toContain("conditional");
+  });
+
   test("final-synthesis shape includes business framework extras when sidecar exists", () => {
     const command: ResearchCommand = {
       jobType: "equity",

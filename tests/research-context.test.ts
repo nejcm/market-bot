@@ -973,12 +973,13 @@ describe("buildStagePrompt", () => {
     readonly favoredKinds?: readonly PredictionKind[];
     readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
     readonly existingPredictions?: readonly Prediction[];
+    readonly depth?: "deep" | "brief";
   }): string {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
-      depth: "deep",
+      depth: opts.depth ?? "deep",
     };
     const baseProfile = buildDepthProfile(command, config);
     const prompt = buildStagePrompt(
@@ -1147,6 +1148,16 @@ describe("buildStagePrompt", () => {
   test("completion omits earnings grammar when no earnings event is in scope", () => {
     const instruction = completionInstruction({ predictionSubjects: ["AAPL"] });
     expect(instruction).not.toContain("earningsReturn(SUBJECT");
+  });
+
+  test("brief completion neither advertises nor explains the conditional kind", () => {
+    // Conditional is a deep-only kind. supportedPredictionKinds gates it on depth === "deep" and
+    // BuildCompletionKindGrammar must gate its grammar identically; a brief run must not advertise
+    // Conditional in coverage guidance nor show its grammar. Guards against gate drift between the
+    // Two so a brief run never nudges a kind it cannot validate.
+    const instruction = completionInstruction({ predictionSubjects: ["AAPL"], depth: "brief" });
+    expect(instruction).not.toContain("conditional");
+    expect(instruction).not.toContain("if (<existing expression>) then (<existing expression>)");
   });
 
   test("injects statistically actionable current-regime calibration", () => {

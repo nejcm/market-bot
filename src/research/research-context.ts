@@ -16,7 +16,12 @@ import {
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "./verified-snapshot-contract";
-import { MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS } from "../forecast/observable";
+import {
+  BROAD_US_INDEX_BENCHMARK_SYMBOLS,
+  BROAD_US_INDEX_BENCHMARKS,
+  BROAD_US_INDEX_CLASS,
+  MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+} from "../forecast/observable";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { LoadedPlaybook, PlaybookCandidate, PlaybookStage } from "./playbooks";
 import type {
@@ -695,6 +700,26 @@ export function buildSpotlightSelectionPrompt(
 // Via ADR 0004's predictionShortfall disclosure.
 // ---------------------------------------------------------------------------
 
+// A run may advertise `iv` forecast candidates only when it carries citeable options-IV
+// Evidence — an extended-evidence item with at least one sourceId. Source gaps (e.g. a missing
+// `tradier-options` credential) are non-citeable data gaps and must not advertise IV candidates
+// The validator would reject for want of a real sourceId. Shared by the diversity guidance, the
+// DSL instruction, and the supported-kinds list so the prompt advertises one consistent surface.
+function hasCiteableOptionsIvEvidence(collectedSources: CollectedSources): boolean {
+  return (
+    collectedSources.extendedEvidence?.items.some(
+      (item) => item.category === "options-iv" && item.sourceIds.length > 0,
+    ) === true
+  );
+}
+
+// `volatility` forecasts measure against ^VIX, so the prompt should advertise the kind only when
+// ^VIX is an allowed prediction subject for the run; otherwise the subject gate rejects the
+// Candidate the prompt just nudged (the burned ^VIX candidate in the 2026-07-05 review).
+function isVixAllowedSubject(predictionSubjects: readonly string[]): boolean {
+  return predictionSubjects.includes("^VIX");
+}
+
 function buildForecastDiversityGuidance(
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -707,13 +732,7 @@ function buildForecastDiversityGuidance(
     "relative (vs benchmark)",
     "range (outside [Lo, Hi])",
   ];
-  if (
-    collectedSources.extendedEvidence?.items.some((item) => item.category === "options-iv") ===
-      true ||
-    collectedSources.sourceGaps.some(
-      (gap) => gap.source.startsWith("tradier-") && gap.cause !== "missing-credential",
-    )
-  ) {
+  if (hasCiteableOptionsIvEvidence(collectedSources)) {
     shapes.push("IV (iv(SUBJECT, +N) > T)");
   }
   if (collectedSources.earningsSetup !== undefined) {
@@ -724,11 +743,21 @@ function buildForecastDiversityGuidance(
   return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and horizon variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
-function predictionDslInstruction(command: ResearchCommand): string {
-  const equityOnly =
-    command.assetClass === "equity"
-      ? ", max(close(^VIX), 0..+N) > T for volatility, or iv(SUBJECT, +N) > T for IV"
-      : "";
+function predictionDslInstruction(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  predictionSubjects: readonly string[],
+): string {
+  const equityExtras: string[] = [];
+  if (command.assetClass === "equity") {
+    if (isVixAllowedSubject(predictionSubjects)) {
+      equityExtras.push("max(close(^VIX), 0..+N) > T for volatility");
+    }
+    if (hasCiteableOptionsIvEvidence(collectedSources)) {
+      equityExtras.push("iv(SUBJECT, +N) > T for IV");
+    }
+  }
+  const equityOnly = equityExtras.length > 0 ? `, ${equityExtras.join(", ")}` : "";
   return `Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro${equityOnly}.`;
 }
 
@@ -764,11 +793,17 @@ export function buildPredictionCoverage(
 function supportedPredictionKinds(
   command: ResearchCommand,
   collectedSources: CollectedSources,
+  predictionSubjects: readonly string[],
 ): readonly PredictionKind[] {
   return [
     "direction",
     "relative",
-    ...(command.assetClass === "equity" ? (["volatility", "iv"] as const) : []),
+    ...(command.assetClass === "equity" && isVixAllowedSubject(predictionSubjects)
+      ? (["volatility"] as const)
+      : []),
+    ...(command.assetClass === "equity" && hasCiteableOptionsIvEvidence(collectedSources)
+      ? (["iv"] as const)
+      : []),
     "range",
     "macro",
     ...(command.depth === "deep" ? (["conditional"] as const) : []),
@@ -795,10 +830,52 @@ function predictionCoverageGuidance(
   return ` Prediction coverage: covered kinds: ${coveredKinds}; supported kinds not yet represented: ${uncoveredKinds}; covered exact horizons: ${coveredHorizons}. Seek an uncovered supported kind where evidence supports it. Use a different exact horizon only when evidence supports that horizon.`;
 }
 
+// Allowed-subject + benchmark-equivalence steering shared by the completion and repair passes.
+// Both handle the same validator rejection classes (disallowed-subject and broad-US-index
+// Redundancy at observable.ts resolveCandidate/redundancyKey), so the prompt spells out the
+// Enforced semantics: the pre-colon primary of a relative forecast must be an allowed subject,
+// And relative forecasts against equivalent broad-index benchmarks collapse to one class slot.
+function buildAllowedSubjectSteering(predictionSubjects: readonly string[]): string {
+  const subjects = predictionSubjects.join(", ");
+  const benchmarks = BROAD_US_INDEX_BENCHMARK_SYMBOLS.join(", ");
+  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind.`;
+}
+
+// Names the broad-US-index class+horizon slots already taken by existingPredictions so the
+// Completion pass does not re-propose a relative forecast the redundancy rule would reject.
+function describeOccupiedBroadIndexSlots(predictions: readonly Prediction[]): string {
+  const slots: string[] = [];
+  const seen = new Set<string>();
+  for (const prediction of predictions) {
+    if (prediction.kind !== "relative" || !prediction.subject.includes(":")) {
+      continue;
+    }
+    const [primary, benchmark] = prediction.subject.split(":");
+    if (
+      primary === undefined ||
+      benchmark === undefined ||
+      !BROAD_US_INDEX_BENCHMARKS.has(benchmark)
+    ) {
+      continue;
+    }
+    const key = `${primary}|${String(prediction.horizonTradingDays)}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    slots.push(
+      `${primary} relative @ ${String(prediction.horizonTradingDays)}d (${BROAD_US_INDEX_CLASS})`,
+    );
+  }
+  return slots.length > 0
+    ? ` Existing predictions already occupy these ${BROAD_US_INDEX_CLASS} slots: ${slots.join("; ")} — do not restate them.`
+    : "";
+}
+
 function buildPredictionRepairInstruction(context: ResearchContext): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
   const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
-  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
+  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
 export interface PredictionCompletionPrompt {
@@ -816,9 +893,13 @@ function buildPredictionCompletionInstruction(
   const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
   const coverage = predictionCoverageGuidance(
     completion.existingPredictions,
-    supportedPredictionKinds(command, collectedSources),
+    supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects),
   );
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, use an allowed subject and sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command)}`;
+  const allowedSubjectSteering = buildAllowedSubjectSteering(
+    context.depthProfile.predictionSubjects,
+  );
+  const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have probability outside the inclusive 0.45-0.55 near-base-rate band. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 function buildPrimaryPredictionInstruction(
@@ -844,7 +925,7 @@ function buildPrimaryPredictionInstruction(
   const webSubjectProfileInstruction = hasWebSubjectProfile
     ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects. Web sources in evidence.webSources that carry a summary were gathered this run beyond the profile; you may cite their sourceIds for recency or corroboration, applying the same low-trust caution."
     : "";
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target, and never emit a coin-flip (probability near 0.5) just to reach a count. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.5 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

@@ -1002,8 +1002,15 @@ function normalizePredictionSubject(
 // Collapsing them frees prediction slots for genuinely distinct claims.
 export const MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS = 2;
 
-const BROAD_US_INDEX_BENCHMARKS = new Set(["SPY", "QQQ", "DIA", "IVV", "VOO"]);
-const BROAD_US_INDEX_CLASS = "broad-us-index";
+// Broad US index benchmarks that share one redundancy class: a relative forecast against
+// Any of these restates the same market-beta view, so only one per primary subject and exact
+// Horizon is accepted. Exported so completion/repair prompt steering names the same members and
+// Class the validator enforces below (see relativeBenchmarkKey / redundancyKey).
+export const BROAD_US_INDEX_BENCHMARK_SYMBOLS = ["SPY", "QQQ", "DIA", "IVV", "VOO"] as const;
+export const BROAD_US_INDEX_BENCHMARKS: ReadonlySet<string> = new Set(
+  BROAD_US_INDEX_BENCHMARK_SYMBOLS,
+);
+export const BROAD_US_INDEX_CLASS = "broad-us-index";
 
 function relativeBenchmarkKey(forecast: ObservableForecast): string | undefined {
   if (forecast.expression.kind !== "relative") {

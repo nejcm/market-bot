@@ -24,6 +24,7 @@ import type {
   InstrumentIdentity,
   MarketContext,
   Prediction,
+  PredictionKind,
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
 import type { EarningsSetupCollected } from "../src/sources/types";
@@ -299,6 +300,14 @@ describe("buildStagePrompt", () => {
     );
     expect(parsed.predictionRepair?.instruction).toContain(
       "For ticker relative forecasts, use subject form TICKER:BENCHMARK.",
+    );
+    // Repair handles the same disallowed-subject / broad-index-redundancy rejection classes as the
+    // Completion pass, so it carries the same allowed-subject + benchmark-equivalence steering.
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "Allowed prediction subjects for this run:",
+    );
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
     );
     expect(parsed.predictionRepair?.instruction).toContain(
       "For range forecasts, vary the horizon or range bounds",
@@ -793,13 +802,172 @@ describe("buildStagePrompt", () => {
     const parsed = JSON.parse(prompt) as { readonly instruction: string };
 
     expect(parsed.instruction).toContain("covered kinds: direction");
+    // `iv` is gated out — this run carries no citeable options-iv evidence — while `volatility`
+    // Stays because ^VIX is an allowed subject in the market-overview depth profile.
     expect(parsed.instruction).toContain(
-      "supported kinds not yet represented: relative, volatility, iv, range, macro, conditional",
+      "supported kinds not yet represented: relative, volatility, range, macro, conditional",
     );
     expect(parsed.instruction).toContain("covered exact horizons: 5d");
     expect(parsed.instruction).toContain(
       "Use a different exact horizon only when evidence supports that horizon",
     );
+    // Allowed-subject + benchmark-equivalence steering names the enforced semantics so the
+    // Completion pass stops proposing disallowed subjects and broad-index redundancies.
+    expect(parsed.instruction).toContain("Allowed prediction subjects for this run:");
+    expect(parsed.instruction).toContain(
+      "the primary (pre-colon) symbol must be one of these allowed subjects",
+    );
+    expect(parsed.instruction).toContain(
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+    );
+    // The one existing prediction is a bare `direction` call, so no broad-index slot is occupied.
+    expect(parsed.instruction).not.toContain("already occupy these broad-us-index slots");
+  });
+
+  // Builds the completion-pass instruction for an AAPL equity deep run with full control over the
+  // Allowed subjects, kind mix, collected evidence, and existing predictions the pass sees.
+  function completionInstruction(opts: {
+    readonly predictionSubjects: readonly string[];
+    readonly favoredKinds?: readonly PredictionKind[];
+    readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
+    readonly existingPredictions?: readonly Prediction[];
+  }): string {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const baseProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+        ...opts.sources,
+      }),
+      config,
+      {
+        depthProfile: {
+          ...baseProfile,
+          predictionSubjects: opts.predictionSubjects,
+          targetKindMix: {
+            favored: opts.favoredKinds ?? ["relative", "range"],
+            minNonDirection: 1,
+          },
+        },
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 5,
+          minimumScenarios: 3,
+          targetPredictions: 5,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: opts.predictionSubjects,
+          focus: ["thesis"],
+          targetKindMix: {
+            favored: opts.favoredKinds ?? ["relative", "range"],
+            minNonDirection: 1,
+          },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      [],
+      { requestedCount: 2, existingPredictions: opts.existingPredictions ?? [] },
+    );
+    return (JSON.parse(prompt) as { readonly instruction: string }).instruction;
+  }
+
+  test("completion names occupied broad-us-index slots from existing relative predictions", () => {
+    const existing: Prediction = {
+      id: "pred-1",
+      claim: "AAPL outperforms SPY over 5 trading days",
+      kind: "relative",
+      subject: "AAPL:SPY",
+      measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.6,
+      sourceIds: ["market-aapl"],
+    };
+    const instruction = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      existingPredictions: [existing],
+    });
+
+    expect(instruction).toContain(
+      "Existing predictions already occupy these broad-us-index slots: AAPL relative @ 5d (broad-us-index)",
+    );
+  });
+
+  test("completion gates the volatility/^VIX shape on ^VIX being an allowed subject", () => {
+    const withoutVix = completionInstruction({ predictionSubjects: ["AAPL"] });
+    expect(withoutVix).not.toContain("^VIX");
+    expect(withoutVix).not.toContain("volatility");
+
+    const withVix = completionInstruction({ predictionSubjects: ["AAPL", "^VIX"] });
+    expect(withVix).toContain("max(close(^VIX), 0..+N) > T for volatility");
+    expect(withVix).toContain("volatility");
+  });
+
+  test("completion gates the iv shape on citeable options-iv evidence", () => {
+    const withoutIv = completionInstruction({ predictionSubjects: ["AAPL"] });
+    expect(withoutIv).not.toContain("iv(SUBJECT");
+
+    const withIv = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "Near-term IV is elevated.",
+              sourceIds: ["tradier-aapl-options"],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      },
+    });
+    expect(withIv).toContain("iv(SUBJECT, +N) > T for IV");
+  });
+
+  test("completion omits the iv shape when options-iv evidence carries no sourceId", () => {
+    const instruction = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "Near-term IV is elevated.",
+              sourceIds: [],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      },
+    });
+    expect(instruction).not.toContain("iv(SUBJECT");
   });
 
   test("injects statistically actionable current-regime calibration", () => {

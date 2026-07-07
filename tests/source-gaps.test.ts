@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   compactUnmappedSecFilingGaps,
+  consolidateSecCompanyFactGaps,
   dedupeSourceGaps,
   fetchFailureSourceGap,
   isCoreEvidenceQualityGap,
@@ -156,6 +157,74 @@ describe("source gaps", () => {
       "SEC filing 10-Q 2024-06-30 did not map to a ticker",
       "timeout",
     ]);
+  });
+
+  test("consolidateSecCompanyFactGaps: merges a nested fact list into the first-seen union", () => {
+    const subset = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const superset = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit, capex",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const other = sourceGap({ source: "yahoo", message: "timeout" });
+
+    const result = consolidateSecCompanyFactGaps([subset, superset, other]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.message).toBe("Missing SEC company facts: grossProfit, capex");
+    expect(result[0]?.cause).toBe("provider-data-missing");
+    expect(result[1]).toEqual(other);
+  });
+
+  test("consolidateSecCompanyFactGaps: unions partially overlapping fact lists in first-seen order", () => {
+    const first = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit, capex",
+    });
+    const second = sourceGap({
+      source: "sec-edgar",
+      message: " Missing SEC   company facts: capex, revenue ",
+    });
+
+    const result = consolidateSecCompanyFactGaps([first, second]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.message).toBe("Missing SEC company facts: grossProfit, capex, revenue");
+  });
+
+  test("consolidateSecCompanyFactGaps: a single company-fact gap passes through unchanged", () => {
+    const only = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+    });
+    const other = sourceGap({ source: "sec-edgar", message: "Stale SEC revenue period" });
+
+    const result = consolidateSecCompanyFactGaps([only, other]);
+
+    expect(result).toEqual([only, other]);
+  });
+
+  test("consolidateSecCompanyFactGaps: keeps gaps with divergent context separate", () => {
+    const extended = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: grossProfit",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const core = sourceGap({
+      source: "sec-edgar",
+      message: "Missing SEC company facts: capex",
+      evidenceQualityImpact: "core-cap",
+    });
+
+    const result = consolidateSecCompanyFactGaps([extended, core]);
+
+    expect(result).toEqual([extended, core]);
   });
 
   test("separates Market Context and Extended Evidence quality impact", () => {

@@ -188,6 +188,85 @@ export function compactUnmappedSecFilingGaps(gaps: readonly SourceGap[]): readon
   });
 }
 
+// SEC company-fact gaps list their missing fact names inline, e.g.
+// "Missing SEC company facts: grossProfit, capex". A run that computes fundamentals
+// Across more than one fact set can emit several such gaps whose fact lists overlap or
+// Nest (e.g. "grossProfit" alongside "grossProfit, capex"), which double-counts the same
+// Missing fact in rendered reports and gap totals. Consolidate them into a single gap
+// Listing the first-seen union of fact names.
+const SEC_COMPANY_FACTS_PREFIX = "Missing SEC company facts: ";
+
+// Parses the ordered fact list from a sec-edgar company-facts gap. Returns undefined
+// For any other gap (non-SEC source, different message, or an empty fact list).
+function secCompanyFactNames(gap: SourceGap): readonly string[] | undefined {
+  if (gap.source !== "sec-edgar") {
+    return undefined;
+  }
+  const normalized = gap.message.replaceAll(/\s+/gu, " ").trim();
+  if (!normalized.startsWith(SEC_COMPANY_FACTS_PREFIX)) {
+    return undefined;
+  }
+  const facts = normalized
+    .slice(SEC_COMPANY_FACTS_PREFIX.length)
+    .split(",")
+    .map((fact) => fact.trim())
+    .filter((fact) => fact.length > 0);
+  return facts.length > 0 ? facts : undefined;
+}
+
+// Groups company-fact gaps only when their non-message context matches, so gaps with a
+// Different provider/capability/cause/impact are never merged into one another.
+function secCompanyFactsGroupKey(gap: SourceGap): string {
+  return JSON.stringify([
+    gap.provider ?? null,
+    gap.capability ?? null,
+    gap.cause ?? null,
+    gap.evidenceQualityImpact ?? null,
+  ]);
+}
+
+// Collapses overlapping sec-edgar "Missing SEC company facts:" gaps into one gap per
+// Context group, listing the first-seen union of missing fact names. The surviving gap
+// Keeps the position and context of the first gap in its group; later group members are
+// Dropped. Non-SEC gaps, gaps with a different message, and groups with a single gap pass
+// Through unchanged. Apply before rendering/counting gaps.
+export function consolidateSecCompanyFactGaps(gaps: readonly SourceGap[]): readonly SourceGap[] {
+  const groups = new Map<string, { firstIndex: number; facts: string[]; count: number }>();
+  gaps.forEach((gap, index) => {
+    const facts = secCompanyFactNames(gap);
+    if (facts === undefined) {
+      return;
+    }
+    const key = secCompanyFactsGroupKey(gap);
+    const group = groups.get(key);
+    if (group === undefined) {
+      groups.set(key, { firstIndex: index, facts: [...facts], count: 1 });
+      return;
+    }
+    group.count += 1;
+    for (const fact of facts) {
+      if (!group.facts.includes(fact)) {
+        group.facts.push(fact);
+      }
+    }
+  });
+
+  return gaps.flatMap((gap, index) => {
+    const facts = secCompanyFactNames(gap);
+    if (facts === undefined) {
+      return [gap];
+    }
+    const group = groups.get(secCompanyFactsGroupKey(gap));
+    if (group === undefined || group.count <= 1) {
+      return [gap];
+    }
+    if (index !== group.firstIndex) {
+      return [];
+    }
+    return [{ ...gap, message: `${SEC_COMPANY_FACTS_PREFIX}${group.facts.join(", ")}` }];
+  });
+}
+
 export function sourceGapAnalyticsClass(gap: SourceGap): SourceGapAnalyticsClass {
   const { cause } = gap;
   switch (cause) {

@@ -3092,6 +3092,11 @@ describe("runResearchJob", () => {
     expect(result.trace.stages.filter((stage) => stage === "forecast-disagreement")).toHaveLength(
       2,
     );
+    expect(
+      result.trace.stageRecords
+        ?.filter((record) => record.stage === "forecast-disagreement")
+        .every((record) => (record.durationMs ?? 0) > 0),
+    ).toBe(true);
     expect(result.trace.forecastDisagreement).toEqual({
       configuredModelCount: 2,
       challengerModelCount: 2,
@@ -4529,7 +4534,7 @@ describe("runResearchJob", () => {
     );
   });
 
-  test("normalizes duplicate source gaps before source planning and analytics", async () => {
+  test("normalizes duplicate and overlapping source gaps before source planning and analytics", async () => {
     const grossProfitGap = sourceGap({
       source: "sec-edgar",
       message: "Missing SEC company facts: grossProfit",
@@ -4604,28 +4609,28 @@ describe("runResearchJob", () => {
       (lane) => lane.lane === "regulatory-filings",
     );
 
-    expect(result.collectedSources.sourceGaps).toEqual([grossProfitGap, overlappingGap]);
-    expect(result.collectedSources.extendedEvidence?.gaps).toEqual([
-      grossProfitGap,
-      overlappingGap,
-    ]);
+    // The exact-context duplicate is deduped and the nested grossProfit gap is folded into
+    // The wider grossProfit, capex gap, leaving a single consolidated sec-edgar gap.
+    expect(result.collectedSources.sourceGaps).toEqual([overlappingGap]);
+    expect(result.collectedSources.extendedEvidence?.gaps).toEqual([overlappingGap]);
     expect(result.collectedSources.marketContext?.gaps).toEqual([macroContextGap]);
     expect(regulatoryLane?.gapText).toEqual([
-      "sec-edgar: Missing SEC company facts: grossProfit",
       "sec-edgar: Missing SEC company facts: grossProfit, capex",
     ]);
-    expect(regulatoryLane?.gapIds).toHaveLength(2);
+    expect(regulatoryLane?.gapIds).toHaveLength(1);
     expect(result.analytics.sourceFunnel.sourceGaps).toEqual({
-      total: 2,
-      bySource: { "sec-edgar": 2 },
+      total: 1,
+      bySource: { "sec-edgar": 1 },
     });
-    expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(2);
+    expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(1);
     expect(result.analytics.evidenceQuality.marketContext.gapCount).toBe(1);
     expect(result.analytics.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
     expect(result.trace.evidenceLanes?.gapCount).toBe(result.evidenceLanes.summary.gapCount);
-    expect(result.report.dataGaps).toContain("sec-edgar: Missing SEC company facts: grossProfit");
     expect(result.report.dataGaps).toContain(
       "sec-edgar: Missing SEC company facts: grossProfit, capex",
+    );
+    expect(result.report.dataGaps).not.toContain(
+      "sec-edgar: Missing SEC company facts: grossProfit",
     );
   });
 

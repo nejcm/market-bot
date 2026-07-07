@@ -199,6 +199,7 @@ describe("run analytics", () => {
           stage: "specialist-analysis",
           content: "{}",
           tokenEstimate: 100,
+          durationMs: 125,
           costEstimateUsd: 0.01,
         },
         {
@@ -364,7 +365,12 @@ describe("run analytics", () => {
       coverageRatio: 0.6,
     });
     expect(analytics.runShape.stages).toEqual([
-      { stage: "specialist-analysis", tokenEstimate: 100, costEstimateUsd: 0.01 },
+      {
+        stage: "specialist-analysis",
+        tokenEstimate: 100,
+        durationMs: 125,
+        costEstimateUsd: 0.01,
+      },
       { stage: "final-synthesis", tokenEstimate: 200, costEstimateUsd: 0.02 },
     ]);
     expect(analytics.runShape.durationMs).toBe(1000);

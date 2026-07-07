@@ -111,7 +111,15 @@ Soft prompt-time guidance that enumerates distinct forecast shapes (direction, r
 
 ## Forecast Completion Pass
 
-One best-effort, predictions-only model pass after a high- or medium-evidence report is valid but remains below its soft Prediction target. It preserves the report and accepted Predictions, merging only additional valid, cited, on-subject, non-redundant, non-Near-Base-Rate candidates; failure leaves a deterministic Prediction Shortfall.
+One best-effort, predictions-only model pass after a high- or medium-evidence report is valid but remains below its soft Prediction target. It preserves the report and accepted Predictions, merging only additional valid, cited, on-subject, non-redundant, non-Near-Base-Rate candidates; failure leaves a deterministic Prediction Shortfall. The pass is prompted with a distilled context — the first-attempt report narrative, the critique stage output, a compact source index (id/title/fetchedAt/url/publisher/snippet), and deterministic forecast anchors such as latest close, earnings event/implied move, qualifying IV metrics, and qualifying calibration guidance — rather than the full evidence payload and prior-stage transcript; the allowed source-ID list stays the citation authority.
+
+## Stage Duration
+
+The positive monotonic-clock milliseconds spent awaiting one model-stage generation attempt,
+persisted as optional `durationMs` on `trace.json:stageRecords[]` and
+`analytics.json:runShape.stages[]`. It excludes non-model orchestration work and is telemetry only.
+Stage durations are per-attempt spans; they are not additive wall-clock time because deep coverage
+panels and forecast challengers can run concurrently.
 
 ## Prediction Subject
 

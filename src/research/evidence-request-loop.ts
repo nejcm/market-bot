@@ -38,6 +38,7 @@ export interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";
   readonly content: string;
   readonly tokenEstimate: number;
+  readonly durationMs?: number;
   readonly costEstimateUsd?: number;
   readonly costPricing?: CostPricing;
 }

@@ -29,7 +29,13 @@ import type {
 } from "../src/domain/types";
 import type { EarningsSetupCollected } from "../src/sources/types";
 import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
-import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
+import {
+  collectedSources,
+  marketSnapshot,
+  newsSource,
+  prediction,
+  researchReport,
+} from "./support/fixtures";
 
 const config: AppConfig = {
   provider: "openai",
@@ -419,6 +425,10 @@ describe("buildStagePrompt", () => {
     };
 
     expect(parsed.instruction).toContain("Do not write a claim field");
+    expect(parsed.instruction).toContain(
+      "Every prediction must have probability outside the inclusive 0.45-0.55 near-base-rate band",
+    );
+    expect(parsed.instruction).not.toContain("never emit a coin-flip");
     expect(parsed.instruction).toContain("probability is the probability that the measurableAs");
     expect(parsed.requiredShape?.predictions?.[0]).not.toHaveProperty("claim");
     expect(parsed.requiredShape).not.toHaveProperty("confidence");
@@ -863,7 +873,7 @@ describe("buildStagePrompt", () => {
       [],
       [],
       [],
-      { requestedCount: 1, existingPredictions: [] },
+      { requestedCount: 1, existingPredictions: [], reportDraft: researchReport() },
     );
     const parsed = JSON.parse(prompt) as {
       readonly evidence?: { readonly priorCalibration?: string };
@@ -935,7 +945,11 @@ describe("buildStagePrompt", () => {
       [],
       [],
       ["market-spy"],
-      { requestedCount: 2, existingPredictions: [existingPrediction] },
+      {
+        requestedCount: 2,
+        existingPredictions: [existingPrediction],
+        reportDraft: researchReport(),
+      },
     );
     const parsed = JSON.parse(prompt) as { readonly instruction: string };
 
@@ -969,12 +983,13 @@ describe("buildStagePrompt", () => {
     readonly favoredKinds?: readonly PredictionKind[];
     readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
     readonly existingPredictions?: readonly Prediction[];
+    readonly depth?: "deep" | "brief";
   }): string {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
       symbol: "AAPL",
-      depth: "deep",
+      depth: opts.depth ?? "deep",
     };
     const baseProfile = buildDepthProfile(command, config);
     const prompt = buildStagePrompt(
@@ -1025,7 +1040,11 @@ describe("buildStagePrompt", () => {
       [],
       [],
       [],
-      { requestedCount: 2, existingPredictions: opts.existingPredictions ?? [] },
+      {
+        requestedCount: 2,
+        existingPredictions: opts.existingPredictions ?? [],
+        reportDraft: researchReport(),
+      },
     );
     return (JSON.parse(prompt) as { readonly instruction: string }).instruction;
   }
@@ -1106,6 +1125,53 @@ describe("buildStagePrompt", () => {
       },
     });
     expect(instruction).not.toContain("iv(SUBJECT");
+  });
+
+  test("completion pairs advertised earnings and conditional kinds with their measurableAs grammar", () => {
+    // Run-review finding #3: completion advertised earnings-direction/earnings-move and conditional
+    // As supported kinds via coverage guidance but only showed the plain direction close() grammar,
+    // So the model emitted an advertised earnings kind with close() and the validator rejected the
+    // Kind/measurableAs mismatch. The completion pass must now show each advertised kind's grammar.
+    const instruction = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-30",
+            timing: "amc",
+            sourceIds: ["earnings-aapl"],
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+          },
+          gaps: [],
+        },
+      },
+    });
+
+    expect(instruction).toContain(
+      "kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0",
+    );
+    expect(instruction).toContain(
+      "kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T",
+    );
+    expect(instruction).toContain(
+      "kind conditional with measurableAs syntax if (<existing expression>) then (<existing expression>)",
+    );
+  });
+
+  test("completion omits earnings grammar when no earnings event is in scope", () => {
+    const instruction = completionInstruction({ predictionSubjects: ["AAPL"] });
+    expect(instruction).not.toContain("earningsReturn(SUBJECT");
+  });
+
+  test("brief completion neither advertises nor explains the conditional kind", () => {
+    // Conditional is a deep-only kind. supportedPredictionKinds gates it on depth === "deep" and
+    // BuildCompletionKindGrammar must gate its grammar identically; a brief run must not advertise
+    // Conditional in coverage guidance nor show its grammar. Guards against gate drift between the
+    // Two so a brief run never nudges a kind it cannot validate.
+    const instruction = completionInstruction({ predictionSubjects: ["AAPL"], depth: "brief" });
+    expect(instruction).not.toContain("conditional");
+    expect(instruction).not.toContain("if (<existing expression>) then (<existing expression>)");
   });
 
   test("injects statistically actionable current-regime calibration", () => {
@@ -2994,7 +3060,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
       [],
       [],
       [],
-      { requestedCount: 1, existingPredictions: [] },
+      { requestedCount: 1, existingPredictions: [], reportDraft: researchReport() },
     );
     const parsed = JSON.parse(prompt) as { readonly instruction?: string };
     // The completion pass authors additional Predictions, so it carries the same bounded
@@ -3351,5 +3417,253 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     const instruction = finalSynthesisInstruction(command);
 
     expect(instruction).not.toContain("earnings-direction or earnings-move");
+  });
+});
+
+// Run-review finding #1: the completion pass replayed the full evidence payload and prior-stage
+// Transcript to add a prediction or two. It now receives a distilled context — report narrative +
+// Critique + compact source index — while the primary synthesis prompt stays byte-for-byte the same.
+describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
+  const command: ResearchCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "deep",
+  };
+  const context: ResearchContext = {
+    depthProfile: buildDepthProfile(command, config),
+    runParams: {
+      quickModel: "quick-test",
+      synthesisModel: "synthesis-test",
+      analystStyle: "fuller analyst-style",
+      minimumKeyFindings: 5,
+      minimumScenarios: 3,
+      targetPredictions: 5,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: ["AAPL"],
+      focus: ["thesis"],
+      targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+      modelParams: undefined,
+    },
+    marketRegime: {
+      assetClass: "equity",
+      label: "mixed",
+      proxyCount: 1,
+      drivers: [],
+      sourceIds: [],
+    },
+    calibrationContext: undefined,
+  };
+  const sources = collectedSources({
+    marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+    newsSources: [newsSource()],
+  });
+  const loaded = { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." };
+  const allowedSourceIds = ["news-equity-1", "web-aapl-1", "market-aapl"];
+  const priorStages = [
+    { stage: "specialist-analysis", content: "SPECIALIST_TRANSCRIPT", tokenEstimate: 10 },
+    { stage: "critique", content: "CRITIQUE_TRANSCRIPT", tokenEstimate: 5 },
+  ];
+  const reportDraft = researchReport({
+    summary: "AAPL_DRAFT_SUMMARY",
+    keyFindings: [{ text: "drafted finding", sourceIds: ["news-equity-1"] }],
+    predictions: [prediction({ id: "pred-1", subject: "AAPL" })],
+    sources: [
+      newsSource(),
+      newsSource({
+        id: "web-aapl-1",
+        kind: "web",
+        title: "Fresh web piece",
+        snippet: "web snippet",
+        publisher: "Example Wire",
+      }),
+      newsSource({ id: "market-aapl", kind: "market-data", title: "AAPL quote", summary: "quote" }),
+    ],
+  });
+
+  function buildPrompt(predictionCompletion?: {
+    readonly requestedCount: number;
+    readonly existingPredictions: readonly Prediction[];
+    readonly reportDraft: typeof reportDraft;
+  }): string {
+    return buildStagePrompt(
+      "final-synthesis",
+      command,
+      sources,
+      config,
+      context,
+      loaded,
+      priorStages,
+      [],
+      [],
+      allowedSourceIds,
+      predictionCompletion,
+    );
+  }
+
+  test("distills the completion prompt to report draft, critique, and a compact source index", () => {
+    const prompt = buildPrompt({
+      requestedCount: 2,
+      existingPredictions: reportDraft.predictions,
+      reportDraft,
+    });
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence: {
+        readonly sources?: readonly { readonly id: string; readonly snippet?: string }[];
+        readonly webSources?: readonly {
+          readonly id: string;
+          readonly title: string;
+          readonly fetchedAt: string;
+          readonly snippet?: string;
+          readonly publisher?: string;
+        }[];
+        readonly marketSnapshots?: unknown;
+      };
+      readonly priorStages: readonly { readonly stage: string; readonly content: string }[];
+      readonly reportDraft?: { readonly summary?: string; readonly predictions?: unknown };
+      readonly allowedSourceIds?: readonly string[];
+      readonly predictionCompletion?: { readonly reportDraft?: unknown };
+    };
+
+    // Evidence is a compact source index, not the full payload.
+    expect(parsed.evidence.marketSnapshots).toBeUndefined();
+    expect(parsed.evidence.sources?.map((source) => source.id).toSorted()).toEqual([
+      "market-aapl",
+      "news-equity-1",
+    ]);
+    // Web sources stay under evidence.webSources so the fresh-web steering reference resolves.
+    expect(parsed.evidence.webSources).toEqual([
+      {
+        id: "web-aapl-1",
+        title: "Fresh web piece",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        publisher: "Example Wire",
+        snippet: "web snippet",
+      },
+    ]);
+
+    // Only the critique survives from the prior-stage transcript.
+    expect(parsed.priorStages).toEqual([{ stage: "critique", content: "CRITIQUE_TRANSCRIPT" }]);
+    expect(prompt).not.toContain("SPECIALIST_TRANSCRIPT");
+
+    // The report narrative is threaded in; predictions/sources are not duplicated there.
+    expect(parsed.reportDraft?.summary).toBe("AAPL_DRAFT_SUMMARY");
+    expect(parsed.reportDraft?.predictions).toBeUndefined();
+
+    // Citation authority is unchanged and the report draft is never leaked into the audit block.
+    expect(parsed.allowedSourceIds).toEqual(allowedSourceIds);
+    expect(parsed.predictionCompletion?.reportDraft).toBeUndefined();
+  });
+
+  test("leaves the primary synthesis prompt on the full evidence payload", () => {
+    const parsed = JSON.parse(buildPrompt()) as {
+      readonly evidence: { readonly marketSnapshots?: unknown };
+      readonly reportDraft?: unknown;
+      readonly priorStages: readonly unknown[];
+    };
+    expect(parsed.evidence.marketSnapshots).toBeDefined();
+    expect(parsed.reportDraft).toBeUndefined();
+    expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
+  });
+
+  test("completion instruction references deterministic anchors present in the distilled evidence", () => {
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [
+          marketSnapshot({
+            symbol: "AAPL",
+            price: 192.3,
+            observedAt: "2026-07-07T20:00:00.000Z",
+            identity: { quoteCurrency: "USD" },
+          }),
+        ],
+        newsSources: [newsSource()],
+        extendedEvidence: {
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL IV term structure",
+              summary: "30D IV 0.320.",
+              sourceIds: ["extended-tradier-iv-term-aapl"],
+              observedAt: "2026-07-07T20:00:00.000Z",
+              metrics: { iv30: 0.32 },
+            },
+          ],
+          gaps: [],
+        },
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-28",
+            timing: "amc",
+            sourceIds: ["earnings-aapl"],
+            fetchedAt: "2026-07-07T20:00:00.000Z",
+          },
+          impliedMove: {
+            expiration: "2026-07-31",
+            strike: 195,
+            spot: 192.3,
+            straddleMidpoint: 9.62,
+            impliedMovePct: 0.05,
+            sourceIds: ["extended-tradier-iv-term-aapl"],
+            observedAt: "2026-07-07T20:00:00.000Z",
+          },
+          gaps: [],
+        },
+      }),
+      config,
+      context,
+      loaded,
+      priorStages,
+      [],
+      [],
+      allowedSourceIds,
+      {
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction: string;
+      readonly evidence: {
+        readonly marketSnapshots?: unknown;
+        readonly extendedEvidence?: unknown;
+        readonly latestClose?: {
+          readonly subject?: string;
+          readonly price?: number;
+          readonly observedAt?: string;
+          readonly sourceId?: string;
+          readonly quoteCurrency?: string;
+        };
+        readonly earningsSetup?: {
+          readonly event?: { readonly date?: string };
+          readonly impliedMove?: { readonly impliedMovePct?: number };
+        };
+        readonly optionsIv?: readonly {
+          readonly sourceIds?: readonly string[];
+          readonly metrics?: { readonly iv30?: number };
+        }[];
+      };
+    };
+
+    expect(parsed.instruction).toContain("earningsSetup.event.date");
+    expect(parsed.instruction).toContain("iv(SUBJECT, +N) > T for IV");
+    expect(parsed.instruction).toContain("close(SUBJECT, +N) outside [Lo, Hi] for range");
+    expect(parsed.evidence.earningsSetup?.event?.date).toBe("2026-07-28");
+    expect(parsed.evidence.earningsSetup?.impliedMove?.impliedMovePct).toBe(0.05);
+    expect(parsed.evidence.optionsIv?.[0]?.sourceIds).toEqual(["extended-tradier-iv-term-aapl"]);
+    expect(parsed.evidence.optionsIv?.[0]?.metrics?.iv30).toBe(0.32);
+    expect(parsed.evidence.latestClose).toEqual({
+      subject: "AAPL",
+      price: 192.3,
+      observedAt: "2026-07-07T20:00:00.000Z",
+      sourceId: "market-aapl",
+      quoteCurrency: "USD",
+    });
+    expect(parsed.evidence.marketSnapshots).toBeUndefined();
+    expect(parsed.evidence.extendedEvidence).toBeUndefined();
   });
 });

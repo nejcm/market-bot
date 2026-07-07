@@ -179,6 +179,20 @@ async function runStage(
   reprompt: StageReprompt = {},
 ): Promise<StageOutput> {
   const loaded = await loadStagePrompt(stage, input.command, input.config.promptDir);
+  const prompt = buildStagePrompt(
+    stage,
+    input.command,
+    collectedSources,
+    input.config,
+    context,
+    loaded,
+    priorStages,
+    reprompt.predictionErrors ?? [],
+    reprompt.reportValidationErrors ?? [],
+    reprompt.allowedSourceIds ?? [],
+    reprompt.predictionCompletion,
+  );
+  const startedAt = performance.now();
   const response = await input.provider.generate({
     model,
     ...(context.runParams.modelParams !== undefined
@@ -192,22 +206,11 @@ async function runStage(
       },
       {
         role: "user",
-        content: buildStagePrompt(
-          stage,
-          input.command,
-          collectedSources,
-          input.config,
-          context,
-          loaded,
-          priorStages,
-          reprompt.predictionErrors ?? [],
-          reprompt.reportValidationErrors ?? [],
-          reprompt.allowedSourceIds ?? [],
-          reprompt.predictionCompletion,
-        ),
+        content: prompt,
       },
     ],
   });
+  const endedAt = performance.now();
 
   const steering = buildStageSteeringSegment(
     stage,
@@ -222,6 +225,7 @@ async function runStage(
     stage,
     content: response.content,
     tokenEstimate: response.tokenEstimate,
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
     ...(response.costEstimateUsd !== undefined
       ? { costEstimateUsd: response.costEstimateUsd }
       : {}),
@@ -243,6 +247,15 @@ async function runPlaybookSelection(
   const registry = await loadPlaybookRegistry(input.config.promptDir);
   const candidates = eligiblePlaybookCandidates(input.command, plannedStages, registry);
   const loaded = await loadStagePrompt("playbook-selection", input.command, input.config.promptDir);
+  const prompt = buildPlaybookSelectionPrompt(
+    input.command,
+    collectedSources,
+    context,
+    loaded,
+    plannedStages,
+    candidates,
+  );
+  const startedAt = performance.now();
   const response = await input.provider.generate({
     model: context.runParams.quickModel,
     ...(context.runParams.modelParams !== undefined
@@ -256,17 +269,11 @@ async function runPlaybookSelection(
       },
       {
         role: "user",
-        content: buildPlaybookSelectionPrompt(
-          input.command,
-          collectedSources,
-          context,
-          loaded,
-          plannedStages,
-          candidates,
-        ),
+        content: prompt,
       },
     ],
   });
+  const endedAt = performance.now();
   const audit = parsePlaybookSelection(
     response.content,
     candidates,
@@ -283,6 +290,7 @@ async function runPlaybookSelection(
       stage: "playbook-selection",
       content: response.content,
       tokenEstimate: response.tokenEstimate,
+      durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
       ...(response.costEstimateUsd !== undefined
         ? { costEstimateUsd: response.costEstimateUsd }
         : {}),
@@ -622,6 +630,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
     stageRecords: stageOutputs.map((output) => ({
       stage: output.stage,
+      ...(output.durationMs !== undefined ? { durationMs: output.durationMs } : {}),
       ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
       ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
     })),

@@ -141,6 +141,7 @@ export async function collectValuationComps(
     const gap = valuationCompsGap(
       `Peer Universe unavailable for ${command.symbol}: ${resolution.reason}`,
       "unsupported-coverage",
+      "valuation-peers",
     );
     const artifact = buildArtifact(ctx.fetchedAt, target, [], [], undefined, [gap], []);
     return {
@@ -193,7 +194,11 @@ export async function collectValuationComps(
     ...quoteGap,
     ...peerSecResults.flatMap((entry) => entry.sec.gaps),
     ...excludedPeers.map((peer) =>
-      valuationCompsGap(`Peer ${peer.symbol} excluded from valuation comps: ${peer.reason}`),
+      valuationCompsGap(
+        `Peer ${peer.symbol} excluded from valuation comps: ${peer.reason}`,
+        "provider-data-missing",
+        "valuation-peers",
+      ),
     ),
   ];
   const artifact = buildArtifact(
@@ -243,6 +248,8 @@ function emptyResult(
   };
   const gap = valuationCompsGap(
     `Valuation peer comps unavailable for ${command.symbol}: ${reason}`,
+    "provider-data-missing",
+    "valuation-peers",
   );
   return {
     extendedEvidence: { ...extendedEvidence, gaps: [...extendedEvidence.gaps, gap] },
@@ -733,9 +740,10 @@ function percentile(values: readonly number[], p: number): number {
 function valuationCompsGap(
   message: string,
   cause: SourceGap["cause"] = "provider-data-missing",
+  source = "valuation",
 ): SourceGap {
   return sourceGap({
-    source: "valuation",
+    source,
     message,
     provider: "market-bot",
     capability: "extended-evidence",

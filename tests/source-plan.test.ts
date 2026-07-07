@@ -251,6 +251,70 @@ describe("source plan", () => {
     });
   });
 
+  test("keeps target and peer valuation gaps in their own lanes", () => {
+    const plan = plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      collectedSources({
+        valuationComps: {
+          version: 1,
+          generatedAt,
+          target: {
+            symbol: "NVDA",
+            sourceIds: ["market-yahoo-equity-nvda"],
+            usable: true,
+          },
+          peers: [
+            {
+              symbol: "AMD",
+              sourceIds: ["market-yahoo-equity-amd"],
+              usable: false,
+            },
+          ],
+          excludedPeers: [],
+          peerUniverseSourceIds: [],
+          summary: {
+            corePeerCount: 1,
+            secondaryPeerCount: 0,
+            usablePeerCount: 0,
+            valuationSupportability: "not-supportable",
+          },
+          sourceIds: ["market-yahoo-equity-nvda", "market-yahoo-equity-amd"],
+          freshnessFlags: {
+            targetQuoteFresh: true,
+            targetSecFresh: true,
+            peerQuoteFresh: true,
+            peerSecFresh: false,
+          },
+        },
+        sourceGaps: [
+          sourceGap({
+            source: "valuation",
+            message: "Valuation peer comps not-supportable for NVDA: 0 usable peers",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+          sourceGap({
+            source: "valuation-peers",
+            message: "Peer AMD excluded from valuation comps: missing SEC facts",
+            capability: "extended-evidence",
+            cause: "provider-data-missing",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+      }),
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "target-valuation")).toMatchObject(
+      {
+        gapText: ["valuation: Valuation peer comps not-supportable for NVDA: 0 usable peers"],
+      },
+    );
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation")).toMatchObject({
+      gapText: ["valuation-peers: Peer AMD excluded from valuation comps: missing SEC facts"],
+    });
+  });
+
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {
     const plan = plannedAndAssessed(
       { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },

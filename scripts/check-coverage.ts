@@ -1,9 +1,7 @@
 import { readFile } from "node:fs/promises";
+import { aggregateLcov, evaluateCoverage } from "./lcov-coverage";
 
 const MINIMUM_LINE_COVERAGE_PERCENT = 80;
-// Bun's lcov reporter emits function records (FNF/FNH) but no branch records, so
-// The gate pairs line coverage with function coverage to catch whole functions
-// That are never exercised — a gap that line coverage alone can mask.
 const MINIMUM_FUNCTION_COVERAGE_PERCENT = 80;
 
 const proc = Bun.spawn(["bun", "test", "--coverage", "--coverage-reporter=lcov"], {
@@ -17,48 +15,18 @@ if (exitCode !== 0) {
 }
 
 const lcov = await readFile("coverage/lcov.info", "utf8");
+const evaluation = evaluateCoverage(aggregateLcov(lcov), {
+  minLinePercent: MINIMUM_LINE_COVERAGE_PERCENT,
+  minFunctionPercent: MINIMUM_FUNCTION_COVERAGE_PERCENT,
+});
 
-const totals = lcov.split("\n").reduce(
-  (acc, line) => {
-    if (line.startsWith("LF:")) {
-      return { ...acc, linesFound: acc.linesFound + Number.parseInt(line.slice(3), 10) };
-    }
-    if (line.startsWith("LH:")) {
-      return { ...acc, linesHit: acc.linesHit + Number.parseInt(line.slice(3), 10) };
-    }
-    if (line.startsWith("FNF:")) {
-      return { ...acc, functionsFound: acc.functionsFound + Number.parseInt(line.slice(4), 10) };
-    }
-    if (line.startsWith("FNH:")) {
-      return { ...acc, functionsHit: acc.functionsHit + Number.parseInt(line.slice(4), 10) };
-    }
-    return acc;
-  },
-  { linesFound: 0, linesHit: 0, functionsFound: 0, functionsHit: 0 },
-);
+process.stdout.write(`Line coverage:     ${evaluation.linePercent.toFixed(2)}%\n`);
+process.stdout.write(`Function coverage: ${evaluation.functionPercent.toFixed(2)}%\n`);
 
-const percent = (hit: number, found: number): number => (found === 0 ? 0 : (hit / found) * 100);
-
-const lineCoverage = percent(totals.linesHit, totals.linesFound);
-const functionCoverage = percent(totals.functionsHit, totals.functionsFound);
-
-process.stdout.write(`Line coverage:     ${lineCoverage.toFixed(2)}%\n`);
-process.stdout.write(`Function coverage: ${functionCoverage.toFixed(2)}%\n`);
-
-let failed = false;
-if (lineCoverage < MINIMUM_LINE_COVERAGE_PERCENT) {
-  process.stderr.write(
-    `Line coverage ${lineCoverage.toFixed(2)}% is below ${MINIMUM_LINE_COVERAGE_PERCENT}%\n`,
-  );
-  failed = true;
-}
-if (functionCoverage < MINIMUM_FUNCTION_COVERAGE_PERCENT) {
-  process.stderr.write(
-    `Function coverage ${functionCoverage.toFixed(2)}% is below ${MINIMUM_FUNCTION_COVERAGE_PERCENT}%\n`,
-  );
-  failed = true;
+for (const failure of evaluation.failures) {
+  process.stderr.write(`${failure}\n`);
 }
 
-if (failed) {
+if (evaluation.failures.length > 0) {
   process.exit(1);
 }

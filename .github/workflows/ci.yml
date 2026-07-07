@@ -51,7 +51,6 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
-      - run: bun test
       - run: bun run test:coverage
 
   knip:

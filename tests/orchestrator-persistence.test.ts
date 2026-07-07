@@ -1,3 +1,8 @@
+// Scope: the persist path end-to-end across job types. This covers the two angles
+// Orchestrator.test.ts does not — parametric artifact-layout parity across
+// Daily/weekly/equity/crypto workflows, and CLI-arg (parseArgs) -> persisted
+// Report/trace field mapping. orchestrator.test.ts instead asserts artifact
+// *Content* for individual runResearchJob paths; keep the boundary along that line.
 import { afterEach, describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { readdir, readFile, rm } from "node:fs/promises";
@@ -161,7 +166,7 @@ function parseResearchCommand(args: readonly string[]): ResearchCommand {
   throw new Error("Expected research command");
 }
 
-describe("mocked research workflows", () => {
+describe("orchestrator persistence across job types", () => {
   test("persists daily, weekly, and ticker workflows with matching artifact layout", async () => {
     const workflows = [
       await runWorkflow(

@@ -1073,11 +1073,11 @@
     },
     "evidenceLanes": {
       "coveredLaneCount": 4,
-      "gapLaneCount": 5,
+      "gapLaneCount": 4,
       "coreGapLaneCount": 0,
       "materialGapLaneCount": 3,
       "sourceCount": 10,
-      "gapCount": 8,
+      "gapCount": 7,
       "coverageRatio": 0.36363636363636365
     },
     "calibrationAtGeneration": {
@@ -1495,12 +1495,10 @@
         {
           "lane": "peer-valuation",
           "evidenceClass": "supplemental",
-          "status": "gap",
+          "status": "not-covered",
           "coveredSourceIds": [],
-          "gapIds": ["peer-valuation:gap:1"],
-          "gapText": [
-            "valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt"
-          ],
+          "gapIds": [],
+          "gapText": [],
           "freshnessNotes": []
         },
         {
@@ -1519,11 +1517,11 @@
         "materialLaneCount": 5,
         "supplementalLaneCount": 4,
         "coveredLaneCount": 4,
-        "gapLaneCount": 5,
+        "gapLaneCount": 4,
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 3,
         "sourceCount": 10,
-        "gapCount": 8,
+        "gapCount": 7,
         "coverageRatio": 0.36363636363636365
       }
     },

@@ -845,7 +845,7 @@ describe("collectValuationComps", () => {
     expect(result.artifact.freshnessFlags.peerQuoteFresh).toBe(false);
     expect(result.artifact.freshnessFlags.peerSecFresh).toBe(false);
     expect(result.gaps[0]).toMatchObject({
-      source: "valuation",
+      source: "valuation-peers",
       cause: "unsupported-coverage",
       evidenceQualityImpact: "extended-evidence-cap",
     });
@@ -943,6 +943,12 @@ describe("collectValuationComps", () => {
         reason: "market cap outside 0.2x-5x of target",
       }),
     ]);
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        message: "Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target",
+      }),
+    );
   });
 
   test("uses injected peer universe mappings", async () => {

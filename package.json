@@ -36,7 +36,7 @@
     "commitlint": "commitlint",
     "knip": "knip --production",
     "audit": "bun audit --audit-level=high",
-    "check": "bun run fmt && bun run lint && bun run fmt:check && bun run typecheck && bun test"
+    "check": "bun run fmt && bun run lint && bun run fmt:check && bun run typecheck && bun run test:coverage"
   },
   "devDependencies": {
     "@ai-sdk/svelte": "4.0.208",

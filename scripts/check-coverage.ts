@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { aggregateLcov, evaluateCoverage } from "./lcov-coverage";
 
-const MINIMUM_COVERAGE_PERCENT = 80;
+const MINIMUM_LINE_COVERAGE_PERCENT = 80;
+const MINIMUM_FUNCTION_COVERAGE_PERCENT = 80;
 
 const proc = Bun.spawn(["bun", "test", "--coverage", "--coverage-reporter=lcov"], {
   stdout: "inherit",
@@ -13,37 +15,18 @@ if (exitCode !== 0) {
 }
 
 const lcov = await readFile("coverage/lcov.info", "utf8");
-const totals = lcov.split("\n").reduce(
-  (acc, line) => {
-    if (line.startsWith("LF:")) {
-      return {
-        ...acc,
-        linesFound: acc.linesFound + Number.parseInt(line.slice(3), 10),
-      };
-    }
+const evaluation = evaluateCoverage(aggregateLcov(lcov), {
+  minLinePercent: MINIMUM_LINE_COVERAGE_PERCENT,
+  minFunctionPercent: MINIMUM_FUNCTION_COVERAGE_PERCENT,
+});
 
-    if (line.startsWith("LH:")) {
-      return {
-        ...acc,
-        linesHit: acc.linesHit + Number.parseInt(line.slice(3), 10),
-      };
-    }
+process.stdout.write(`Line coverage:     ${evaluation.linePercent.toFixed(2)}%\n`);
+process.stdout.write(`Function coverage: ${evaluation.functionPercent.toFixed(2)}%\n`);
 
-    return acc;
-  },
-  {
-    linesFound: 0,
-    linesHit: 0,
-  },
-);
+for (const failure of evaluation.failures) {
+  process.stderr.write(`${failure}\n`);
+}
 
-const coveragePercent = totals.linesFound === 0 ? 0 : (totals.linesHit / totals.linesFound) * 100;
-
-process.stdout.write(`Line coverage: ${coveragePercent.toFixed(2)}%\n`);
-
-if (coveragePercent < MINIMUM_COVERAGE_PERCENT) {
-  process.stderr.write(
-    `Coverage ${coveragePercent.toFixed(2)}% is below ${MINIMUM_COVERAGE_PERCENT}%\n`,
-  );
+if (evaluation.failures.length > 0) {
   process.exit(1);
 }

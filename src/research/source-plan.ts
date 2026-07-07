@@ -333,7 +333,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     applies: (command) =>
       isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep",
     sourceIds: (sources) => sources.valuationComps?.peers.flatMap((peer) => peer.sourceIds) ?? [],
-    gapMatches: (gap) => gap.source === "valuation",
+    gapMatches: (gap) => gap.source === "valuation-peers",
   },
   {
     lane: "subject-profile",

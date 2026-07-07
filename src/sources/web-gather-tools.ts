@@ -47,6 +47,8 @@ const EXA_API_URL = "https://api.exa.ai";
 const EXA_SEARCH_ADAPTER = "exa-search";
 const EXA_CONTENTS_ADAPTER = "exa-contents";
 const DEFAULT_SEARCH_RESULTS = 5;
+// Narrowed per-query ingestion default applied when a durable Web Subject Profile was reused into the run: fresh gather then exists only for recency, corroboration, or gap coverage, so a full page of results per query is disproportionate. Stays above MIN_USABLE_SEARCH_RESULTS.
+export const REUSED_PROFILE_DEFAULT_SEARCH_RESULTS = 3;
 const MIN_USABLE_SEARCH_RESULTS = 2;
 const RECENT_SEARCH_WINDOW_DAYS = 30;
 const CURRENT_SUBJECT_WINDOW_DAYS = 180;

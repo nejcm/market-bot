@@ -873,7 +873,7 @@ describe("buildStagePrompt", () => {
       [],
       [],
       [],
-      { requestedCount: 1, existingPredictions: [] },
+      { requestedCount: 1, existingPredictions: [], reportDraft: researchReport() },
     );
     const parsed = JSON.parse(prompt) as {
       readonly evidence?: { readonly priorCalibration?: string };
@@ -945,7 +945,11 @@ describe("buildStagePrompt", () => {
       [],
       [],
       ["market-spy"],
-      { requestedCount: 2, existingPredictions: [existingPrediction] },
+      {
+        requestedCount: 2,
+        existingPredictions: [existingPrediction],
+        reportDraft: researchReport(),
+      },
     );
     const parsed = JSON.parse(prompt) as { readonly instruction: string };
 
@@ -1036,7 +1040,11 @@ describe("buildStagePrompt", () => {
       [],
       [],
       [],
-      { requestedCount: 2, existingPredictions: opts.existingPredictions ?? [] },
+      {
+        requestedCount: 2,
+        existingPredictions: opts.existingPredictions ?? [],
+        reportDraft: researchReport(),
+      },
     );
     return (JSON.parse(prompt) as { readonly instruction: string }).instruction;
   }
@@ -3052,7 +3060,7 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
       [],
       [],
       [],
-      { requestedCount: 1, existingPredictions: [] },
+      { requestedCount: 1, existingPredictions: [], reportDraft: researchReport() },
     );
     const parsed = JSON.parse(prompt) as { readonly instruction?: string };
     // The completion pass authors additional Predictions, so it carries the same bounded
@@ -3476,7 +3484,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
   function buildPrompt(predictionCompletion?: {
     readonly requestedCount: number;
     readonly existingPredictions: readonly Prediction[];
-    readonly reportDraft?: typeof reportDraft;
+    readonly reportDraft: typeof reportDraft;
   }): string {
     return buildStagePrompt(
       "final-synthesis",
@@ -3505,6 +3513,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
         readonly webSources?: readonly {
           readonly id: string;
           readonly title: string;
+          readonly fetchedAt: string;
           readonly snippet?: string;
           readonly publisher?: string;
         }[];
@@ -3527,6 +3536,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       {
         id: "web-aapl-1",
         title: "Fresh web piece",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
         publisher: "Example Wire",
         snippet: "web snippet",
       },
@@ -3556,12 +3566,104 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
   });
 
-  test("keeps the full payload for a completion caller that omits the report draft", () => {
-    const parsed = JSON.parse(buildPrompt({ requestedCount: 2, existingPredictions: [] })) as {
-      readonly evidence: { readonly marketSnapshots?: unknown };
-      readonly reportDraft?: unknown;
+  test("completion instruction references deterministic anchors present in the distilled evidence", () => {
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [
+          marketSnapshot({
+            symbol: "AAPL",
+            price: 192.3,
+            observedAt: "2026-07-07T20:00:00.000Z",
+            identity: { quoteCurrency: "USD" },
+          }),
+        ],
+        newsSources: [newsSource()],
+        extendedEvidence: {
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL IV term structure",
+              summary: "30D IV 0.320.",
+              sourceIds: ["extended-tradier-iv-term-aapl"],
+              observedAt: "2026-07-07T20:00:00.000Z",
+              metrics: { iv30: 0.32 },
+            },
+          ],
+          gaps: [],
+        },
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-28",
+            timing: "amc",
+            sourceIds: ["earnings-aapl"],
+            fetchedAt: "2026-07-07T20:00:00.000Z",
+          },
+          impliedMove: {
+            expiration: "2026-07-31",
+            strike: 195,
+            spot: 192.3,
+            straddleMidpoint: 9.62,
+            impliedMovePct: 0.05,
+            sourceIds: ["extended-tradier-iv-term-aapl"],
+            observedAt: "2026-07-07T20:00:00.000Z",
+          },
+          gaps: [],
+        },
+      }),
+      config,
+      context,
+      loaded,
+      priorStages,
+      [],
+      [],
+      allowedSourceIds,
+      {
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction: string;
+      readonly evidence: {
+        readonly marketSnapshots?: unknown;
+        readonly extendedEvidence?: unknown;
+        readonly latestClose?: {
+          readonly subject?: string;
+          readonly price?: number;
+          readonly observedAt?: string;
+          readonly sourceId?: string;
+          readonly quoteCurrency?: string;
+        };
+        readonly earningsSetup?: {
+          readonly event?: { readonly date?: string };
+          readonly impliedMove?: { readonly impliedMovePct?: number };
+        };
+        readonly optionsIv?: readonly {
+          readonly sourceIds?: readonly string[];
+          readonly metrics?: { readonly iv30?: number };
+        }[];
+      };
     };
-    expect(parsed.evidence.marketSnapshots).toBeDefined();
-    expect(parsed.reportDraft).toBeUndefined();
+
+    expect(parsed.instruction).toContain("earningsSetup.event.date");
+    expect(parsed.instruction).toContain("iv(SUBJECT, +N) > T for IV");
+    expect(parsed.instruction).toContain("close(SUBJECT, +N) outside [Lo, Hi] for range");
+    expect(parsed.evidence.earningsSetup?.event?.date).toBe("2026-07-28");
+    expect(parsed.evidence.earningsSetup?.impliedMove?.impliedMovePct).toBe(0.05);
+    expect(parsed.evidence.optionsIv?.[0]?.sourceIds).toEqual(["extended-tradier-iv-term-aapl"]);
+    expect(parsed.evidence.optionsIv?.[0]?.metrics?.iv30).toBe(0.32);
+    expect(parsed.evidence.latestClose).toEqual({
+      subject: "AAPL",
+      price: 192.3,
+      observedAt: "2026-07-07T20:00:00.000Z",
+      sourceId: "market-aapl",
+      quoteCurrency: "USD",
+    });
+    expect(parsed.evidence.marketSnapshots).toBeUndefined();
+    expect(parsed.evidence.extendedEvidence).toBeUndefined();
   });
 });

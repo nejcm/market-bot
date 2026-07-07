@@ -38,9 +38,12 @@ guidance rather than provider-native agents.
 - When high- or medium-evidence synthesis leaves the report short of its prediction target, one
   best-effort completion pass may add predictions only. It is prompted with a distilled context —
   the first-attempt report narrative, the critique stage output, and a compact source index
-  (id/title/publisher/snippet) — instead of the full evidence payload and prior-stage transcript.
-  The allowed source-ID list stays the citation authority, so the scoped context never invalidates a
-  cite, and deterministic merge and validation remain the authority over accepted candidates.
+  (id/title/fetchedAt/url/publisher/snippet) plus deterministic forecast anchors required by the
+  advertised completion grammar, such as latest close, earnings event/implied move, qualifying IV
+  metrics, and qualifying calibration guidance. It does not replay the full evidence payload or
+  prior-stage transcript. The allowed source-ID list stays the citation authority, so the scoped
+  context never invalidates a cite, and deterministic merge and validation remain the authority over
+  accepted candidates.
 - The post-synthesis audit records unsupported numeric/technical claims and evidence-posture
   omissions as warning telemetry. It does not remove claims, lower Evidence Quality, or fail a
   run.
@@ -67,8 +70,8 @@ guidance rather than provider-native agents.
 - Prompt behavior is reviewable independently of provider APIs.
 - Per-stage latency can be compared with token and cost telemetry without relying on wall-clock
   timestamps. Summed stage durations may exceed run duration when stages overlap.
-- The completion pass adds forecasts at a fraction of the first synthesis's token cost by reusing
-  the drafted report rather than replaying raw evidence.
+- The completion pass is intended to reduce token cost by reusing the drafted report rather than
+  replaying raw evidence; the actual reduction should be verified on fresh deep-run artifacts.
 - Warning-only post-synthesis findings must not be represented as enforced factual correctness.
 - Deterministic pruning can leave sections empty; grading discloses that rather than padding
   reports with unsupported claims.

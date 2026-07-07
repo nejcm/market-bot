@@ -179,6 +179,19 @@ async function runStage(
   reprompt: StageReprompt = {},
 ): Promise<StageOutput> {
   const loaded = await loadStagePrompt(stage, input.command, input.config.promptDir);
+  const prompt = buildStagePrompt(
+    stage,
+    input.command,
+    collectedSources,
+    input.config,
+    context,
+    loaded,
+    priorStages,
+    reprompt.predictionErrors ?? [],
+    reprompt.reportValidationErrors ?? [],
+    reprompt.allowedSourceIds ?? [],
+    reprompt.predictionCompletion,
+  );
   const startedAt = performance.now();
   const response = await input.provider.generate({
     model,
@@ -193,19 +206,7 @@ async function runStage(
       },
       {
         role: "user",
-        content: buildStagePrompt(
-          stage,
-          input.command,
-          collectedSources,
-          input.config,
-          context,
-          loaded,
-          priorStages,
-          reprompt.predictionErrors ?? [],
-          reprompt.reportValidationErrors ?? [],
-          reprompt.allowedSourceIds ?? [],
-          reprompt.predictionCompletion,
-        ),
+        content: prompt,
       },
     ],
   });
@@ -246,6 +247,14 @@ async function runPlaybookSelection(
   const registry = await loadPlaybookRegistry(input.config.promptDir);
   const candidates = eligiblePlaybookCandidates(input.command, plannedStages, registry);
   const loaded = await loadStagePrompt("playbook-selection", input.command, input.config.promptDir);
+  const prompt = buildPlaybookSelectionPrompt(
+    input.command,
+    collectedSources,
+    context,
+    loaded,
+    plannedStages,
+    candidates,
+  );
   const startedAt = performance.now();
   const response = await input.provider.generate({
     model: context.runParams.quickModel,
@@ -260,14 +269,7 @@ async function runPlaybookSelection(
       },
       {
         role: "user",
-        content: buildPlaybookSelectionPrompt(
-          input.command,
-          collectedSources,
-          context,
-          loaded,
-          plannedStages,
-          candidates,
-        ),
+        content: prompt,
       },
     ],
   });

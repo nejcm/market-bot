@@ -25,7 +25,15 @@ export interface StageReprompt {
   readonly predictionCompletion?: PredictionCompletionPrompt;
 }
 
-export type StageRepromptReason = Omit<StageReprompt, "allowedSourceIds">;
+export type StageRepromptReason = Omit<
+  StageReprompt,
+  "allowedSourceIds" | "predictionCompletion"
+> & {
+  readonly predictionCompletion?: Pick<
+    PredictionCompletionPrompt,
+    "requestedCount" | "existingPredictions"
+  >;
+};
 
 export interface StageOutput {
   readonly stage: StageLabel;

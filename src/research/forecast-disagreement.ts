@@ -259,6 +259,7 @@ export async function runForecastDisagreement(input: {
   const challengerResults = await Promise.all(
     input.challengerModels.map(async (model) => {
       const startedAt = performance.now();
+      let durationMs;
       try {
         const response = await input.provider.generate({
           model,
@@ -269,6 +270,7 @@ export async function runForecastDisagreement(input: {
             { role: "user", content: prompt },
           ],
         });
+        durationMs = Math.max(performance.now() - startedAt, Number.EPSILON);
         const predictions = readParticipantPredictions(
           JSON.parse(response.content) as unknown,
           knownPredictionIds,
@@ -289,7 +291,7 @@ export async function runForecastDisagreement(input: {
             stage: "forecast-disagreement",
             content: response.content,
             tokenEstimate: response.tokenEstimate,
-            durationMs: Math.max(performance.now() - startedAt, Number.EPSILON),
+            durationMs,
             ...(response.costEstimateUsd !== undefined
               ? { costEstimateUsd: response.costEstimateUsd }
               : {}),
@@ -310,7 +312,7 @@ export async function runForecastDisagreement(input: {
             stage: "forecast-disagreement",
             content: JSON.stringify({ model, error: message }),
             tokenEstimate: 0,
-            durationMs: Math.max(performance.now() - startedAt, Number.EPSILON),
+            durationMs: durationMs ?? Math.max(performance.now() - startedAt, Number.EPSILON),
           } satisfies StageOutput,
         };
       }

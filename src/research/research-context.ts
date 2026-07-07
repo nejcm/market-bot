@@ -5,6 +5,8 @@ import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import {
   marketUpdateHorizonOf,
+  type ExtendedEvidenceItem,
+  type MarketSnapshot,
   type Prediction,
   type PredictionKind,
   type ResearchReport,
@@ -957,17 +959,18 @@ function buildCompletionKindGrammar(
 export interface PredictionCompletionPrompt {
   readonly requestedCount: number;
   readonly existingPredictions: readonly Prediction[];
-  /** First-attempt report draft. When present, the completion pass is prompted with a distilled
-   *  context (report narrative + critique + compact source index) instead of the full evidence
-   *  payload and prior-stage transcript, so the second synthesis call stops replaying tens of
-   *  thousands of tokens to add a prediction or two. Never serialized into the prompt directly. */
-  readonly reportDraft?: ResearchReport;
+  /** First-attempt report draft. The completion pass uses it for a distilled context (report
+   *  narrative + critique + compact source index) instead of the full evidence payload and
+   *  prior-stage transcript. Never serialized into the prompt directly. */
+  readonly reportDraft: ResearchReport;
 }
 
 interface CompletionSourceEntry {
   readonly id: string;
   readonly title: string;
+  readonly fetchedAt: string;
   readonly publisher?: string;
+  readonly url?: string;
   readonly snippet?: string;
 }
 
@@ -976,24 +979,135 @@ function toCompletionSourceEntry(source: Source): CompletionSourceEntry {
   return {
     id: source.id,
     title: source.title,
+    fetchedAt: source.fetchedAt,
     ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
+    ...(source.url !== undefined ? { url: source.url } : {}),
     ...(snippet !== undefined ? { snippet } : {}),
   };
 }
 
-// Compact catalog of citeable sources for the completion pass: enough id/title/publisher/snippet
-// Context to author sourced forecasts without replaying the full evidence payload. Web sources stay
-// Under `webSources` so the completion instruction's fresh-web steering reference still resolves;
-// `allowedSourceIds` remains the citation authority, so a pruned catalog never invalidates a cite.
-function buildCompletionSourceIndex(report: ResearchReport): Record<string, unknown> {
+function completionMarketSnapshot(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): MarketSnapshot | undefined {
+  if (isInstrumentCommand(command)) {
+    const symbol = command.symbol.toUpperCase();
+    return collectedSources.marketSnapshots.find(
+      (snapshot) => snapshot.symbol.toUpperCase() === symbol,
+    );
+  }
+  return collectedSources.marketSnapshots.at(0);
+}
+
+function completionLatestClose(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): Record<string, unknown> | undefined {
+  if (
+    isInstrumentCommand(command) &&
+    collectedSources.verifiedMarketSnapshot?.symbol.toUpperCase() === command.symbol.toUpperCase()
+  ) {
+    const snapshot = collectedSources.verifiedMarketSnapshot;
+    return {
+      subject: snapshot.symbol,
+      close: snapshot.ohlcv.close,
+      sessionDate: snapshot.latestSessionDate,
+      sourceId: verifiedSnapshotSourceId(snapshot.symbol),
+    };
+  }
+
+  const snapshot = completionMarketSnapshot(command, collectedSources);
+  if (snapshot === undefined) {
+    return undefined;
+  }
+  return {
+    subject: snapshot.symbol,
+    price: snapshot.price,
+    observedAt: snapshot.observedAt,
+    sourceId: snapshot.sourceId,
+    ...(snapshot.identity?.quoteCurrency !== undefined
+      ? { quoteCurrency: snapshot.identity.quoteCurrency }
+      : {}),
+  };
+}
+
+function completionEarningsSetup(
+  collectedSources: CollectedSources,
+): Record<string, unknown> | undefined {
+  const setup = collectedSources.earningsSetup;
+  if (setup === undefined) {
+    return undefined;
+  }
+  return {
+    event: {
+      symbol: setup.event.symbol,
+      date: setup.event.date,
+      timing: setup.event.timing,
+      sourceIds: setup.event.sourceIds,
+      fetchedAt: setup.event.fetchedAt,
+      ...(setup.event.epsEstimate !== undefined ? { epsEstimate: setup.event.epsEstimate } : {}),
+      ...(setup.event.revenueEstimate !== undefined
+        ? { revenueEstimate: setup.event.revenueEstimate }
+        : {}),
+    },
+    ...(setup.impliedMove !== undefined
+      ? {
+          impliedMove: {
+            expiration: setup.impliedMove.expiration,
+            strike: setup.impliedMove.strike,
+            spot: setup.impliedMove.spot,
+            straddleMidpoint: setup.impliedMove.straddleMidpoint,
+            impliedMovePct: setup.impliedMove.impliedMovePct,
+            sourceIds: setup.impliedMove.sourceIds,
+            observedAt: setup.impliedMove.observedAt,
+          },
+        }
+      : {}),
+    ...(setup.gaps.length > 0 ? { gaps: setup.gaps } : {}),
+  };
+}
+
+function completionOptionsIv(
+  collectedSources: CollectedSources,
+): readonly Pick<ExtendedEvidenceItem, "title" | "sourceIds" | "observedAt" | "metrics">[] {
+  return (
+    collectedSources.extendedEvidence?.items
+      .filter((item) => item.category === "options-iv" && item.sourceIds.length > 0)
+      .map((item) => ({
+        title: item.title,
+        sourceIds: item.sourceIds,
+        observedAt: item.observedAt,
+        ...(item.metrics !== undefined ? { metrics: item.metrics } : {}),
+      })) ?? []
+  );
+}
+
+// Compact catalog of citeable sources plus deterministic forecast anchors for the completion pass:
+// Enough context to author sourced forecasts without replaying the full evidence payload. Web
+// Sources stay under `webSources` so the completion instruction's fresh-web steering reference
+// Still resolves; `allowedSourceIds` remains the citation authority.
+function buildCompletionEvidencePayload(
+  report: ResearchReport,
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+  context: ResearchContext,
+): Record<string, unknown> {
   const webSources: CompletionSourceEntry[] = [];
   const sources: CompletionSourceEntry[] = [];
   for (const source of report.sources) {
     (source.kind === "web" ? webSources : sources).push(toCompletionSourceEntry(source));
   }
+  const latestClose = completionLatestClose(command, collectedSources);
+  const earningsSetup = completionEarningsSetup(collectedSources);
+  const optionsIv = completionOptionsIv(collectedSources);
+  const calibrationBlock = buildCalibrationBlock(context.calibrationContext, command, context);
   return {
     sources,
     ...(webSources.length > 0 ? { webSources } : {}),
+    ...(latestClose !== undefined ? { latestClose } : {}),
+    ...(earningsSetup !== undefined ? { earningsSetup } : {}),
+    ...(optionsIv.length > 0 ? { optionsIv } : {}),
+    ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
   };
 }
 
@@ -1199,12 +1313,17 @@ export function buildStagePrompt(
   })();
   const playbooks = stagePlaybooks(stage, context);
   // Prediction completion pass: swap the full evidence payload and prior-stage transcript for a
-  // Distilled context (report narrative + critique + compact source index). Guarded on reportDraft
-  // So callers that omit it (focused instruction tests) keep the legacy full-payload behavior.
+  // Distilled context (report narrative + critique + compact source index plus deterministic
+  // Forecast anchors).
   const completionContext =
-    stage === "final-synthesis" && predictionCompletion?.reportDraft !== undefined
+    stage === "final-synthesis" && predictionCompletion !== undefined
       ? {
-          evidence: buildCompletionSourceIndex(predictionCompletion.reportDraft),
+          evidence: buildCompletionEvidencePayload(
+            predictionCompletion.reportDraft,
+            command,
+            collectedSources,
+            context,
+          ),
           priorStages: (() => {
             const critique = completionCritiqueStage(priorStages);
             return critique === undefined ? [] : [critique];

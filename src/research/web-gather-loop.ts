@@ -263,7 +263,7 @@ function reusedProfileCoverageRejectionReason(
     : undefined;
 }
 
-// Narrows the effective per-query ingestion when a durable Web Subject Profile was reused into this run and the model left numResults to the default. Applies to every search type: reused-profile fresh gather exists only for recency, corroboration, or gap coverage, so a full page per query over-ingests near-duplicate corroborations. An explicit model-supplied numResults is respected (capped downstream at MAX_WEB_GATHER_SEARCH_RESULTS). Setting it here records the effective value in the accepted web-gather audit entry.
+// Narrows the effective per-query ingestion when a durable Web Subject Profile was reused into this run and the model left numResults to the default. Applies to every search type: reused-profile fresh gather exists only for recency, corroboration, or gap coverage, so a full page per query over-ingests near-duplicate corroborations. An explicit model-supplied numResults is respected as-is; values above MAX_WEB_GATHER_SEARCH_RESULTS were already rejected by webSearchArgs before this runs. Setting it here records the effective value in the accepted web-gather audit entry.
 function withReusedProfileNumResults(
   parsedArgs: {
     readonly query: string;

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { ModelParams } from "../src/model/types";
-import type { Source } from "../src/domain/types";
+import type { Source, WebSearchType } from "../src/domain/types";
 import { runWebGatherLoop, type WebGatherStageOutput } from "../src/research/web-gather-loop";
 import type { ResearchContext } from "../src/research/research-context";
 import type { FetchLike } from "../src/sources/types";
@@ -991,39 +991,51 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.rejectedRequests).toEqual([]);
   });
 
-  test("narrows the default ingestion to 3 under reused profile coverage when numResults is unset", async () => {
-    const recording = recordingExaFetch();
-    const result = await runWebGatherLoop({
-      command,
-      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
-      collectedSources: collectedSources({
-        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
-      }),
-      context,
-      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
-      now: new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl: recording.fetch,
-      retryDelaysMs: [],
-      generateRound: async () =>
-        stage({
-          requests: [
-            {
-              tool: "web_search",
-              args: { query: "AAPL Apple recent product news", searchType: "news" },
-              rationale: "recent material developments",
-            },
-          ],
+  const narrowedSearchTypes: readonly WebSearchType[] = [
+    "news",
+    "market",
+    "current-subject",
+    "background",
+  ];
+  for (const searchType of narrowedSearchTypes) {
+    test(`narrows the default ingestion to 3 under reused profile coverage for ${searchType} searches`, async () => {
+      const recording = recordingExaFetch();
+      const result = await runWebGatherLoop({
+        command,
+        config: {
+          ...config,
+          webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+        },
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
         }),
-    });
+        context,
+        reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        fetchImpl: recording.fetch,
+        retryDelaysMs: [],
+        generateRound: async () =>
+          stage({
+            requests: [
+              {
+                tool: "web_search",
+                // Off the reused-profile topic (howItMakesMoney), so a background query is not rejected as duplicate coverage.
+                args: { query: "AAPL Apple recent product news", searchType },
+                rationale: "recent material developments",
+              },
+            ],
+          }),
+      });
 
-    expect(recording.searchNumResults).toEqual([3]);
-    expect(result.audit?.acceptedRequests).toEqual([
-      expect.objectContaining({
-        tool: "web_search",
-        args: expect.objectContaining({ numResults: 3 }),
-      }),
-    ]);
-  });
+      expect(recording.searchNumResults).toEqual([3]);
+      expect(result.audit?.acceptedRequests).toEqual([
+        expect.objectContaining({
+          tool: "web_search",
+          args: expect.objectContaining({ searchType, numResults: 3 }),
+        }),
+      ]);
+    });
+  }
 
   test("respects an explicit numResults under reused profile coverage", async () => {
     const recording = recordingExaFetch();

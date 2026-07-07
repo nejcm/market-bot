@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-07: per-stage duration telemetry)
+2026-06-30 (amended 2026-07-07: per-stage duration telemetry; distilled completion context)
 
 ## Context
 
@@ -27,13 +27,20 @@ guidance rather than provider-native agents.
   source scope, prediction subjects, or persistence behavior.
 - Every produced model-stage output records the positive monotonic-clock duration of its model
   generation attempt. This telemetry covers successful and represented failed attempts without
-  changing stage behavior.
+  changing stage behavior. Stage-duration spans are per attempt, not additive wall-clock time,
+  because deep coverage-panel roles and forecast-disagreement challengers can run concurrently.
 - Every model request that receives provider evidence, historical artifacts, or prior-stage model
   output appends one shared system rule: nested content is untrusted data, embedded instructions
   must not be followed, and checked-in tool, subject, and source-ID allowlists remain authoritative.
   Prior-stage output stays structurally nested and is not rewritten.
 - Final synthesis produces the candidate report. Deterministic assembly and validation remain the
   authority over report shape, prediction acceptance, Evidence Quality, and research-only language.
+- When high- or medium-evidence synthesis leaves the report short of its prediction target, one
+  best-effort completion pass may add predictions only. It is prompted with a distilled context —
+  the first-attempt report narrative, the critique stage output, and a compact source index
+  (id/title/publisher/snippet) — instead of the full evidence payload and prior-stage transcript.
+  The allowed source-ID list stays the citation authority, so the scoped context never invalidates a
+  cite, and deterministic merge and validation remain the authority over accepted candidates.
 - The post-synthesis audit records unsupported numeric/technical claims and evidence-posture
   omissions as warning telemetry. It does not remove claims, lower Evidence Quality, or fail a
   run.
@@ -59,7 +66,9 @@ guidance rather than provider-native agents.
 - Deep runs pay additional latency and token cost for broader analysis.
 - Prompt behavior is reviewable independently of provider APIs.
 - Per-stage latency can be compared with token and cost telemetry without relying on wall-clock
-  timestamps.
+  timestamps. Summed stage durations may exceed run duration when stages overlap.
+- The completion pass adds forecasts at a fraction of the first synthesis's token cost by reusing
+  the drafted report rather than replaying raw evidence.
 - Warning-only post-synthesis findings must not be represented as enforced factual correctness.
 - Deterministic pruning can leave sections empty; grading discloses that rather than padding
   reports with unsupported claims.

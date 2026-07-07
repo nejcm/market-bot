@@ -135,7 +135,14 @@ function stageRepromptReason(reprompt: StageReprompt | undefined): StageReprompt
       ? { reportValidationErrors: reprompt.reportValidationErrors }
       : {}),
     ...(reprompt.predictionCompletion !== undefined
-      ? { predictionCompletion: reprompt.predictionCompletion }
+      ? {
+          // Persist only the audit-relevant fields; the report draft is prompt-only context and must
+          // Not be duplicated into the recorded reprompt reason.
+          predictionCompletion: {
+            requestedCount: reprompt.predictionCompletion.requestedCount,
+            existingPredictions: reprompt.predictionCompletion.existingPredictions,
+          },
+        }
       : {}),
   };
   return Object.keys(reason).length > 0 ? reason : undefined;
@@ -383,6 +390,9 @@ async function runPredictionCompletion(
       predictionCompletion: {
         requestedCount: targetCount - initialCount,
         existingPredictions: report.predictions,
+        // Distills the completion prompt to the report narrative + critique + compact source index
+        // Instead of the full evidence payload and prior-stage transcript. See buildStagePrompt.
+        reportDraft: report,
       },
     });
     const payload = parseModelPayload(output.content);

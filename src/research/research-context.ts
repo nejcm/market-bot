@@ -7,6 +7,7 @@ import {
   marketUpdateHorizonOf,
   type Prediction,
   type PredictionKind,
+  type ResearchReport,
   type Source,
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
@@ -956,6 +957,79 @@ function buildCompletionKindGrammar(
 export interface PredictionCompletionPrompt {
   readonly requestedCount: number;
   readonly existingPredictions: readonly Prediction[];
+  /** First-attempt report draft. When present, the completion pass is prompted with a distilled
+   *  context (report narrative + critique + compact source index) instead of the full evidence
+   *  payload and prior-stage transcript, so the second synthesis call stops replaying tens of
+   *  thousands of tokens to add a prediction or two. Never serialized into the prompt directly. */
+  readonly reportDraft?: ResearchReport;
+}
+
+interface CompletionSourceEntry {
+  readonly id: string;
+  readonly title: string;
+  readonly publisher?: string;
+  readonly snippet?: string;
+}
+
+function toCompletionSourceEntry(source: Source): CompletionSourceEntry {
+  const snippet = source.snippet ?? source.summary;
+  return {
+    id: source.id,
+    title: source.title,
+    ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
+    ...(snippet !== undefined ? { snippet } : {}),
+  };
+}
+
+// Compact catalog of citeable sources for the completion pass: enough id/title/publisher/snippet
+// Context to author sourced forecasts without replaying the full evidence payload. Web sources stay
+// Under `webSources` so the completion instruction's fresh-web steering reference still resolves;
+// `allowedSourceIds` remains the citation authority, so a pruned catalog never invalidates a cite.
+function buildCompletionSourceIndex(report: ResearchReport): Record<string, unknown> {
+  const webSources: CompletionSourceEntry[] = [];
+  const sources: CompletionSourceEntry[] = [];
+  for (const source of report.sources) {
+    (source.kind === "web" ? webSources : sources).push(toCompletionSourceEntry(source));
+  }
+  return {
+    sources,
+    ...(webSources.length > 0 ? { webSources } : {}),
+  };
+}
+
+// Narrative-only projection of the first-attempt report so the completion pass can see what has
+// Already been written without the raw evidence or prior-stage transcript. Predictions and sources
+// Are omitted: existingPredictions and the compact source index already carry them.
+function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
+  return {
+    summary: report.summary,
+    keyFindings: report.keyFindings,
+    bullCase: report.bullCase,
+    bearCase: report.bearCase,
+    risks: report.risks,
+    catalysts: report.catalysts,
+    scenarios: report.scenarios,
+    dataGaps: report.dataGaps,
+  };
+}
+
+// The critique stage output from the prior-stage transcript, projected to stage + content only.
+// The completion pass keeps just this stage instead of the full analysis transcript.
+function completionCritiqueStage(
+  priorStages: readonly unknown[],
+): { readonly stage: string; readonly content: string } | undefined {
+  for (const entry of priorStages) {
+    if (
+      typeof entry === "object" &&
+      entry !== null &&
+      "stage" in entry &&
+      (entry as { readonly stage?: unknown }).stage === "critique"
+    ) {
+      const { content } = entry as { readonly content?: unknown };
+      return { stage: "critique", content: typeof content === "string" ? content : "" };
+    }
+  }
+  return undefined;
 }
 
 function buildPredictionCompletionInstruction(
@@ -1124,6 +1198,20 @@ export function buildStagePrompt(
     };
   })();
   const playbooks = stagePlaybooks(stage, context);
+  // Prediction completion pass: swap the full evidence payload and prior-stage transcript for a
+  // Distilled context (report narrative + critique + compact source index). Guarded on reportDraft
+  // So callers that omit it (focused instruction tests) keep the legacy full-payload behavior.
+  const completionContext =
+    stage === "final-synthesis" && predictionCompletion?.reportDraft !== undefined
+      ? {
+          evidence: buildCompletionSourceIndex(predictionCompletion.reportDraft),
+          priorStages: (() => {
+            const critique = completionCritiqueStage(priorStages);
+            return critique === undefined ? [] : [critique];
+          })(),
+          reportDraft: buildCompletionReportDraft(predictionCompletion.reportDraft),
+        }
+      : undefined;
 
   return JSON.stringify(
     {
@@ -1142,9 +1230,13 @@ export function buildStagePrompt(
           ? loaded.goal
           : "Add only distinct, evidence-backed observable forecasts without changing the accepted report.",
       depthProfile: context.depthProfile,
-      evidence: buildEvidencePayload(stage, command, collectedSources, config, context),
+      evidence:
+        completionContext === undefined
+          ? buildEvidencePayload(stage, command, collectedSources, config, context)
+          : completionContext.evidence,
       ...(playbooks !== undefined && playbooks.length > 0 ? { domainPlaybooks: playbooks } : {}),
-      priorStages,
+      priorStages: completionContext === undefined ? priorStages : completionContext.priorStages,
+      ...(completionContext !== undefined ? { reportDraft: completionContext.reportDraft } : {}),
       ...(predictionRepromptErrors.length > 0
         ? { predictionRepromptErrors, predictionRepair }
         : {}),

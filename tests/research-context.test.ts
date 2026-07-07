@@ -29,7 +29,13 @@ import type {
 } from "../src/domain/types";
 import type { EarningsSetupCollected } from "../src/sources/types";
 import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
-import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
+import {
+  collectedSources,
+  marketSnapshot,
+  newsSource,
+  prediction,
+  researchReport,
+} from "./support/fixtures";
 
 const config: AppConfig = {
   provider: "openai",
@@ -3403,5 +3409,159 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     const instruction = finalSynthesisInstruction(command);
 
     expect(instruction).not.toContain("earnings-direction or earnings-move");
+  });
+});
+
+// Run-review finding #1: the completion pass replayed the full evidence payload and prior-stage
+// Transcript to add a prediction or two. It now receives a distilled context — report narrative +
+// Critique + compact source index — while the primary synthesis prompt stays byte-for-byte the same.
+describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
+  const command: ResearchCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "deep",
+  };
+  const context: ResearchContext = {
+    depthProfile: buildDepthProfile(command, config),
+    runParams: {
+      quickModel: "quick-test",
+      synthesisModel: "synthesis-test",
+      analystStyle: "fuller analyst-style",
+      minimumKeyFindings: 5,
+      minimumScenarios: 3,
+      targetPredictions: 5,
+      defaultPredictionHorizon: 5,
+      predictionSubjects: ["AAPL"],
+      focus: ["thesis"],
+      targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
+      modelParams: undefined,
+    },
+    marketRegime: {
+      assetClass: "equity",
+      label: "mixed",
+      proxyCount: 1,
+      drivers: [],
+      sourceIds: [],
+    },
+    calibrationContext: undefined,
+  };
+  const sources = collectedSources({
+    marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+    newsSources: [newsSource()],
+  });
+  const loaded = { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." };
+  const allowedSourceIds = ["news-equity-1", "web-aapl-1", "market-aapl"];
+  const priorStages = [
+    { stage: "specialist-analysis", content: "SPECIALIST_TRANSCRIPT", tokenEstimate: 10 },
+    { stage: "critique", content: "CRITIQUE_TRANSCRIPT", tokenEstimate: 5 },
+  ];
+  const reportDraft = researchReport({
+    summary: "AAPL_DRAFT_SUMMARY",
+    keyFindings: [{ text: "drafted finding", sourceIds: ["news-equity-1"] }],
+    predictions: [prediction({ id: "pred-1", subject: "AAPL" })],
+    sources: [
+      newsSource(),
+      newsSource({
+        id: "web-aapl-1",
+        kind: "web",
+        title: "Fresh web piece",
+        snippet: "web snippet",
+        publisher: "Example Wire",
+      }),
+      newsSource({ id: "market-aapl", kind: "market-data", title: "AAPL quote", summary: "quote" }),
+    ],
+  });
+
+  function buildPrompt(predictionCompletion?: {
+    readonly requestedCount: number;
+    readonly existingPredictions: readonly Prediction[];
+    readonly reportDraft?: typeof reportDraft;
+  }): string {
+    return buildStagePrompt(
+      "final-synthesis",
+      command,
+      sources,
+      config,
+      context,
+      loaded,
+      priorStages,
+      [],
+      [],
+      allowedSourceIds,
+      predictionCompletion,
+    );
+  }
+
+  test("distills the completion prompt to report draft, critique, and a compact source index", () => {
+    const prompt = buildPrompt({
+      requestedCount: 2,
+      existingPredictions: reportDraft.predictions,
+      reportDraft,
+    });
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence: {
+        readonly sources?: readonly { readonly id: string; readonly snippet?: string }[];
+        readonly webSources?: readonly {
+          readonly id: string;
+          readonly title: string;
+          readonly snippet?: string;
+          readonly publisher?: string;
+        }[];
+        readonly marketSnapshots?: unknown;
+      };
+      readonly priorStages: readonly { readonly stage: string; readonly content: string }[];
+      readonly reportDraft?: { readonly summary?: string; readonly predictions?: unknown };
+      readonly allowedSourceIds?: readonly string[];
+      readonly predictionCompletion?: { readonly reportDraft?: unknown };
+    };
+
+    // Evidence is a compact source index, not the full payload.
+    expect(parsed.evidence.marketSnapshots).toBeUndefined();
+    expect(parsed.evidence.sources?.map((source) => source.id).toSorted()).toEqual([
+      "market-aapl",
+      "news-equity-1",
+    ]);
+    // Web sources stay under evidence.webSources so the fresh-web steering reference resolves.
+    expect(parsed.evidence.webSources).toEqual([
+      {
+        id: "web-aapl-1",
+        title: "Fresh web piece",
+        publisher: "Example Wire",
+        snippet: "web snippet",
+      },
+    ]);
+
+    // Only the critique survives from the prior-stage transcript.
+    expect(parsed.priorStages).toEqual([{ stage: "critique", content: "CRITIQUE_TRANSCRIPT" }]);
+    expect(prompt).not.toContain("SPECIALIST_TRANSCRIPT");
+
+    // The report narrative is threaded in; predictions/sources are not duplicated there.
+    expect(parsed.reportDraft?.summary).toBe("AAPL_DRAFT_SUMMARY");
+    expect(parsed.reportDraft?.predictions).toBeUndefined();
+
+    // Citation authority is unchanged and the report draft is never leaked into the audit block.
+    expect(parsed.allowedSourceIds).toEqual(allowedSourceIds);
+    expect(parsed.predictionCompletion?.reportDraft).toBeUndefined();
+  });
+
+  test("leaves the primary synthesis prompt on the full evidence payload", () => {
+    const parsed = JSON.parse(buildPrompt()) as {
+      readonly evidence: { readonly marketSnapshots?: unknown };
+      readonly reportDraft?: unknown;
+      readonly priorStages: readonly unknown[];
+    };
+    expect(parsed.evidence.marketSnapshots).toBeDefined();
+    expect(parsed.reportDraft).toBeUndefined();
+    expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
+  });
+
+  test("keeps the full payload for a completion caller that omits the report draft", () => {
+    const parsed = JSON.parse(buildPrompt({ requestedCount: 2, existingPredictions: [] })) as {
+      readonly evidence: { readonly marketSnapshots?: unknown };
+      readonly reportDraft?: unknown;
+    };
+    expect(parsed.evidence.marketSnapshots).toBeDefined();
+    expect(parsed.reportDraft).toBeUndefined();
   });
 });

@@ -4076,6 +4076,13 @@ describe("runResearchJob", () => {
 
     const [, completionPrompt] = prompts.filter((prompt) => prompt.stage === "final-synthesis");
     expect(Object.keys((completionPrompt?.requiredShape ?? {}) as object)).toEqual(["predictions"]);
+    // The completion pass records completion steering, not the primary prediction instruction.
+    const completionOutput = result.stageOutputs.findLast(
+      (output) => output.stage === "final-synthesis",
+    );
+    expect(completionOutput?.steering).toContain(
+      "Return a JSON object containing only a predictions array with up to",
+    );
     expect(result.report.summary).toBe("Base report remains authoritative.");
     expect(result.report.predictions.map((prediction) => prediction.id)).toEqual([
       "pred-1",
@@ -4497,10 +4504,17 @@ describe("runResearchJob", () => {
     const finalOutputs = result.stageOutputs.filter((output) => output.stage === "final-synthesis");
     expect(finalOutputs[0]?.attempt).toBe(1);
     expect(finalOutputs[0]?.repromptReason).toBeUndefined();
+    // Attempt 1 records the primary prediction steering and no repair steering.
+    expect(finalOutputs[0]?.steering).toContain(
+      "predictions using subjects from predictionSubjects",
+    );
+    expect(finalOutputs[0]?.steering).not.toContain("fixing the flagged predictions");
     expect(finalOutputs[1]?.attempt).toBe(2);
     expect(finalOutputs[1]?.repromptReason?.predictionErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",
     );
+    // Attempt 2 is a prediction reprompt, so its steering carries the repair instruction.
+    expect(finalOutputs[1]?.steering).toContain("fixing the flagged predictions");
     const traceFinalRecords = result.trace.stageRecords?.filter(
       (record) => record.stage === "final-synthesis",
     );

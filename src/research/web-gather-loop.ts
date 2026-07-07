@@ -794,10 +794,19 @@ function mergeToolOutput(
 ): CollectedSources {
   const gaps = output.gaps.map(extendedEvidenceGap);
   const extendedEvidence = mergeExtendedEvidence(command, collectedSources, output.items, gaps);
+  // Web source IDs are sha256(url)-derived, so a URL already present via a reused profile digest collides deterministically with a fresh gather of the same URL. Keeping the first occurrence (the profile copy, already cited by its digest) keeps report.json sources unique.
+  const existingSourceIds = new Set(collectedSources.extendedSources.map((source) => source.id));
+  const freshSources = output.sources.filter((source) => {
+    if (existingSourceIds.has(source.id)) {
+      return false;
+    }
+    existingSourceIds.add(source.id);
+    return true;
+  });
   return {
     ...collectedSources,
     rawSnapshots: [...collectedSources.rawSnapshots, ...output.rawSnapshots],
-    extendedSources: [...collectedSources.extendedSources, ...output.sources],
+    extendedSources: [...collectedSources.extendedSources, ...freshSources],
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
     sourceGaps: [...collectedSources.sourceGaps, ...gaps],
     ...(output.modelInputSanitization !== undefined

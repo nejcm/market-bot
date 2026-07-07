@@ -266,6 +266,102 @@ describe("runWebGatherLoop", () => {
     });
   });
 
+  test("dedupes gather source IDs already present or repeated in a batch; distinct IDs still append", async () => {
+    const duplicateResultFetch: FetchLike = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/contents")) {
+        return exaFetch(input, init);
+      }
+      return Response.json({
+        results: [
+          {
+            id: "exa-search-duplicate-1",
+            url: "https://example.com/aapl-business",
+            title: "Apple business profile",
+            summary: "Apple sells iPhone, Mac, services, and wearables.",
+            highlights: ["Apple reports products and services revenue."],
+          },
+          {
+            id: "exa-search-duplicate-2",
+            url: "https://example.com/aapl-business",
+            title: "Apple business profile duplicate",
+            summary: "Apple sells hardware and services globally.",
+            highlights: ["Apple reports products and services revenue."],
+          },
+        ],
+      });
+    };
+    const runOptions = {
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model revenue segments", searchType: "background" },
+              rationale: "business profile evidence",
+            },
+          ],
+        }),
+    };
+
+    // Discover the deterministic source the gather emits for the exaFetch URL.
+    const discovery = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+    });
+    const [gathered] = discovery.collectedSources.extendedSources;
+    expect(gathered).toBeDefined();
+
+    // Same ID already present (e.g. carried in via a reused profile) collapses to one entry.
+    const deduped = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [gathered!],
+      }),
+    });
+    expect(
+      deduped.collectedSources.extendedSources.filter((source) => source.id === gathered!.id),
+    ).toHaveLength(1);
+
+    // Duplicate rows within one fresh provider response also collapse to the first occurrence.
+    const duplicateBatch = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      fetchImpl: duplicateResultFetch,
+    });
+    expect(duplicateBatch.collectedSources.extendedSources).toHaveLength(1);
+    expect(duplicateBatch.collectedSources.extendedSources[0]?.id).toBe(gathered!.id);
+
+    // A distinct pre-existing source is preserved alongside the fresh gather. It is deliberately not a SEC company-profile source (provider/id would gate the web search), so gather still runs and the fresh source is appended next to it.
+    const distinct = secFilingSource({
+      id: "extended-newswire-aapl-1",
+      provider: "newswire",
+      snippet: "Prior gather evidence for Apple.",
+    });
+    const appended = await runWebGatherLoop({
+      ...runOptions,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [distinct],
+      }),
+    });
+    const appendedIds = appended.collectedSources.extendedSources.map((source) => source.id);
+    expect(appendedIds).toHaveLength(2);
+    expect(appendedIds).toContain(distinct.id);
+    expect(appendedIds).toContain(gathered!.id);
+  });
+
   test("rejects off-company web search queries", async () => {
     const result = await runWebGatherLoop({
       command,

@@ -34,7 +34,7 @@ A raw Source Provider cache that can replay same-day provider payloads only insi
 
 ## Model-Visible Web Text
 
-Sanitized normalized web text allowed into model prompts for Web Subject Profile extraction only. It strips high-confidence prompt-risk and page-chrome spans while preserving factual business prose. Later synthesis receives web Source metadata and the cited structured Web Subject Profile, not web snippets.
+Sanitized normalized web text allowed into model prompts for Web Subject Profile extraction and for fresh current-run web sources at final synthesis. It strips high-confidence prompt-risk and page-chrome spans while preserving factual business prose. Final synthesis receives web Source metadata, the cited structured Web Subject Profile, and the sanitized summary (snippet as fallback) of current-run web sources not already covered by the reused profile; profile-covered sources stay bare because their facts arrive via the digest. Web text stays low-trust context throughout.
 
 ## Model Input Sanitization
 

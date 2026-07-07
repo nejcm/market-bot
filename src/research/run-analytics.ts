@@ -196,6 +196,10 @@ export interface RunAnalytics {
     readonly accepted: number;
     readonly profileUsed: number;
     readonly reportCited: number;
+    /** Current-run web sources cited only in authored extras (e.g. earningsSetup), not in
+     *  primary report claims or Predictions. Kept distinct so `unused` reflects genuinely
+     *  uncited sources rather than conflating extras citations with dead evidence. */
+    readonly extrasCited: number;
     readonly unused: number;
     readonly usageRatio: number;
     readonly usageWarning?: string;
@@ -471,6 +475,47 @@ function verifiedMarketSnapshotFreshness(
       };
 }
 
+// Deterministic extras subtrees that echo source citations the model did not author. The digest
+// Under the webSubjectProfile key is a code-assembled restatement of the run's profile web sources,
+// Already reported as analytics.webSources.profileUsed, so walking it would double-count those ids
+// As authored-extras adoption. Skipping it keeps extrasCited to genuinely model-authored citations.
+const CODE_ASSEMBLED_EXTRAS_KEYS = new Set(["webSubjectProfile"]);
+
+// Recursively collect every sourceId string reachable under report.extras, excluding the
+// Deterministic subtrees above. Authored extras such as earningsSetup, businessFramework,
+// Spotlights, and historicalContext nest {text, sourceIds} bullets at varying depths, so a walk
+// Keeps the telemetry robust to extras shape changes.
+function collectExtrasSourceIds(extras: Record<string, unknown> | undefined): Set<string> {
+  const ids = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item);
+      }
+      return;
+    }
+    if (!isRecord(value)) {
+      return;
+    }
+    for (const [key, nested] of Object.entries(value)) {
+      if (CODE_ASSEMBLED_EXTRAS_KEYS.has(key)) {
+        continue;
+      }
+      if (key === "sourceIds" && Array.isArray(nested)) {
+        for (const id of nested) {
+          if (typeof id === "string") {
+            ids.add(id);
+          }
+        }
+        continue;
+      }
+      visit(nested);
+    }
+  };
+  visit(extras);
+  return ids;
+}
+
 function webSourceRoles(
   report: ResearchReport,
   collectedSources: CollectedSources,
@@ -509,7 +554,16 @@ function webSourceRoles(
   const currentRunReportCitedIds = new Set(
     [...reportCitedIds].filter((id) => currentRunIds.has(id)),
   );
-  const usedUnion = new Set([...profileUsedIds, ...reportCitedIds]);
+  // Web sources cited only in authored extras count as real usage, so fold them into the
+  // Usage union (keeps `unused` and usageWarning from flagging genuinely used sources) while
+  // Reporting them separately from primary reportCited (run-review finding #1).
+  const extrasCitedIds = new Set(
+    [...collectExtrasSourceIds(report.extras)].filter((id) => acceptedIds.has(id)),
+  );
+  const currentRunExtrasCitedIds = new Set(
+    [...extrasCitedIds].filter((id) => currentRunIds.has(id) && !currentRunReportCitedIds.has(id)),
+  );
+  const usedUnion = new Set([...profileUsedIds, ...reportCitedIds, ...extrasCitedIds]);
   const currentRunUsedUnion = new Set([...usedUnion].filter((id) => currentRunIds.has(id)));
   const usageRatio = currentRunIds.size === 0 ? 0 : currentRunUsedUnion.size / currentRunIds.size;
   return {
@@ -520,6 +574,7 @@ function webSourceRoles(
             accepted: currentRunIds.size,
             profileUsed: profileUsedIds.size,
             reportCited: currentRunReportCitedIds.size,
+            extrasCited: currentRunExtrasCitedIds.size,
             unused: currentRunIds.size - currentRunUsedUnion.size,
             usageRatio,
             ...(currentRunIds.size >= 4 && usageRatio < 0.25

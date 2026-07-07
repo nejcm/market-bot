@@ -24,6 +24,7 @@ import type {
   InstrumentIdentity,
   MarketContext,
   Prediction,
+  PredictionKind,
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
 import type { EarningsSetupCollected } from "../src/sources/types";
@@ -300,6 +301,14 @@ describe("buildStagePrompt", () => {
     expect(parsed.predictionRepair?.instruction).toContain(
       "For ticker relative forecasts, use subject form TICKER:BENCHMARK.",
     );
+    // Repair handles the same disallowed-subject / broad-index-redundancy rejection classes as the
+    // Completion pass, so it carries the same allowed-subject + benchmark-equivalence steering.
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "Allowed prediction subjects for this run:",
+    );
+    expect(parsed.predictionRepair?.instruction).toContain(
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+    );
     expect(parsed.predictionRepair?.instruction).toContain(
       "For range forecasts, vary the horizon or range bounds",
     );
@@ -523,6 +532,144 @@ describe("buildStagePrompt", () => {
     const kinds = parsed.requiredShape?.predictions?.[0]?.kind?.split("|") ?? [];
     expect(kinds).not.toContain("iv");
     expect(kinds).not.toContain("volatility");
+  });
+
+  // Returns the individual kinds the equity final-synthesis required shape advertises for pred-1.
+  // The model-visible shape must stay gated in lockstep with the prose: volatility only when ^VIX
+  // Is an allowed subject, iv only with citeable options-iv evidence (2026-07-05 review — an
+  // Ungated shape advertised ^VIX/iv the subject gate then rejected).
+  function equityRequiredShapeKinds(opts: {
+    readonly predictionSubjects: readonly string[];
+    readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
+    readonly depth?: "brief" | "deep";
+  }): readonly string[] {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: opts.depth ?? "deep",
+    };
+    const baseProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+        ...opts.sources,
+      }),
+      config,
+      {
+        depthProfile: { ...baseProfile, predictionSubjects: opts.predictionSubjects },
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 6,
+          minimumScenarios: 3,
+          targetPredictions: 5,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: opts.predictionSubjects,
+          focus: ["thesis"],
+          targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly requiredShape?: { readonly predictions?: readonly { readonly kind?: string }[] };
+    };
+    return parsed.requiredShape?.predictions?.[0]?.kind?.split("|") ?? [];
+  }
+
+  const optionsIvEvidence: Partial<Parameters<typeof collectedSources>[0]> = {
+    extendedEvidence: {
+      instrument: { symbol: "AAPL", assetClass: "equity" },
+      items: [
+        {
+          category: "options-iv",
+          title: "AAPL options IV",
+          summary: "Near-term IV is elevated.",
+          sourceIds: ["tradier-aapl-options"],
+          observedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      gaps: [],
+    },
+  };
+
+  test("equity final-synthesis shape omits volatility and iv without ^VIX or options-iv evidence", () => {
+    const kinds = equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] });
+
+    expect(kinds).not.toContain("volatility");
+    expect(kinds).not.toContain("iv");
+    // Ungated kinds still appear, so the shape is not simply empty.
+    expect(kinds).toContain("direction");
+    expect(kinds).toContain("relative");
+    expect(kinds).toContain("range");
+    expect(kinds).toContain("macro");
+  });
+
+  test("equity final-synthesis shape advertises volatility only when ^VIX is an allowed subject", () => {
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] })).not.toContain("volatility");
+
+    const withVix = equityRequiredShapeKinds({ predictionSubjects: ["AAPL", "^VIX"] });
+    expect(withVix).toContain("volatility");
+    // ^VIX gates volatility, not iv — no options-iv evidence here.
+    expect(withVix).not.toContain("iv");
+  });
+
+  test("equity final-synthesis shape advertises iv only with citeable options-iv evidence", () => {
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] })).not.toContain("iv");
+
+    const withIv = equityRequiredShapeKinds({
+      predictionSubjects: ["AAPL"],
+      sources: optionsIvEvidence,
+    });
+    expect(withIv).toContain("iv");
+    // Options-iv evidence gates iv, not volatility — ^VIX is not an allowed subject here.
+    expect(withIv).not.toContain("volatility");
+  });
+
+  test("equity final-synthesis shape omits iv when options-iv evidence carries no sourceId", () => {
+    const kinds = equityRequiredShapeKinds({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "Near-term IV is elevated.",
+              sourceIds: [],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      },
+    });
+
+    expect(kinds).not.toContain("iv");
+  });
+
+  test("equity final-synthesis shape gates conditional on deep depth", () => {
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"], depth: "deep" })).toContain(
+      "conditional",
+    );
+    expect(
+      equityRequiredShapeKinds({ predictionSubjects: ["AAPL"], depth: "brief" }),
+    ).not.toContain("conditional");
   });
 
   test("final-synthesis shape includes business framework extras when sidecar exists", () => {
@@ -793,13 +940,172 @@ describe("buildStagePrompt", () => {
     const parsed = JSON.parse(prompt) as { readonly instruction: string };
 
     expect(parsed.instruction).toContain("covered kinds: direction");
+    // `iv` is gated out — this run carries no citeable options-iv evidence — while `volatility`
+    // Stays because ^VIX is an allowed subject in the market-overview depth profile.
     expect(parsed.instruction).toContain(
-      "supported kinds not yet represented: relative, volatility, iv, range, macro, conditional",
+      "supported kinds not yet represented: relative, volatility, range, macro, conditional",
     );
     expect(parsed.instruction).toContain("covered exact horizons: 5d");
     expect(parsed.instruction).toContain(
       "Use a different exact horizon only when evidence supports that horizon",
     );
+    // Allowed-subject + benchmark-equivalence steering names the enforced semantics so the
+    // Completion pass stops proposing disallowed subjects and broad-index redundancies.
+    expect(parsed.instruction).toContain("Allowed prediction subjects for this run:");
+    expect(parsed.instruction).toContain(
+      "the primary (pre-colon) symbol must be one of these allowed subjects",
+    );
+    expect(parsed.instruction).toContain(
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+    );
+    // The one existing prediction is a bare `direction` call, so no broad-index slot is occupied.
+    expect(parsed.instruction).not.toContain("already occupy these broad-us-index slots");
+  });
+
+  // Builds the completion-pass instruction for an AAPL equity deep run with full control over the
+  // Allowed subjects, kind mix, collected evidence, and existing predictions the pass sees.
+  function completionInstruction(opts: {
+    readonly predictionSubjects: readonly string[];
+    readonly favoredKinds?: readonly PredictionKind[];
+    readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
+    readonly existingPredictions?: readonly Prediction[];
+  }): string {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const baseProfile = buildDepthProfile(command, config);
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+        newsSources: [newsSource()],
+        ...opts.sources,
+      }),
+      config,
+      {
+        depthProfile: {
+          ...baseProfile,
+          predictionSubjects: opts.predictionSubjects,
+          targetKindMix: {
+            favored: opts.favoredKinds ?? ["relative", "range"],
+            minNonDirection: 1,
+          },
+        },
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 5,
+          minimumScenarios: 3,
+          targetPredictions: 5,
+          defaultPredictionHorizon: 5,
+          predictionSubjects: opts.predictionSubjects,
+          focus: ["thesis"],
+          targetKindMix: {
+            favored: opts.favoredKinds ?? ["relative", "range"],
+            minNonDirection: 1,
+          },
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      [],
+      { requestedCount: 2, existingPredictions: opts.existingPredictions ?? [] },
+    );
+    return (JSON.parse(prompt) as { readonly instruction: string }).instruction;
+  }
+
+  test("completion names occupied broad-us-index slots from existing relative predictions", () => {
+    const existing: Prediction = {
+      id: "pred-1",
+      claim: "AAPL outperforms SPY over 5 trading days",
+      kind: "relative",
+      subject: "AAPL:SPY",
+      measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.6,
+      sourceIds: ["market-aapl"],
+    };
+    const instruction = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      existingPredictions: [existing],
+    });
+
+    expect(instruction).toContain(
+      "Existing predictions already occupy these broad-us-index slots: AAPL relative @ 5d (broad-us-index)",
+    );
+  });
+
+  test("completion gates the volatility/^VIX shape on ^VIX being an allowed subject", () => {
+    const withoutVix = completionInstruction({ predictionSubjects: ["AAPL"] });
+    expect(withoutVix).not.toContain("^VIX");
+    expect(withoutVix).not.toContain("volatility");
+
+    const withVix = completionInstruction({ predictionSubjects: ["AAPL", "^VIX"] });
+    expect(withVix).toContain("max(close(^VIX), 0..+N) > T for volatility");
+    expect(withVix).toContain("volatility");
+  });
+
+  test("completion gates the iv shape on citeable options-iv evidence", () => {
+    const withoutIv = completionInstruction({ predictionSubjects: ["AAPL"] });
+    expect(withoutIv).not.toContain("iv(SUBJECT");
+
+    const withIv = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "Near-term IV is elevated.",
+              sourceIds: ["tradier-aapl-options"],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      },
+    });
+    expect(withIv).toContain("iv(SUBJECT, +N) > T for IV");
+  });
+
+  test("completion omits the iv shape when options-iv evidence carries no sourceId", () => {
+    const instruction = completionInstruction({
+      predictionSubjects: ["AAPL"],
+      sources: {
+        extendedEvidence: {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            {
+              category: "options-iv",
+              title: "AAPL options IV",
+              summary: "Near-term IV is elevated.",
+              sourceIds: [],
+              observedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      },
+    });
+    expect(instruction).not.toContain("iv(SUBJECT");
   });
 
   test("injects statistically actionable current-regime calibration", () => {
@@ -2510,6 +2816,192 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(sources).toHaveLength(1);
     expect(sources[0]!.summary).toBeUndefined();
     expect(sources[0]!.snippet).toBeUndefined();
+  });
+
+  test("final-synthesis projects fresh web summary but keeps profile-covered sources bare", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const coveredSource = {
+      id: "web-1",
+      title: "Covered by profile",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Covered summary",
+      snippet: "Covered snippet",
+    };
+    const freshSource = {
+      id: "web-2",
+      title: "Fresh this run",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Fresh summary",
+      snippet: "Fresh snippet",
+    };
+    const evidence = evidenceFor(
+      command,
+      {
+        extendedSources: [coveredSource, freshSource],
+        webSubjectProfile: webProfileForProjection,
+      },
+      "final-synthesis",
+    );
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    const covered = sources.find((source) => source.id === "web-1");
+    const fresh = sources.find((source) => source.id === "web-2");
+    // Source web-1 is in profile.sourceIds, so its facts already arrive via the digest.
+    expect(covered!.summary).toBeUndefined();
+    expect(covered!.snippet).toBeUndefined();
+    // Fresh source web-2 is not in the profile — surface its summary.
+    expect(fresh!.summary).toBe("Fresh summary");
+    // Summary present, so snippet is suppressed for token control.
+    expect(fresh!.snippet).toBeUndefined();
+  });
+
+  test("final-synthesis projects fresh web summary when no profile exists", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const withSummary = {
+      id: "web-2",
+      title: "Fresh with summary",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Fresh summary",
+      snippet: "Fresh snippet",
+    };
+    const snippetOnly = {
+      id: "web-3",
+      title: "Fresh snippet only",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      snippet: "Only snippet",
+    };
+    const evidence = evidenceFor(
+      command,
+      { extendedSources: [withSummary, snippetOnly] },
+      "final-synthesis",
+    );
+    const sources = evidence.webSources as readonly Record<string, unknown>[];
+    const summarized = sources.find((source) => source.id === "web-2");
+    const fallback = sources.find((source) => source.id === "web-3");
+    expect(summarized!.summary).toBe("Fresh summary");
+    expect(summarized!.snippet).toBeUndefined();
+    // No summary — snippet is the fallback model-visible text.
+    expect(fallback!.summary).toBeUndefined();
+    expect(fallback!.snippet).toBe("Only snippet");
+  });
+
+  test("final-synthesis surfaces fresh web summaries in evidence and steers citing them", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const freshSource = {
+      id: "web-fresh-1",
+      title: "Apple ships new chip",
+      fetchedAt: "2026-07-05T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple announced a new chip this week.",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        extendedSources: [freshSource],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction?: string;
+      readonly evidence?: { readonly webSources?: readonly Record<string, unknown>[] };
+    };
+    // Integration-level: the evidence block the model actually receives carries the fresh
+    // Summary, not only the isolated projector unit test (run-review finding #1).
+    const fresh = parsed.evidence?.webSources?.find((source) => source.id === "web-fresh-1");
+    expect(fresh?.summary).toBe("Apple announced a new chip this week.");
+    // And the steering prefers current-run web sources for genuinely recent claims, relevance-based.
+    expect(parsed.instruction).toContain("gathered this run beyond the profile");
+    expect(parsed.instruction).toContain("prefer citing these current-run web sourceIds");
+    expect(parsed.instruction).toContain("relevance-based, not a quota");
+  });
+
+  test("final-synthesis omits fresh-web steering when no fresh web sources were gathered", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    // Profile framing still present, but no fresh-web preference without fresh sources.
+    expect(parsed.instruction).toContain("Web Subject Profile");
+    expect(parsed.instruction).not.toContain("prefer citing these current-run web sourceIds");
+  });
+
+  test("completion pass steers fresh-web citations for additional predictions", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const freshSource = {
+      id: "web-fresh-1",
+      title: "Apple ships new chip",
+      fetchedAt: "2026-07-05T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple announced a new chip this week.",
+    };
+    const prompt = buildStagePrompt(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        extendedSources: [freshSource],
+        webSubjectProfile: webProfileForProjection,
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+      [],
+      [],
+      [],
+      [],
+      { requestedCount: 1, existingPredictions: [] },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    // The completion pass authors additional Predictions, so it carries the same bounded
+    // Fresh-web preference as the primary pass (run-review finding #1 follow-up).
+    expect(parsed.instruction).toContain("gathered this run beyond the profile");
+    expect(parsed.instruction).toContain("prefer citing these current-run web sourceIds");
+    expect(parsed.instruction).toContain("relevance-based, not a quota");
   });
 
   test("web subject profile prompt can see sanitized web summary/snippet", () => {

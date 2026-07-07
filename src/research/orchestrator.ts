@@ -57,6 +57,7 @@ import {
   buildPlaybookSelectionPrompt,
   buildDepthProfileFromParams,
   buildStagePrompt,
+  buildStageSteeringSegment,
   type ResearchContext,
 } from "./research-context";
 import { buildSourceList } from "./report-assembly";
@@ -208,6 +209,15 @@ async function runStage(
     ],
   });
 
+  const steering = buildStageSteeringSegment(
+    stage,
+    input.command,
+    collectedSources,
+    context,
+    reprompt.predictionErrors ?? [],
+    reprompt.predictionCompletion,
+  );
+
   return {
     stage,
     content: response.content,
@@ -216,6 +226,7 @@ async function runStage(
       ? { costEstimateUsd: response.costEstimateUsd }
       : {}),
     ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
+    ...(steering !== undefined ? { steering } : {}),
   };
 }
 

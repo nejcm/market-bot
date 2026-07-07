@@ -610,6 +610,94 @@ describe("web source roles accounting", () => {
     expect(analytics.reusedProfileWebSources).toBeUndefined();
   });
 
+  test("counts a web source cited only in authored extras as extrasCited, not unused", () => {
+    const report = researchReport({
+      sources: [webSource("web-1"), webSource("web-2")],
+      extras: {
+        earningsSetup: {
+          expectationBar: [{ text: "Elevated bar into the print", sourceIds: ["web-1"] }],
+        },
+      },
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toBeDefined();
+    expect(analytics.webSources!.accepted).toBe(2);
+    // Primary report claims and Predictions cite nothing, so reportCited stays 0.
+    expect(analytics.webSources!.reportCited).toBe(0);
+    // Source web-1 is cited under extras.earningsSetup — real usage, tracked distinctly.
+    expect(analytics.webSources!.extrasCited).toBe(1);
+    // Only web-2 is genuinely unused now.
+    expect(analytics.webSources!.unused).toBe(1);
+    expect(analytics.webSources!.usageRatio).toBe(0.5);
+    expect(analytics.webSources!.usageWarning).toBeUndefined();
+  });
+
+  test("does not double-count a web source cited in both a primary claim and extras", () => {
+    const report = researchReport({
+      sources: [webSource("web-1")],
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
+      extras: {
+        earningsSetup: {
+          expectationBar: [{ text: "Bar", sourceIds: ["web-1"] }],
+        },
+      },
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    // A primary citation dominates: reportCited claims it, extrasCited excludes it.
+    expect(analytics.webSources!.reportCited).toBe(1);
+    expect(analytics.webSources!.extrasCited).toBe(0);
+    expect(analytics.webSources!.unused).toBe(0);
+  });
+
+  test("does not count the deterministic webSubjectProfile digest as extrasCited", () => {
+    // Sources web-1/web-2 are profile ids echoed into the code-assembled extras.webSubjectProfile
+    // Digest; web-3 is a genuinely model-authored extras citation, so only web-3 is extrasCited.
+    const report = researchReport({
+      sources: [webSource("web-1"), webSource("web-2"), webSource("web-3")],
+      extras: {
+        webSubjectProfile: {
+          factLedger: [{ claim: "Revenue grew", sourceIds: ["web-1"] }],
+          questions: { howItMakesMoney: { answer: "Hardware", sourceIds: ["web-2"] } },
+        },
+        earningsSetup: {
+          expectationBar: [{ text: "Elevated bar", sourceIds: ["web-3"] }],
+        },
+      },
+    });
+    const collected = collectedSourceBundle({
+      webSubjectProfile: { ...webProfile, sourceIds: ["web-1", "web-2"] },
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources!.accepted).toBe(3);
+    // Sources web-1/web-2 are attributed to profileUsed, not re-attributed as authored extras.
+    expect(analytics.webSources!.profileUsed).toBe(2);
+    expect(analytics.webSources!.extrasCited).toBe(1);
+    // Union of profileUsed + extrasCited covers all three, so nothing is falsely unused.
+    expect(analytics.webSources!.unused).toBe(0);
+    expect(analytics.webSources!.usageRatio).toBe(1);
+  });
+
   test("separates reused profile web sources from current-run web coverage", () => {
     const report = researchReport({
       generatedAt: "2026-07-01T00:00:00.000Z",

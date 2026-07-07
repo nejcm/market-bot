@@ -21,7 +21,7 @@ Confirmed against artifacts; the external reviewer independently validated all a
 | 2 | Completion pass wastes candidates on redundant/disallowed shapes | MED-HIGH | `trace.json:predictionCompletion.rejectionReasons` = QQQ relative @5d ("accepted benchmark SPY is equivalent in class broad-us-index") and `subject "^VIX" is not in the allowed set`. `analytics.json:predictions` = `{count:3, targetCount:5, targetMet:false, shortfall.missingCount:2}`. |
 | 4 | Horizon diversity collapsed to a single 5d bucket | MED | `analytics.json:predictions.horizonTradingDays` = `{min:5,max:5,average:5}` vs baseline `{min:3,max:5,avg:4.33}` and 07-04 `{min:3,max:5,avg:4.5}`. All 4 trim/reject messages reference 5-trading-day forecasts. |
 | 5 | Steering text sent to the model is not recorded | LOW-MED | `stages.json` records only `{stage,content,tokenEstimate,attempt?,repromptReason?}` (`StageOutput`, `src/research/final-synthesis.ts:30-38`); prompt built inline in `runStage` (`src/research/orchestrator.ts:194-206`) and discarded. Grep for steering phrases in `stages.json` returns nothing. |
-| 7 | Config/provider-plan gaps (context, not code) | LOW | `normalized/source-gaps.json`: `tradier-options`/`earnings-setup-implied-move` (token unset), `finnhub-events-2/-3` (403), `massive-supplemental-market` (plan). Environment constraints; recur every run. **Not fixed here.** |
+| 7 | Config/provider-plan gaps (context, not code) | LOW | `normalized/source-gaps.json`: `tradier-options`/`earnings-setup-implied-move` (token unset), `finnhub-events-2/-3` (403), `massive-supplemental-market` (plan). These recur, but do not cap this run's Evidence Quality: derivatives-volatility is supplemental, the Finnhub event gaps leave corporate-events covered elsewhere, and Massive is a non-capping `market-data` capability gap (`evidenceQualityImpact: no-cap`), not a supplemental lane. **Not fixed here.** |
 
 **Clean (no finding):** cited-source integrity — every prediction/finding `sourceIds` entry resolves
 in `report.sources`; no duplicate `(source,message)` gaps; all scores correctly `pending`
@@ -47,7 +47,8 @@ class fires (`trace.json:predictionTrimWarnings[0]` names `broad-us-index`).
 - **#6 ("ages indefinitely") overstated → deferred.** Company profile reuse is bounded by a 30-day
   TTL (`MARKET_BOT_WEB_PROFILE_COMPANY_REUSE_DAYS`, `src/config.ts:166`) plus an SEC-filing
   freshness gate (`isReusableProfile`, `src/research/web-subject-profile-reuse.ts:126-157`). Not
-  indefinite; **no fix planned.** Revisit only if the web-usage warning persists after Phase 3.
+  indefinite; **no fix planned.** Revisit if the web-usage warning persists after Phase 3, or if
+  live runs show material non-filing changes contradicting or bypassing the reused profile.
 
 ---
 
@@ -87,6 +88,9 @@ deep profile-reuse runs, not a single boolean. Record at least: `reportCited`, `
 presence/absence of `usageWarning`, completion rejection reasons, prediction count, and horizon
 spread. If run budget is not approved, mark the phase as deterministic-only and do not claim the
 behavioral finding is fixed.
+
+**Current status:** deterministic checks pass, but no post-change AAPL run exists. Phases 3 and 4
+remain behaviorally unverified until the three-run distribution check below is completed.
 
 ### Phase 1 — Dedupe web source IDs on gather merge (finding #3)
 

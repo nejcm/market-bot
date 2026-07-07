@@ -35,6 +35,9 @@ export interface StageOutput {
   readonly costPricing?: CostPricing;
   readonly attempt?: number;
   readonly repromptReason?: StageRepromptReason;
+  /** Steering block sent to the model for this stage (final-synthesis only); records what
+   *  guidance the model actually received so prompt gaps are decidable from a run directory. */
+  readonly steering?: string;
 }
 
 interface FinalSynthesisState {

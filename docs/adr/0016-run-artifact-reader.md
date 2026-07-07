@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-07: additive stage-duration telemetry)
+2026-06-30 (amended 2026-07-07: additive stage-duration telemetry; amended 2026-07-08:
+write-side artifact manifest)
 
 ## Context
 
@@ -17,6 +18,10 @@ queries need faster projections and consistent malformed-data handling.
 
 - Run directories and their files remain canonical. SQLite and history indexes are derived,
   rebuildable query layers.
+- Research and alpha-search initial run writes flow through typed write manifests built in
+  `src/run-artifact-writer.ts`. The manifest builders own write policy: required sidecars,
+  null-when-absent sidecars, empty defaults, and run-type conditionals. File layout remains in
+  `src/run-artifact-layout.ts`.
 - `trace.json:stageRecords[]` and `analytics.json:runShape.stages[]` persist optional `durationMs`
   values measured with a monotonic clock. This additive field does not change their version 2
   schemas. Values are per-stage attempt spans and may overlap for concurrently executed stages.
@@ -44,6 +49,8 @@ queries need faster projections and consistent malformed-data handling.
 ## Implementation validation
 
 - `src/run-artifacts.ts` implements the shared disk reader.
+- `src/run-artifact-writer.ts` implements the write manifest builders and shared manifest writer for
+  initial research and alpha-search run artifacts.
 - `src/run-artifact-index*.ts` implement schema, rows, freshness, and repair.
 - `src/history/artifacts.ts` implements the derived history index.
 

@@ -1,11 +1,4 @@
-import { join } from "node:path";
-import {
-  createRunId,
-  prepareRunArtifacts,
-  writeJson,
-  writeRunOutputs,
-  type RunArtifactPaths,
-} from "../artifacts";
+import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
@@ -19,10 +12,9 @@ import {
 } from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
-import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { buildAlphaSearchManifest, persistRunArtifactWrites } from "../run-artifact-writer";
 import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
-import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
 import {
   buildAlphaCandidateProfiles,
@@ -602,50 +594,32 @@ export async function runAlphaSearchWorkflow(input: {
     fundamentalSourceGaps: fundamentals.sourceGaps,
   });
   const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
-
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.rawSnapshots),
-    compactOversizedRawSnapshots([
-      ...apeWisdom.rawSnapshots,
-      ...secDiscovery.rawSnapshots,
-      ...fundamentals.rawSnapshots,
-      ...listedUniverse.rawSnapshots,
-      ...yahoo.rawSnapshots,
-    ]),
+  await persistRunArtifactWrites(
+    artifacts,
+    buildAlphaSearchManifest({
+      rawSnapshots: [
+        ...apeWisdom.rawSnapshots,
+        ...secDiscovery.rawSnapshots,
+        ...fundamentals.rawSnapshots,
+        ...listedUniverse.rawSnapshots,
+        ...yahoo.rawSnapshots,
+      ],
+      socialCandidates: rankedCandidates,
+      secDiscoveryCandidates: secDiscovery.candidates,
+      alphaSearchCandidates: validationCandidates,
+      listedUniverse: listedUniverse.entries,
+      researchLeads,
+      secFundamentals: fundamentals.fundamentals,
+      secFundamentalsSourceGaps: fundamentals.sourceGaps,
+      candidateProfiles,
+      rejectedCandidates: reportRejectedCandidates,
+      sourceGaps,
+      analytics,
+      report,
+      markdown,
+      trace,
+    }),
   );
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.socialCandidates), rankedCandidates);
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.secDiscoveryCandidates),
-    secDiscovery.candidates,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.alphaSearchCandidates),
-    validationCandidates,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.listedUniverse),
-    listedUniverse.entries,
-  );
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.researchLeads), researchLeads);
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.secFundamentals),
-    fundamentals.fundamentals,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.secFundamentalsSourceGaps),
-    fundamentals.sourceGaps,
-  );
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.candidateProfiles), candidateProfiles);
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.rejectedCandidates),
-    reportRejectedCandidates,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceGaps),
-    compactUnmappedSecFilingGaps(sourceGaps),
-  );
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.analytics), analytics);
-  await writeRunOutputs(artifacts, report, markdown, trace);
 
   return { report, markdown, trace, analytics, artifacts };
 }

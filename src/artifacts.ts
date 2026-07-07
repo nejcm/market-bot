@@ -1,7 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ResearchReport, RunTrace } from "./domain/types";
-import { NORMALIZED_DIR, RAW_DIR, RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import { NORMALIZED_DIR, RAW_DIR } from "./run-artifact-layout";
 
 export interface RunArtifactPaths {
   readonly runDir: string;
@@ -33,15 +32,4 @@ export async function prepareRunArtifacts(
 
 export async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-export async function writeRunOutputs(
-  artifacts: RunArtifactPaths,
-  report: ResearchReport,
-  markdown: string,
-  trace: RunTrace,
-): Promise<void> {
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.report), report);
-  await writeFile(join(artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown), markdown, "utf8");
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.trace), trace);
 }

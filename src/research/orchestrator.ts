@@ -4,14 +4,7 @@ import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import { join } from "node:path";
-import {
-  createRunId,
-  prepareRunArtifacts,
-  type RunArtifactPaths,
-  writeJson,
-  writeRunOutputs,
-} from "../artifacts";
+import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucket,
@@ -20,13 +13,12 @@ import {
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
-import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
 import type { ModelProvider } from "../model/types";
 import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { renderMarkdownReport } from "../report/markdown";
 import type { CollectedSources, FetchLike } from "../sources/types";
-import { compactOversizedRawSnapshots } from "../sources/raw-snapshots";
 import { recordSeenNewsSources } from "../sources/news-seen";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
@@ -73,7 +65,7 @@ import {
   type SpotlightCandidate,
   type SpotlightSelectionResult,
 } from "./spotlights";
-import { emptySpotlightSelectionFor, runMarketUpdatePhase } from "./market-update-phase";
+import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
@@ -731,108 +723,11 @@ export async function persistResearchJob(
 ): Promise<PersistedResearchJobResult> {
   const result = await runResearchJob(input);
   const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
+  await persistRunArtifactWrites(
+    artifacts,
+    buildResearchRunManifest(input.command, input.config, result),
+  );
 
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.rawSnapshots),
-    compactOversizedRawSnapshots(result.collectedSources.rawSnapshots),
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.marketSnapshots),
-    result.collectedSources.marketSnapshots,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.supplementalMarketSnapshots),
-    result.collectedSources.supplementalMarketSnapshots,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.newsSources),
-    result.collectedSources.newsSources,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.extendedSources),
-    result.collectedSources.extendedSources,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.extendedEvidence),
-    result.collectedSources.extendedEvidence ?? null,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.marketContext),
-    result.collectedSources.marketContext ?? null,
-  );
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceGaps),
-    result.collectedSources.sourceGaps,
-  );
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.sourcePlan), result.sourcePlan);
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.evidenceLanes), result.evidenceLanes);
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.sourceLedger), result.sourceLedger);
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.historicalContext),
-    result.historicalContext,
-  );
-  if (input.command.jobType === "research") {
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.resolvedSubject),
-      result.collectedSources.resolvedSubject ?? null,
-    );
-  }
-  if (result.trace.webGatherLoop !== undefined) {
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.webGatherAudit),
-      result.trace.webGatherLoop,
-    );
-  }
-  // Verified Market Snapshot + Instrument Identity sidecars: ticker runs only (ADR 0019)
-  if (isInstrumentCommand(input.command)) {
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot),
-      result.collectedSources.verifiedMarketSnapshot ?? null,
-    );
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.instrumentIdentity),
-      result.collectedSources.resolvedInstrumentIdentity ?? null,
-    );
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.valuationComps),
-      result.collectedSources.valuationComps ?? null,
-    );
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.financialLenses),
-      result.collectedSources.financialLenses ?? null,
-    );
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.businessFramework),
-      result.collectedSources.businessFramework ?? null,
-    );
-  }
-  await writeJson(
-    join(artifacts.runDir, RUN_ARTIFACT_FILES.webSubjectProfile),
-    result.collectedSources.webSubjectProfile ?? null,
-  );
-  if (isMarketUpdateJobType(input.command.jobType)) {
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.spotlightCandidates),
-      result.spotlightCandidates ?? [],
-    );
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.spotlightSelection),
-      result.spotlightSelection ?? emptySpotlightSelectionFor(input.command, input.config),
-    );
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.movers),
-      result.marketUpdateMovers ?? [],
-    );
-  }
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.stages), result.stageOutputs);
-  await writeJson(join(artifacts.runDir, RUN_ARTIFACT_FILES.analytics), result.analytics);
-  if (result.forecastDisagreement !== undefined) {
-    await writeJson(
-      join(artifacts.runDir, RUN_ARTIFACT_FILES.forecastDisagreement),
-      result.forecastDisagreement,
-    );
-  }
-  await writeRunOutputs(artifacts, result.report, result.markdown, result.trace);
   if (
     input.config.sourceOptions.newsSeenPath !== undefined &&
     input.config.sourceOptions.newsSeenRetentionDays !== undefined

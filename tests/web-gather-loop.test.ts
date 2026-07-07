@@ -147,6 +147,54 @@ const exaFetch: FetchLike = async (input) => {
   });
 };
 
+// Captures the effective numResults each Exa search executed with, read from the request body because the query string is stripped before it reaches fetch. Two results are returned so non-background searches do not trigger the thin-result widening path.
+function recordingExaFetch(): { readonly fetch: FetchLike; readonly searchNumResults: number[] } {
+  const searchNumResults: number[] = [];
+  const fetch: FetchLike = async (input, init) => {
+    const url = String(input);
+    if (url.includes("/contents")) {
+      return Response.json({
+        results: [
+          {
+            id: "exa-fetch-1",
+            url: "https://example.com/aapl-business",
+            title: "Apple business profile",
+            summary: "Apple sells hardware and services globally.",
+          },
+        ],
+      });
+    }
+    if (url.includes("/search")) {
+      const body =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as { readonly numResults?: number })
+          : {};
+      if (typeof body.numResults === "number") {
+        searchNumResults.push(body.numResults);
+      }
+    }
+    return Response.json({
+      results: [
+        {
+          id: "exa-search-1",
+          url: "https://example.com/aapl-business",
+          title: "Apple business profile",
+          summary: "Apple sells iPhone, Mac, services, and wearables.",
+          highlights: ["Apple reports products and services revenue."],
+        },
+        {
+          id: "exa-search-2",
+          url: "https://example.com/aapl-services",
+          title: "Apple services",
+          summary: "Apple services revenue keeps growing.",
+          highlights: ["Services revenue expands each quarter."],
+        },
+      ],
+    });
+  };
+  return { fetch, searchNumResults };
+}
+
 function secFilingSource(overrides: Partial<Source> = {}): Source {
   return {
     id: "extended-sec-edgar-aapl-10k",
@@ -941,6 +989,107 @@ describe("runWebGatherLoop", () => {
       expect.objectContaining({ tool: "web_search" }),
     ]);
     expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("narrows the default ingestion to 3 under reused profile coverage when numResults is unset", async () => {
+    const recording = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recording.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent product news", searchType: "news" },
+              rationale: "recent material developments",
+            },
+          ],
+        }),
+    });
+
+    expect(recording.searchNumResults).toEqual([3]);
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        args: expect.objectContaining({ numResults: 3 }),
+      }),
+    ]);
+  });
+
+  test("respects an explicit numResults under reused profile coverage", async () => {
+    const recording = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recording.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent product news", searchType: "news", numResults: 6 },
+              rationale: "recent material developments",
+            },
+          ],
+        }),
+    });
+
+    expect(recording.searchNumResults).toEqual([6]);
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        args: expect.objectContaining({ numResults: 6 }),
+      }),
+    ]);
+  });
+
+  test("leaves the default ingestion at 5 without reused profile coverage", async () => {
+    const recording = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recording.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent product news", searchType: "news" },
+              rationale: "recent material developments",
+            },
+          ],
+        }),
+    });
+
+    expect(recording.searchNumResults).toEqual([5]);
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        args: expect.not.objectContaining({ numResults: expect.anything() }),
+      }),
+    ]);
   });
 
   test("keeps web-gather skipped when only Firecrawl is configured (fallback-only policy)", async () => {

@@ -22,6 +22,7 @@ import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   executeWebGatherTool,
   MAX_WEB_GATHER_SEARCH_RESULTS,
+  REUSED_PROFILE_DEFAULT_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
 } from "../sources/web-gather-tools";
 import {
@@ -260,6 +261,21 @@ function reusedProfileCoverageRejectionReason(
   return targetsCoveredTopic
     ? "web_search duplicates reused profile coverage (profile-covered-durable-topic); add a recency, corroboration, or explicit gap rationale for background queries"
     : undefined;
+}
+
+// Narrows the effective per-query ingestion when a durable Web Subject Profile was reused into this run and the model left numResults to the default. Applies to every search type: reused-profile fresh gather exists only for recency, corroboration, or gap coverage, so a full page per query over-ingests near-duplicate corroborations. An explicit model-supplied numResults is respected (capped downstream at MAX_WEB_GATHER_SEARCH_RESULTS). Setting it here records the effective value in the accepted web-gather audit entry.
+function withReusedProfileNumResults(
+  parsedArgs: {
+    readonly query: string;
+    readonly searchType: WebSearchType;
+    readonly numResults?: number;
+  },
+  coverage: WebGatherContext["reusedProfileCoverage"],
+): { readonly query: string; readonly searchType: WebSearchType; readonly numResults?: number } {
+  if (parsedArgs.numResults !== undefined || coverage?.present !== true) {
+    return parsedArgs;
+  }
+  return { ...parsedArgs, numResults: REUSED_PROFILE_DEFAULT_SEARCH_RESULTS };
 }
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
@@ -546,7 +562,11 @@ function validateRequest(
       return reject(state.round, tool, args, rationale, reusedProfileCoverageReason);
     }
     return validateAcceptedRequest(
-      { tool: typedTool, args: parsedArgs, rationale },
+      {
+        tool: typedTool,
+        args: withReusedProfileNumResults(parsedArgs, state.reusedProfileCoverage),
+        rationale,
+      },
       state,
       sourceUnitsUsed,
       toolCallsUsed,

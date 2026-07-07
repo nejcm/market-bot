@@ -209,6 +209,7 @@ async function runStage(
       },
     ],
   });
+  const endedAt = performance.now();
 
   const steering = buildStageSteeringSegment(
     stage,
@@ -223,7 +224,7 @@ async function runStage(
     stage,
     content: response.content,
     tokenEstimate: response.tokenEstimate,
-    durationMs: Math.max(performance.now() - startedAt, Number.EPSILON),
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
     ...(response.costEstimateUsd !== undefined
       ? { costEstimateUsd: response.costEstimateUsd }
       : {}),
@@ -270,6 +271,7 @@ async function runPlaybookSelection(
       },
     ],
   });
+  const endedAt = performance.now();
   const audit = parsePlaybookSelection(
     response.content,
     candidates,
@@ -286,7 +288,7 @@ async function runPlaybookSelection(
       stage: "playbook-selection",
       content: response.content,
       tokenEstimate: response.tokenEstimate,
-      durationMs: Math.max(performance.now() - startedAt, Number.EPSILON),
+      durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
       ...(response.costEstimateUsd !== undefined
         ? { costEstimateUsd: response.costEstimateUsd }
         : {}),

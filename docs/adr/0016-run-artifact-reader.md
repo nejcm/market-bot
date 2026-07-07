@@ -19,7 +19,7 @@ queries need faster projections and consistent malformed-data handling.
   rebuildable query layers.
 - `trace.json:stageRecords[]` and `analytics.json:runShape.stages[]` persist optional `durationMs`
   values measured with a monotonic clock. This additive field does not change their version 2
-  schemas.
+  schemas. Values are per-stage attempt spans and may overlap for concurrently executed stages.
 - `src/run-artifacts.ts` is the canonical shared reader for report, score, market snapshot, and
   verified snapshot data. It parses leniently at full fidelity and exposes absent/malformed status.
 - Keep single-consumer sidecars with their owning consumer rather than expanding the shared reader.

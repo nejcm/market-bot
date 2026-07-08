@@ -305,6 +305,92 @@ describe("source plan", () => {
     expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
   });
 
+  test("keeps market-data gapIds and gapText parallel when every representative snapshot is missing", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        resolvedSubject,
+        newsSources: [newsSource({ id: "news-biotech", provider: "yahoo-news", kind: "news" })],
+      }),
+      resolvedSubject,
+    );
+
+    const marketLane = plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")!;
+    expect(marketLane.status).toBe("gap");
+    expect(marketLane.coveredSourceIds).toEqual([]);
+    expect(marketLane.gapText.length).toBeGreaterThan(1);
+    // Regression: the collapsed-synthetic branch used to emit a single gapId while
+    // GapText carried one line per missing representative.
+    expect(marketLane.gapIds).toHaveLength(marketLane.gapText.length);
+    expect(plan.evidenceLanes.summary.gapCount).toBe(
+      plan.evidenceLanes.lanes.reduce((total, lane) => total + lane.gapText.length, 0),
+    );
+  });
+
+  test("does not flag thematic news when enough relevant movers are selected", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        resolvedSubject,
+        marketSnapshots: [
+          marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-amgn", symbol: "AMGN" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-gild", symbol: "GILD" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-vrtx", symbol: "VRTX" }),
+        ],
+        newsSources: Array.from({ length: 7 }, (_, index) =>
+          newsSource({
+            id: `news-equity-${String(index + 1)}`,
+            provider: index === 0 ? "yahoo-news" : "finnhub",
+            kind: "news",
+          }),
+        ),
+        newsAnalytics: {
+          fetchedNewsSourcesByProvider: { "yahoo-news": 1, finnhub: 6 },
+          fetchedNewsSourceCount: 7,
+          canonicalDedupedNewsSourceCount: 7,
+          canonicalDuplicateNewsSourceCount: 0,
+          persistentSuppressedNewsSourceCount: 0,
+          relevantBeforeSeenFilterCount: 2,
+          relevantSuppressedBySeenFilterCount: 0,
+          relevantSelectedCount: 2,
+          repeatFallbackKeptCount: 0,
+          relevantRepeatKeptCount: 0,
+          selectedNewsSourceCount: 7,
+          // Boundary: exactly 2 relevant selected must NOT trip the `< 2` thin check.
+          selectedRelevantMoverNewsSourceCount: 2,
+          selectedGenericMoverNewsSourceCount: 5,
+          repeatFallbackUsed: false,
+        },
+      }),
+      resolvedSubject,
+    );
+
+    const newsLane = plan.evidenceLanes.lanes.find((lane) => lane.lane === "news")!;
+    expect(newsLane.status).toBe("covered");
+    expect(newsLane.gapText).not.toContain(
+      "news: thin thematic relevance (2 relevant selected, 5 generic selected)",
+    );
+  });
+
   test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
     const plan = plannedAndAssessed(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),

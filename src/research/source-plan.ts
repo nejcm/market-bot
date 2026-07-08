@@ -240,6 +240,10 @@ function researchRepresentativeSymbols(
   return representatives.map((instrument) => instrument.symbol.toUpperCase());
 }
 
+// The representative-only filter below relies on `resolvedSubject` being present
+// Only for research runs (see app.ts, which passes it for research alone); other
+// Job types keep the full snapshot + benchmark coverage. Guard here if that
+// Invariant ever changes.
 function marketDataSourceIds(collectedSources: CollectedSources): readonly string[] {
   const representativeSymbols = researchRepresentativeSymbols(collectedSources);
   if (representativeSymbols !== undefined) {
@@ -628,24 +632,12 @@ export function assessSourcePlan(
       definition === undefined
         ? []
         : collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
-    const sourceGapIds = matchedGaps.map((_, index) => gapId(planLane.lane, index));
     const syntheticNoProxyGap = noProxySourcePlanGap(
       sourcePlan.run,
       collectedSources,
       planLane.lane,
     );
     const syntheticQualityGaps = qualityGapLines(sourcePlan.run, collectedSources, planLane.lane);
-    const gapIds =
-      sourceIds.length === 0 &&
-      evidenceClass === "core" &&
-      (sourceGapIds.length === 0 || syntheticNoProxyGap !== undefined)
-        ? [gapId(planLane.lane, 0)]
-        : [
-            ...sourceGapIds,
-            ...syntheticQualityGaps.map((_, index) =>
-              gapId(planLane.lane, sourceGapIds.length + index),
-            ),
-          ];
     const gapLines =
       syntheticNoProxyGap ??
       (syntheticQualityGaps.length > 0
@@ -654,6 +646,10 @@ export function assessSourcePlan(
       (sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
         ? syntheticMissingGap(planLane.lane)
         : matchedGaps.map((gap) => gapText(gap)));
+    // One gap ID per gap line keeps gapIds and gapText parallel for every consumer
+    // (summary.gapCount, ledger entries) — including the collapsed synthetic case
+    // And the multi-line synthetic-quality case.
+    const gapIds = gapLines.map((_, index) => gapId(planLane.lane, index));
     const entries = ledgerEntriesForLane(planLane.lane, sourceIds, collectedSources, gapIds);
     ledger.push(...entries);
     return {

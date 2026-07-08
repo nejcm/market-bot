@@ -14,14 +14,22 @@ Run a bounded improvement loop for `market-bot` artifacts.
 - Delegate all heavy work. Per iteration spawn three subagents in sequence: **review → fix → verify**. Give each subagent everything it needs in the delegation packet; do not assume it shares your context.
 - Keep the orchestrator context lean. Retain only: target, iteration counter, run-dir paths, and each subagent's compact structured report. Never pull full artifacts, run logs, review prose, or diffs into the orchestrator. If the subagent's report is large, tell it to trim to the return contract.
 - Preserve the research-only boundary in every packet: no buy/sell/hold calls, sizing, execution language, or investment advice.
-- Default cap: 10 iterations unless the user gives a smaller cap.
+- Default cap: 5 iterations unless the user gives a different cap.
 - Optimize only evidence-backed issues. Do not tune code to satisfy vague prose preferences.
 - Prefer fixes with objective checks: tests, artifact fields, schema validation, source ID integrity, prediction telemetry, source gaps, and deterministic sidecars.
 - Treat live run comparisons as noisy: provider freshness, market movement, and model sampling change outputs. Prefer structural artifact checks and static fixture tests over one-off prose quality judgments.
 - Stop on a quality drop, two consecutive stagnant iterations, a verify failure the fix subagent cannot clear, or when the top remaining issues are external/provider/config limits.
-- Commit after each iteration whose verify passed. The orchestrator does this itself (not a subagent) once verify returns pass: stage the fix's changed files and commit with a message naming the target, iteration, and findings addressed. Do not commit when verify failed, when the fix made no code change, or when only run artifacts changed. Never bypass hooks (`--no-verify`) and never add `Co-authored-by` trailers.
+- Commit after each iteration whose verify passed. The orchestrator does this itself (not a subagent) once verify returns pass: stage only the fix's changed code/test/docs files and commit with a Conventional Commit message, for example `fix: improve research run source checks`. Use explicit pathspecs so unrelated staged files are not included. Do not commit when verify failed, when the fix made no code change, or when only run artifacts changed. Never bypass hooks (`--no-verify`) and never add `Co-authored-by` trailers.
 - After every iteration, emit the checkpoint (below) into the conversation, and append it to one deterministic file `reports/improve-market-runs-<target-slug>-<timestamp>.md` (create `reports/` if needed). Keep it compact — paths and deltas, not pasted artifacts. If the host supports conversation compaction, trigger it after the checkpoint.
 - After the loop ends, summarize results and remaining issues to the user.
+
+## Preflight
+
+- Check `git status --short --branch` before the first run. Record unrelated staged/unstaged files in the report and ignore them unless they block the task.
+- Validate model command surfaces once per session with minimal prompts:
+  - GPT family: `codex exec --ephemeral --ignore-user-config --sandbox read-only --cd <repo> --skip-git-repo-check -m gpt-5.5 -c model_reasoning_effort="low" -`
+  - Claude family: `claude -p --effort low --model opus "Return exactly: CLAUDE_OK"`
+- If a command path fails, try the nearest same-family fallback (`gpt-5.4` for Codex, `sonnet` for Claude), then disclose the exact command, exit code, and fallback in the next checkpoint. Do not silently switch families for verification.
 
 ## Orchestrator loop
 
@@ -45,6 +53,7 @@ resolve target -> capture baseline dir
 2. **Capture the baseline.** Glob `data/runs/` for the newest comparable prior run (same `jobType`, `assetClass`, subject/instrument, and horizon bucket where applicable). Record its dir path only; the review subagent extracts fields from it.
 
 3. **Run a fresh artifact.** Execute the target CLI, redirecting output to a file; read only the tail. Treat stdout as the run-dir path; stderr may hold the quality digest. If the run fails, hand the failure to the fix subagent as the sole finding, then rerun and count it as this iteration.
+   - If the user interrupts or the run is aborted, check for a matching CLI process and the redirected log path before continuing. Stop only the exact orphaned target command, then record the cleanup in the report.
 
 4. **Review → decide → fix → verify** via the subagents defined below, passing each report to the next.
 
@@ -57,13 +66,15 @@ resolve target -> capture baseline dir
 
 Spawn each as a fresh subagent with a self-contained delegation packet. Run **every subagent at `high` reasoning effort**, with models fixed by role:
 
-| Subagent | Model      | Why                                                                |
-| -------- | ---------- | ------------------------------------------------------------------ |
-| Review   | `gpt-5.5`  | strong, cost-effective evidence gathering and ranking              |
-| Fix      | `gpt-5.5`  | bulk implementation with a clear spec                              |
-| Verify   | `opus-4-8` | independent judgment on the fix, different family than the builder |
+| Subagent | Model path               | Why                                                                |
+| -------- | ------------------------ | ------------------------------------------------------------------ |
+| Review   | `codex exec -m gpt-5.5`  | strong, cost-effective evidence gathering and ranking              |
+| Fix      | `codex exec -m gpt-5.5`  | bulk implementation with a clear spec                              |
+| Verify   | `claude -p --model opus` | independent judgment on the fix, different family than the builder |
 
-`gpt-5.5` runs **only** through the Codex CLI (`codex exec` / `codex exec review` with `-m gpt-5.5`); host subagent `model` params accept Claude models only. So run the review and fix subagents via Codex — either directly or through a thin Claude wrapper (`sonnet`, `low`) that shells out to Codex and returns the report — and write their reports to an artifact file so they survive long runs. Run the verify subagent on `opus-4-8` directly. If a named model is unavailable, fall back to the next capable one and disclose the fallback. Fix and verify share one writable workspace and run sequentially — do not parallelize them.
+Run GPT-family review/fix through the Codex CLI (`codex exec` / `codex exec review`) and Claude-family verification through the Claude CLI (`claude -p`). Host subagent tools are optional wrappers only; do not rely on their exposed model list for family separation. Use Claude model aliases such as `opus` unless an exact model ID has been validated in preflight; exact IDs may be unavailable in a given install. Write every subagent report to an artifact file so it survives long runs. If `--model opus` is unavailable, try `--model sonnet` before using any GPT-family verifier, and disclose the reduced independence. Fix and verify share one writable workspace and run sequentially — do not parallelize them.
+
+Keep the orchestrator out of heavy evidence. It may inspect command exit codes, log tails, report file paths, `git diff --name-only`, `git diff --stat`, and compact subagent reports. Full artifacts, full diffs, test logs, and source-code review belong inside review/fix/verify packets, not the main loop.
 
 ### 1. Review subagent (read-only)
 
@@ -99,11 +110,24 @@ The orchestrator selects at most the top two fixable findings (excluding `skip`)
   - For equity pipeline or prompt/model-stage changes, use the static equity fixture suite from `docs/testing.md` to reduce live-data variance: `bun test tests/equity-fixture-run.test.ts`; run `bun run scripts/replay-fixture-run.ts equity-aapl-deep --live` only when judging prompt/model behavior against fixed inputs and live model cost is acceptable.
   - Run `bun run check` (fmt + lint + fmt:check + typecheck + test:coverage) at stable completion. If too expensive mid-loop, defer to the final iteration and say so.
   - Stop after three failed attempts on the same failure and report the blocker; do not bypass hooks or CI.
-- **Return contract:** commands run and pass/fail each, the blocker if any, and any deferred check.
+- **Return contract:** verifier model path/family, whether it is independent from the builder family, commands run and pass/fail each, the blocker if any, and any deferred check.
 
 ## Iteration checkpoint
 
-After each loop, emit this compact shape (also appended to the `reports/` file):
+After review and before fixing, emit and append this compact decision checkpoint:
+
+```text
+Review decision N/M
+Target: <command>
+Baseline: <run-dir>
+Input run: <run-dir>
+Reviewer: <model path + family>
+Findings selected: <0-2 artifact-backed issues, or none>
+Delta: <improved/regressed/stagnant/inconclusive + evidence>
+Decision: <fix/stop + reason>
+```
+
+After verify/commit, emit and append this compact iteration checkpoint:
 
 ```text
 Iteration N/M
@@ -114,6 +138,7 @@ Output run: <run-dir or pending>
 Chosen findings: <1-2 artifact-backed issues>
 Changes: <files changed>
 Verification: <commands and pass/fail>
+Verifier model: <model path + family; independent-family yes/no; fallback reason if any>
 Commit: <sha + subject, or "none (<reason>)">
 Delta: <improved/regressed/stagnant + evidence>
 Next: <continue/stop + reason>

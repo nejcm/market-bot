@@ -223,7 +223,8 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toEqual([]);
   });
 
-  test("runs web gather for brief thematic research", async () => {
+  test("runs web gather for thematic list research", async () => {
+    const recorded = recordingExaFetch();
     const result = await runWebGatherLoop({
       command: {
         jobType: "research",
@@ -231,13 +232,13 @@ describe("runWebGatherLoop", () => {
         subject: "Top-10 list of promising biotech stocks",
         subjectKey: "biotech",
         predictionProxySymbol: "XBI",
-        depth: "brief",
+        depth: "deep",
       },
       config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
       collectedSources: collectedSources(),
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      fetchImpl: exaFetch,
+      fetchImpl: recorded.fetch,
       retryDelaysMs: [],
       generateRound: async () =>
         stage({
@@ -258,7 +259,96 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.acceptedRequests).toEqual([
       expect.objectContaining({ tool: "web_search" }),
     ]);
-    expect(result.collectedSources.extendedSources).toHaveLength(1);
+    expect(recorded.searchNumResults).toEqual([8]);
+    expect(result.collectedSources.extendedSources).toHaveLength(2);
+  });
+
+  test("widens one thematic list search before reused-profile narrowing", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 3, sourceBudget: 6 } },
+      collectedSources: collectedSources(),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+              },
+              rationale: "current sourced candidate evidence",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech best stocks analyst upside",
+                searchType: "current-subject",
+              },
+              rationale: "corroborate current list evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([8, 3]);
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({
+        args: expect.objectContaining({ numResults: 8 }),
+      }),
+      expect.objectContaining({
+        args: expect.objectContaining({ numResults: 3 }),
+      }),
+    ]);
+  });
+
+  test("widens thematic list research without explicit equity words", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "best semiconductors 2026",
+        subjectKey: "semiconductors",
+        predictionProxySymbol: "SMH",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "semiconductors 2026 analyst picks",
+                searchType: "current-subject",
+              },
+              rationale: "current sourced candidate evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([8]);
+    expect(result.audit?.acceptedRequests).toHaveLength(1);
   });
 
   test("emits search-unavailable gap when Exa is absent for eligible deep runs", async () => {
@@ -289,7 +379,7 @@ describe("runWebGatherLoop", () => {
     );
   });
 
-  test("emits search-unavailable gap when Exa is absent for brief thematic research", async () => {
+  test("emits search-unavailable gap when Exa is absent for thematic research", async () => {
     const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
     const result = await runWebGatherLoop({
       command: {
@@ -298,7 +388,7 @@ describe("runWebGatherLoop", () => {
         subject: "Top-10 list of promising biotech stocks",
         subjectKey: "biotech",
         predictionProxySymbol: "XBI",
-        depth: "brief",
+        depth: "deep",
       },
       config: { ...config, sourceOptions: sourceOptionsWithoutExa },
       collectedSources: collectedSources(),

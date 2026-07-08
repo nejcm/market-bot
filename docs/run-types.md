@@ -354,10 +354,11 @@ Allowed subjects = `{symbol}`.
 ### CLI
 
 ```sh
-market-bot research <subject> [--deep]
+market-bot research <subject>
 ```
 
 - Subject is required as a positional phrase.
+- Research runs always use the deep profile.
 
 Command shape: `ResearchSubjectCommand` with `jobType: "research"`,
 `assetClass: "equity"`, `subject`, and `depth`.

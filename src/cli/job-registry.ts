@@ -151,7 +151,7 @@ export const SEARCH_JOB_TYPE_OPTIONS = [
 ] as const;
 
 export const USAGE =
-  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> [--deep] | market-bot alpha-search --asset equity [--deep] | market-bot score [--force] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
+  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> | market-bot alpha-search --asset equity [--deep] | market-bot score [--force] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
@@ -232,7 +232,7 @@ export function commandLabel(command: CliCommand): string {
     return `${alias} ${command.assetClass} ${String(command.horizonTradingDays)}d${depthSuffix}`;
   }
   if (command.jobType === "research") {
-    return `research ${command.subject}${depthSuffix}`;
+    return `research ${command.subject}`;
   }
   if (command.jobType === "alpha-search") {
     return `alpha-search ${command.assetClass}${depthSuffix}`;
@@ -287,11 +287,7 @@ export function jobRequestArgv(value: unknown): readonly string[] {
       throw new Error("Expected research subject");
     }
 
-    return [
-      "research",
-      ...subject.split(/\s+/u),
-      ...depthArg(readDepth(readString(value, "depth"))),
-    ];
+    return ["research", ...subject.split(/\s+/u)];
   }
 
   if (jobType === "score" || jobType === "calibration" || jobType === "provider-health") {

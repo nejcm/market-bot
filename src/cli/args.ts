@@ -140,7 +140,7 @@ function parseMarketOverviewArgs(
 }
 
 function parseResearchArgs(args: readonly string[]): ResearchSubjectCommand {
-  const subject = readPromptPositionals(args, new Set(["--deep"]));
+  const subject = readPromptPositionals(args, new Set());
   if (subject === undefined) {
     throw new Error("Expected subject for research command");
   }
@@ -149,7 +149,7 @@ function parseResearchArgs(args: readonly string[]): ResearchSubjectCommand {
     jobType: "research",
     assetClass: "equity",
     subject,
-    depth: readDepth(args),
+    depth: "deep",
   };
 }
 

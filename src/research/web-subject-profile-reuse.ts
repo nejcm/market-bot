@@ -38,7 +38,10 @@ export async function findReusableWebSubjectProfile(input: {
   readonly currentSecFilingDate?: string;
 }): Promise<WebSubjectProfileReuse | undefined> {
   const subject = webSubjectProfileSubjectForCommand(input.command);
-  if (subject === undefined || input.command.depth !== "deep") {
+  if (
+    subject === undefined ||
+    (subject.subjectKind !== "theme" && input.command.depth !== "deep")
+  ) {
     return;
   }
   if (subject.subjectKind === "company" && input.currentSecFilingDate === undefined) {
@@ -47,7 +50,7 @@ export async function findReusableWebSubjectProfile(input: {
   const reusableArtifacts = await scanWebSubjectProfileRunArtifacts(input.dataDir, {
     subjectKind: subject.subjectKind,
     subjectId: subject.subjectId,
-    depth: "deep",
+    depth: input.command.depth,
   });
   const candidates = reusableArtifacts.toSorted((left, right) =>
     right.report.generatedAt.localeCompare(left.report.generatedAt),

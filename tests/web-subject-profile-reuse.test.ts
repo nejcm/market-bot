@@ -160,6 +160,7 @@ async function writePriorRun(input: {
   readonly runId: string;
   readonly symbol: string;
   readonly subjectKind?: "company" | "crypto-asset" | "theme";
+  readonly depth?: "brief" | "deep";
   readonly sourceIds?: readonly string[];
   readonly sources?: readonly Source[];
   readonly generatedAt?: string;
@@ -193,7 +194,7 @@ async function writePriorRun(input: {
     predictions: [],
     sources: input.sources ?? [webSource],
     notFinancialAdvice: true,
-    extras: { depth: "deep" },
+    extras: { depth: input.depth ?? "deep" },
   });
   await writeJson(
     join(runDir, "normalized", "web-subject-profile.json"),
@@ -301,6 +302,27 @@ describe("Web Subject Profile reuse", () => {
         ...researchCommand,
         subject: " ai   infrastructure ",
       },
+      now: new Date("2026-05-07T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+    });
+
+    expect(reuse?.profile).toMatchObject({ subjectKind: "theme", subjectId });
+  });
+
+  test("reuses legacy brief theme profiles for direct brief research callers", async () => {
+    const dataDir = tempRunsDir();
+    const subjectId = normalizedSubjectId("AI infrastructure");
+    await writePriorRun({
+      dataDir,
+      runId: "prior-ai-infrastructure-brief",
+      symbol: subjectId,
+      subjectKind: "theme",
+      depth: "brief",
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command: { ...researchCommand, subject: "AI infrastructure", depth: "brief" },
       now: new Date("2026-05-07T00:00:00.000Z"),
       reuseDaysBySubjectKind,
     });

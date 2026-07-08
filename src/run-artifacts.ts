@@ -1194,7 +1194,12 @@ export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan
 
 export async function scanWebSubjectProfileRunArtifacts(
   dataDir: string,
-  input: { readonly subjectKind: SubjectKind; readonly subjectId: string; readonly depth: "deep" },
+  input: {
+    readonly subjectKind: SubjectKind;
+    readonly subjectId: string;
+    // Research CLI emits deep theme profiles today; brief remains readable for older artifacts and direct callers.
+    readonly depth: "brief" | "deep";
+  },
 ): Promise<readonly WebSubjectProfileRunArtifact[]> {
   const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
     if (isRecord(error) && error.code === "ENOENT") {

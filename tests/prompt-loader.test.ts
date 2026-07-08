@@ -227,5 +227,12 @@ describe("loadStagePrompt — real prompt files", () => {
   test("real instruction contains research-only constraint", async () => {
     const result = await loadStagePrompt("final-synthesis", dailyEquityCommand);
     expect(result.instruction).toContain("Do not include trade actions");
+    expect(result.instruction).toContain('Never write "investors should"');
+  });
+
+  test("real web-gather prompt widens thematic list searches", async () => {
+    const result = await loadStagePrompt("web-gather", dailyEquityCommand);
+    expect(result.instruction).toContain("list/ranking/promising-stock prompts");
+    expect(result.instruction).toContain("`numResults`: 8");
   });
 });

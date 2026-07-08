@@ -98,8 +98,10 @@ type ModelWebGatherRequest =
 interface ValidationState {
   readonly seenKeys: Set<string>;
   readonly surfacedUrls: Set<string>;
+  readonly thematicListSearchWidened: { value: boolean };
   readonly subject: WebGatherSubject;
   readonly subjectTerms: readonly string[];
+  readonly command: ResearchCommand;
   readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
   readonly reusedProfileCoverage: WebGatherContext["reusedProfileCoverage"];
   readonly config: AppConfig;
@@ -263,19 +265,44 @@ function reusedProfileCoverageRejectionReason(
     : undefined;
 }
 
-// Narrows the effective per-query ingestion when a durable Web Subject Profile was reused into this run and the model left numResults to the default. Applies to every search type: reused-profile fresh gather exists only for recency, corroboration, or gap coverage, so a full page per query over-ingests near-duplicate corroborations. An explicit model-supplied numResults is respected as-is; values above MAX_WEB_GATHER_SEARCH_RESULTS were already rejected by webSearchArgs before this runs. Setting it here records the effective value in the accepted web-gather audit entry.
-function withReusedProfileNumResults(
+// Sets effective per-query ingestion when the model leaves numResults to the default. Thematic list screens widen one search surface because a later provider call can fail and leave the run with only one result page. Reused profiles stay narrow for the remaining recency/corroboration/gap-fill searches.
+function withDefaultSearchNumResults(
   parsedArgs: {
     readonly query: string;
     readonly searchType: WebSearchType;
     readonly numResults?: number;
   },
+  command: ResearchCommand,
   coverage: WebGatherContext["reusedProfileCoverage"],
+  thematicListSearchWidened: boolean,
 ): { readonly query: string; readonly searchType: WebSearchType; readonly numResults?: number } {
-  if (parsedArgs.numResults !== undefined || coverage?.present !== true) {
+  if (parsedArgs.numResults !== undefined) {
     return parsedArgs;
   }
-  return { ...parsedArgs, numResults: REUSED_PROFILE_DEFAULT_SEARCH_RESULTS };
+  if (!thematicListSearchWidened && isThematicListSearch(command, parsedArgs)) {
+    return { ...parsedArgs, numResults: MAX_WEB_GATHER_SEARCH_RESULTS };
+  }
+  if (coverage?.present === true) {
+    return { ...parsedArgs, numResults: REUSED_PROFILE_DEFAULT_SEARCH_RESULTS };
+  }
+  return parsedArgs;
+}
+
+function isThematicListSearch(
+  command: ResearchCommand,
+  parsedArgs: { readonly query: string; readonly searchType: WebSearchType },
+): boolean {
+  if (
+    command.jobType !== "research" ||
+    command.assetClass !== "equity" ||
+    parsedArgs.searchType !== "current-subject"
+  ) {
+    return false;
+  }
+  const text = `${command.subject} ${parsedArgs.query}`.toLowerCase();
+  return /\b(top|best|list|ranking|ranked|screen|screening|picks?|promising|stocks? to buy)\b/u.test(
+    text,
+  );
 }
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
@@ -292,6 +319,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   const { command } = input;
   const surfacedUrls = new Set<string>();
   const seenKeys = new Set<string>();
+  const thematicListSearchWidened = { value: false };
   const subject = webGatherSubjectForRun(command, input.collectedSources);
   if (subject === undefined) {
     return { collectedSources: input.collectedSources, stageOutputs: [] };
@@ -353,8 +381,10 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         {
           seenKeys,
           surfacedUrls,
+          thematicListSearchWidened,
           subject,
           subjectTerms,
+          command,
           secFilingCoverage,
           reusedProfileCoverage: input.reusedProfileCoverage,
           config: input.config,
@@ -564,17 +594,27 @@ function validateRequest(
     if (reusedProfileCoverageReason !== undefined) {
       return reject(state.round, tool, args, rationale, reusedProfileCoverageReason);
     }
-    return validateAcceptedRequest(
-      {
-        tool: typedTool,
-        args: withReusedProfileNumResults(parsedArgs, state.reusedProfileCoverage),
-        rationale,
-      },
+    const requestArgs = withDefaultSearchNumResults(
+      parsedArgs,
+      state.command,
+      state.reusedProfileCoverage,
+      state.thematicListSearchWidened.value,
+    );
+    const acceptedRequest = validateAcceptedRequest(
+      { tool: typedTool, args: requestArgs, rationale },
       state,
       sourceUnitsUsed,
       toolCallsUsed,
       args,
     );
+    if (
+      "request" in acceptedRequest &&
+      requestArgs.numResults === MAX_WEB_GATHER_SEARCH_RESULTS &&
+      isThematicListSearch(state.command, parsedArgs)
+    ) {
+      state.thematicListSearchWidened.value = true;
+    }
+    return acceptedRequest;
   }
   const parsedArgs = webFetchArgs(args);
   if (typeof parsedArgs === "string") {

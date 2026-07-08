@@ -53,7 +53,6 @@ describe("research console app jobs", () => {
       "research",
       "AI",
       "biotech",
-      "--deep",
     ]);
     expect(jobRequestArgv({ jobType: "cache-prune" })).toEqual(["cache", "prune"]);
     expect(() => jobRequestArgv({ jobType: "research", subject: " " })).toThrow(

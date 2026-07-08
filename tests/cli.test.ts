@@ -71,21 +71,13 @@ describe("parseArgs", () => {
       jobType: "research",
       assetClass: "equity",
       subject: "AI biotech",
-      depth: "brief",
-    });
-  });
-
-  test("parses deep thematic research subject", () => {
-    expect(parseArgs(["research", "semis", "--deep"])).toEqual({
-      jobType: "research",
-      assetClass: "equity",
-      subject: "semis",
       depth: "deep",
     });
   });
 
   test("rejects invalid thematic research arguments", () => {
     expect(() => parseArgs(["research"])).toThrow("Expected subject for research command");
+    expect(() => parseArgs(["research", "semis", "--deep"])).toThrow("Unknown flag: --deep");
     expect(() => parseArgs(["research", "semis", "--asset", "equity"])).toThrow(
       "Unknown flag: --asset",
     );
@@ -276,7 +268,7 @@ describe("parseArgs", () => {
     expect(jobSupportsDepth("equity")).toBe(true);
     expect(jobSupportsDepth("crypto")).toBe(true);
     expect(jobSupportsDepth("alpha-search")).toBe(true);
-    expect(jobSupportsDepth("research")).toBe(true);
+    expect(jobSupportsDepth("research")).toBe(false);
     expect(jobSupportsDepth("provider-health")).toBe(false);
   });
 
@@ -291,7 +283,6 @@ describe("parseArgs", () => {
       "research",
       "AI",
       "biotech",
-      "--deep",
     ]);
   });
 });

@@ -79,13 +79,14 @@ describe("runTypeFixedAssetClass", () => {
 });
 
 describe("runTypeSupportsDepth", () => {
-  test("true for all seven research job types", () => {
-    for (const jobType of RESEARCH_JOB_TYPES) {
+  test("true for depth-configurable research job types", () => {
+    for (const jobType of RESEARCH_JOB_TYPES.filter((candidate) => candidate !== "research")) {
       expect(runTypeSupportsDepth(jobType)).toBe(true);
     }
   });
 
-  test("false for operational job types", () => {
+  test("false for always-deep research and operational job types", () => {
+    expect(runTypeSupportsDepth("research")).toBe(false);
     for (const jobType of OPERATIONAL_JOB_TYPES) {
       expect(runTypeSupportsDepth(jobType)).toBe(false);
     }

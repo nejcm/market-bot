@@ -81,7 +81,7 @@ export const RUN_TYPE_REGISTRY: Record<ResearchJobType, RunTypeMeta> = {
   },
   research: {
     assetArg: "none",
-    supportsDepth: true,
+    supportsDepth: false,
     isInstrument: false,
     supportsWebGather: true,
     supportsEvidenceRequest: false,

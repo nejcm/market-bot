@@ -205,4 +205,108 @@ describe("Web Evidence phase", () => {
     });
     expect(result.collectedSources.extendedSources).toContainEqual(source);
   });
+
+  test("reuses deep theme profile using resolved subject identity", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "prior-biotech");
+    const source: Source = {
+      id: "web-biotech-prior",
+      title: "Biotech analyst picks",
+      url: "https://example.com/biotech",
+      fetchedAt: "2026-05-17T00:00:00.000Z",
+      kind: "web",
+      assetClass: "equity",
+      provider: "exa",
+    };
+    const answer = {
+      answer: "Biotech screens cite analyst upside and pipeline catalysts.",
+      sourceIds: [source.id],
+    };
+    await writeJson(join(runDir, "report.json"), {
+      runId: "prior-biotech",
+      jobType: "research",
+      assetClass: "equity",
+      generatedAt: "2026-05-17T00:00:00.000Z",
+      summary: "Prior biotech profile.",
+      keyFindings: [],
+      bullCase: [],
+      bearCase: [],
+      risks: [],
+      catalysts: [],
+      scenarios: [],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: [],
+      sources: [source],
+      notFinancialAdvice: true,
+      extras: { depth: "deep" },
+    });
+    await writeJson(join(runDir, "normalized", "web-subject-profile.json"), {
+      version: 3,
+      generatedAt: "2026-05-17T00:00:00.000Z",
+      subjectKind: "theme",
+      subjectId: "biotech",
+      subjectLabel: "Biotechnology",
+      subjectSummary: answer,
+      questions: {
+        whatItIs: answer,
+        whyNow: answer,
+        beneficiaries: answer,
+        headwinds: answer,
+        keyDebates: answer,
+        howItPlaysOut: answer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: answer.answer, sourceIds: answer.sourceIds }],
+      openGaps: [],
+      sourceIds: [source.id],
+    });
+
+    const stages: StageOutput[] = [];
+    const result = await runWebEvidencePhase({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        depth: "deep",
+      },
+      config: config(dataDir),
+      collectedSources: collectedSources({
+        resolvedSubject: {
+          input: "Top-10 list of promising biotech stocks",
+          normalizedInput: "top 10 list of promising biotech stocks",
+          status: "resolved",
+          canEmitPredictions: true,
+          reason: "Resolved to checked-in single listed prediction proxy",
+          subjectKey: "biotech",
+          displayName: "Biotechnology",
+          aliases: ["biotech", "biotechnology"],
+          predictionProxySymbol: "XBI",
+        },
+      }),
+      context,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateStage: async (stage, _sources, stageContext) => {
+        expect(stage).toBe("web-gather");
+        expect(stageContext.webGather?.reusedProfileCoverage?.present).toBe(true);
+        const output: StageOutput = {
+          stage,
+          content: JSON.stringify({ requests: [] }),
+          tokenEstimate: 10,
+          costEstimateUsd: 0.001,
+        };
+        stages.push(output);
+        return output;
+      },
+    });
+
+    expect(stages.map((stage) => stage.stage)).toEqual(["web-gather"]);
+    expect(result.webSubjectProfile).toBeUndefined();
+    expect(result.collectedSources.webSubjectProfile).toMatchObject({
+      subjectKind: "theme",
+      subjectId: "biotech",
+    });
+    expect(result.collectedSources.extendedSources).toContainEqual(source);
+  });
 });

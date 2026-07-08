@@ -11,6 +11,7 @@ import {
 import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
 import type { StageOutput } from "./final-synthesis";
 import type { ResearchContext } from "./research-context";
+import { commandWithResolvedResearchSubject } from "./research-subject-identity";
 import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
 import {
   attachReusableWebSubjectProfile,
@@ -56,10 +57,14 @@ async function runWebSubjectProfileExtraction(input: {
   readonly collectedSources: CollectedSources;
   readonly output?: StageOutput;
 }> {
+  const profileCommand = commandWithResolvedResearchSubject(
+    input.phaseInput.command,
+    input.collectedSources.resolvedSubject,
+  );
   const webSources = input.collectedSources.extendedSources.filter(
     (source) => source.kind === "web",
   );
-  const subject = webSubjectProfileSubjectForCommand(input.phaseInput.command);
+  const subject = webSubjectProfileSubjectForCommand(profileCommand);
   if (subject === undefined) {
     return { collectedSources: input.collectedSources };
   }
@@ -78,7 +83,7 @@ async function runWebSubjectProfileExtraction(input: {
       input.phaseInput.context,
     );
     const result = buildWebSubjectProfileEvidence({
-      command: input.phaseInput.command,
+      command: profileCommand,
       subject,
       generatedAt: input.phaseInput.generatedAt,
       modelContent: output.content,
@@ -102,7 +107,7 @@ async function runWebSubjectProfileExtraction(input: {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const result = buildWebSubjectProfileFailureEvidence({
-      command: input.phaseInput.command,
+      command: profileCommand,
       subject,
       generatedAt: input.phaseInput.generatedAt,
       message: `Web Subject Profile stage failed (${message})`,
@@ -178,21 +183,25 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
     collectedSources.extendedSources.some(isCompanyProfileSecSource);
 
   if (webGatherEnabled) {
+    const profileCommand = commandWithResolvedResearchSubject(
+      input.command,
+      collectedSources.resolvedSubject,
+    );
     const reusableWebSubjectProfile = await findReusableWebSubjectProfile({
       dataDir: input.config.dataDir,
-      command: input.command,
+      command: profileCommand,
       now: input.now,
       reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
       ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
     });
     if (reusableWebSubjectProfile !== undefined) {
       collectedSources = attachReusableWebSubjectProfile({
-        command: input.command,
+        command: profileCommand,
         collectedSources,
         reuse: reusableWebSubjectProfile,
       });
       webGatherLoop = await runWebGatherLoop({
-        command: input.command,
+        command: profileCommand,
         config: input.config,
         collectedSources,
         context: input.context,
@@ -208,7 +217,7 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
       ({ collectedSources } = webGatherLoop);
     } else {
       webGatherLoop = await runWebGatherLoop({
-        command: input.command,
+        command: profileCommand,
         config: input.config,
         collectedSources,
         context: input.context,

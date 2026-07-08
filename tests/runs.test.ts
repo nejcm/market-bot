@@ -233,7 +233,7 @@ describe("resolveRunParams — run keys", () => {
     expect(result.analystStyle).toBe("fuller analyst-style");
   });
 
-  test("research with resolved proxy uses proxy-only prediction subjects", () => {
+  test("research with resolved proxy uses proxy-only prediction subjects and deep defaults", () => {
     const result = resolveRunParams(
       {
         jobType: "research",
@@ -248,7 +248,8 @@ describe("resolveRunParams — run keys", () => {
 
     expect(result.predictionSubjects).toEqual(["XBI"]);
     expect(result.defaultPredictionHorizon).toBe(15);
-    expect(result.targetPredictions).toBe(2);
+    expect(result.targetPredictions).toBe(3);
+    expect(result.analystStyle).toBe("fuller analyst-style");
     expect(result.focus).toContain("proxy evidence");
     expect(result.predictionSubjects).not.toContain("^VIX");
   });

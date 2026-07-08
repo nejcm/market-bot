@@ -161,31 +161,41 @@ function plannedResearchStages(command: ResearchCommand): readonly PlaybookStage
   return ["specialist-analysis", ...coveragePanelStages(command), "critique", "final-synthesis"];
 }
 
-async function runStage(
+// One model stage: the constant job plus the per-stage evidence, context, prior stages, and
+// Reprompt. Bundling these stops runModelStage's signature from mirroring buildStagePrompt's.
+interface ModelStageInput {
+  readonly job: RunResearchJobInput;
+  readonly collectedSources: CollectedSources;
+  readonly context: ResearchContext;
+  readonly priorStages?: readonly StageOutput[];
+  readonly reprompt?: StageReprompt;
+}
+
+async function runModelStage(
   stage: StageOutput["stage"],
   model: string,
-  input: RunResearchJobInput,
-  collectedSources: CollectedSources,
-  context: ResearchContext,
-  priorStages: readonly StageOutput[] = [],
-  reprompt: StageReprompt = {},
+  input: ModelStageInput,
 ): Promise<StageOutput> {
-  const loaded = await loadStagePrompt(stage, input.command, input.config.promptDir);
-  const prompt = buildStagePrompt(
-    stage,
-    input.command,
+  const { job, collectedSources, context } = input;
+  const priorStages = input.priorStages ?? [];
+  const reprompt = input.reprompt ?? {};
+  const loaded = await loadStagePrompt(stage, job.command, job.config.promptDir);
+  const prompt = buildStagePrompt(stage, {
+    command: job.command,
     collectedSources,
-    input.config,
+    config: job.config,
     context,
     loaded,
     priorStages,
-    reprompt.predictionErrors ?? [],
-    reprompt.reportValidationErrors ?? [],
-    reprompt.allowedSourceIds ?? [],
-    reprompt.predictionCompletion,
-  );
+    predictionRepromptErrors: reprompt.predictionErrors ?? [],
+    reportValidationErrors: reprompt.reportValidationErrors ?? [],
+    allowedSourceIds: reprompt.allowedSourceIds ?? [],
+    ...(reprompt.predictionCompletion !== undefined
+      ? { predictionCompletion: reprompt.predictionCompletion }
+      : {}),
+  });
   const startedAt = performance.now();
-  const response = await input.provider.generate({
+  const response = await job.provider.generate({
     model,
     ...(context.runParams.modelParams !== undefined
       ? { params: context.runParams.modelParams }
@@ -206,7 +216,7 @@ async function runStage(
 
   const steering = buildStageSteeringSegment(
     stage,
-    input.command,
+    job.command,
     collectedSources,
     context,
     reprompt.predictionErrors ?? [],
@@ -443,14 +453,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ? { retryDelaysMs: input.sourceRetryDelaysMs }
       : {}),
     generateRound: (currentSources, roundContext, priorStages) =>
-      runStage(
-        "evidence-request",
-        runParams.quickModel,
-        input,
-        currentSources,
-        roundContext,
+      runModelStage("evidence-request", runParams.quickModel, {
+        job: input,
+        collectedSources: currentSources,
+        context: roundContext,
         priorStages,
-      ) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
+      }) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
   const webEvidence = await runWebEvidencePhase({
@@ -465,7 +473,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ? { retryDelaysMs: input.sourceRetryDelaysMs }
       : {}),
     generateStage: (stage, currentSources, stageContext, priorStages = []) =>
-      runStage(stage, runParams.quickModel, input, currentSources, stageContext, priorStages),
+      runModelStage(stage, runParams.quickModel, {
+        job: input,
+        collectedSources: currentSources,
+        context: stageContext,
+        priorStages,
+      }),
   });
   ({ collectedSources } = webEvidence);
   const { webGatherLoop, webSubjectProfile } = webEvidence;
@@ -508,29 +521,28 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     plannedStages,
   );
   const playbookContext = playbookSelection.context;
-  const specialistOutput = await runStage(
-    "specialist-analysis",
-    runParams.quickModel,
-    input,
+  const specialistOutput = await runModelStage("specialist-analysis", runParams.quickModel, {
+    job: input,
     collectedSources,
-    playbookContext,
-  );
+    context: playbookContext,
+  });
   const panelOutputs = await Promise.all(
     coveragePanelStages(input.command).map((stage) =>
-      runStage(stage, runParams.quickModel, input, collectedSources, playbookContext, [
-        specialistOutput,
-      ]),
+      runModelStage(stage, runParams.quickModel, {
+        job: input,
+        collectedSources,
+        context: playbookContext,
+        priorStages: [specialistOutput],
+      }),
     ),
   );
   const analysisOutputs = [specialistOutput, ...panelOutputs];
-  const critiqueOutput = await runStage(
-    "critique",
-    runParams.quickModel,
-    input,
+  const critiqueOutput = await runModelStage("critique", runParams.quickModel, {
+    job: input,
     collectedSources,
-    playbookContext,
-    analysisOutputs,
-  );
+    context: playbookContext,
+    priorStages: analysisOutputs,
+  });
   const sources = buildSourceList(input.command, collectedSources, historicalContext, generatedAt);
   const knownSourceIds = new Set(sources.map((source) => source.id));
   // Build the emission-time subject allowlist from the resolved run params.
@@ -550,15 +562,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     priorStages: [...analysisOutputs, critiqueOutput],
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
     runFinalSynthesis: (priorStages, reprompt) =>
-      runStage(
-        "final-synthesis",
-        runParams.synthesisModel,
-        input,
+      runModelStage("final-synthesis", runParams.synthesisModel, {
+        job: input,
         collectedSources,
-        playbookContext,
+        context: playbookContext,
         priorStages,
-        reprompt,
-      ),
+        ...(reprompt !== undefined ? { reprompt } : {}),
+      }),
   });
   const postSynthesisWarnings = auditPostSynthesisReport(synthesis.report);
   // Deterministic Report Integrity Audit: prune blocking violations from the

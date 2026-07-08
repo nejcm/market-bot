@@ -539,12 +539,11 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
   const identity: InstrumentIdentity = { displayName: "Apple Inc.", exchange: "NASDAQ" };
 
   function buildPrompt(sources: CollectedSources): string {
-    return buildStagePrompt(
-      "specialist-analysis",
+    return buildStagePrompt("specialist-analysis", {
       command,
-      sources,
+      collectedSources: sources,
       config,
-      {
+      context: {
         depthProfile: buildDepthProfile(command, config),
         runParams: {
           quickModel: "quick-test",
@@ -568,8 +567,8 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
         },
         calibrationContext: undefined,
       },
-      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
-    );
+      loaded: { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    });
   }
 
   test("snapshot, source ID, citation rule, and identity appear in the evidence payload", () => {

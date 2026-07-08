@@ -1241,19 +1241,35 @@ function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> |
   };
 }
 
-export function buildStagePrompt(
-  stage: StageLabel,
-  command: ResearchCommand,
-  collectedSources: CollectedSources,
-  config: AppConfig,
-  context: ResearchContext,
-  loaded: LoadedPrompt,
-  priorStages: readonly unknown[] = [],
-  predictionRepromptErrors: readonly string[] = [],
-  reportValidationErrors: readonly string[] = [],
-  allowedSourceIds: readonly string[] = [],
-  predictionCompletion?: PredictionCompletionPrompt,
-): string {
+// The full evidence payload plus every per-stage steering input buildStagePrompt needs.
+// One typed bundle instead of eleven positional params: callers assemble it by name, and a
+// New stage-conditional input added here is a field, not a shifted argument at every call site.
+export interface StageInput {
+  readonly command: ResearchCommand;
+  readonly collectedSources: CollectedSources;
+  readonly config: AppConfig;
+  readonly context: ResearchContext;
+  readonly loaded: LoadedPrompt;
+  readonly priorStages?: readonly unknown[];
+  readonly predictionRepromptErrors?: readonly string[];
+  readonly reportValidationErrors?: readonly string[];
+  readonly allowedSourceIds?: readonly string[];
+  readonly predictionCompletion?: PredictionCompletionPrompt;
+}
+
+export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
+  const {
+    command,
+    collectedSources,
+    config,
+    context,
+    loaded,
+    priorStages = [],
+    predictionRepromptErrors = [],
+    reportValidationErrors = [],
+    allowedSourceIds = [],
+    predictionCompletion,
+  } = input;
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
   const hasBusinessFramework =

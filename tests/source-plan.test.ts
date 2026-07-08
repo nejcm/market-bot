@@ -207,6 +207,104 @@ describe("source plan", () => {
     });
   });
 
+  test("marks thematic market data as a gap when representative stock snapshots are missing", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        resolvedSubject,
+        marketSnapshots: [
+          marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-spy", symbol: "SPY" }),
+        ],
+        newsSources: [
+          newsSource({ id: "news-biotech-1", provider: "yahoo-news", kind: "news" }),
+          newsSource({ id: "news-biotech-2", provider: "finnhub", kind: "news" }),
+        ],
+      }),
+      resolvedSubject,
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
+      status: "gap",
+      evidenceClass: "core",
+      coveredSourceIds: ["market-yahoo-equity-xbi"],
+      gapText: [
+        "researchRepresentative: no live market snapshot for representative Amgen (AMGN)",
+        "researchRepresentative: no live market snapshot for representative Gilead Sciences (GILD)",
+        "researchRepresentative: no live market snapshot for representative Vertex Pharmaceuticals (VRTX)",
+      ],
+    });
+    expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(1);
+  });
+
+  test("marks thematic news as a gap when selected coverage is mostly generic", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        resolvedSubject,
+        marketSnapshots: [
+          marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-amgn", symbol: "AMGN" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-gild", symbol: "GILD" }),
+          marketSnapshot({ sourceId: "market-yahoo-equity-vrtx", symbol: "VRTX" }),
+        ],
+        newsSources: Array.from({ length: 15 }, (_, index) =>
+          newsSource({
+            id: `news-equity-${String(index + 1)}`,
+            provider: index === 0 ? "yahoo-news" : "finnhub",
+            kind: "news",
+          }),
+        ),
+        newsAnalytics: {
+          fetchedNewsSourcesByProvider: { "yahoo-news": 1, finnhub: 14 },
+          fetchedNewsSourceCount: 15,
+          canonicalDedupedNewsSourceCount: 15,
+          canonicalDuplicateNewsSourceCount: 0,
+          persistentSuppressedNewsSourceCount: 0,
+          relevantBeforeSeenFilterCount: 1,
+          relevantSuppressedBySeenFilterCount: 0,
+          relevantSelectedCount: 1,
+          repeatFallbackKeptCount: 0,
+          relevantRepeatKeptCount: 0,
+          selectedNewsSourceCount: 15,
+          selectedRelevantMoverNewsSourceCount: 1,
+          selectedGenericMoverNewsSourceCount: 14,
+          repeatFallbackUsed: false,
+        },
+      }),
+      resolvedSubject,
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "news")).toMatchObject({
+      status: "gap",
+      evidenceClass: "material",
+      coveredSourceIds: Array.from(
+        { length: 15 },
+        (_, index) => `news-equity-${String(index + 1)}`,
+      ),
+      gapText: ["news: thin thematic relevance (1 relevant selected, 14 generic selected)"],
+    });
+    expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
+  });
+
   test("attributes supplemental Massive snapshots to Massive in the source ledger", () => {
     const plan = plannedAndAssessed(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),

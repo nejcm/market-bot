@@ -10,6 +10,7 @@ import {
   marketUpdateHorizonBucket,
   marketUpdateMetadataOf,
   type Mover,
+  type PostSynthesisAuditWarning,
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
@@ -67,11 +68,12 @@ import {
 } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
-import { auditReportIntegrity } from "./report-integrity-audit";
+import { auditReportIntegrity, type ReportIntegrityAuditResult } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
   assessSourcePlan,
   buildSourcePlan,
+  type BuildSourcePlanResult,
   type EvidenceLanesArtifact,
   type SourceLedgerArtifact,
   type SourcePlanArtifact,
@@ -398,6 +400,169 @@ async function runForecastDisagreementPhase(input: {
   return { report, challengerModels, stageOutputs: [] };
 }
 
+async function runAnalysisPhase(input: {
+  readonly jobInput: RunResearchJobInput;
+  readonly collectedSources: CollectedSources;
+  readonly context: ResearchContext;
+  readonly runParams: ResolvedRunParams;
+}): Promise<{
+  readonly analysisOutputs: readonly StageOutput[];
+  readonly critiqueOutput: StageOutput;
+}> {
+  const specialistOutput = await runModelStage("specialist-analysis", input.runParams.quickModel, {
+    job: input.jobInput,
+    collectedSources: input.collectedSources,
+    context: input.context,
+  });
+  const panelOutputs = await Promise.all(
+    coveragePanelStages(input.jobInput.command).map((stage) =>
+      runModelStage(stage, input.runParams.quickModel, {
+        job: input.jobInput,
+        collectedSources: input.collectedSources,
+        context: input.context,
+        priorStages: [specialistOutput],
+      }),
+    ),
+  );
+  const analysisOutputs = [specialistOutput, ...panelOutputs];
+  const critiqueOutput = await runModelStage("critique", input.runParams.quickModel, {
+    job: input.jobInput,
+    collectedSources: input.collectedSources,
+    context: input.context,
+    priorStages: analysisOutputs,
+  });
+  return { analysisOutputs, critiqueOutput };
+}
+
+function buildRunTrace(input: {
+  readonly jobInput: RunResearchJobInput;
+  readonly runId: string;
+  readonly generatedAt: string;
+  readonly completedAt: string;
+  readonly runParams: ResolvedRunParams;
+  readonly codeVersion: NonNullable<RunTrace["codeVersion"]>;
+  readonly sourceStateHash?: string;
+  readonly evidenceQualityAssessment: NonNullable<RunTrace["evidenceQualityAssessment"]>;
+  readonly report: ResearchReport;
+  readonly stageOutputs: readonly StageOutput[];
+  readonly costEstimateUsd?: number;
+  readonly costPricing: readonly CostPricing[];
+  readonly collectedSources: CollectedSources;
+  readonly evidenceRequestLoop?: RunTrace["evidenceRequestLoop"];
+  readonly webGatherLoop?: RunTrace["webGatherLoop"];
+  readonly historicalContext: HistoricalResearchContext;
+  readonly spotlightSelection?: SpotlightSelectionResult;
+  readonly playbookAudit: PlaybookSelectionAudit;
+  readonly predictionRetryErrors: readonly string[];
+  readonly predictionTrimWarnings: readonly string[];
+  readonly predictionCompletion: RunTrace["predictionCompletion"];
+  readonly predictionErrors: readonly string[];
+  readonly reportValidationErrors: readonly string[];
+  readonly postSynthesisWarnings: readonly PostSynthesisAuditWarning[];
+  readonly integrityAudit: ReportIntegrityAuditResult;
+  readonly sourcePlanning: BuildSourcePlanResult;
+  readonly configuredForecastDisagreementModels: readonly string[];
+  readonly challengerModels: readonly string[];
+  readonly forecastDisagreement?: ForecastDisagreementArtifact;
+}): RunTrace {
+  const { command, config, provider } = input.jobInput;
+  return {
+    schemaVersion: 2,
+    runId: input.runId,
+    jobType: command.jobType,
+    ...marketUpdateTraceFields(command),
+    assetClass: command.assetClass,
+    ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
+    depth: command.depth,
+    provider: provider.name,
+    codeVersion: input.codeVersion,
+    reproducibility: {
+      effectiveConfigHash: effectiveConfigHash(config),
+      ...(input.sourceStateHash !== undefined ? { dirtySourceHash: input.sourceStateHash } : {}),
+    },
+    evidenceQualityAssessment: input.evidenceQualityAssessment,
+    quickModel: input.runParams.quickModel,
+    synthesisModel: input.runParams.synthesisModel,
+    startedAt: input.generatedAt,
+    completedAt: input.completedAt,
+    sourceGaps: input.report.dataGaps,
+    stages: ["source-collection", ...input.stageOutputs.map((output) => output.stage)],
+    stageRecords: input.stageOutputs.map((output) => ({
+      stage: output.stage,
+      ...(output.durationMs !== undefined ? { durationMs: output.durationMs } : {}),
+      ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
+      ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
+    })),
+    tokenEstimate: input.stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
+    ...(input.costEstimateUsd !== undefined ? { costEstimateUsd: input.costEstimateUsd } : {}),
+    ...(input.costPricing.length > 0 ? { costPricing: input.costPricing } : {}),
+    modelInputSanitization: input.collectedSources.modelInputSanitization ?? { entries: [] },
+    ...(input.evidenceRequestLoop !== undefined
+      ? { evidenceRequestLoop: input.evidenceRequestLoop }
+      : {}),
+    ...(input.webGatherLoop !== undefined ? { webGatherLoop: input.webGatherLoop } : {}),
+    historicalContext: input.historicalContext.audit,
+    ...(input.spotlightSelection !== undefined
+      ? { spotlightSelection: input.spotlightSelection.audit }
+      : {}),
+    domainPlaybooks: input.playbookAudit,
+    ...(input.predictionRetryErrors.length > 0
+      ? { predictionRetryErrors: input.predictionRetryErrors }
+      : {}),
+    ...(input.predictionTrimWarnings.length > 0
+      ? { predictionTrimWarnings: input.predictionTrimWarnings }
+      : {}),
+    ...(input.predictionCompletion !== undefined
+      ? { predictionCompletion: input.predictionCompletion }
+      : {}),
+    ...(input.predictionErrors.length > 0 ? { predictionErrors: input.predictionErrors } : {}),
+    ...(input.reportValidationErrors.length > 0
+      ? { reportValidationRetryErrors: input.reportValidationErrors }
+      : {}),
+    ...(input.postSynthesisWarnings.length > 0
+      ? {
+          postSynthesisAudit: {
+            warningCount: input.postSynthesisWarnings.length,
+            warnings: input.postSynthesisWarnings,
+          },
+        }
+      : {}),
+    reportIntegrityAudit: {
+      reportIntegrity: input.integrityAudit.reportIntegrity,
+      researchQuality: input.integrityAudit.researchQuality,
+      prunedItemCount: input.integrityAudit.prunedItemCount,
+      advisoryWarningCount: input.integrityAudit.advisoryWarningCount,
+      pruned: input.integrityAudit.pruned,
+    },
+    sourcePlan: {
+      plannedLaneCount: input.sourcePlanning.evidenceLanes.summary.plannedLaneCount,
+      coreLaneCount: input.sourcePlanning.evidenceLanes.summary.coreLaneCount,
+      materialLaneCount: input.sourcePlanning.evidenceLanes.summary.materialLaneCount,
+      supplementalLaneCount: input.sourcePlanning.evidenceLanes.summary.supplementalLaneCount,
+    },
+    evidenceLanes: {
+      coveredLaneCount: input.sourcePlanning.evidenceLanes.summary.coveredLaneCount,
+      gapLaneCount: input.sourcePlanning.evidenceLanes.summary.gapLaneCount,
+      coreGapLaneCount: input.sourcePlanning.evidenceLanes.summary.coreGapLaneCount,
+      materialGapLaneCount: input.sourcePlanning.evidenceLanes.summary.materialGapLaneCount,
+      sourceCount: input.sourcePlanning.evidenceLanes.summary.sourceCount,
+      gapCount: input.sourcePlanning.evidenceLanes.summary.gapCount,
+      coverageRatio: input.sourcePlanning.evidenceLanes.summary.coverageRatio,
+    },
+    ...(input.forecastDisagreement !== undefined
+      ? {
+          forecastDisagreement: {
+            configuredModelCount: input.configuredForecastDisagreementModels.length,
+            challengerModelCount: input.challengerModels.length,
+            participantCount: input.forecastDisagreement.participantCount,
+            successfulParticipantCount: input.forecastDisagreement.successfulParticipantCount,
+            errorCount: input.forecastDisagreement.errorCount,
+          },
+        }
+      : {}),
+  };
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
@@ -520,27 +685,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     plannedStages,
   );
   const playbookContext = playbookSelection.context;
-  const specialistOutput = await runModelStage("specialist-analysis", runParams.quickModel, {
-    job: input,
+  const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
+    jobInput: input,
     collectedSources,
     context: playbookContext,
-  });
-  const panelOutputs = await Promise.all(
-    coveragePanelStages(input.command).map((stage) =>
-      runModelStage(stage, runParams.quickModel, {
-        job: input,
-        collectedSources,
-        context: playbookContext,
-        priorStages: [specialistOutput],
-      }),
-    ),
-  );
-  const analysisOutputs = [specialistOutput, ...panelOutputs];
-  const critiqueOutput = await runModelStage("critique", runParams.quickModel, {
-    job: input,
-    collectedSources,
-    context: playbookContext,
-    priorStages: analysisOutputs,
+    runParams,
   });
   const sources = buildSourceList(input.command, collectedSources, historicalContext, generatedAt);
   const knownSourceIds = new Set(sources.map((source) => source.id));
@@ -608,91 +757,37 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const costEstimateUsd = sumKnownCosts(stageOutputs.map((output) => output.costEstimateUsd));
   const costPricing = stageCostPricing(stageOutputs);
 
-  const trace: RunTrace = {
-    schemaVersion: 2,
+  const trace = buildRunTrace({
+    jobInput: input,
     runId,
-    jobType: input.command.jobType,
-    ...marketUpdateTraceFields(input.command),
-    assetClass: input.command.assetClass,
-    ...(isInstrumentCommand(input.command) ? { symbol: input.command.symbol } : {}),
-    depth: input.command.depth,
-    provider: input.provider.name,
-    codeVersion,
-    reproducibility: {
-      effectiveConfigHash: effectiveConfigHash(input.config),
-      ...(sourceStateHash !== undefined ? { dirtySourceHash: sourceStateHash } : {}),
-    },
-    evidenceQualityAssessment,
-    quickModel: runParams.quickModel,
-    synthesisModel: runParams.synthesisModel,
-    startedAt: generatedAt,
+    generatedAt,
     completedAt: completedAt(),
-    sourceGaps: report.dataGaps,
-    stages: ["source-collection", ...stageOutputs.map((output) => output.stage)],
-    stageRecords: stageOutputs.map((output) => ({
-      stage: output.stage,
-      ...(output.durationMs !== undefined ? { durationMs: output.durationMs } : {}),
-      ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
-      ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
-    })),
-    tokenEstimate: stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
+    runParams,
+    codeVersion,
+    ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
+    evidenceQualityAssessment,
+    report,
+    stageOutputs,
     ...(costEstimateUsd !== undefined ? { costEstimateUsd } : {}),
-    ...(costPricing.length > 0 ? { costPricing } : {}),
-    modelInputSanitization: collectedSources.modelInputSanitization ?? { entries: [] },
+    costPricing,
+    collectedSources,
     ...(evidenceLoop.audit !== undefined ? { evidenceRequestLoop: evidenceLoop.audit } : {}),
     ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),
-    historicalContext: historicalContext.audit,
-    ...(spotlightSelection !== undefined ? { spotlightSelection: spotlightSelection.audit } : {}),
-    domainPlaybooks: playbookSelection.audit,
-    ...(predictionRetryErrors.length > 0 ? { predictionRetryErrors } : {}),
-    ...(predictionTrimWarnings.length > 0 ? { predictionTrimWarnings } : {}),
-    ...(predictionCompletion !== undefined ? { predictionCompletion } : {}),
-    ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
-    ...(reportValidationErrors.length > 0
-      ? { reportValidationRetryErrors: reportValidationErrors }
-      : {}),
-    ...(postSynthesisWarnings.length > 0
-      ? {
-          postSynthesisAudit: {
-            warningCount: postSynthesisWarnings.length,
-            warnings: postSynthesisWarnings,
-          },
-        }
-      : {}),
-    reportIntegrityAudit: {
-      reportIntegrity: integrityAudit.reportIntegrity,
-      researchQuality: integrityAudit.researchQuality,
-      prunedItemCount: integrityAudit.prunedItemCount,
-      advisoryWarningCount: integrityAudit.advisoryWarningCount,
-      pruned: integrityAudit.pruned,
-    },
-    sourcePlan: {
-      plannedLaneCount: sourcePlanning.evidenceLanes.summary.plannedLaneCount,
-      coreLaneCount: sourcePlanning.evidenceLanes.summary.coreLaneCount,
-      materialLaneCount: sourcePlanning.evidenceLanes.summary.materialLaneCount,
-      supplementalLaneCount: sourcePlanning.evidenceLanes.summary.supplementalLaneCount,
-    },
-    evidenceLanes: {
-      coveredLaneCount: sourcePlanning.evidenceLanes.summary.coveredLaneCount,
-      gapLaneCount: sourcePlanning.evidenceLanes.summary.gapLaneCount,
-      coreGapLaneCount: sourcePlanning.evidenceLanes.summary.coreGapLaneCount,
-      materialGapLaneCount: sourcePlanning.evidenceLanes.summary.materialGapLaneCount,
-      sourceCount: sourcePlanning.evidenceLanes.summary.sourceCount,
-      gapCount: sourcePlanning.evidenceLanes.summary.gapCount,
-      coverageRatio: sourcePlanning.evidenceLanes.summary.coverageRatio,
-    },
-    ...(forecastDisagreement !== undefined
-      ? {
-          forecastDisagreement: {
-            configuredModelCount: configuredForecastDisagreementModels.length,
-            challengerModelCount: challengerModels.length,
-            participantCount: forecastDisagreement.participantCount,
-            successfulParticipantCount: forecastDisagreement.successfulParticipantCount,
-            errorCount: forecastDisagreement.errorCount,
-          },
-        }
-      : {}),
-  };
+    historicalContext,
+    ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
+    playbookAudit: playbookSelection.audit,
+    predictionRetryErrors,
+    predictionTrimWarnings,
+    predictionCompletion,
+    predictionErrors,
+    reportValidationErrors,
+    postSynthesisWarnings,
+    integrityAudit,
+    sourcePlanning,
+    configuredForecastDisagreementModels,
+    challengerModels,
+    ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
+  });
   const analytics = buildRunAnalytics({
     report,
     trace,

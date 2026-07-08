@@ -73,6 +73,60 @@ export interface AlphaSearchManifestInput {
   readonly trace: RunTrace;
 }
 
+interface CollectedSourceSidecar {
+  readonly file: RunArtifactFileName;
+  readonly value: (result: ResearchRunManifestResult) => unknown;
+}
+
+const COMMON_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = [
+  {
+    file: RUN_ARTIFACT_FILES.webSubjectProfile,
+    value: (result) => result.collectedSources.webSubjectProfile ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.extendedEvidence,
+    value: (result) => result.collectedSources.extendedEvidence ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.marketContext,
+    value: (result) => result.collectedSources.marketContext ?? null,
+  },
+];
+
+const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = [
+  {
+    file: RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
+    value: (result) => result.collectedSources.verifiedMarketSnapshot ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.instrumentIdentity,
+    value: (result) => result.collectedSources.resolvedInstrumentIdentity ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.valuationComps,
+    value: (result) => result.collectedSources.valuationComps ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.financialLenses,
+    value: (result) => result.collectedSources.financialLenses ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.businessFramework,
+    value: (result) => result.collectedSources.businessFramework ?? null,
+  },
+];
+
+function sidecarWrites(
+  result: ResearchRunManifestResult,
+  sidecars: readonly CollectedSourceSidecar[],
+): readonly RunArtifactWrite[] {
+  return sidecars.map((sidecar) => ({
+    file: sidecar.file,
+    kind: "json",
+    value: sidecar.value(result),
+  }));
+}
+
 export function buildResearchRunManifest(
   command: ResearchCommand,
   config: AppConfig,
@@ -117,21 +171,7 @@ export function buildResearchRunManifest(
       kind: "json",
       value: result.historicalContext,
     },
-    {
-      file: RUN_ARTIFACT_FILES.webSubjectProfile,
-      kind: "json",
-      value: result.collectedSources.webSubjectProfile ?? null,
-    },
-    {
-      file: RUN_ARTIFACT_FILES.extendedEvidence,
-      kind: "json",
-      value: result.collectedSources.extendedEvidence ?? null,
-    },
-    {
-      file: RUN_ARTIFACT_FILES.marketContext,
-      kind: "json",
-      value: result.collectedSources.marketContext ?? null,
-    },
+    ...sidecarWrites(result, COMMON_COLLECTED_SOURCE_SIDECARS),
   ];
 
   if (command.jobType === "research") {
@@ -151,33 +191,7 @@ export function buildResearchRunManifest(
   }
 
   if (isInstrumentCommand(command)) {
-    writes.push(
-      {
-        file: RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
-        kind: "json",
-        value: result.collectedSources.verifiedMarketSnapshot ?? null,
-      },
-      {
-        file: RUN_ARTIFACT_FILES.instrumentIdentity,
-        kind: "json",
-        value: result.collectedSources.resolvedInstrumentIdentity ?? null,
-      },
-      {
-        file: RUN_ARTIFACT_FILES.valuationComps,
-        kind: "json",
-        value: result.collectedSources.valuationComps ?? null,
-      },
-      {
-        file: RUN_ARTIFACT_FILES.financialLenses,
-        kind: "json",
-        value: result.collectedSources.financialLenses ?? null,
-      },
-      {
-        file: RUN_ARTIFACT_FILES.businessFramework,
-        kind: "json",
-        value: result.collectedSources.businessFramework ?? null,
-      },
-    );
+    writes.push(...sidecarWrites(result, INSTRUMENT_COLLECTED_SOURCE_SIDECARS));
   }
 
   if (isMarketUpdateJobType(command.jobType)) {

@@ -784,6 +784,17 @@ function renderEarningsSetup(report: ResearchReport): string {
   return lines.join("\n");
 }
 
+const EXTENDED_EVIDENCE_SECTION_RENDERERS: readonly ((report: ResearchReport) => string)[] = [
+  renderBusinessFramework,
+  renderWebSubjectProfile,
+  renderExtendedEvidence,
+  renderEarningsSetup,
+];
+
+function renderExtendedEvidenceSections(report: ResearchReport): readonly string[] {
+  return EXTENDED_EVIDENCE_SECTION_RENDERERS.map((render) => render(report));
+}
+
 function reportTitle(report: ResearchReport): string {
   if (isInstrumentJobType(report.jobType)) {
     return `${report.symbol} ${report.assetClass} Research View`;
@@ -832,10 +843,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Catalysts", report.catalysts),
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
-    renderBusinessFramework(report),
-    renderWebSubjectProfile(report),
-    renderExtendedEvidence(report),
-    renderEarningsSetup(report),
+    ...renderExtendedEvidenceSections(report),
     renderHistoricalContext(report),
     renderSpotlights(report),
     renderPredictions(report.predictions),

@@ -1243,6 +1243,23 @@ function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> |
   };
 }
 
+// Recognizes the research-only language rejection from assertSafeReportLanguage (report/schema.ts)
+// So a reprompt can carry concrete rewrite guidance instead of the bare error string.
+// Recommendation-shaped subjects ("promising stocks", rankings) draw reader-directed advice even
+// Though the base prompt forbids it, so the retry must name the exact violation and the neutral
+// Phrasing that replaces it.
+function buildReportLanguageRepairInstruction(
+  reportValidationErrors: readonly string[],
+): string | undefined {
+  const languageErrors = reportValidationErrors.filter((error) =>
+    error.includes("trade-action language"),
+  );
+  if (languageErrors.length === 0) {
+    return undefined;
+  }
+  return `Your previous report was rejected for reader-directed advice or trade-action language: ${languageErrors.join("; ")}. Rewrite every affected field in neutral, research-only language. Never instruct anyone to act: do not write "investors should", "readers should", "you should", "buy", "sell", "hold", "accumulate", or any recommendation, allocation, position-sizing, or execution phrasing. Replace advice with observational phrasing such as "evidence supports", "the data shows", "a source states", or "the setup is consistent with". Keep the same factual claims and sourceIds; change only the wording.`;
+}
+
 // Everything buildStagePrompt needs: the evidence payload plus the per-stage steering inputs.
 export interface StageInput {
   readonly command: ResearchCommand;
@@ -1288,6 +1305,10 @@ export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
       ? "Use only IDs from allowedSourceIds in any sourceIds array. Treat source gaps, provider names, provider capabilities, evidence lane names, source-plan, and source-ledger as non-citeable; disclose missing or absent evidence such as tradier-options in dataGaps instead."
       : undefined;
   const auditGuidance = postSynthesisAuditGuidance(stage);
+  const reportLanguageRepair =
+    stage === "final-synthesis"
+      ? buildReportLanguageRepairInstruction(reportValidationErrors)
+      : undefined;
   const requiredShape = (() => {
     if (stage === "evidence-request") {
       return evidenceRequestShape();
@@ -1386,6 +1407,7 @@ export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
       ...(sourceIdGuidance !== undefined ? { allowedSourceIds, sourceIdGuidance } : {}),
       ...(auditGuidance !== undefined ? { postSynthesisAuditGuidance: auditGuidance } : {}),
       ...(reportValidationErrors.length > 0 ? { reportValidationErrors } : {}),
+      ...(reportLanguageRepair !== undefined ? { reportLanguageRepair } : {}),
       requiredShape,
     },
     undefined,

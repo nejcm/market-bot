@@ -205,11 +205,63 @@ async function validateBaseReport(
     };
   }
 
-  return {
-    progress: validationProgress,
-    report: buildReport(input, validationProgress.state),
+  return buildReportWithRepair(
+    input,
+    validationProgress,
     reportValidationErrors,
-  };
+    MAX_REPORT_VALIDATION_REPROMPTS,
+  );
+}
+
+interface RepairedReport {
+  readonly progress: SynthesisProgress;
+  readonly report: ResearchReport;
+  readonly reportValidationErrors: readonly string[];
+}
+
+// Extra reprompts allowed when the assembled report still fails validation (typically a research-only
+// Language violation) after the first report-validation retry. Without this the final buildReport was
+// Unguarded: a persistent violation crashed the whole run. Recommendation-shaped subjects reliably
+// Draw reader-directed advice, so the crash point needs bounded, steered repairs.
+const MAX_REPORT_VALIDATION_REPROMPTS = 2;
+
+// Recursive rather than a loop because each repair reprompt depends on the previous attempt's error;
+// The reduce/recursion form also keeps the awaits out of a bare for-loop (no-await-in-loop).
+async function buildReportWithRepair(
+  input: SynthesizeReportUntilValidInput,
+  progress: SynthesisProgress,
+  seenErrors: readonly string[],
+  attemptsLeft: number,
+): Promise<RepairedReport> {
+  try {
+    return {
+      progress,
+      report: buildReport(input, progress.state),
+      reportValidationErrors: uniqueStrings(seenErrors),
+    };
+  } catch (error: unknown) {
+    const message = errorMessage(error);
+    if (attemptsLeft <= 0) {
+      throw new Error(
+        `Report failed validation after ${String(MAX_REPORT_VALIDATION_REPROMPTS)} repair reprompt(s): ${message}`,
+        { cause: error },
+      );
+    }
+    const predictionErrors = progress.state.predResult.errors;
+    const state = await runAndReadFinalSynthesis(input, {
+      ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
+      reportValidationErrors: [message],
+    });
+    const nextProgress: SynthesisProgress = {
+      state,
+      stageOutputs: [...progress.stageOutputs, state.output],
+      predictionRetryErrors: uniqueStrings([
+        ...progress.predictionRetryErrors,
+        ...predictionErrors,
+      ]),
+    };
+    return buildReportWithRepair(input, nextProgress, [...seenErrors, message], attemptsLeft - 1);
+  }
 }
 
 async function runPredictionReprompts(

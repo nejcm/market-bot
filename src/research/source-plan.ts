@@ -230,17 +230,42 @@ function marketDataApplies(
   );
 }
 
+function researchRepresentativeSymbols(
+  collectedSources: CollectedSources,
+): readonly string[] | undefined {
+  const representatives = collectedSources.resolvedSubject?.representativeInstruments;
+  if (collectedSources.resolvedSubject?.status !== "resolved" || representatives === undefined) {
+    return undefined;
+  }
+  return representatives.map((instrument) => instrument.symbol.toUpperCase());
+}
+
+// The representative-only filter below relies on `resolvedSubject` being present
+// Only for research runs (see app.ts, which passes it for research alone); other
+// Job types keep the full snapshot + benchmark coverage. Guard here if that
+// Invariant ever changes.
+function marketDataSourceIds(collectedSources: CollectedSources): readonly string[] {
+  const representativeSymbols = researchRepresentativeSymbols(collectedSources);
+  if (representativeSymbols !== undefined) {
+    const allowed = new Set(representativeSymbols);
+    return collectedSources.marketSnapshots
+      .filter((snapshot) => allowed.has(snapshot.symbol.toUpperCase()))
+      .map((snapshot) => snapshot.sourceId);
+  }
+  return [
+    ...collectedSources.marketSnapshots.map((snapshot) => snapshot.sourceId),
+    ...collectedSources.marketSnapshots.flatMap((snapshot) =>
+      snapshot.benchmark === undefined ? [] : [snapshot.benchmark.sourceId],
+    ),
+  ];
+}
+
 const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   {
     lane: "market-data",
     evidenceClass: () => "core",
     applies: marketDataApplies,
-    sourceIds: (sources) => [
-      ...sources.marketSnapshots.map((snapshot) => snapshot.sourceId),
-      ...sources.marketSnapshots.flatMap((snapshot) =>
-        snapshot.benchmark === undefined ? [] : [snapshot.benchmark.sourceId],
-      ),
-    ],
+    sourceIds: marketDataSourceIds,
     gapMatches: isMarketDataLaneGap,
   },
   {
@@ -499,6 +524,63 @@ function noProxySourcePlanGap(
   ];
 }
 
+function missingRepresentativeMarketDataGaps(
+  run: SourcePlanRun,
+  collectedSources: CollectedSources,
+  lane: EvidenceLane,
+): readonly string[] {
+  const representatives = collectedSources.resolvedSubject?.representativeInstruments;
+  if (
+    lane !== "market-data" ||
+    run.jobType !== "research" ||
+    collectedSources.resolvedSubject?.status !== "resolved" ||
+    representatives === undefined
+  ) {
+    return [];
+  }
+  const liveSymbols = new Set(
+    collectedSources.marketSnapshots.map((snapshot) => snapshot.symbol.toUpperCase()),
+  );
+  return representatives
+    .filter((instrument) => !liveSymbols.has(instrument.symbol.toUpperCase()))
+    .map((instrument) => {
+      const label =
+        instrument.name === undefined
+          ? instrument.symbol
+          : `${instrument.name} (${instrument.symbol})`;
+      return `researchRepresentative: no live market snapshot for representative ${label}`;
+    });
+}
+
+function thinThematicNewsGap(
+  run: SourcePlanRun,
+  collectedSources: CollectedSources,
+  lane: EvidenceLane,
+): readonly string[] {
+  if (lane !== "news" || run.jobType !== "research") {
+    return [];
+  }
+  const relevant = collectedSources.newsAnalytics?.selectedRelevantMoverNewsSourceCount;
+  const generic = collectedSources.newsAnalytics?.selectedGenericMoverNewsSourceCount;
+  if (relevant === undefined || generic === undefined || relevant >= 2 || generic === 0) {
+    return [];
+  }
+  return [
+    `news: thin thematic relevance (${String(relevant)} relevant selected, ${String(generic)} generic selected)`,
+  ];
+}
+
+function qualityGapLines(
+  run: SourcePlanRun,
+  collectedSources: CollectedSources,
+  lane: EvidenceLane,
+): readonly string[] {
+  return [
+    ...missingRepresentativeMarketDataGaps(run, collectedSources, lane),
+    ...thinThematicNewsGap(run, collectedSources, lane),
+  ];
+}
+
 // Builds the immutable v2 Source Plan from the resolved command and checked-in
 // Research subject only. Call it before the first source-provider I/O so the
 // Plan records pre-collection intent; collection outcomes cannot change it.
@@ -550,29 +632,30 @@ export function assessSourcePlan(
       definition === undefined
         ? []
         : collectedSources.sourceGaps.filter((gap) => definition.gapMatches(gap));
-    const sourceGapIds = matchedGaps.map((_, index) => gapId(planLane.lane, index));
     const syntheticNoProxyGap = noProxySourcePlanGap(
       sourcePlan.run,
       collectedSources,
       planLane.lane,
     );
-    const gapIds =
-      sourceIds.length === 0 &&
-      evidenceClass === "core" &&
-      (sourceGapIds.length === 0 || syntheticNoProxyGap !== undefined)
-        ? [gapId(planLane.lane, 0)]
-        : sourceGapIds;
+    const syntheticQualityGaps = qualityGapLines(sourcePlan.run, collectedSources, planLane.lane);
     const gapLines =
       syntheticNoProxyGap ??
+      (syntheticQualityGaps.length > 0
+        ? [...matchedGaps.map((gap) => gapText(gap)), ...syntheticQualityGaps]
+        : undefined) ??
       (sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
         ? syntheticMissingGap(planLane.lane)
         : matchedGaps.map((gap) => gapText(gap)));
+    // One gap ID per gap line keeps gapIds and gapText parallel for every consumer
+    // (summary.gapCount, ledger entries) — including the collapsed synthetic case
+    // And the multi-line synthetic-quality case.
+    const gapIds = gapLines.map((_, index) => gapId(planLane.lane, index));
     const entries = ledgerEntriesForLane(planLane.lane, sourceIds, collectedSources, gapIds);
     ledger.push(...entries);
     return {
       lane: planLane.lane,
       evidenceClass,
-      status: coverageStatus(sourceIds, gapIds),
+      status: syntheticQualityGaps.length > 0 ? "gap" : coverageStatus(sourceIds, gapIds),
       coveredSourceIds: sourceIds,
       gapIds,
       gapText: gapLines,

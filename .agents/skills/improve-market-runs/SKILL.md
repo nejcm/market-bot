@@ -55,7 +55,15 @@ resolve target -> capture baseline dir
 
 ## Subagents
 
-Spawn each as a fresh subagent with a self-contained delegation packet. Prefer a reviewer-role model for review and a builder-role model for fix/verify; prefer a different model family for review than for fix to keep the critique independent (disclose if unavailable). Fix and verify share one writable workspace and run sequentially — do not parallelize them.
+Spawn each as a fresh subagent with a self-contained delegation packet. Run **every subagent at `high` reasoning effort**, with models fixed by role:
+
+| Subagent | Model | Why |
+| --- | --- | --- |
+| Review | `gpt-5.5` | strong, cost-effective evidence gathering and ranking |
+| Fix | `gpt-5.5` | bulk implementation with a clear spec |
+| Verify | `opus-4-8` | independent judgment on the fix, different family than the builder |
+
+`gpt-5.5` runs **only** through the Codex CLI (`codex exec` / `codex exec review` with `-m gpt-5.5`); host subagent `model` params accept Claude models only. So run the review and fix subagents via Codex — either directly or through a thin Claude wrapper (`sonnet`, `low`) that shells out to Codex and returns the report — and write their reports to an artifact file so they survive long runs. Run the verify subagent on `opus-4-8` directly. If a named model is unavailable, fall back to the next capable one and disclose the fallback. Fix and verify share one writable workspace and run sequentially — do not parallelize them.
 
 ### 1. Review subagent (read-only)
 

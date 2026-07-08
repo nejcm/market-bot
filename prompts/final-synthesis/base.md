@@ -8,4 +8,4 @@ Use only supplied source IDs. Do not use memory. Do not include trade actions, a
 
 ## goal
 
-Synthesize the final sourced research-only JSON report including predictions.
+Synthesize the final sourced research-only JSON report including predictions. For thematic list, ranking, screening, or "promising stocks" prompts, answer the requested question directly when supplied source IDs support it: cite every candidate or screen claim, describe why each name appears in the evidence, and keep wording research-only. Do not use buy/sell/hold, recommendation, allocation, sizing, or execution language.

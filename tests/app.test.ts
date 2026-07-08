@@ -396,6 +396,58 @@ describe("runCli", () => {
     });
   });
 
+  test("resolves embedded thematic subject before persistence", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-research-embedded-proxy-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const runDir = join(dataDir, "research-run");
+
+    await runCli(["research", "Top-10", "list", "of", "promising", "biotech", "stocks"], {
+      createProvider: () => ({
+        name: "test" as const,
+        generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+      }),
+      collectSources: async (command) => {
+        expect(command).toMatchObject({
+          jobType: "research",
+          subject: "Top-10 list of promising biotech stocks",
+          subjectKey: "biotech",
+          predictionProxySymbol: "XBI",
+        });
+        return collectedSources();
+      },
+      persistResearchJob: async ({ command }) => {
+        expect(command).toMatchObject({
+          jobType: "research",
+          subject: "Top-10 list of promising biotech stocks",
+          subjectKey: "biotech",
+          predictionProxySymbol: "XBI",
+        });
+        return {
+          report: researchReport({ runId: "research-run", jobType: "research" }),
+          markdown: "",
+          trace: {},
+          analytics: analyticsStub,
+          stageOutputs: [],
+          collectedSources: collectedSources(),
+          historicalContext: {},
+          artifacts: {
+            runDir,
+            rawDir: join(runDir, "raw"),
+            normalizedDir: join(runDir, "normalized"),
+          },
+        } as unknown as PersistedResearchJobResult;
+      },
+      runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+      buildAndWriteCalibration: async () => null,
+      writeThroughRunArtifactIndex: async () => {},
+      rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+    });
+  });
+
   test("keeps unregistered thematic research subject runnable without proxy", async () => {
     const dataDir = join(
       tmpdir(),

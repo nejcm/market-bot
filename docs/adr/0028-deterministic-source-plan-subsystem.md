@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-04: generalized untrusted model-input hardening)
+2026-06-30 (amended 2026-07-04: generalized untrusted model-input hardening;
+amended 2026-07-08: thematic research web gather enabled for brief and deep runs)
 
 ## Context
 
@@ -37,14 +38,14 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
   after the cutoff where the adapter supports those semantics.
 - Cache entries are freshness-budgeted and validated. Failed live refresh may retain stale payloads
   in raw audit snapshots, but stale payloads do not enter normalized current evidence.
-- Deep instrument and thematic runs may gather bounded web results. Exa is the primary web-gather
-  provider; when a configured Exa `web_search`/`web_fetch` hard-fails or returns empty/thin results,
-  a Firecrawl fallback may serve the same request (fallback-only — it never substitutes for a missing
-  Exa key, and web gather stays gated on `MARKET_BOT_EXA_API_KEY`). Regardless of provider, search/fetch
-  is subject constrained, cached, persisted as low-trust `web` Sources tagged with their serving
-  provider, and cannot substitute for core market, regulatory, or pricing evidence. The web-gather
-  audit records attempted providers, the served provider, the fallback reason, and paid credits when
-  the provider returns them.
+- Deep instrument runs and all thematic research runs may gather bounded web results. Exa is the
+  primary web-gather provider; when a configured Exa `web_search`/`web_fetch` hard-fails or returns
+  empty/thin results, a Firecrawl fallback may serve the same request (fallback-only — it never
+  substitutes for a missing Exa key, and web gather stays gated on `MARKET_BOT_EXA_API_KEY`).
+  Regardless of provider, search/fetch is subject constrained, cached, persisted as low-trust `web`
+  Sources tagged with their serving provider, and cannot substitute for core market, regulatory, or
+  pricing evidence. The web-gather audit records attempted providers, the served provider, the
+  fallback reason, and paid credits when the provider returns them.
 - For company subjects, Stage-1 web gather derives which durable business-profile sections the
   deterministic SEC 10-K/10-Q packet already covers and rejects background searches that duplicate a
   covered section without a recency, corroboration, or explicit-gap rationale, so web budget is not

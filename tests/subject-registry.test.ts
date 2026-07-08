@@ -53,6 +53,44 @@ describe("research subject registry", () => {
     expect(result.subject?.subjectKey).toBe("semiconductors");
   });
 
+  test("resolves an embedded subject alias from a natural-language research prompt", () => {
+    const result = resolveResearchSubjectProxy("Top-10 list of promising biotech stocks");
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      canEmitPredictions: true,
+      predictionProxySymbol: "XBI",
+    });
+    expect(result.subject?.subjectKey).toBe("biotech");
+  });
+
+  test("prefers exact alias matches over embedded aliases", () => {
+    const result = resolveResearchSubjectProxy("Test Subject", [
+      baseEntry,
+      {
+        ...baseEntry,
+        subjectKey: "other-subject",
+        displayName: "Other Subject",
+        aliases: ["subject"],
+      },
+    ]);
+
+    expect(result.subject?.subjectKey).toBe("test-subject");
+  });
+
+  test("leaves equal-length embedded subject matches unresolved as ambiguous", () => {
+    const result = resolveResearchSubjectProxy("compare cloud data and green tech stocks", [
+      { ...baseEntry, subjectKey: "cloud-data", displayName: "Cloud Data", aliases: [] },
+      { ...baseEntry, subjectKey: "green-tech", displayName: "Green Tech", aliases: [] },
+    ]);
+
+    expect(result).toMatchObject({
+      status: "unresolved",
+      canEmitPredictions: false,
+      reason: "Ambiguous checked-in subject registry match",
+    });
+  });
+
   test("resolves from the raw subject instead of caller-provided identity", () => {
     const result = resolveResearchSubject({
       jobType: "research",

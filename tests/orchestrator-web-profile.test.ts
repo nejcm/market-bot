@@ -20,7 +20,181 @@ const { cleanupDataDirs, tempDataDir } = createDataDirRegistry();
 
 afterEach(cleanupDataDirs);
 
+function firstWebSourceId(prompt: Record<string, unknown>): string {
+  const evidence = isRecord(prompt.evidence) ? prompt.evidence : {};
+  const sources = Array.isArray(evidence.webSources) ? evidence.webSources : [];
+  const source = sources.find((item) => isRecord(item));
+  const sourceId = source === undefined ? undefined : source.id;
+  if (typeof sourceId === "string") {
+    return sourceId;
+  }
+  const profile = isRecord(evidence.webSubjectProfile) ? evidence.webSubjectProfile : {};
+  const profileSourceIds = Array.isArray(profile.sourceIds) ? profile.sourceIds : [];
+  const profileSourceId = profileSourceIds.find((id) => typeof id === "string");
+  if (typeof profileSourceId !== "string") {
+    throw new TypeError("expected a web source in prompt evidence");
+  }
+  return profileSourceId;
+}
+
 describe("runResearchJob web subject profile", () => {
+  test("gathers web evidence for brief thematic research", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "web-gather") {
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: {
+                    query: "biotech promising stocks analyst picks",
+                    searchType: "current-subject",
+                  },
+                  rationale: "current sourced candidate evidence",
+                },
+              ],
+            }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "web-subject-profile") {
+          const sourceId = firstWebSourceId(prompt);
+          const answer = {
+            answer: "Biotech stock screens cite analyst upside and pipeline catalysts.",
+            sourceIds: [sourceId],
+          };
+          return {
+            content: JSON.stringify({
+              subjectLabel: "Biotechnology",
+              subjectSummary: answer,
+              questions: {
+                whatItIs: answer,
+                whyNow: answer,
+                beneficiaries: answer,
+                headwinds: answer,
+                keyDebates: answer,
+                howItPlaysOut: answer,
+              },
+              recentMaterialEvents: [
+                {
+                  claim: "Analyst biotech screens identify current candidates.",
+                  sourceIds: [sourceId],
+                },
+              ],
+              factLedger: [
+                {
+                  claim: "Biotech screens cite analyst upside and pipeline catalysts.",
+                  sourceIds: [sourceId],
+                },
+              ],
+              openGaps: [],
+            }),
+            tokenEstimate: 12,
+            costEstimateUsd: 0.001,
+          };
+        }
+        if (prompt.stage === "playbook-selection") {
+          return {
+            content: JSON.stringify({ selections: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        }
+        const sourceId = firstWebSourceId(prompt);
+        return {
+          content: JSON.stringify({
+            summary: "Biotech candidate evidence is sourced.",
+            keyFindings: [
+              { text: "Biotech candidate lists cite analyst upside.", sourceIds: [sourceId] },
+              { text: "Pipeline catalysts remain central to the screen.", sourceIds: [sourceId] },
+              {
+                text: "Issuer-level evidence is still needed before ranking conviction.",
+                sourceIds: [sourceId],
+              },
+            ],
+            bullCase: [
+              {
+                text: "Current source evidence identifies candidate themes.",
+                sourceIds: [sourceId],
+              },
+            ],
+            bearCase: [
+              { text: "Clinical and financing risk remain material.", sourceIds: [sourceId] },
+            ],
+            risks: [
+              {
+                text: "Biotech outcomes can change after trial or regulatory updates.",
+                sourceIds: [sourceId],
+              },
+            ],
+            catalysts: [
+              {
+                text: "Trial and analyst-update catalysts drive candidate attention.",
+                sourceIds: [sourceId],
+              },
+            ],
+            scenarios: [
+              {
+                name: "Evidence-backed screen",
+                description: "Use cited sources to frame candidates without trade-action language.",
+                sourceIds: [sourceId],
+              },
+            ],
+            confidence: "medium",
+            dataGaps: [],
+            predictions: [],
+          }),
+          tokenEstimate: 10,
+          costEstimateUsd: 0.001,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      config: {
+        ...config,
+        sourceOptions: { ...config.sourceOptions, exaApiKey: "exa-key" },
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      provider,
+      collectedSources: collectedSourceBundle(),
+      sourceFetchImpl: async () =>
+        Response.json({
+          results: [
+            {
+              id: "exa-search-1",
+              url: "https://example.com/biotech-picks",
+              title: "Biotech stock picks",
+              summary: "Analyst biotech screens cite upside and pipeline catalysts.",
+            },
+          ],
+        }),
+      sourceRetryDelaysMs: [],
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-gather");
+    expect(prompts.map((prompt) => prompt.stage)).toContain("web-subject-profile");
+    expect(result.collectedSources.webSubjectProfile).toMatchObject({
+      subjectKind: "theme",
+      subjectLabel: "Biotechnology",
+    });
+  });
+
   test("extracts and persists Web Subject Profile after web gather", async () => {
     const dataDir = tempDataDir("market-bot-web-subject-profile");
     const prompts: Record<string, unknown>[] = [];

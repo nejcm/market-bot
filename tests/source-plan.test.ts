@@ -97,8 +97,17 @@ describe("source plan", () => {
       }),
     );
 
-    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toEqual(["supplemental-market", "news"]);
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toEqual([
+      "supplemental-market",
+      "news",
+      "subject-profile",
+    ]);
     expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(0);
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
+      status: "not-covered",
+      evidenceClass: "material",
+    });
+    expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
   });
 
   test("keeps required market-data gap for resolved research proxy failures", () => {
@@ -126,11 +135,48 @@ describe("source plan", () => {
     );
 
     expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("market-data");
+    expect(plan.sourcePlan.lanes.map((lane) => lane.lane)).toContain("subject-profile");
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
       status: "gap",
       evidenceClass: "core",
       gapText: ["yahoo-research-proxy: source request failed with status 500"],
     });
+  });
+
+  test("attributes missing thematic web gather to material subject-profile quality", () => {
+    const plan = plannedAndAssessed(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" })],
+        newsSources: [newsSource({ id: "news-biotech", provider: "yahoo-news" })],
+        sourceGaps: [
+          sourceGap({
+            source: "web-gather",
+            message: "search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped",
+            provider: "exa",
+            capability: "web-gather",
+            cause: "missing-credential",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+      }),
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
+      status: "gap",
+      evidenceClass: "material",
+      gapText: [
+        "web-gather: search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped",
+      ],
+    });
+    expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
   });
 
   test("surfaces no-proxy gap for resolved research subjects without prediction proxy", () => {

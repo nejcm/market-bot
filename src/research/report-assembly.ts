@@ -240,7 +240,9 @@ export function buildSourceList(
     ...verifiedSnapshotSources,
     ...collectedSources.newsSources,
     ...(isMarketUpdateJobType(command.jobType) ? collectedSources.marketContextSources : []),
-    ...(isInstrumentCommand(command) ? collectedSources.extendedSources : []),
+    ...(isInstrumentCommand(command) || command.jobType === "research"
+      ? collectedSources.extendedSources
+      : []),
     ...(historicalContext?.sources ?? []),
     ...registrySources,
   ];

@@ -77,8 +77,8 @@ For synthesis-report runs, `runResearchJob` in
    context).
 2. Load historical context.
 3. Run the **evidence-request loop** (deep US equity tickers only).
-4. Run the **web-gather loop** (deep runs whose run type supports web gather, Exa
-   key present, budgets positive).
+4. Run the **web-gather loop** (all thematic research runs, plus deep runs whose
+   run type supports web gather, Exa key present, budgets positive).
 5. Run **web-subject-profile extraction** on gathered web sources.
 6. Reconcile business framework with web subject profile if possible.
 7. For market-update runs: spotlight selection, mover ranking, market-update
@@ -405,11 +405,10 @@ as `semis`, `chip stocks`, or `ai infrastructure` to:
 - Extended evidence: same equity lanes as an `equity` run, applied only if a
   proxy or instrument identity resolves.
 - No evidence-request loop.
-- Web-gather loop enabled for deep runs when an Exa key is present and budgets
-  are positive; positive budgets without an Exa key emit a `search-unavailable`
-  `SourceGap`. A configured Firecrawl fallback may serve failed or thin Exa
-  requests. Subject kind = `theme` or `company` depending on the registry
-  entry.
+- Web-gather loop enabled for brief and deep thematic research when an Exa key
+  is present and budgets are positive; positive budgets without an Exa key emit
+  a `search-unavailable` `SourceGap`. A configured Firecrawl fallback may serve
+  failed or thin Exa requests. Subject kind = `theme`.
 
 ### Registry Provenance
 

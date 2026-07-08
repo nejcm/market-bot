@@ -253,7 +253,18 @@ export function resolveResearchSubjectProxy(
 ): ResearchSubjectProxyResolution {
   const normalizedInput = normalizeResearchSubjectQuery(input);
   const aliasIndex = buildAliasIndex(registry);
-  const subject = aliasIndex.get(normalizedInput);
+  const subject =
+    aliasIndex.get(normalizedInput) ?? findEmbeddedAliasMatch(normalizedInput, registry);
+
+  if (subject === "ambiguous") {
+    return {
+      input,
+      normalizedInput,
+      status: "unresolved",
+      canEmitPredictions: false,
+      reason: "Ambiguous checked-in subject registry match",
+    };
+  }
 
   if (subject === undefined) {
     return {
@@ -460,6 +471,48 @@ function buildAliasIndex(
     ),
   );
   return new Map(aliases);
+}
+
+function aliasesFor(entry: ResearchSubjectRegistryEntry): readonly string[] {
+  return [entry.subjectKey, entry.displayName, ...entry.aliases]
+    .map((alias) => normalizeResearchSubjectQuery(alias))
+    .filter((alias) => alias !== "");
+}
+
+function containsAlias(input: string, alias: string): boolean {
+  return ` ${input} `.includes(` ${alias} `);
+}
+
+function findEmbeddedAliasMatch(
+  normalizedInput: string,
+  registry: readonly ResearchSubjectRegistryEntry[],
+): ResearchSubjectRegistryEntry | "ambiguous" | undefined {
+  let bestSubject: ResearchSubjectRegistryEntry | undefined = undefined;
+  let bestAliasLength = 0;
+  let ambiguous = false;
+
+  for (const entry of registry) {
+    const longestAlias = Math.max(
+      0,
+      ...aliasesFor(entry)
+        .filter((alias) => containsAlias(normalizedInput, alias))
+        .map((alias) => alias.length),
+    );
+    if (longestAlias === 0 || longestAlias < bestAliasLength) {
+      continue;
+    }
+    if (longestAlias > bestAliasLength) {
+      bestSubject = entry;
+      bestAliasLength = longestAlias;
+      ambiguous = false;
+      continue;
+    }
+    if (bestSubject !== undefined && bestSubject.subjectKey !== entry.subjectKey) {
+      ambiguous = true;
+    }
+  }
+
+  return ambiguous ? "ambiguous" : bestSubject;
 }
 
 function listedEtf(

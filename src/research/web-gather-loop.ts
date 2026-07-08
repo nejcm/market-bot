@@ -414,7 +414,10 @@ export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConf
 }
 
 function isWebGatherScope(command: ResearchCommand): boolean {
-  return runTypeSupportsWebGather(command.jobType) && command.depth === "deep";
+  return (
+    command.jobType === "research" ||
+    (runTypeSupportsWebGather(command.jobType) && command.depth === "deep")
+  );
 }
 
 function webGatherSearchUnavailableGap(
@@ -684,6 +687,16 @@ function subjectTermsForRun(
   subject: WebGatherSubject,
 ): readonly string[] {
   if (command.jobType === "research") {
+    const resolved = collectedSources.resolvedSubject;
+    if (resolved?.subjectKey !== undefined) {
+      return [
+        ...new Set(
+          [resolved.subjectKey, resolved.displayName, ...(resolved.aliases ?? [])].flatMap((term) =>
+            term === undefined ? [] : significantSubjectTerms(term),
+          ),
+        ),
+      ];
+    }
     return significantSubjectTerms(command.subject);
   }
   if (!isInstrumentCommand(command)) {
@@ -710,7 +723,7 @@ function subjectLabelForRun(
   collectedSources: CollectedSources,
 ): string | undefined {
   if (command.jobType === "research") {
-    return command.subject;
+    return collectedSources.resolvedSubject?.subjectKey ?? command.subjectKey ?? command.subject;
   }
   if (!isInstrumentCommand(command)) {
     return undefined;

@@ -337,14 +337,14 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
   },
   {
     lane: "subject-profile",
-    evidenceClass: () => "supplemental",
+    evidenceClass: (command) => (command.jobType === "research" ? "material" : "supplemental"),
     applies: (command) =>
-      command.depth === "deep" &&
-      (command.jobType === "research" ||
-        (isInstrumentCommand(command) &&
-          (command.assetClass === "equity" || command.assetClass === "crypto"))),
+      command.jobType === "research" ||
+      (command.depth === "deep" &&
+        isInstrumentCommand(command) &&
+        (command.assetClass === "equity" || command.assetClass === "crypto")),
     sourceIds: (sources) => sources.webSubjectProfile?.sourceIds ?? [],
-    gapMatches: (gap) => gap.source === "web-subject-profile",
+    gapMatches: (gap) => gap.source === "web-subject-profile" || gap.source === "web-gather",
   },
 ];
 

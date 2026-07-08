@@ -223,6 +223,44 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toEqual([]);
   });
 
+  test("runs web gather for brief thematic research", async () => {
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+              },
+              rationale: "current sourced candidate evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.stageOutputs).toHaveLength(1);
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.collectedSources.extendedSources).toHaveLength(1);
+  });
+
   test("emits search-unavailable gap when Exa is absent for eligible deep runs", async () => {
     const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
     const result = await runWebGatherLoop({
@@ -248,6 +286,35 @@ describe("runWebGatherLoop", () => {
     );
     expect(result.collectedSources.extendedEvidence?.gaps).toEqual(
       result.collectedSources.sourceGaps,
+    );
+  });
+
+  test("emits search-unavailable gap when Exa is absent for brief thematic research", async () => {
+    const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "brief",
+      },
+      config: { ...config, sourceOptions: sourceOptionsWithoutExa },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => stage({ requests: [] }),
+    });
+
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped",
+        cause: "missing-credential",
+      }),
     );
   });
 

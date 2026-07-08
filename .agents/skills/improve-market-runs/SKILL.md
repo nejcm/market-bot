@@ -57,11 +57,11 @@ resolve target -> capture baseline dir
 
 Spawn each as a fresh subagent with a self-contained delegation packet. Run **every subagent at `high` reasoning effort**, with models fixed by role:
 
-| Subagent | Model | Why |
-| --- | --- | --- |
-| Review | `gpt-5.5` | strong, cost-effective evidence gathering and ranking |
-| Fix | `gpt-5.5` | bulk implementation with a clear spec |
-| Verify | `opus-4-8` | independent judgment on the fix, different family than the builder |
+| Subagent | Model      | Why                                                                |
+| -------- | ---------- | ------------------------------------------------------------------ |
+| Review   | `gpt-5.5`  | strong, cost-effective evidence gathering and ranking              |
+| Fix      | `gpt-5.5`  | bulk implementation with a clear spec                              |
+| Verify   | `opus-4-8` | independent judgment on the fix, different family than the builder |
 
 `gpt-5.5` runs **only** through the Codex CLI (`codex exec` / `codex exec review` with `-m gpt-5.5`); host subagent `model` params accept Claude models only. So run the review and fix subagents via Codex — either directly or through a thin Claude wrapper (`sonnet`, `low`) that shells out to Codex and returns the report — and write their reports to an artifact file so they survive long runs. Run the verify subagent on `opus-4-8` directly. If a named model is unavailable, fall back to the next capable one and disclose the fallback. Fix and verify share one writable workspace and run sequentially — do not parallelize them.
 
@@ -80,10 +80,10 @@ The orchestrator selects at most the top two fixable findings (excluding `skip`)
 
 ### 2. Fix subagent (writable workspace)
 
-- **Objective:** Apply scoped fixes for the selected findings, with tests.
+- **Objective:** Apply scoped fixes for the selected findings, with tests. Focus only on 2 most impactful findings and worth fixing or improving.
 - **Packet in:** the selected findings (with evidence + objective-check hints), research-only boundary, the docs list, and this constraint set.
 - **Task / constraints:**
-  - Read `AGENTS.md`, `CONTEXT.md`, `docs/architecture.md`, `docs/conventions.md`, and `docs/adr/README.md` before editing. Follow existing patterns and canonical ADRs; do not silently violate an ADR.
+  - Read `AGENTS.md`, `CONTEXT.md` and `docs/adr/README.md` before editing. Follow existing patterns and canonical ADRs; do not silently violate an ADR.
   - Search before reading files; read only the relevant slices.
   - Make scoped changes only; add/update tests in the same change when behavior changes. Do not bundle unrelated refactors.
   - Bun + oxc only — no Node, Prettier, ESLint, Biome; no secrets in code/tests/fixtures.

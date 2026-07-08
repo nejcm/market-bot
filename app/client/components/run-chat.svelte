@@ -9,17 +9,9 @@
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import Globe2Icon from "@lucide/svelte/icons/globe-2";
   import { Button } from "$lib/components/ui/button";
-  import {
-    loadRunChatMessages,
-    saveRunChatMessages,
-    stampRunChatMessages,
-  } from "./run-chat-storage";
+  import { loadRunChatMessages, saveRunChatMessages, stampRunChatMessages } from "./run-chat-storage";
   import { renderMarkdown } from "./markdown";
-  import {
-    formatChatTimestamp,
-    messageCreatedAt,
-    textFromParts,
-  } from "./run-chat-message-utils";
+  import { formatChatTimestamp, messageCreatedAt, textFromParts } from "./run-chat-message-utils";
   import {
     isSearchDisclosureVisible,
     parseRunChatSearchCapability,
@@ -35,9 +27,7 @@
 
   let inputText = $state("");
   let messagesEndEl: HTMLElement | undefined = $state();
-  let copyFeedback:
-    | { readonly messageId: string; readonly status: "copied" | "failed" }
-    | undefined = $state();
+  let copyFeedback: { readonly messageId: string; readonly status: "copied" | "failed" } | undefined = $state();
   let searchCapability: RunChatSearchCapability | undefined = $state();
   let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -108,9 +98,7 @@
     clearCopyFeedback();
   });
 
-  const isBusy = $derived(
-    chat.status === "submitted" || chat.status === "streaming",
-  );
+  const isBusy = $derived(chat.status === "submitted" || chat.status === "streaming");
 
   function clearCopyFeedback(): void {
     if (copyFeedbackTimer !== null) {
@@ -120,10 +108,7 @@
     copyFeedback = undefined;
   }
 
-  function showCopyFeedback(
-    messageId: string,
-    status: "copied" | "failed",
-  ): void {
+  function showCopyFeedback(messageId: string, status: "copied" | "failed"): void {
     clearCopyFeedback();
     copyFeedback = { messageId, status };
     copyFeedbackTimer = setTimeout(() => {
@@ -142,10 +127,7 @@
   }
 
   function handleClearChat(): void {
-    if (
-      chat.messages.length === 0 ||
-      !confirm("Clear the chat transcript for this run?")
-    ) {
+    if (chat.messages.length === 0 || !confirm("Clear the chat transcript for this run?")) {
       return;
     }
     saveRunChatMessages(trackedRunId, []);
@@ -171,44 +153,44 @@
   }
 </script>
 
-<div
-  class="mt-6 flex flex-col overflow-hidden rounded-lg border border-border bg-card"
->
+{#if isSearchDisclosureVisible(searchCapability)}
   <div
-    class="flex items-center justify-between gap-3 border-b border-border px-4 py-3"
+    class="mt-5 flex gap-2 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-3 py-2 text-[12px] leading-normal text-[#6f5518]"
   >
-    <div class="flex items-center gap-2">
-      <MessageSquareIcon class="h-4 w-4 text-muted-foreground" />
-      <div>
-        <div class="text-sm font-semibold">Run chat</div>
-        <div class="text-xs text-muted-foreground">
-          Ask questions grounded in this run's artifacts
+    <Globe2Icon class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+    <div>{RUN_CHAT_SEARCH_DISCLOSURE}</div>
+  </div>
+{/if}
+<div class="mt-5 flex flex-col overflow-hidden rounded-lg border border-border bg-card">
+  <div class="border-b border-border px-4 py-3">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <MessageSquareIcon class="h-4 w-4 text-muted-foreground" />
+        <div>
+          <div class="text-sm font-semibold">Run chat</div>
+          <div class="text-xs text-muted-foreground">Ask questions grounded in this run's artifacts</div>
         </div>
       </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Clear run chat"
+        title="Clear run chat"
+        onclick={handleClearChat}
+        disabled={isBusy || chat.messages.length === 0}
+      >
+        <Trash2Icon class="h-3.5 w-3.5" />
+      </Button>
     </div>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label="Clear run chat"
-      title="Clear run chat"
-      onclick={handleClearChat}
-      disabled={isBusy || chat.messages.length === 0}
-    >
-      <Trash2Icon class="h-3.5 w-3.5" />
-    </Button>
   </div>
 
   <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
     <div class="sr-only" aria-live="polite" role="status">
-      {copyFeedback?.status === "copied"
-        ? "Message copied"
-        : copyFeedback?.status === "failed"
-          ? "Copy failed"
-          : ""}
+      {copyFeedback?.status === "copied" ? "Message copied" : copyFeedback?.status === "failed" ? "Copy failed" : ""}
     </div>
 
     {#if chat.messages.length === 0}
-      <div class="flex flex-1 items-center justify-center text-center">
+      <div class="flex flex-1 items-center justify-center text-center py-6">
         <div class="text-sm text-muted-foreground">
           <p>Ask anything about this research run.</p>
           <p class="mt-1 text-xs">The model sees the full run artifacts.</p>
@@ -216,23 +198,11 @@
       </div>
     {/if}
 
-    {#if isSearchDisclosureVisible(searchCapability)}
-      <div
-        class="mb-3 flex gap-2 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-3 py-2 text-[12px] leading-normal text-[#6f5518]"
-      >
-        <Globe2Icon class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <div>{RUN_CHAT_SEARCH_DISCLOSURE}</div>
-      </div>
-    {/if}
-
     {#each chat.messages as message (message.id)}
       {#if message.role === "user" || message.role === "assistant"}
         {@const messageText = textFromParts(message.parts)}
         {@const timestamp = formatChatTimestamp(messageCreatedAt(message))}
-        {@const feedback =
-          copyFeedback?.messageId === message.id
-            ? copyFeedback.status
-            : undefined}
+        {@const feedback = copyFeedback?.messageId === message.id ? copyFeedback.status : undefined}
         <div
           class="mb-3 rounded-lg px-3.5 py-2.5 {message.role === 'user'
             ? 'ml-auto w-auto max-w-[70%] bg-primary text-primary-foreground'
@@ -249,24 +219,18 @@
             </div>
           {/if}
           <div
-            class="mt-2 flex items-center justify-end gap-2 text-[11px] {message.role ===
-            'user'
+            class="mt-2 flex items-center justify-end gap-2 text-[11px] {message.role === 'user'
               ? 'text-primary-foreground/75'
               : 'text-muted-foreground'}"
           >
             {#if timestamp !== ""}
-              <time
-                datetime={new Date(
-                  messageCreatedAt(message) ?? 0,
-                ).toISOString()}
-              >
+              <time datetime={new Date(messageCreatedAt(message) ?? 0).toISOString()}>
                 {timestamp}
               </time>
             {/if}
             <button
               type="button"
-              class="inline-flex h-5 items-center gap-1 rounded px-1.5 transition-colors {message.role ===
-              'user'
+              class="inline-flex h-5 items-center gap-1 rounded px-1.5 transition-colors {message.role === 'user'
                 ? 'hover:bg-white/15 focus-visible:outline-1 focus-visible:outline-primary-foreground/80'
                 : 'hover:bg-background focus-visible:outline-1 focus-visible:outline-ring'}"
               aria-label={feedback === "copied"
@@ -274,11 +238,7 @@
                 : feedback === "failed"
                   ? "Copy failed"
                   : "Copy message"}
-              title={feedback === "copied"
-                ? "Copied"
-                : feedback === "failed"
-                  ? "Copy failed"
-                  : "Copy message"}
+              title={feedback === "copied" ? "Copied" : feedback === "failed" ? "Copy failed" : "Copy message"}
               onclick={() => void handleCopy(message.id, messageText)}
             >
               {#if feedback === "copied"}
@@ -304,9 +264,7 @@
     {/if}
 
     {#if chat.error !== undefined}
-      <div
-        class="mb-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-3 py-2 text-[12px] text-[#8a6116]"
-      >
+      <div class="mb-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-3 py-2 text-[12px] text-[#8a6116]">
         {chat.error.message}
       </div>
     {/if}

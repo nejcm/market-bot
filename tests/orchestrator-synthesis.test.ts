@@ -103,6 +103,103 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     ]);
   });
 
+  test("repairs a research-only language violation on reprompt", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const violatingReport = JSON.stringify({
+      summary: "Evidence is sourced and investors should accumulate exposure here.",
+      keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+      bullCase: [{ text: "Breadth is supported.", sourceIds: ["market-aapl"] }],
+      bearCase: [{ text: "Breadth is limited.", sourceIds: ["market-aapl"] }],
+      risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+      catalysts: [{ text: "Demand is visible.", sourceIds: ["market-aapl"] }],
+      scenarios: [{ name: "Base", description: "Momentum continues.", sourceIds: ["market-aapl"] }],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: mockPredictions(2),
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          return {
+            content: finalCalls === 1 ? violatingReport : modelReport("SPY"),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    const retryPrompt = finalPrompts[1] ?? {};
+    expect(finalPrompts).toHaveLength(2);
+    expect(String(retryPrompt.reportLanguageRepair)).toContain("research-only");
+    expect(result.trace.reportValidationRetryErrors?.[0]).toContain("trade-action language");
+    expect(result.report.summary).not.toContain("investors should");
+  });
+
+  test("fails with a clear error when the language violation persists", async () => {
+    let finalCalls = 0;
+    const violatingReport = JSON.stringify({
+      summary: "Investors should accumulate exposure across the breadth setup.",
+      keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+      bullCase: [{ text: "Breadth is supported.", sourceIds: ["market-aapl"] }],
+      bearCase: [{ text: "Breadth is limited.", sourceIds: ["market-aapl"] }],
+      risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+      catalysts: [{ text: "Demand is visible.", sourceIds: ["market-aapl"] }],
+      scenarios: [{ name: "Base", description: "Momentum continues.", sourceIds: ["market-aapl"] }],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: mockPredictions(2),
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          return { content: violatingReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    await expect(
+      runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      }),
+    ).rejects.toThrow(/Report failed validation after 2 repair reprompt\(s\)/u);
+    // Initial synthesis + one report-validation reprompt + two bounded repair reprompts.
+    expect(finalCalls).toBe(4);
+  });
+
   test("discloses absent Tradier options as a data gap without source-id retry", async () => {
     const prompts: Record<string, unknown>[] = [];
     let finalCalls = 0;

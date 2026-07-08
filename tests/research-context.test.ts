@@ -3808,4 +3808,28 @@ describe("StageInput assembly", () => {
     ) as { readonly predictionRepair?: { readonly instruction?: string } };
     expect(specialistPrompt.predictionRepair).toBeUndefined();
   });
+
+  test("swaps stage goal and required shape when predictionCompletion is set", () => {
+    const prompt = JSON.parse(
+      buildStagePrompt(
+        "final-synthesis",
+        baseStageInput({
+          predictionCompletion: {
+            requestedCount: 2,
+            existingPredictions: [],
+            reportDraft: researchReport(),
+          },
+        }),
+      ),
+    ) as {
+      readonly stageGoal?: string;
+      readonly requiredShape?: Record<string, unknown>;
+      readonly predictionCompletion?: { readonly requestedCount?: number };
+    };
+    expect(prompt.stageGoal).toBe(
+      "Add only distinct, evidence-backed observable forecasts without changing the accepted report.",
+    );
+    expect(Object.keys(prompt.requiredShape ?? {})).toEqual(["predictions"]);
+    expect(prompt.predictionCompletion?.requestedCount).toBe(2);
+  });
 });

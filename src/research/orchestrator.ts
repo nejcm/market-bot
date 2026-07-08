@@ -161,8 +161,7 @@ function plannedResearchStages(command: ResearchCommand): readonly PlaybookStage
   return ["specialist-analysis", ...coveragePanelStages(command), "critique", "final-synthesis"];
 }
 
-// One model stage: the constant job plus the per-stage evidence, context, prior stages, and
-// Reprompt. Bundling these stops runModelStage's signature from mirroring buildStagePrompt's.
+// The constant job plus the per-stage evidence, context, prior stages, and reprompt.
 interface ModelStageInput {
   readonly job: RunResearchJobInput;
   readonly collectedSources: CollectedSources;

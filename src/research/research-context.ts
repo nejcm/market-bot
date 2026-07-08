@@ -1241,9 +1241,7 @@ function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> |
   };
 }
 
-// The full evidence payload plus every per-stage steering input buildStagePrompt needs.
-// One typed bundle instead of eleven positional params: callers assemble it by name, and a
-// New stage-conditional input added here is a field, not a shifted argument at every call site.
+// Everything buildStagePrompt needs: the evidence payload plus the per-stage steering inputs.
 export interface StageInput {
   readonly command: ResearchCommand;
   readonly collectedSources: CollectedSources;

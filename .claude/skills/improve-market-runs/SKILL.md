@@ -1,6 +1,6 @@
 ---
 name: improve-market-runs
-description: Iteratively improve market-bot run quality by running a requested market, equity, crypto, research, or alpha-search job; delegating review, fix, and verification to subagents orchestrated in a bounded loop; comparing against prior comparable runs; and repeating until measured improvement, stagnation, or a hard iteration cap. Use for requests like improve latest AAPL run, improve deep equity MSFT, run a run-review loop, or fix and rerun market-bot artifacts.
+description: Iteratively improve market-bot run quality by running a requested market, equity, crypto, research, or alpha-search job; delegating review, fix, and verification to subagents orchestrated in a bounded loop; comparing against prior comparable runs; and repeating until measured improvement, stagnation, or a hard iteration cap. This skill has to be explicitly called by the user, not triggered automatically.
 ---
 
 # Improve Market Runs

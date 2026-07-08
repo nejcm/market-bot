@@ -406,8 +406,8 @@ as `semis`, `chip stocks`, or `ai infrastructure` to:
 - Extended evidence: same equity lanes as an `equity` run, applied only if a
   proxy or instrument identity resolves.
 - No evidence-request loop.
-- Web-gather loop enabled for brief and deep thematic research when an Exa key
-  is present and budgets are positive; positive budgets without an Exa key emit
+- Web-gather loop enabled for thematic research when an Exa key is present and
+  budgets are positive; positive budgets without an Exa key emit
   a `search-unavailable` `SourceGap`. A configured Firecrawl fallback may serve
   failed or thin Exa requests. Subject kind = `theme`.
 

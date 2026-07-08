@@ -23,6 +23,7 @@ import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
+import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -477,16 +478,10 @@ function verifiedMarketSnapshotFreshness(
       };
 }
 
-// Deterministic extras subtrees that echo source citations the model did not author. The digest
-// Under the webSubjectProfile key is a code-assembled restatement of the run's profile web sources,
-// Already reported as analytics.webSources.profileUsed, so walking it would double-count those ids
-// As authored-extras adoption. Skipping it keeps extrasCited to genuinely model-authored citations.
-const CODE_ASSEMBLED_EXTRAS_KEYS = new Set(["webSubjectProfile"]);
-
 // Recursively collect every sourceId string reachable under report.extras, excluding the
-// Deterministic subtrees above. Authored extras such as earningsSetup, businessFramework,
-// Spotlights, and historicalContext nest {text, sourceIds} bullets at varying depths, so a walk
-// Keeps the telemetry robust to extras shape changes.
+// Code-assembled Extended Evidence subtrees declared by the projection seam. Authored extras such
+// As earningsSetup, businessFramework, spotlights, and historicalContext nest {text, sourceIds}
+// Bullets at varying depths, so a walk keeps telemetry robust to extras shape changes.
 function collectExtrasSourceIds(extras: Record<string, unknown> | undefined): Set<string> {
   const ids = new Set<string>();
   const visit = (value: unknown): void => {
@@ -500,7 +495,7 @@ function collectExtrasSourceIds(extras: Record<string, unknown> | undefined): Se
       return;
     }
     for (const [key, nested] of Object.entries(value)) {
-      if (CODE_ASSEMBLED_EXTRAS_KEYS.has(key)) {
+      if (CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS.has(key)) {
         continue;
       }
       if (key === "sourceIds" && Array.isArray(nested)) {

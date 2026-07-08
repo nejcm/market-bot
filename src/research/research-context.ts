@@ -179,8 +179,10 @@ export function moverLimitFor(command: ResearchCommand, config: AppConfig): numb
  * Each collected-source evidence kind projects itself into the stage prompt payload.
  * A projector contributes its keys when its CollectedSources field is present and the
  * command qualifies; otherwise it contributes nothing. Adding a new collected-source
- * evidence kind means adding one projector to EVIDENCE_PROJECTORS — not editing the
- * builder body.
+ * evidence kind means adding one prompt-payload projector to EVIDENCE_PROJECTORS — not
+ * editing the builder body. Report extras use the separate registry in
+ * extended-evidence-projections.ts because they merge model-authored sections with
+ * deterministic collected artifacts after synthesis.
  */
 type EvidenceProjector = (
   stage: StageLabel,

@@ -3,10 +3,14 @@ import type { WebSubjectProfileArtifact } from "../sources/extended-evidence/web
 import { isRecord, nonEmptyStringArrayValue } from "../sources/guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
 
-type ExtraProjector = (
-  modelExtras: Record<string, unknown>,
-  collectedSources: CollectedSources,
-) => readonly [string, unknown] | undefined;
+interface ExtraProjector {
+  readonly key: string;
+  readonly codeAssembledDigest?: boolean;
+  readonly project: (
+    modelExtras: Record<string, unknown>,
+    collectedSources: CollectedSources,
+  ) => unknown;
+}
 
 function modelBusinessFrameworkSections(
   extra: unknown,
@@ -104,6 +108,7 @@ function mergeEarningsSetupExtra(
       }
     }
   }
+  // Deterministic event, impliedMove, and gaps are code-owned and always win over model extras.
   return {
     ...modelSections,
     event: collected.event,
@@ -113,31 +118,40 @@ function mergeEarningsSetupExtra(
 }
 
 const EXTENDED_EVIDENCE_EXTRA_PROJECTORS: readonly ExtraProjector[] = [
-  (modelExtras, collectedSources) => {
-    const value = businessFrameworkExtra(modelExtras.businessFramework, collectedSources);
-    return value === undefined ? undefined : ["businessFramework", value];
+  {
+    key: "businessFramework",
+    project: (modelExtras, collectedSources) =>
+      businessFrameworkExtra(modelExtras.businessFramework, collectedSources),
   },
-  (_modelExtras, collectedSources) => {
-    const value = webSubjectProfileExtra(collectedSources.webSubjectProfile);
-    return value === undefined ? undefined : ["webSubjectProfile", value];
+  {
+    key: "webSubjectProfile",
+    codeAssembledDigest: true,
+    project: (_modelExtras, collectedSources) =>
+      webSubjectProfileExtra(collectedSources.webSubjectProfile),
   },
-  (modelExtras, collectedSources) =>
-    collectedSources.earningsSetup === undefined
-      ? undefined
-      : [
-          "earningsSetup",
-          mergeEarningsSetupExtra(modelExtras.earningsSetup, collectedSources.earningsSetup),
-        ],
+  {
+    key: "earningsSetup",
+    project: (modelExtras, collectedSources) =>
+      collectedSources.earningsSetup === undefined
+        ? undefined
+        : mergeEarningsSetupExtra(modelExtras.earningsSetup, collectedSources.earningsSetup),
+  },
 ];
+
+export const CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS: ReadonlySet<string> = new Set(
+  EXTENDED_EVIDENCE_EXTRA_PROJECTORS.flatMap((projector) =>
+    projector.codeAssembledDigest === true ? [projector.key] : [],
+  ),
+);
 
 export function projectExtendedEvidenceReportExtras(input: {
   readonly modelExtras: Record<string, unknown>;
   readonly collectedSources: CollectedSources;
 }): Record<string, unknown> {
   return Object.fromEntries(
-    EXTENDED_EVIDENCE_EXTRA_PROJECTORS.flatMap((project) => {
-      const projected = project(input.modelExtras, input.collectedSources);
-      return projected === undefined ? [] : [projected];
+    EXTENDED_EVIDENCE_EXTRA_PROJECTORS.flatMap((projector) => {
+      const projected = projector.project(input.modelExtras, input.collectedSources);
+      return projected === undefined ? [] : [[projector.key, projected]];
     }),
   );
 }

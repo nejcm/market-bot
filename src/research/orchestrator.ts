@@ -1,16 +1,14 @@
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
-import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
+import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
-import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import type { ResearchCommand } from "../cli/args";
 import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucket,
-  marketUpdateMetadataOf,
   type Mover,
-  type PostSynthesisAuditWarning,
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
@@ -68,18 +66,19 @@ import {
 } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
-import { auditReportIntegrity, type ReportIntegrityAuditResult } from "./report-integrity-audit";
+import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
   assessSourcePlan,
   buildSourcePlan,
-  type BuildSourcePlanResult,
   type EvidenceLanesArtifact,
   type SourceLedgerArtifact,
   type SourcePlanArtifact,
   type SourcePlanArtifactV2,
 } from "./source-plan";
 import { resolveResearchSubject } from "./research-subject-identity";
+import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
+import { buildRunTrace } from "./run-trace";
 
 export { reconcileBusinessFrameworkEvidence } from "./web-evidence-phase";
 
@@ -147,20 +146,6 @@ function compactForecastDisagreementExtra(
     errorCount: artifact.errorCount,
     predictions: artifact.predictions,
   };
-}
-
-function coveragePanelStages(command: ResearchCommand): readonly PlaybookStage[] {
-  if (command.depth !== "deep") {
-    return [];
-  }
-  if (isMarketUpdateJobType(command.jobType)) {
-    return ["regime-context-analysis", "mover-theme-analysis"];
-  }
-  return ["instrument-evidence-analysis", "market-behavior-analysis"];
-}
-
-function plannedResearchStages(command: ResearchCommand): readonly PlaybookStage[] {
-  return ["specialist-analysis", ...coveragePanelStages(command), "critique", "final-synthesis"];
 }
 
 // The constant job plus the per-stage evidence, context, prior stages, and reprompt.
@@ -314,10 +299,6 @@ function stageCostPricing(stageOutputs: readonly StageOutput[]): readonly CostPr
   ];
 }
 
-function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
-  return marketUpdateMetadataOf(command) ?? {};
-}
-
 async function runForecastDisagreementPhase(input: {
   readonly jobInput: RunResearchJobInput;
   readonly generatedAt: string;
@@ -398,169 +379,6 @@ async function runForecastDisagreementPhase(input: {
     });
   }
   return { report, challengerModels, stageOutputs: [] };
-}
-
-async function runAnalysisPhase(input: {
-  readonly jobInput: RunResearchJobInput;
-  readonly collectedSources: CollectedSources;
-  readonly context: ResearchContext;
-  readonly runParams: ResolvedRunParams;
-}): Promise<{
-  readonly analysisOutputs: readonly StageOutput[];
-  readonly critiqueOutput: StageOutput;
-}> {
-  const specialistOutput = await runModelStage("specialist-analysis", input.runParams.quickModel, {
-    job: input.jobInput,
-    collectedSources: input.collectedSources,
-    context: input.context,
-  });
-  const panelOutputs = await Promise.all(
-    coveragePanelStages(input.jobInput.command).map((stage) =>
-      runModelStage(stage, input.runParams.quickModel, {
-        job: input.jobInput,
-        collectedSources: input.collectedSources,
-        context: input.context,
-        priorStages: [specialistOutput],
-      }),
-    ),
-  );
-  const analysisOutputs = [specialistOutput, ...panelOutputs];
-  const critiqueOutput = await runModelStage("critique", input.runParams.quickModel, {
-    job: input.jobInput,
-    collectedSources: input.collectedSources,
-    context: input.context,
-    priorStages: analysisOutputs,
-  });
-  return { analysisOutputs, critiqueOutput };
-}
-
-function buildRunTrace(input: {
-  readonly jobInput: RunResearchJobInput;
-  readonly runId: string;
-  readonly generatedAt: string;
-  readonly completedAt: string;
-  readonly runParams: ResolvedRunParams;
-  readonly codeVersion: NonNullable<RunTrace["codeVersion"]>;
-  readonly sourceStateHash?: string;
-  readonly evidenceQualityAssessment: NonNullable<RunTrace["evidenceQualityAssessment"]>;
-  readonly report: ResearchReport;
-  readonly stageOutputs: readonly StageOutput[];
-  readonly costEstimateUsd?: number;
-  readonly costPricing: readonly CostPricing[];
-  readonly collectedSources: CollectedSources;
-  readonly evidenceRequestLoop?: RunTrace["evidenceRequestLoop"];
-  readonly webGatherLoop?: RunTrace["webGatherLoop"];
-  readonly historicalContext: HistoricalResearchContext;
-  readonly spotlightSelection?: SpotlightSelectionResult;
-  readonly playbookAudit: PlaybookSelectionAudit;
-  readonly predictionRetryErrors: readonly string[];
-  readonly predictionTrimWarnings: readonly string[];
-  readonly predictionCompletion: RunTrace["predictionCompletion"];
-  readonly predictionErrors: readonly string[];
-  readonly reportValidationErrors: readonly string[];
-  readonly postSynthesisWarnings: readonly PostSynthesisAuditWarning[];
-  readonly integrityAudit: ReportIntegrityAuditResult;
-  readonly sourcePlanning: BuildSourcePlanResult;
-  readonly configuredForecastDisagreementModels: readonly string[];
-  readonly challengerModels: readonly string[];
-  readonly forecastDisagreement?: ForecastDisagreementArtifact;
-}): RunTrace {
-  const { command, config, provider } = input.jobInput;
-  return {
-    schemaVersion: 2,
-    runId: input.runId,
-    jobType: command.jobType,
-    ...marketUpdateTraceFields(command),
-    assetClass: command.assetClass,
-    ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
-    depth: command.depth,
-    provider: provider.name,
-    codeVersion: input.codeVersion,
-    reproducibility: {
-      effectiveConfigHash: effectiveConfigHash(config),
-      ...(input.sourceStateHash !== undefined ? { dirtySourceHash: input.sourceStateHash } : {}),
-    },
-    evidenceQualityAssessment: input.evidenceQualityAssessment,
-    quickModel: input.runParams.quickModel,
-    synthesisModel: input.runParams.synthesisModel,
-    startedAt: input.generatedAt,
-    completedAt: input.completedAt,
-    sourceGaps: input.report.dataGaps,
-    stages: ["source-collection", ...input.stageOutputs.map((output) => output.stage)],
-    stageRecords: input.stageOutputs.map((output) => ({
-      stage: output.stage,
-      ...(output.durationMs !== undefined ? { durationMs: output.durationMs } : {}),
-      ...(output.attempt !== undefined ? { attempt: output.attempt } : {}),
-      ...(output.repromptReason !== undefined ? { repromptReason: output.repromptReason } : {}),
-    })),
-    tokenEstimate: input.stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
-    ...(input.costEstimateUsd !== undefined ? { costEstimateUsd: input.costEstimateUsd } : {}),
-    ...(input.costPricing.length > 0 ? { costPricing: input.costPricing } : {}),
-    modelInputSanitization: input.collectedSources.modelInputSanitization ?? { entries: [] },
-    ...(input.evidenceRequestLoop !== undefined
-      ? { evidenceRequestLoop: input.evidenceRequestLoop }
-      : {}),
-    ...(input.webGatherLoop !== undefined ? { webGatherLoop: input.webGatherLoop } : {}),
-    historicalContext: input.historicalContext.audit,
-    ...(input.spotlightSelection !== undefined
-      ? { spotlightSelection: input.spotlightSelection.audit }
-      : {}),
-    domainPlaybooks: input.playbookAudit,
-    ...(input.predictionRetryErrors.length > 0
-      ? { predictionRetryErrors: input.predictionRetryErrors }
-      : {}),
-    ...(input.predictionTrimWarnings.length > 0
-      ? { predictionTrimWarnings: input.predictionTrimWarnings }
-      : {}),
-    ...(input.predictionCompletion !== undefined
-      ? { predictionCompletion: input.predictionCompletion }
-      : {}),
-    ...(input.predictionErrors.length > 0 ? { predictionErrors: input.predictionErrors } : {}),
-    ...(input.reportValidationErrors.length > 0
-      ? { reportValidationRetryErrors: input.reportValidationErrors }
-      : {}),
-    ...(input.postSynthesisWarnings.length > 0
-      ? {
-          postSynthesisAudit: {
-            warningCount: input.postSynthesisWarnings.length,
-            warnings: input.postSynthesisWarnings,
-          },
-        }
-      : {}),
-    reportIntegrityAudit: {
-      reportIntegrity: input.integrityAudit.reportIntegrity,
-      researchQuality: input.integrityAudit.researchQuality,
-      prunedItemCount: input.integrityAudit.prunedItemCount,
-      advisoryWarningCount: input.integrityAudit.advisoryWarningCount,
-      pruned: input.integrityAudit.pruned,
-    },
-    sourcePlan: {
-      plannedLaneCount: input.sourcePlanning.evidenceLanes.summary.plannedLaneCount,
-      coreLaneCount: input.sourcePlanning.evidenceLanes.summary.coreLaneCount,
-      materialLaneCount: input.sourcePlanning.evidenceLanes.summary.materialLaneCount,
-      supplementalLaneCount: input.sourcePlanning.evidenceLanes.summary.supplementalLaneCount,
-    },
-    evidenceLanes: {
-      coveredLaneCount: input.sourcePlanning.evidenceLanes.summary.coveredLaneCount,
-      gapLaneCount: input.sourcePlanning.evidenceLanes.summary.gapLaneCount,
-      coreGapLaneCount: input.sourcePlanning.evidenceLanes.summary.coreGapLaneCount,
-      materialGapLaneCount: input.sourcePlanning.evidenceLanes.summary.materialGapLaneCount,
-      sourceCount: input.sourcePlanning.evidenceLanes.summary.sourceCount,
-      gapCount: input.sourcePlanning.evidenceLanes.summary.gapCount,
-      coverageRatio: input.sourcePlanning.evidenceLanes.summary.coverageRatio,
-    },
-    ...(input.forecastDisagreement !== undefined
-      ? {
-          forecastDisagreement: {
-            configuredModelCount: input.configuredForecastDisagreementModels.length,
-            challengerModelCount: input.challengerModels.length,
-            participantCount: input.forecastDisagreement.participantCount,
-            successfulParticipantCount: input.forecastDisagreement.successfulParticipantCount,
-            errorCount: input.forecastDisagreement.errorCount,
-          },
-        }
-      : {}),
-  };
 }
 
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
@@ -686,10 +504,17 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   );
   const playbookContext = playbookSelection.context;
   const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
-    jobInput: input,
+    command: input.command,
     collectedSources,
     context: playbookContext,
-    runParams,
+    quickModel: runParams.quickModel,
+    runStage: (stage, model, stageInput) =>
+      runModelStage(stage, model, {
+        job: input,
+        collectedSources: stageInput.collectedSources,
+        context: stageInput.context,
+        ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
+      }),
   });
   const sources = buildSourceList(input.command, collectedSources, historicalContext, generatedAt);
   const knownSourceIds = new Set(sources.map((source) => source.id));

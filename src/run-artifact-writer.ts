@@ -268,6 +268,7 @@ export async function persistRunArtifactWrites(
   artifacts: RunArtifactPaths,
   writes: readonly RunArtifactWrite[],
 ): Promise<void> {
+  // Manifests must not contain duplicate files; callers build one value per sidecar.
   await Promise.all(writes.map((write) => persistRunArtifactWrite(artifacts, write)));
 }
 

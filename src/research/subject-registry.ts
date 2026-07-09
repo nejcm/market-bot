@@ -36,6 +36,11 @@ export interface ResearchSubjectRegistryEntry {
   readonly sources: readonly ResearchSubjectSource[];
 }
 
+export interface ResearchSubjectSummary {
+  readonly subjectKey: string;
+  readonly displayName: string;
+}
+
 export interface ResearchSubjectProxyResolution {
   readonly input: string;
   readonly normalizedInput: string;
@@ -44,6 +49,8 @@ export interface ResearchSubjectProxyResolution {
   readonly predictionProxySymbol?: string;
   readonly canEmitPredictions: boolean;
   readonly reason: string;
+  readonly supportedSubjects?: readonly ResearchSubjectSummary[];
+  readonly closestMatch?: ResearchSubjectSummary;
 }
 
 export interface ResearchSubjectRegistryValidationResult {
@@ -257,23 +264,21 @@ export function resolveResearchSubjectProxy(
     aliasIndex.get(normalizedInput) ?? findEmbeddedAliasMatch(normalizedInput, registry);
 
   if (subject === "ambiguous") {
-    return {
+    return unresolvedSubjectResolution({
       input,
       normalizedInput,
-      status: "unresolved",
-      canEmitPredictions: false,
       reason: "Ambiguous checked-in subject registry match",
-    };
+      registry,
+    });
   }
 
   if (subject === undefined) {
-    return {
+    return unresolvedSubjectResolution({
       input,
       normalizedInput,
-      status: "unresolved",
-      canEmitPredictions: false,
       reason: "No checked-in subject registry match",
-    };
+      registry,
+    });
   }
 
   if (subject.predictionProxy === undefined) {
@@ -481,6 +486,68 @@ function aliasesFor(entry: ResearchSubjectRegistryEntry): readonly string[] {
 
 function containsAlias(input: string, alias: string): boolean {
   return ` ${input} `.includes(` ${alias} `);
+}
+
+function subjectSummary(entry: ResearchSubjectRegistryEntry): ResearchSubjectSummary {
+  return { subjectKey: entry.subjectKey, displayName: entry.displayName };
+}
+
+function supportedSubjectSummaries(
+  registry: readonly ResearchSubjectRegistryEntry[],
+): readonly ResearchSubjectSummary[] {
+  return registry.map((entry) => subjectSummary(entry));
+}
+
+function unresolvedSubjectResolution(input: {
+  readonly input: string;
+  readonly normalizedInput: string;
+  readonly reason: string;
+  readonly registry: readonly ResearchSubjectRegistryEntry[];
+}): ResearchSubjectProxyResolution {
+  const closestMatch = closestSubjectMatch(input.normalizedInput, input.registry);
+  return {
+    input: input.input,
+    normalizedInput: input.normalizedInput,
+    status: "unresolved",
+    canEmitPredictions: false,
+    reason: input.reason,
+    supportedSubjects: supportedSubjectSummaries(input.registry),
+    ...(closestMatch !== undefined ? { closestMatch } : {}),
+  };
+}
+
+function closestSubjectMatch(
+  normalizedInput: string,
+  registry: readonly ResearchSubjectRegistryEntry[],
+): ResearchSubjectSummary | undefined {
+  let bestSubject: ResearchSubjectRegistryEntry | undefined = undefined;
+  let bestAliasLength = 0;
+  let ambiguous = false;
+
+  for (const entry of registry) {
+    const longestAlias = Math.max(
+      0,
+      ...aliasesFor(entry)
+        .filter(
+          (alias) => containsAlias(normalizedInput, alias) || containsAlias(alias, normalizedInput),
+        )
+        .map((alias) => alias.length),
+    );
+    if (longestAlias === 0 || longestAlias < bestAliasLength) {
+      continue;
+    }
+    if (longestAlias > bestAliasLength) {
+      bestSubject = entry;
+      bestAliasLength = longestAlias;
+      ambiguous = false;
+      continue;
+    }
+    if (bestSubject !== undefined && bestSubject.subjectKey !== entry.subjectKey) {
+      ambiguous = true;
+    }
+  }
+
+  return bestSubject !== undefined && !ambiguous ? subjectSummary(bestSubject) : undefined;
 }
 
 function findEmbeddedAliasMatch(

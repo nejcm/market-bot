@@ -5,6 +5,7 @@ import {
   resolveResearchSubjectProxy,
   type ResearchSubjectInstrument,
   type ResearchSubjectSource,
+  type ResearchSubjectSummary,
 } from "./subject-registry";
 
 export interface ResearchSubjectIdentity {
@@ -24,6 +25,8 @@ export interface ResolvedResearchSubject {
   readonly representativeInstruments?: readonly ResearchSubjectInstrument[];
   readonly predictionProxySymbol?: string;
   readonly sources?: readonly ResearchSubjectSource[];
+  readonly supportedSubjects?: readonly ResearchSubjectSummary[];
+  readonly closestMatch?: ResearchSubjectSummary;
 }
 
 export function cleanResearchSubjectKey(value: string | undefined): string | undefined {
@@ -73,6 +76,10 @@ export function resolveResearchSubject(
     ...(resolution.predictionProxySymbol !== undefined
       ? { predictionProxySymbol: resolution.predictionProxySymbol }
       : {}),
+    ...(resolution.supportedSubjects !== undefined
+      ? { supportedSubjects: resolution.supportedSubjects }
+      : {}),
+    ...(resolution.closestMatch !== undefined ? { closestMatch: resolution.closestMatch } : {}),
   };
 }
 
@@ -117,6 +124,10 @@ export function researchIdentityExtras(
       ...(identity?.reason !== undefined ? { reason: identity.reason } : {}),
       ...(identity?.subjectKey !== undefined ? { subjectKey: identity.subjectKey } : {}),
       ...(identity?.displayName !== undefined ? { displayName: identity.displayName } : {}),
+      ...(identity?.supportedSubjects !== undefined
+        ? { supportedSubjects: identity.supportedSubjects }
+        : {}),
+      ...(identity?.closestMatch !== undefined ? { closestMatch: identity.closestMatch } : {}),
     },
     ...(identity?.predictionProxySymbol !== undefined
       ? { proxyResolution: { predictionProxySymbol: identity.predictionProxySymbol } }

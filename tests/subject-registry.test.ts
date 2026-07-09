@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { resolveResearchSubject } from "../src/research/research-subject-identity";
+import {
+  researchIdentityExtras,
+  resolveResearchSubject,
+} from "../src/research/research-subject-identity";
 import {
   DEFAULT_RESEARCH_SUBJECT_REGISTRY,
   normalizeResearchSubjectQuery,
@@ -28,6 +31,11 @@ const baseEntry: ResearchSubjectRegistryEntry = {
   },
   sources: [{ sourceId: "test-source", title: "Test source" }],
 };
+
+const supportedSubjects = DEFAULT_RESEARCH_SUBJECT_REGISTRY.map((entry) => ({
+  subjectKey: entry.subjectKey,
+  displayName: entry.displayName,
+}));
 
 describe("research subject registry", () => {
   test("default registry is valid", () => {
@@ -127,6 +135,48 @@ describe("research subject registry", () => {
       status: "unresolved",
       canEmitPredictions: false,
       reason: "No checked-in subject registry match",
+      supportedSubjects,
+    });
+  });
+
+  test("suggests the closest checked-in subject by substring alias reuse", () => {
+    const result = resolveResearchSubjectProxy("chip");
+
+    expect(result).toMatchObject({
+      status: "unresolved",
+      canEmitPredictions: false,
+      closestMatch: {
+        subjectKey: "semiconductors",
+        displayName: "Semiconductors",
+      },
+      supportedSubjects,
+    });
+  });
+
+  test("threads unresolved subject suggestions through research identity", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip",
+      depth: "brief",
+    } as const;
+    const result = resolveResearchSubject(command);
+
+    expect(result).toMatchObject({
+      status: "unresolved",
+      closestMatch: {
+        subjectKey: "semiconductors",
+        displayName: "Semiconductors",
+      },
+      supportedSubjects,
+    });
+    expect(researchIdentityExtras(command, result).researchSubject).toMatchObject({
+      status: "unresolved",
+      closestMatch: {
+        subjectKey: "semiconductors",
+        displayName: "Semiconductors",
+      },
+      supportedSubjects,
     });
   });
 

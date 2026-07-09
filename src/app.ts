@@ -12,6 +12,7 @@ import { renderRunAnalyticsConsole } from "./research/run-analytics-console";
 import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,
+  type ResolvedResearchSubject,
 } from "./research/research-subject-identity";
 import { collectSources } from "./sources/collector";
 import { pruneCache } from "./sources/cache";
@@ -103,6 +104,26 @@ function emitRunQualitySummary(render: () => string): void {
       `Run quality summary failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   }
+}
+
+function emitUnresolvedResearchSubjectGuidance(subject: ResolvedResearchSubject | undefined): void {
+  if (subject?.status !== "unresolved" || subject.supportedSubjects === undefined) {
+    return;
+  }
+  const supportedSubjects = subject.supportedSubjects
+    .map((supportedSubject) => supportedSubject.displayName)
+    .join(", ");
+  const closestMatch =
+    subject.closestMatch === undefined
+      ? undefined
+      : `${subject.closestMatch.displayName} (${subject.closestMatch.subjectKey})`;
+  process.stderr.write(
+    `${[
+      `Research subject unresolved: "${subject.input}".`,
+      `Supported subjects: ${supportedSubjects}.`,
+      ...(closestMatch !== undefined ? [`Closest match: ${closestMatch}.`] : []),
+    ].join("\n")}\n`,
+  );
 }
 
 export async function runCli(
@@ -236,6 +257,7 @@ export async function runCli(
   const provider = (dependencies.createProvider ?? createProvider)(config);
   const rawResearchCommand = asResearchCommand(command);
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
+  emitUnresolvedResearchSubjectGuidance(resolvedSubject);
   const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
   // Freeze the Source Plan before the first source-provider I/O so it records
   // Pre-collection intent (ADR 0028); collection outcomes cannot change it.

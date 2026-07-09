@@ -8,7 +8,11 @@ import {
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
 import { isUsListing } from "../sources/instrument-capability";
-import { resolveResearchSubject, type ResolvedResearchSubject } from "./research-subject-identity";
+import {
+  normalizeResearchCommandDepth,
+  resolveResearchSubject,
+  type ResolvedResearchSubject,
+} from "./research-subject-identity";
 
 export const EVIDENCE_LANES = [
   "market-data",
@@ -591,21 +595,24 @@ export function buildSourcePlan(
   generatedAt: string,
   resolvedSubject?: ResolvedResearchSubject,
 ): SourcePlanArtifactV2 {
-  const subject = resolvedSubject ?? resolveResearchSubject(command);
-  const planned = LANE_DEFINITIONS.filter((definition) => definition.applies(command, subject));
+  const normalizedCommand = normalizeResearchCommandDepth(command);
+  const subject = resolvedSubject ?? resolveResearchSubject(normalizedCommand);
+  const planned = LANE_DEFINITIONS.filter((definition) =>
+    definition.applies(normalizedCommand, subject),
+  );
   return {
     version: 2,
     generatedAt,
     run: {
-      jobType: command.jobType,
-      assetClass: command.assetClass,
-      ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
-      ...(command.jobType === "research" ? { subject: command.subject } : {}),
-      depth: command.depth,
+      jobType: normalizedCommand.jobType,
+      assetClass: normalizedCommand.assetClass,
+      ...(isInstrumentCommand(normalizedCommand) ? { symbol: normalizedCommand.symbol } : {}),
+      ...(normalizedCommand.jobType === "research" ? { subject: normalizedCommand.subject } : {}),
+      depth: normalizedCommand.depth,
     },
     lanes: planned.map((definition) => ({
       lane: definition.lane,
-      evidenceClass: definition.evidenceClass(command),
+      evidenceClass: definition.evidenceClass(normalizedCommand),
       appliesToRun: true,
       capability: definition.lane,
     })),

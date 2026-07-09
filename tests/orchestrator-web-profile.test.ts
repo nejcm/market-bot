@@ -38,7 +38,7 @@ function firstWebSourceId(prompt: Record<string, unknown>): string {
 }
 
 describe("runResearchJob web subject profile", () => {
-  test("gathers web evidence for brief thematic research", async () => {
+  test("normalizes thematic research to deep web evidence and coverage stages", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -189,6 +189,9 @@ describe("runResearchJob web subject profile", () => {
 
     expect(prompts.map((prompt) => prompt.stage)).toContain("web-gather");
     expect(prompts.map((prompt) => prompt.stage)).toContain("web-subject-profile");
+    expect(prompts.map((prompt) => prompt.stage)).toContain("instrument-evidence-analysis");
+    expect(prompts.map((prompt) => prompt.stage)).toContain("market-behavior-analysis");
+    expect(result.trace.depth).toBe("deep");
     expect(result.collectedSources.webSubjectProfile).toMatchObject({
       subjectKind: "theme",
       subjectLabel: "Biotechnology",

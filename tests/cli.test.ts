@@ -279,7 +279,7 @@ describe("parseArgs", () => {
       "--deep",
     ]);
     expect(jobRequestArgv({ jobType: "crypto", symbol: "btc" })).toEqual(["crypto", "btc"]);
-    expect(jobRequestArgv({ jobType: "research", subject: "AI biotech", depth: "deep" })).toEqual([
+    expect(jobRequestArgv({ jobType: "research", subject: "AI biotech", depth: "brief" })).toEqual([
       "research",
       "AI",
       "biotech",

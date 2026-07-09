@@ -76,7 +76,7 @@ import {
   type SourcePlanArtifact,
   type SourcePlanArtifactV2,
 } from "./source-plan";
-import { resolveResearchSubject } from "./research-subject-identity";
+import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
 import { buildRunTrace } from "./run-trace";
 
@@ -382,24 +382,26 @@ async function runForecastDisagreementPhase(input: {
 }
 
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
+  const command = normalizeResearchCommandDepth(input.command);
+  const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
   const completedAt = (): string => (input.endClock?.() ?? new Date()).toISOString();
   const runId = createRunId(now);
   const calibrationContext = await refreshCalibrationContext(input.config.dataDir, now);
-  const runParams = resolveRunParams(input.command, input.config, input.runConfig);
+  const runParams = resolveRunParams(command, input.config, input.runConfig);
   let { collectedSources } = input;
-  const resolvedSubject = collectedSources.resolvedSubject ?? resolveResearchSubject(input.command);
+  const resolvedSubject = collectedSources.resolvedSubject ?? resolveResearchSubject(command);
   if (resolvedSubject !== undefined && collectedSources.resolvedSubject === undefined) {
     collectedSources = { ...collectedSources, resolvedSubject };
   }
   let context: ResearchContext = {
     analysisAsOf: generatedAt,
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
-    depthProfile: buildDepthProfileFromParams(input.command, runParams),
+    depthProfile: buildDepthProfileFromParams(command, runParams),
     runParams,
     marketRegime: addMarketContextToRegime(
-      summarizeMarketRegime(input.command.assetClass, collectedSources.marketSnapshots),
+      summarizeMarketRegime(command.assetClass, collectedSources.marketSnapshots),
       collectedSources.marketContext,
     ),
     calibrationContext,
@@ -415,9 +417,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Load failure is only a meaningful gap for market-update runs. Scoping it here
   // Keeps the signal out of ticker/alpha-search reports, which never enrich.
   const alphaGaps =
-    isMarketUpdateJobType(input.command.jobType) && alpha.gap !== undefined ? [alpha.gap] : [];
+    isMarketUpdateJobType(command.jobType) && alpha.gap !== undefined ? [alpha.gap] : [];
   const initialHistoricalContext = await historicalContextReader.load({
-    command: input.command,
+    command,
     config: input.config,
     now,
     extraGaps: alphaGaps,
@@ -425,7 +427,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   let historicalContext = initialHistoricalContext.context;
   context = { ...context, historicalContext };
   const evidenceLoop = await runEvidenceRequestLoop({
-    command: input.command,
+    command,
     config: input.config,
     collectedSources,
     context,
@@ -436,7 +438,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       : {}),
     generateRound: (currentSources, roundContext, priorStages) =>
       runModelStage("evidence-request", runParams.quickModel, {
-        job: input,
+        job: jobInput,
         collectedSources: currentSources,
         context: roundContext,
         priorStages,
@@ -444,7 +446,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   });
   ({ collectedSources } = evidenceLoop);
   const webEvidence = await runWebEvidencePhase({
-    command: input.command,
+    command,
     config: input.config,
     collectedSources,
     context,
@@ -456,7 +458,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       : {}),
     generateStage: (stage, currentSources, stageContext, priorStages = []) =>
       runModelStage(stage, runParams.quickModel, {
-        job: input,
+        job: jobInput,
         collectedSources: currentSources,
         context: stageContext,
         priorStages,
@@ -465,7 +467,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   ({ collectedSources } = webEvidence);
   const { webGatherLoop, webSubjectProfile } = webEvidence;
   const marketUpdate = await runMarketUpdatePhase({
-    command: input.command,
+    command,
     config: input.config,
     provider: input.provider,
     collectedSources,
@@ -491,42 +493,42 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   collectedSources = normalizeCanonicalSourceGaps(collectedSources);
   // The fallback plan must derive from checked-in subject resolution only, not
   // The collection-carried resolvedSubject, so it matches a pre-collection build.
-  const frozenSourcePlan = input.sourcePlan ?? buildSourcePlan(input.command, generatedAt);
+  const frozenSourcePlan = input.sourcePlan ?? buildSourcePlan(command, generatedAt);
   const sourcePlanning = assessSourcePlan(frozenSourcePlan, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };
-  const plannedStages = plannedResearchStages(input.command);
+  const plannedStages = plannedResearchStages(command);
   const playbookSelection = await runPlaybookSelection(
-    input,
+    jobInput,
     collectedSources,
     context,
     plannedStages,
   );
   const playbookContext = playbookSelection.context;
   const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
-    command: input.command,
+    command,
     collectedSources,
     context: playbookContext,
     quickModel: runParams.quickModel,
     runStage: (stage, model, stageInput) =>
       runModelStage(stage, model, {
-        job: input,
+        job: jobInput,
         collectedSources: stageInput.collectedSources,
         context: stageInput.context,
         ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
       }),
   });
-  const sources = buildSourceList(input.command, collectedSources, historicalContext, generatedAt);
+  const sources = buildSourceList(command, collectedSources, historicalContext, generatedAt);
   const knownSourceIds = new Set(sources.map((source) => source.id));
   // Build the emission-time subject allowlist from the resolved run params.
   // Research runs use researchPredictionGate instead; pass undefined so no double-drop occurs.
   const allowedSubjects =
-    input.command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
+    command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
 
   const synthesis = await synthesizeReportUntilValid({
     runId,
     generatedAt,
-    command: input.command,
+    command,
     collectedSources,
     context: playbookContext,
     sources,
@@ -536,7 +538,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
     runFinalSynthesis: (priorStages, reprompt) =>
       runModelStage("final-synthesis", runParams.synthesisModel, {
-        job: input,
+        job: jobInput,
         collectedSources,
         context: playbookContext,
         priorStages,
@@ -549,7 +551,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Predictions never reach challengers, persistence, or scoring.
   const integrityAudit = auditReportIntegrity(synthesis.report);
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
-    jobInput: input,
+    jobInput,
     generatedAt,
     runParams,
     report: validateResearchReport(integrityAudit.report),
@@ -583,7 +585,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const costPricing = stageCostPricing(stageOutputs);
 
   const trace = buildRunTrace({
-    jobInput: input,
+    jobInput,
     runId,
     generatedAt,
     completedAt: completedAt(),
@@ -621,8 +623,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     targetPredictions: context.depthProfile.targetPredictions,
     sourcePlanSummary: sourcePlanning.evidenceLanes.summary,
     calibrationGuidanceKeys: {
-      assetClass: input.command.assetClass,
-      jobType: input.command.jobType,
+      assetClass: command.assetClass,
+      jobType: command.jobType,
       predictionHorizon: marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon),
       marketRegime: context.marketRegime.label,
     },
@@ -650,11 +652,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
 export async function persistResearchJob(
   input: RunResearchJobInput,
 ): Promise<PersistedResearchJobResult> {
-  const result = await runResearchJob(input);
+  const command = normalizeResearchCommandDepth(input.command);
+  const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
+  const result = await runResearchJob(jobInput);
   const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
   await persistRunArtifactWrites(
     artifacts,
-    buildResearchRunManifest(input.command, input.config, result),
+    buildResearchRunManifest(command, input.config, result),
   );
 
   if (
@@ -664,7 +668,7 @@ export async function persistResearchJob(
     await recordSeenNewsSources({
       path: input.config.sourceOptions.newsSeenPath,
       retentionDays: input.config.sourceOptions.newsSeenRetentionDays,
-      command: input.command,
+      command,
       runId: result.report.runId,
       seenAt: result.report.generatedAt,
       sources: result.report.sources,

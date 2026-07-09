@@ -102,6 +102,7 @@ describe("source plan", () => {
       "news",
       "subject-profile",
     ]);
+    expect(plan.sourcePlan.run.depth).toBe("deep");
     expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(0);
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
       status: "not-covered",

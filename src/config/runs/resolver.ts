@@ -1,6 +1,9 @@
 import type { AppConfig } from "../../config";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import { cleanResearchProxySymbol } from "../../research/research-subject-identity";
+import {
+  cleanResearchProxySymbol,
+  normalizeResearchCommandDepth,
+} from "../../research/research-subject-identity";
 import { runConfig } from "./profiles";
 import type { ResolvedRunParams, RunBaseParams, RunConfig, RunKey } from "./types";
 import { CODE_DEFAULTS } from "./profiles/shared";
@@ -74,13 +77,14 @@ export function resolveRunParams(
   appConfig: AppConfig,
   config: RunConfig = runConfig,
 ): ResolvedRunParams {
-  const key = toRunKey(command);
+  const normalizedCommand = normalizeResearchCommandDepth(command);
+  const key = toRunKey(normalizedCommand);
   const combo = config[key];
-  const deepOverride = command.depth === "deep" ? (combo.deep ?? {}) : {};
+  const deepOverride = normalizedCommand.depth === "deep" ? (combo.deep ?? {}) : {};
   const merged: RunBaseParams = { ...combo, ...deepOverride };
 
-  const proxy = researchPredictionProxy(command);
-  const predictionSubjects = predictionSubjectsFor(command, merged, proxy);
+  const proxy = researchPredictionProxy(normalizedCommand);
+  const predictionSubjects = predictionSubjectsFor(normalizedCommand, merged, proxy);
   const defaultQuickModel =
     appConfig.provider === "codex"
       ? (appConfig.codexQuickModel ?? appConfig.quickModel)
@@ -96,8 +100,8 @@ export function resolveRunParams(
     modelParams: mergeModelParams(appConfig.modelParams, merged.modelParams),
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
-    targetPredictions: targetPredictionsFor(command, merged, proxy),
-    defaultPredictionHorizon: defaultPredictionHorizonFor(command, merged),
+    targetPredictions: targetPredictionsFor(normalizedCommand, merged, proxy),
+    defaultPredictionHorizon: defaultPredictionHorizonFor(normalizedCommand, merged),
     predictionSubjects,
     focus: merged.focus ?? CODE_DEFAULTS.focus,
     analystStyle: merged.analystStyle ?? CODE_DEFAULTS.analystStyle,

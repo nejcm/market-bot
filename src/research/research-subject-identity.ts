@@ -76,15 +76,22 @@ export function resolveResearchSubject(
   };
 }
 
+export function normalizeResearchCommandDepth(command: ResearchCommand): ResearchCommand {
+  return command.jobType === "research" && command.depth !== "deep"
+    ? { ...command, depth: "deep" }
+    : command;
+}
+
 export function commandWithResolvedResearchSubject(
   command: ResearchCommand,
   resolvedSubject: ResolvedResearchSubject | undefined,
 ): ResearchCommand {
-  if (command.jobType !== "research" || resolvedSubject?.status !== "resolved") {
-    return command;
+  const normalized = normalizeResearchCommandDepth(command);
+  if (normalized.jobType !== "research" || resolvedSubject?.status !== "resolved") {
+    return normalized;
   }
   return {
-    ...command,
+    ...normalized,
     ...(resolvedSubject.subjectKey !== undefined ? { subjectKey: resolvedSubject.subjectKey } : {}),
     ...(resolvedSubject.predictionProxySymbol !== undefined
       ? { predictionProxySymbol: resolvedSubject.predictionProxySymbol }

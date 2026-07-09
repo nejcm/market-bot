@@ -39,6 +39,7 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots).toBe(
       `${NORMALIZED_DIR}/verified-representative-snapshots.json`,
     );
+    expect(RUN_ARTIFACT_FILES.themeCatalysts).toBe(`${NORMALIZED_DIR}/theme-catalysts.json`);
     expect(RUN_ARTIFACT_FILES.instrumentIdentity).toBe(
       `${NORMALIZED_DIR}/instrument-identity.json`,
     );

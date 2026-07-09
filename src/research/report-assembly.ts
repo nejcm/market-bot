@@ -18,6 +18,7 @@ import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
+import { extractCatalystDate } from "./catalyst-date";
 import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import { projectExtendedEvidenceReportExtras } from "./extended-evidence-projections";
 import type { HistoricalResearchContext } from "./historical-context";
@@ -364,12 +365,16 @@ function catalystCalendarExtra(input: {
   readonly predictions: readonly Prediction[];
   readonly collectedSources: CollectedSources;
 }): unknown {
-  const catalystItems = input.catalysts.map((catalyst) => ({
-    label: catalyst.text,
-    sourceIds: catalyst.sourceIds,
-    sourceStatus: "sourced catalyst",
-    researchRelevance: "watch item",
-  }));
+  const catalystItems = input.catalysts.map((catalyst) => {
+    const date = extractCatalystDate(catalyst.text);
+    return {
+      ...(date !== undefined ? { date } : {}),
+      label: catalyst.text,
+      sourceIds: catalyst.sourceIds,
+      sourceStatus: "sourced catalyst",
+      researchRelevance: "watch item",
+    };
+  });
   const macroItems = (input.collectedSources.marketContext?.items ?? []).map((item) => ({
     date: item.observedAt.slice(0, 10),
     label: item.title,
@@ -386,7 +391,12 @@ function catalystCalendarExtra(input: {
     sourceStatus: "observable forecast",
     researchRelevance: "prediction resolution",
   }));
-  const items = [...catalystItems, ...macroItems, ...predictionItems];
+  // Calendar items must cite sources (schema-enforced for traceability). Research
+  // Catalysts and predictions can be uncited; drop those rather than emit an
+  // Unsourced entry that would fail validation.
+  const items = [...catalystItems, ...macroItems, ...predictionItems].filter(
+    (item) => item.sourceIds.length > 0,
+  );
   return items.length === 0 ? undefined : { items };
 }
 
@@ -782,7 +792,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     collectedSources,
   );
   const catalystCalendar =
-    command.jobType === "market-overview"
+    command.jobType === "market-overview" || command.jobType === "research"
       ? catalystCalendarExtra({
           generatedAt,
           catalysts,

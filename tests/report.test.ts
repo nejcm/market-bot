@@ -946,6 +946,62 @@ describe("report schema and rendering", () => {
     ).toBeNull();
   });
 
+  test("emits a dated catalyst calendar for research runs", () => {
+    const source: Source = {
+      id: "web-biotech",
+      title: "Biotech catalyst coverage",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "news",
+      assetClass: "equity",
+    };
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "AI biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const depthProfile = assemblyDepthProfile("XBI");
+    const assembled = assembleResearchReport({
+      runId: "research-catalyst",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Biotech pipeline evidence is mixed.",
+        confidence: "medium",
+        catalysts: [
+          { text: "PDUFA decision expected 2026-11-01.", sourceIds: [source.id] },
+          { text: "Regulatory review ongoing with no set date.", sourceIds: [source.id] },
+        ],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({ resolvedSubject }),
+      depthProfile,
+      context: { ...assemblyContext(depthProfile), resolvedSubject },
+      sources: [source],
+    });
+
+    const calendar = assembled.extras?.catalystCalendar as
+      | { readonly items: readonly Record<string, unknown>[] }
+      | undefined;
+    expect(calendar?.items).toContainEqual({
+      date: "2026-11-01",
+      label: "PDUFA decision expected 2026-11-01.",
+      sourceIds: [source.id],
+      sourceStatus: "sourced catalyst",
+      researchRelevance: "watch item",
+    });
+    expect(calendar?.items).toContainEqual({
+      label: "Regulatory review ongoing with no set date.",
+      sourceIds: [source.id],
+      sourceStatus: "sourced catalyst",
+      researchRelevance: "watch item",
+    });
+    expect(renderMarkdownReport(assembled)).toContain("## Catalyst Calendar");
+  });
+
   test("rejects catalyst calendar entries with unknown source IDs", () => {
     expect(() =>
       validateResearchReport({

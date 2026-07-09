@@ -351,10 +351,43 @@ describe("run artifact writer manifests", () => {
         ...baseResearchFiles,
         RUN_ARTIFACT_FILES.resolvedSubject,
         RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots,
+        RUN_ARTIFACT_FILES.themeCatalysts,
       ].toSorted(),
     );
     expect(valueFor(writes, RUN_ARTIFACT_FILES.resolvedSubject)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots)).toEqual([]);
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.themeCatalysts)).toEqual([]);
+  });
+
+  test("research subject manifest writes assembled catalyst calendar items", () => {
+    const command: ResearchSubjectCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      depth: "deep",
+    };
+    const items = [
+      {
+        date: "2026-11-01",
+        label: "PDUFA decision expected 2026-11-01.",
+        sourceIds: ["web-biotech"],
+        sourceStatus: "sourced catalyst",
+        researchRelevance: "watch item",
+      },
+    ];
+    const writes = buildResearchRunManifest(
+      command,
+      config,
+      result({
+        report: researchReport({
+          jobType: "research",
+          extras: { catalystCalendar: { items } },
+        }),
+        trace: trace({ jobType: "research", depth: "deep" }),
+      }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.themeCatalysts)).toEqual(items);
   });
 
   test("research subject manifest writes representative verified snapshots", () => {

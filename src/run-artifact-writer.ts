@@ -30,6 +30,7 @@ import type {
 } from "./research/source-plan";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/spotlights";
 import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
+import { isRecord } from "./sources/guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
 
 export interface RunArtifactWrite {
@@ -127,6 +128,13 @@ function sidecarWrites(
   }));
 }
 
+// The Theme Catalyst Calendar items assembled onto the report extras, persisted
+// As their own normalized sidecar for research runs. Empty array when absent.
+function catalystCalendarItems(report: ResearchReport): readonly unknown[] {
+  const calendar = report.extras?.catalystCalendar;
+  return isRecord(calendar) && Array.isArray(calendar.items) ? calendar.items : [];
+}
+
 export function buildResearchRunManifest(
   command: ResearchCommand,
   config: AppConfig,
@@ -185,6 +193,11 @@ export function buildResearchRunManifest(
         file: RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots,
         kind: "json",
         value: result.collectedSources.verifiedRepresentativeSnapshots ?? [],
+      },
+      {
+        file: RUN_ARTIFACT_FILES.themeCatalysts,
+        kind: "json",
+        value: catalystCalendarItems(result.report),
       },
     );
   }

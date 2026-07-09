@@ -59,6 +59,189 @@ function context(): CollectContext {
 }
 
 describe("multi-news", () => {
+  test("runs optional thematic search while providers without it remain unchanged", async () => {
+    let genericOnlyCalls = 0;
+    let thematicCalls = 0;
+    const genericOnly: NewsAdapter = {
+      ...adapter("generic-only", [
+        source("generic", "generic-only", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+      ]),
+      collect: async () => {
+        genericOnlyCalls += 1;
+        return {
+          rawSnapshots: [],
+          newsSources: [
+            source("generic", "generic-only", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+          ],
+          sourceGaps: [],
+        };
+      },
+    };
+    const searchable: NewsAdapter = {
+      ...adapter("searchable", []),
+      searchThematic: async (_ctx, query) => {
+        thematicCalls += 1;
+        expect(query.terms).toEqual(["Biotechnology", "biotech"]);
+        return {
+          rawSnapshots: [],
+          newsSources: [
+            source(
+              "thematic",
+              "searchable",
+              "Biotech funding rebounds",
+              "2026-06-01T11:00:00.000Z",
+            ),
+          ],
+          sourceGaps: [],
+        };
+      },
+    };
+
+    const result = await createMultiNewsAdapter([genericOnly, searchable]).collect({
+      ...context(),
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "brief",
+      },
+      newsRelevanceTargets: [{ symbol: "XBI", name: "Biotechnology biotech" }],
+      thematicNewsQuery: {
+        subjectId: "biotech",
+        subjectLabel: "Biotechnology",
+        terms: ["Biotechnology", "biotech"],
+      },
+    });
+
+    expect(genericOnlyCalls).toBe(1);
+    expect(thematicCalls).toBe(1);
+    expect(result.newsSources[0]?.title).toBe("Biotech funding rebounds");
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 1,
+      relevantSelectedCount: 1,
+    });
+  });
+
+  test("keeps generic news when optional thematic search rejects", async () => {
+    const result = await createMultiNewsAdapter([
+      {
+        ...adapter("searchable", [
+          source("generic", "searchable", "Biotech markets gain", "2026-06-01T12:00:00.000Z"),
+        ]),
+        searchThematic: async () => {
+          throw new Error("thematic endpoint unavailable");
+        },
+      },
+    ]).collect({
+      ...context(),
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "brief",
+      },
+      newsRelevanceTargets: [{ symbol: "XBI", name: "Biotechnology biotech" }],
+      thematicNewsQuery: {
+        subjectId: "biotech",
+        subjectLabel: "Biotechnology",
+        terms: ["Biotechnology", "biotech"],
+      },
+    });
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.newsSources[0]?.title).toBe("Biotech markets gain");
+    expect(result.sourceGaps).toContainEqual({
+      source: "searchable-thematic-news",
+      provider: "searchable",
+      capability: "news",
+      cause: "fetch-failed",
+      evidenceQualityImpact: "no-cap",
+      message: "thematic endpoint unavailable",
+    });
+  });
+
+  test("falls back to subject-focused web search before seen filtering", async () => {
+    const requests: string[] = [];
+    const result = await createMultiNewsAdapter([
+      adapter("generic-only", [
+        source("generic", "generic-only", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+      ]),
+    ]).collect({
+      ...context(),
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "brief",
+      },
+      exaApiKey: "exa-key",
+      newsRelevanceTargets: [{ symbol: "XBI", name: "Biotechnology biotech" }],
+      thematicNewsQuery: {
+        subjectId: "biotech",
+        subjectLabel: "Biotechnology",
+        terms: ["Biotechnology", "biotech"],
+      },
+      request: {
+        ...context().request,
+        json: async ({ adapter: requestAdapter, url }) => {
+          requests.push(url);
+          return {
+            rawSnapshot: {
+              id: `raw-${requestAdapter}`,
+              adapter: requestAdapter,
+              fetchedAt: "2026-06-01T00:00:00.000Z",
+              payload: {},
+            },
+            payload: {
+              results: [
+                {
+                  id: "exa-1",
+                  url: "https://example.test/biotech-funding",
+                  title: "Biotech funding rebounds",
+                  publishedDate: "2026-05-31T00:00:00.000Z",
+                  summary: "Biotechnology companies raised new capital.",
+                  highlights: ["Biotech funding increased."],
+                },
+                {
+                  id: "exa-2",
+                  url: "https://example.test/biotechnology-trials",
+                  title: "Biotechnology trial readouts approach",
+                  publishedDate: "2026-05-30T00:00:00.000Z",
+                  summary: "Several biotechnology trials reported milestones.",
+                  highlights: ["Biotechnology trial results are due."],
+                },
+              ],
+            },
+          };
+        },
+      },
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(new URL(requests[0] ?? "").searchParams.get("searchType")).toBe("news");
+    expect(result.newsSources.map((item) => item.title)).toEqual([
+      "Biotech funding rebounds",
+      "Biotechnology trial readouts approach",
+      "Markets rise broadly",
+    ]);
+    expect(result.newsSources.slice(0, 2).every((item) => item.kind === "news")).toBe(true);
+    expect(result.newsAnalytics).toMatchObject({
+      fetchedNewsSourcesByProvider: { "generic-only": 1, exa: 2 },
+      relevantBeforeSeenFilterCount: 2,
+      relevantSelectedCount: 2,
+    });
+    expect(
+      result.modelInputSanitization?.entries.some(
+        (entry) => entry.provider === "exa" && entry.ingress === "web-gather",
+      ),
+    ).toBe(true);
+    expect(
+      result.modelInputSanitization?.entries.some(
+        (entry) => entry.provider === "exa" && entry.ingress === "news",
+      ),
+    ).toBe(false);
+  });
+
   test("prioritizes ticker-relevant news inside provider round-robin selection", async () => {
     const multi = createMultiNewsAdapter(
       [

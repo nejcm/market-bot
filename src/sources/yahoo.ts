@@ -225,7 +225,14 @@ export function yahooQuoteSourceRequest(
   };
 }
 
-type EquityRole = "gainers" | "losers" | "actives" | "regime" | "ticker" | "research-proxy";
+type EquityRole =
+  | "gainers"
+  | "losers"
+  | "actives"
+  | "regime"
+  | "ticker"
+  | "research-proxy"
+  | "research-snapshots";
 
 function isMoverRole(role: EquityRole): boolean {
   return role === "gainers" || role === "losers" || role === "actives";
@@ -240,6 +247,9 @@ function equityRoleAdapter(role: EquityRole): string {
   }
   if (role === "research-proxy") {
     return "yahoo-research-proxy";
+  }
+  if (role === "research-snapshots") {
+    return "yahoo-research-snapshots";
   }
   return `yahoo-${role}`;
 }
@@ -282,9 +292,24 @@ function benchmarkFromSnapshot(
   };
 }
 
+function researchSnapshotSymbols(ctx: CollectContext): readonly string[] {
+  const proxy =
+    ctx.command.jobType === "research"
+      ? cleanResearchProxySymbol(ctx.command.predictionProxySymbol)
+      : undefined;
+  return [
+    ...new Set(
+      [proxy, ...(ctx.requiredMarketSnapshotSymbols ?? [])].filter(
+        (symbol): symbol is string => symbol !== undefined && symbol !== "",
+      ),
+    ),
+  ];
+}
+
 function equityRequestsFor(
-  command: CollectContext["command"],
+  ctx: CollectContext,
 ): readonly { readonly role: EquityRole; readonly url: string }[] {
+  const { command } = ctx;
   if (isInstrumentCommand(command)) {
     return [
       { role: "ticker", url: yahooQuoteUrl(command.symbol ?? "") },
@@ -292,6 +317,13 @@ function equityRequestsFor(
     ];
   }
 
+  if ((ctx.requiredMarketSnapshotSymbols?.length ?? 0) > 0) {
+    const researchSymbols = researchSnapshotSymbols(ctx);
+    return [
+      { role: "research-snapshots", url: yahooQuoteUrl(researchSymbols.join(",")) },
+      { role: "regime", url: yahooQuoteUrl(EQUITY_REGIME_SYMBOLS.join(",")) },
+    ];
+  }
   const researchProxy =
     command.jobType === "research"
       ? cleanResearchProxySymbol(command.predictionProxySymbol)
@@ -442,9 +474,20 @@ async function enrichMoverBenchmarks(
   };
 }
 
+function researchSnapshotGap(symbol: string, cause: SourceGap["cause"], detail: string): SourceGap {
+  return sourceGap({
+    source: `yahoo-research-snapshot-${symbol.toLowerCase()}`,
+    message: `Yahoo market snapshot unavailable for ${symbol}: ${detail}`,
+    provider: "yahoo",
+    capability: "market-data",
+    ...(cause !== undefined ? { cause } : {}),
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResult> {
   const { command } = ctx;
-  const requests = equityRequestsFor(command);
+  const requests = equityRequestsFor(ctx);
 
   const results = await Promise.all(
     requests.map(async (req) => {
@@ -463,9 +506,27 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
   const fetched = results.filter((e): e is { role: EquityRole; result: FetchJsonResult } =>
     isFetchJsonResult(e.result),
   );
-  const sourceGaps = results
-    .map((e) => e.result)
-    .filter((r): r is SourceGap => !isFetchJsonResult(r));
+  const sourceGaps = results.flatMap(({ role, result }): readonly SourceGap[] => {
+    if (role !== "research-snapshots") {
+      return isFetchJsonResult(result) ? [] : [result];
+    }
+    const expectedSymbols = researchSnapshotSymbols(ctx);
+    if (!isFetchJsonResult(result)) {
+      return expectedSymbols.map((symbol) =>
+        researchSnapshotGap(symbol, result.cause, result.message),
+      );
+    }
+    const collectedSymbols = new Set(
+      normalizeYahooQuotePayload(result.payload, "equity", result.rawSnapshot.fetchedAt).map(
+        (snapshot) => snapshot.symbol.trim().toUpperCase(),
+      ),
+    );
+    return expectedSymbols
+      .filter((symbol) => !collectedSymbols.has(symbol))
+      .map((symbol) =>
+        researchSnapshotGap(symbol, "provider-data-missing", "provider response omitted symbol"),
+      );
+  });
 
   const isMarketUpdate = isMarketUpdateJobType(command.jobType);
   const moverResults = fetched.filter((e) => isMarketUpdate && isMoverRole(e.role));

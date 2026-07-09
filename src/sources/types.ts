@@ -39,7 +39,9 @@ export interface CollectContext {
   readonly fetchedAt: string;
   readonly newsLimit: number;
   readonly cryptoMoverLimit: number;
+  readonly requiredMarketSnapshotSymbols?: readonly string[];
   readonly newsRelevanceTargets?: readonly NewsRelevanceTarget[];
+  readonly thematicNewsQuery?: ThematicNewsQuery;
   readonly marketauxApiToken?: string;
   readonly finnhubApiToken?: string;
   readonly fredApiKey?: string;
@@ -61,6 +63,12 @@ export interface NewsRelevanceTarget {
   readonly symbol: string;
   readonly name?: string;
   readonly allowLowercaseSymbolMention?: boolean;
+}
+
+export interface ThematicNewsQuery {
+  readonly subjectId: string;
+  readonly subjectLabel: string;
+  readonly terms: readonly string[];
 }
 
 export interface MarketCollectionResult {
@@ -201,6 +209,10 @@ export interface NewsAdapter {
     fetchedAt: string,
   ) => readonly Source[];
   readonly collect: (ctx: CollectContext) => Promise<NewsCollectionResult>;
+  readonly searchThematic?: (
+    ctx: CollectContext,
+    query: ThematicNewsQuery,
+  ) => Promise<NewsCollectionResult>;
 }
 
 export interface ExtendedEvidenceAdapter {

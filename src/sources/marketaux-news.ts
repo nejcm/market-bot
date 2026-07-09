@@ -15,6 +15,7 @@ import {
   type CollectContext,
   type NewsAdapter,
   type NewsCollectionResult,
+  type ThematicNewsQuery,
 } from "./types";
 
 const MARKETAUX_NEWS_URL = "https://api.marketaux.com/v1/news/all";
@@ -24,6 +25,7 @@ function buildMarketAuxUrl(
   limit: number,
   token: string,
   fetchedAt: string,
+  thematicSearch?: string,
 ): string {
   const params: Record<string, string> = {
     api_token: token,
@@ -36,7 +38,7 @@ function buildMarketAuxUrl(
     params.symbols = command.symbol;
     params.filter_entities = "true";
   } else {
-    params.search = newsQuery(command);
+    params.search = thematicSearch ?? newsQuery(command);
   }
 
   return `${MARKETAUX_NEWS_URL}?${encodeQuery(params)}`;
@@ -95,7 +97,11 @@ function normalizeNews(
     .filter((source): source is Source => source !== undefined);
 }
 
-async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
+async function collectQuery(
+  ctx: CollectContext,
+  adapter: string,
+  thematicSearch?: string,
+): Promise<NewsCollectionResult> {
   const { command, fetchedAt, newsLimit } = ctx;
 
   if (ctx.marketauxApiToken === undefined) {
@@ -116,8 +122,8 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   }
 
   const fetched = await ctx.request.json({
-    url: buildMarketAuxUrl(command, newsLimit, ctx.marketauxApiToken, fetchedAt),
-    adapter: "marketaux-news",
+    url: buildMarketAuxUrl(command, newsLimit, ctx.marketauxApiToken, fetchedAt, thematicSearch),
+    adapter,
   });
 
   if (!isFetchJsonResult(fetched)) {
@@ -141,9 +147,25 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   };
 }
 
+async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
+  return collectQuery(ctx, "marketaux-news");
+}
+
+async function searchThematic(
+  ctx: CollectContext,
+  query: ThematicNewsQuery,
+): Promise<NewsCollectionResult> {
+  if (ctx.marketauxApiToken === undefined) {
+    return { rawSnapshots: [], newsSources: [], sourceGaps: [] };
+  }
+  const search = `(${query.terms.map((term) => `"${term}"`).join("|")})`;
+  return collectQuery(ctx, "marketaux-news-thematic", search);
+}
+
 export const marketAuxNewsAdapter: NewsAdapter = {
   name: "marketaux-news",
   provider: "marketaux",
   normalizeNews,
   collect: collectNews,
+  searchThematic,
 };

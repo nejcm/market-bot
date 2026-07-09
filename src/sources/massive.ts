@@ -108,12 +108,19 @@ export function normalizeMassiveSnapshotPayload(
     .filter((snapshot): snapshot is MarketSnapshot => snapshot !== undefined);
 }
 
-function uniqueEquitySymbols(snapshots: readonly MarketSnapshot[]): string {
+function uniqueEquitySymbols(
+  snapshots: readonly MarketSnapshot[],
+  additionalSymbols: readonly string[] = [],
+): string {
   return [
     ...new Set(
-      snapshots
-        .filter((snapshot) => snapshot.assetClass === "equity")
-        .map((snapshot) => snapshot.symbol.trim().toUpperCase())
+      [
+        ...snapshots
+          .filter((snapshot) => snapshot.assetClass === "equity")
+          .map((snapshot) => snapshot.symbol),
+        ...additionalSymbols,
+      ]
+        .map((symbol) => symbol.trim().toUpperCase())
         .filter((symbol) => symbol !== ""),
     ),
   ].join(",");
@@ -174,7 +181,13 @@ async function collectSupplementalMarket(
     return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [] };
   }
 
-  const symbols = uniqueEquitySymbols(primarySnapshots);
+  const primarySymbols = new Set(
+    primarySnapshots.map((snapshot) => snapshot.symbol.trim().toUpperCase()),
+  );
+  const fallbackSymbols = (ctx.requiredMarketSnapshotSymbols ?? []).filter(
+    (symbol) => !primarySymbols.has(symbol),
+  );
+  const symbols = uniqueEquitySymbols(primarySnapshots, fallbackSymbols);
   if (symbols === "") {
     return { rawSnapshots: [], supplementalMarketSnapshots: [], sourceGaps: [] };
   }
@@ -188,17 +201,44 @@ async function collectSupplementalMarket(
     return {
       rawSnapshots: [],
       supplementalMarketSnapshots: [],
-      sourceGaps: [massiveSupplementalMarketGap(fetched)],
+      sourceGaps: [
+        massiveSupplementalMarketGap(fetched),
+        ...fallbackSymbols.map((symbol) =>
+          sourceGap({
+            source: `massive-research-snapshot-${symbol.toLowerCase()}`,
+            message: `Massive market snapshot unavailable for ${symbol}: ${fetched.message}`,
+            provider: MASSIVE_PROVIDER,
+            capability: "market-data",
+            ...(fetched.cause !== undefined ? { cause: fetched.cause } : {}),
+            evidenceQualityImpact: "no-cap",
+          }),
+        ),
+      ],
     };
   }
 
+  const supplementalMarketSnapshots = normalizeMassiveSnapshotPayload(
+    fetched.payload,
+    fetched.rawSnapshot.fetchedAt,
+  );
+  const collectedSymbols = new Set(
+    supplementalMarketSnapshots.map((snapshot) => snapshot.symbol.trim().toUpperCase()),
+  );
   return {
     rawSnapshots: [fetched.rawSnapshot],
-    supplementalMarketSnapshots: normalizeMassiveSnapshotPayload(
-      fetched.payload,
-      fetched.rawSnapshot.fetchedAt,
-    ),
-    sourceGaps: [],
+    supplementalMarketSnapshots,
+    sourceGaps: fallbackSymbols
+      .filter((symbol) => !collectedSymbols.has(symbol))
+      .map((symbol) =>
+        sourceGap({
+          source: `massive-research-snapshot-${symbol.toLowerCase()}`,
+          message: `Massive market snapshot unavailable for ${symbol}: provider response omitted symbol`,
+          provider: MASSIVE_PROVIDER,
+          capability: "market-data",
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "no-cap",
+        }),
+      ),
   };
 }
 

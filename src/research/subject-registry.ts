@@ -498,20 +498,20 @@ function supportedSubjectSummaries(
   return registry.map((entry) => subjectSummary(entry));
 }
 
-function unresolvedSubjectResolution(input: {
+function unresolvedSubjectResolution(params: {
   readonly input: string;
   readonly normalizedInput: string;
   readonly reason: string;
   readonly registry: readonly ResearchSubjectRegistryEntry[];
 }): ResearchSubjectProxyResolution {
-  const closestMatch = closestSubjectMatch(input.normalizedInput, input.registry);
+  const closestMatch = closestSubjectMatch(params.normalizedInput, params.registry);
   return {
-    input: input.input,
-    normalizedInput: input.normalizedInput,
+    input: params.input,
+    normalizedInput: params.normalizedInput,
     status: "unresolved",
     canEmitPredictions: false,
-    reason: input.reason,
-    supportedSubjects: supportedSubjectSummaries(input.registry),
+    reason: params.reason,
+    supportedSubjects: supportedSubjectSummaries(params.registry),
     ...(closestMatch !== undefined ? { closestMatch } : {}),
   };
 }
@@ -520,39 +520,23 @@ function closestSubjectMatch(
   normalizedInput: string,
   registry: readonly ResearchSubjectRegistryEntry[],
 ): ResearchSubjectSummary | undefined {
-  let bestSubject: ResearchSubjectRegistryEntry | undefined = undefined;
-  let bestAliasLength = 0;
-  let ambiguous = false;
-
-  for (const entry of registry) {
-    const longestAlias = Math.max(
-      0,
-      ...aliasesFor(entry)
-        .filter(
-          (alias) => containsAlias(normalizedInput, alias) || containsAlias(alias, normalizedInput),
-        )
-        .map((alias) => alias.length),
-    );
-    if (longestAlias === 0 || longestAlias < bestAliasLength) {
-      continue;
-    }
-    if (longestAlias > bestAliasLength) {
-      bestSubject = entry;
-      bestAliasLength = longestAlias;
-      ambiguous = false;
-      continue;
-    }
-    if (bestSubject !== undefined && bestSubject.subjectKey !== entry.subjectKey) {
-      ambiguous = true;
-    }
-  }
-
-  return bestSubject !== undefined && !ambiguous ? subjectSummary(bestSubject) : undefined;
+  const subject = bestAliasMatch(
+    registry,
+    (alias) => containsAlias(normalizedInput, alias) || containsAlias(alias, normalizedInput),
+  );
+  return subject !== undefined && subject !== "ambiguous" ? subjectSummary(subject) : undefined;
 }
 
 function findEmbeddedAliasMatch(
   normalizedInput: string,
   registry: readonly ResearchSubjectRegistryEntry[],
+): ResearchSubjectRegistryEntry | "ambiguous" | undefined {
+  return bestAliasMatch(registry, (alias) => containsAlias(normalizedInput, alias));
+}
+
+function bestAliasMatch(
+  registry: readonly ResearchSubjectRegistryEntry[],
+  aliasMatches: (alias: string) => boolean,
 ): ResearchSubjectRegistryEntry | "ambiguous" | undefined {
   let bestSubject: ResearchSubjectRegistryEntry | undefined = undefined;
   let bestAliasLength = 0;
@@ -562,7 +546,7 @@ function findEmbeddedAliasMatch(
     const longestAlias = Math.max(
       0,
       ...aliasesFor(entry)
-        .filter((alias) => containsAlias(normalizedInput, alias))
+        .filter((alias) => aliasMatches(alias))
         .map((alias) => alias.length),
     );
     if (longestAlias === 0 || longestAlias < bestAliasLength) {

@@ -96,7 +96,12 @@ describe("research subject registry", () => {
       status: "unresolved",
       canEmitPredictions: false,
       reason: "Ambiguous checked-in subject registry match",
+      supportedSubjects: [
+        { subjectKey: "cloud-data", displayName: "Cloud Data" },
+        { subjectKey: "green-tech", displayName: "Green Tech" },
+      ],
     });
+    expect(result.closestMatch).toBeUndefined();
   });
 
   test("resolves from the raw subject instead of caller-provided identity", () => {

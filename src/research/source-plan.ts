@@ -14,6 +14,10 @@ import {
   type ResolvedResearchSubject,
 } from "./research-subject-identity";
 
+function normalizedSymbol(symbol: string): string {
+  return symbol.trim().toUpperCase();
+}
+
 export const EVIDENCE_LANES = [
   "market-data",
   "supplemental-market",
@@ -243,7 +247,7 @@ function researchRepresentativeSymbols(
   if (collectedSources.resolvedSubject?.status !== "resolved" || representatives === undefined) {
     return undefined;
   }
-  return representatives.map((instrument) => instrument.symbol.toUpperCase());
+  return representatives.map((instrument) => normalizedSymbol(instrument.symbol)).filter(Boolean);
 }
 
 // The representative-only filter below relies on `resolvedSubject` being present
@@ -255,12 +259,12 @@ function marketDataSourceIds(collectedSources: CollectedSources): readonly strin
   if (representativeSymbols !== undefined) {
     const allowed = new Set(representativeSymbols);
     const marketIds = collectedSources.marketSnapshots
-      .filter((snapshot) => allowed.has(snapshot.symbol.toUpperCase()))
+      .filter((snapshot) => allowed.has(normalizedSymbol(snapshot.symbol)))
       .map((snapshot) => snapshot.sourceId);
     const verifiedIds =
       collectedSources.verifiedRepresentativeSnapshots
-        ?.filter((snapshot) => allowed.has(snapshot.symbol.toUpperCase()))
-        .map((snapshot) => verifiedSnapshotSourceId(snapshot.symbol)) ?? [];
+        ?.filter((snapshot) => allowed.has(normalizedSymbol(snapshot.symbol)))
+        .map((snapshot) => verifiedSnapshotSourceId(normalizedSymbol(snapshot.symbol))) ?? [];
     return [...marketIds, ...verifiedIds];
   }
   return [
@@ -468,7 +472,8 @@ function ledgerEntriesForLane(
       ...(collectedSources.verifiedRepresentativeSnapshots ?? []),
     ];
     const observedAt = verifiedSnapshots.find(
-      (verifiedSnapshot) => verifiedSnapshotSourceId(verifiedSnapshot.symbol) === id,
+      (verifiedSnapshot) =>
+        verifiedSnapshotSourceId(normalizedSymbol(verifiedSnapshot.symbol)) === id,
     )?.fetchedAt;
     return {
       id,
@@ -558,16 +563,16 @@ function missingRepresentativeMarketDataGaps(
     return [];
   }
   const liveSymbols = new Set(
-    collectedSources.marketSnapshots.map((snapshot) => snapshot.symbol.toUpperCase()),
+    collectedSources.marketSnapshots.map((snapshot) => normalizedSymbol(snapshot.symbol)),
   );
   const verifiedSymbols = new Set(
     (collectedSources.verifiedRepresentativeSnapshots ?? []).map((snapshot) =>
-      snapshot.symbol.toUpperCase(),
+      normalizedSymbol(snapshot.symbol),
     ),
   );
   return representatives
     .filter((instrument) => {
-      const symbol = instrument.symbol.toUpperCase();
+      const symbol = normalizedSymbol(instrument.symbol);
       return !liveSymbols.has(symbol) && !verifiedSymbols.has(symbol);
     })
     .map((instrument) => {
@@ -575,7 +580,7 @@ function missingRepresentativeMarketDataGaps(
         instrument.name === undefined
           ? instrument.symbol
           : `${instrument.name} (${instrument.symbol})`;
-      return `researchRepresentative: no live market snapshot for representative ${label}`;
+      return `researchRepresentative: no live or verified snapshot for representative ${label}`;
     });
 }
 

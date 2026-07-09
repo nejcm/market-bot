@@ -256,6 +256,44 @@ describe("representative snapshot collection", () => {
     );
   });
 
+  test("keeps successful representative verified snapshots when some charts fail", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return Response.json(yahooPayload(requestedSymbols(url)));
+      }
+      if (url.includes("/v8/finance/chart/")) {
+        const symbol = decodeURIComponent(new URL(url).pathname.split("/").at(-1) ?? "");
+        if (symbol.toUpperCase() === "GILD" || symbol.toUpperCase() === "VRTX") {
+          throw new Error("chart unavailable");
+        }
+        return Response.json(chartPayload(symbol));
+      }
+      return Response.json({ news: [] });
+    };
+
+    const result = await collectSources(command, sourceOptions, {
+      now: new Date(generatedAt),
+      fetchImpl,
+      retryDelaysMs: [],
+      resolvedSubject: resolvedBiotech(),
+    });
+
+    expect(
+      result.verifiedRepresentativeSnapshots?.map((snapshot) => snapshot.symbol).toSorted(),
+    ).toEqual(["AMGN", "XBI"]);
+    expect(
+      result.sourceGaps
+        .filter(
+          (gap) => gap.source === "yahoo-verified-chart" && gap.evidenceQualityImpact === "no-cap",
+        )
+        .map((gap) => gap.message),
+    ).toEqual([
+      expect.stringContaining("research representative GILD"),
+      expect.stringContaining("research representative VRTX"),
+    ]);
+  });
+
   test("falls back after Yahoo, promotes Massive snapshots, and preserves provider provenance", async () => {
     const providerOrder: string[] = [];
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {

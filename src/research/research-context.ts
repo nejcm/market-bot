@@ -55,6 +55,10 @@ export type {
   WebGatherContext,
 };
 
+function normalizedSymbol(symbol: string): string {
+  return symbol.trim().toUpperCase();
+}
+
 // ---------------------------------------------------------------------------
 // Deterministic source gaps — disclosed in the prompt and in the final report
 // ---------------------------------------------------------------------------
@@ -95,27 +99,29 @@ export function deterministicSourceGaps(
       ? [missingVerifiedSnapshotGapText(command.symbol)]
       : [];
 
-  // Research subject: flag representative instruments with no live market snapshot so the
+  // Research subject: flag representative instruments with no live or verified snapshot so the
   // Model can cite the gap instead of silently substituting a mover (Phase 2.2).
   const researchRepresentativeGaps: string[] = [];
   if (command.jobType === "research") {
     const { resolvedSubject } = collectedSources;
     if (resolvedSubject?.representativeInstruments !== undefined) {
       const liveSymbols = new Set(
-        collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
+        collectedSources.marketSnapshots.map((s) => normalizedSymbol(s.symbol)),
       );
       const verifiedSymbols = new Set(
-        (collectedSources.verifiedRepresentativeSnapshots ?? []).map((s) => s.symbol.toUpperCase()),
+        (collectedSources.verifiedRepresentativeSnapshots ?? []).map((s) =>
+          normalizedSymbol(s.symbol),
+        ),
       );
       for (const instrument of resolvedSubject.representativeInstruments) {
-        const symbol = instrument.symbol.toUpperCase();
+        const symbol = normalizedSymbol(instrument.symbol);
         if (!liveSymbols.has(symbol) && !verifiedSymbols.has(symbol)) {
           const label =
             instrument.name !== undefined
               ? `${instrument.name} (${instrument.symbol})`
               : instrument.symbol;
           researchRepresentativeGaps.push(
-            `researchRepresentative: no live market snapshot for representative ${label}; cite the registry sourceId instead`,
+            `researchRepresentative: no live or verified snapshot for representative ${label}; cite the registry sourceId instead`,
           );
         }
       }
@@ -372,7 +378,7 @@ function buildEvidencePayload(
       resolvedSubject.sources !== undefined
     ) {
       const liveSymbols = new Set(
-        collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
+        collectedSources.marketSnapshots.map((s) => normalizedSymbol(s.symbol)),
       );
       registrySubjectBlock.registrySubject = {
         subjectKey: resolvedSubject.subjectKey,
@@ -382,7 +388,7 @@ function buildEvidencePayload(
           ...(instrument.name !== undefined ? { name: instrument.name } : {}),
           instrumentType: instrument.instrumentType,
           sourceIds: instrument.sourceIds,
-          hasLiveSnapshot: liveSymbols.has(instrument.symbol.toUpperCase()),
+          hasLiveSnapshot: liveSymbols.has(normalizedSymbol(instrument.symbol)),
         })),
         provenanceSources: resolvedSubject.sources.map((src) => ({
           sourceId: src.sourceId,

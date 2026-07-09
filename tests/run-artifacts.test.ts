@@ -296,6 +296,37 @@ describe("loadRunArtifact", () => {
     expect(artifact?.verifiedRepresentativeSnapshots?.map((item) => item.symbol)).toEqual(["GILD"]);
   });
 
+  test("loads theme catalysts from sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "research-theme-catalysts");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({ runId: "research-theme-catalysts", jobType: "research" }),
+    );
+    await writeJson(join(runDir, "normalized", "theme-catalysts.json"), [
+      {
+        date: "2026-11-01",
+        label: "PDUFA decision expected 2026-11-01.",
+        sourceIds: ["web-biotech"],
+        sourceStatus: "sourced catalyst",
+        researchRelevance: "watch item",
+      },
+      { sourceIds: ["web-biotech"] },
+    ]);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.themeCatalysts).toEqual([
+      {
+        date: "2026-11-01",
+        label: "PDUFA decision expected 2026-11-01.",
+        sourceIds: ["web-biotech"],
+        sourceStatus: "sourced catalyst",
+        researchRelevance: "watch item",
+      },
+    ]);
+  });
+
   test("loads current business framework v2 atomic gaps", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "business-framework-v2");

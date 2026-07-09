@@ -792,6 +792,8 @@ export async function collectSources(
     command.depth === "deep" &&
     requiredMarketSnapshotSymbols.length > 0
       ? Promise.all(
+          // Fetch OHLCV/indicator evidence for every representative, even when a live quote exists.
+          // The verified chart snapshot is a richer citeable source.
           requiredMarketSnapshotSymbols.map(async (symbol) => ({
             symbol,
             result: await collectVerifiedMarketSnapshot(ctx, symbol, ctx.fetchedAt.slice(0, 10)),

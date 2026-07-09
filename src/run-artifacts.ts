@@ -111,6 +111,7 @@ export interface RunArtifact {
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
+  readonly themeCatalysts?: readonly ThemeCatalystItem[];
   readonly sourcePlan?: SourcePlanArtifact;
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
@@ -148,6 +149,14 @@ export interface LoadedRunArtifact {
 interface JsonFileResult {
   readonly status: ArtifactFileStatus;
   readonly value?: unknown;
+}
+
+export interface ThemeCatalystItem {
+  readonly label: string;
+  readonly sourceIds: readonly string[];
+  readonly date?: string;
+  readonly sourceStatus?: string;
+  readonly researchRelevance?: string;
 }
 
 const MISS_AUTOPSY_CAUSES: ReadonlySet<string> = new Set<MissAutopsyCause>([
@@ -545,6 +554,32 @@ function readScores(value: unknown): readonly PredictionScore[] | undefined {
         // Preserve the version stamped on already-resolved scores. Undefined for legacy files.
         ...(typeof item.scoringVersion === "number" ? { scoringVersion: item.scoringVersion } : {}),
         evidence: item.evidence,
+      },
+    ];
+  });
+}
+
+function readThemeCatalysts(value: unknown): readonly ThemeCatalystItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly ThemeCatalystItem[] => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const label = readString(item, "label");
+    if (label === undefined) {
+      return [];
+    }
+    return [
+      {
+        label,
+        sourceIds: readStringArray(item, "sourceIds") ?? [],
+        ...(typeof item.date === "string" ? { date: item.date } : {}),
+        ...(typeof item.sourceStatus === "string" ? { sourceStatus: item.sourceStatus } : {}),
+        ...(typeof item.researchRelevance === "string"
+          ? { researchRelevance: item.researchRelevance }
+          : {}),
       },
     ];
   });
@@ -1098,6 +1133,7 @@ const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const MARKET_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.marketSnapshots;
 const VERIFIED_MARKET_SNAPSHOT_FILE = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
 const VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots;
+const THEME_CATALYSTS_FILE = RUN_ARTIFACT_FILES.themeCatalysts;
 const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
@@ -1127,6 +1163,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const verifiedRepresentativeSnapshotsFile = await readJsonFile(
     join(runDir, VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE),
   );
+  const themeCatalystsFile = await readJsonFile(join(runDir, THEME_CATALYSTS_FILE));
   const sourcePlanFile = await readJsonFile(join(runDir, SOURCE_PLAN_FILE));
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
@@ -1145,6 +1182,8 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     verifiedRepresentativeSnapshotsFile.status === "ok"
       ? readVerifiedMarketSnapshots(verifiedRepresentativeSnapshotsFile.value)
       : readVerifiedMarketSnapshots(report.verifiedRepresentativeSnapshots);
+  const themeCatalysts =
+    themeCatalystsFile.status === "ok" ? readThemeCatalysts(themeCatalystsFile.value) : [];
   const sourcePlan =
     sourcePlanFile.status === "ok" ? readSourcePlan(sourcePlanFile.value) : undefined;
   const evidenceLanes =
@@ -1173,6 +1212,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       marketSnapshots: readSnapshots(snapshotFile.value),
       ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
       ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
+      ...(themeCatalysts.length > 0 ? { themeCatalysts } : {}),
       ...(sourcePlan !== undefined ? { sourcePlan } : {}),
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),

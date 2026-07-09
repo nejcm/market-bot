@@ -11,7 +11,7 @@ import {
 } from "../src/history/artifacts";
 import { readInstrumentTimeline } from "../src/history/timeline-reader";
 import type { ModelProvider } from "../src/model/types";
-import { prediction, researchReport } from "./support/fixtures";
+import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -403,5 +403,42 @@ describe("history artifacts", () => {
       await readFile(join(rootDir, "history", "instruments", "equity-AAPL.json"), "utf8"),
     ) as { readonly entries: readonly { readonly verifiedMarketSnapshot?: unknown }[] };
     expect(timeline.entries[0]?.verifiedMarketSnapshot).toBeUndefined();
+  });
+
+  test("merges verified representative snapshots into matching instrument timelines", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-verified-reps-"));
+    const dataDir = join(rootDir, "runs");
+    const runDir = join(dataDir, "research-biotech");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "research-biotech",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-06-05T00:00:00.000Z",
+        sources: [
+          {
+            id: "verified-snapshot-AMGN",
+            title: "AMGN verified market snapshot",
+            fetchedAt: "2026-06-05T00:00:00.000Z",
+            kind: "market-data",
+            assetClass: "equity",
+            symbol: "AMGN",
+            provider: "yahoo",
+          },
+        ],
+      }),
+    );
+    writeJson(join(runDir, "normalized", "verified-representative-snapshots.json"), [
+      verifiedMarketSnapshot({ symbol: "AMGN" }),
+    ]);
+
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const timeline = JSON.parse(
+      await readFile(join(rootDir, "history", "instruments", "equity-AMGN.json"), "utf8"),
+    ) as { readonly entries: readonly { readonly verifiedMarketSnapshot?: { symbol?: string } }[] };
+    expect(timeline.entries[0]?.verifiedMarketSnapshot?.symbol).toBe("AMGN");
   });
 });

@@ -338,6 +338,71 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toEqual([]);
   });
 
+  test("honors zero base tool-call budget as disabled for theme overrides", async () => {
+    let generated = false;
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "deep",
+      },
+      config: {
+        ...themeBudgetConfig,
+        webGatherOptions: {
+          ...themeBudgetConfig.webGatherOptions,
+          maxToolCalls: 0,
+        },
+      },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => {
+        generated = true;
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(generated).toBe(false);
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toEqual([]);
+  });
+
+  test("honors zero base source budget without emitting theme missing-key gap", async () => {
+    let generated = false;
+    const sourceOptionsWithoutExa = { ...themeBudgetConfig.sourceOptions };
+    delete sourceOptionsWithoutExa.exaApiKey;
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "deep",
+      },
+      config: {
+        ...themeBudgetConfig,
+        sourceOptions: sourceOptionsWithoutExa,
+        webGatherOptions: {
+          ...themeBudgetConfig.webGatherOptions,
+          sourceBudget: 0,
+        },
+      },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => {
+        generated = true;
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(generated).toBe(false);
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources.sourceGaps).toEqual([]);
+  });
+
   test("applies the theme web-gather budget for thematic runs", async () => {
     const seen: ResearchContext["webGather"][] = [];
     await runWebGatherLoop({

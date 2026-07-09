@@ -454,9 +454,16 @@ function effectiveWebGatherOptions(
   config: AppConfig,
 ): AppConfig["webGatherOptions"] {
   if (command.jobType === "research" && config.webGatherOptions.themeOverrides !== undefined) {
+    if (webGatherBudgetDisabled(config.webGatherOptions)) {
+      return config.webGatherOptions;
+    }
     return config.webGatherOptions.themeOverrides;
   }
   return config.webGatherOptions;
+}
+
+function webGatherBudgetDisabled(options: AppConfig["webGatherOptions"]): boolean {
+  return options.maxRounds <= 0 || options.maxToolCalls <= 0 || options.sourceBudget <= 0;
 }
 
 function isWebGatherScope(command: ResearchCommand): boolean {
@@ -475,9 +482,7 @@ function webGatherSearchUnavailableGap(
     !isWebGatherScope(command) ||
     config.webGatherDisabled ||
     config.sourceOptions.exaApiKey !== undefined ||
-    webGatherOptions.maxRounds <= 0 ||
-    webGatherOptions.maxToolCalls <= 0 ||
-    webGatherOptions.sourceBudget <= 0
+    webGatherBudgetDisabled(webGatherOptions)
   ) {
     return undefined;
   }

@@ -244,9 +244,9 @@ describe("source plan", () => {
       evidenceClass: "core",
       coveredSourceIds: ["market-yahoo-equity-xbi"],
       gapText: [
-        "researchRepresentative: no live market snapshot for representative Amgen (AMGN)",
-        "researchRepresentative: no live market snapshot for representative Gilead Sciences (GILD)",
-        "researchRepresentative: no live market snapshot for representative Vertex Pharmaceuticals (VRTX)",
+        "researchRepresentative: no live or verified snapshot for representative Amgen (AMGN)",
+        "researchRepresentative: no live or verified snapshot for representative Gilead Sciences (GILD)",
+        "researchRepresentative: no live or verified snapshot for representative Vertex Pharmaceuticals (VRTX)",
       ],
     });
     expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(1);
@@ -295,6 +295,50 @@ describe("source plan", () => {
       plan.sourceLedger.sources.find((source) => source.id === "verified-snapshot-AMGN")
         ?.observedAt,
     ).toBe("2026-05-19T00:00:00.000Z");
+  });
+
+  test("normalizes representative symbols before matching snapshots", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const representativeInstruments = (resolvedSubject.representativeInstruments ?? []).map(
+      (instrument) =>
+        instrument.symbol === "AMGN" ? { ...instrument, symbol: " amgn " } : instrument,
+    );
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        resolvedSubject: {
+          ...resolvedSubject,
+          representativeInstruments,
+        },
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: " xbi " })],
+        verifiedRepresentativeSnapshots: [
+          verifiedMarketSnapshot({ symbol: " AMGN " }),
+          verifiedMarketSnapshot({ symbol: "gild" }),
+          verifiedMarketSnapshot({ symbol: "VRTX" }),
+        ],
+        newsSources: [newsSource({ id: "news-biotech-1", provider: "yahoo-news", kind: "news" })],
+      }),
+      resolvedSubject,
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
+      status: "covered",
+      coveredSourceIds: [
+        "market-yahoo-equity-xbi",
+        "verified-snapshot-AMGN",
+        "verified-snapshot-GILD",
+        "verified-snapshot-VRTX",
+      ],
+      gapText: [],
+    });
   });
 
   test("marks thematic news as a gap when selected coverage is mostly generic", () => {

@@ -222,7 +222,7 @@ async function collectSupplementalMarket(
     fetched.rawSnapshot.fetchedAt,
   );
   const collectedSymbols = new Set(
-    supplementalMarketSnapshots.map((snapshot) => snapshot.symbol.toUpperCase()),
+    supplementalMarketSnapshots.map((snapshot) => snapshot.symbol.trim().toUpperCase()),
   );
   return {
     rawSnapshots: [fetched.rawSnapshot],

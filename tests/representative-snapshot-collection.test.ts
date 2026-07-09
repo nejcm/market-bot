@@ -153,6 +153,11 @@ describe("representative snapshot collection", () => {
         ?.identity?.aliases?.map((alias) => alias.provider),
     ).toContain("massive");
     expect(
+      result.supplementalMarketSnapshots.filter((snapshot) =>
+        ["AMGN", "GILD", "VRTX"].includes(snapshot.symbol),
+      ),
+    ).toEqual([]);
+    expect(
       result.sourceGaps.filter((gap) => gap.source.startsWith("yahoo-research-snapshot-")),
     ).toHaveLength(3);
     expect(qualityFor(result, resolvedSubject).label).toBe("medium");

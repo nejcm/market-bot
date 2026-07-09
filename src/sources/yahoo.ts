@@ -518,7 +518,7 @@ async function collectEquity(ctx: CollectContext): Promise<MarketCollectionResul
     }
     const collectedSymbols = new Set(
       normalizeYahooQuotePayload(result.payload, "equity", result.rawSnapshot.fetchedAt).map(
-        (snapshot) => snapshot.symbol.toUpperCase(),
+        (snapshot) => snapshot.symbol.trim().toUpperCase(),
       ),
     );
     return expectedSymbols

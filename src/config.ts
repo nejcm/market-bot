@@ -36,10 +36,19 @@ export interface EvidenceRequestOptions {
   readonly sourceBudget: number;
 }
 
-export interface WebGatherOptions {
+export interface WebGatherBudget {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
+}
+
+export interface WebGatherOptions extends WebGatherBudget {
+  /**
+   * Additive budget applied to thematic (`subjectKind === "theme"`) runs only, so
+   * landscape/category angles do not cannibalize candidate-list gathering. When
+   * absent, thematic runs fall back to the base budget.
+   */
+  readonly themeOverrides?: WebGatherBudget;
 }
 
 export interface AlphaSearchOptions {
@@ -163,6 +172,8 @@ const DEFAULT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT = 40;
 const DEFAULT_WEB_GATHER_MAX_ROUNDS = 2;
 const DEFAULT_WEB_GATHER_MAX_TOOL_CALLS = 4;
 const DEFAULT_WEB_GATHER_SOURCE_BUDGET = 8;
+const DEFAULT_WEB_GATHER_THEME_MAX_TOOL_CALLS = 6;
+const DEFAULT_WEB_GATHER_THEME_SOURCE_BUDGET = 12;
 const DEFAULT_WEB_PROFILE_COMPANY_REUSE_DAYS = 30;
 const DEFAULT_WEB_PROFILE_CRYPTO_ASSET_REUSE_DAYS = 7;
 const DEFAULT_WEB_PROFILE_THEME_REUSE_DAYS = 7;
@@ -617,6 +628,25 @@ export function resolveConfig(
         env.MARKET_BOT_WEB_GATHER_SOURCE_BUDGET,
         DEFAULT_WEB_GATHER_SOURCE_BUDGET,
       ),
+      themeOverrides: {
+        /*
+         * Two rounds already lets the model react to round-1 results; theme runs
+         * widen only the additive tool-call and source budgets, and still honor
+         * the shared MARKET_BOT_WEB_GATHER_MAX_ROUNDS disable.
+         */
+        maxRounds: readNonNegativeInteger(
+          env.MARKET_BOT_WEB_GATHER_MAX_ROUNDS,
+          DEFAULT_WEB_GATHER_MAX_ROUNDS,
+        ),
+        maxToolCalls: readNonNegativeInteger(
+          env.MARKET_BOT_WEB_GATHER_THEME_MAX_TOOL_CALLS,
+          DEFAULT_WEB_GATHER_THEME_MAX_TOOL_CALLS,
+        ),
+        sourceBudget: readNonNegativeInteger(
+          env.MARKET_BOT_WEB_GATHER_THEME_SOURCE_BUDGET,
+          DEFAULT_WEB_GATHER_THEME_SOURCE_BUDGET,
+        ),
+      },
     },
     webGatherDisabled: readBoolean(env.MARKET_BOT_WEB_GATHER_DISABLE),
     webProfileReuseDaysBySubjectKind: {

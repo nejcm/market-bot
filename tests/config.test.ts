@@ -199,6 +199,11 @@ describe("resolveConfig", () => {
       maxRounds: 2,
       maxToolCalls: 4,
       sourceBudget: 8,
+      themeOverrides: {
+        maxRounds: 2,
+        maxToolCalls: 6,
+        sourceBudget: 12,
+      },
     });
     expect(resolveConfig({}).webGatherDisabled).toBe(false);
     expect(resolveConfig({}).webProfileReuseDaysBySubjectKind).toEqual({
@@ -297,6 +302,28 @@ describe("resolveConfig", () => {
         "crypto-asset": 6,
         theme: 5,
       },
+    });
+  });
+
+  test("uses theme web-gather budget defaults additive to the base budget", () => {
+    expect(resolveConfig({}).webGatherOptions.themeOverrides).toEqual({
+      maxRounds: 2,
+      maxToolCalls: 6,
+      sourceBudget: 12,
+    });
+  });
+
+  test("reads theme web-gather budget overrides and shares the rounds disable", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_WEB_GATHER_MAX_ROUNDS: "0",
+        MARKET_BOT_WEB_GATHER_THEME_MAX_TOOL_CALLS: "9",
+        MARKET_BOT_WEB_GATHER_THEME_SOURCE_BUDGET: "20",
+      }).webGatherOptions.themeOverrides,
+    ).toEqual({
+      maxRounds: 0,
+      maxToolCalls: 9,
+      sourceBudget: 20,
     });
   });
 

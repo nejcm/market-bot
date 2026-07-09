@@ -263,6 +263,92 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.extendedSources).toHaveLength(2);
   });
 
+  const themeBudgetConfig: AppConfig = {
+    ...config,
+    webGatherOptions: {
+      maxRounds: 1,
+      maxToolCalls: 2,
+      sourceBudget: 4,
+      themeOverrides: { maxRounds: 1, maxToolCalls: 6, sourceBudget: 12 },
+    },
+  };
+
+  test("applies the theme web-gather budget for thematic runs", async () => {
+    const seen: ResearchContext["webGather"][] = [];
+    await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "deep",
+      },
+      config: themeBudgetConfig,
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async (_sources, roundContext) => {
+        seen.push(roundContext.webGather);
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(seen[0]?.maxToolCalls).toBe(6);
+    expect(seen[0]?.sourceBudget).toBe(12);
+  });
+
+  test("keeps the base web-gather budget for instrument runs", async () => {
+    const seen: ResearchContext["webGather"][] = [];
+    await runWebGatherLoop({
+      command,
+      config: themeBudgetConfig,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async (_sources, roundContext) => {
+        seen.push(roundContext.webGather);
+        return stage({ requests: [] });
+      },
+    });
+
+    expect(seen[0]?.maxToolCalls).toBe(2);
+    expect(seen[0]?.sourceBudget).toBe(4);
+  });
+
+  test("accepts category/landscape queries for a theme subject", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "deep",
+      },
+      config: themeBudgetConfig,
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "biotech sector drivers 2026", searchType: "background" },
+              rationale: "category landscape angle",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
   test("widens one thematic list search before reused-profile narrowing", async () => {
     const recorded = recordingExaFetch();
     const result = await runWebGatherLoop({

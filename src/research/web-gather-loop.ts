@@ -324,6 +324,16 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   if (subject === undefined) {
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
+  // Thematic runs gather additive landscape/category angles; select their wider
+  // Budget while leaving instrument (`company`/`crypto-asset`) runs on the base.
+  const webGatherOptions =
+    subject.subjectKind === "theme" && input.config.webGatherOptions.themeOverrides !== undefined
+      ? input.config.webGatherOptions.themeOverrides
+      : input.config.webGatherOptions;
+  const config: AppConfig =
+    webGatherOptions === input.config.webGatherOptions
+      ? input.config
+      : { ...input.config, webGatherOptions };
   const subjectTerms = subjectTermsForRun(command, input.collectedSources, subject);
   const secFilingCoverage = secFilingCoverageFromSources(
     subject,
@@ -349,7 +359,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     WebGatherStageOutput,
     JsonToolLoopAuditEntry
   >({
-    options: input.config.webGatherOptions,
+    options: webGatherOptions,
     initialState: input.collectedSources,
     invalidJsonMessage: "Web gather stage returned invalid JSON",
     invalidShapeMessage: "Web gather stage must return JSON object with requests array",
@@ -363,9 +373,9 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           toolUnits: WEB_GATHER_TOOL_UNITS,
           sourceUnitsUsed: roundState.sourceUnitsUsed,
           toolCallsUsed: roundState.toolCallsUsed,
-          maxRounds: input.config.webGatherOptions.maxRounds,
-          maxToolCalls: input.config.webGatherOptions.maxToolCalls,
-          sourceBudget: input.config.webGatherOptions.sourceBudget,
+          maxRounds: webGatherOptions.maxRounds,
+          maxToolCalls: webGatherOptions.maxToolCalls,
+          sourceBudget: webGatherOptions.sourceBudget,
           surfacedUrls: [...surfacedUrls].toSorted(),
           subjectTerms,
           ...(secFilingCoverage !== undefined ? { secFilingCoverage } : {}),
@@ -387,7 +397,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           command,
           secFilingCoverage,
           reusedProfileCoverage: input.reusedProfileCoverage,
-          config: input.config,
+          config,
           round: roundState.round,
         },
         roundState,

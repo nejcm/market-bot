@@ -778,6 +778,7 @@ export async function collectSources(
     extendedResult,
     marketContextResult,
     verifiedSnapshotResult,
+    representativeVerifiedSnapshotResults,
   ] = await Promise.all([
     marketResult ?? marketAdapter.collect(marketCtx),
     newsAdapter.collect(newsContext),
@@ -786,6 +787,17 @@ export async function collectSources(
     isEquityTicker
       ? collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
       : undefined,
+    command.jobType === "research" &&
+    command.assetClass === "equity" &&
+    command.depth === "deep" &&
+    requiredMarketSnapshotSymbols.length > 0
+      ? Promise.all(
+          requiredMarketSnapshotSymbols.map(async (symbol) => ({
+            symbol,
+            result: await collectVerifiedMarketSnapshot(ctx, symbol, ctx.fetchedAt.slice(0, 10)),
+          })),
+        )
+      : [],
   ]);
   const supplementalMarketResults = await Promise.all(
     supplementalMarketAdapters.map((adapter) =>
@@ -813,6 +825,18 @@ export async function collectSources(
           supplementalMarketAdapters[index]?.name ?? "supplemental-market-data",
         ),
       ),
+  );
+  const verifiedRepresentativeSnapshots = representativeVerifiedSnapshotResults.flatMap((entry) =>
+    entry.result.snapshot === undefined ? [] : [entry.result.snapshot],
+  );
+  const representativeVerifiedGaps = representativeVerifiedSnapshotResults.flatMap((entry) =>
+    entry.result.snapshot !== undefined
+      ? []
+      : entry.result.sourceGaps.map((gap) => ({
+          ...gap,
+          message: `${gap.message} for research representative ${entry.symbol}`,
+          evidenceQualityImpact: "no-cap" as const,
+        })),
   );
 
   const enrichmentResult = await collectEquityEnrichment({
@@ -847,6 +871,9 @@ export async function collectSources(
       ...(verifiedSnapshotResult?.rawSnapshot !== undefined
         ? [verifiedSnapshotResult.rawSnapshot]
         : []),
+      ...representativeVerifiedSnapshotResults.flatMap((entry) =>
+        entry.result.rawSnapshot === undefined ? [] : [entry.result.rawSnapshot],
+      ),
     ],
     marketSnapshots: sanitizedMarket.map((result) => result.snapshot),
     supplementalMarketSnapshots: sanitizedSupplemental.map((result) => result.snapshot),
@@ -874,6 +901,7 @@ export async function collectSources(
     ...(verifiedSnapshotResult?.snapshot !== undefined
       ? { verifiedMarketSnapshot: verifiedSnapshotResult.snapshot }
       : {}),
+    ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
     ...(resolvedInstrumentIdentity !== undefined ? { resolvedInstrumentIdentity } : {}),
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     ...(enrichmentResult.earningsSetup !== undefined
@@ -899,6 +927,7 @@ export async function collectSources(
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),
+      ...representativeVerifiedGaps,
       ...(enrichmentResult.identityResult?.gap !== undefined
         ? [enrichmentResult.identityResult.gap]
         : []),

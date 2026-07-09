@@ -145,6 +145,7 @@ export interface CollectedSources {
   readonly newsAnalytics?: NewsCollectionAnalytics;
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly earningsSetup?: EarningsSetupCollected;

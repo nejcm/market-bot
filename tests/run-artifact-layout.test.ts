@@ -36,6 +36,9 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.verifiedMarketSnapshot).toBe(
       `${NORMALIZED_DIR}/verified-market-snapshot.json`,
     );
+    expect(RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots).toBe(
+      `${NORMALIZED_DIR}/verified-representative-snapshots.json`,
+    );
     expect(RUN_ARTIFACT_FILES.instrumentIdentity).toBe(
       `${NORMALIZED_DIR}/instrument-identity.json`,
     );

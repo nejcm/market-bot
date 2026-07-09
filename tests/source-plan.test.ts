@@ -9,7 +9,12 @@ import {
 } from "../src/research/research-subject-identity";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
 import type { CollectedSources } from "../src/sources/types";
-import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
+import {
+  collectedSources,
+  marketSnapshot,
+  newsSource,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 
 const generatedAt = "2026-05-19T00:00:00.000Z";
 
@@ -245,6 +250,51 @@ describe("source plan", () => {
       ],
     });
     expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(1);
+  });
+
+  test("covers thematic representative market data with verified snapshots", () => {
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    } as const;
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        resolvedSubject,
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-xbi", symbol: "XBI" })],
+        verifiedRepresentativeSnapshots: [
+          verifiedMarketSnapshot({ symbol: "AMGN" }),
+          verifiedMarketSnapshot({ symbol: "GILD" }),
+          verifiedMarketSnapshot({ symbol: "VRTX" }),
+        ],
+        newsSources: [
+          newsSource({ id: "news-biotech-1", provider: "yahoo-news", kind: "news" }),
+          newsSource({ id: "news-biotech-2", provider: "finnhub", kind: "news" }),
+        ],
+      }),
+      resolvedSubject,
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")).toMatchObject({
+      status: "covered",
+      evidenceClass: "core",
+      coveredSourceIds: [
+        "market-yahoo-equity-xbi",
+        "verified-snapshot-AMGN",
+        "verified-snapshot-GILD",
+        "verified-snapshot-VRTX",
+      ],
+      gapText: [],
+    });
+    expect(
+      plan.sourceLedger.sources.find((source) => source.id === "verified-snapshot-AMGN")
+        ?.observedAt,
+    ).toBe("2026-05-19T00:00:00.000Z");
   });
 
   test("marks thematic news as a gap when selected coverage is mostly generic", () => {

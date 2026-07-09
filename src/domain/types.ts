@@ -595,6 +595,7 @@ export interface ResearchReport {
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
   readonly extendedEvidence?: ExtendedEvidence;
+  readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly notFinancialAdvice: true;
   readonly extras?: Record<string, unknown>;
 }

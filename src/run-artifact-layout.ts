@@ -38,6 +38,7 @@ export const RUN_ARTIFACT_FILES = {
   historicalContext: `${NORMALIZED_DIR}/historical-context.json`,
   resolvedSubject: `${NORMALIZED_DIR}/resolved-subject.json`,
   verifiedMarketSnapshot: `${NORMALIZED_DIR}/verified-market-snapshot.json`,
+  verifiedRepresentativeSnapshots: `${NORMALIZED_DIR}/verified-representative-snapshots.json`,
   instrumentIdentity: `${NORMALIZED_DIR}/instrument-identity.json`,
   valuationComps: `${NORMALIZED_DIR}/valuation-comps.json`,
   financialLenses: `${NORMALIZED_DIR}/financial-lenses.json`,

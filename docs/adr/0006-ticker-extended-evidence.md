@@ -7,7 +7,7 @@ Accepted
 ## Date
 
 2026-06-30 (amended 2026-07-02: deterministic peer comparability gates; amended 2026-07-05:
-tier-scoped SIC gate)
+tier-scoped SIC gate; amended 2026-07-09: research representative snapshots)
 
 ## Context
 
@@ -27,6 +27,10 @@ verified snapshots, fundamentals, valuation peers, and post-web reconciliation.
   cached request seam. It computes the locked indicator set, adds a citeable source, and persists
   the normalized snapshot. Failure emits a core evidence gap; Massive closes are not an acceptable
   substitute for OHLCV.
+- Deep `research` runs additionally attempt Verified Market Snapshots for checked-in
+  subject-registry representatives. Successful representative snapshots are citeable market-data
+  sources and persist as a plural normalized sidecar; failures emit per-representative gaps but do
+  not create primary-instrument core gaps.
 - Canonical instrument identity is derived from the collected market snapshot without a second
   fetch and is injected into prompts to prevent issuer substitution.
 - Financial Lens metrics preserve per-metric source IDs. SEC facts are preferred for

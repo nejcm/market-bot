@@ -110,6 +110,7 @@ export interface RunArtifact {
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly sourcePlan?: SourcePlanArtifact;
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
@@ -480,6 +481,9 @@ function readReport(value: unknown): ResearchReport | undefined {
     value.confidence === "high" || value.confidence === "medium" || value.confidence === "low"
       ? value.confidence
       : undefined;
+  const verifiedRepresentativeSnapshots = readVerifiedMarketSnapshots(
+    value.verifiedRepresentativeSnapshots,
+  );
   return {
     runId,
     jobType: value.jobType,
@@ -505,6 +509,7 @@ function readReport(value: unknown): ResearchReport | undefined {
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
+    ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
     notFinancialAdvice: true,
     ...(isRecord(value.extras) ? { extras: value.extras } : {}),
   };
@@ -716,6 +721,16 @@ function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapshot | un
         indicators,
         recentCloses,
       };
+}
+
+function readVerifiedMarketSnapshots(value: unknown): readonly VerifiedMarketSnapshot[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly VerifiedMarketSnapshot[] => {
+    const snapshot = readVerifiedMarketSnapshot(item);
+    return snapshot === undefined ? [] : [snapshot];
+  });
 }
 
 function hasSourcePlanRunShape(value: unknown): boolean {
@@ -1082,6 +1097,7 @@ const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const MARKET_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.marketSnapshots;
 const VERIFIED_MARKET_SNAPSHOT_FILE = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
+const VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots;
 const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
@@ -1108,6 +1124,9 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const missAutopsyFile = await readJsonFile(join(runDir, MISS_AUTOPSY_FILE));
   const snapshotFile = await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
   const verifiedSnapshotFile = await readJsonFile(join(runDir, VERIFIED_MARKET_SNAPSHOT_FILE));
+  const verifiedRepresentativeSnapshotsFile = await readJsonFile(
+    join(runDir, VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE),
+  );
   const sourcePlanFile = await readJsonFile(join(runDir, SOURCE_PLAN_FILE));
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
@@ -1122,6 +1141,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     verifiedSnapshotFile.status === "ok"
       ? readVerifiedMarketSnapshot(verifiedSnapshotFile.value)
       : undefined;
+  const verifiedRepresentativeSnapshots =
+    verifiedRepresentativeSnapshotsFile.status === "ok"
+      ? readVerifiedMarketSnapshots(verifiedRepresentativeSnapshotsFile.value)
+      : readVerifiedMarketSnapshots(report.verifiedRepresentativeSnapshots);
   const sourcePlan =
     sourcePlanFile.status === "ok" ? readSourcePlan(sourcePlanFile.value) : undefined;
   const evidenceLanes =
@@ -1149,6 +1172,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: readSnapshots(snapshotFile.value),
       ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
+      ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
       ...(sourcePlan !== undefined ? { sourcePlan } : {}),
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),

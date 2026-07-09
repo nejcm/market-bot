@@ -439,6 +439,31 @@ describe("buildSourceList — verified snapshot source", () => {
     expect(snapshotSource?.provider).toBe("yahoo");
   });
 
+  test("includes verified representative snapshot sources for research runs", () => {
+    const list = buildSourceList(
+      {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      collectedSources({
+        verifiedRepresentativeSnapshots: [
+          { ...verifiedSnapshotFixture(), symbol: "AMGN" },
+          { ...verifiedSnapshotFixture(), symbol: "GILD" },
+        ],
+      }),
+      undefined,
+      "2026-01-01T00:00:00.000Z",
+    );
+
+    expect(list.map((source) => source.id)).toEqual(
+      expect.arrayContaining(["verified-snapshot-AMGN", "verified-snapshot-GILD"]),
+    );
+  });
+
   test("does not include verified-snapshot source for daily run", () => {
     const list = buildSourceList(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),

@@ -1,4 +1,10 @@
-import type { MarketSnapshot, Prediction, ResearchReport, Source } from "../../src/domain/types";
+import type {
+  MarketSnapshot,
+  Prediction,
+  ResearchReport,
+  Source,
+  VerifiedMarketSnapshot,
+} from "../../src/domain/types";
 import type { PredictionScore } from "../../src/scoring/types";
 import type { CollectedSources } from "../../src/sources/types";
 
@@ -60,6 +66,44 @@ export function newsSource(overrides: Partial<Source> = {}): Source {
     fetchedAt: DEFAULT_OBSERVED_AT,
     kind: "news",
     assetClass: "equity",
+    ...overrides,
+  };
+}
+
+export function verifiedMarketSnapshot(
+  overrides: Partial<VerifiedMarketSnapshot> = {},
+): VerifiedMarketSnapshot {
+  return {
+    symbol: "AAPL",
+    assetClass: "equity",
+    analysisDate: "2026-05-19",
+    fetchedAt: DEFAULT_OBSERVED_AT,
+    latestSessionDate: "2026-05-18",
+    ohlcv: {
+      date: "2026-05-18",
+      open: 100,
+      high: 110,
+      low: 99,
+      close: 108,
+      volume: 1_000_000,
+    },
+    indicators: {
+      ema10: 101,
+      sma50: 102,
+      sma200: null,
+      rsi14: 55,
+      macd: 1,
+      macdSignal: 0.5,
+      macdHistogram: 0.5,
+      bollUpper: 120,
+      bollMiddle: 100,
+      bollLower: 80,
+      atr14: 3,
+    },
+    recentCloses: [
+      { date: "2026-05-15", close: 105 },
+      { date: "2026-05-18", close: 108 },
+    ],
     ...overrides,
   };
 }

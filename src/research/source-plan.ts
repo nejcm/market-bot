@@ -254,9 +254,14 @@ function marketDataSourceIds(collectedSources: CollectedSources): readonly strin
   const representativeSymbols = researchRepresentativeSymbols(collectedSources);
   if (representativeSymbols !== undefined) {
     const allowed = new Set(representativeSymbols);
-    return collectedSources.marketSnapshots
+    const marketIds = collectedSources.marketSnapshots
       .filter((snapshot) => allowed.has(snapshot.symbol.toUpperCase()))
       .map((snapshot) => snapshot.sourceId);
+    const verifiedIds =
+      collectedSources.verifiedRepresentativeSnapshots
+        ?.filter((snapshot) => allowed.has(snapshot.symbol.toUpperCase()))
+        .map((snapshot) => verifiedSnapshotSourceId(snapshot.symbol)) ?? [];
+    return [...marketIds, ...verifiedIds];
   }
   return [
     ...collectedSources.marketSnapshots.map((snapshot) => snapshot.sourceId),
@@ -456,7 +461,15 @@ function ledgerEntriesForLane(
         relatedGapIds,
       };
     }
-    const observedAt = collectedSources.verifiedMarketSnapshot?.fetchedAt;
+    const verifiedSnapshots = [
+      ...(collectedSources.verifiedMarketSnapshot === undefined
+        ? []
+        : [collectedSources.verifiedMarketSnapshot]),
+      ...(collectedSources.verifiedRepresentativeSnapshots ?? []),
+    ];
+    const observedAt = verifiedSnapshots.find(
+      (verifiedSnapshot) => verifiedSnapshotSourceId(verifiedSnapshot.symbol) === id,
+    )?.fetchedAt;
     return {
       id,
       kind: "market-data",
@@ -547,8 +560,16 @@ function missingRepresentativeMarketDataGaps(
   const liveSymbols = new Set(
     collectedSources.marketSnapshots.map((snapshot) => snapshot.symbol.toUpperCase()),
   );
+  const verifiedSymbols = new Set(
+    (collectedSources.verifiedRepresentativeSnapshots ?? []).map((snapshot) =>
+      snapshot.symbol.toUpperCase(),
+    ),
+  );
   return representatives
-    .filter((instrument) => !liveSymbols.has(instrument.symbol.toUpperCase()))
+    .filter((instrument) => {
+      const symbol = instrument.symbol.toUpperCase();
+      return !liveSymbols.has(symbol) && !verifiedSymbols.has(symbol);
+    })
     .map((instrument) => {
       const label =
         instrument.name === undefined

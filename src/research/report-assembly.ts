@@ -216,10 +216,16 @@ export function buildSourceList(
   );
 
   // Verified Market Snapshot — citeable Source for exact numeric technical claims (ADR 0019)
-  const verifiedSnapshotSources: Source[] =
-    isInstrumentCommand(command) && collectedSources.verifiedMarketSnapshot !== undefined
+  const verifiedSnapshotSources: Source[] = [
+    ...(isInstrumentCommand(command) && collectedSources.verifiedMarketSnapshot !== undefined
       ? [verifiedSnapshotSource(collectedSources.verifiedMarketSnapshot)]
-      : [];
+      : []),
+    ...(command.jobType === "research"
+      ? (collectedSources.verifiedRepresentativeSnapshots ?? []).map((snapshot) =>
+          verifiedSnapshotSource(snapshot),
+        )
+      : []),
+  ];
 
   // Registry provenance sources for research — kind:"reference" so the model can cite
   // Checked-in subject registry entries in findings/predictions (Phase 2.1).
@@ -607,6 +613,13 @@ function firstSnapshotSourceIdForText(input: {
   ) {
     return verifiedSnapshotSourceId(verified.symbol);
   }
+  const representativeVerified = input.collectedSources.verifiedRepresentativeSnapshots?.find(
+    (candidate) =>
+      TECHNICAL_INDICATOR_PATTERN.test(input.text) && text.includes(candidate.symbol.toUpperCase()),
+  );
+  if (representativeVerified !== undefined) {
+    return verifiedSnapshotSourceId(representativeVerified.symbol);
+  }
   return undefined;
 }
 
@@ -801,6 +814,11 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     ...((isInstrumentCommand(command) || command.jobType === "research") &&
     collectedSources.extendedEvidence !== undefined
       ? { extendedEvidence: collectedSources.extendedEvidence }
+      : {}),
+    ...(command.jobType === "research" &&
+    collectedSources.verifiedRepresentativeSnapshots !== undefined &&
+    collectedSources.verifiedRepresentativeSnapshots.length > 0
+      ? { verifiedRepresentativeSnapshots: collectedSources.verifiedRepresentativeSnapshots }
       : {}),
     notFinancialAdvice: true,
     extras: {

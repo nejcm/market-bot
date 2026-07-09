@@ -376,6 +376,7 @@ export interface LoadedHistoryRun {
   readonly scores: readonly PredictionScore[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
+  readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly snapshots: readonly Record<string, unknown>[];
   readonly fundamentals: readonly Record<string, unknown>[];
   readonly validation: readonly Record<string, unknown>[];
@@ -421,10 +422,10 @@ export function buildInstrumentTimelines(
         run.report.symbol !== undefined && run.report.symbol.toUpperCase() === symbol
           ? "instrument"
           : "market-update";
-      const verifiedMarketSnapshot =
-        run.verifiedMarketSnapshot?.symbol.toUpperCase() === symbol
-          ? run.verifiedMarketSnapshot
-          : undefined;
+      const verifiedMarketSnapshot = [
+        ...(run.verifiedMarketSnapshot === undefined ? [] : [run.verifiedMarketSnapshot]),
+        ...(run.verifiedRepresentativeSnapshots ?? []),
+      ].find((snapshot) => snapshot.symbol.toUpperCase() === symbol);
       current.push({
         runId: run.report.runId,
         generatedAt: run.report.generatedAt,
@@ -484,6 +485,9 @@ export async function rebuildHistoryArtifacts(
         missAutopsies: artifact.missAutopsies,
         ...(artifact.verifiedMarketSnapshot !== undefined
           ? { verifiedMarketSnapshot: artifact.verifiedMarketSnapshot }
+          : {}),
+        ...(artifact.verifiedRepresentativeSnapshots !== undefined
+          ? { verifiedRepresentativeSnapshots: artifact.verifiedRepresentativeSnapshots }
           : {}),
         ...sidecars,
         snapshots: [

@@ -175,11 +175,18 @@ export function buildResearchRunManifest(
   ];
 
   if (command.jobType === "research") {
-    writes.push({
-      file: RUN_ARTIFACT_FILES.resolvedSubject,
-      kind: "json",
-      value: result.collectedSources.resolvedSubject ?? null,
-    });
+    writes.push(
+      {
+        file: RUN_ARTIFACT_FILES.resolvedSubject,
+        kind: "json",
+        value: result.collectedSources.resolvedSubject ?? null,
+      },
+      {
+        file: RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots,
+        kind: "json",
+        value: result.collectedSources.verifiedRepresentativeSnapshots ?? [],
+      },
+    );
   }
 
   if (result.trace.webGatherLoop !== undefined) {

@@ -104,8 +104,12 @@ export function deterministicSourceGaps(
       const liveSymbols = new Set(
         collectedSources.marketSnapshots.map((s) => s.symbol.toUpperCase()),
       );
+      const verifiedSymbols = new Set(
+        (collectedSources.verifiedRepresentativeSnapshots ?? []).map((s) => s.symbol.toUpperCase()),
+      );
       for (const instrument of resolvedSubject.representativeInstruments) {
-        if (!liveSymbols.has(instrument.symbol.toUpperCase())) {
+        const symbol = instrument.symbol.toUpperCase();
+        if (!liveSymbols.has(symbol) && !verifiedSymbols.has(symbol)) {
           const label =
             instrument.name !== undefined
               ? `${instrument.name} (${instrument.symbol})`
@@ -220,6 +224,23 @@ const projectVerifiedMarketSnapshot: EvidenceProjector = (_stage, _command, coll
       }
     : {};
 
+const projectVerifiedRepresentativeSnapshots: EvidenceProjector = (
+  _stage,
+  command,
+  collectedSources,
+) =>
+  command.jobType === "research" &&
+  collectedSources.verifiedRepresentativeSnapshots !== undefined &&
+  collectedSources.verifiedRepresentativeSnapshots.length > 0
+    ? {
+        verifiedRepresentativeSnapshots: collectedSources.verifiedRepresentativeSnapshots,
+        verifiedRepresentativeSnapshotSourceIds:
+          collectedSources.verifiedRepresentativeSnapshots.map((snapshot) =>
+            verifiedSnapshotSourceId(snapshot.symbol),
+          ),
+      }
+    : {};
+
 const projectResolvedInstrumentIdentity: EvidenceProjector = (_stage, _command, collectedSources) =>
   collectedSources.resolvedInstrumentIdentity !== undefined
     ? {
@@ -305,6 +326,7 @@ const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectExtendedEvidence,
   projectEarningsSetup,
   projectVerifiedMarketSnapshot,
+  projectVerifiedRepresentativeSnapshots,
   projectResolvedInstrumentIdentity,
   projectWebSources,
   projectWebSubjectProfile,
@@ -332,7 +354,7 @@ function buildEvidencePayload(
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
   const priorThematicForecastErrors = buildResearchForecastErrorBlock(command, historicalContext);
   const deterministicCitationGuidance =
-    "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, or verifiedMarketSnapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
+    "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
   const evidenceProjections = EVIDENCE_PROJECTORS.reduce<Record<string, unknown>>(
     (payload, project) => ({ ...payload, ...project(stage, command, collectedSources) }),

@@ -36,6 +36,7 @@ import {
   newsSource,
   prediction,
   researchReport,
+  verifiedMarketSnapshot as verifiedSnapshotFixture,
 } from "./support/fixtures";
 
 const config: AppConfig = {
@@ -2625,6 +2626,35 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
     expect(repGaps.some((g) => g.includes("AVGO"))).toBe(true);
   });
 
+  test("does not add representative gap when verified snapshot is present", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "chip stocks",
+      subjectKey: "semiconductors",
+      predictionProxySymbol: "SMH",
+      depth: "deep",
+    };
+    const resolvedSubject = resolveResearchSubject(command)!;
+    const gaps = deterministicSourceGaps(
+      command,
+      collectedSources({
+        resolvedSubject,
+        marketSnapshots: [
+          marketSnapshot({ sourceId: "market-smh", symbol: "SMH" }),
+          marketSnapshot({ sourceId: "market-nvda", symbol: "NVDA" }),
+        ],
+        verifiedRepresentativeSnapshots: [
+          verifiedSnapshotFixture({ symbol: "AMD" }),
+          verifiedSnapshotFixture({ symbol: "AVGO" }),
+        ],
+        newsSources: [newsSource()],
+      }),
+    );
+
+    expect(gaps.filter((g) => g.startsWith("researchRepresentative:"))).toHaveLength(0);
+  });
+
   test("emits no representative gaps when all representatives have live snapshots", () => {
     const command: ResearchCommand = {
       jobType: "research",
@@ -2751,6 +2781,35 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(evidence.verifiedMarketSnapshot).toEqual(verifiedSnapshotValue);
     expect(evidence.verifiedMarketSnapshotSourceId).toBeDefined();
     expect(evidence.verifiedMarketSnapshotCitationRule).toBeDefined();
+  });
+
+  test("representative snapshot projector contributes research snapshot list", () => {
+    const command: ResearchCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      subjectKey: "biotech",
+      predictionProxySymbol: "XBI",
+      depth: "deep",
+    };
+    const evidence = evidenceFor(command, {
+      verifiedRepresentativeSnapshots: [
+        verifiedSnapshotFixture({ symbol: "AMGN" }),
+        verifiedSnapshotFixture({ symbol: "GILD" }),
+      ],
+    });
+
+    expect(
+      (
+        evidence.verifiedRepresentativeSnapshots as
+          | readonly { readonly symbol?: string }[]
+          | undefined
+      )?.map((snapshot) => snapshot.symbol),
+    ).toEqual(["AMGN", "GILD"]);
+    expect(evidence.verifiedRepresentativeSnapshotSourceIds).toEqual([
+      "verified-snapshot-AMGN",
+      "verified-snapshot-GILD",
+    ]);
   });
 
   test("ticker-gated projector is suppressed for non-ticker runs even when its source is present", () => {

@@ -21,7 +21,12 @@ import type {
   SourcePlanArtifact,
 } from "../src/research/source-plan";
 import type { RawSourceSnapshot } from "../src/sources/types";
-import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
+import {
+  collectedSources,
+  marketSnapshot,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 
 const GENERATED_AT = "2026-05-19T00:00:00.000Z";
 
@@ -342,9 +347,40 @@ describe("run artifact writer manifests", () => {
     );
 
     expect(filesOf(writes)).toEqual(
-      [...baseResearchFiles, RUN_ARTIFACT_FILES.resolvedSubject].toSorted(),
+      [
+        ...baseResearchFiles,
+        RUN_ARTIFACT_FILES.resolvedSubject,
+        RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots,
+      ].toSorted(),
     );
     expect(valueFor(writes, RUN_ARTIFACT_FILES.resolvedSubject)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots)).toEqual([]);
+  });
+
+  test("research subject manifest writes representative verified snapshots", () => {
+    const command: ResearchSubjectCommand = {
+      jobType: "research",
+      assetClass: "equity",
+      subject: "biotech",
+      depth: "deep",
+    };
+    const snapshot = verifiedMarketSnapshot({ symbol: "AMGN" });
+    const writes = buildResearchRunManifest(
+      command,
+      config,
+      result({
+        report: researchReport({ jobType: "research" }),
+        trace: trace({ jobType: "research", depth: "deep" }),
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ sourceId: "market-amgn", symbol: "AMGN" })],
+          verifiedRepresentativeSnapshots: [snapshot],
+        }),
+      }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots)).toEqual([
+      snapshot,
+    ]);
   });
 
   test("alpha-search manifest preserves file set and compaction policies", () => {

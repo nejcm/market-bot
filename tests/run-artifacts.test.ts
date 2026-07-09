@@ -7,7 +7,13 @@ import {
   scanRunArtifacts,
   scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
-import { marketSnapshot, prediction, predictionScore, researchReport } from "./support/fixtures";
+import {
+  marketSnapshot,
+  prediction,
+  predictionScore,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 
@@ -254,6 +260,40 @@ describe("loadRunArtifact", () => {
 
     expect(artifact?.businessFramework?.phase).toBe("capital-return");
     expect(artifact?.businessFramework?.sections[0]?.name).toBe("Business");
+  });
+
+  test("loads verified representative snapshots from sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "research-reps");
+    const snapshot = verifiedMarketSnapshot({ symbol: "AMGN" });
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({ runId: "research-reps", jobType: "research" }),
+    );
+    await writeJson(join(runDir, "normalized", "verified-representative-snapshots.json"), [
+      snapshot,
+    ]);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.verifiedRepresentativeSnapshots?.map((item) => item.symbol)).toEqual(["AMGN"]);
+  });
+
+  test("loads verified representative snapshots from report fallback", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "research-reps-report");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "research-reps-report",
+        jobType: "research",
+        verifiedRepresentativeSnapshots: [verifiedMarketSnapshot({ symbol: "GILD" })],
+      }),
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.verifiedRepresentativeSnapshots?.map((item) => item.symbol)).toEqual(["GILD"]);
   });
 
   test("loads current business framework v2 atomic gaps", async () => {

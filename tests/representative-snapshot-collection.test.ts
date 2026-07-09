@@ -51,6 +51,32 @@ function massiveSnapshot(symbol: string): Record<string, unknown> {
   };
 }
 
+function chartPayload(symbol: string): unknown {
+  const start = Date.parse("2026-04-01T00:00:00.000Z") / 1000;
+  const timestamps = Array.from({ length: 70 }, (_, index) => start + index * 86_400);
+  return {
+    chart: {
+      result: [
+        {
+          meta: { symbol },
+          timestamp: timestamps,
+          indicators: {
+            quote: [
+              {
+                open: timestamps.map((_, index) => 90 + index),
+                high: timestamps.map((_, index) => 92 + index),
+                low: timestamps.map((_, index) => 89 + index),
+                close: timestamps.map((_, index) => 91 + index),
+                volume: timestamps.map(() => 1_000_000),
+              },
+            ],
+          },
+        },
+      ],
+    },
+  };
+}
+
 function requestedSymbols(url: string): readonly string[] {
   return (new URL(url).searchParams.get("symbols") ?? "")
     .split(",")
@@ -161,6 +187,73 @@ describe("representative snapshot collection", () => {
       expect.arrayContaining(["XBI", "AMGN", "GILD", "VRTX"]),
     );
     expect(qualityFor(result, resolvedSubject).label).toBe("medium");
+  });
+
+  test("collects verified snapshots for every deep research representative", async () => {
+    const chartSymbols: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return Response.json(yahooPayload(requestedSymbols(url)));
+      }
+      if (url.includes("/v8/finance/chart/")) {
+        const symbol = decodeURIComponent(new URL(url).pathname.split("/").at(-1) ?? "");
+        chartSymbols.push(symbol.toUpperCase());
+        return Response.json(chartPayload(symbol));
+      }
+      return Response.json({ news: [] });
+    };
+
+    const resolvedSubject = resolvedBiotech();
+    const result = await collectSources(command, sourceOptions, {
+      now: new Date(generatedAt),
+      fetchImpl,
+      retryDelaysMs: [],
+      resolvedSubject,
+    });
+
+    expect(chartSymbols.toSorted()).toEqual(["AMGN", "GILD", "VRTX", "XBI"]);
+    expect(
+      result.verifiedRepresentativeSnapshots?.map((snapshot) => snapshot.symbol).toSorted(),
+    ).toEqual(["AMGN", "GILD", "VRTX", "XBI"]);
+    expect(
+      result.rawSnapshots.filter((snapshot) => snapshot.adapter === "yahoo-verified-chart"),
+    ).toHaveLength(4);
+  });
+
+  test("downgrades representative verified snapshot failures to no-cap gaps", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return Response.json(yahooPayload(requestedSymbols(url)));
+      }
+      if (url.includes("/v8/finance/chart/")) {
+        throw new Error("chart unavailable");
+      }
+      return Response.json({ news: [] });
+    };
+
+    const result = await collectSources(command, sourceOptions, {
+      now: new Date(generatedAt),
+      fetchImpl,
+      retryDelaysMs: [],
+      resolvedSubject: resolvedBiotech(),
+    });
+
+    expect(result.verifiedRepresentativeSnapshots).toBeUndefined();
+    expect(
+      result.sourceGaps.filter(
+        (gap) => gap.source === "yahoo-verified-chart" && gap.evidenceQualityImpact === "no-cap",
+      ),
+    ).toHaveLength(4);
+    expect(result.sourceGaps.map((gap) => gap.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("research representative AMGN"),
+        expect.stringContaining("research representative GILD"),
+        expect.stringContaining("research representative VRTX"),
+        expect.stringContaining("research representative XBI"),
+      ]),
+    );
   });
 
   test("falls back after Yahoo, promotes Massive snapshots, and preserves provider provenance", async () => {

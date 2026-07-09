@@ -215,7 +215,9 @@ function isMarketDataLaneGap(gap: SourceGap): boolean {
   return (
     gap.capability === "market-data" &&
     gap.source !== "yahoo-verified-chart" &&
-    gap.source !== "massive-supplemental-market"
+    gap.source !== "massive-supplemental-market" &&
+    !gap.source.startsWith("yahoo-research-snapshot-") &&
+    !gap.source.startsWith("massive-research-snapshot-")
   );
 }
 

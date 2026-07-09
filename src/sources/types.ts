@@ -39,6 +39,7 @@ export interface CollectContext {
   readonly fetchedAt: string;
   readonly newsLimit: number;
   readonly cryptoMoverLimit: number;
+  readonly requiredMarketSnapshotSymbols?: readonly string[];
   readonly newsRelevanceTargets?: readonly NewsRelevanceTarget[];
   readonly marketauxApiToken?: string;
   readonly finnhubApiToken?: string;

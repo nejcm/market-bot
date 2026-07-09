@@ -43,7 +43,9 @@ Notable inputs:
 - Equity movers: Yahoo `day_gainers`, `day_losers`, and `most_actives` (deduped by symbol)
 - Equity mover benchmark context: Yahoo sector ETF quotes, falling back to `SPY`, attached as citeable context without changing mover ranking
 - Crypto movers: CoinGecko 24h change
-- Supplemental equity market evidence: Massive stock snapshots for already-selected Yahoo symbols when `MARKET_BOT_MASSIVE_API_KEY` is set
+- Supplemental equity market evidence: Massive stock snapshots for already-selected Yahoo symbols
+  when `MARKET_BOT_MASSIVE_API_KEY` is set; unresolved thematic representatives use the same
+  provider order as a provenance-preserving fallback
 - Market Context: FRED macro series for market overview runs
 - Evidence Request tools: SEC latest periodic filing text and Tradier IV term structure for eligible deep equity runs
 - News: MarketAux, Finnhub, Yahoo Finance search, and optional Massive equity news
@@ -76,7 +78,17 @@ legacy `webGatherLoop.sanitizer` block remains for compatibility.
 
 Before Yahoo validation, alpha-search filters candidates through official listed-symbol data from Nasdaq Trader `nasdaqlisted.txt` / `otherlisted.txt`, with Cboe trading-stat symbol rows retained only as supplemental symbol evidence. Nasdaq metadata classifies eligibility. The filter rejects not-found, ETF/fund, inactive, test-issue, and unsupported listing-type rows with deterministic reasons. Yahoo remains final validation for stock-only, non-OTC status, price, volume, and market-cap band. Defaults target listed small/mid-cap discovery (`$0.50+`, `100k+` volume, `$50M-$10B` market cap). Alpha-search reports have `jobType: "alpha-search"`, no predictions, and no calibration side effects. Valid candidates are emitted as Research Leads and deterministic candidate profiles. Rejected candidates are listed separately with discovery sources, rejection reason, and source IDs. Repeated unmapped SEC filing gaps are grouped (deduped, with an `(N filings)` count) before entering `report.dataGaps`, the trace, and the `normalized/source-gaps.json` sidecar, so supplemental absences do not pin confidence and the sidecar matches the rendered report. Candidate profiles may include SEC Fundamental Evidence metrics for attribution, but those metrics do not change ranking and are not embedded into `researchLeads`. The report renders profile coverage counts, social momentum drivers, and unmapped SEC filing counts so pre-ticker mapping gaps are separated from mapped-lead enrichment. Raw alpha snapshots over 1 MiB are compacted to metadata (`payloadBytes`, SHA-256 digest, and structural summary); normalized sidecars (apart from the unmapped-SEC-filing grouping applied to `normalized/source-gaps.json` described above), `report.json`, and score artifacts remain full fidelity. Later `score` passes write sidecar Alpha validation artifacts that compare each Research Lead's 5- and 20-trading-day return against `IWM`, backfill missing candidate profiles, rebuild feature-attribution summaries, rebuild `data/alpha-search/watchlist.{json,md}`, and write `data/alpha-search/cohorts.{json,md}` from run artifacts. Cohorts group rejected candidates by rejection reason and unbriefed leads by age bucket, joining later validation outcomes when the same symbol appears in validation sidecars. These artifacts remain historical validation and candidate-state data, not predictions or promotion verdicts.
 
-Massive, formerly Polygon.io, is supplemental-only. When configured, it uses `api.massive.com` to collect equity news and stock snapshots for the symbols already selected by Yahoo. Those snapshots are persisted as supplemental market snapshots, included as report Sources, and included in prompt evidence. Configured Massive failures remain visible as `SourceGap`s with `evidenceQualityImpact: "no-cap"` because core Yahoo/FRED/CoinGecko semantics decide evidence quality. Missing optional news tokens (MarketAux, Finnhub) also emit `no-cap` gaps so supplemental absences do not pin alpha-search or market-overview confidence. Massive does not enter mover ranking, market regime summaries, crypto workflows, or scoring Observations.
+Massive, formerly Polygon.io, is supplemental-only except as the configured fallback for failed
+Yahoo quote paths. When configured, it uses `api.massive.com` to collect equity news and stock
+snapshots for symbols selected by Yahoo plus unresolved required thematic representatives.
+Fallback representative snapshots retain Massive provenance and satisfy the thematic core
+market-data requirement; other snapshots remain supplemental. Configured Massive failures remain
+visible as `SourceGap`s with `evidenceQualityImpact: "no-cap"` because provider-attempt failures do
+not lower quality when another configured provider supplies the required snapshot. Missing all
+representative snapshots remains a core lane gap. Missing optional news tokens (MarketAux, Finnhub)
+also emit `no-cap` gaps so supplemental absences do not pin alpha-search or market-overview
+confidence. Massive does not enter mover ranking, market regime summaries, crypto workflows, or
+scoring Observations.
 
 Market overview runs collect FRED Market Context when `MARKET_BOT_FRED_API_KEY` is set. Missing or failed FRED context is disclosed as a `SourceGap` but does not cap Evidence Quality. Longer-horizon overviews use the same mover inputs as short-horizon overviews; this is horizon metadata, not a separate trailing-window data product. Reports must disclose it as a source gap.
 

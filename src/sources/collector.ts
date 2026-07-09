@@ -404,6 +404,63 @@ function contextWithNewsRelevanceTargets(
   return targets.length === 0 ? ctx : { ...ctx, newsRelevanceTargets: targets };
 }
 
+function representativeSnapshotSymbols(
+  resolvedSubject: ResolvedResearchSubject | undefined,
+): readonly string[] {
+  if (resolvedSubject?.status !== "resolved") {
+    return [];
+  }
+  return [
+    ...new Set(
+      (resolvedSubject.representativeInstruments ?? [])
+        .map((instrument) => instrument.symbol.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+interface PromotedMarketSnapshots {
+  readonly marketSnapshots: readonly {
+    readonly snapshot: MarketSnapshot;
+    readonly adapter: string;
+  }[];
+  readonly promotedSnapshots: ReadonlySet<MarketSnapshot>;
+}
+
+function promoteRequiredMarketSnapshots(
+  primarySnapshots: readonly MarketSnapshot[],
+  primaryAdapter: string,
+  supplementalResults: readonly {
+    readonly adapter: string;
+    readonly snapshots: readonly MarketSnapshot[];
+  }[],
+  requiredSymbols: readonly string[],
+): PromotedMarketSnapshots {
+  const marketSnapshots = primarySnapshots.map((snapshot) => ({
+    snapshot,
+    adapter: primaryAdapter,
+  }));
+  const collectedSymbols = new Set(
+    primarySnapshots.map((snapshot) => snapshot.symbol.trim().toUpperCase()),
+  );
+  const required = new Set(requiredSymbols);
+  const promotedSnapshots = new Set<MarketSnapshot>();
+
+  for (const result of supplementalResults) {
+    for (const snapshot of result.snapshots) {
+      const symbol = snapshot.symbol.trim().toUpperCase();
+      if (!required.has(symbol) || collectedSymbols.has(symbol)) {
+        continue;
+      }
+      marketSnapshots.push({ snapshot, adapter: result.adapter });
+      promotedSnapshots.add(snapshot);
+      collectedSymbols.add(symbol);
+    }
+  }
+
+  return { marketSnapshots, promotedSnapshots };
+}
+
 async function fetchJsonWithRetry(
   url: string,
   adapter: string,
@@ -636,6 +693,9 @@ export async function collectSources(
   );
 
   const registry = createSourceRegistry();
+  const requiredMarketSnapshotSymbols = representativeSnapshotSymbols(resolvedSubject);
+  const marketCtx =
+    requiredMarketSnapshotSymbols.length === 0 ? ctx : { ...ctx, requiredMarketSnapshotSymbols };
   const marketAdapter = registry.marketDataFor(command.assetClass);
   const supplementalMarketAdapters = registry.supplementalMarketDataFor(command.assetClass);
   const newsAdapter = registry.newsFor(command.assetClass);
@@ -652,7 +712,9 @@ export async function collectSources(
   // Other run types keep the parallel source collection path.
   const shouldCollectMarketBeforeNews =
     isMarketUpdateJobType(command.jobType) || isInstrumentCommand(command);
-  const marketResult = shouldCollectMarketBeforeNews ? await marketAdapter.collect(ctx) : undefined;
+  const marketResult = shouldCollectMarketBeforeNews
+    ? await marketAdapter.collect(marketCtx)
+    : undefined;
   const preliminaryIdentityResult =
     isTicker && marketResult !== undefined
       ? deriveCanonicalInstrumentIdentity(marketResult.marketSnapshots, command.symbol)
@@ -682,7 +744,7 @@ export async function collectSources(
     marketContextResult,
     verifiedSnapshotResult,
   ] = await Promise.all([
-    marketResult ?? marketAdapter.collect(ctx),
+    marketResult ?? marketAdapter.collect(marketCtx),
     newsAdapter.collect(newsContext),
     extendedEvidenceAdapter.collect(identityCtx),
     marketContextAdapter.collect(ctx),
@@ -692,19 +754,30 @@ export async function collectSources(
   ]);
   const supplementalMarketResults = await Promise.all(
     supplementalMarketAdapters.map((adapter) =>
-      adapter.collect(ctx, resolvedMarketResult.marketSnapshots),
+      adapter.collect(marketCtx, resolvedMarketResult.marketSnapshots),
     ),
   );
-  const sanitizedMarket = resolvedMarketResult.marketSnapshots.map((snapshot) =>
-    sanitizeMarketSnapshotMetadata(snapshot, marketAdapter.name),
+  const promotedMarket = promoteRequiredMarketSnapshots(
+    resolvedMarketResult.marketSnapshots,
+    marketAdapter.name,
+    supplementalMarketResults.map((result, index) => ({
+      adapter: supplementalMarketAdapters[index]?.name ?? "supplemental-market-data",
+      snapshots: result.supplementalMarketSnapshots,
+    })),
+    requiredMarketSnapshotSymbols,
+  );
+  const sanitizedMarket = promotedMarket.marketSnapshots.map(({ snapshot, adapter }) =>
+    sanitizeMarketSnapshotMetadata(snapshot, adapter),
   );
   const sanitizedSupplemental = supplementalMarketResults.flatMap((result, index) =>
-    result.supplementalMarketSnapshots.map((snapshot) =>
-      sanitizeMarketSnapshotMetadata(
-        snapshot,
-        supplementalMarketAdapters[index]?.name ?? "supplemental-market-data",
+    result.supplementalMarketSnapshots
+      .filter((snapshot) => !promotedMarket.promotedSnapshots.has(snapshot))
+      .map((snapshot) =>
+        sanitizeMarketSnapshotMetadata(
+          snapshot,
+          supplementalMarketAdapters[index]?.name ?? "supplemental-market-data",
+        ),
       ),
-    ),
   );
 
   const enrichmentResult = await collectEquityEnrichment({

@@ -324,12 +324,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   if (subject === undefined) {
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
-  // Thematic runs gather additive landscape/category angles; select their wider
-  // Budget while leaving instrument (`company`/`crypto-asset`) runs on the base.
-  const webGatherOptions =
-    subject.subjectKind === "theme" && input.config.webGatherOptions.themeOverrides !== undefined
-      ? input.config.webGatherOptions.themeOverrides
-      : input.config.webGatherOptions;
+  const webGatherOptions = effectiveWebGatherOptions(command, input.config);
   const config: AppConfig =
     webGatherOptions === input.config.webGatherOptions
       ? input.config
@@ -443,14 +438,25 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
 }
 
 export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
+  const webGatherOptions = effectiveWebGatherOptions(command, config);
   return (
     isWebGatherScope(command) &&
     config.sourceOptions.exaApiKey !== undefined &&
     !config.webGatherDisabled &&
-    config.webGatherOptions.maxRounds > 0 &&
-    config.webGatherOptions.maxToolCalls > 0 &&
-    config.webGatherOptions.sourceBudget > 0
+    webGatherOptions.maxRounds > 0 &&
+    webGatherOptions.maxToolCalls > 0 &&
+    webGatherOptions.sourceBudget > 0
   );
+}
+
+function effectiveWebGatherOptions(
+  command: ResearchCommand,
+  config: AppConfig,
+): AppConfig["webGatherOptions"] {
+  if (command.jobType === "research" && config.webGatherOptions.themeOverrides !== undefined) {
+    return config.webGatherOptions.themeOverrides;
+  }
+  return config.webGatherOptions;
 }
 
 function isWebGatherScope(command: ResearchCommand): boolean {
@@ -464,13 +470,14 @@ function webGatherSearchUnavailableGap(
   command: ResearchCommand,
   config: AppConfig,
 ): SourceGap | undefined {
+  const webGatherOptions = effectiveWebGatherOptions(command, config);
   if (
     !isWebGatherScope(command) ||
     config.webGatherDisabled ||
     config.sourceOptions.exaApiKey !== undefined ||
-    config.webGatherOptions.maxRounds <= 0 ||
-    config.webGatherOptions.maxToolCalls <= 0 ||
-    config.webGatherOptions.sourceBudget <= 0
+    webGatherOptions.maxRounds <= 0 ||
+    webGatherOptions.maxToolCalls <= 0 ||
+    webGatherOptions.sourceBudget <= 0
   ) {
     return undefined;
   }

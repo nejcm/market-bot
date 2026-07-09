@@ -742,6 +742,75 @@ describe("market context provider collection", () => {
 });
 
 describe("news provider collection", () => {
+  test("Yahoo exposes resolved thematic terms through its optional search operation", async () => {
+    let requestedAdapter = "";
+    let requestedQuery = "";
+    const result = await yahooNewsAdapter.searchThematic!(
+      collectContext({
+        command: {
+          jobType: "research",
+          assetClass: "equity",
+          subject: "biotech",
+          depth: "brief",
+        },
+        request: requestExecutor({
+          json: async ({ adapter, url }) => {
+            requestedAdapter = adapter;
+            requestedQuery = new URL(url).searchParams.get("q") ?? "";
+            return rawJson(adapter, {
+              news: [
+                {
+                  title: "Biotech funding rebounds",
+                  link: "https://example.test/biotech",
+                },
+              ],
+            });
+          },
+        }),
+      }),
+      {
+        subjectId: "biotech",
+        subjectLabel: "Biotechnology",
+        terms: ["Biotechnology", "biotech", "biotech stocks"],
+      },
+    );
+
+    expect(requestedAdapter).toBe("yahoo-news-thematic");
+    expect(requestedQuery).toBe('"Biotechnology" OR "biotech" OR "biotech stocks"');
+    expect(result.newsSources.map((source) => source.title)).toEqual(["Biotech funding rebounds"]);
+  });
+
+  test("MarketAux uses its documented OR syntax for thematic terms", async () => {
+    let requestedAdapter = "";
+    let requestedQuery = "";
+    await marketAuxNewsAdapter.searchThematic!(
+      collectContext({
+        command: {
+          jobType: "research",
+          assetClass: "equity",
+          subject: "biotech",
+          depth: "brief",
+        },
+        marketauxApiToken: "marketaux-token",
+        request: requestExecutor({
+          json: async ({ adapter, url }) => {
+            requestedAdapter = adapter;
+            requestedQuery = new URL(url).searchParams.get("search") ?? "";
+            return rawJson(adapter, { data: [] });
+          },
+        }),
+      }),
+      {
+        subjectId: "biotech",
+        subjectLabel: "Biotechnology",
+        terms: ["Biotechnology", "biotech", "biotech stocks"],
+      },
+    );
+
+    expect(requestedAdapter).toBe("marketaux-news-thematic");
+    expect(requestedQuery).toBe('("Biotechnology"|"biotech"|"biotech stocks")');
+  });
+
   test("passes provider request facts without collector execution plumbing", async () => {
     let requestKeys: readonly string[] = [];
 

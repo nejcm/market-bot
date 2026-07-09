@@ -4,6 +4,7 @@ import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
 import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
 import { isNewsRelevant } from "./news-relevance";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
+import { executeWebGatherTool } from "./web-gather-tools";
 import {
   type CollectContext,
   type NewsAdapter,
@@ -11,10 +12,12 @@ import {
   type NewsCollectionResult,
   type NewsRelevanceTarget,
 } from "./types";
+import type { WebGatherSubject } from "./web-gather-emit";
 import { yahooNewsAdapter } from "./yahoo-news";
 import {
   aggregateModelInputSanitization,
   droppedModelInputItemEntry,
+  mergeModelInputSanitization,
   sanitizeModelInputField,
   type ModelInputFieldRole,
   type ModelInputSanitizationAggregateEntry,
@@ -431,18 +434,104 @@ function assignSourceIds(sources: readonly Source[]): readonly Source[] {
   }));
 }
 
+interface ProviderNewsResult {
+  readonly provider: string;
+  readonly result: NewsCollectionResult;
+}
+
 function countNewsByProvider(
-  results: readonly NewsCollectionResult[],
-  adapters: readonly NewsAdapter[],
+  results: readonly ProviderNewsResult[],
 ): Readonly<Record<string, number>> {
   const counts: Record<string, number> = {};
 
-  results.forEach((result, index) => {
-    const provider = adapters[index]?.provider ?? "unknown";
-    counts[provider] = (counts[provider] ?? 0) + result.newsSources.length;
-  });
+  for (const { provider, result } of results) {
+    counts[provider] ??= 0;
+    for (const source of result.newsSources) {
+      const sourceProvider = source.provider ?? provider;
+      counts[sourceProvider] = (counts[sourceProvider] ?? 0) + 1;
+    }
+  }
 
   return counts;
+}
+
+async function collectProviderNews(
+  adapters: readonly NewsAdapter[],
+  ctx: CollectContext,
+): Promise<readonly ProviderNewsResult[]> {
+  const results = await Promise.all(
+    adapters.map(async (adapter): Promise<readonly ProviderNewsResult[]> => {
+      const [generic, thematic] = await Promise.all([
+        adapter.collect(ctx),
+        ctx.thematicNewsQuery !== undefined && adapter.searchThematic !== undefined
+          ? adapter.searchThematic(ctx, ctx.thematicNewsQuery)
+          : undefined,
+      ]);
+      return [
+        { provider: adapter.provider, result: generic },
+        ...(thematic === undefined ? [] : [{ provider: adapter.provider, result: thematic }]),
+      ];
+    }),
+  );
+  return results.flat();
+}
+
+function thematicWebSubject(ctx: CollectContext): WebGatherSubject | undefined {
+  const query = ctx.thematicNewsQuery;
+  return query === undefined
+    ? undefined
+    : {
+        subjectKind: "theme",
+        subjectId: query.subjectId,
+        subjectLabel: query.subjectLabel,
+        assetClass: ctx.command.assetClass,
+      };
+}
+
+function thematicWebGap(gap: SourceGap): SourceGap {
+  return sourceGap({
+    source: `thematic-news-${gap.provider ?? "web-search"}`,
+    message: `Thematic news web search: ${gap.message}`,
+    ...(gap.provider !== undefined ? { provider: gap.provider } : {}),
+    capability: "news",
+    ...(gap.cause !== undefined ? { cause: gap.cause } : {}),
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+async function collectThematicWebNews(
+  ctx: CollectContext,
+): Promise<ProviderNewsResult | undefined> {
+  const subject = thematicWebSubject(ctx);
+  if (subject === undefined || ctx.exaApiKey === undefined || ctx.thematicNewsQuery === undefined) {
+    return undefined;
+  }
+  const output = await executeWebGatherTool(
+    "web_search",
+    {
+      query: `${ctx.thematicNewsQuery.terms.map((term) => `"${term}"`).join(" OR ")} latest news`,
+      searchType: "news",
+      numResults: ctx.newsLimit,
+    },
+    ctx,
+    new Set<string>(),
+    subject,
+  );
+  return {
+    provider: output.sources[0]?.provider ?? "thematic-web-search",
+    result: {
+      rawSnapshots: output.rawSnapshots,
+      newsSources: output.sources.map((source) => ({
+        ...source,
+        kind: "news",
+        assetClass: ctx.command.assetClass,
+      })),
+      sourceGaps: output.gaps.map(thematicWebGap),
+      ...(output.modelInputSanitization !== undefined
+        ? { modelInputSanitization: output.modelInputSanitization }
+        : {}),
+    },
+  };
 }
 
 export function createMultiNewsAdapter(
@@ -450,39 +539,51 @@ export function createMultiNewsAdapter(
   providerOrder: readonly string[] = adapters.map((adapter) => adapter.provider),
 ): NewsAdapter {
   async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
-    const results = await Promise.all(adapters.map((adapter) => adapter.collect(ctx)));
-    const sanitizedResults = results.map((result, index) => {
-      const provider = adapters[index]?.provider ?? "unknown";
-      const sanitized = result.newsSources.map((source) => sanitizeNewsSource(source, provider));
-      const droppedItemCount = sanitized.filter((item) => item.source === undefined).length;
-      return {
-        ...result,
-        newsSources: sanitized.flatMap((item) => item.source ?? []),
-        sourceGaps:
-          droppedItemCount === 0
-            ? result.sourceGaps
-            : [
-                ...result.sourceGaps,
-                sourceGap({
-                  source: `${provider}-news`,
-                  provider,
-                  capability: "news",
-                  cause: "validation-failed",
-                  evidenceQualityImpact: "no-cap",
-                  message: `Dropped ${String(droppedItemCount)} news item(s) after model-input validation`,
-                }),
-              ],
-        entries: sanitized.flatMap((item) => item.entries),
-      };
-    });
+    const initialResults = await collectProviderNews(adapters, ctx);
+    const sanitizeResults = (results: readonly ProviderNewsResult[]) =>
+      results.map(({ provider, result }) => {
+        const sanitized = result.newsSources.map((source) => sanitizeNewsSource(source, provider));
+        const droppedItemCount = sanitized.filter((item) => item.source === undefined).length;
+        return {
+          ...result,
+          newsSources: sanitized.flatMap((item) => item.source ?? []),
+          sourceGaps:
+            droppedItemCount === 0
+              ? result.sourceGaps
+              : [
+                  ...result.sourceGaps,
+                  sourceGap({
+                    source: `${provider}-news`,
+                    provider,
+                    capability: "news",
+                    cause: "validation-failed",
+                    evidenceQualityImpact: "no-cap",
+                    message: `Dropped ${String(droppedItemCount)} news item(s) after model-input validation`,
+                  }),
+                ],
+          entries: sanitized.flatMap((item) => item.entries),
+        };
+      });
+    const initialSanitizedResults = sanitizeResults(initialResults);
+    const initialDedupedSources = dedupeByCanonicalUrlOrTitle(
+      initialSanitizedResults.flatMap((result) => result.newsSources),
+    );
+    const targets = relevanceTargets(ctx);
+    const thematicWebResult =
+      relevantNewsCount(initialDedupedSources, targets) === 0
+        ? await collectThematicWebNews(ctx)
+        : undefined;
+    const results =
+      thematicWebResult === undefined ? initialResults : [...initialResults, thematicWebResult];
+    const sanitizedResults =
+      thematicWebResult === undefined ? initialSanitizedResults : sanitizeResults(results);
     const fetchedNewsSourceCount = results.reduce(
-      (total, result) => total + result.newsSources.length,
+      (total, { result }) => total + result.newsSources.length,
       0,
     );
     const dedupedSources = dedupeByCanonicalUrlOrTitle(
       sanitizedResults.flatMap((result) => result.newsSources),
     );
-    const targets = relevanceTargets(ctx);
     const relevantBeforeSeenFilterCount = relevantNewsCount(dedupedSources, targets);
     const filtered =
       ctx.newsSeenPath !== undefined && ctx.newsSeenRetentionDays !== undefined
@@ -518,7 +619,7 @@ export function createMultiNewsAdapter(
         ...repeatFallbackGaps,
       ],
       newsAnalytics: {
-        fetchedNewsSourcesByProvider: countNewsByProvider(results, adapters),
+        fetchedNewsSourcesByProvider: countNewsByProvider(results),
         fetchedNewsSourceCount,
         canonicalDedupedNewsSourceCount: dedupedSources.length,
         canonicalDuplicateNewsSourceCount: fetchedNewsSourceCount - dedupedSources.length,
@@ -535,8 +636,9 @@ export function createMultiNewsAdapter(
         ...selectedRelevanceAnalytics(ctx.command, newsSources, targets),
         repeatFallbackUsed,
       },
-      modelInputSanitization: aggregateModelInputSanitization(
-        sanitizedResults.flatMap((result) => result.entries),
+      modelInputSanitization: mergeModelInputSanitization(
+        ...sanitizedResults.map((result) => result.modelInputSanitization),
+        aggregateModelInputSanitization(sanitizedResults.flatMap((result) => result.entries)),
       ),
     };
   }

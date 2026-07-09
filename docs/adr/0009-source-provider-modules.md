@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30
+2026-06-30 (amended 2026-07-09: optional thematic news search and web fallback)
 
 ## Context
 
@@ -28,6 +28,12 @@ logic.
 - Massive is an optional equity supplement for snapshots and news and an opportunistic fallback for
   selected Yahoo quote, benchmark, alpha-validation, and scoring-close paths. It does not supply
   movers or regime labels.
+- News adapters may optionally expose thematic search without changing providers that only support
+  generic feeds. Resolved research subjects derive search terms from their checked-in display name
+  and aliases. When the combined provider pool has no relevant thematic item before persistent
+  seen filtering, the existing Exa-to-Firecrawl web-search path supplies a bounded news fallback;
+  accepted results enter the normal news normalization, relevance, dedupe, seen-filter, and
+  selection pipeline.
 - Provider promotion into scoring requires explicit observation semantics and tests. Massive close
   fallback is part of the existing Yahoo observation path rather than a registry-owned observation
   capability.

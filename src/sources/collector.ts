@@ -24,6 +24,7 @@ import type {
   SourceRequest,
   SourceRequestExecutor,
   NewsRelevanceTarget,
+  ThematicNewsQuery,
 } from "./types";
 import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
@@ -397,6 +398,36 @@ export function researchNewsRelevanceTargets(
   return targets;
 }
 
+export function researchThematicNewsQuery(
+  resolvedSubject: ResolvedResearchSubject | undefined,
+): ThematicNewsQuery | undefined {
+  if (
+    resolvedSubject?.status !== "resolved" ||
+    resolvedSubject.subjectKey === undefined ||
+    resolvedSubject.displayName === undefined
+  ) {
+    return undefined;
+  }
+  const terms: string[] = [];
+  const normalizedTerms = new Set<string>();
+  for (const value of [resolvedSubject.displayName, ...(resolvedSubject.aliases ?? [])]) {
+    const term = value.trim();
+    const normalized = term.toLowerCase();
+    if (term === "" || normalizedTerms.has(normalized)) {
+      continue;
+    }
+    normalizedTerms.add(normalized);
+    terms.push(term);
+  }
+  return terms.length === 0
+    ? undefined
+    : {
+        subjectId: resolvedSubject.subjectKey,
+        subjectLabel: resolvedSubject.displayName,
+        terms,
+      };
+}
+
 function contextWithNewsRelevanceTargets(
   ctx: CollectContext,
   targets: readonly NewsRelevanceTarget[],
@@ -732,10 +763,14 @@ export async function collectSources(
       : tickerNewsRelevanceTargets(command, preliminaryIdentityResult?.identity?.displayName);
     newsContext = contextWithNewsRelevanceTargets(identityCtx, targets);
   } else if (command.jobType === "research") {
+    const thematicNewsQuery = researchThematicNewsQuery(resolvedSubject);
     newsContext = contextWithNewsRelevanceTargets(
       identityCtx,
       researchNewsRelevanceTargets(command, resolvedSubject),
     );
+    if (thematicNewsQuery !== undefined) {
+      newsContext = { ...newsContext, thematicNewsQuery };
+    }
   }
   const [
     resolvedMarketResult,

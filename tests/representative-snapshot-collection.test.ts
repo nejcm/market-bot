@@ -7,6 +7,7 @@ import {
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
 import {
   collectSources,
+  researchThematicNewsQuery,
   resetSourceResilienceForTests,
   setSourceHostMinDelayMsForTests,
 } from "../src/sources/collector";
@@ -75,6 +76,64 @@ beforeEach(() => {
 });
 
 describe("representative snapshot collection", () => {
+  test("builds thematic news terms from the resolved subject display name and aliases", () => {
+    expect(researchThematicNewsQuery(resolvedBiotech())).toEqual({
+      subjectId: "biotech",
+      subjectLabel: "Biotechnology",
+      terms: ["Biotechnology", "biotech", "biotech stocks", "biotechnology stocks"],
+    });
+  });
+
+  test("collects thematic Yahoo news and covers the news lane without classifier changes", async () => {
+    const queries: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("/v7/finance/quote")) {
+        return Response.json(yahooPayload(requestedSymbols(url.toString())));
+      }
+      if (url.pathname.includes("/v1/finance/search")) {
+        const query = url.searchParams.get("q") ?? "";
+        queries.push(query);
+        return Response.json({
+          news: query.includes('"biotech"')
+            ? [
+                {
+                  title: "Biotech funding rebounds as clinical milestones approach",
+                  link: "https://example.test/biotech-funding",
+                  publisher: "Example Wire",
+                },
+              ]
+            : [],
+        });
+      }
+      return Response.json({ news: [] });
+    };
+
+    const resolvedSubject = resolvedBiotech();
+    const result = await collectSources(command, sourceOptions, {
+      now: new Date(generatedAt),
+      fetchImpl,
+      retryDelaysMs: [],
+      resolvedSubject,
+    });
+    const sourcePlan = buildSourcePlan(command, generatedAt, resolvedSubject);
+    const assessed = assessSourcePlan(sourcePlan, result, generatedAt);
+
+    expect(queries).toContain(
+      '"Biotechnology" OR "biotech" OR "biotech stocks" OR "biotechnology stocks"',
+    );
+    expect(result.newsSources.map((source) => source.title)).toContain(
+      "Biotech funding rebounds as clinical milestones approach",
+    );
+    expect(result.newsAnalytics).toMatchObject({
+      relevantBeforeSeenFilterCount: 1,
+      relevantSelectedCount: 1,
+    });
+    expect(assessed.evidenceLanes.lanes.find((lane) => lane.lane === "news")?.status).toBe(
+      "covered",
+    );
+  });
+
   test("requests every representative once and reaches medium quality when Yahoo supplies them", async () => {
     const researchRequests: string[][] = [];
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {

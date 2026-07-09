@@ -6,6 +6,7 @@ import {
   type CollectContext,
   type NewsCollectionResult,
   type NewsAdapter,
+  type ThematicNewsQuery,
 } from "./types";
 
 const YAHOO_SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search";
@@ -62,12 +63,16 @@ function normalizeNews(
     .filter((source): source is Source => source !== undefined);
 }
 
-async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
+async function collectQuery(
+  ctx: CollectContext,
+  query: string,
+  adapter: string,
+): Promise<NewsCollectionResult> {
   const { command, newsLimit } = ctx;
-  const url = `${YAHOO_SEARCH_URL}?${encodeQuery({ q: newsQuery(command), newsCount: String(newsLimit) })}`;
+  const url = `${YAHOO_SEARCH_URL}?${encodeQuery({ q: query, newsCount: String(newsLimit) })}`;
   const fetched = await ctx.request.json({
     url,
-    adapter: "yahoo-news",
+    adapter,
   });
 
   if (!isFetchJsonResult(fetched)) {
@@ -81,9 +86,22 @@ async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
   };
 }
 
+async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
+  return collectQuery(ctx, newsQuery(ctx.command), "yahoo-news");
+}
+
+async function searchThematic(
+  ctx: CollectContext,
+  query: ThematicNewsQuery,
+): Promise<NewsCollectionResult> {
+  const search = query.terms.map((term) => `"${term}"`).join(" OR ");
+  return collectQuery(ctx, search, "yahoo-news-thematic");
+}
+
 export const yahooNewsAdapter: NewsAdapter = {
   name: "yahoo-news",
   provider: "yahoo-news",
   normalizeNews,
   collect: collectNews,
+  searchThematic,
 };

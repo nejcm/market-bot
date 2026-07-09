@@ -437,6 +437,7 @@ function assignSourceIds(sources: readonly Source[]): readonly Source[] {
 interface ProviderNewsResult {
   readonly provider: string;
   readonly result: NewsCollectionResult;
+  readonly modelInputSanitized?: boolean;
 }
 
 function countNewsByProvider(
@@ -464,7 +465,22 @@ async function collectProviderNews(
       const [generic, thematic] = await Promise.all([
         adapter.collect(ctx),
         ctx.thematicNewsQuery !== undefined && adapter.searchThematic !== undefined
-          ? adapter.searchThematic(ctx, ctx.thematicNewsQuery)
+          ? adapter.searchThematic(ctx, ctx.thematicNewsQuery).catch(
+              (error: unknown): NewsCollectionResult => ({
+                rawSnapshots: [],
+                newsSources: [],
+                sourceGaps: [
+                  sourceGap({
+                    source: `${adapter.provider}-thematic-news`,
+                    provider: adapter.provider,
+                    capability: "news",
+                    cause: "fetch-failed",
+                    evidenceQualityImpact: "no-cap",
+                    message: error instanceof Error ? error.message : "Thematic news search failed",
+                  }),
+                ],
+              }),
+            )
           : undefined,
       ]);
       return [
@@ -519,6 +535,7 @@ async function collectThematicWebNews(
   );
   return {
     provider: output.sources[0]?.provider ?? "thematic-web-search",
+    modelInputSanitized: true,
     result: {
       rawSnapshots: output.rawSnapshots,
       newsSources: output.sources.map((source) => ({
@@ -541,7 +558,10 @@ export function createMultiNewsAdapter(
   async function collectNews(ctx: CollectContext): Promise<NewsCollectionResult> {
     const initialResults = await collectProviderNews(adapters, ctx);
     const sanitizeResults = (results: readonly ProviderNewsResult[]) =>
-      results.map(({ provider, result }) => {
+      results.map(({ provider, result, modelInputSanitized }) => {
+        if (modelInputSanitized === true) {
+          return { ...result, entries: [] };
+        }
         const sanitized = result.newsSources.map((source) => sanitizeNewsSource(source, provider));
         const droppedItemCount = sanitized.filter((item) => item.source === undefined).length;
         return {

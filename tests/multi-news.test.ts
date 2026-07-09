@@ -122,6 +122,44 @@ describe("multi-news", () => {
     });
   });
 
+  test("keeps generic news when optional thematic search rejects", async () => {
+    const result = await createMultiNewsAdapter([
+      {
+        ...adapter("searchable", [
+          source("generic", "searchable", "Biotech markets gain", "2026-06-01T12:00:00.000Z"),
+        ]),
+        searchThematic: async () => {
+          throw new Error("thematic endpoint unavailable");
+        },
+      },
+    ]).collect({
+      ...context(),
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "brief",
+      },
+      newsRelevanceTargets: [{ symbol: "XBI", name: "Biotechnology biotech" }],
+      thematicNewsQuery: {
+        subjectId: "biotech",
+        subjectLabel: "Biotechnology",
+        terms: ["Biotechnology", "biotech"],
+      },
+    });
+
+    expect(result.newsSources).toHaveLength(1);
+    expect(result.newsSources[0]?.title).toBe("Biotech markets gain");
+    expect(result.sourceGaps).toContainEqual({
+      source: "searchable-thematic-news",
+      provider: "searchable",
+      capability: "news",
+      cause: "fetch-failed",
+      evidenceQualityImpact: "no-cap",
+      message: "thematic endpoint unavailable",
+    });
+  });
+
   test("falls back to subject-focused web search before seen filtering", async () => {
     const requests: string[] = [];
     const result = await createMultiNewsAdapter([
@@ -192,6 +230,16 @@ describe("multi-news", () => {
       relevantBeforeSeenFilterCount: 2,
       relevantSelectedCount: 2,
     });
+    expect(
+      result.modelInputSanitization?.entries.some(
+        (entry) => entry.provider === "exa" && entry.ingress === "web-gather",
+      ),
+    ).toBe(true);
+    expect(
+      result.modelInputSanitization?.entries.some(
+        (entry) => entry.provider === "exa" && entry.ingress === "news",
+      ),
+    ).toBe(false);
   });
 
   test("prioritizes ticker-relevant news inside provider round-robin selection", async () => {

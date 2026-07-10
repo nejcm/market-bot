@@ -98,6 +98,7 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     risks: report.risks,
     catalysts: report.catalysts,
     scenarios: report.scenarios,
+    researchQualityDriver: report.researchQualityDriver,
     renderedExtras: researchOnlyExtraText(report.extras),
   });
 
@@ -509,6 +510,9 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
     if (value !== undefined && !isReportIntegrity(value)) {
       throw new Error(`Research report ${field} must be high, medium, or low`);
     }
+  }
+  if (report.researchQualityDriver !== undefined && report.researchQualityDriver.trim() === "") {
+    throw new Error("Research report researchQualityDriver must be non-empty when set");
   }
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));

@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-07: per-stage duration telemetry; distilled completion context)
+2026-06-30 (amended 2026-07-07: per-stage duration telemetry; distilled completion context;
+amended 2026-07-10: research quality driver)
 
 ## Context
 
@@ -61,6 +62,10 @@ guidance rather than provider-native agents.
   Pruned-item and advisory-warning counts persist in trace and analytics, and pruned predictions
   never reach forecast disagreement, persistence, or scoring. Deterministically assembled
   alpha-search reports stamp `reportIntegrity: high` without a pruning pass.
+- When `researchQuality` is below `high`, new reports that run the Report Integrity Audit may also
+  stamp `researchQualityDriver`: a deterministic explanation and remediation derived from
+  structured Evidence Quality checks and integrity-pruning metadata. Alpha-search reports do not
+  carry this field because they do not run the Report Integrity Audit.
 - A model repair call and summary-sentence pruning remain explicitly deferred until real runs show
   deterministic pruning fires often enough to justify a repair pass.
 

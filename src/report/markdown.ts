@@ -830,6 +830,9 @@ export function renderMarkdownReport(report: ResearchReport): string {
     ...(report.researchQuality !== undefined
       ? [`Research Quality: ${report.researchQuality}`]
       : []),
+    ...(report.researchQualityDriver !== undefined
+      ? [`Research Quality Driver: ${report.researchQualityDriver}`]
+      : []),
     "",
     "## Summary",
     "",

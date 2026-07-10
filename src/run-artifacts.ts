@@ -493,6 +493,7 @@ function readReport(value: unknown): ResearchReport | undefined {
   const verifiedRepresentativeSnapshots = readVerifiedMarketSnapshots(
     value.verifiedRepresentativeSnapshots,
   );
+  const researchQualityDriver = readString(value, "researchQualityDriver");
   return {
     runId,
     jobType: value.jobType,
@@ -514,6 +515,7 @@ function readReport(value: unknown): ResearchReport | undefined {
       : { confidence: legacyConfidence ?? "low" }),
     ...(isReportIntegrity(value.reportIntegrity) ? { reportIntegrity: value.reportIntegrity } : {}),
     ...(isReportIntegrity(value.researchQuality) ? { researchQuality: value.researchQuality } : {}),
+    ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
     dataGaps: stringArrayValue(value.dataGaps),
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { EvidenceQualityAssessment } from "../src/domain/types";
 import { auditReportIntegrity, worseQuality } from "../src/research/report-integrity-audit";
 import { prediction, researchReport } from "./support/fixtures";
 
@@ -10,6 +11,26 @@ function citedFinding(text: string) {
 
 function uncitedFinding(text: string) {
   return { text, sourceIds: [] };
+}
+
+function evidenceAssessment(label: EvidenceQualityAssessment["label"]): EvidenceQualityAssessment {
+  return {
+    version: 1,
+    rubricVersion: 1,
+    label,
+    checks: [
+      {
+        capability: "news",
+        evidenceClass: "material",
+        coverage: "fail",
+        freshness: "not-applicable",
+        corroboration: "not-applicable",
+        passed: false,
+        reasons: [],
+      },
+    ],
+    limitingReasons: [],
+  };
 }
 
 describe("auditReportIntegrity", () => {
@@ -216,6 +237,22 @@ describe("auditReportIntegrity", () => {
     );
     expect(lowIntegrity.reportIntegrity).toBe("low");
     expect(lowIntegrity.researchQuality).toBe("low");
+  });
+
+  test("stamps research quality driver when evidence quality binds", () => {
+    const result = auditReportIntegrity(
+      researchReport({
+        confidence: "medium",
+        keyFindings: [citedFinding("Cited claim at 10%.")],
+      }),
+      evidenceAssessment("medium"),
+    );
+
+    expect(result.reportIntegrity).toBe("high");
+    expect(result.researchQuality).toBe("medium");
+    expect(result.report.researchQualityDriver).toBe(
+      "news evidence missing; remediation: configure news providers or rerun with fresh news coverage",
+    );
   });
 
   test("worseQuality orders low < medium < high", () => {

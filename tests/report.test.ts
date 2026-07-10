@@ -2166,12 +2166,34 @@ describe("report schema and rendering", () => {
     ).toThrow("Unknown source ID");
   });
 
+  test("rejects empty research quality driver", () => {
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        researchQualityDriver: " ",
+      }),
+    ).toThrow("researchQualityDriver must be non-empty");
+  });
+
   test("renders Markdown with source references, gaps, and one note", () => {
     const markdown = renderMarkdownReport(report);
 
     expect(markdown).toContain("[source-1]");
     expect(markdown).toContain("No derivatives data");
     expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
+  });
+
+  test("renders research quality driver in the header", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      reportIntegrity: "high",
+      researchQuality: "medium",
+      researchQualityDriver: "news evidence missing; remediation: rerun",
+    });
+
+    expect(markdown).toContain(
+      "Research Quality: medium\nResearch Quality Driver: news evidence missing; remediation: rerun",
+    );
   });
 
   test("renders cited sources first and summarizes uncited sources", () => {

@@ -549,7 +549,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Deterministic Report Integrity Audit: prune blocking violations from the
   // Schema-valid synthesis output before forecast disagreement so pruned
   // Predictions never reach challengers, persistence, or scoring.
-  const integrityAudit = auditReportIntegrity(synthesis.report);
+  const integrityAudit = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,
     generatedAt,

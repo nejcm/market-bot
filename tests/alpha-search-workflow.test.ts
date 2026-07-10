@@ -521,6 +521,9 @@ describe("alpha-search workflow", () => {
     // Valid lead with only no-cap source gaps (e.g. pre-ticker SEC filings)
     // Must not be pinned to "low" evidence quality.
     expect(result.report.evidenceQuality).toBe("medium");
+    expect(result.report.reportIntegrity).toBe("high");
+    expect(result.report.researchQuality).toBe("medium");
+    expect(result.report.researchQualityDriver).toBeUndefined();
     expect(result.report.predictions).toEqual([]);
     expect(result.analytics).toMatchObject({
       version: 2,

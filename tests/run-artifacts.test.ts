@@ -166,7 +166,12 @@ describe("loadRunArtifact", () => {
     const stampedDir = join(dataDir, "run-stamped");
     await writeJson(
       join(stampedDir, "report.json"),
-      researchReport({ runId: "run-stamped", reportIntegrity: "medium", researchQuality: "low" }),
+      researchReport({
+        runId: "run-stamped",
+        reportIntegrity: "medium",
+        researchQuality: "low",
+        researchQualityDriver: "news evidence missing; remediation: rerun",
+      }),
     );
 
     const legacy = await loadRunArtifact(legacyDir);
@@ -177,6 +182,9 @@ describe("loadRunArtifact", () => {
     expect(legacy.artifact?.report.researchQuality).toBeUndefined();
     expect(stamped.artifact?.report.reportIntegrity).toBe("medium");
     expect(stamped.artifact?.report.researchQuality).toBe("low");
+    expect(stamped.artifact?.report.researchQualityDriver).toBe(
+      "news evidence missing; remediation: rerun",
+    );
   });
 
   test("loads verified market snapshot through the run artifact seam", async () => {

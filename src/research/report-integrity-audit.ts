@@ -1,12 +1,14 @@
 import {
   researchReportEvidenceQuality,
   type EvidenceQuality,
+  type EvidenceQualityAssessment,
   type KeyFinding,
   type Prediction,
   type ReportIntegrity,
   type ResearchReport,
   type Scenario,
 } from "../domain/types";
+import { deriveResearchQualityDriver } from "./quality-driver";
 import {
   hasNoSupportingSource,
   hasPostureLabel,
@@ -215,7 +217,10 @@ export function worseQuality(
 // Without catalysts, prediction shortfalls), so they never force `low`.
 const REQUIRED_SECTIONS = ["keyFindings", "risks", "scenarios"] as const;
 
-export function auditReportIntegrity(report: ResearchReport): ReportIntegrityAuditResult {
+export function auditReportIntegrity(
+  report: ResearchReport,
+  evidenceQualityAssessment?: EvidenceQualityAssessment,
+): ReportIntegrityAuditResult {
   const keyFindings = partitionFindings("keyFindings", report.keyFindings);
   const bullCase = partitionFindings("bullCase", report.bullCase);
   const bearCase = partitionFindings("bearCase", report.bearCase);
@@ -256,6 +261,11 @@ export function auditReportIntegrity(report: ResearchReport): ReportIntegrityAud
   }
   const researchQuality = worseQuality(researchReportEvidenceQuality(report), reportIntegrity);
 
+  const researchQualityDriver = deriveResearchQualityDriver(evidenceQualityAssessment, {
+    reportIntegrity,
+    researchQuality,
+    pruned,
+  });
   const prunedReport: ResearchReport = {
     ...report,
     keyFindings: keyFindings.kept,
@@ -267,6 +277,7 @@ export function auditReportIntegrity(report: ResearchReport): ReportIntegrityAud
     predictions: predictions.kept,
     reportIntegrity,
     researchQuality,
+    ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
   };
   const advisories = [...summaryAdvisories(report.summary), ...postureAdvisories(prunedReport)];
 

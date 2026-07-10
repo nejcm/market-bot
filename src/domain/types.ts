@@ -591,6 +591,7 @@ export interface ResearchReport {
   readonly confidence?: EvidenceQuality;
   readonly reportIntegrity?: ReportIntegrity;
   readonly researchQuality?: ReportIntegrity;
+  readonly researchQualityDriver?: string;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];

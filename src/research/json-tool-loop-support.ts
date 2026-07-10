@@ -5,6 +5,7 @@ export interface JsonToolRejectionGapOptions {
   readonly source: string;
   readonly provider?: string;
   readonly capability: SourceGapCapability;
+  readonly gapMessage?: string;
 }
 
 export interface JsonToolBudgetValidation {
@@ -71,7 +72,7 @@ export function rejectedJsonToolRequest(
     },
     gap: sourceGap({
       source: options.source,
-      message: `${tool}: ${reason}`,
+      message: options.gapMessage ?? `${tool}: ${reason}`,
       ...(options.provider !== undefined ? { provider: options.provider } : {}),
       capability: options.capability,
       cause: "validation-failed",

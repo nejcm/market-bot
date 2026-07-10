@@ -865,11 +865,34 @@ function reject(
   rationale: string | undefined,
   reason: string,
 ): { readonly audit: JsonToolLoopAuditEntry; readonly gap: SourceGap } {
+  const gapMessage = webGatherRejectionGapMessage(reason);
   return rejectedJsonToolRequest(round, tool, args, rationale, reason, {
     source: "web-gather",
     provider: "exa",
     capability: "web-gather",
+    ...(gapMessage !== undefined ? { gapMessage } : {}),
   });
+}
+
+function webGatherRejectionGapMessage(reason: string): string | undefined {
+  switch (reason) {
+    case "web_search query must mention the run subject": {
+      return "a model web query was rejected for drifting off-subject";
+    }
+    case "web gather tool-call budget exceeded":
+    case "web gather source budget exceeded": {
+      return "a model web request was skipped because the web-gather budget was exhausted";
+    }
+    case "duplicate web gather request": {
+      return "a repeated model web request was skipped";
+    }
+    case "web_fetch url was not returned by web_search in this run": {
+      return "a model web fetch was rejected because the site is not on the fetch allowlist";
+    }
+    default: {
+      return undefined;
+    }
+  }
 }
 
 function webGatherMalformedGap(message: string): SourceGap {

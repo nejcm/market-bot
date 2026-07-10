@@ -106,6 +106,27 @@ describe("deriveResearchQualityDriver", () => {
     expect(driver).not.toContain("news evidence missing");
   });
 
+  test("emits every failed check kind from a capped lane", () => {
+    expect(
+      deriveResearchQualityDriver(
+        assessment("low", [
+          check("news", "material", {
+            coverage: "fail",
+            freshness: "fail",
+            corroboration: "fail",
+          }),
+        ]),
+        {
+          reportIntegrity: "high",
+          researchQuality: "low",
+          pruned: [],
+        },
+      ),
+    ).toBe(
+      "news evidence missing; news evidence stale; news lacks corroboration; remediation: configure news providers or rerun with fresh news coverage; rerun with fresher news coverage; add a second current news source or rerun",
+    );
+  });
+
   test("uses lane-specific remediation for subject profile coverage", () => {
     expect(
       deriveResearchQualityDriver(

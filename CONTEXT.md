@@ -150,6 +150,7 @@ A horizon-parameterized research run for an asset class that summarizes market r
 ## Research Subject Registry
 
 A checked-in equity subject registry for the `research` run type. It resolves aliases such as `semis` or `chip stocks` to a canonical `subjectKey`, representative instruments, source provenance, and optionally one listed ETF prediction proxy. The public CLI and Research Console can queue `research <subject>` runs, while run artifacts, history/search filters, calibration/index rows, and prompt context carry `jobType: "research"` with subject identity. No registry hit, or no single proxy, means thematic research can proceed with zero scored predictions and a disclosed proxy gap.
+The registry enriches resolved subjects but never constrains or suggests what subject a user may enter.
 
 ## Cross-run Intelligence
 

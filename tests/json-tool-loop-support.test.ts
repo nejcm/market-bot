@@ -112,6 +112,35 @@ describe("rejectedJsonToolRequest", () => {
     expect("rationale" in audit).toBe(false);
     expect("provider" in gap).toBe(false);
   });
+
+  test("allows source gap message overrides without changing the audit reason", () => {
+    const { audit, gap } = rejectedJsonToolRequest(
+      1,
+      "web_search",
+      { query: "off topic" },
+      "try search",
+      "raw rejection",
+      {
+        source: "web-gather",
+        provider: "exa",
+        capability: "web-gather",
+        gapMessage: "friendly rejection",
+      },
+    );
+
+    expect(audit).toEqual(
+      expect.objectContaining({
+        status: "rejected",
+        reason: "raw rejection",
+      }),
+    );
+    expect(gap).toEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "friendly rejection",
+      }),
+    );
+  });
 });
 
 describe("withStaleFallbackGaps", () => {

@@ -146,7 +146,7 @@ function integrityDriverParts(integrity: QualityDriverIntegrityResult): {
   readonly remediations: readonly string[];
 } {
   const sections = [...new Set(integrity.pruned.map((item) => sectionName(item.location)))];
-  const target = sections.length === 0 ? "unsupported content" : sections.join(", ");
+  const target = sections.join(", ");
   return {
     drivers: [`report integrity pruning removed unsupported content from ${target}`],
     remediations: ["improve source coverage for the pruned sections"],
@@ -164,6 +164,8 @@ export function deriveResearchQualityDriver(
   if (integrity.researchQuality === "high") {
     return undefined;
   }
+  // Callers pass the same evidence assessment used to derive `researchQuality`;
+  // If that invariant is broken, do not fabricate an evidence-bound driver.
   const evidenceBinds = assessment !== undefined && assessment.label === integrity.researchQuality;
   const integrityBinds = integrity.reportIntegrity === integrity.researchQuality;
   const evidence =

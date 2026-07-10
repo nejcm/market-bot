@@ -816,7 +816,7 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "web-gather",
-        message: "web_search: web_search query must mention the run subject",
+        message: "a model web query was rejected for drifting off-subject",
       }),
     );
   });
@@ -919,6 +919,12 @@ describe("runWebGatherLoop", () => {
         reason: "web_fetch url was not returned by web_search in this run",
       }),
     ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "a model web fetch was rejected because the site is not on the fetch allowlist",
+      }),
+    );
     expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toEqual([
       "exa-search",
       "exa-contents",
@@ -990,13 +996,13 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "web-gather",
-        message: "web_search: duplicate web gather request",
+        message: "a repeated model web request was skipped",
       }),
     );
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "web-gather",
-        message: "web_fetch: duplicate web gather request",
+        message: "a repeated model web request was skipped",
       }),
     );
   });
@@ -1037,6 +1043,54 @@ describe("runWebGatherLoop", () => {
         reason: "web gather source budget exceeded",
       }),
     ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "a model web request was skipped because the web-gather budget was exhausted",
+      }),
+    );
+  });
+
+  test("humanizes web-gather tool-call budget gaps", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 1, sourceBudget: 8 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model", searchType: "background" },
+              rationale: "first search",
+            },
+            {
+              tool: "web_search",
+              args: { query: "AAPL revenue segments", searchType: "background" },
+              rationale: "second search",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        reason: "web gather tool-call budget exceeded",
+      }),
+    ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "a model web request was skipped because the web-gather budget was exhausted",
+      }),
+    );
   });
 
   test("rejects web search numResults above executor maximum", async () => {
@@ -1067,6 +1121,12 @@ describe("runWebGatherLoop", () => {
         reason: "web_search numResults must be at most 8",
       }),
     ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: "web_search: web_search numResults must be at most 8",
+      }),
+    );
   });
 
   test("rejects web search without an explicit search type", async () => {

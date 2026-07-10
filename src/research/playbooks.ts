@@ -72,7 +72,7 @@ interface RawSelection {
   readonly playbookIds: readonly string[];
 }
 
-const MAX_PLAYBOOK_CHARS = 2500;
+export const MAX_PLAYBOOK_CHARS = 2500;
 const MAX_PLAYBOOKS_PER_STAGE = 2;
 const MAX_PLAYBOOKS_PER_RUN = 6;
 const MAX_SELECTOR_RATIONALE_CHARS = 500;

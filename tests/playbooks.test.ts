@@ -7,6 +7,7 @@ import {
   loadPlaybookRegistry,
   loadPlaybooksByStage,
   mandatoryPlaybookSelections,
+  MAX_PLAYBOOK_CHARS,
   parsePlaybookSelection,
   type PlaybookMetadata,
   type PlaybookStage,
@@ -185,7 +186,7 @@ describe("loadPlaybookRegistry", () => {
       subjectKeys: ["biotech"],
     });
     const raw = await readFile(join("prompts", "playbooks", "subject-biotech.md"), "utf8");
-    expect(raw.length).toBeLessThanOrEqual(2500);
+    expect(raw.length).toBeLessThanOrEqual(MAX_PLAYBOOK_CHARS);
     // Regulatory cadence, M&A discipline, proxy caveats, representative framing, research-only.
     expect(instruction).toContain("pdufa");
     expect(instruction).toContain("regulatory");
@@ -194,8 +195,8 @@ describe("loadPlaybookRegistry", () => {
     expect(instruction).toContain("xbi");
     expect(instruction).toContain("representative");
     expect(instruction).toContain("research-only");
-    // Steers away from ranked "best" picks (ADR 0001).
-    expect(instruction).toContain("best");
+    // Prohibits ranked "best" picks and execution language (ADR 0001).
+    expect(instruction).toContain('never emit buy, sell, hold, "best", "top", ranked picks');
   });
 
   test("rejects duplicate ids and invalid stages", async () => {
@@ -312,15 +313,14 @@ describe("loadPlaybookRegistry", () => {
     });
     // Stays within the MAX_PLAYBOOK_CHARS budget enforced at load time.
     const raw = await readFile(join("prompts", "playbooks", "thematic-research.md"), "utf8");
-    expect(raw.length).toBeLessThanOrEqual(2500);
+    expect(raw.length).toBeLessThanOrEqual(MAX_PLAYBOOK_CHARS);
     // Representative-company framing, dated catalysts, breadth, and research-only wording.
     expect(instruction).toContain("representative");
     expect(instruction).toContain("catalyst");
     expect(instruction).toContain("breadth");
     expect(instruction).toContain("research-only");
-    // Steers away from ranked "best/top" picks (ADR 0001).
-    expect(instruction).toContain("ranked");
-    expect(instruction).toContain("best");
+    // Prohibits ranked "best" picks and execution language (ADR 0001).
+    expect(instruction).toContain('never emit buy, sell, hold, "best", "top", ranked picks');
   });
 });
 
@@ -615,7 +615,7 @@ describe("loadPlaybooksByStage", () => {
       loadPlaybooksByStage(tooLong.dir, registry, [
         { stage: "specialist-analysis", playbookIds: ["market-regime"] },
       ]),
-    ).rejects.toThrow("exceeds 2500 characters");
+    ).rejects.toThrow(`exceeds ${String(MAX_PLAYBOOK_CHARS)} characters`);
   });
 });
 

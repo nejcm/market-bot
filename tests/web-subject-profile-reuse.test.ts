@@ -222,15 +222,15 @@ describe("Web Subject Profile reuse", () => {
     const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
-      // A fractional age (19.7 days) must be disclosed as-is, not floored to 19.
-      now: new Date("2026-05-20T16:48:00.000Z"),
+      // A binary midpoint must use the same tenth-day rounding as analytics.
+      now: new Date("2026-05-03T13:12:00.000Z"),
       reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
     expect(reuse?.profile).toMatchObject({ subjectKind: "company", companyName: "AAPL Inc." });
     expect(reuse?.sources.map((source) => source.id)).toEqual([webSource.id]);
-    expect(reuse?.gap.message).toContain("19.7 days old");
+    expect(reuse?.gap.message).toContain("2.5 days old");
   });
 
   test("rejects reuse when a newer current SEC filing exists", async () => {

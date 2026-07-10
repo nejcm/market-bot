@@ -9,6 +9,7 @@ import {
   webSubjectProfileSubjectForCommand,
 } from "../sources/extended-evidence/web-subject-profile";
 import type { CollectedSources } from "../sources/types";
+import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
 
 export interface WebSubjectProfileReuse {
   readonly profile: WebSubjectProfileArtifact;
@@ -74,7 +75,9 @@ export async function findReusableWebSubjectProfile(input: {
     if (sources === undefined) {
       continue;
     }
-    const ageDays = (input.now.getTime() - new Date(profile.generatedAt).getTime()) / DAY_MS;
+    const ageDays = roundWebSubjectProfileAgeDays(
+      (input.now.getTime() - new Date(profile.generatedAt).getTime()) / DAY_MS,
+    );
     const filingSuffix =
       profile.subjectKind === "company" && input.currentSecFilingDate !== undefined
         ? `; latest SEC filing basis ${input.currentSecFilingDate}`

@@ -266,6 +266,16 @@ export async function runCli(
       `Pre-run score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   });
+  // A rejected parallel pass may already have changed mutable sidecars, so an
+  // Empty update still runs the stale-index repair path.
+  if (preRunScoreResult === undefined || preRunScoreResult.touchedRunDirs.length > 0) {
+    await updateRunArtifactIndex(
+      config.dataDir,
+      preRunScoreResult?.touchedRunDirs ?? [],
+      dependencies,
+      config.indexOptions?.dbPath,
+    );
+  }
 
   const provider = (dependencies.createProvider ?? createProvider)(config);
   const rawResearchCommand = asResearchCommand(command);
@@ -323,11 +333,7 @@ export async function runCli(
   }
   await updateRunArtifactIndex(
     config.dataDir,
-    [
-      result.artifacts.runDir,
-      ...(preRunScoreResult?.touchedRunDirs ?? []),
-      ...(scoreResult?.touchedRunDirs ?? []),
-    ],
+    [result.artifacts.runDir, ...(scoreResult?.touchedRunDirs ?? [])],
     dependencies,
     config.indexOptions?.dbPath,
   );

@@ -24,6 +24,7 @@ import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
 import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
+import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -372,7 +373,7 @@ function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number | 
     return undefined;
   }
   // One-decimal precision so a 1.7-day-old reused profile is not disclosed as 1 day.
-  return Math.max(0, Math.round(((to - from) / DAY_MS) * 10) / 10);
+  return Math.max(0, roundWebSubjectProfileAgeDays((to - from) / DAY_MS));
 }
 
 function calibrationMetricSlice(

@@ -146,6 +146,9 @@ Scoring behavior is selected from the Prediction's persisted policy version ([AD
 
 Every synthesis-report research run starts with a **best-effort pre-run score pass** — before source collection begins — so predictions that became resolvable since the last run are scored before the orchestrator refreshes the calibration context; a pre-run failure logs to stderr and never blocks the run. After persistence, the run triggers a score pass, calibration refresh, and Run Artifact Index write-through as **non-blocking** side effects; the post-run score pass is the safety net for the pre-run one. `alpha-search` has no predictions, so it skips the score/calibration side effect and writes only its own run directory through the index; later `score` runs produce alpha validation, watchlist, feature attribution, and cohort artifacts from persisted alpha-search runs. Failures there log to stderr; they must not abort the research job. After a persisted run, the CLI also prints a compact run-quality digest to stderr (`run-analytics-console.ts` for research/equity/crypto/market-overview runs, `alpha-search/run-analytics-console.ts` for alpha-search) so the `analytics.json` signals are visible without opening the file; stdout stays reserved for the run-dir path, and the digest is guarded so a render failure never aborts a completed run. The `RunAnalytics.predictions` block (in `run-analytics.ts`) includes non-blocking forecast-quality telemetry: `nearBaseRateCount` (predictions within 0.05 of 0.5), `informativeCount` (outside that band), `signalTargetMet` (boolean: at least half the predictions are informative), and `mixWarnings` (direction-only mix or all-near-base-rate cluster). These fields observe; they never reject predictions (per ADR 0021).
 
+Pre-run score mutations write through affected Run Artifact Index rows immediately. A rejected
+pass still triggers stale-index repair because parallel scoring may already have changed sidecars.
+
 Adding a new prediction shape means updating: the parser in `forecast/observable.ts`, resolver, report schema, markdown renderer, and tests. All four.
 
 ### Report (`src/report/`)
@@ -163,7 +166,7 @@ Client conventions: loose `Record<string, unknown>` payloads at the wire, valida
 ## Data flow
 
 ```
-CLI args → AppConfig → pre-run score pass (best-effort) → collect sources → orchestrator
+CLI args → AppConfig → pre-run score + index repair (best-effort) → collect sources → orchestrator
                                       ├─ historical context from run artifacts
                                       ├─ regime summary
                                       ├─ optional market spotlight selection

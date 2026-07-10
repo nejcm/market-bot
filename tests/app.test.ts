@@ -163,6 +163,7 @@ describe("runCli", () => {
     dataDirs.push(dataDir);
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     const calls: string[] = [];
+    const indexedRunDirs: (readonly string[])[] = [];
     const provider: ModelProvider = {
       name: "test",
       generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
@@ -206,13 +207,53 @@ describe("runCli", () => {
       writeThroughRunArtifactIndex: async (receivedDataDir, runDirs) => {
         calls.push("index");
         expect(receivedDataDir).toBe(dataDir);
-        expect(runDirs).toEqual(["run-1", "old-run"]);
+        indexedRunDirs.push(runDirs);
       },
+      rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
       now: () => new Date("2026-06-01T00:00:00.000Z"),
     });
 
     expect(result).toBe(runDir);
-    expect(calls).toEqual(["score", "persist", "score", "calibration", "index"]);
+    expect(calls).toEqual(["score", "index", "persist", "score", "calibration", "index"]);
+    expect(indexedRunDirs).toEqual([["old-run"], ["run-1"]]);
+  });
+
+  test("indexes pre-run score mutations before a later collection failure", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-prerun-index-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+
+    await expect(
+      runCli(["daily", "--asset", "equity"], {
+        createProvider: () => ({
+          name: "test" as const,
+          generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+        }),
+        runScorePass: async () => {
+          calls.push("score");
+          return { scored: 1, skipped: 0, touchedRunDirs: ["old-run"] };
+        },
+        writeThroughRunArtifactIndex: async (_receivedDataDir, runDirs) => {
+          calls.push("index");
+          expect(runDirs).toEqual(["old-run"]);
+        },
+        rebuildRunArtifactIndexIfStale: async () => {
+          calls.push("stale-rebuild");
+          return { rebuilt: false };
+        },
+        collectSources: async () => {
+          calls.push("collect");
+          throw new Error("simulated collection failure");
+        },
+        now: () => new Date("2026-06-01T00:00:00.000Z"),
+      }),
+    ).rejects.toThrow("simulated collection failure");
+
+    expect(calls).toEqual(["score", "index", "stale-rebuild", "collect"]);
   });
 
   test("freezes the Source Plan before source collection begins", async () => {
@@ -789,6 +830,7 @@ describe("runCli", () => {
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     const runDir = join(dataDir, "run-1");
     let scoreCalls = 0;
+    const events: string[] = [];
 
     try {
       const result = await runCli(["daily", "--asset", "equity"], {
@@ -797,8 +839,9 @@ describe("runCli", () => {
           generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
         }),
         collectSources: async () => collectedSources(),
-        persistResearchJob: async () =>
-          ({
+        persistResearchJob: async () => {
+          events.push("persist");
+          return {
             report: researchReport({ runId: "run-1" }),
             markdown: "",
             trace: {},
@@ -811,17 +854,24 @@ describe("runCli", () => {
               rawDir: join(runDir, "raw"),
               normalizedDir: join(runDir, "normalized"),
             },
-          }) as never,
+          } as never;
+        },
         runScorePass: async () => {
           scoreCalls += 1;
+          events.push(`score-${String(scoreCalls)}`);
           if (scoreCalls === 1) {
             throw new Error("simulated pre-run score failure");
           }
           return { scored: 0, skipped: 0, touchedRunDirs: [] };
         },
         buildAndWriteCalibration: async () => null,
-        writeThroughRunArtifactIndex: async () => {},
-        rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+        writeThroughRunArtifactIndex: async () => {
+          events.push("index");
+        },
+        rebuildRunArtifactIndexIfStale: async () => {
+          events.push("stale-rebuild");
+          return { rebuilt: false };
+        },
         now: () => new Date("2026-06-01T00:00:00.000Z"),
       });
 
@@ -829,6 +879,15 @@ describe("runCli", () => {
       // Still executes as the safety net.
       expect(result).toBe(runDir);
       expect(scoreCalls).toBe(2);
+      expect(events).toEqual([
+        "score-1",
+        "index",
+        "stale-rebuild",
+        "persist",
+        "score-2",
+        "index",
+        "stale-rebuild",
+      ]);
       expect(stderrChunks.join("")).toContain("Pre-run score pass failed");
       expect(stderrChunks.join("")).toContain("simulated pre-run score failure");
     } finally {

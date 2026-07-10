@@ -9,7 +9,9 @@ import {
   mandatoryPlaybookSelections,
   parsePlaybookSelection,
   type PlaybookMetadata,
+  type PlaybookStage,
 } from "../src/research/playbooks";
+import { DEFAULT_RESEARCH_SUBJECT_REGISTRY } from "../src/research/subject-registry";
 
 const registry: readonly PlaybookMetadata[] = [
   {
@@ -72,6 +74,17 @@ const registry: readonly PlaybookMetadata[] = [
     depths: ["brief", "deep"],
     stages: ["specialist-analysis", "final-synthesis"],
   },
+  {
+    id: "subject-biotech",
+    title: "Biotech Subject",
+    summary: "Biotech discipline.",
+    file: "subject-biotech.md",
+    jobTypes: ["research"],
+    assetClasses: ["equity"],
+    depths: ["brief", "deep"],
+    stages: ["specialist-analysis"],
+    subjectKeys: ["biotech"],
+  },
 ];
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -112,6 +125,77 @@ describe("loadPlaybookRegistry", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual(registry[0]);
+  });
+
+  test("parses optional subjectKeys and rejects an invalid array", async () => {
+    const valid = await makePromptDir({
+      "playbooks/registry.json": registryJson([{ ...registry[0], subjectKeys: ["biotech"] }]),
+    });
+    cleanups.push(valid.cleanup);
+    const parsed = await loadPlaybookRegistry(valid.dir);
+    expect(parsed[0]?.subjectKeys).toEqual(["biotech"]);
+
+    const invalid = await makePromptDir({
+      "playbooks/registry.json": registryJson([{ ...registry[0], subjectKeys: [""] }]),
+    });
+    cleanups.push(invalid.cleanup);
+    await expect(loadPlaybookRegistry(invalid.dir)).rejects.toThrow("invalid subjectKeys array");
+  });
+
+  test("omits subjectKeys when the field is absent", async () => {
+    const { dir, cleanup } = await makePromptDir({
+      "playbooks/registry.json": registryJson([registry[0]]),
+    });
+    cleanups.push(cleanup);
+    const parsed = await loadPlaybookRegistry(dir);
+    expect(parsed[0]?.subjectKeys).toBeUndefined();
+  });
+
+  test("subject-keyed real playbooks declare only the reserved free-seat stage", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    for (const playbook of realRegistry) {
+      if (playbook.subjectKeys !== undefined) {
+        expect(playbook.stages).toEqual(["specialist-analysis"]);
+      }
+    }
+  });
+
+  test("every subjectKeys value maps to a checked-in research subject", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const subjectKeys = new Set(DEFAULT_RESEARCH_SUBJECT_REGISTRY.map((entry) => entry.subjectKey));
+    for (const playbook of realRegistry) {
+      for (const key of playbook.subjectKeys ?? []) {
+        expect(subjectKeys.has(key)).toBe(true);
+      }
+    }
+  });
+
+  test("subject-biotech is biotech-scoped and stays within the char budget", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const subjectBiotech = realRegistry.find((playbook) => playbook.id === "subject-biotech");
+    const [stage] = await loadPlaybooksByStage("prompts", realRegistry, [
+      { stage: "specialist-analysis", playbookIds: ["subject-biotech"] },
+    ]);
+    const instruction = (stage?.playbooks[0]?.instruction ?? "").toLowerCase();
+
+    expect(subjectBiotech).toMatchObject({
+      jobTypes: ["research"],
+      assetClasses: ["equity"],
+      stages: ["specialist-analysis"],
+      subjectKeys: ["biotech"],
+    });
+    const raw = await readFile(join("prompts", "playbooks", "subject-biotech.md"), "utf8");
+    expect(raw.length).toBeLessThanOrEqual(2500);
+    // Regulatory cadence, M&A discipline, proxy caveats, representative framing, research-only.
+    expect(instruction).toContain("pdufa");
+    expect(instruction).toContain("regulatory");
+    expect(instruction).toContain("m&a");
+    expect(instruction).toContain("disclosed terms");
+    expect(instruction).toContain("xbi");
+    expect(instruction).toContain("representative");
+    expect(instruction).toContain("research-only");
+    // Steers away from ranked "best" picks (ADR 0001).
+    expect(instruction).toContain("best");
   });
 
   test("rejects duplicate ids and invalid stages", async () => {
@@ -292,6 +376,30 @@ describe("eligiblePlaybookCandidates", () => {
       },
     ]);
   });
+
+  test("gates subject-keyed playbooks on the command subjectKey", () => {
+    const stages = ["specialist-analysis"] as const;
+    const withoutSubject = eligiblePlaybookCandidates(
+      { jobType: "research", assetClass: "equity", depth: "deep" },
+      stages,
+      registry,
+    );
+    expect(withoutSubject.map((candidate) => candidate.id)).not.toContain("subject-biotech");
+
+    const mismatched = eligiblePlaybookCandidates(
+      { jobType: "research", assetClass: "equity", depth: "deep", subjectKey: "energy" },
+      stages,
+      registry,
+    );
+    expect(mismatched.map((candidate) => candidate.id)).not.toContain("subject-biotech");
+
+    const matched = eligiblePlaybookCandidates(
+      { jobType: "research", assetClass: "equity", depth: "deep", subjectKey: "biotech" },
+      stages,
+      registry,
+    );
+    expect(matched.map((candidate) => candidate.id)).toContain("subject-biotech");
+  });
 });
 
 describe("mandatoryPlaybookSelections", () => {
@@ -307,6 +415,7 @@ describe("mandatoryPlaybookSelections", () => {
         { jobType: "research", assetClass: "equity", depth: "brief" },
         ["specialist-analysis", "critique", "final-synthesis"],
         candidates,
+        registry,
       ),
     ).toEqual([
       { stage: "critique", playbookIds: ["source-discipline"] },
@@ -328,6 +437,7 @@ describe("mandatoryPlaybookSelections", () => {
         { jobType: "equity", assetClass: "equity", depth: "deep" },
         ["critique", "final-synthesis"],
         candidates,
+        registry,
       ),
     ).toEqual([{ stage: "final-synthesis", playbookIds: ["synthesis-discipline"] }]);
   });
@@ -342,6 +452,7 @@ describe("mandatoryPlaybookSelections", () => {
       { jobType: "equity", assetClass: "equity", depth: "deep" },
       ["specialist-analysis", "critique", "final-synthesis"],
       candidates,
+      registry,
     );
 
     expect(selections.flatMap((selection) => selection.playbookIds)).not.toContain(
@@ -355,10 +466,67 @@ describe("mandatoryPlaybookSelections", () => {
         { jobType: "research", assetClass: "crypto", depth: "brief" },
         ["critique", "final-synthesis"],
         [],
+        registry,
       ),
     ).toThrow(
       "Mandatory playbook source-discipline is not eligible for research source-discipline stages: critique",
     );
+  });
+
+  test("seats a matching subject playbook mandatorily for research runs", () => {
+    const stages = ["specialist-analysis", "critique", "final-synthesis"] as const;
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      depth: "deep",
+      subjectKey: "biotech",
+    } as const;
+    const candidates = eligiblePlaybookCandidates(command, stages, registry);
+
+    expect(mandatoryPlaybookSelections(command, stages, candidates, registry)).toContainEqual({
+      stage: "specialist-analysis",
+      playbookIds: ["subject-biotech"],
+    });
+  });
+
+  test("does not seat subject playbooks for a non-matching research subject", () => {
+    const stages = ["specialist-analysis", "critique", "final-synthesis"] as const;
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      depth: "deep",
+      subjectKey: "energy",
+    } as const;
+    const candidates = eligiblePlaybookCandidates(command, stages, registry);
+    const selections = mandatoryPlaybookSelections(command, stages, candidates, registry);
+
+    expect(selections.flatMap((selection) => selection.playbookIds)).not.toContain(
+      "subject-biotech",
+    );
+  });
+
+  test("mandatorily seats every real subject playbook without tripping a cap", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const stages: readonly PlaybookStage[] = ["specialist-analysis", "critique", "final-synthesis"];
+
+    for (const playbook of realRegistry) {
+      for (const subjectKey of playbook.subjectKeys ?? []) {
+        const command = {
+          jobType: "research",
+          assetClass: "equity",
+          depth: "deep",
+          subjectKey,
+        } as const;
+        const candidates = eligiblePlaybookCandidates(command, stages, realRegistry);
+        const mandatory = mandatoryPlaybookSelections(command, stages, candidates, realRegistry);
+        // ParsePlaybookSelection throws if a mandatory seat exceeds a cap; a clean
+        // Seat proves the subject playbook fits the reserved specialist-analysis slot.
+        const audit = parsePlaybookSelection('{"selections":[]}', candidates, mandatory);
+
+        expect(audit.selected.flatMap((selection) => selection.playbookIds)).toContain(playbook.id);
+        expect(audit.rejected).toEqual([]);
+      }
+    }
   });
 });
 

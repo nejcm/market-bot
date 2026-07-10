@@ -40,6 +40,7 @@ import {
   loadPlaybooksByStage,
   mandatoryPlaybookSelections,
   parsePlaybookSelection,
+  playbookScopeWithSubjectKey,
   type PlaybookSelectionAudit,
   type PlaybookStage,
 } from "./playbooks";
@@ -233,7 +234,11 @@ async function runPlaybookSelection(
   readonly context: ResearchContext;
 }> {
   const registry = await loadPlaybookRegistry(input.config.promptDir);
-  const candidates = eligiblePlaybookCandidates(input.command, plannedStages, registry);
+  const scope = playbookScopeWithSubjectKey(
+    input.command,
+    collectedSources.resolvedSubject?.subjectKey,
+  );
+  const candidates = eligiblePlaybookCandidates(scope, plannedStages, registry);
   const loaded = await loadStagePrompt("playbook-selection", input.command, input.config.promptDir);
   const prompt = buildPlaybookSelectionPrompt(
     input.command,
@@ -265,7 +270,7 @@ async function runPlaybookSelection(
   const audit = parsePlaybookSelection(
     response.content,
     candidates,
-    mandatoryPlaybookSelections(input.command, plannedStages, candidates),
+    mandatoryPlaybookSelections(scope, plannedStages, candidates, registry),
   );
   const domainPlaybooks = await loadPlaybooksByStage(
     input.config.promptDir,

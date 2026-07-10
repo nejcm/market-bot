@@ -234,7 +234,7 @@ Market-level evidence that enriches Market Overviews without targeting one Instr
 
 ## Domain Playbook
 
-A checked-in research guidance snippet selected once per run after source collection and the Evidence Request Loop. It steers eligible downstream model stages without fetching sources, changing report schema, or adding trading behavior.
+A checked-in research guidance snippet selected once per run after source collection and the Evidence Request Loop. It steers eligible downstream model stages without fetching sources, changing report schema, or adding trading behavior. Research runs deterministically include the thematic playbook and any subject-matched playbook (selected when the run's resolved `subjectKey` matches the playbook's `subjectKeys`); selection remains model-driven for the rest.
 
 ## Mover
 

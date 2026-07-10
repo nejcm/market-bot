@@ -90,6 +90,17 @@
       "assetClasses": ["equity"],
       "depths": ["brief", "deep"],
       "stages": ["specialist-analysis", "final-synthesis"]
+    },
+    {
+      "id": "subject-biotech",
+      "title": "Biotech Subject",
+      "summary": "Frame biotech themes around regulatory cadence, M&A context discipline, XBI-proxy caveats, and representative-company evidence, never ranked picks.",
+      "file": "subject-biotech.md",
+      "jobTypes": ["research"],
+      "assetClasses": ["equity"],
+      "depths": ["brief", "deep"],
+      "stages": ["specialist-analysis"],
+      "subjectKeys": ["biotech"]
     }
   ]
 }

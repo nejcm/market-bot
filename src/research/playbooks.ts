@@ -22,6 +22,7 @@ export interface PlaybookCommandScope {
   readonly assetClass: AssetClass;
   readonly depth: Depth;
   readonly symbol?: string;
+  readonly subjectKey?: string;
 }
 
 export interface PlaybookMetadata {
@@ -33,6 +34,7 @@ export interface PlaybookMetadata {
   readonly assetClasses: readonly AssetClass[];
   readonly depths: readonly Depth[];
   readonly stages: readonly PlaybookStage[];
+  readonly subjectKeys?: readonly string[];
 }
 
 export interface LoadedPlaybook extends PlaybookMetadata {
@@ -106,6 +108,24 @@ function readStringArray(record: Record<string, unknown>, key: string): readonly
   return value;
 }
 
+function readOptionalStringArray(
+  record: Record<string, unknown>,
+  key: string,
+): readonly string[] | undefined {
+  if (record[key] === undefined) {
+    return undefined;
+  }
+  const value = record[key];
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((item) => typeof item !== "string" || item === "")
+  ) {
+    throw new Error(`Playbook registry entry has invalid ${key} array`);
+  }
+  return value;
+}
+
 function assertJobTypes(values: readonly string[]): readonly PlaybookJobType[] {
   for (const value of values) {
     if (
@@ -160,6 +180,7 @@ function parseRegistryEntry(raw: unknown): PlaybookMetadata {
   if (id === undefined || title === undefined || summary === undefined || file === undefined) {
     throw new Error("Playbook registry entry missing id, title, summary, or file");
   }
+  const subjectKeys = readOptionalStringArray(raw, "subjectKeys");
   return {
     id,
     title,
@@ -169,6 +190,7 @@ function parseRegistryEntry(raw: unknown): PlaybookMetadata {
     assetClasses: assertAssetClasses(readStringArray(raw, "assetClasses")),
     depths: assertDepths(readStringArray(raw, "depths")),
     stages: assertStages(readStringArray(raw, "stages")),
+    ...(subjectKeys !== undefined ? { subjectKeys } : {}),
   };
 }
 
@@ -215,7 +237,8 @@ export function eligiblePlaybookCandidates(
           playbook.stages.includes(stage) &&
           playbook.jobTypes.includes(command.jobType) &&
           playbook.assetClasses.includes(command.assetClass) &&
-          playbook.depths.includes(command.depth),
+          playbook.depths.includes(command.depth) &&
+          playbookMatchesSubject(playbook, command),
       ),
     }))
     .filter((entry) => entry.eligibleStages.length > 0)
@@ -227,10 +250,36 @@ export function eligiblePlaybookCandidates(
     }));
 }
 
+// A subject-keyed playbook is eligible only when the run's resolved subject
+// Matches one of its declared subjectKeys; entries without the field are
+// Unrestricted and behave exactly as before.
+function playbookMatchesSubject(
+  playbook: PlaybookMetadata,
+  command: PlaybookCommandScope,
+): boolean {
+  if (playbook.subjectKeys === undefined) {
+    return true;
+  }
+  return command.subjectKey !== undefined && playbook.subjectKeys.includes(command.subjectKey);
+}
+
+// Thread the resolved research subject key onto a playbook command scope so
+// Subject-keyed playbooks can be gated and mandatorily seated.
+export function playbookScopeWithSubjectKey(
+  command: PlaybookCommandScope,
+  subjectKey: string | undefined,
+): PlaybookCommandScope {
+  return {
+    ...command,
+    ...(subjectKey !== undefined ? { subjectKey } : {}),
+  };
+}
+
 export function mandatoryPlaybookSelections(
   command: PlaybookCommandScope,
   stages: readonly PlaybookStage[],
   candidates: readonly PlaybookCandidate[],
+  registry: readonly PlaybookMetadata[],
 ): readonly { readonly stage: PlaybookStage; readonly playbookIds: readonly string[] }[] {
   const sourceDiscipline =
     command.jobType === "research"
@@ -262,7 +311,38 @@ export function mandatoryPlaybookSelections(
         })
       : [];
 
-  return [...sourceDiscipline, ...synthesisDiscipline, ...thematicResearch];
+  return [
+    ...sourceDiscipline,
+    ...synthesisDiscipline,
+    ...thematicResearch,
+    ...subjectPlaybookSelections(command, stages, candidates, registry),
+  ];
+}
+
+// Every registry playbook whose subjectKeys match the run's resolved subject is
+// Mandatory at its declared stages. Registry validation keeps these entries to
+// Stages with a free mandatory seat so seating never trips a cap at run time.
+function subjectPlaybookSelections(
+  command: PlaybookCommandScope,
+  stages: readonly PlaybookStage[],
+  candidates: readonly PlaybookCandidate[],
+  registry: readonly PlaybookMetadata[],
+): readonly { readonly stage: PlaybookStage; readonly playbookIds: readonly string[] }[] {
+  const { subjectKey } = command;
+  if (command.jobType !== "research" || subjectKey === undefined) {
+    return [];
+  }
+  return registry
+    .filter((entry) => entry.subjectKeys?.includes(subjectKey) === true)
+    .flatMap((entry) =>
+      mandatoryPlaybookSelection({
+        playbookId: entry.id,
+        label: `research subject ${entry.id}`,
+        stages,
+        requiredStages: entry.stages,
+        candidates,
+      }),
+    );
 }
 
 function mandatoryPlaybookSelection(input: {

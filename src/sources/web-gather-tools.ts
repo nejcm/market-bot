@@ -37,6 +37,7 @@ import {
   type WebGatherToolOutput,
   type WebSearchFreshnessAudit,
 } from "./web-gather-emit";
+import { WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON } from "./web-gather-rejection-reasons";
 
 export const WEB_GATHER_TOOL_UNITS: Record<WebGatherToolName, number> = {
   web_search: 2,
@@ -268,7 +269,7 @@ async function executeWebFetch(
   }
   if (!isSurfacedUrl(parsed.url, surfacedUrls)) {
     return emptyOutput([
-      webGatherGap("web_fetch url was not returned by web_search in this run", "validation-failed"),
+      webGatherGap(WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON, "validation-failed"),
     ]);
   }
 

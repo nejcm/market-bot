@@ -10,7 +10,6 @@ import {
   type Scenario,
   type Source,
   type SourceGap,
-  type SourceGapEvidenceQualityImpact,
 } from "../domain/types";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { dedupeSourceGaps } from "../domain/source-gaps";
@@ -26,6 +25,7 @@ import type { HistoricalResearchContext } from "./historical-context";
 import {
   deterministicSourceGapEntries,
   EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP,
+  type DataGapEntry,
   type DepthProfile,
   type ResearchContext,
 } from "./research-context";
@@ -409,22 +409,11 @@ function dataGapKey(value: string): string {
   return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
 }
 
-interface ReportDataGapEntry {
-  readonly text: string;
-  readonly impact?: SourceGapEvidenceQualityImpact;
-  readonly origin: "model" | "deterministic" | "source-gap" | "prediction-gate";
+function reportDataGapEntry(text: string): DataGapEntry {
+  return { text };
 }
 
-function reportDataGapEntry(
-  text: string,
-  origin: ReportDataGapEntry["origin"],
-): ReportDataGapEntry {
-  return { text, origin };
-}
-
-function uniqueDataGapEntries(
-  entries: readonly ReportDataGapEntry[],
-): readonly ReportDataGapEntry[] {
+function uniqueDataGapEntries(entries: readonly DataGapEntry[]): readonly DataGapEntry[] {
   const seen = new Set<string>();
   return entries.filter((entry) => {
     const key = dataGapKey(entry.text);
@@ -436,7 +425,7 @@ function uniqueDataGapEntries(
   });
 }
 
-function dataGapTier(entry: ReportDataGapEntry): number {
+function dataGapTier(entry: DataGapEntry): number {
   if (entry.impact === "core-cap") {
     return 0;
   }
@@ -449,9 +438,7 @@ function dataGapTier(entry: ReportDataGapEntry): number {
   return 2;
 }
 
-function orderedDataGapEntries(
-  entries: readonly ReportDataGapEntry[],
-): readonly ReportDataGapEntry[] {
+function orderedDataGapEntries(entries: readonly DataGapEntry[]): readonly DataGapEntry[] {
   return entries
     .map((entry, index) => ({ entry, index }))
     .toSorted(
@@ -770,12 +757,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       collectedSources.sourceGaps,
     ),
     deterministicGapTexts,
-  ).map((gap) => reportDataGapEntry(gap, "model"));
+  ).map((gap) => reportDataGapEntry(gap));
   const dataGapsRaw = orderedDataGapEntries(
     uniqueDataGapEntries([
       ...modelGapEntries,
       ...deterministicGapEntries,
-      ...gatedPredictions.gaps.map((gap) => reportDataGapEntry(gap, "prediction-gate")),
+      ...gatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
     ]),
   ).map((gap) => gap.text);
   // Stamp the current scoring policy on every accepted Prediction. The stamp

@@ -67,24 +67,22 @@ function normalizedSymbol(symbol: string): string {
 export const EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP =
   "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener";
 
-export interface DeterministicSourceGapEntry {
+export interface DataGapEntry {
   readonly text: string;
   readonly impact?: SourceGapEvidenceQualityImpact;
-  readonly origin: "source-gap" | "deterministic";
 }
 
-function deterministicGapEntry(text: string): DeterministicSourceGapEntry {
-  return { text, origin: "deterministic" };
+function deterministicGapEntry(text: string): DataGapEntry {
+  return { text };
 }
 
 export function deterministicSourceGapEntries(
   command: ResearchCommand,
   collectedSources: CollectedSources,
-): readonly DeterministicSourceGapEntry[] {
+): readonly DataGapEntry[] {
   const gaps = dedupeSourceGaps(collectedSources.sourceGaps).map((gap) => ({
     text: sourceGapReportText(gap),
     ...(gap.evidenceQualityImpact !== undefined ? { impact: gap.evidenceQualityImpact } : {}),
-    origin: "source-gap" as const,
   }));
   const marketGaps =
     collectedSources.marketSnapshots.length === 0
@@ -120,7 +118,7 @@ export function deterministicSourceGapEntries(
 
   // Research subject: flag representative instruments with no live or verified snapshot so the
   // Model can cite the gap instead of silently substituting a mover (Phase 2.2).
-  const researchRepresentativeGaps: DeterministicSourceGapEntry[] = [];
+  const researchRepresentativeGaps: DataGapEntry[] = [];
   if (command.jobType === "research") {
     const { resolvedSubject } = collectedSources;
     if (resolvedSubject?.representativeInstruments !== undefined) {

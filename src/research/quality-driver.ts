@@ -38,48 +38,92 @@ const LANE_LABELS: Readonly<Record<EvidenceLane, string>> = {
   valuation: "valuation",
 };
 
-const REMEDIATION_BY_FAILURE: Readonly<Record<string, string>> = {
-  "market-data:coverage": "rerun after primary market data is available",
-  "market-data:freshness": "rerun with fresh primary market data",
-  "supplemental-market:coverage": "configure MARKET_BOT_MASSIVE_API_KEY or rerun",
-  "supplemental-market:freshness": "rerun with fresh supplemental market data",
-  "news:coverage": "configure news providers or rerun with fresh news coverage",
-  "news:freshness": "rerun with fresher news coverage",
-  "news:corroboration": "add a second current news source or rerun",
-  "market-context:coverage": "configure MARKET_BOT_FRED_API_KEY or rerun",
-  "market-context:freshness": "rerun with fresh market context",
-  "verified-price-history:coverage": "rerun after verified price history is available",
-  "verified-price-history:freshness": "rerun with fresh verified price history",
-  "regulatory-filings:coverage": "configure SEC access or rerun after filings are available",
-  "regulatory-filings:freshness": "rerun with current regulatory filings",
-  "corporate-events:coverage": "configure MARKET_BOT_FINNHUB_API_TOKEN or rerun",
-  "corporate-events:freshness": "rerun with fresh corporate event data",
-  "macro-indicators:coverage": "configure MARKET_BOT_FRED_API_KEY or rerun",
-  "macro-indicators:freshness": "rerun with fresh macro indicators",
-  "derivatives-volatility:coverage": "configure MARKET_BOT_TRADIER_API_TOKEN or rerun",
-  "derivatives-volatility:freshness": "rerun with fresh derivatives volatility data",
-  "on-chain:coverage": "configure MARKET_BOT_GLASSNODE_API_KEY or rerun",
-  "on-chain:freshness": "rerun with fresh on-chain data",
-  "target-valuation:coverage": "improve normalized valuation inputs or rerun",
-  "target-valuation:freshness": "rerun with fresh target valuation inputs",
-  "peer-valuation:coverage": "expand peer coverage or rerun",
-  "peer-valuation:freshness": "rerun with fresh peer valuation inputs",
-  "subject-profile:coverage": "configure MARKET_BOT_EXA_API_KEY or rerun --deep",
-  "subject-profile:freshness": "rerun with a fresh subject profile",
-  "macro-context:coverage": "configure macro context coverage or rerun",
-  "macro-context:freshness": "rerun with fresh macro context",
-  "verified-snapshot:coverage": "rerun after verified snapshot data is available",
-  "verified-snapshot:freshness": "rerun with a fresh verified snapshot",
-  "sec-edgar:coverage": "configure SEC access or rerun after filings are available",
-  "sec-edgar:freshness": "rerun with current SEC filing data",
-  "equity-events:coverage": "configure MARKET_BOT_FINNHUB_API_TOKEN or rerun",
-  "equity-events:freshness": "rerun with fresh equity event data",
-  "extended-fred-macro:coverage": "configure MARKET_BOT_FRED_API_KEY or rerun",
-  "extended-fred-macro:freshness": "rerun with fresh FRED macro data",
-  "options-iv:coverage": "configure MARKET_BOT_TRADIER_API_TOKEN or rerun",
-  "options-iv:freshness": "rerun with fresh options IV data",
-  "valuation:coverage": "improve normalized valuation inputs or rerun",
-  "valuation:freshness": "rerun with fresh valuation inputs",
+const GENERIC_REMEDIATION = "improve source coverage for the listed lanes";
+
+const REMEDIATION_BY_FAILURE: Readonly<
+  Record<EvidenceLane, Readonly<Partial<Record<FailedCheckKind, string>>>>
+> = {
+  "market-data": {
+    coverage: "rerun after primary market data is available",
+    freshness: "rerun with fresh primary market data",
+  },
+  "supplemental-market": {
+    coverage: "configure MARKET_BOT_MASSIVE_API_KEY or rerun",
+    freshness: "rerun with fresh supplemental market data",
+  },
+  news: {
+    coverage: "configure news providers or rerun with fresh news coverage",
+    freshness: "rerun with fresher news coverage",
+    corroboration: "add a second current news source or rerun",
+  },
+  "market-context": {
+    coverage: "configure MARKET_BOT_FRED_API_KEY or rerun",
+    freshness: "rerun with fresh market context",
+  },
+  "verified-price-history": {
+    coverage: "rerun after verified price history is available",
+    freshness: "rerun with fresh verified price history",
+  },
+  "regulatory-filings": {
+    coverage: "configure SEC access or rerun after filings are available",
+    freshness: "rerun with current regulatory filings",
+  },
+  "corporate-events": {
+    coverage: "configure MARKET_BOT_FINNHUB_API_TOKEN or rerun",
+    freshness: "rerun with fresh corporate event data",
+  },
+  "macro-indicators": {
+    coverage: "configure MARKET_BOT_FRED_API_KEY or rerun",
+    freshness: "rerun with fresh macro indicators",
+  },
+  "derivatives-volatility": {
+    coverage: "configure MARKET_BOT_TRADIER_API_TOKEN or rerun",
+    freshness: "rerun with fresh derivatives volatility data",
+  },
+  "on-chain": {
+    coverage: "configure MARKET_BOT_GLASSNODE_API_KEY or rerun",
+    freshness: "rerun with fresh on-chain data",
+  },
+  "target-valuation": {
+    coverage: "improve normalized valuation inputs or rerun",
+    freshness: "rerun with fresh target valuation inputs",
+  },
+  "peer-valuation": {
+    coverage: "expand peer coverage or rerun",
+    freshness: "rerun with fresh peer valuation inputs",
+  },
+  "subject-profile": {
+    coverage: "configure MARKET_BOT_EXA_API_KEY or rerun --deep",
+    freshness: "rerun with a fresh subject profile",
+  },
+  "macro-context": {
+    coverage: "configure macro context coverage or rerun",
+    freshness: "rerun with fresh macro context",
+  },
+  "verified-snapshot": {
+    coverage: "rerun after verified snapshot data is available",
+    freshness: "rerun with a fresh verified snapshot",
+  },
+  "sec-edgar": {
+    coverage: "configure SEC access or rerun after filings are available",
+    freshness: "rerun with current SEC filing data",
+  },
+  "equity-events": {
+    coverage: "configure MARKET_BOT_FINNHUB_API_TOKEN or rerun",
+    freshness: "rerun with fresh equity event data",
+  },
+  "extended-fred-macro": {
+    coverage: "configure MARKET_BOT_FRED_API_KEY or rerun",
+    freshness: "rerun with fresh FRED macro data",
+  },
+  "options-iv": {
+    coverage: "configure MARKET_BOT_TRADIER_API_TOKEN or rerun",
+    freshness: "rerun with fresh options IV data",
+  },
+  valuation: {
+    coverage: "improve normalized valuation inputs or rerun",
+    freshness: "rerun with fresh valuation inputs",
+  },
 };
 
 function isEvidenceLane(value: string): value is EvidenceLane {
@@ -91,10 +135,10 @@ function laneLabel(capability: string): string {
 }
 
 function remediationFor(capability: string, kind: FailedCheckKind): string {
-  return (
-    REMEDIATION_BY_FAILURE[`${capability}:${kind}`] ??
-    "improve source coverage for the listed lanes"
-  );
+  if (!isEvidenceLane(capability)) {
+    return GENERIC_REMEDIATION;
+  }
+  return REMEDIATION_BY_FAILURE[capability][kind] ?? GENERIC_REMEDIATION;
 }
 
 function failedKinds(check: EvidenceQualityCheck): readonly FailedCheckKind[] {

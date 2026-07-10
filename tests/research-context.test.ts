@@ -2633,12 +2633,10 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
       {
         text: "optional-social: optional social feed unavailable",
         impact: "no-cap",
-        origin: "source-gap",
       },
       {
         text: "coingecko: core market data stale",
         impact: "core-cap",
-        origin: "source-gap",
       },
     ]);
   });

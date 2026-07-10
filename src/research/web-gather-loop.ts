@@ -26,6 +26,13 @@ import {
   WEB_GATHER_TOOL_UNITS,
 } from "../sources/web-gather-tools";
 import {
+  WEB_GATHER_DUPLICATE_REQUEST_REASON,
+  WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON,
+  WEB_GATHER_OFF_SUBJECT_REASON,
+  WEB_GATHER_SOURCE_BUDGET_EXCEEDED_REASON,
+  WEB_GATHER_TOOL_CALL_BUDGET_EXCEEDED_REASON,
+} from "../sources/web-gather-rejection-reasons";
+import {
   aggregateSanitizerAudit,
   isSurfacedUrl,
   type WebGatherSubject,
@@ -592,13 +599,7 @@ function validateRequest(
       return reject(state.round, tool, args, rationale, parsedArgs);
     }
     if (!isOnSubjectQuery(parsedArgs.query, state.subject, state.subjectTerms)) {
-      return reject(
-        state.round,
-        tool,
-        args,
-        rationale,
-        "web_search query must mention the run subject",
-      );
+      return reject(state.round, tool, args, rationale, WEB_GATHER_OFF_SUBJECT_REASON);
     }
     const secCoverageReason = secCoverageRejectionReason(
       parsedArgs,
@@ -643,13 +644,7 @@ function validateRequest(
     return reject(state.round, tool, args, rationale, parsedArgs);
   }
   if (!isSurfacedUrl(parsedArgs.url, state.surfacedUrls)) {
-    return reject(
-      state.round,
-      tool,
-      args,
-      rationale,
-      "web_fetch url was not returned by web_search in this run",
-    );
+    return reject(state.round, tool, args, rationale, WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON);
   }
   return validateAcceptedRequest(
     { tool: typedTool, args: parsedArgs, rationale },
@@ -675,7 +670,7 @@ function validateAcceptedRequest(
       request.tool,
       auditArgs,
       request.rationale,
-      "duplicate web gather request",
+      WEB_GATHER_DUPLICATE_REQUEST_REASON,
     );
   }
   const budgetReason = budgetRejectionReason({
@@ -684,8 +679,8 @@ function validateAcceptedRequest(
     toolCallsUsed,
     sourceUnitsUsed,
     requestSourceUnits: WEB_GATHER_TOOL_UNITS[request.tool],
-    toolCallExceededReason: "web gather tool-call budget exceeded",
-    sourceBudgetExceededReason: "web gather source budget exceeded",
+    toolCallExceededReason: WEB_GATHER_TOOL_CALL_BUDGET_EXCEEDED_REASON,
+    sourceBudgetExceededReason: WEB_GATHER_SOURCE_BUDGET_EXCEEDED_REASON,
   });
   if (budgetReason !== undefined) {
     return reject(state.round, request.tool, auditArgs, request.rationale, budgetReason);
@@ -876,17 +871,17 @@ function reject(
 
 function webGatherRejectionGapMessage(reason: string): string | undefined {
   switch (reason) {
-    case "web_search query must mention the run subject": {
+    case WEB_GATHER_OFF_SUBJECT_REASON: {
       return "a model web query was rejected for drifting off-subject";
     }
-    case "web gather tool-call budget exceeded":
-    case "web gather source budget exceeded": {
+    case WEB_GATHER_TOOL_CALL_BUDGET_EXCEEDED_REASON:
+    case WEB_GATHER_SOURCE_BUDGET_EXCEEDED_REASON: {
       return "a model web request was skipped because the web-gather budget was exhausted";
     }
-    case "duplicate web gather request": {
+    case WEB_GATHER_DUPLICATE_REQUEST_REASON: {
       return "a repeated model web request was skipped";
     }
-    case "web_fetch url was not returned by web_search in this run": {
+    case WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON: {
       return "a model web fetch was rejected because the site is not on the fetch allowlist";
     }
     default: {

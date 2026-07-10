@@ -505,6 +505,42 @@ describe("mandatoryPlaybookSelections", () => {
     );
   });
 
+  test("does not seat a matching subject playbook when it is not otherwise eligible", () => {
+    const stages = ["specialist-analysis", "critique", "final-synthesis"] as const;
+    const command = {
+      jobType: "research",
+      assetClass: "equity",
+      depth: "deep",
+      subjectKey: "biotech",
+    } as const;
+    const ineligibleSubjectRegistry = [
+      ...registry,
+      {
+        id: "subject-biotech-brief",
+        title: "Biotech Brief Subject",
+        summary: "Brief-only biotech discipline.",
+        file: "subject-biotech-brief.md",
+        jobTypes: ["research"],
+        assetClasses: ["equity"],
+        depths: ["brief"],
+        stages: ["specialist-analysis"],
+        subjectKeys: ["biotech"],
+      },
+    ] satisfies readonly PlaybookMetadata[];
+    const candidates = eligiblePlaybookCandidates(command, stages, ineligibleSubjectRegistry);
+    const selections = mandatoryPlaybookSelections(
+      command,
+      stages,
+      candidates,
+      ineligibleSubjectRegistry,
+    );
+
+    expect(selections.flatMap((selection) => selection.playbookIds)).toContain("subject-biotech");
+    expect(selections.flatMap((selection) => selection.playbookIds)).not.toContain(
+      "subject-biotech-brief",
+    );
+  });
+
   test("mandatorily seats every real subject playbook without tripping a cap", async () => {
     const realRegistry = await loadPlaybookRegistry();
     const stages: readonly PlaybookStage[] = ["specialist-analysis", "critique", "final-synthesis"];

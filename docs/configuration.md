@@ -92,7 +92,7 @@ For a free, high-value Extended Evidence setup, set `MARKET_BOT_FRED_API_KEY` an
 `research <subject> --deep` benefits most from GPT-5.5 reasoning plus sourced web evidence:
 
 - Set `MARKET_BOT_PROVIDER=codex` to route the pipeline through the local Codex CLI. This applies to every run type — there is no per-jobType provider routing. Optionally override the models with `MARKET_BOT_CODEX_QUICK_MODEL` (brief depth) and `MARKET_BOT_CODEX_SYNTHESIS_MODEL` (`--deep`); both fall back to the shared `MARKET_BOT_QUICK_MODEL`/`MARKET_BOT_SYNTHESIS_MODEL` defaults.
-- Set `MARKET_BOT_EXA_API_KEY` and run with `--deep` so web evidence flows through Web Gather. This is where the theme's representative-company and catalyst evidence is sourced.
+- Set `MARKET_BOT_EXA_API_KEY` to enable Exa-backed Web Gather for eligible research runs; use `--deep` for the recommended richer Codex setup. This is where the theme's representative-company and catalyst evidence is sourced. Optionally set `MARKET_BOT_FIRECRAWL_API_KEY` for fallback-only web gather when configured Exa calls fail or return thin results.
 - Research runs deterministically seat the `thematic-research` playbook, plus any subject-matched playbook (e.g. `subject-biotech` when the resolved `subjectKey` is `biotech`); the model selects the remaining playbooks. This layers domain analytical discipline without loosening the research-only boundary.
 
 Pipeline stages never use codex-native web search by design: web evidence enters only via Web Gather so it is persisted as citeable, replayable Sources with temporal integrity. Codex's own live web search is exposed only through Run Chat (`MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH`), a separate ephemeral surface that does not write to the source ledger.

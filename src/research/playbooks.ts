@@ -332,8 +332,11 @@ function subjectPlaybookSelections(
   if (command.jobType !== "research" || subjectKey === undefined) {
     return [];
   }
+  const candidateIds = new Set(candidates.map((candidate) => candidate.id));
   return registry
-    .filter((entry) => entry.subjectKeys?.includes(subjectKey) === true)
+    .filter(
+      (entry) => entry.subjectKeys?.includes(subjectKey) === true && candidateIds.has(entry.id),
+    )
     .flatMap((entry) =>
       mandatoryPlaybookSelection({
         playbookId: entry.id,

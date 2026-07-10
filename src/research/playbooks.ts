@@ -76,8 +76,13 @@ const MAX_PLAYBOOKS_PER_RUN = 6;
 const MAX_SELECTOR_RATIONALE_CHARS = 500;
 const SOURCE_DISCIPLINE_PLAYBOOK_ID = "source-discipline";
 const SYNTHESIS_DISCIPLINE_PLAYBOOK_ID = "synthesis-discipline";
+const THEMATIC_RESEARCH_PLAYBOOK_ID = "thematic-research";
 const SOURCE_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["critique"];
 const SYNTHESIS_DISCIPLINE_STAGES: readonly PlaybookStage[] = ["final-synthesis"];
+const THEMATIC_RESEARCH_STAGES: readonly PlaybookStage[] = [
+  "specialist-analysis",
+  "final-synthesis",
+];
 // Keep in sync with PlaybookStage; this runtime set validates checked-in JSON.
 const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
   "specialist-analysis",
@@ -246,8 +251,18 @@ export function mandatoryPlaybookSelections(
         candidates,
       })
     : [];
+  const thematicResearch =
+    command.jobType === "research"
+      ? mandatoryPlaybookSelection({
+          playbookId: THEMATIC_RESEARCH_PLAYBOOK_ID,
+          label: "research thematic-research",
+          stages,
+          requiredStages: THEMATIC_RESEARCH_STAGES,
+          candidates,
+        })
+      : [];
 
-  return [...sourceDiscipline, ...synthesisDiscipline];
+  return [...sourceDiscipline, ...synthesisDiscipline, ...thematicResearch];
 }
 
 function mandatoryPlaybookSelection(input: {

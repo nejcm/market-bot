@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -61,6 +61,16 @@ const registry: readonly PlaybookMetadata[] = [
     assetClasses: ["equity"],
     depths: ["brief", "deep"],
     stages: ["critique", "final-synthesis"],
+  },
+  {
+    id: "thematic-research",
+    title: "Thematic Research",
+    summary: "Theme evidence.",
+    file: "thematic-research.md",
+    jobTypes: ["research"],
+    assetClasses: ["equity"],
+    depths: ["brief", "deep"],
+    stages: ["specialist-analysis", "final-synthesis"],
   },
 ];
 
@@ -202,6 +212,32 @@ describe("loadPlaybookRegistry", () => {
     expect(instruction).toContain("conflicting evidence");
     expect(instruction).toContain("missing required source");
   });
+
+  test("thematic-research frames themes as sourced evidence, not ranked picks", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const thematic = realRegistry.find((playbook) => playbook.id === "thematic-research");
+    const [stage] = await loadPlaybooksByStage("prompts", realRegistry, [
+      { stage: "specialist-analysis", playbookIds: ["thematic-research"] },
+    ]);
+    const instruction = (stage?.playbooks[0]?.instruction ?? "").toLowerCase();
+
+    expect(thematic).toMatchObject({
+      jobTypes: ["research"],
+      assetClasses: ["equity"],
+      stages: ["specialist-analysis", "final-synthesis"],
+    });
+    // Stays within the MAX_PLAYBOOK_CHARS budget enforced at load time.
+    const raw = await readFile(join("prompts", "playbooks", "thematic-research.md"), "utf8");
+    expect(raw.length).toBeLessThanOrEqual(2500);
+    // Representative-company framing, dated catalysts, breadth, and research-only wording.
+    expect(instruction).toContain("representative");
+    expect(instruction).toContain("catalyst");
+    expect(instruction).toContain("breadth");
+    expect(instruction).toContain("research-only");
+    // Steers away from ranked "best/top" picks (ADR 0001).
+    expect(instruction).toContain("ranked");
+    expect(instruction).toContain("best");
+  });
 });
 
 describe("eligiblePlaybookCandidates", () => {
@@ -248,12 +284,18 @@ describe("eligiblePlaybookCandidates", () => {
         summary: "Evidence posture.",
         eligibleStages: ["critique", "final-synthesis"],
       },
+      {
+        id: "thematic-research",
+        title: "Thematic Research",
+        summary: "Theme evidence.",
+        eligibleStages: ["specialist-analysis", "final-synthesis"],
+      },
     ]);
   });
 });
 
 describe("mandatoryPlaybookSelections", () => {
-  test("requires source-discipline for research critique and synthesis-discipline for final synthesis", () => {
+  test("requires source-, synthesis-, and thematic-research playbooks for research runs", () => {
     const candidates = eligiblePlaybookCandidates(
       { jobType: "research", assetClass: "equity", depth: "brief" },
       ["specialist-analysis", "critique", "final-synthesis"],
@@ -269,6 +311,8 @@ describe("mandatoryPlaybookSelections", () => {
     ).toEqual([
       { stage: "critique", playbookIds: ["source-discipline"] },
       { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+      { stage: "specialist-analysis", playbookIds: ["thematic-research"] },
+      { stage: "final-synthesis", playbookIds: ["thematic-research"] },
     ]);
   });
 
@@ -286,6 +330,23 @@ describe("mandatoryPlaybookSelections", () => {
         candidates,
       ),
     ).toEqual([{ stage: "final-synthesis", playbookIds: ["synthesis-discipline"] }]);
+  });
+
+  test("does not seat thematic-research for non-research runs", () => {
+    const candidates = eligiblePlaybookCandidates(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      ["specialist-analysis", "critique", "final-synthesis"],
+      registry,
+    );
+    const selections = mandatoryPlaybookSelections(
+      { jobType: "equity", assetClass: "equity", depth: "deep" },
+      ["specialist-analysis", "critique", "final-synthesis"],
+      candidates,
+    );
+
+    expect(selections.flatMap((selection) => selection.playbookIds)).not.toContain(
+      "thematic-research",
+    );
   });
 
   test("throws when required research source-discipline is missing from candidates", () => {

@@ -80,6 +80,16 @@
       "assetClasses": ["equity"],
       "depths": ["brief", "deep"],
       "stages": ["critique", "final-synthesis"]
+    },
+    {
+      "id": "thematic-research",
+      "title": "Thematic Research",
+      "summary": "Frame a market theme as sourced, representative-company evidence with dated catalysts and observable forecasts, never a ranked or best list.",
+      "file": "thematic-research.md",
+      "jobTypes": ["research"],
+      "assetClasses": ["equity"],
+      "depths": ["brief", "deep"],
+      "stages": ["specialist-analysis", "final-synthesis"]
     }
   ]
 }

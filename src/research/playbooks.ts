@@ -320,8 +320,8 @@ export function mandatoryPlaybookSelections(
 }
 
 // Every registry playbook whose subjectKeys match the run's resolved subject is
-// Mandatory at its declared stages. Registry validation keeps these entries to
-// Stages with a free mandatory seat so seating never trips a cap at run time.
+// Mandatory at its declared stages. A registry-validation test keeps subject
+// Playbooks to stages with a free mandatory seat so seating never trips a cap.
 function subjectPlaybookSelections(
   command: PlaybookCommandScope,
   stages: readonly PlaybookStage[],

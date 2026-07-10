@@ -254,13 +254,28 @@ export async function runCli(
     return result.artifacts.runDir;
   }
 
+  // Best-effort pre-run score pass: resolve predictions that became scorable
+  // Since the last run so the orchestrator's calibration-context refresh sees
+  // Them. Failures log to stderr; the post-run pass remains the safety net.
+  const preRunScoreResult = await runScore(
+    config.dataDir,
+    now(),
+    scorePassOptions(config.sourceOptions),
+  ).catch((error: unknown) => {
+    process.stderr.write(
+      `Pre-run score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  });
+
   const provider = (dependencies.createProvider ?? createProvider)(config);
   const rawResearchCommand = asResearchCommand(command);
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
   emitUnresolvedResearchSubjectGuidance(resolvedSubject);
   const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
-  // Freeze the Source Plan before the first source-provider I/O so it records
-  // Pre-collection intent (ADR 0028); collection outcomes cannot change it.
+  // Freeze the Source Plan before this run's source collection begins so it
+  // Records pre-collection intent (ADR 0028); collection outcomes cannot
+  // Change it. The pre-run score pass above is scoring-subsystem I/O, not
+  // This run's collection.
   const sourcePlan = buildSourcePlan(researchCommand, now().toISOString(), resolvedSubject);
   const collectedSources = await (dependencies.collectSources ?? collectSources)(
     researchCommand,
@@ -308,7 +323,11 @@ export async function runCli(
   }
   await updateRunArtifactIndex(
     config.dataDir,
-    [result.artifacts.runDir, ...(scoreResult?.touchedRunDirs ?? [])],
+    [
+      result.artifacts.runDir,
+      ...(preRunScoreResult?.touchedRunDirs ?? []),
+      ...(scoreResult?.touchedRunDirs ?? []),
+    ],
     dependencies,
     config.indexOptions?.dbPath,
   );

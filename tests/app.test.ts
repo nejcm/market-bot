@@ -155,7 +155,7 @@ describe("runCli", () => {
     expect(receivedForces).toEqual([true]);
   });
 
-  test("scores prediction runs after persisting the new report", async () => {
+  test("runs a best-effort score pass before the run and again after persisting", async () => {
     const dataDir = join(
       tmpdir(),
       `market-bot-score-order-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -192,7 +192,11 @@ describe("runCli", () => {
       runScorePass: async (receivedDataDir) => {
         calls.push("score");
         expect(receivedDataDir).toBe(dataDir);
-        return { scored: 1, skipped: 0, touchedRunDirs: [] };
+        // The pre-run pass resolves an older run; the post-run pass finds
+        // Nothing new. Both sets of touched dirs must reach the index.
+        return calls.filter((call) => call === "score").length === 1
+          ? { scored: 1, skipped: 0, touchedRunDirs: ["old-run"] }
+          : { scored: 0, skipped: 0, touchedRunDirs: [] };
       },
       buildAndWriteCalibration: async (receivedDataDir) => {
         calls.push("calibration");
@@ -202,13 +206,13 @@ describe("runCli", () => {
       writeThroughRunArtifactIndex: async (receivedDataDir, runDirs) => {
         calls.push("index");
         expect(receivedDataDir).toBe(dataDir);
-        expect(runDirs).toEqual(["run-1"]);
+        expect(runDirs).toEqual(["run-1", "old-run"]);
       },
       now: () => new Date("2026-06-01T00:00:00.000Z"),
     });
 
     expect(result).toBe(runDir);
-    expect(calls).toEqual(["persist", "score", "calibration", "index"]);
+    expect(calls).toEqual(["score", "persist", "score", "calibration", "index"]);
   });
 
   test("freezes the Source Plan before source collection begins", async () => {
@@ -261,13 +265,14 @@ describe("runCli", () => {
       },
     });
 
-    // The plan's clock capture happens before the collect call, which happens
-    // Before persistence receives the frozen plan.
-    expect(events.indexOf("clock-1")).toBeLessThan(events.indexOf("collect"));
+    // Clock-1 is the pre-run score pass; clock-2 is the plan's capture, which
+    // Happens before the collect call, which happens before persistence
+    // Receives the frozen plan.
+    expect(events.indexOf("clock-2")).toBeLessThan(events.indexOf("collect"));
     expect(events.indexOf("collect")).toBeLessThan(events.indexOf("persist"));
     expect(receivedSourcePlan).toMatchObject({
       version: 2,
-      generatedAt: "2026-06-01T00:00:01.000Z",
+      generatedAt: "2026-06-01T00:00:02.000Z",
       run: { jobType: "equity", symbol: "AAPL", depth: "deep" },
     });
   });
@@ -705,7 +710,7 @@ describe("runCli", () => {
     });
 
     expect(result).toBe(runDir);
-    expect(calls).toEqual(["persist", "score", "calibration", "index", "stale-rebuild"]);
+    expect(calls).toEqual(["score", "persist", "score", "calibration", "index", "stale-rebuild"]);
     expect(staleRebuildArgs).toHaveLength(1);
     expect(staleRebuildArgs[0]?.dataDir).toBe(dataDir);
     // The CLI forwards the resolved index dbPath (config defaults it from dataDir).
@@ -763,6 +768,69 @@ describe("runCli", () => {
       expect(result).toBe(runDir);
       expect(stderrChunks.join("")).toContain("stale-rebuild failed");
       expect(stderrChunks.join("")).toContain("simulated repair failure");
+    } finally {
+      process.stderr.write = originalStderrWrite;
+    }
+  });
+
+  test("pre-run score pass failure logs to stderr and does not abort the research run", async () => {
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    const stderrChunks: string[] = [];
+    process.stderr.write = ((chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-prerun-score-error-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const runDir = join(dataDir, "run-1");
+    let scoreCalls = 0;
+
+    try {
+      const result = await runCli(["daily", "--asset", "equity"], {
+        createProvider: () => ({
+          name: "test" as const,
+          generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+        }),
+        collectSources: async () => collectedSources(),
+        persistResearchJob: async () =>
+          ({
+            report: researchReport({ runId: "run-1" }),
+            markdown: "",
+            trace: {},
+            analytics: analyticsStub,
+            stageOutputs: [],
+            collectedSources: collectedSources(),
+            historicalContext: {},
+            artifacts: {
+              runDir,
+              rawDir: join(runDir, "raw"),
+              normalizedDir: join(runDir, "normalized"),
+            },
+          }) as never,
+        runScorePass: async () => {
+          scoreCalls += 1;
+          if (scoreCalls === 1) {
+            throw new Error("simulated pre-run score failure");
+          }
+          return { scored: 0, skipped: 0, touchedRunDirs: [] };
+        },
+        buildAndWriteCalibration: async () => null,
+        writeThroughRunArtifactIndex: async () => {},
+        rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+        now: () => new Date("2026-06-01T00:00:00.000Z"),
+      });
+
+      // Run must succeed despite the pre-run score error; the post-run pass
+      // Still executes as the safety net.
+      expect(result).toBe(runDir);
+      expect(scoreCalls).toBe(2);
+      expect(stderrChunks.join("")).toContain("Pre-run score pass failed");
+      expect(stderrChunks.join("")).toContain("simulated pre-run score failure");
     } finally {
       process.stderr.write = originalStderrWrite;
     }

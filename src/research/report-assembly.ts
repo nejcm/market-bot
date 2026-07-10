@@ -10,6 +10,7 @@ import {
   type Scenario,
   type Source,
   type SourceGap,
+  type SourceGapEvidenceQualityImpact,
 } from "../domain/types";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { dedupeSourceGaps } from "../domain/source-gaps";
@@ -23,7 +24,7 @@ import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-sna
 import { projectExtendedEvidenceReportExtras } from "./extended-evidence-projections";
 import type { HistoricalResearchContext } from "./historical-context";
 import {
-  deterministicSourceGaps,
+  deterministicSourceGapEntries,
   EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP,
   type DepthProfile,
   type ResearchContext,
@@ -408,16 +409,56 @@ function dataGapKey(value: string): string {
   return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
 }
 
-function uniqueDataGaps(gaps: readonly string[]): readonly string[] {
+interface ReportDataGapEntry {
+  readonly text: string;
+  readonly impact?: SourceGapEvidenceQualityImpact;
+  readonly origin: "model" | "deterministic" | "source-gap" | "prediction-gate";
+}
+
+function reportDataGapEntry(
+  text: string,
+  origin: ReportDataGapEntry["origin"],
+): ReportDataGapEntry {
+  return { text, origin };
+}
+
+function uniqueDataGapEntries(
+  entries: readonly ReportDataGapEntry[],
+): readonly ReportDataGapEntry[] {
   const seen = new Set<string>();
-  return gaps.filter((gap) => {
-    const key = dataGapKey(gap);
+  return entries.filter((entry) => {
+    const key = dataGapKey(entry.text);
     if (seen.has(key)) {
       return false;
     }
     seen.add(key);
     return true;
   });
+}
+
+function dataGapTier(entry: ReportDataGapEntry): number {
+  if (entry.impact === "core-cap") {
+    return 0;
+  }
+  if (entry.impact === "extended-evidence-cap") {
+    return 1;
+  }
+  if (entry.impact === "no-cap") {
+    return 3;
+  }
+  return 2;
+}
+
+function orderedDataGapEntries(
+  entries: readonly ReportDataGapEntry[],
+): readonly ReportDataGapEntry[] {
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .toSorted(
+      (left, right) =>
+        dataGapTier(left.entry) - dataGapTier(right.entry) || left.index - right.index,
+    )
+    .map(({ entry }) => entry);
 }
 
 function hasMarketSnapshotFor(
@@ -721,18 +762,22 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     predictions: predResult.predictions,
     collectedSources,
   });
-  const deterministicGaps = deterministicSourceGaps(command, collectedSources);
-  const dataGapsRaw = uniqueDataGaps([
-    ...withoutDeterministicGapRestatements(
-      withoutModelProviderGapDuplicates(
-        withoutModelPredictionCountGaps(nonEmptyStringArrayValue(payload.dataGaps)),
-        collectedSources.sourceGaps,
-      ),
-      deterministicGaps,
+  const deterministicGapEntries = deterministicSourceGapEntries(command, collectedSources);
+  const deterministicGapTexts = deterministicGapEntries.map((gap) => gap.text);
+  const modelGapEntries = withoutDeterministicGapRestatements(
+    withoutModelProviderGapDuplicates(
+      withoutModelPredictionCountGaps(nonEmptyStringArrayValue(payload.dataGaps)),
+      collectedSources.sourceGaps,
     ),
-    ...deterministicGaps,
-    ...gatedPredictions.gaps,
-  ]);
+    deterministicGapTexts,
+  ).map((gap) => reportDataGapEntry(gap, "model"));
+  const dataGapsRaw = orderedDataGapEntries(
+    uniqueDataGapEntries([
+      ...modelGapEntries,
+      ...deterministicGapEntries,
+      ...gatedPredictions.gaps.map((gap) => reportDataGapEntry(gap, "prediction-gate")),
+    ]),
+  ).map((gap) => gap.text);
   // Stamp the current scoring policy on every accepted Prediction. The stamp
   // Is deterministic: model-provided policy metadata never survives assembly.
   const stampedPredictions = gatedPredictions.predictions.map((candidate) => ({

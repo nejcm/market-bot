@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
+import { sourceGap } from "../src/domain/source-gaps";
 import {
   buildDepthProfile,
   buildPlaybookSelectionPrompt,
   buildSpotlightSelectionPrompt,
   buildStagePrompt,
+  deterministicSourceGapEntries,
   deterministicSourceGaps,
   type ResearchContext,
   type StageInput,
@@ -2599,6 +2601,48 @@ describe("phase 2.2 — registrySubject in evidence payload", () => {
 });
 
 describe("phase 2.2 — deterministicSourceGaps for missing representative snapshots", () => {
+  test("keeps prompt-side source gap order while exposing structured impact entries", () => {
+    const command: ResearchCommand = {
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "brief",
+    };
+    const sources = collectedSources({
+      marketSnapshots: [marketSnapshot({ assetClass: "crypto", symbol: "BTC" })],
+      newsSources: [newsSource({ assetClass: "crypto" })],
+      sourceGaps: [
+        sourceGap({
+          source: "optional-social",
+          message: "optional social feed unavailable",
+          evidenceQualityImpact: "no-cap",
+        }),
+        sourceGap({
+          source: "coingecko",
+          message: "core market data stale",
+          evidenceQualityImpact: "core-cap",
+        }),
+      ],
+    });
+
+    expect(deterministicSourceGaps(command, sources)).toEqual([
+      "optional-social: optional social feed unavailable",
+      "coingecko: core market data stale",
+    ]);
+    expect(deterministicSourceGapEntries(command, sources)).toEqual([
+      {
+        text: "optional-social: optional social feed unavailable",
+        impact: "no-cap",
+        origin: "source-gap",
+      },
+      {
+        text: "coingecko: core market data stale",
+        impact: "core-cap",
+        origin: "source-gap",
+      },
+    ]);
+  });
+
   test("adds gap for each registry representative without a live snapshot", () => {
     const command: ResearchCommand = {
       jobType: "research",

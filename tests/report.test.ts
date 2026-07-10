@@ -1256,8 +1256,8 @@ describe("report schema and rendering", () => {
     expect(assembled.dataGaps).toEqual([
       "Issuer transcript unavailable.",
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
-      "massive-supplemental-market: supplemental market snapshot request failed with status 403",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+      "massive-supplemental-market: supplemental market snapshot request failed with status 403",
     ]);
   });
 
@@ -1333,6 +1333,112 @@ describe("report schema and rendering", () => {
 
     expect(assembled.dataGaps).toEqual([
       "Market overview mover universe is seeded from Yahoo day_gainers, day_losers, and most_actives — a single-day multi-screener set, not a trailing horizon mover screener",
+    ]);
+  });
+
+  test("orders report data gaps by evidence-quality impact without reordering prompt gaps", () => {
+    const command = {
+      jobType: "research" as const,
+      assetClass: "equity" as const,
+      subject: "unresolved theme",
+      depth: "brief" as const,
+    };
+    const depthProfile = { ...assemblyDepthProfile("AAPL"), targetPredictions: 1 };
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Model caveat remains untagged."],
+      },
+      predResult: { predictions: [prediction({ subject: "AAPL" })], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "optional-news",
+            message: "optional provider unavailable",
+            evidenceQualityImpact: "no-cap",
+          }),
+          sourceGap({
+            source: "valuation",
+            message: "extended evidence unavailable",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+          sourceGap({
+            source: "yahoo-market",
+            message: "core market data unavailable",
+            evidenceQualityImpact: "core-cap",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "yahoo-market: core market data unavailable",
+      "valuation: extended evidence unavailable",
+      "Model caveat remains untagged.",
+      "researchProxyForecastGate: dropped predictions because no listed prediction proxy was resolved",
+      "optional-news: optional provider unavailable",
+      "predictionShortfall: emitted 0 of 1 target predictions; evidence did not support more",
+    ]);
+  });
+
+  test("dedupes conflicting source gap impacts before report ordering", () => {
+    const command = {
+      jobType: "crypto" as const,
+      assetClass: "crypto" as const,
+      symbol: "BTC",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("BTC");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ assetClass: "crypto", symbol: "BTC" })],
+        newsSources: [newsSource({ assetClass: "crypto" })],
+        sourceGaps: [
+          sourceGap({
+            source: "duplicate-provider",
+            message: "same text",
+            evidenceQualityImpact: "no-cap",
+          }),
+          sourceGap({
+            source: "core-provider",
+            message: "core text",
+            evidenceQualityImpact: "core-cap",
+          }),
+          sourceGap({
+            source: "duplicate-provider",
+            message: "same text",
+            evidenceQualityImpact: "core-cap",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "core-provider: core text",
+      "duplicate-provider: same text",
     ]);
   });
 

@@ -87,6 +87,16 @@ Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The 
 
 For a free, high-value Extended Evidence setup, set `MARKET_BOT_FRED_API_KEY` and `MARKET_BOT_SEC_USER_AGENT`. FRED is also the provider-health v2 baseline macro expectation. Add `MARKET_BOT_TRADIER_API_TOKEN` only when you need equity options/IV evidence and have suitable Tradier API access. Leave `MARKET_BOT_GLASSNODE_API_KEY` blank unless you already pay for Glassnode API access.
 
+## Research runs (recommended codex setup)
+
+`research <subject> --deep` benefits most from GPT-5.5 reasoning plus sourced web evidence:
+
+- Set `MARKET_BOT_PROVIDER=codex` to route the pipeline through the local Codex CLI. This applies to every run type — there is no per-jobType provider routing. Optionally override the models with `MARKET_BOT_CODEX_QUICK_MODEL` (brief depth) and `MARKET_BOT_CODEX_SYNTHESIS_MODEL` (`--deep`); both fall back to the shared `MARKET_BOT_QUICK_MODEL`/`MARKET_BOT_SYNTHESIS_MODEL` defaults.
+- Set `MARKET_BOT_EXA_API_KEY` and run with `--deep` so web evidence flows through Web Gather. This is where the theme's representative-company and catalyst evidence is sourced.
+- Research runs deterministically seat the `thematic-research` playbook, plus any subject-matched playbook (e.g. `subject-biotech` when the resolved `subjectKey` is `biotech`); the model selects the remaining playbooks. This layers domain analytical discipline without loosening the research-only boundary.
+
+Pipeline stages never use codex-native web search by design: web evidence enters only via Web Gather so it is persisted as citeable, replayable Sources with temporal integrity. Codex's own live web search is exposed only through Run Chat (`MARKET_BOT_CONSOLE_CHAT_WEB_SEARCH`), a separate ephemeral surface that does not write to the source ledger.
+
 ## International equities
 
 SEC EDGAR, Tradier IV, and Finnhub company/event endpoints are US-centric. Non-US listings (detected by exchange name or Yahoo symbol suffix such as `.L`, `.TO`, `.PA`, `.DE`, `.HK`) are short-circuited before any network call: the Evidence Request Loop is omitted (saving a model round) and each affected source emits a single `unsupported-coverage` Source Gap. Yahoo market data, Yahoo news, and Valuation Evidence still run for international tickers. Unclassifiable instruments default to attempting the fetch so coverage is never suppressed on weak signal.

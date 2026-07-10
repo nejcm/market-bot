@@ -371,7 +371,8 @@ function timestampAgeDays(fromTimestamp: string, toTimestamp: string): number | 
   if (!Number.isFinite(from) || !Number.isFinite(to)) {
     return undefined;
   }
-  return Math.max(0, Math.floor((to - from) / DAY_MS));
+  // One-decimal precision so a 1.7-day-old reused profile is not disclosed as 1 day.
+  return Math.max(0, Math.round(((to - from) / DAY_MS) * 10) / 10);
 }
 
 function calibrationMetricSlice(

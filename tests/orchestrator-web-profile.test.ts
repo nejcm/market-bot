@@ -612,7 +612,7 @@ describe("runResearchJob web subject profile", () => {
     });
     expect(result.collectedSources.extendedSources).toContainEqual(priorWebSource);
     expect(result.report.dataGaps).toContain(
-      "web-subject-profile: Reused web subject profile from 2026-05-01T00:00:00.000Z (18 days old); latest SEC filing basis 2026-05-01.",
+      "web-subject-profile: Reused web subject profile from 2026-05-01T00:00:00.000Z (18.0 days old); latest SEC filing basis 2026-05-01.",
     );
     expect(result.report.extras?.webSubjectProfile).toMatchObject({
       companyName: "Apple Inc.",

@@ -74,9 +74,7 @@ export async function findReusableWebSubjectProfile(input: {
     if (sources === undefined) {
       continue;
     }
-    const ageDays = Math.floor(
-      (input.now.getTime() - new Date(profile.generatedAt).getTime()) / DAY_MS,
-    );
+    const ageDays = (input.now.getTime() - new Date(profile.generatedAt).getTime()) / DAY_MS;
     const filingSuffix =
       profile.subjectKind === "company" && input.currentSecFilingDate !== undefined
         ? `; latest SEC filing basis ${input.currentSecFilingDate}`
@@ -86,7 +84,7 @@ export async function findReusableWebSubjectProfile(input: {
       sources,
       gap: sourceGap({
         source: "web-subject-profile",
-        message: `Reused web subject profile from ${profile.generatedAt} (${String(ageDays)} days old)${filingSuffix}.`,
+        message: `Reused web subject profile from ${profile.generatedAt} (${ageDays.toFixed(1)} days old)${filingSuffix}.`,
         provider: "market-bot",
         capability: "extended-evidence",
         cause: "stale-fallback",

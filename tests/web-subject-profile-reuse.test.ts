@@ -222,14 +222,15 @@ describe("Web Subject Profile reuse", () => {
     const reuse = await findReusableWebSubjectProfile({
       dataDir,
       command,
-      now: new Date("2026-05-20T00:00:00.000Z"),
+      // A fractional age (19.7 days) must be disclosed as-is, not floored to 19.
+      now: new Date("2026-05-20T16:48:00.000Z"),
       reuseDaysBySubjectKind,
       currentSecFilingDate: "2026-04-25",
     });
 
     expect(reuse?.profile).toMatchObject({ subjectKind: "company", companyName: "AAPL Inc." });
     expect(reuse?.sources.map((source) => source.id)).toEqual([webSource.id]);
-    expect(reuse?.gap.message).toContain("19 days old");
+    expect(reuse?.gap.message).toContain("19.7 days old");
   });
 
   test("rejects reuse when a newer current SEC filing exists", async () => {
@@ -473,7 +474,7 @@ describe("Web Subject Profile reuse", () => {
         runDirName: "prior-aapl",
         gap: {
           source: "web-subject-profile",
-          message: "Reused Web Subject Profile from 2026-05-01T00:00:00.000Z (19 days old).",
+          message: "Reused Web Subject Profile from 2026-05-01T00:00:00.000Z (19.0 days old).",
           provider: "market-bot",
           capability: "extended-evidence",
           cause: "stale-fallback",

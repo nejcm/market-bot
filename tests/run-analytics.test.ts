@@ -706,7 +706,8 @@ describe("web source roles accounting", () => {
 
   test("separates reused profile web sources from current-run web coverage", () => {
     const report = researchReport({
-      generatedAt: "2026-07-01T00:00:00.000Z",
+      // Half a day past the profile timestamp: ageDays must keep the fraction.
+      generatedAt: "2026-07-01T12:00:00.000Z",
       sources: [webSource("web-1"), webSource("web-2"), webSource("web-3")],
       keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
       predictions: [prediction({ sourceIds: ["web-2"] })],
@@ -733,7 +734,7 @@ describe("web source roles accounting", () => {
       accepted: 3,
       reportCited: 2,
       generatedAt: "2026-06-28T00:00:00.000Z",
-      ageDays: 3,
+      ageDays: 3.5,
       runDirName: "2026-06-28-aapl",
     });
   });

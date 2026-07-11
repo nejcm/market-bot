@@ -195,6 +195,33 @@ function recordingExaFetch(): { readonly fetch: FetchLike; readonly searchNumRes
   return { fetch, searchNumResults };
 }
 
+const sameHeadlineFetch: FetchLike = async () =>
+  Response.json({
+    results: [
+      {
+        id: "exa-search-1",
+        url: "https://outlet-one.example/openai-apple",
+        title: "Apple sued by OpenAI over Siri claims",
+        summary: "OpenAI filed suit against Apple.",
+        highlights: ["OpenAI filed suit against Apple over Siri."],
+      },
+      {
+        id: "exa-search-2",
+        url: "https://outlet-two.example/openai-apple",
+        title: "Apple sued by OpenAI over Siri claims",
+        summary: "OpenAI has sued Apple.",
+        highlights: ["OpenAI has sued Apple over Siri."],
+      },
+      {
+        id: "exa-search-3",
+        url: "https://outlet-three.example/openai-apple",
+        title: "OpenAI sues Apple over Siri assistant claims",
+        summary: "The lawsuit targets Siri.",
+        highlights: ["The lawsuit targets Siri claims."],
+      },
+    ],
+  });
+
 function secFilingSource(overrides: Partial<Source> = {}): Source {
   return {
     id: "extended-sec-edgar-aapl-10k",
@@ -781,6 +808,47 @@ describe("runWebGatherLoop", () => {
     expect(appendedIds).toHaveLength(2);
     expect(appendedIds).toContain(distinct.id);
     expect(appendedIds).toContain(gathered!.id);
+  });
+
+  test("rejects near-duplicate headlines at result acceptance and audits them", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: sameHeadlineFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple OpenAI lawsuit", searchType: "current-subject" },
+              rationale: "fresh legal catalyst evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.collectedSources.extendedSources).toHaveLength(1);
+    expect(result.collectedSources.extendedSources[0]?.title).toBe(
+      "Apple sued by OpenAI over Siri claims",
+    );
+    expect(result.audit?.acceptedRequests).toHaveLength(1);
+    const duplicateResults = result.audit?.acceptedRequests[0]?.duplicateResults;
+    expect(duplicateResults).toHaveLength(2);
+    expect(duplicateResults?.every((entry) => entry.reason === "duplicate-headline")).toBeTrue();
+    expect(duplicateResults?.map((entry) => entry.duplicateOfSourceId)).toEqual([
+      result.collectedSources.extendedSources[0]!.id,
+      result.collectedSources.extendedSources[0]!.id,
+    ]);
+    // Dedupe pressure stays in the audit; it does not create source gaps.
+    expect(
+      result.collectedSources.sourceGaps.filter((gap) => gap.message.includes("duplicate")),
+    ).toHaveLength(0);
   });
 
   test("rejects off-company web search queries", async () => {

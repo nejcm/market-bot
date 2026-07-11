@@ -271,6 +271,16 @@ export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   };
   // Present only when the configured Exa call hard-failed or returned empty/thin results and MARKET_BOT_FIRECRAWL_API_KEY was set, triggering a Firecrawl fallback attempt.
   readonly fallback?: WebGatherFallbackAudit;
+  // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
+  readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
+}
+
+export interface WebGatherDuplicateResultAudit {
+  readonly reason: "duplicate-headline";
+  readonly sourceId: string;
+  readonly title: string;
+  readonly duplicateOfSourceId: string;
+  readonly duplicateOfTitle: string;
 }
 
 export interface WebGatherFallbackAudit {

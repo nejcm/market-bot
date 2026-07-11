@@ -34,6 +34,7 @@ import {
   type HistoricalResearchContext,
 } from "./historical-context";
 import { createSanitizedHistoricalContextReader } from "./historical-context-sanitization";
+import { buildForecastPersistence } from "./forecast-persistence";
 import {
   eligiblePlaybookCandidates,
   loadPlaybookRegistry,
@@ -620,6 +621,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     challengerModels,
     ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
   });
+  // Computed once the report is final (post integrity audit and forecast
+  // Disagreement) so repetition telemetry reflects exactly what was emitted.
+  const forecastPersistence = buildForecastPersistence({
+    report,
+    baseline: historicalContextReader.findForecastPersistenceBaseline(report),
+  });
   const analytics = buildRunAnalytics({
     report,
     trace,
@@ -634,6 +641,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       marketRegime: context.marketRegime.label,
     },
     ...(calibrationContext !== undefined ? { calibrationContext } : {}),
+    ...(forecastPersistence !== undefined ? { forecastPersistence } : {}),
   });
 
   return {

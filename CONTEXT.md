@@ -129,6 +129,10 @@ The instrument or instruments a run's scored Predictions are allowed to be about
 
 A research-only evidence signal that measures how much configured same-provider challenger models disagree with the canonical Prediction probabilities on an already-valid deep run. It summarizes unweighted probability spread, variance, and mean for the existing `measurableAs` set. It is an uncertainty signal, not the canonical scored probability, model endorsement, investment conviction, or a trade signal.
 
+## Forecast Persistence Telemetry
+
+Deterministic per-run analytics comparing the run's emitted Predictions against the newest comparable prior run — same job type, asset class, subject, and horizon bucket, regardless of that run's prediction count. It reports the count of repeated claims (matched on canonical `measurableAs`) and the count of repeated claims whose probability is also unchanged. Part of Cross-run Intelligence's derived read-back surfaces. It is research-only telemetry; it does not reject Predictions, steer synthesis, or express investment conviction, model endorsement, or a trade signal.
+
 ## Calibration
 
 An aggregate, descriptive measurement of how well stated Prediction probabilities match observed resolution rates across Run Artifacts. The current dashboard uses resolved policy-v3 forecasts only and reports resolved count, hit rate, Brier score, reliability bins, slices, and explicit small-sample warnings. New summaries do not present baseline skill; historical summaries containing the legacy always-0.5 skill field remain readable. Calibration reporting does not determine whether current evidence supports a Prediction, control Prediction count, reject a forecast shape, or reject an emitted Prediction. It is not investment conviction, model endorsement, or a trade signal.
@@ -154,7 +158,7 @@ The registry enriches resolved subjects but never constrains or suggests what su
 
 ## Cross-run Intelligence
 
-The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, Miss Autopsies, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, Miss Autopsies, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).
+The umbrella term for every way a run reads curated prior state back in: the Historical Research Context assembled into prompts, the `history` CLI family (rebuild/search/thesis-delta), per-Instrument timelines, calibration, Miss Autopsies, Forecast Persistence Telemetry, the prior-miss error-correction blocks (instrument and market-scoped, [ADR 0015](./docs/adr/0015-instrument-error-correction-ticker-only.md)), and the canonical Run Artifact read seam ([ADR 0016](./docs/adr/0016-run-artifact-reader.md)). It draws only from curated prior state — run artifacts, scores, calibration, Miss Autopsies, derived history, the alpha-search watchlist, and derived rebuildable indexes over those artifacts — never raw `data/cache`. Derived indexes are access paths, not sources of truth. Historical Research Context is its prompt-time surface (below).
 
 ## Historical Research Context
 

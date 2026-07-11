@@ -886,3 +886,39 @@ describe("web source roles accounting", () => {
     expect(analytics.runShape.stages[0]?.costEstimateUsd).toBeUndefined();
   });
 });
+
+describe("forecast persistence telemetry", () => {
+  test("passes the forecastPersistence block through when provided", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      forecastPersistence: {
+        baselineRunId: "baseline-run",
+        repeatedClaimCount: 2,
+        unchangedProbabilityCount: 1,
+      },
+    });
+
+    expect(analytics.forecastPersistence).toEqual({
+      baselineRunId: "baseline-run",
+      repeatedClaimCount: 2,
+      unchangedProbabilityCount: 1,
+    });
+  });
+
+  test("omits the forecastPersistence block when absent", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.forecastPersistence).toBeUndefined();
+    expect("forecastPersistence" in analytics).toBe(false);
+  });
+});

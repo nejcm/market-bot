@@ -297,6 +297,7 @@ describe("research phase seams", () => {
           loads.push([...(input.spotlightSymbols ?? [])]);
           return { context: historicalContext, modelInputSanitization: { entries: [] } };
         },
+        findForecastPersistenceBaseline: () => {},
       },
       alpha: {},
       alphaGaps: [],

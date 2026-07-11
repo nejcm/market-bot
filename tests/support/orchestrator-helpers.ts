@@ -140,6 +140,7 @@ export async function writeHistoricalRun(input: {
   readonly generatedAt: string;
   readonly symbol?: string;
   readonly snapshots?: readonly MarketSnapshot[];
+  readonly predictions?: readonly unknown[];
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
   await mkdir(join(runDir, "normalized"), { recursive: true });
@@ -160,7 +161,7 @@ export async function writeHistoricalRun(input: {
       scenarios: [],
       evidenceQuality: "medium",
       dataGaps: [],
-      predictions: [],
+      predictions: input.predictions ?? [],
       sources: [],
       notFinancialAdvice: true,
     }),

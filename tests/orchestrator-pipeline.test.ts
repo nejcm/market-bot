@@ -278,6 +278,20 @@ describe("runResearchJob pipeline stages", () => {
       symbol: "AAPL",
       generatedAt: "2026-05-01T00:00:00.000Z",
       snapshots: marketSnapshots,
+      // Mirrors the first mockPredictions(6, "AAPL") entry so the current run
+      // Repeats this claim with an unchanged probability.
+      predictions: [
+        {
+          id: "pred-prior-1",
+          claim: "AAPL closes higher over 5 trading days.",
+          kind: "direction",
+          subject: "AAPL",
+          measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+          horizonTradingDays: 5,
+          probability: 0.6,
+          sourceIds: [],
+        },
+      ],
     });
     await writeHistoricalRun({
       dataDir,
@@ -342,6 +356,13 @@ describe("runResearchJob pipeline stages", () => {
     );
     expect(result.report.extras?.historicalContext).toBeDefined();
     expect(result.trace.historicalContext?.selectedRunCount).toBe(2);
+    // Forecast Persistence Telemetry: prior-aapl-ticker is the newest comparable
+    // Prior run and shares one claim (same canonical measurableAs and probability).
+    expect(result.analytics.forecastPersistence).toEqual({
+      baselineRunId: "prior-aapl-ticker",
+      repeatedClaimCount: 1,
+      unchangedProbabilityCount: 1,
+    });
   });
 
   test("allows final reports to cite loaded historical report sources", async () => {

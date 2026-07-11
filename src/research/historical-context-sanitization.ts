@@ -17,6 +17,8 @@ export interface SanitizedHistoricalContextReader {
   readonly load: (
     input: Parameters<HistoricalContextReader["load"]>[0],
   ) => Promise<SanitizedHistoricalContextProjection>;
+  // Passed through unsanitized: feeds deterministic analytics, never model prompts.
+  readonly findForecastPersistenceBaseline: HistoricalContextReader["findForecastPersistenceBaseline"];
 }
 
 function sanitizeHistoricalProse(
@@ -105,5 +107,6 @@ export function createSanitizedHistoricalContextReader(
 ): SanitizedHistoricalContextReader {
   return {
     load: async (input) => sanitizeHistoricalContextProjection(await reader.load(input)),
+    findForecastPersistenceBaseline: reader.findForecastPersistenceBaseline,
   };
 }

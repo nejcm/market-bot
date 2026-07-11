@@ -17,6 +17,7 @@ import {
   type Source,
 } from "../domain/types";
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
+import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import type { PredictionScore } from "../scoring/types";
 import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
 import {
@@ -155,6 +156,11 @@ export interface HistoricalContextReader {
   readonly load: (
     input: Omit<LoadHistoricalContextInput, "dataDir">,
   ) => Promise<HistoricalResearchContext>;
+  // Deterministic-analytics seam: the newest comparable prior run used as the
+  // Forecast Persistence Telemetry baseline. Feeds run analytics, never prompts.
+  readonly findForecastPersistenceBaseline: (
+    report: ResearchReport,
+  ) => ForecastPersistenceBaseline | undefined;
 }
 
 const SNAPSHOT_LIMIT = 8;
@@ -559,27 +565,101 @@ function computeArtifactDeltas(
   return deltas;
 }
 
-function comparableRunKey(run: HistoricalRunContext): string | undefined {
-  const day = run.generatedAt.slice(0, 10);
-  if (isInstrumentJobType(run.jobType) && run.symbol !== undefined) {
-    return [run.jobType, run.assetClass, run.symbol.toUpperCase(), "none", day].join("|");
+interface ComparableRunKeyFields {
+  readonly jobType: JobType;
+  readonly assetClass: AssetClass;
+  readonly symbol?: string | undefined;
+  readonly subjectKey?: string | undefined;
+  readonly predictionProxySymbol?: string | undefined;
+  readonly marketUpdateHorizonBucket?: string | undefined;
+}
+
+// Identity shared by same-day rerun collapsing (with a day component appended) and
+// The Forecast Persistence baseline selector (day-less): jobType + assetClass +
+// Symbol/proxy-or-subjectKey + market-update horizon bucket.
+function comparableRunKeyWithoutDay(fields: ComparableRunKeyFields): string | undefined {
+  if (isInstrumentJobType(fields.jobType) && fields.symbol !== undefined) {
+    return [fields.jobType, fields.assetClass, fields.symbol.toUpperCase(), "none"].join("|");
   }
-  if (run.jobType === "research") {
-    const subject = run.predictionProxySymbol ?? run.subjectKey;
+  if (fields.jobType === "research") {
+    const subject = fields.predictionProxySymbol ?? fields.subjectKey;
     return subject === undefined
       ? undefined
-      : ["research", run.assetClass, subject.toUpperCase(), "none", day].join("|");
+      : ["research", fields.assetClass, subject.toUpperCase(), "none"].join("|");
   }
-  if (isMarketUpdateJobType(run.jobType)) {
-    const bucket =
-      typeof run.keyExtras?.marketUpdateHorizonBucket === "string"
-        ? run.keyExtras.marketUpdateHorizonBucket
-        : marketUpdateHorizonBucketOf(run);
-    return bucket === undefined
+  if (isMarketUpdateJobType(fields.jobType)) {
+    return fields.marketUpdateHorizonBucket === undefined
       ? undefined
-      : ["market", run.assetClass, "market", bucket, day].join("|");
+      : ["market", fields.assetClass, "market", fields.marketUpdateHorizonBucket].join("|");
   }
   return undefined;
+}
+
+function reportComparableKeyFields(report: ResearchReport): ComparableRunKeyFields {
+  const extras = keyExtras(report);
+  return {
+    jobType: report.jobType,
+    assetClass: report.assetClass,
+    symbol: report.symbol,
+    ...reportResearchSubjectIdentity(report),
+    marketUpdateHorizonBucket:
+      typeof extras?.marketUpdateHorizonBucket === "string"
+        ? extras.marketUpdateHorizonBucket
+        : marketUpdateHorizonBucketOf(report),
+  };
+}
+
+function comparableRunKey(run: HistoricalRunContext): string | undefined {
+  const withoutDay = comparableRunKeyWithoutDay({
+    jobType: run.jobType,
+    assetClass: run.assetClass,
+    symbol: run.symbol,
+    subjectKey: run.subjectKey,
+    predictionProxySymbol: run.predictionProxySymbol,
+    marketUpdateHorizonBucket:
+      typeof run.keyExtras?.marketUpdateHorizonBucket === "string"
+        ? run.keyExtras.marketUpdateHorizonBucket
+        : marketUpdateHorizonBucketOf(run),
+  });
+  return withoutDay === undefined
+    ? undefined
+    : [withoutDay, run.generatedAt.slice(0, 10)].join("|");
+}
+
+// Newest comparable prior run (same day-less comparable-run key, generatedAt strictly
+// Before the current run) regardless of prediction count — the deterministic baseline
+// For Forecast Persistence Telemetry. A zero-prediction baseline yields zero repeats.
+function findForecastPersistenceBaseline(
+  scan: ScanResult,
+  report: ResearchReport,
+): ForecastPersistenceBaseline | undefined {
+  const key = comparableRunKeyWithoutDay(reportComparableKeyFields(report));
+  if (key === undefined) {
+    return undefined;
+  }
+  const currentMs = Date.parse(report.generatedAt);
+  if (!Number.isFinite(currentMs)) {
+    return undefined;
+  }
+  const baseline = scan.artifacts
+    .filter(
+      (artifact) =>
+        artifact.report.runId !== report.runId &&
+        generatedAtMs(artifact) < currentMs &&
+        comparableRunKeyWithoutDay(reportComparableKeyFields(artifact.report)) === key,
+    )
+    .toSorted(sortNewest)
+    .at(0);
+  if (baseline === undefined) {
+    return undefined;
+  }
+  return {
+    runId: baseline.report.runId,
+    predictions: baseline.report.predictions.map((prediction) => ({
+      measurableAs: prediction.measurableAs,
+      probability: prediction.probability,
+    })),
+  };
 }
 
 function collapseSameDayComparableRuns(
@@ -801,6 +881,7 @@ export async function createHistoricalContextReader(
   const scan = toScanResult(await scanRunArtifacts(dataDir));
   return {
     load: async (input) => buildHistoricalContext({ ...input, dataDir }, scan),
+    findForecastPersistenceBaseline: (report) => findForecastPersistenceBaseline(scan, report),
   };
 }
 

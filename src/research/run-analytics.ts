@@ -19,6 +19,7 @@ import {
   type CalibrationGuidanceReason,
 } from "./calibration-guidance";
 import type { CalibrationContext } from "./research-context-types";
+import type { ForecastPersistence } from "./forecast-persistence";
 import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
@@ -46,6 +47,7 @@ export interface BuildRunAnalyticsInput {
   readonly sourcePlanSummary?: EvidenceLaneSummaryV2;
   readonly calibrationContext?: CalibrationContext;
   readonly calibrationGuidanceKeys?: ApplicableCalibrationKeys;
+  readonly forecastPersistence?: ForecastPersistence;
 }
 
 export interface RunAnalytics {
@@ -188,6 +190,10 @@ export interface RunAnalytics {
     readonly marketUpdateHorizonBucket?: RunAnalyticsCalibrationSlice;
     readonly guidanceAssessments?: readonly RunAnalyticsCalibrationGuidanceAssessment[];
   };
+  /** Forecast Persistence Telemetry: run-over-run Prediction repetition vs the
+   *  newest comparable prior run. Deterministic and analytics-only — never a
+   *  rejection gate, prompt input, or synthesis steer. */
+  readonly forecastPersistence?: ForecastPersistence;
   readonly verifiedMarketSnapshot?: {
     readonly symbol: string;
     readonly analysisDate: string;
@@ -786,6 +792,9 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         }
       : {}),
     ...(calibrationSnapshot !== undefined ? { calibrationAtGeneration: calibrationSnapshot } : {}),
+    ...(input.forecastPersistence !== undefined
+      ? { forecastPersistence: input.forecastPersistence }
+      : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     ...webSourceRoles(report, collectedSources),
     runShape: {

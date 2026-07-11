@@ -732,3 +732,165 @@ describe("loadHistoricalContext", () => {
     expect(context.audit.gapCount).toBe(context.gaps.length);
   });
 });
+
+describe("findForecastPersistenceBaseline", () => {
+  test("picks the newest comparable prior run and projects its predictions", async () => {
+    const dataDir = tempRunsDir();
+    await writeRun({
+      dataDir,
+      runDirName: "older-comparable",
+      report: researchReport({
+        runId: "older-comparable",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-10T00:00:00.000Z",
+        predictions: [prediction({ id: "pred-old" })],
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "newest-comparable",
+      report: researchReport({
+        runId: "newest-comparable",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        predictions: [
+          prediction({
+            id: "pred-new",
+            subject: "AAPL",
+            measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+            probability: 0.62,
+          }),
+        ],
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "other-symbol",
+      report: researchReport({
+        runId: "other-symbol",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "MSFT",
+        generatedAt: "2026-05-25T00:00:00.000Z",
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "after-current",
+      report: researchReport({
+        runId: "after-current",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-06-02T00:00:00.000Z",
+      }),
+    });
+
+    const reader = await createHistoricalContextReader(dataDir);
+    const baseline = reader.findForecastPersistenceBaseline(
+      researchReport({
+        runId: "current",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+      }),
+    );
+
+    expect(baseline).toEqual({
+      runId: "newest-comparable",
+      predictions: [{ measurableAs: "close(AAPL, +5) > close(AAPL, 0)", probability: 0.62 }],
+    });
+  });
+
+  test("matches research runs on subject identity regardless of prediction count", async () => {
+    const dataDir = tempRunsDir();
+    await writeRun({
+      dataDir,
+      runDirName: "research-xbi",
+      report: researchReport({
+        runId: "research-xbi",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+        predictions: [],
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "ai biotech",
+          subjectKey: "ai-biotech",
+          predictionProxySymbol: "XBI",
+          depth: "deep",
+        }),
+      }),
+    });
+    await writeRun({
+      dataDir,
+      runDirName: "research-smh",
+      report: researchReport({
+        runId: "research-smh",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-05-25T00:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "semis",
+          subjectKey: "semiconductors",
+          predictionProxySymbol: "SMH",
+          depth: "deep",
+        }),
+      }),
+    });
+
+    const reader = await createHistoricalContextReader(dataDir);
+    const baseline = reader.findForecastPersistenceBaseline(
+      researchReport({
+        runId: "current",
+        jobType: "research",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        extras: researchIdentityExtras({
+          jobType: "research",
+          assetClass: "equity",
+          subject: "ai biotech",
+          subjectKey: "ai-biotech",
+          predictionProxySymbol: "XBI",
+          depth: "deep",
+        }),
+      }),
+    );
+
+    expect(baseline).toEqual({ runId: "research-xbi", predictions: [] });
+  });
+
+  test("excludes market-update horizon-bucket mismatches and returns undefined without a match", async () => {
+    const dataDir = tempRunsDir();
+    await writeRun({
+      dataDir,
+      runDirName: "daily-market",
+      report: researchReport({
+        runId: "daily-market",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-05-20T00:00:00.000Z",
+      }),
+    });
+
+    const reader = await createHistoricalContextReader(dataDir);
+    const baseline = reader.findForecastPersistenceBaseline(
+      researchReport({
+        runId: "current",
+        jobType: "weekly",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+      }),
+    );
+
+    expect(baseline).toBeUndefined();
+  });
+});

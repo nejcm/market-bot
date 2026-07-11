@@ -813,10 +813,19 @@ function hasFreshWebEvidence(collectedSources: CollectedSources): boolean {
 // Genuinely recent claims over the older pre-cited profile digest, while keeping the low-trust
 // Boundary and allowing zero fresh citations. Relevance-based, never a source quota. Shared by the
 // Primary and completion prediction instructions so both prediction paths steer identically.
+// Also guards dataGaps against contradicting the evidence ledger: a gap must not assert that no
+// Supplied source provides something an accepted fresh web source in fact provides, and it must
+// Not restate the mechanically injected reused-profile staleness gap. The reuse note applies
+// Whenever a profile was reused, even when the run gathered no readable fresh web source.
 function buildFreshWebSteering(collectedSources: CollectedSources): string {
-  return hasFreshWebEvidence(collectedSources)
-    ? " Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects."
-    : "";
+  const reusedProfileGapNote =
+    collectedSources.webSubjectProfileReuse !== undefined
+      ? ' The reused-profile staleness dataGap ("Reused web subject profile from …") is already injected mechanically; do not author another dataGap restating that the profile is stale or reused.'
+      : "";
+  if (!hasFreshWebEvidence(collectedSources)) {
+    return reusedProfileGapNote;
+  }
+  return ` Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects. Before authoring a dataGap asserting that no supplied source provides something, check these current-run evidence.webSources entries: if an accepted fresh source provides that evidence, cite it in the relevant section instead, or reword the gap to state what the source actually leaves missing.${reusedProfileGapNote}`;
 }
 
 function buildForecastDiversityGuidance(

@@ -3139,6 +3139,79 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(parsed.instruction).toContain("gathered this run beyond the profile");
     expect(parsed.instruction).toContain("prefer citing these current-run web sourceIds");
     expect(parsed.instruction).toContain("relevance-based, not a quota");
+    // DataGap contradiction guard: gaps must be checked against the fresh-source ledger first.
+    expect(parsed.instruction).toContain(
+      "Before authoring a dataGap asserting that no supplied source provides something",
+    );
+    // No reused profile in this fixture, so the duplicate-staleness-gap line stays out.
+    expect(parsed.instruction).not.toContain("Reused web subject profile");
+  });
+
+  test("final-synthesis steers against restating the reused-profile staleness gap", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const freshSource = {
+      id: "web-fresh-1",
+      title: "Apple ships new chip",
+      fetchedAt: "2026-07-05T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Apple announced a new chip this week.",
+    };
+    const prompt = stagePromptFromArgs(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        extendedSources: [freshSource],
+        webSubjectProfile: webProfileForProjection,
+        webSubjectProfileReuse: {
+          runDirName: "2026-07-04T00-00-00-000Z-prior",
+          generatedAt: "2026-07-04T00:00:00.000Z",
+        },
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    // The staleness gap is injected mechanically; steering forbids a duplicate authored one.
+    expect(parsed.instruction).toContain('"Reused web subject profile from …"');
+    expect(parsed.instruction).toContain("do not author another dataGap restating");
+  });
+
+  test("reused-profile gap steering survives without fresh web sources", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const prompt = stagePromptFromArgs(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot()],
+        newsSources: [newsSource()],
+        webSubjectProfile: webProfileForProjection,
+        webSubjectProfileReuse: {
+          runDirName: "2026-07-04T00-00-00-000Z-prior",
+          generatedAt: "2026-07-04T00:00:00.000Z",
+        },
+      }),
+      config,
+      researchContext(command),
+      { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+    );
+    const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+    // Reuse can happen with zero readable fresh sources; the duplicate-gap guard still applies,
+    // While the fresh-web citation preference stays out.
+    expect(parsed.instruction).toContain("do not author another dataGap restating");
+    expect(parsed.instruction).not.toContain("prefer citing these current-run web sourceIds");
   });
 
   test("final-synthesis omits fresh-web steering when no fresh web sources were gathered", () => {

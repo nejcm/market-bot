@@ -27,6 +27,30 @@ horizon bucket. Resolve the subject from `report.subject`, `instrumentId`, or
 prediction subjects if the report schema differs. Prefer the newest comparable
 prior run; inspect older candidates only when needed to establish comparability.
 
+# Code-delta attribution (mandatory, after baseline selection)
+
+Run-vs-run deltas are only run-quality findings when both runs executed the
+same code. Before analyzing metrics:
+
+1. Read `codeVersion.commit` from both runs' `analytics.json`.
+2. If the commits differ, run `git log --oneline <base>..<target>` and flag
+   any commits touching subsystems whose metrics moved (web gather, synthesis,
+   forecasts, scoring). Findings on those metrics must be labeled
+   **"confounded by code change — regression hypothesis, not run-quality
+   finding"** and may not carry a suspected cause unless artifact evidence
+   distinguishes a code effect from a data effect.
+3. Compare the target run's commit to current HEAD; list any later commits
+   touching a finding's subsystem and mark those findings "possibly already
+   addressed at HEAD" before recommending work.
+4. The report must include a "Code delta" line next to the baseline
+   disclosure: both commits, the commit count between them, and the
+   target-to-HEAD distance.
+
+Deltas inside the recorded variance bands in `docs/run-variance-baseline.md`
+(when that doc exists and its commit still matches the relevant subsystems)
+are noise unless corroborated by independent evidence; treat the bands as
+stale once the relevant subsystem changed.
+
 Produce a compact review with two evidence-backed sections:
 
 1. **Improvements** — material things that improved versus the selected baseline (previous runs).
@@ -85,7 +109,8 @@ Check these explicitly before final ranking:
 - Output the Improvements section and the ranked Recommendations section only.
   Do NOT make changes, write code, or fix anything.
 - Every finding must cite evidence from the artifacts. Don't guess.
-- State latest reviewed and which run you used as the baseline.
+- State latest reviewed and which run you used as the baseline, followed by
+  the required "Code delta" line.
 - Use exact `file:field` citations and compact extracted values. Avoid pasting
   large `report.json` or `stages.json` snippets.
 - Treat missing optional artifacts as context, not a finding, unless their

@@ -24,8 +24,8 @@ import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
-import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
 import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
+import { computeWebSourceUsage } from "./web-source-usage";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -486,91 +486,28 @@ function verifiedMarketSnapshotFreshness(
       };
 }
 
-// Recursively collect every sourceId string reachable under report.extras, excluding the
-// Code-assembled Extended Evidence subtrees declared by the projection seam. Authored extras such
-// As earningsSetup, businessFramework, spotlights, and historicalContext nest {text, sourceIds}
-// Bullets at varying depths, so a walk keeps telemetry robust to extras shape changes.
-function collectExtrasSourceIds(extras: Record<string, unknown> | undefined): Set<string> {
-  const ids = new Set<string>();
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        visit(item);
-      }
-      return;
-    }
-    if (!isRecord(value)) {
-      return;
-    }
-    for (const [key, nested] of Object.entries(value)) {
-      if (CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS.has(key)) {
-        continue;
-      }
-      if (key === "sourceIds" && Array.isArray(nested)) {
-        for (const id of nested) {
-          if (typeof id === "string") {
-            ids.add(id);
-          }
-        }
-        continue;
-      }
-      visit(nested);
-    }
-  };
-  visit(extras);
-  return ids;
-}
-
 function webSourceRoles(
   report: ResearchReport,
   collectedSources: CollectedSources,
 ): Pick<RunAnalytics, "webSources" | "reusedProfileWebSources"> {
   const reuse = collectedSources.webSubjectProfileReuse;
-  const acceptedIds = new Set(
-    report.sources.filter((source) => source.kind === "web").map((source) => source.id),
-  );
-  if (acceptedIds.size === 0 && reuse === undefined) {
+  const usage = computeWebSourceUsage(report, collectedSources);
+  const { currentRunIds, reusedProfileIds, profileUsedIds, reportCitedIds, currentRunUsedIds } =
+    usage;
+  if (currentRunIds.size === 0 && reuse === undefined) {
     return {};
   }
-  const reusedProfileIds = new Set(
-    reuse === undefined
-      ? []
-      : (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => acceptedIds.has(id)),
-  );
   const reusedProfileAgeDays =
     reuse === undefined ? undefined : timestampAgeDays(reuse.generatedAt, report.generatedAt);
-  const currentRunIds = new Set([...acceptedIds].filter((id) => !reusedProfileIds.has(id)));
-  const profileUsedIds = new Set(
-    (collectedSources.webSubjectProfile?.sourceIds ?? []).filter((id) => currentRunIds.has(id)),
-  );
-  const reportCitedIds = new Set(
-    [
-      ...report.keyFindings,
-      ...report.bullCase,
-      ...report.bearCase,
-      ...report.risks,
-      ...report.catalysts,
-      ...report.scenarios,
-      ...report.predictions,
-    ]
-      .flatMap((item) => item.sourceIds)
-      .filter((id) => acceptedIds.has(id)),
-  );
   const currentRunReportCitedIds = new Set(
     [...reportCitedIds].filter((id) => currentRunIds.has(id)),
   );
-  // Web sources cited only in authored extras count as real usage, so fold them into the
-  // Usage union (keeps `unused` and usageWarning from flagging genuinely used sources) while
-  // Reporting them separately from primary reportCited (run-review finding #1).
-  const extrasCitedIds = new Set(
-    [...collectExtrasSourceIds(report.extras)].filter((id) => acceptedIds.has(id)),
-  );
   const currentRunExtrasCitedIds = new Set(
-    [...extrasCitedIds].filter((id) => currentRunIds.has(id) && !currentRunReportCitedIds.has(id)),
+    [...usage.extrasCitedIds].filter(
+      (id) => currentRunIds.has(id) && !currentRunReportCitedIds.has(id),
+    ),
   );
-  const usedUnion = new Set([...profileUsedIds, ...reportCitedIds, ...extrasCitedIds]);
-  const currentRunUsedUnion = new Set([...usedUnion].filter((id) => currentRunIds.has(id)));
-  const usageRatio = currentRunIds.size === 0 ? 0 : currentRunUsedUnion.size / currentRunIds.size;
+  const usageRatio = currentRunIds.size === 0 ? 0 : currentRunUsedIds.size / currentRunIds.size;
   return {
     ...(currentRunIds.size === 0
       ? {}
@@ -580,7 +517,7 @@ function webSourceRoles(
             profileUsed: profileUsedIds.size,
             reportCited: currentRunReportCitedIds.size,
             extrasCited: currentRunExtrasCitedIds.size,
-            unused: currentRunIds.size - currentRunUsedUnion.size,
+            unused: currentRunIds.size - currentRunUsedIds.size,
             usageRatio,
             ...(currentRunIds.size >= 4 && usageRatio < 0.25
               ? {

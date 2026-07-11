@@ -641,6 +641,20 @@ export interface CodeVersion {
   readonly dirty: boolean;
 }
 
+export type WebSourceSynthesisAdvisory = "fresh-web-preference" | "web-subject-profile-low-trust";
+
+// Compact per-web-source record of what final synthesis was told about each accepted web source.
+// Read-only telemetry: lets reviews attribute citation-ratio anomalies from artifacts alone. The
+// Full steering text lives on the final-synthesis stage output's steering field; advisories here
+// Name which of those blocks applied to this source.
+export interface WebSourceSynthesisInput {
+  readonly sourceId: string;
+  readonly includedInContext: boolean;
+  readonly modelVisibleText: "summary" | "snippet" | "none";
+  readonly profileCovered: boolean;
+  readonly advisories: readonly WebSourceSynthesisAdvisory[];
+}
+
 export interface RunTrace {
   readonly schemaVersion?: 2;
   readonly runId: string;
@@ -686,6 +700,7 @@ export interface RunTrace {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
+  readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;

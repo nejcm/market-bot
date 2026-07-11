@@ -11,6 +11,7 @@ import type { CostPricing } from "../model/pricing";
 import type { ModelProvider } from "../model/types";
 import { effectiveConfigHash } from "../reproducibility";
 import type { CollectedSources } from "../sources/types";
+import { buildWebSourceSynthesisInputs } from "./research-context";
 import type { StageOutput } from "./final-synthesis";
 import type { ForecastDisagreementArtifact } from "./forecast-disagreement";
 import type { HistoricalResearchContext } from "./historical-context";
@@ -62,6 +63,7 @@ export function buildRunTrace(input: {
   readonly forecastDisagreement?: ForecastDisagreementArtifact;
 }): RunTrace {
   const { command, config, provider } = input.jobInput;
+  const webSourceSynthesisInputs = buildWebSourceSynthesisInputs(command, input.collectedSources);
   return {
     schemaVersion: 2,
     runId: input.runId,
@@ -97,6 +99,7 @@ export function buildRunTrace(input: {
       ? { evidenceRequestLoop: input.evidenceRequestLoop }
       : {}),
     ...(input.webGatherLoop !== undefined ? { webGatherLoop: input.webGatherLoop } : {}),
+    ...(webSourceSynthesisInputs !== undefined ? { webSourceSynthesisInputs } : {}),
     historicalContext: input.historicalContext.audit,
     ...(input.spotlightSelection !== undefined
       ? { spotlightSelection: input.spotlightSelection.audit }

@@ -12,6 +12,8 @@ import {
   type ResearchReport,
   type Source,
   type SourceGapEvidenceQualityImpact,
+  type WebSourceSynthesisAdvisory,
+  type WebSourceSynthesisInput,
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
@@ -822,6 +824,45 @@ function buildFreshWebSteering(collectedSources: CollectedSources): string {
     return "";
   }
   return ` Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects. Before authoring a dataGap asserting that no supplied source provides something, check these current-run evidence.webSources entries: if an accepted fresh source provides that evidence, cite it in the relevant section instead, or reword the gap to state what the source actually leaves missing.${reusedProfileGapNote}`;
+}
+
+// Per-web-source record of the final-synthesis inputs, persisted to trace.json (item: review
+// Attribution). Mirrors the projectWebSources final-synthesis projection and the
+// BuildFreshWebSteering gate exactly, so the trace states what the model actually saw: whether
+// The source was projected into evidence.webSources, which text field was model-visible, whether
+// The reused profile digest already pre-cited it, and which steering blocks applied to it.
+export function buildWebSourceSynthesisInputs(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): readonly WebSourceSynthesisInput[] | undefined {
+  const webSources = collectedSources.extendedSources.filter((source) => source.kind === "web");
+  if (webSources.length === 0) {
+    return undefined;
+  }
+  const includedInContext = subjectKindForCommand(command) !== undefined;
+  const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
+  const freshWebSteeringActive = includedInContext && hasFreshWebEvidence(collectedSources);
+  const profileAttached = collectedSources.webSubjectProfile !== undefined;
+  return webSources.map((source) => {
+    const fresh = isFreshWebSource(source, profileCoveredIds);
+    const modelVisibleText =
+      !includedInContext || !fresh
+        ? "none"
+        : source.summary !== undefined
+          ? "summary"
+          : source.snippet !== undefined
+            ? "snippet"
+            : "none";
+    const profileCovered = profileCoveredIds.has(source.id);
+    const advisories: WebSourceSynthesisAdvisory[] = [];
+    if (freshWebSteeringActive && modelVisibleText !== "none") {
+      advisories.push("fresh-web-preference");
+    }
+    if (includedInContext && profileAttached && profileCovered) {
+      advisories.push("web-subject-profile-low-trust");
+    }
+    return { sourceId: source.id, includedInContext, modelVisibleText, profileCovered, advisories };
+  });
 }
 
 function buildForecastDiversityGuidance(

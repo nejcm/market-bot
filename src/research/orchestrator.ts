@@ -68,6 +68,7 @@ import {
 } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
+import { computeWebSourceUsage } from "./web-source-usage";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
@@ -551,7 +552,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ...(reprompt !== undefined ? { reprompt } : {}),
       }),
   });
-  const postSynthesisWarnings = auditPostSynthesisReport(synthesis.report);
+  const postSynthesisWarnings = auditPostSynthesisReport(
+    synthesis.report,
+    computeWebSourceUsage(synthesis.report, collectedSources),
+  );
   // Deterministic Report Integrity Audit: prune blocking violations from the
   // Schema-valid synthesis output before forecast disagreement so pruned
   // Predictions never reach challengers, persistence, or scoring.

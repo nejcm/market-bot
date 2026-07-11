@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Prediction, ResearchReport } from "../src/domain/types";
 import { auditPostSynthesisReport } from "../src/research/post-synthesis-audit";
+import type { WebSourceUsage } from "../src/research/web-source-usage";
 
 function reportWith(
   overrides: Partial<
@@ -43,6 +44,21 @@ function prediction(overrides: Partial<Prediction>): Prediction {
     probability: 0.55,
     sourceIds: ["market-aapl"],
     ...overrides,
+  };
+}
+
+function webSourceUsage(accepted: number, used: number): WebSourceUsage {
+  const currentRunIds = new Set(
+    Array.from({ length: accepted }, (_, index) => `web-${String(index + 1)}`),
+  );
+  const currentRunUsedIds = new Set([...currentRunIds].slice(0, used));
+  return {
+    currentRunIds,
+    reusedProfileIds: new Set(),
+    profileUsedIds: new Set(),
+    reportCitedIds: currentRunUsedIds,
+    extrasCitedIds: new Set(),
+    currentRunUsedIds,
   };
 }
 
@@ -139,6 +155,32 @@ describe("auditPostSynthesisReport", () => {
         ],
       }),
     );
+
+    expect(warnings).toEqual([]);
+  });
+
+  test("warns when at least four accepted fresh web sources are all unused", () => {
+    const warnings = auditPostSynthesisReport(reportWith({}), webSourceUsage(4, 0));
+
+    expect(warnings).toEqual([
+      {
+        code: "fresh-web-unused",
+        location: "report",
+        message:
+          "accepted fresh web sources were unused; review gather relevance and dataGap wording",
+        sourceIds: ["web-1", "web-2", "web-3", "web-4"],
+      },
+    ]);
+  });
+
+  test("does not warn when fewer than four accepted fresh web sources are unused", () => {
+    const warnings = auditPostSynthesisReport(reportWith({}), webSourceUsage(3, 0));
+
+    expect(warnings).toEqual([]);
+  });
+
+  test("does not warn when any accepted fresh web source is used", () => {
+    const warnings = auditPostSynthesisReport(reportWith({}), webSourceUsage(10, 1));
 
     expect(warnings).toEqual([]);
   });

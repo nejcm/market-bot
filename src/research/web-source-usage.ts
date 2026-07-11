@@ -3,21 +3,12 @@ import { isRecord } from "../sources/guards";
 import type { CollectedSources } from "../sources/types";
 import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
 
-// Current-run web-source usage roles shared by run analytics and the post-synthesis audit.
-// Descriptive accounting only — a single source of truth so the two consumers can never
-// Disagree about which accepted sources count as unused.
 export interface WebSourceUsage {
-  /** Accepted web sources gathered by the current run (reused-profile carryovers excluded). */
   readonly currentRunIds: ReadonlySet<string>;
-  /** Accepted web sources carried over from a reused web subject profile. */
   readonly reusedProfileIds: ReadonlySet<string>;
-  /** Current-run sources referenced by the web subject profile. */
   readonly profileUsedIds: ReadonlySet<string>;
-  /** Accepted web sources cited by primary report sections. */
   readonly reportCitedIds: ReadonlySet<string>;
-  /** Accepted web sources cited by authored extras. */
   readonly extrasCitedIds: ReadonlySet<string>;
-  /** Current-run sources used anywhere: profile, report sections, or extras. */
   readonly currentRunUsedIds: ReadonlySet<string>;
 }
 

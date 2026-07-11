@@ -300,7 +300,8 @@ export interface DomainPlaybookSelectionAudit {
 
 export type PostSynthesisAuditWarningCode =
   | "unsupported-numeric-claim"
-  | "weak-evidence-posture-missing";
+  | "weak-evidence-posture-missing"
+  | "fresh-web-unused";
 
 export interface PostSynthesisAuditWarning {
   readonly code: PostSynthesisAuditWarningCode;

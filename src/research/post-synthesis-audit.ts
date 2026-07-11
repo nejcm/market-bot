@@ -5,6 +5,7 @@ import type {
   ResearchReport,
   Scenario,
 } from "../domain/types";
+import type { WebSourceUsage } from "./web-source-usage";
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
@@ -35,8 +36,16 @@ interface AuditClaim {
 
 export function auditPostSynthesisReport(
   report: ResearchReport,
+  webSourceUsage?: WebSourceUsage,
 ): readonly PostSynthesisAuditWarning[] {
-  return claimsForReport(report).flatMap((claim) => auditClaim(claim));
+  return [
+    ...claimsForReport(report).flatMap((claim) => auditClaim(claim)),
+    ...(webSourceUsage !== undefined &&
+    webSourceUsage.currentRunIds.size >= 4 &&
+    webSourceUsage.currentRunUsedIds.size === 0
+      ? [freshWebUnusedWarning(webSourceUsage)]
+      : []),
+  ];
 }
 
 function claimsForReport(report: ResearchReport): readonly AuditClaim[] {
@@ -139,5 +148,14 @@ function missingPostureWarning(claim: AuditClaim): PostSynthesisAuditWarning {
     location: claim.location,
     message: "weak or unsupported claim is missing an evidence posture label",
     sourceIds: claim.sourceIds,
+  };
+}
+
+function freshWebUnusedWarning(usage: WebSourceUsage): PostSynthesisAuditWarning {
+  return {
+    code: "fresh-web-unused",
+    location: "report",
+    message: "accepted fresh web sources were unused; review gather relevance and dataGap wording",
+    sourceIds: [...usage.currentRunIds],
   };
 }

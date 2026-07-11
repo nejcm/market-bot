@@ -1448,12 +1448,16 @@ describe("buildStagePrompt", () => {
       readonly postSynthesisAuditGuidance?: {
         readonly status?: string;
         readonly unsupportedNumericClaims?: string;
+        readonly requiredPostureLabels?: string;
       };
     };
 
     expect(parsed.postSynthesisAuditGuidance?.status).toContain("warning-only");
     expect(parsed.postSynthesisAuditGuidance?.unsupportedNumericClaims).toContain(
       "history-only numeric or technical claims",
+    );
+    expect(parsed.postSynthesisAuditGuidance?.requiredPostureLabels).toContain(
+      "observed fact, issuer claim, derived calculation, model inference, assumption, stale evidence, conflicting evidence, missing required source, prior forecast outcome, historical forecast outcome",
     );
   });
 

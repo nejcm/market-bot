@@ -8,7 +8,7 @@ import type {
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
-const EVIDENCE_POSTURE_LABELS = [
+export const EVIDENCE_POSTURE_LABELS = [
   "observed fact",
   "issuer claim",
   "derived calculation",

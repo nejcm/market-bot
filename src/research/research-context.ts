@@ -46,6 +46,7 @@ import {
   buildResearchForecastErrorBlock,
 } from "./prior-forecast-errors";
 import { buildCalibrationBlock } from "./calibration-context";
+import { EVIDENCE_POSTURE_LABELS } from "./post-synthesis-audit";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./spotlights";
 
 export type {
@@ -1294,6 +1295,7 @@ function postSynthesisAuditGuidance(stage: StageLabel): Record<string, string> |
       "history-only numeric or technical claims need either a current non-history sourceId, an evidence-posture label such as prior forecast outcome or model inference, or softer non-current wording",
     weakEvidencePosture:
       "claims framed as assumptions, stale evidence, conflicts, unsupported inferences, source gaps, or data gaps should carry an explicit evidence-posture label",
+    requiredPostureLabels: `claims that are assumptions, inferences, stale, conflicting, or cited only to history-report-* sources must carry one of these exact labels: ${EVIDENCE_POSTURE_LABELS.join(", ")}`,
   };
 }
 

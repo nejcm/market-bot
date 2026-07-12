@@ -271,6 +271,16 @@ export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   };
   // Present only when the configured Exa call hard-failed or returned empty/thin results and MARKET_BOT_FIRECRAWL_API_KEY was set, triggering a Firecrawl fallback attempt.
   readonly fallback?: WebGatherFallbackAudit;
+  // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
+  readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
+}
+
+export interface WebGatherDuplicateResultAudit {
+  readonly reason: "duplicate-headline";
+  readonly sourceId: string;
+  readonly title: string;
+  readonly duplicateOfSourceId: string;
+  readonly duplicateOfTitle: string;
 }
 
 export interface WebGatherFallbackAudit {
@@ -507,7 +517,7 @@ export type PredictionKind =
   | "conditional";
 
 /** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
-export const NEAR_BASE_RATE_BAND = 0.05;
+export const NEAR_BASE_RATE_BAND = 0.1;
 
 export interface Prediction {
   readonly id: string;
@@ -631,6 +641,20 @@ export interface CodeVersion {
   readonly dirty: boolean;
 }
 
+export type WebSourceSynthesisAdvisory = "fresh-web-preference" | "web-subject-profile-low-trust";
+
+// Compact per-web-source record of what final synthesis was told about each accepted web source.
+// Read-only telemetry: lets reviews attribute citation-ratio anomalies from artifacts alone. The
+// Full steering text lives on the final-synthesis stage output's steering field; advisories here
+// Name which of those blocks applied to this source.
+export interface WebSourceSynthesisInput {
+  readonly sourceId: string;
+  readonly includedInContext: boolean;
+  readonly modelVisibleText: "summary" | "snippet" | "none";
+  readonly profileCovered: boolean;
+  readonly advisories: readonly WebSourceSynthesisAdvisory[];
+}
+
 export interface RunTrace {
   readonly schemaVersion?: 2;
   readonly runId: string;
@@ -676,6 +700,7 @@ export interface RunTrace {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
+  readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;

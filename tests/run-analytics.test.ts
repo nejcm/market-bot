@@ -454,18 +454,18 @@ describe("forecast quality telemetry (3.2)", () => {
   });
 
   test("straddling set produces correct nearBaseRateCount and informativeCount", () => {
-    // P1 and p2 are near base rate (within 0.05 of 0.5); p3 and p4 are informative.
+    // P1 and p2 are near base rate (within 0.1 of 0.5); p3 and p4 are informative.
     // P4 uses range kind so the set is not all-direction and the direction warning stays silent.
     const preds = [
       prediction({ id: "p1", probability: 0.5 }),
-      prediction({ id: "p2", probability: 0.54 }),
-      prediction({ id: "p3", probability: 0.56 }),
+      prediction({ id: "p2", probability: 0.56 }),
+      prediction({ id: "p3", probability: 0.65 }),
       prediction({
         id: "p4",
         kind: "range",
         subject: "AAPL",
         measurableAs: "close(AAPL, +5) outside [170, 230]",
-        probability: 0.4,
+        probability: 0.35,
       }),
     ];
     const result = predictionsFor(preds);
@@ -475,13 +475,13 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.mixWarnings).toHaveLength(0);
   });
 
-  test("near-base-rate band includes exact 0.45 and 0.55 boundaries", () => {
+  test("near-base-rate band includes exact 0.4 and 0.6 boundaries", () => {
     const preds = [
-      prediction({ id: "p1", probability: 0.45 }),
+      prediction({ id: "p1", probability: 0.4 }),
       prediction({ id: "p2", probability: 0.5 }),
-      prediction({ id: "p3", probability: 0.55 }),
-      prediction({ id: "p4", probability: 0.44 }),
-      prediction({ id: "p5", probability: 0.56 }),
+      prediction({ id: "p3", probability: 0.6 }),
+      prediction({ id: "p4", probability: 0.39 }),
+      prediction({ id: "p5", probability: 0.61 }),
     ];
     const result = predictionsFor(preds);
     expect(result.nearBaseRateCount).toBe(3);

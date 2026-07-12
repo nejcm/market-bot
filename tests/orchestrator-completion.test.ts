@@ -643,7 +643,7 @@ describe("runResearchJob completion and redundancy", () => {
                 subject: "SPY",
                 measurableAs: "close(SPY, +4) > close(SPY, 0)",
                 horizonTradingDays: 4,
-                probability: 0.6,
+                probability: 0.65,
                 sourceIds: ["market-aapl"],
               },
               {

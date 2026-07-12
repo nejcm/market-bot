@@ -47,7 +47,7 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
             content: JSON.stringify({
               predictions: predictions.flatMap((prediction) =>
                 isRecord(prediction) && typeof prediction.id === "string"
-                  ? [{ id: prediction.id, probability: 0.8 }]
+                  ? [{ id: prediction.id, probability: 0.9 }]
                   : [],
               ),
             }),

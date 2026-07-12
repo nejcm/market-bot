@@ -288,7 +288,7 @@ describe("runResearchJob pipeline stages", () => {
           subject: "AAPL",
           measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
           horizonTradingDays: 5,
-          probability: 0.6,
+          probability: 0.65,
           sourceIds: [],
         },
       ],

@@ -9,6 +9,7 @@ import type {
   SourceGap,
   WebGatherSanitizerAudit,
   WebGatherLoopAudit,
+  WebGatherDuplicateResultAudit,
   WebGatherToolName,
   WebSearchType,
   JsonToolLoopAuditEntry,
@@ -38,6 +39,7 @@ import {
   type WebGatherSubject,
   type WebGatherToolOutput,
 } from "../sources/web-gather-emit";
+import { dedupeWebSourcesByHeadline } from "../sources/web-headline-dedupe";
 import {
   isCompanyProfileSecSource,
   webSubjectProfileSubjectForCommand,
@@ -352,6 +354,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     readonly sanitizer: WebGatherSanitizerAudit;
     readonly freshness?: NonNullable<WebGatherToolOutput["freshness"]>;
     readonly fallback?: NonNullable<WebGatherToolOutput["fallback"]>;
+    readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
   }[] = [];
 
   const loop = await runJsonToolLoop<
@@ -416,15 +419,25 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
         executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
       );
+      const headlineDedupe = dedupeWebSourcesByHeadline(
+        currentSources.extendedSources,
+        outputWithStale.sources,
+      );
       executionAudits.push({
         sanitizer: outputWithStale.sanitizer,
         ...(outputWithStale.freshness !== undefined
           ? { freshness: outputWithStale.freshness }
           : {}),
         ...(outputWithStale.fallback !== undefined ? { fallback: outputWithStale.fallback } : {}),
+        ...(headlineDedupe.rejected.length > 0
+          ? { duplicateResults: headlineDedupe.rejected }
+          : {}),
       });
       return {
-        state: mergeToolOutput(command, currentSources, outputWithStale),
+        state: mergeToolOutput(command, currentSources, {
+          ...outputWithStale,
+          sources: headlineDedupe.kept,
+        }),
         gaps: outputWithStale.gaps,
       };
     },

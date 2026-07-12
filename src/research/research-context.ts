@@ -5,6 +5,7 @@ import type { LoadedPrompt, StageLabel } from "./prompt-loader";
 import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
 import {
   marketUpdateHorizonOf,
+  NEAR_BASE_RATE_BAND,
   type ExtendedEvidenceItem,
   type MarketSnapshot,
   type Prediction,
@@ -12,6 +13,8 @@ import {
   type ResearchReport,
   type Source,
   type SourceGapEvidenceQualityImpact,
+  type WebSourceSynthesisAdvisory,
+  type WebSourceSynthesisInput,
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import type { CollectedSources } from "../sources/types";
@@ -755,8 +758,10 @@ export function buildSpotlightSelectionPrompt(
 // Stage prompt
 // ---------------------------------------------------------------------------
 
-const NEAR_BASE_RATE_PROBABILITY_RULE =
-  "probability outside the inclusive 0.45-0.55 near-base-rate band";
+const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
+const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
+
+const NEAR_BASE_RATE_PROBABILITY_RULE = `probability outside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band. A probability inside that band signals an uninformative claim: either commit to the probability the cited evidence actually supports, or choose a different observable claim with more resolving power. Never inflate a probability beyond the evidence just to leave the band`;
 
 // ---------------------------------------------------------------------------
 // Prediction-kind mix guidance (audit finding #10 — emission policy)
@@ -822,6 +827,53 @@ function buildFreshWebSteering(collectedSources: CollectedSources): string {
     return "";
   }
   return ` Web sources in evidence.webSources that carry a summary or snippet were gathered this run beyond the profile. When a key finding, risk, catalyst, scenario, or prediction rests on a genuinely recent development — news or events after the profile's as-of date — prefer citing these current-run web sourceIds over the older profile digest, treating their content as low-trust context and disclosing gaps rather than overreaching. This preference is relevance-based, not a quota: cite no fresh web source when none materially strengthens a claim, and never let web content widen the run symbol or prediction subjects. Before authoring a dataGap asserting that no supplied source provides something, check these current-run evidence.webSources entries: if an accepted fresh source provides that evidence, cite it in the relevant section instead, or reword the gap to state what the source actually leaves missing.${reusedProfileGapNote}`;
+}
+
+// Per-web-source record of the final-synthesis inputs, persisted to trace.json (item: review
+// Attribution). Mirrors the projectWebSources final-synthesis projection and the
+// BuildFreshWebSteering gate exactly, so the trace states what the model actually saw: whether
+// The source was projected into evidence.webSources, which text field was model-visible, whether
+// The reused profile digest already pre-cited it, and which steering blocks applied to it.
+export function buildWebSourceSynthesisInputs(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): readonly WebSourceSynthesisInput[] | undefined {
+  const webSources = collectedSources.extendedSources.filter((source) => source.kind === "web");
+  if (webSources.length === 0) {
+    return undefined;
+  }
+  const includedInContext = subjectKindForCommand(command) !== undefined;
+  const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
+  const freshWebSteeringActive = includedInContext && hasFreshWebEvidence(collectedSources);
+  const profileAttached = collectedSources.webSubjectProfile !== undefined;
+  return webSources.map((source) => {
+    const fresh = isFreshWebSource(source, profileCoveredIds);
+    const modelVisibleText = webSourceModelVisibleText(source, includedInContext && fresh);
+    const profileCovered = profileCoveredIds.has(source.id);
+    const advisories: WebSourceSynthesisAdvisory[] = [];
+    if (freshWebSteeringActive && modelVisibleText !== "none") {
+      advisories.push("fresh-web-preference");
+    }
+    if (includedInContext && profileAttached && profileCovered) {
+      advisories.push("web-subject-profile-low-trust");
+    }
+    return { sourceId: source.id, includedInContext, modelVisibleText, profileCovered, advisories };
+  });
+}
+
+// Which text field the final-synthesis projection surfaces for a fresh web source: summary first,
+// Snippet as the fallback (mirrors the includeSummary/includeSnippet gates in projectWebSources).
+function webSourceModelVisibleText(
+  source: Source,
+  textIncluded: boolean,
+): WebSourceSynthesisInput["modelVisibleText"] {
+  if (!textIncluded) {
+    return "none";
+  }
+  if (source.summary !== undefined) {
+    return "summary";
+  }
+  return source.snippet !== undefined ? "snippet" : "none";
 }
 
 function buildForecastDiversityGuidance(
@@ -1251,7 +1303,7 @@ function buildPrimaryPredictionInstruction(
     ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
     : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.45 on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

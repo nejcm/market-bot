@@ -517,7 +517,7 @@ export type PredictionKind =
   | "conditional";
 
 /** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
-export const NEAR_BASE_RATE_BAND = 0.05;
+export const NEAR_BASE_RATE_BAND = 0.1;
 
 export interface Prediction {
   readonly id: string;

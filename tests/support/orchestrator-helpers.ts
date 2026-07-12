@@ -186,7 +186,8 @@ export function mockPredictions(count: number, subject = "SPY"): unknown[] {
       subject,
       measurableAs: `close(${subject}, +${String(horizon)}) > close(${subject}, 0)`,
       horizonTradingDays: horizon,
-      probability: 0.6,
+      // Outside the inclusive 0.40-0.60 near-base-rate band so completion passes accept these.
+      probability: 0.65,
       sourceIds: ["market-aapl"],
       // Model-provided policy metadata must never survive report assembly.
       scoringPolicyVersion: 99,

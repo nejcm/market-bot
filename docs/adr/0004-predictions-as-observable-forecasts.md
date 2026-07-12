@@ -8,7 +8,9 @@ Accepted
 
 2026-07-01 (amended 2026-07-03: scoring policy v3 registry, clocks, retry state,
 split-adjusted equity closes, provider-window anchor validation, and calibration presentation;
-amended 2026-07-06: primary Near-Base-Rate prompt steering)
+amended 2026-07-06: primary Near-Base-Rate prompt steering;
+amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range after the first
+resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58)
 
 ## Context
 
@@ -32,10 +34,11 @@ must share one contract.
   add candidates. It preserves the accepted report and Predictions, never retries itself, and
   leaves any remaining shortfall deterministically disclosed.
 - Completion candidates must pass the existing observable, citation, subject, and redundancy
-  gates and must sit outside the inclusive 0.45-0.55 Near-Base-Rate band. Primary synthesis
-  is prompted to keep every emitted Prediction outside the same band, while in-band primary
-  Predictions remain valid telemetry rather than triggering a hard rejection. Both paths retain
-  the soft count target and must not pad it with coin flips.
+  gates and must sit outside the inclusive 0.40-0.60 Near-Base-Rate band. Primary synthesis
+  is prompted to keep every emitted Prediction outside the same band — an in-band probability
+  signals an uninformative claim that should be recommitted or replaced, never inflated past the
+  evidence — while in-band primary Predictions remain valid telemetry rather than triggering a
+  hard rejection. Both paths retain the soft count target and must not pad it with coin flips.
 - Calibration reporting remains descriptive. Each slice keeps prediction-weighted Brier scoring
   and adds its distinct Run count plus a Run-clustered standard error when calculable.
 - Current calibration summaries aggregate resolved policy-v3 forecasts only and present resolved

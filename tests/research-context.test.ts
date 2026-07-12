@@ -460,7 +460,7 @@ describe("buildStagePrompt", () => {
 
     expect(parsed.instruction).toContain("Do not write a claim field");
     expect(parsed.instruction).toContain(
-      "Every prediction must have probability outside the inclusive 0.45-0.55 near-base-rate band",
+      "Every prediction must have probability outside the inclusive 0.40-0.60 near-base-rate band",
     );
     expect(parsed.instruction).not.toContain("never emit a coin-flip");
     expect(parsed.instruction).toContain("probability is the probability that the measurableAs");

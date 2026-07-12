@@ -222,6 +222,49 @@ const sameHeadlineFetch: FetchLike = async () =>
     ],
   });
 
+function allDuplicateHeadlineFetch(): FetchLike {
+  let callCount = 0;
+  return async () => {
+    callCount += 1;
+    return Response.json({
+      results:
+        callCount === 1
+          ? [
+              {
+                id: "exa-search-initial",
+                url: "https://outlet-one.example/openai-apple",
+                title: "Apple sued by OpenAI over Siri claims",
+                summary: "OpenAI filed suit against Apple.",
+                highlights: ["OpenAI filed suit against Apple over Siri."],
+              },
+              {
+                id: "exa-search-distinct",
+                url: "https://outlet-four.example/apple-services",
+                title: "Apple expands services revenue in Europe",
+                summary: "Apple reported higher services revenue in Europe.",
+                highlights: ["Services revenue expanded in Europe."],
+              },
+            ]
+          : [
+              {
+                id: "exa-search-duplicate-1",
+                url: "https://outlet-two.example/openai-apple",
+                title: "Apple sued by OpenAI over Siri claims",
+                summary: "OpenAI has sued Apple.",
+                highlights: ["OpenAI has sued Apple over Siri."],
+              },
+              {
+                id: "exa-search-duplicate-2",
+                url: "https://outlet-three.example/openai-apple",
+                title: "Apple sued by OpenAI over Siri claims",
+                summary: "The lawsuit targets Siri.",
+                highlights: ["The lawsuit targets Siri claims."],
+              },
+            ],
+    });
+  };
+}
+
 function secFilingSource(overrides: Partial<Source> = {}): Source {
   return {
     id: "extended-sec-edgar-aapl-10k",
@@ -846,6 +889,50 @@ describe("runWebGatherLoop", () => {
       result.collectedSources.extendedSources[0]!.id,
     ]);
     // Dedupe pressure stays in the audit; it does not create source gaps.
+    expect(
+      result.collectedSources.sourceGaps.filter((gap) => gap.message.includes("duplicate")),
+    ).toHaveLength(0);
+  });
+
+  test("accepts an all-duplicate result without adding sources or source gaps", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: allDuplicateHeadlineFetch(),
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple OpenAI lawsuit", searchType: "current-subject" },
+              rationale: "fresh legal catalyst evidence",
+            },
+            {
+              tool: "web_search",
+              args: { query: "Apple OpenAI Siri lawsuit", searchType: "current-subject" },
+              rationale: "corroborate the legal catalyst",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests[1]).toMatchObject({
+      status: "accepted",
+      args: { query: "Apple OpenAI Siri lawsuit" },
+    });
+    const acceptedWebSourceCountAfterFirstRequest = 2;
+    expect(result.collectedSources.extendedSources).toHaveLength(
+      acceptedWebSourceCountAfterFirstRequest,
+    );
+    const duplicateResults = result.audit?.acceptedRequests[1]?.duplicateResults;
+    expect(duplicateResults).toHaveLength(2);
+    expect(duplicateResults?.every((entry) => entry.reason === "duplicate-headline")).toBeTrue();
     expect(
       result.collectedSources.sourceGaps.filter((gap) => gap.message.includes("duplicate")),
     ).toHaveLength(0);

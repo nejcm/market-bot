@@ -419,6 +419,8 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
         executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
       );
+      // Every rejection points to accepted coverage or an earlier kept candidate in this batch,
+      // So dedupe cannot empty web coverage and deliberately emits no source gap.
       const headlineDedupe = dedupeWebSourcesByHeadline(
         currentSources.extendedSources,
         outputWithStale.sources,

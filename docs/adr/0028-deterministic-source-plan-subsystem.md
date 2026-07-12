@@ -7,7 +7,8 @@ Accepted
 ## Date
 
 2026-06-30 (amended 2026-07-04: generalized untrusted model-input hardening;
-amended 2026-07-08: thematic research web gather enabled for brief and deep runs)
+amended 2026-07-08: thematic research web gather enabled for brief and deep runs;
+amended 2026-07-12: near-duplicate headline dedupe at web-source acceptance)
 
 ## Context
 
@@ -50,6 +51,13 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
   deterministic SEC 10-K/10-Q packet already covers and rejects background searches that duplicate a
   covered section without a recency, corroboration, or explicit-gap rationale, so web budget is not
   spent re-gathering filed facts.
+- Accepted web results are additionally screened by deterministic near-duplicate headline dedupe. A
+  candidate whose normalized title token set matches an already-accepted web source at or above a
+  0.8 similarity threshold (max of Jaccard and containment, minimum 3 comparable tokens, titles
+  only, never domains) is rejected at result acceptance and recorded as a `duplicate-headline`
+  rejection in the web-gather audit. Because every rejection requires an already-accepted
+  duplicate, dedupe cannot empty web coverage and emits no source gap. This uses deterministic
+  string logic only, with no embeddings or new dependencies.
 - Web Subject Profiles use fixed cited question sets by subject kind and bounded reuse TTLs.
   Company reuse also considers SEC filing freshness.
 - Sanitize provider-controlled prose and short labels before model exposure through one shared,

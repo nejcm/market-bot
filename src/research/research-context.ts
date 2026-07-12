@@ -845,14 +845,7 @@ export function buildWebSourceSynthesisInputs(
   const profileAttached = collectedSources.webSubjectProfile !== undefined;
   return webSources.map((source) => {
     const fresh = isFreshWebSource(source, profileCoveredIds);
-    const modelVisibleText =
-      !includedInContext || !fresh
-        ? "none"
-        : source.summary !== undefined
-          ? "summary"
-          : source.snippet !== undefined
-            ? "snippet"
-            : "none";
+    const modelVisibleText = webSourceModelVisibleText(source, includedInContext && fresh);
     const profileCovered = profileCoveredIds.has(source.id);
     const advisories: WebSourceSynthesisAdvisory[] = [];
     if (freshWebSteeringActive && modelVisibleText !== "none") {
@@ -863,6 +856,21 @@ export function buildWebSourceSynthesisInputs(
     }
     return { sourceId: source.id, includedInContext, modelVisibleText, profileCovered, advisories };
   });
+}
+
+// Which text field the final-synthesis projection surfaces for a fresh web source: summary first,
+// Snippet as the fallback (mirrors the includeSummary/includeSnippet gates in projectWebSources).
+function webSourceModelVisibleText(
+  source: Source,
+  textIncluded: boolean,
+): WebSourceSynthesisInput["modelVisibleText"] {
+  if (!textIncluded) {
+    return "none";
+  }
+  if (source.summary !== undefined) {
+    return "summary";
+  }
+  return source.snippet !== undefined ? "snippet" : "none";
 }
 
 function buildForecastDiversityGuidance(

@@ -5,6 +5,7 @@
 // Returned as audit-only and must not enter current normalized evidence.
 
 import { join } from "node:path";
+import { isRecord } from "../guards";
 import type {
   McpEvidencePacket,
   McpEvidencePacketShape,
@@ -137,10 +138,10 @@ function isOptionalBoundedString(value: unknown, maxLength: number): value is st
 }
 
 function sanitizeNewsSearchV1Item(value: unknown): NewsSearchV1Item | undefined {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return undefined;
   }
-  const item = value as Record<string, unknown>;
+  const item = value;
   if (
     !isBoundedNonEmptyString(item.title, MAX_TITLE_LENGTH) ||
     !isBoundedNonEmptyString(item.publishedAt, MAX_PUBLISHED_AT_LENGTH) ||
@@ -164,10 +165,10 @@ function sanitizeNewsSearchV1Item(value: unknown): NewsSearchV1Item | undefined 
 }
 
 function sanitizeNewsSearchV1Packet(value: unknown): NewsSearchV1Packet | undefined {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return undefined;
   }
-  const packet = value as Record<string, unknown>;
+  const packet = value;
   if (
     packet.shape !== "news_search.v1" ||
     !Array.isArray(packet.items) ||
@@ -183,10 +184,10 @@ function sanitizeNewsSearchV1Packet(value: unknown): NewsSearchV1Packet | undefi
 }
 
 function parseCacheEntry(value: unknown, key: string): McpCacheEntry | undefined {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return undefined;
   }
-  const entry = value as Record<string, unknown>;
+  const entry = value;
   const packet = sanitizeNewsSearchV1Packet(entry.packet);
   if (
     entry.key !== key ||

@@ -6,6 +6,7 @@
 import { join } from "node:path";
 import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/types";
+import { isRecord } from "../guards";
 import type {
   McpHttpServerEntry,
   McpServerCatalog,
@@ -52,8 +53,17 @@ function mcpCatalogGap(message: string): SourceGap {
   });
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function emptyCatalog(): McpServerCatalog {
+  return { servers: [], declaredServerIds: [], declarationsUnavailable: false, gaps: [] };
+}
+
+function catalogFailure(message: string): McpServerCatalog {
+  return {
+    servers: [],
+    declaredServerIds: [],
+    declarationsUnavailable: true,
+    gaps: [mcpCatalogGap(message)],
+  };
 }
 
 function isStrictHeaderTemplate(value: string): boolean {
@@ -174,32 +184,17 @@ export function parseMcpCatalog(content: string): McpServerCatalog {
   try {
     doc = JSON.parse(content);
   } catch {
-    return {
-      servers: [],
-      declaredServerIds: [],
-      declarationsUnavailable: true,
-      gaps: [mcpCatalogGap("catalog JSON could not be parsed")],
-    };
+    return catalogFailure("catalog JSON could not be parsed");
   }
   if (!isRecord(doc)) {
-    return {
-      servers: [],
-      declaredServerIds: [],
-      declarationsUnavailable: true,
-      gaps: [mcpCatalogGap("catalog root must be an object")],
-    };
+    return catalogFailure("catalog root must be an object");
   }
   const { mcpServers } = doc;
   if (mcpServers === undefined) {
-    return { servers: [], declaredServerIds: [], declarationsUnavailable: false, gaps: [] };
+    return emptyCatalog();
   }
   if (!isRecord(mcpServers)) {
-    return {
-      servers: [],
-      declaredServerIds: [],
-      declarationsUnavailable: true,
-      gaps: [mcpCatalogGap("mcpServers must be an object")],
-    };
+    return catalogFailure("mcpServers must be an object");
   }
 
   const servers: McpServerEntry[] = [];
@@ -233,18 +228,13 @@ export async function loadMcpCatalog(
   const path = options.path ?? join(options.cwd ?? process.cwd(), MCP_CATALOG_FILENAME);
   const file = Bun.file(path);
   if (!(await file.exists())) {
-    return { servers: [], declaredServerIds: [], declarationsUnavailable: false, gaps: [] };
+    return emptyCatalog();
   }
   let content: string;
   try {
     content = await file.text();
   } catch {
-    return {
-      servers: [],
-      declaredServerIds: [],
-      declarationsUnavailable: true,
-      gaps: [mcpCatalogGap("catalog file could not be read")],
-    };
+    return catalogFailure("catalog file could not be read");
   }
   return parseMcpCatalog(content);
 }

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { isResearchJobType, runTypeSupportsDepth } from "../../domain/run-types";
 import { SOURCE_KINDS } from "../../domain/types";
 import type { SourceKind } from "../../domain/types";
+import { isRecord } from "../guards";
 import type { McpServerCatalog } from "./types";
 import type {
   McpEvidencePacketShape,
@@ -36,10 +37,6 @@ export class McpMappingConfigError extends Error {
 
 function fail(message: string): never {
   throw new McpMappingConfigError(message);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function requireString(value: unknown, label: string): string {

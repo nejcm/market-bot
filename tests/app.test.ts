@@ -227,7 +227,7 @@ describe("runCli", () => {
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     const calls: string[] = [];
 
-    await expect(
+    expect(
       runCli(["daily", "--asset", "equity"], {
         createProvider: () => ({
           name: "test" as const,
@@ -270,6 +270,7 @@ describe("runCli", () => {
       generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
     };
     const runDir = join(dataDir, "run-1");
+    // oxlint-disable-next-line init-declarations
     let receivedSourcePlan: unknown;
 
     await runCli(["equity", "AAPL", "--deep"], {

@@ -55,6 +55,7 @@ describe("validatedWebUrl", () => {
 
   test("rejects non-http(s) schemes", () => {
     expect(validatedWebUrl("ftp://example.com")).toBeUndefined();
+    // oxlint-disable-next-line no-script-url
     expect(validatedWebUrl("javascript:alert(1)")).toBeUndefined();
     expect(validatedWebUrl("data:text/html,x")).toBeUndefined();
   });

@@ -180,7 +180,9 @@ export async function startLocalMcpServer(
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
   });
-  await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => {
+    http.listen(0, "127.0.0.1", resolve);
+  });
   const address = http.address();
   if (address === null || typeof address === "string") {
     throw new Error("failed to bind local MCP server");
@@ -200,7 +202,9 @@ export async function startLocalMcpServer(
         socket.destroy();
       }
       sockets.clear();
-      await new Promise<void>((resolve) => http.close(() => resolve()));
+      await new Promise<void>((resolve) => {
+        http.close(() => resolve());
+      });
     },
   };
 }

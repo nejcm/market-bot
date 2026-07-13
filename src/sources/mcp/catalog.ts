@@ -105,7 +105,7 @@ function validateHttpEntry(
   if (typeof url !== "string" || url.length === 0) {
     return { error: `server "${id}" http entry requires a url` };
   }
-  let parsed: URL;
+  let parsed: URL | null = null;
   try {
     parsed = new URL(url);
   } catch {
@@ -180,7 +180,7 @@ function validateEntry(
 
 // Parses catalog content already read into memory. Exposed for tests.
 export function parseMcpCatalog(content: string): McpServerCatalog {
-  let doc: unknown;
+  let doc: unknown = null;
   try {
     doc = JSON.parse(content);
   } catch {
@@ -230,7 +230,7 @@ export async function loadMcpCatalog(
   if (!(await file.exists())) {
     return emptyCatalog();
   }
-  let content: string;
+  let content = "";
   try {
     content = await file.text();
   } catch {

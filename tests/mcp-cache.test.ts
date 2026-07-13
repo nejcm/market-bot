@@ -18,7 +18,7 @@ const PACKET: NewsSearchV1Packet = {
   items: [{ title: "t", publishedAt: "2026-01-01T00:00:00.000Z", providerArticleId: "mt-1" }],
 };
 
-let dir: string;
+let dir = "";
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "mcp-cache-"));
 });
@@ -85,10 +85,10 @@ describe("cache keys", () => {
       id: "mt",
       type: "http",
       url: "https://mt.test/mcp",
-      headers: { Authorization: "Bearer ${TOKEN}" },
+      headers: { Authorization: `Bearer \${TOKEN}` },
     };
     expect(catalogServerFingerprint(entry)).toBe(
-      '{"type":"http","id":"mt","url":"https://mt.test/mcp","headers":{"Authorization":"Bearer ${TOKEN}"}}',
+      `{"type":"http","id":"mt","url":"https://mt.test/mcp","headers":{"Authorization":"Bearer \${TOKEN}"}}`,
     );
   });
 
@@ -96,11 +96,11 @@ describe("cache keys", () => {
     const base: McpHttpServerEntry = { id: "mt", type: "http", url: "https://mt.test/mcp" };
     const tenantA = catalogServerFingerprint({
       ...base,
-      headers: { Authorization: "Bearer ${TOKEN_A}" },
+      headers: { Authorization: `Bearer \${TOKEN_A}` },
     });
     const tenantB = catalogServerFingerprint({
       ...base,
-      headers: { Authorization: "Bearer ${TOKEN_B}" },
+      headers: { Authorization: `Bearer \${TOKEN_B}` },
     });
     expect(tenantA).not.toBe(tenantB);
   });

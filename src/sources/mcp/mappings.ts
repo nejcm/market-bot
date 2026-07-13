@@ -4,11 +4,10 @@
 
 import { join } from "node:path";
 import { isResearchJobType, runTypeSupportsDepth } from "../../domain/run-types";
-import { SOURCE_KINDS } from "../../domain/types";
-import type { SourceKind } from "../../domain/types";
+import { SOURCE_KINDS, type SourceKind } from "../../domain/types";
 import { isRecord } from "../guards";
-import type { McpServerCatalog } from "./types";
 import type {
+  McpServerCatalog,
   McpEvidencePacketShape,
   McpMappingEligibilityRule,
   McpMappingRegistry,
@@ -141,7 +140,7 @@ function parseMapping(
     fail(`mapping "${id}".source.persistence "${persistence}" is unknown`);
   }
 
-  let entitlementEnvVar: string | undefined;
+  let entitlementEnvVar: string | undefined = undefined;
   if (raw.entitlementEnvVar !== undefined) {
     entitlementEnvVar = requireString(raw.entitlementEnvVar, `mapping "${id}".entitlementEnvVar`);
     if (!ENV_VAR_NAME_RE.test(entitlementEnvVar)) {
@@ -172,7 +171,7 @@ export function parseMcpMappingRegistry(
   content: string,
   catalog: McpServerCatalog,
 ): McpMappingRegistry {
-  let doc: unknown;
+  let doc: unknown = null;
   try {
     doc = JSON.parse(content);
   } catch {

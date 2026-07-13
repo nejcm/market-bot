@@ -7,7 +7,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { resolveHeaderTemplate } from "./catalog";
+import { MissingCredentialError } from "./missing-credential-error";
 import type { McpServerEntry } from "./types";
+
+export { MissingCredentialError } from "./missing-credential-error";
 
 const CLIENT_INFO = { name: "market-bot", version: "1" } as const;
 
@@ -19,16 +22,12 @@ const MAX_TOOL_DESCRIPTION_LENGTH = 2000;
 const MAX_INPUT_SCHEMA_JSON_LENGTH = 20_000;
 
 export class UnsupportedTransportError extends Error {
-  constructor(public readonly serverId: string) {
+  readonly serverId: string;
+
+  constructor(serverId: string) {
     super(`server "${serverId}" uses an unsupported transport for Slice 2`);
     this.name = "UnsupportedTransportError";
-  }
-}
-
-export class MissingCredentialError extends Error {
-  constructor(public readonly serverId: string) {
-    super(`server "${serverId}" is missing a required credential environment variable`);
-    this.name = "MissingCredentialError";
+    this.serverId = serverId;
   }
 }
 
@@ -84,7 +83,7 @@ export function boundDiscoveredTool(raw: {
     typeof raw.description === "string"
       ? truncate(raw.description, MAX_TOOL_DESCRIPTION_LENGTH)
       : undefined;
-  let inputSchema: Record<string, unknown> | undefined;
+  let inputSchema: Record<string, unknown> | undefined = undefined;
   if (typeof raw.inputSchema === "object" && raw.inputSchema !== null) {
     const json = JSON.stringify(raw.inputSchema);
     if (json.length <= MAX_INPUT_SCHEMA_JSON_LENGTH) {

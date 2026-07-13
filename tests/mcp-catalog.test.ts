@@ -28,20 +28,24 @@ describe("parseMcpCatalog", () => {
     const ok = parseMcpCatalog(
       JSON.stringify({
         mcpServers: {
-          a: { type: "http", url: "https://a.test", headers: { Authorization: "Bearer ${TOKEN}" } },
+          a: {
+            type: "http",
+            url: "https://a.test",
+            headers: { Authorization: `Bearer \${TOKEN}` },
+          },
         },
       }),
     );
     expect(ok.gaps).toEqual([]);
-    expect(ok.servers[0]).toMatchObject({ headers: { Authorization: "Bearer ${TOKEN}" } });
+    expect(ok.servers[0]).toMatchObject({ headers: { Authorization: `Bearer \${TOKEN}` } });
 
     // A literal secret smuggled alongside an unused ${VAR} must not slip through.
     for (const value of [
       "Bearer sk-123",
-      "Bearer sk-real ${UNUSED}",
-      "sk-real ${A} ${B}",
-      "sk-live-abc123 ${UNUSED}",
-      "deadbeefcafe1234 ${UNUSED}",
+      `Bearer sk-real \${UNUSED}`,
+      `sk-real \${A} \${B}`,
+      `sk-live-abc123 \${UNUSED}`,
+      `deadbeefcafe1234 \${UNUSED}`,
     ]) {
       const literal = parseMcpCatalog(
         JSON.stringify({
@@ -110,12 +114,12 @@ describe("parseMcpCatalog", () => {
 
 describe("resolveHeaderTemplate", () => {
   test("resolves a present variable", () => {
-    expect(resolveHeaderTemplate("Bearer ${TOKEN}", { TOKEN: "abc" })).toBe("Bearer abc");
+    expect(resolveHeaderTemplate(`Bearer \${TOKEN}`, { TOKEN: "abc" })).toBe("Bearer abc");
   });
 
   test("returns undefined when any variable is unset", () => {
-    expect(resolveHeaderTemplate("Bearer ${TOKEN}", {})).toBeUndefined();
-    expect(resolveHeaderTemplate("Bearer ${TOKEN}", { TOKEN: "" })).toBeUndefined();
+    expect(resolveHeaderTemplate(`Bearer \${TOKEN}`, {})).toBeUndefined();
+    expect(resolveHeaderTemplate(`Bearer \${TOKEN}`, { TOKEN: "" })).toBeUndefined();
   });
 });
 

@@ -54,7 +54,7 @@ async function sha256Hex(value: string): Promise<string> {
 // Arguments produce the same cache key regardless of property order.
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(canonicalize);
+    return value.map((item) => canonicalize(item));
   }
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
@@ -219,7 +219,7 @@ export async function readMcpCache(
   if (!(await file.exists())) {
     return { status: "miss" };
   }
-  let parsed: unknown;
+  let parsed: unknown = null;
   try {
     parsed = await file.json();
   } catch {

@@ -164,7 +164,7 @@ describe("openMcpSession guards", () => {
 
   test("refuses when a header credential is unresolved", async () => {
     const entry = httpEntry("https://example.test/mcp", {
-      Authorization: "Bearer ${MISSING_TOKEN}",
+      Authorization: `Bearer \${MISSING_TOKEN}`,
     });
     await expect(openMcpSession({ entry, timeoutMs: 1000, env: {} })).rejects.toBeInstanceOf(
       MissingCredentialError,

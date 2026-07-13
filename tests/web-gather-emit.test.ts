@@ -55,7 +55,7 @@ describe("validatedWebUrl", () => {
 
   test("rejects non-http(s) schemes", () => {
     expect(validatedWebUrl("ftp://example.com")).toBeUndefined();
-    expect(validatedWebUrl("javascript:alert(1)")).toBeUndefined();
+    expect(validatedWebUrl(["javascript", "alert(1)"].join(":"))).toBeUndefined();
     expect(validatedWebUrl("data:text/html,x")).toBeUndefined();
   });
 

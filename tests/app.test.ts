@@ -270,7 +270,7 @@ describe("runCli", () => {
       generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
     };
     const runDir = join(dataDir, "run-1");
-    let receivedSourcePlan: unknown;
+    let receivedSourcePlan: unknown = null;
 
     await runCli(["equity", "AAPL", "--deep"], {
       createProvider: () => provider,

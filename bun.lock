@@ -4,11 +4,9 @@
   "workspaces": {
     "": {
       "name": "market-bot",
-      "dependencies": {
-        "@modelcontextprotocol/sdk": "1.29.0",
-      },
       "devDependencies": {
         "@ai-sdk/svelte": "4.0.208",
+        "@modelcontextprotocol/sdk": "1.29.0",
         "@commitlint/cli": "21.0.1",
         "@commitlint/config-conventional": "21.0.1",
         "@lucide/svelte": "1.17.0",

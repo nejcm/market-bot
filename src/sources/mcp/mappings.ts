@@ -79,12 +79,15 @@ function parseEligibility(raw: unknown, mappingId: string): readonly McpMappingE
   });
 }
 
+// Returns the parsed mapping, or undefined when it must be skipped non-fatally
+// (its declared catalog server was dropped as unusable). Throws on genuine
+// Checked-in policy errors, including references to servers never declared.
 function parseMapping(
   raw: unknown,
   index: number,
   catalog: McpServerCatalog,
   seenIds: Set<string>,
-): McpToolMapping {
+): McpToolMapping | undefined {
   const label = `mappings[${String(index)}]`;
   if (!isRecord(raw)) {
     fail(`${label} must be an object`);
@@ -100,6 +103,12 @@ function parseMapping(
 
   const server = requireString(raw.server, `mapping "${id}".server`);
   if (!catalog.servers.some((entry) => entry.id === server)) {
+    if (catalog.declaredServerIds.includes(server)) {
+      // The server is declared but its catalog entry was dropped as unusable — a
+      // Non-fatal catalog issue. Skip this mapping instead of aborting the run;
+      // The catalog gap already records the underlying cause.
+      return undefined;
+    }
     fail(`mapping "${id}" references unknown server "${server}"`);
   }
   const tool = requireString(raw.tool, `mapping "${id}".tool`);
@@ -183,7 +192,9 @@ export function parseMcpMappingRegistry(
     fail("mappings must be an array");
   }
   const seenIds = new Set<string>();
-  const mappings = doc.mappings.map((raw, index) => parseMapping(raw, index, catalog, seenIds));
+  const mappings = doc.mappings
+    .map((raw, index) => parseMapping(raw, index, catalog, seenIds))
+    .filter((mapping): mapping is McpToolMapping => mapping !== undefined);
   return { version: doc.version, mappings };
 }
 

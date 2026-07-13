@@ -56,6 +56,21 @@ describe("openMcpSession transport", () => {
     }
   });
 
+  test("terminates the server session on close", async () => {
+    const server = await startLocalMcpServer({ enableJsonResponse: true });
+    try {
+      await withMcpSession(
+        { entry: httpEntry(server.url), timeoutMs: 5000, fetch: realFetch },
+        async (session) => {
+          await session.listTools();
+        },
+      );
+      expect(server.sessionDeletes.length).toBeGreaterThan(0);
+    } finally {
+      await server.close();
+    }
+  });
+
   test("rejects when initialization fails", async () => {
     const server = await startLocalMcpServer({ failInitialize: true });
     try {

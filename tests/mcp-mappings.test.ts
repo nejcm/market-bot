@@ -9,6 +9,7 @@ import type { McpServerCatalog } from "../src/sources/mcp/types";
 
 const CATALOG: McpServerCatalog = {
   servers: [{ id: "mtnewswire", type: "http", url: "https://mt.test/mcp" }],
+  declaredServerIds: ["mtnewswire"],
   gaps: [],
 };
 
@@ -88,6 +89,28 @@ describe("parseMcpMappingRegistry (fast-fail)", () => {
       expect(run).toThrow(McpMappingConfigError);
     });
   }
+});
+
+describe("declared-but-unusable server", () => {
+  // A catalog whose mtnewswire entry was dropped non-fatally (still declared).
+  const DROPPED: McpServerCatalog = { servers: [], declaredServerIds: ["mtnewswire"], gaps: [] };
+
+  test("skips the mapping instead of aborting the run", () => {
+    const registry = parseMcpMappingRegistry(
+      JSON.stringify({ version: 1, mappings: [validMapping()] }),
+      DROPPED,
+    );
+    expect(registry.mappings).toEqual([]);
+  });
+
+  test("still fails fast for a genuinely unknown server", () => {
+    expect(() =>
+      parseMcpMappingRegistry(
+        JSON.stringify({ version: 1, mappings: [validMapping({ server: "ghost" })] }),
+        DROPPED,
+      ),
+    ).toThrow(McpMappingConfigError);
+  });
 });
 
 describe("loadMcpMappingRegistry (repo root)", () => {

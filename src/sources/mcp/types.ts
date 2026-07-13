@@ -39,6 +39,10 @@ export interface McpServerCatalog {
   // Only entries that parsed into a usable shape. Individual bad entries are
   // Isolated as gaps rather than aborting the catalog.
   readonly servers: readonly McpServerEntry[];
+  // Every server ID present in the catalog file, including entries dropped as
+  // Gaps. Lets the mapping loader tell a declared-but-unusable server (skip the
+  // Mapping, non-fatal) from a genuinely unknown reference (fast-fail).
+  readonly declaredServerIds: readonly string[];
   // Non-fatal, content-free issues from syntax or per-entry validation.
   readonly gaps: readonly SourceGap[];
 }

@@ -178,6 +178,13 @@ export async function openMcpSession(options: OpenMcpSessionOptions): Promise<Mc
       };
     },
     async close() {
+      // Best-effort: end the negotiated server session (HTTP DELETE with the
+      // Session header) before closing the transport, releasing server resources.
+      try {
+        await transport.terminateSession();
+      } catch {
+        // A server without session support (or an already-dead session) is fine.
+      }
       try {
         await client.close();
       } catch {

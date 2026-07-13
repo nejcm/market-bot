@@ -106,6 +106,15 @@ Pipeline stages never use codex-native web search by design: web evidence enters
 
 SEC EDGAR, Tradier IV, and Finnhub company/event endpoints are US-centric. Non-US listings (detected by exchange name or Yahoo symbol suffix such as `.L`, `.TO`, `.PA`, `.DE`, `.HK`) are short-circuited before any network call: the Evidence Request Loop is omitted (saving a model round) and each affected source emits a single `unsupported-coverage` Source Gap. Yahoo market data, Yahoo news, and Valuation Evidence still run for international tickers. Unclassifiable instruments default to attempting the fetch so coverage is never suppressed on weak signal.
 
+## MCP catalog and mappings
+
+Curated MCP acquisition is configured by two checked-in repo-root files:
+
+- `.mcp.json` — connection catalog (Claude-compatible `mcpServers`). HTTPS URLs only, no embedded or query-string credentials; any header value must be an environment template such as `Bearer ${TOKEN}` (literal secrets are rejected).
+- `.mcp-mappings.json` — authorization and runtime policy. Only servers referenced by a mapping are ever contacted; an unmapped catalog server stays inert.
+
+`.mcp.json` is intentionally dual-use: Claude Code also reads it as its project-scoped MCP catalog. That is a separate trust boundary — Claude Code requires explicit workspace/user approval before connecting a checked-in project server, and market-bot authorization comes only from `.mcp-mappings.json`. Do not add Claude settings that auto-approve project servers.
+
 ## Secrets
 
 Never commit secrets or fixtures containing tokens. Required keys are read from the environment at startup; the process exits with a clear error if missing.

@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -31,8 +32,15 @@ function options(overrides: Partial<McpCacheOptions> = {}): McpCacheOptions {
     disabled: false,
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     freshnessTtlMinutes: 60,
+    fallbackDays: 7,
     ...overrides,
   };
+}
+
+// Writes a raw cache file bypassing writeMcpCache, to exercise validation.
+async function writeRawEntry(key: string, entry: unknown): Promise<void> {
+  await mkdir(join(dir, "mcp"), { recursive: true });
+  await writeFile(join(dir, "mcp", `${key}.json`), JSON.stringify(entry));
 }
 
 describe("cache keys", () => {
@@ -79,7 +87,22 @@ describe("cache keys", () => {
       url: "https://mt.test/mcp",
       headers: { Authorization: "Bearer ${TOKEN}" },
     };
-    expect(catalogServerFingerprint(entry)).toBe("http:https://mt.test/mcp");
+    expect(catalogServerFingerprint(entry)).toBe(
+      "http:mt:https://mt.test/mcp:Authorization=Bearer ${TOKEN}",
+    );
+  });
+
+  test("fingerprint changes when the header template changes", () => {
+    const base: McpHttpServerEntry = { id: "mt", type: "http", url: "https://mt.test/mcp" };
+    const tenantA = catalogServerFingerprint({
+      ...base,
+      headers: { Authorization: "Bearer ${TOKEN_A}" },
+    });
+    const tenantB = catalogServerFingerprint({
+      ...base,
+      headers: { Authorization: "Bearer ${TOKEN_B}" },
+    });
+    expect(tenantA).not.toBe(tenantB);
   });
 });
 
@@ -107,10 +130,48 @@ describe("cache read/write", () => {
     expect(await readMcpCache(key, options())).toEqual({ status: "hit-fresh", packet: PACKET });
   });
 
-  test("returns a stale fallback past TTL", async () => {
+  test("returns a stale fallback past TTL but within the fallback window", async () => {
     const key = await write("metadata-only");
     const later = options({ now: () => new Date("2026-01-01T02:00:00.000Z") });
     expect(await readMcpCache(key, later)).toEqual({ status: "stale-fallback", packet: PACKET });
+  });
+
+  test("misses beyond the fallback window", async () => {
+    const key = await write("metadata-only");
+    const wayLater = options({ now: () => new Date("2026-01-20T00:00:00.000Z") });
+    expect(await readMcpCache(key, wayLater)).toEqual({ status: "miss" });
+  });
+
+  test("misses a null or malformed packet", async () => {
+    const nullPacket = "null-packet";
+    await writeRawEntry(nullPacket, {
+      key: nullPacket,
+      mappingId: "m",
+      shape: "news_search.v1",
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+      packet: null,
+    });
+    expect(await readMcpCache(nullPacket, options())).toEqual({ status: "miss" });
+
+    const badItem = "bad-item";
+    await writeRawEntry(badItem, {
+      key: badItem,
+      mappingId: "m",
+      shape: "news_search.v1",
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+      packet: { shape: "news_search.v1", items: [{ title: "t" }] },
+    });
+    expect(await readMcpCache(badItem, options())).toEqual({ status: "miss" });
+
+    const shapeMismatch = "shape-mismatch";
+    await writeRawEntry(shapeMismatch, {
+      key: shapeMismatch,
+      mappingId: "m",
+      shape: "document_search.v1",
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+      packet: PACKET,
+    });
+    expect(await readMcpCache(shapeMismatch, options())).toEqual({ status: "miss" });
   });
 
   test("does not write under persistence none", async () => {

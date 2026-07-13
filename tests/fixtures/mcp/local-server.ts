@@ -39,6 +39,8 @@ export interface LocalMcpServerOptions {
 
 export interface LocalMcpServer {
   readonly url: string;
+  // Session IDs the client asked the server to terminate via HTTP DELETE.
+  readonly sessionDeletes: readonly string[];
   close(): Promise<void>;
 }
 
@@ -139,6 +141,7 @@ export async function startLocalMcpServer(
   // Abandon in-flight requests; without a forced teardown those sockets and the
   // Delay timer would outlive the test and destabilize unrelated suites.
   const sockets = new Set<Socket>();
+  const sessionDeletes: string[] = [];
   let closed = false;
 
   const http: HttpServer = createServer(async (req, res) => {
@@ -148,6 +151,12 @@ export async function startLocalMcpServer(
     if (closed) {
       res.destroy();
       return;
+    }
+    if (req.method === "DELETE") {
+      const sessionId = req.headers["mcp-session-id"];
+      if (typeof sessionId === "string") {
+        sessionDeletes.push(sessionId);
+      }
     }
     const body = await readJsonBody(req);
     if (options.failInitialize === true && isInitialize(body)) {
@@ -174,6 +183,9 @@ export async function startLocalMcpServer(
 
   return {
     url,
+    get sessionDeletes() {
+      return sessionDeletes;
+    },
     async close() {
       closed = true;
       await transport.close().catch(() => {});

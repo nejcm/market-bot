@@ -38,6 +38,9 @@
     "audit": "bun audit --audit-level=high",
     "check": "bun run fmt && bun run lint && bun run fmt:check && bun run typecheck && bun run test:coverage"
   },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0"
+  },
   "devDependencies": {
     "@ai-sdk/svelte": "4.0.208",
     "@commitlint/cli": "21.0.1",

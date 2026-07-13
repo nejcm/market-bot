@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "id": "mcp__mtnewswire__search_news",
+      "server": "mtnewswire",
+      "tool": "search_news",
+      "shape": "news_search.v1",
+      "eligibility": [{ "jobType": "research" }, { "jobType": "equity", "depth": "deep" }],
+      "sourceUnitCost": 2,
+      "cache": { "freshnessTtlMinutes": 60 },
+      "source": {
+        "kind": "news",
+        "provider": "mtnewswire",
+        "persistence": "metadata-only"
+      },
+      "entitlementEnvVar": "MARKET_BOT_MCP_MTNEWSWIRE_ENTITLED"
+    }
+  ]
+}

@@ -35,6 +35,7 @@ const SOURCE_GAP_CAPABILITY_TABLE = {
   "market-context": true,
   "evidence-request": true,
   "web-gather": true,
+  mcp: true,
   cache: true,
 } satisfies Record<SourceGapCapability, true>;
 

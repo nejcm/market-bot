@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mtnewswire": {
+      "type": "http",
+      "url": "https://vast-mcp.blueskyapi.com/mtnewswires"
+    }
+  }
+}

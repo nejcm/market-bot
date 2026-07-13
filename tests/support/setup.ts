@@ -3,6 +3,11 @@ import { setSourceHostMinDelayMsForTests } from "../../src/sources/collector";
 // Eliminate the real per-host rate-limit sleep so tests never wait on wall-clock time.
 setSourceHostMinDelayMsForTests(0);
 
+// Preserve the real fetch so the few tests that must exercise a real loopback
+// Transport (the MCP Streamable HTTP fixture) can inject it explicitly, keeping
+// The inject-a-FetchLike convention rather than defeating the guard globally.
+(globalThis as { realFetchForTests?: typeof fetch }).realFetchForTests = globalThis.fetch;
+
 // Guard against accidental real network calls: every test must inject a FetchLike.
 function describeFetchTarget(input: string | URL | Request): string {
   if (typeof input === "string") {

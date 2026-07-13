@@ -80,7 +80,7 @@ describe("cache keys", () => {
     expect(canonicalArgumentsJson({ b: 1, a: undefined, c: 2 })).toBe('{"b":1,"c":2}');
   });
 
-  test("fingerprint excludes header templates", () => {
+  test("fingerprint excludes resolved credential values", () => {
     const entry: McpHttpServerEntry = {
       id: "mt",
       type: "http",
@@ -88,7 +88,7 @@ describe("cache keys", () => {
       headers: { Authorization: "Bearer ${TOKEN}" },
     };
     expect(catalogServerFingerprint(entry)).toBe(
-      "http:mt:https://mt.test/mcp:Authorization=Bearer ${TOKEN}",
+      '{"type":"http","id":"mt","url":"https://mt.test/mcp","headers":{"Authorization":"Bearer ${TOKEN}"}}',
     );
   });
 
@@ -103,6 +103,23 @@ describe("cache keys", () => {
       headers: { Authorization: "Bearer ${TOKEN_B}" },
     });
     expect(tenantA).not.toBe(tenantB);
+  });
+
+  test("fingerprint distinguishes argument boundaries", () => {
+    const combined = catalogServerFingerprint({
+      id: "local",
+      type: "stdio",
+      command: "server",
+      args: ["alpha beta"],
+    });
+    const separate = catalogServerFingerprint({
+      id: "local",
+      type: "stdio",
+      command: "server",
+      args: ["alpha", "beta"],
+    });
+
+    expect(combined).not.toBe(separate);
   });
 });
 
@@ -140,6 +157,70 @@ describe("cache read/write", () => {
     const key = await write("metadata-only");
     const wayLater = options({ now: () => new Date("2026-01-20T00:00:00.000Z") });
     expect(await readMcpCache(key, wayLater)).toEqual({ status: "miss" });
+  });
+
+  test("misses an entry fetched in the future", async () => {
+    const key = "future";
+    await writeRawEntry(key, {
+      key,
+      mappingId: "m",
+      shape: "news_search.v1",
+      fetchedAt: "2026-01-02T00:00:00.000Z",
+      packet: PACKET,
+    });
+
+    expect(await readMcpCache(key, options())).toEqual({ status: "miss" });
+  });
+
+  test("strips unknown packet and item fields from cache reads", async () => {
+    const key = "unknown-fields";
+    await writeRawEntry(key, {
+      key,
+      mappingId: "m",
+      shape: "news_search.v1",
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+      packet: {
+        shape: "news_search.v1",
+        body: "raw packet text",
+        items: [{ ...PACKET.items[0]!, body: "raw article text" }],
+      },
+    });
+
+    expect(await readMcpCache(key, options())).toEqual({ status: "hit-fresh", packet: PACKET });
+  });
+
+  test("does not persist unknown packet and item fields", async () => {
+    const packetWithRawText = {
+      ...PACKET,
+      body: "raw packet text",
+      items: [{ ...PACKET.items[0]!, body: "raw article text" }],
+    };
+    await writeMcpCache(
+      "sanitized-write",
+      { mappingId: "m", shape: "news_search.v1", packet: packetWithRawText },
+      "metadata-only",
+      options(),
+    );
+
+    const persisted = await Bun.file(join(dir, "mcp", "sanitized-write.json")).text();
+    expect(persisted).not.toContain("raw packet text");
+    expect(persisted).not.toContain("raw article text");
+  });
+
+  test("misses packet strings beyond their bounds", async () => {
+    const key = "oversized-string";
+    await writeRawEntry(key, {
+      key,
+      mappingId: "m",
+      shape: "news_search.v1",
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+      packet: {
+        shape: "news_search.v1",
+        items: [{ ...PACKET.items[0]!, title: "x".repeat(10_000) }],
+      },
+    });
+
+    expect(await readMcpCache(key, options())).toEqual({ status: "miss" });
   });
 
   test("misses a null or malformed packet", async () => {

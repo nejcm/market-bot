@@ -124,6 +124,23 @@ function toContentBlocks(content: unknown): readonly McpContentBlock[] {
   });
 }
 
+async function terminateSessionWithin(
+  transport: StreamableHTTPClientTransport,
+  timeoutMs: number,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined = undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  try {
+    await Promise.race([transport.terminateSession().catch(() => {}), timeout]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 // Opens a Streamable HTTP session. stdio entries throw UnsupportedTransportError
 // Without spawning a process; unresolved header credentials throw
 // MissingCredentialError before any network call. Prefer withMcpSession, which
@@ -180,11 +197,7 @@ export async function openMcpSession(options: OpenMcpSessionOptions): Promise<Mc
     async close() {
       // Best-effort: end the negotiated server session (HTTP DELETE with the
       // Session header) before closing the transport, releasing server resources.
-      try {
-        await transport.terminateSession();
-      } catch {
-        // A server without session support (or an already-dead session) is fine.
-      }
+      await terminateSessionWithin(transport, options.timeoutMs);
       try {
         await client.close();
       } catch {

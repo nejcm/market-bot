@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadMcpCatalog } from "../src/sources/mcp/catalog";
+import { loadMcpCatalog, parseMcpCatalog } from "../src/sources/mcp/catalog";
 import {
   McpMappingConfigError,
   loadMcpMappingRegistry,
@@ -10,6 +10,7 @@ import type { McpServerCatalog } from "../src/sources/mcp/types";
 const CATALOG: McpServerCatalog = {
   servers: [{ id: "mtnewswire", type: "http", url: "https://mt.test/mcp" }],
   declaredServerIds: ["mtnewswire"],
+  declarationsUnavailable: false,
   gaps: [],
 };
 
@@ -93,7 +94,12 @@ describe("parseMcpMappingRegistry (fast-fail)", () => {
 
 describe("declared-but-unusable server", () => {
   // A catalog whose mtnewswire entry was dropped non-fatally (still declared).
-  const DROPPED: McpServerCatalog = { servers: [], declaredServerIds: ["mtnewswire"], gaps: [] };
+  const DROPPED: McpServerCatalog = {
+    servers: [],
+    declaredServerIds: ["mtnewswire"],
+    declarationsUnavailable: false,
+    gaps: [],
+  };
 
   test("skips the mapping instead of aborting the run", () => {
     const registry = parseMcpMappingRegistry(
@@ -110,6 +116,19 @@ describe("declared-but-unusable server", () => {
         DROPPED,
       ),
     ).toThrow(McpMappingConfigError);
+  });
+});
+
+describe("unavailable catalog declarations", () => {
+  test("skips mappings after a whole-catalog parse failure", () => {
+    const catalog = parseMcpCatalog("{ not json");
+    const registry = parseMcpMappingRegistry(
+      JSON.stringify({ version: 1, mappings: [validMapping()] }),
+      catalog,
+    );
+
+    expect(catalog.gaps).toHaveLength(1);
+    expect(registry.mappings).toEqual([]);
   });
 });
 

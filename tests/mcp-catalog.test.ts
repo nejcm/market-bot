@@ -36,7 +36,13 @@ describe("parseMcpCatalog", () => {
     expect(ok.servers[0]).toMatchObject({ headers: { Authorization: "Bearer ${TOKEN}" } });
 
     // A literal secret smuggled alongside an unused ${VAR} must not slip through.
-    for (const value of ["Bearer sk-123", "Bearer sk-real ${UNUSED}", "sk-real ${A} ${B}"]) {
+    for (const value of [
+      "Bearer sk-123",
+      "Bearer sk-real ${UNUSED}",
+      "sk-real ${A} ${B}",
+      "sk-live-abc123 ${UNUSED}",
+      "deadbeefcafe1234 ${UNUSED}",
+    ]) {
       const literal = parseMcpCatalog(
         JSON.stringify({
           mcpServers: {
@@ -63,13 +69,15 @@ describe("parseMcpCatalog", () => {
     expect(userinfo.servers).toEqual([]);
     expect(userinfo.gaps).toHaveLength(1);
 
-    const queryCred = parseMcpCatalog(
-      JSON.stringify({
-        mcpServers: { a: { type: "http", url: "https://a.test/mcp?api_key=sk-1" } },
-      }),
-    );
-    expect(queryCred.servers).toEqual([]);
-    expect(queryCred.gaps).toHaveLength(1);
+    for (const key of ["api_key", "api-key", "authorization", "x-api-key", "sig"]) {
+      const queryCred = parseMcpCatalog(
+        JSON.stringify({
+          mcpServers: { a: { type: "http", url: `https://a.test/mcp?${key}=sk-1` } },
+        }),
+      );
+      expect(queryCred.servers).toEqual([]);
+      expect(queryCred.gaps).toHaveLength(1);
+    }
   });
 
   test("isolates a bad entry while keeping a good one", () => {

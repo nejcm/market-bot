@@ -21,18 +21,22 @@ export const MCP_CATALOG_FILENAME = ".mcp.json";
 // E.g. `Bearer ${TOKEN}` is allowed; only the ${VAR} part is substituted.
 const ENV_TEMPLATE_RE = /\$\{(?<name>[A-Za-z_][A-Za-z0-9_]*)\}/gu;
 
-// A header value must be a single optional auth-scheme word followed by exactly
-// One ${VAR} reference, or a bare ${VAR}. This rejects any literal credential,
-// Including a real secret smuggled alongside an unused ${VAR}.
-const STRICT_HEADER_TEMPLATE_RE = /^(?:[A-Za-z][A-Za-z0-9-]* )?\$\{[A-Za-z_][A-Za-z0-9_]*\}$/u;
+// A header value must be one supported auth scheme followed by exactly one
+// ${VAR} reference, or a bare ${VAR}. An arbitrary token cannot occupy the
+// Scheme position and smuggle a literal credential beside an unused reference.
+const STRICT_HEADER_TEMPLATE_RE = /^(?:(?:Bearer|Basic|Token) )?\$\{[A-Za-z_][A-Za-z0-9_]*\}$/iu;
 
 // Query parameter names that would carry a literal credential in a checked-in URL.
 const CREDENTIAL_QUERY_PARAMS: ReadonlySet<string> = new Set([
   "api_key",
+  "api-key",
   "api_token",
   "apikey",
+  "authorization",
   "token",
   "access_token",
+  "x-api-key",
+  "sig",
   "key",
   "secret",
   "password",
@@ -75,7 +79,7 @@ function validateHeaders(
     }
     if (!isStrictHeaderTemplate(value)) {
       return {
-        error: `header "${key}" must be an optional scheme word plus a single \${VAR} reference; literal values are rejected`,
+        error: `header "${key}" must be a supported auth scheme plus a single \${VAR} reference, or a bare \${VAR}; literal values are rejected`,
       };
     }
     headers[key] = value;
@@ -173,6 +177,7 @@ export function parseMcpCatalog(content: string): McpServerCatalog {
     return {
       servers: [],
       declaredServerIds: [],
+      declarationsUnavailable: true,
       gaps: [mcpCatalogGap("catalog JSON could not be parsed")],
     };
   }
@@ -180,17 +185,19 @@ export function parseMcpCatalog(content: string): McpServerCatalog {
     return {
       servers: [],
       declaredServerIds: [],
+      declarationsUnavailable: true,
       gaps: [mcpCatalogGap("catalog root must be an object")],
     };
   }
   const { mcpServers } = doc;
   if (mcpServers === undefined) {
-    return { servers: [], declaredServerIds: [], gaps: [] };
+    return { servers: [], declaredServerIds: [], declarationsUnavailable: false, gaps: [] };
   }
   if (!isRecord(mcpServers)) {
     return {
       servers: [],
       declaredServerIds: [],
+      declarationsUnavailable: true,
       gaps: [mcpCatalogGap("mcpServers must be an object")],
     };
   }
@@ -205,7 +212,12 @@ export function parseMcpCatalog(content: string): McpServerCatalog {
     }
     servers.push(result.entry);
   }
-  return { servers, declaredServerIds: Object.keys(mcpServers), gaps };
+  return {
+    servers,
+    declaredServerIds: Object.keys(mcpServers),
+    declarationsUnavailable: false,
+    gaps,
+  };
 }
 
 export interface LoadMcpCatalogOptions {
@@ -221,7 +233,7 @@ export async function loadMcpCatalog(
   const path = options.path ?? join(options.cwd ?? process.cwd(), MCP_CATALOG_FILENAME);
   const file = Bun.file(path);
   if (!(await file.exists())) {
-    return { servers: [], declaredServerIds: [], gaps: [] };
+    return { servers: [], declaredServerIds: [], declarationsUnavailable: false, gaps: [] };
   }
   let content: string;
   try {
@@ -230,6 +242,7 @@ export async function loadMcpCatalog(
     return {
       servers: [],
       declaredServerIds: [],
+      declarationsUnavailable: true,
       gaps: [mcpCatalogGap("catalog file could not be read")],
     };
   }

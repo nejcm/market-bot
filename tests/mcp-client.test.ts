@@ -71,6 +71,25 @@ describe("openMcpSession transport", () => {
     }
   });
 
+  test("bounds session termination by the configured timeout", async () => {
+    const server = await startLocalMcpServer({
+      enableJsonResponse: true,
+      terminationDelayMs: 1000,
+    });
+    const startedAt = performance.now();
+    try {
+      await withMcpSession(
+        { entry: httpEntry(server.url), timeoutMs: 100, fetch: realFetch },
+        async (session) => {
+          await session.listTools();
+        },
+      );
+      expect(performance.now() - startedAt).toBeLessThan(750);
+    } finally {
+      await server.close();
+    }
+  });
+
   test("rejects when initialization fails", async () => {
     const server = await startLocalMcpServer({ failInitialize: true });
     try {

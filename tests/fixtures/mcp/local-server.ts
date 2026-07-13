@@ -33,6 +33,8 @@ export interface LocalMcpServerOptions {
   ) => LocalMcpCallResult | Promise<LocalMcpCallResult>;
   // Milliseconds to stall before handling every request (drives timeout/abort).
   readonly requestDelayMs?: number;
+  // Milliseconds to stall only session-termination DELETE requests.
+  readonly terminationDelayMs?: number;
   // Reject the initialize POST with HTTP 500 (drives initialization failure).
   readonly failInitialize?: boolean;
 }
@@ -145,8 +147,12 @@ export async function startLocalMcpServer(
   let closed = false;
 
   const http: HttpServer = createServer(async (req, res) => {
-    if (options.requestDelayMs !== undefined) {
-      await delay(options.requestDelayMs);
+    const delayMs =
+      req.method === "DELETE" && options.terminationDelayMs !== undefined
+        ? options.terminationDelayMs
+        : options.requestDelayMs;
+    if (delayMs !== undefined) {
+      await delay(delayMs);
     }
     if (closed) {
       res.destroy();

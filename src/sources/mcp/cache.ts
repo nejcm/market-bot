@@ -18,6 +18,13 @@ const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 // Guards a corrupt or hostile cache file from yielding an unbounded packet.
 const MAX_PACKET_ITEMS = 200;
+const MAX_TITLE_LENGTH = 500;
+const MAX_PUBLISHED_AT_LENGTH = 64;
+const MAX_PROVIDER_ARTICLE_ID_LENGTH = 512;
+const MAX_URL_LENGTH = 2048;
+const MAX_PUBLISHER_LENGTH = 256;
+const MAX_SUMMARY_LENGTH = 4000;
+const MAX_SNIPPET_LENGTH = 2000;
 
 function compareStrings(a: string, b: string): number {
   if (a < b) {
@@ -69,13 +76,17 @@ export function canonicalArgumentsJson(args: unknown): string {
 // (e.g. `Bearer ${TOKEN}`) and are non-secret; resolved values never appear here.
 export function catalogServerFingerprint(entry: McpServerEntry): string {
   if (entry.type === "http") {
-    const headers = Object.entries(entry.headers ?? {})
-      .toSorted(([a], [b]) => compareStrings(a, b))
-      .map(([key, template]) => `${key}=${template}`)
-      .join("&");
-    return `http:${entry.id}:${entry.url}:${headers}`;
+    const headers = Object.fromEntries(
+      Object.entries(entry.headers ?? {}).toSorted(([a], [b]) => compareStrings(a, b)),
+    );
+    return JSON.stringify({ type: "http", id: entry.id, url: entry.url, headers });
   }
-  return `stdio:${entry.id}:${entry.command}:${(entry.args ?? []).join(" ")}`;
+  return JSON.stringify({
+    type: "stdio",
+    id: entry.id,
+    command: entry.command,
+    args: entry.args ?? [],
+  });
 }
 
 export async function mcpCacheKey(input: McpCacheKeyInput): Promise<string> {
@@ -117,60 +128,83 @@ function entryPath(dir: string, key: string): string {
   return join(dir, "mcp", `${key}.json`);
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
+function isBoundedNonEmptyString(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
 
-function isOptionalString(value: unknown): boolean {
-  return value === undefined || typeof value === "string";
+function isOptionalBoundedString(value: unknown, maxLength: number): value is string | undefined {
+  return value === undefined || (typeof value === "string" && value.length <= maxLength);
 }
 
-function isNewsSearchV1Item(value: unknown): value is NewsSearchV1Item {
+function sanitizeNewsSearchV1Item(value: unknown): NewsSearchV1Item | undefined {
   if (typeof value !== "object" || value === null) {
-    return false;
+    return undefined;
   }
   const item = value as Record<string, unknown>;
-  return (
-    isNonEmptyString(item.title) &&
-    isNonEmptyString(item.publishedAt) &&
-    isNonEmptyString(item.providerArticleId) &&
-    isOptionalString(item.url) &&
-    isOptionalString(item.publisher) &&
-    isOptionalString(item.summary) &&
-    isOptionalString(item.snippet)
-  );
+  if (
+    !isBoundedNonEmptyString(item.title, MAX_TITLE_LENGTH) ||
+    !isBoundedNonEmptyString(item.publishedAt, MAX_PUBLISHED_AT_LENGTH) ||
+    !isBoundedNonEmptyString(item.providerArticleId, MAX_PROVIDER_ARTICLE_ID_LENGTH) ||
+    !isOptionalBoundedString(item.url, MAX_URL_LENGTH) ||
+    !isOptionalBoundedString(item.publisher, MAX_PUBLISHER_LENGTH) ||
+    !isOptionalBoundedString(item.summary, MAX_SUMMARY_LENGTH) ||
+    !isOptionalBoundedString(item.snippet, MAX_SNIPPET_LENGTH)
+  ) {
+    return undefined;
+  }
+  return {
+    title: item.title,
+    publishedAt: item.publishedAt,
+    providerArticleId: item.providerArticleId,
+    ...(item.url !== undefined ? { url: item.url } : {}),
+    ...(item.publisher !== undefined ? { publisher: item.publisher } : {}),
+    ...(item.summary !== undefined ? { summary: item.summary } : {}),
+    ...(item.snippet !== undefined ? { snippet: item.snippet } : {}),
+  };
 }
 
-function isNewsSearchV1Packet(value: unknown): value is NewsSearchV1Packet {
+function sanitizeNewsSearchV1Packet(value: unknown): NewsSearchV1Packet | undefined {
   if (typeof value !== "object" || value === null) {
-    return false;
+    return undefined;
   }
   const packet = value as Record<string, unknown>;
-  return (
-    packet.shape === "news_search.v1" &&
-    Array.isArray(packet.items) &&
-    packet.items.length <= MAX_PACKET_ITEMS &&
-    packet.items.every(isNewsSearchV1Item)
-  );
+  if (
+    packet.shape !== "news_search.v1" ||
+    !Array.isArray(packet.items) ||
+    packet.items.length > MAX_PACKET_ITEMS
+  ) {
+    return undefined;
+  }
+  const items = packet.items.map(sanitizeNewsSearchV1Item);
+  if (!items.every((item): item is NewsSearchV1Item => item !== undefined)) {
+    return undefined;
+  }
+  return { shape: "news_search.v1", items };
 }
 
-function isMcpEvidencePacket(value: unknown): value is McpEvidencePacket {
-  return isNewsSearchV1Packet(value);
-}
-
-function isCacheEntry(value: unknown, key: string): value is McpCacheEntry {
+function parseCacheEntry(value: unknown, key: string): McpCacheEntry | undefined {
   if (typeof value !== "object" || value === null) {
-    return false;
+    return undefined;
   }
   const entry = value as Record<string, unknown>;
-  return (
-    entry.key === key &&
-    isNonEmptyString(entry.mappingId) &&
-    typeof entry.fetchedAt === "string" &&
-    !Number.isNaN(new Date(entry.fetchedAt).getTime()) &&
-    isMcpEvidencePacket(entry.packet) &&
-    entry.shape === entry.packet.shape
-  );
+  const packet = sanitizeNewsSearchV1Packet(entry.packet);
+  if (
+    entry.key !== key ||
+    !isBoundedNonEmptyString(entry.mappingId, 512) ||
+    typeof entry.fetchedAt !== "string" ||
+    Number.isNaN(new Date(entry.fetchedAt).getTime()) ||
+    packet === undefined ||
+    entry.shape !== packet.shape
+  ) {
+    return undefined;
+  }
+  return {
+    key,
+    mappingId: entry.mappingId,
+    shape: packet.shape,
+    fetchedAt: entry.fetchedAt,
+    packet,
+  };
 }
 
 export async function readMcpCache(
@@ -190,15 +224,19 @@ export async function readMcpCache(
   } catch {
     return { status: "miss" };
   }
-  if (!isCacheEntry(parsed, key)) {
+  const entry = parseCacheEntry(parsed, key);
+  if (entry === undefined) {
     return { status: "miss" };
   }
-  const ageMs = options.now().getTime() - new Date(parsed.fetchedAt).getTime();
+  const ageMs = options.now().getTime() - new Date(entry.fetchedAt).getTime();
+  if (ageMs < 0) {
+    return { status: "miss" };
+  }
   if (ageMs <= options.freshnessTtlMinutes * MINUTE_MS) {
-    return { status: "hit-fresh", packet: parsed.packet };
+    return { status: "hit-fresh", packet: entry.packet };
   }
   if (ageMs <= options.fallbackDays * DAY_MS) {
-    return { status: "stale-fallback", packet: parsed.packet };
+    return { status: "stale-fallback", packet: entry.packet };
   }
   return { status: "miss" };
 }
@@ -220,12 +258,16 @@ export async function writeMcpCache(
   if (options.disabled || persistence === "none") {
     return;
   }
+  const packet = sanitizeNewsSearchV1Packet(input.packet);
+  if (packet === undefined || packet.shape !== input.shape) {
+    return;
+  }
   const entry: McpCacheEntry = {
     key,
     mappingId: input.mappingId,
     shape: input.shape,
     fetchedAt: options.now().toISOString(),
-    packet: input.packet,
+    packet,
   };
   try {
     await Bun.write(entryPath(options.dir, key), JSON.stringify(entry));

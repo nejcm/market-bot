@@ -103,10 +103,9 @@ function parseMapping(
 
   const server = requireString(raw.server, `mapping "${id}".server`);
   if (!catalog.servers.some((entry) => entry.id === server)) {
-    if (catalog.declaredServerIds.includes(server)) {
-      // The server is declared but its catalog entry was dropped as unusable — a
-      // Non-fatal catalog issue. Skip this mapping instead of aborting the run;
-      // The catalog gap already records the underlying cause.
+    if (catalog.declarationsUnavailable || catalog.declaredServerIds.includes(server)) {
+      // The catalog could not expose declarations, or this declared entry was
+      // Dropped as unusable. The catalog gap already records the non-fatal cause.
       return undefined;
     }
     fail(`mapping "${id}" references unknown server "${server}"`);

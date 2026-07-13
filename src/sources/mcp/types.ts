@@ -43,6 +43,9 @@ export interface McpServerCatalog {
   // Gaps. Lets the mapping loader tell a declared-but-unusable server (skip the
   // Mapping, non-fatal) from a genuinely unknown reference (fast-fail).
   readonly declaredServerIds: readonly string[];
+  // True when a whole-file failure prevented the loader from determining which
+  // Server IDs were declared. Mappings are skipped non-fatally in this state.
+  readonly declarationsUnavailable: boolean;
   // Non-fatal, content-free issues from syntax or per-entry validation.
   readonly gaps: readonly SourceGap[];
 }

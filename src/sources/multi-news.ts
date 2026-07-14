@@ -4,7 +4,7 @@ import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
 import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
 import { isNewsRelevant } from "./news-relevance";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
-import { executeWebGatherTool } from "./web-gather-tools";
+import { executeWebGatherTool, type WebGatherSubject } from "../web-evidence";
 import {
   type CollectContext,
   type NewsAdapter,
@@ -12,7 +12,6 @@ import {
   type NewsCollectionResult,
   type NewsRelevanceTarget,
 } from "./types";
-import type { WebGatherSubject } from "./web-gather-emit";
 import { yahooNewsAdapter } from "./yahoo-news";
 import {
   aggregateModelInputSanitization,

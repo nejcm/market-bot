@@ -18,44 +18,45 @@ import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
 import { isRecord, readString } from "../guards";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { canonicalizeUrl } from "../sources/news-utils";
-import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
+import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
+import { createCollectContext } from "../sources/source-request";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   executeWebGatherTool,
   MAX_WEB_GATHER_SEARCH_RESULTS,
   REUSED_PROFILE_DEFAULT_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
-} from "../sources/web-gather-tools";
+} from "./web-gather-tools";
 import {
   WEB_GATHER_DUPLICATE_REQUEST_REASON,
   WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON,
   WEB_GATHER_OFF_SUBJECT_REASON,
   WEB_GATHER_SOURCE_BUDGET_EXCEEDED_REASON,
   WEB_GATHER_TOOL_CALL_BUDGET_EXCEEDED_REASON,
-} from "../sources/web-gather-rejection-reasons";
+} from "./web-gather-rejection-reasons";
 import {
   aggregateSanitizerAudit,
   isSurfacedUrl,
   type WebGatherSubject,
   type WebGatherToolOutput,
-} from "../sources/web-gather-emit";
-import { dedupeWebSourcesByHeadline } from "../sources/web-headline-dedupe";
+} from "./web-gather-emit";
+import { dedupeWebSourcesByHeadline } from "./web-headline-dedupe";
 import {
   isCompanyProfileSecSource,
   webSubjectProfileSubjectForCommand,
-} from "../sources/extended-evidence/web-subject-profile";
+} from "./web-subject-profile";
 import {
   runJsonToolLoop,
   type JsonToolLoopAccepted,
   type JsonToolLoopRoundState,
-} from "./json-tool-loop";
+} from "../research/json-tool-loop";
 import {
   acceptedJsonToolAuditEntry,
   budgetRejectionReason,
   rejectedJsonToolRequest,
   withStaleFallbackGaps,
-} from "./json-tool-loop-support";
-import type { ResearchContext, WebGatherContext } from "./research-context-types";
+} from "../research/json-tool-loop-support";
+import type { ResearchContext, WebGatherContext } from "../research/research-context-types";
 
 export interface WebGatherStageOutput {
   readonly stage: "web-gather";

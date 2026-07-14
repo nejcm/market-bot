@@ -24,8 +24,7 @@ import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
-import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
-import { computeWebSourceUsage } from "./web-source-usage";
+import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
 
 export interface RunAnalyticsStage {
   readonly stage: string;

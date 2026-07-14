@@ -10,7 +10,7 @@ import {
 import type {
   WebSubjectProfileArtifact,
   WebSubjectProfileCompanyQuestionKey,
-} from "./web-subject-profile";
+} from "../../web-evidence";
 
 const PROFILE_GAP_QUESTIONS: readonly {
   readonly code: BusinessFrameworkGapCode;

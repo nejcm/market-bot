@@ -16,12 +16,12 @@ import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { CollectedSources } from "../src/sources/types";
 import type { IndicatorMap, InstrumentIdentity, VerifiedMarketSnapshot } from "../src/domain/types";
+import { collectSources } from "../src/sources/collector";
 import {
-  collectSources,
   createCollectContext,
   resetSourceResilienceForTests,
   setSourceHostMinDelayMsForTests,
-} from "../src/sources/collector";
+} from "../src/sources/source-request";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 
 // ---------------------------------------------------------------------------

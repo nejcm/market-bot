@@ -1,7 +1,4 @@
-import {
-  subjectKindForCommand,
-  webSubjectProfileRequiredShape,
-} from "../../sources/extended-evidence/web-subject-profile";
+import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import { buildEvidencePayload } from "./evidence-payload";
 import { assembleStagePrompt, type StageInput } from "./stage-envelope";
 

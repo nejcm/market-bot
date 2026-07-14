@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence, SourceGap } from "../src/domain/types";
-import { reconcileBusinessFrameworkEvidence } from "../src/research/orchestrator";
+import type { WebSubjectProfileAnswer, WebSubjectProfileArtifact } from "../src/web-evidence";
+// Internal seam: reconciliation wiring is not part of the package manifest.
+import { reconcileBusinessFrameworkEvidence } from "../src/web-evidence/web-evidence-phase";
 import {
   frameworkGap,
   QUALITATIVE_GAPS,
@@ -9,10 +11,6 @@ import {
   type BusinessFrameworkGapValue,
   type BusinessFrameworkSection,
 } from "../src/sources/extended-evidence/business-framework";
-import type {
-  WebSubjectProfileArtifact,
-  WebSubjectProfileAnswer,
-} from "../src/sources/extended-evidence/web-subject-profile";
 import { collectedSources as collectedSourceBundle } from "./support/fixtures";
 
 function answer(text: string): WebSubjectProfileAnswer {

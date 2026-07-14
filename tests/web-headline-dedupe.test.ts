@@ -4,7 +4,7 @@ import {
   dedupeWebSourcesByHeadline,
   headlineSimilarity,
   normalizedHeadlineTokens,
-} from "../src/sources/web-headline-dedupe";
+} from "../src/web-evidence/web-headline-dedupe";
 
 function webSource(overrides: Partial<Source> & Pick<Source, "id" | "title">): Source {
   return {

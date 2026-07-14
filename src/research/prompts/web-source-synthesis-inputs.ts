@@ -4,7 +4,7 @@ import type {
   WebSourceSynthesisAdvisory,
   WebSourceSynthesisInput,
 } from "../../domain/types";
-import { subjectKindForCommand } from "../../sources/extended-evidence/web-subject-profile";
+import { subjectKindForCommand } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
 import { hasFreshWebEvidence, isFreshWebSource } from "./steering";
 

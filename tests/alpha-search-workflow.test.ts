@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { readAlphaRejectedCandidateFile } from "../src/alpha-search/cohorts";
 import { runAlphaSearchWorkflow } from "../src/alpha-search/workflow";
 import type { AppConfig } from "../src/config";
-import { resetSourceResilienceForTests } from "../src/sources/collector";
+import { resetSourceResilienceForTests } from "../src/sources/source-request";
 import type { FetchLike } from "../src/sources/types";
 
 const dataDirs: string[] = [];

@@ -20,7 +20,7 @@ import type { HistoricalResearchContext } from "../../src/research/historical-co
 import type { PlaybookCandidate, PlaybookStage } from "../../src/research/playbooks";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "../../src/research/spotlights";
 import type { BusinessFrameworkArtifact } from "../../src/sources/extended-evidence/business-framework";
-import type { WebSubjectProfileArtifact } from "../../src/sources/extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact } from "../../src/web-evidence";
 import type { CollectedSources } from "../../src/sources/types";
 import type { Source } from "../../src/domain/types";
 import {

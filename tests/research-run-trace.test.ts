@@ -5,7 +5,7 @@ import type { Source } from "../src/domain/types";
 import { buildRunTrace } from "../src/research/run-trace";
 import { assessEvidenceQuality } from "../src/research/evidence-quality";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
-import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 import type { CollectedSources } from "../src/sources/types";
 import { collectedSources, researchReport } from "./support/fixtures";
 

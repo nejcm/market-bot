@@ -7,11 +7,11 @@ import {
   attachReusableWebSubjectProfile,
   findReusableWebSubjectProfile,
   latestSecFilingDate,
-} from "../src/research/web-subject-profile-reuse";
+} from "../src/web-evidence/web-subject-profile-reuse";
 import {
   normalizedSubjectId,
   type WebSubjectProfileArtifact,
-} from "../src/sources/extended-evidence/web-subject-profile";
+} from "../src/web-evidence/web-subject-profile";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
 import { collectedSources } from "./support/fixtures";
 

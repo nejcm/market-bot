@@ -1,7 +1,7 @@
 import type { ResearchCommand } from "../cli/args";
 import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
-import type { WebSubjectProfileArtifact } from "./extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact } from "../web-evidence";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 import type {

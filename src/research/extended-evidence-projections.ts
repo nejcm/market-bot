@@ -1,5 +1,5 @@
 import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
-import type { WebSubjectProfileArtifact } from "../sources/extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact } from "../web-evidence";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
 

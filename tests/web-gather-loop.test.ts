@@ -3,7 +3,7 @@ import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { ModelParams } from "../src/model/types";
 import type { Source, WebSearchType } from "../src/domain/types";
-import { runWebGatherLoop, type WebGatherStageOutput } from "../src/research/web-gather-loop";
+import { runWebGatherLoop, type WebGatherStageOutput } from "../src/web-evidence/web-gather-loop";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { FetchLike } from "../src/sources/types";
 import { collectedSources, marketSnapshot } from "./support/fixtures";

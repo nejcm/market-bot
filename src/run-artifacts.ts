@@ -61,7 +61,7 @@ import {
   type WebSubjectProfileAnswer,
   type WebSubjectProfileArtifact,
   type WebSubjectProfileFact,
-} from "./sources/extended-evidence/web-subject-profile";
+} from "./web-evidence";
 import {
   isRecord,
   nonEmptyStringArrayValue,

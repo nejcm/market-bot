@@ -22,6 +22,8 @@ src/
   run-artifact-index.ts Derived SQLite Run Artifact Index (query layer over disk artifacts)
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache
+  web-evidence/       Web Evidence package: web gather loop/tools/emit, Web Subject Profile contract
+                      and reuse, web source usage; external consumers import only its index
 prompts/              Stage prompt files and checked-in Domain Playbooks
 tests/                Bun test suites
 app/                  Local Svelte + Bun Research Console App

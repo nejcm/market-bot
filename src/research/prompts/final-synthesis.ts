@@ -14,10 +14,7 @@ import {
   BROAD_US_INDEX_CLASS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
 } from "../../forecast/observable";
-import {
-  subjectKindForCommand,
-  webSubjectProfileRequiredShape,
-} from "../../sources/extended-evidence/web-subject-profile";
+import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
 import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import { buildCalibrationBlock } from "../calibration-context";

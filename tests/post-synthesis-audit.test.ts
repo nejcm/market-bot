@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Prediction, ResearchReport } from "../src/domain/types";
 import { auditPostSynthesisReport } from "../src/research/post-synthesis-audit";
-import type { WebSourceUsage } from "../src/research/web-source-usage";
+import type { WebSourceUsage } from "../src/web-evidence";
 
 function reportWith(
   overrides: Partial<

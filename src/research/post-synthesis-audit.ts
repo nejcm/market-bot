@@ -5,7 +5,7 @@ import type {
   ResearchReport,
   Scenario,
 } from "../domain/types";
-import type { WebSourceUsage } from "./web-source-usage";
+import type { WebSourceUsage } from "../web-evidence";
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;

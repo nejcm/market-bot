@@ -19,7 +19,8 @@ import {
   executeEvidenceRequestTool,
   type EvidenceRequestToolOutput,
 } from "../sources/evidence-request-tools";
-import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
+import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
+import { createCollectContext } from "../sources/source-request";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   runJsonToolLoop,

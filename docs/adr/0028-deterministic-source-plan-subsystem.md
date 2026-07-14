@@ -89,9 +89,9 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 - `src/research/source-plan.ts` and `evidence-quality.ts` implement deterministic authority.
 - `src/sources/cache.ts` implements freshness and stale-audit behavior.
 - `src/sources/model-input-sanitizer.ts`, news collection, SEC filing emission, historical prompt
-  projection, and `src/research/web-gather-loop.ts` implement profile-aware model-input hardening.
-  `src/sources/web-gather-emit.ts` remains the shared provider-neutral Exa/Firecrawl emit path.
-- `src/research/web-subject-profile-reuse.ts` implements reuse.
+  projection, and `src/web-evidence/web-gather-loop.ts` implement profile-aware model-input hardening.
+  `src/web-evidence/web-gather-emit.ts` remains the shared provider-neutral Exa/Firecrawl emit path.
+- `src/web-evidence/web-subject-profile-reuse.ts` implements reuse.
 - `src/reproducibility.ts` implements configuration and source-state fingerprints.
 
 ## Supersedes

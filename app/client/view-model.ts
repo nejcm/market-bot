@@ -18,7 +18,7 @@ import type {
 import type {
   WebSubjectProfileArtifact,
   WebSubjectProfileQuestionKey,
-} from "../../src/sources/extended-evidence/web-subject-profile";
+} from "../../src/web-evidence";
 import type {
   FinancialLensArtifact,
   FinancialLensMetric,

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import type { SourceGap } from "../src/domain/types";
-import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../src/sources/web-gather-tools";
+import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../src/web-evidence/web-gather-tools";
 import type {
   CollectContext,
   FetchJsonResult,

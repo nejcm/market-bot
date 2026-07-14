@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildWebSubjectProfileEvidence,
   normalizedSubjectId,
-} from "../src/sources/extended-evidence/web-subject-profile";
+} from "../src/web-evidence/web-subject-profile";
 import type { Source } from "../src/domain/types";
 
 const command = {

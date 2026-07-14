@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
-import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import { sourceGap } from "../../domain/source-gaps";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { sourceGap } from "../domain/source-gaps";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
   Source,
   SourceGap,
   SubjectKind,
-} from "../../domain/types";
-import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../../guards";
+} from "../domain/types";
+import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
 
 const LEGACY_COMPANY_QUESTION_KEYS = [
   "whatItDoes",

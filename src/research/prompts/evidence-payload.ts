@@ -2,10 +2,7 @@ import type { AppConfig } from "../../config";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
 import type { CollectedSources } from "../../sources/types";
-import {
-  isCompanyProfileSecSource,
-  subjectKindForCommand,
-} from "../../sources/extended-evidence/web-subject-profile";
+import { isCompanyProfileSecSource, subjectKindForCommand } from "../../web-evidence";
 import {
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,

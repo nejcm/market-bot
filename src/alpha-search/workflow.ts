@@ -13,7 +13,8 @@ import {
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
 import { buildAlphaSearchManifest, persistRunArtifactWrites } from "../run-artifact-writer";
-import { createSourceRequestContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
+import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
+import { createSourceRequestContext } from "../sources/source-request";
 import { collectApeWisdomCandidates } from "../sources/apewisdom";
 import type { FetchLike, RawSourceSnapshot } from "../sources/types";
 import {

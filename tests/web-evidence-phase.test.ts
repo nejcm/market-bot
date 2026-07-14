@@ -6,7 +6,7 @@ import type { AppConfig } from "../src/config";
 import type { Source } from "../src/domain/types";
 import type { StageOutput } from "../src/research/final-synthesis";
 import type { ResearchContext } from "../src/research/research-context-types";
-import { runWebEvidencePhase } from "../src/research/web-evidence-phase";
+import { runWebEvidencePhase } from "../src/web-evidence/web-evidence-phase";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 
 const tmpDirs: string[] = [];

@@ -7,7 +7,8 @@ Accepted
 ## Date
 
 2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
-amended 2026-07-10: research quality driver; consolidated 2026-07-15)
+amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
+incremental Run Chat provider streaming)
 
 ## Context
 
@@ -105,8 +106,9 @@ research boundaries without sharing persistence or scoring semantics.
 
 ### Ephemeral Run Chat
 
-- The Svelte client uses AI SDK chat state and text transport. The Bun server reuses
-  `ModelProvider.generate` and returns plain text.
+- The Svelte client uses AI SDK chat state and text transport. The Bun server calls
+  `StreamingModelProvider.generateStream` and incrementally returns plain text. Buffered research
+  and JSON-producing stages continue using `ModelProvider.generate`.
 - The server builds bounded context from the selected Run Artifact and recent browser-supplied chat
   turns. It is stateless server-side; browser `localStorage` may hold transcripts, but no transcript
   is written under the run data directory.
@@ -142,8 +144,8 @@ research boundaries without sharing persistence or scoring semantics.
 - Legacy market-overview commands keep working without preserving cadence as product semantics;
   comparisons remain stable by asset class and horizon bucket.
 - Alpha discovery can be evaluated later without presenting candidates as recommendations.
-- Run Chat reuses all model providers without becoming reproducible or durable Run Artifact state;
-  operators disable chat or web search when disclosure or cost is unacceptable.
+- Run Chat streams provider text deltas without becoming reproducible or durable Run Artifact
+  state; operators disable chat or web search when disclosure or cost is unacceptable.
 
 ## Implementation validation
 

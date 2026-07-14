@@ -2,9 +2,9 @@ import type { AppConfig } from "../config";
 import { createAnthropicProvider } from "./anthropic";
 import { createCodexProvider } from "./codex";
 import { createOpenAIProvider } from "./openai";
-import type { ModelProvider } from "./types";
+import type { StreamingModelProvider } from "./types";
 
-export function createProvider(config: AppConfig): ModelProvider {
+export function createProvider(config: AppConfig): StreamingModelProvider {
   if (config.provider === "codex") {
     return createCodexProvider(config);
   }

@@ -1,4 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import {
+  type AppServerProcess,
+  type AppServerSpawnImpl,
+  type AppServerSpawnOptions,
+} from "../src/model/codex-app-server";
 import { createCodexProvider, type SpawnImpl } from "../src/model/codex";
 import type { AppConfig } from "../src/config";
 
@@ -73,6 +79,126 @@ function agentMessageStream(text: string, tokens = 0): string {
     }),
   ];
   return `${events.join("\n")}\n`;
+}
+
+interface FakeAppServer {
+  readonly spawn: AppServerSpawnImpl;
+  readonly args: readonly string[];
+  readonly options: AppServerSpawnOptions | undefined;
+  readonly messages: readonly Record<string, unknown>[];
+  readonly killed: boolean;
+  emit(message: unknown, splitUtf8?: boolean): void;
+  finish(exitCode: number, stderr?: string): void;
+}
+
+function fakeAppServer(
+  onMessage?: (message: Record<string, unknown>, server: FakeAppServer) => void,
+): FakeAppServer {
+  const encoder = new TextEncoder();
+  const messages: Record<string, unknown>[] = [];
+  let stdoutController: ReadableStreamDefaultController<Uint8Array> | undefined = undefined;
+  let stderrController: ReadableStreamDefaultController<Uint8Array> | undefined = undefined;
+  let resolveExit: ((exitCode: number) => void) | undefined = undefined;
+  let args: readonly string[] = [];
+  let options: AppServerSpawnOptions | undefined = undefined;
+  let killed = false;
+  let finished = false;
+
+  const server: FakeAppServer = {
+    get args() {
+      return args;
+    },
+    get options() {
+      return options;
+    },
+    get messages() {
+      return messages;
+    },
+    get killed() {
+      return killed;
+    },
+    emit(message: unknown, splitUtf8 = false): void {
+      const bytes = encoder.encode(`${JSON.stringify(message)}\n`);
+      if (!splitUtf8) {
+        stdoutController?.enqueue(bytes);
+        return;
+      }
+      const split = bytes.indexOf(240);
+      stdoutController?.enqueue(bytes.slice(0, split + 1));
+      stdoutController?.enqueue(bytes.slice(split + 1));
+    },
+    finish(exitCode: number, stderr = ""): void {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      if (stderr !== "") {
+        stderrController?.enqueue(encoder.encode(stderr));
+      }
+      stdoutController?.close();
+      stderrController?.close();
+      resolveExit?.(exitCode);
+    },
+    spawn(spawnArgs, spawnOptions): AppServerProcess {
+      args = spawnArgs;
+      options = spawnOptions;
+      const stdout = new ReadableStream<Uint8Array>({
+        start(controller): void {
+          stdoutController = controller;
+        },
+      });
+      const stderr = new ReadableStream<Uint8Array>({
+        start(controller): void {
+          stderrController = controller;
+        },
+      });
+      const exited = new Promise<number>((resolve) => {
+        resolveExit = resolve;
+      });
+      return {
+        stdin: {
+          write(data): void {
+            const message = JSON.parse(data.trim()) as Record<string, unknown>;
+            messages.push(message);
+            onMessage?.(message, server);
+          },
+          end(): void {},
+        },
+        stdout,
+        stderr,
+        exited,
+        kill(): void {
+          killed = true;
+          server.finish(-1);
+        },
+      };
+    },
+  };
+  return server;
+}
+
+function appServerHandshake(
+  message: Record<string, unknown>,
+  server: FakeAppServer,
+  afterTurnStart?: () => void,
+): void {
+  const { method } = message;
+  if (method === "initialize") {
+    server.emit({ id: 0, result: {} });
+  } else if (method === "thread/start") {
+    server.emit({ id: 1, result: { thread: { id: "thread-1" } } });
+  } else if (method === "turn/start") {
+    server.emit({ id: 2, result: {} });
+    afterTurnStart?.();
+  }
+}
+
+async function collectText(stream: ReadableStream<string>): Promise<string> {
+  let text = "";
+  for await (const chunk of stream) {
+    text += chunk;
+  }
+  return text;
 }
 
 describe("createCodexProvider — preflight", () => {
@@ -463,5 +589,208 @@ describe("createCodexProvider — generate", () => {
     await expect(
       provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
     ).rejects.toThrow("timed out");
+  });
+});
+
+describe("createCodexProvider — generateStream", () => {
+  test("performs the app-server handshake and streams final-answer deltas only", async () => {
+    const appServer = fakeAppServer((message, server) => {
+      appServerHandshake(message, server, () => {
+        server.emit({
+          method: "item/started",
+          params: {
+            turnId: "turn-1",
+            item: { type: "agentMessage", id: "commentary", phase: "commentary", text: "" },
+          },
+        });
+        server.emit({
+          method: "item/agentMessage/delta",
+          params: { turnId: "turn-1", itemId: "commentary", delta: "hidden" },
+        });
+        server.emit({
+          method: "item/started",
+          params: {
+            turnId: "turn-1",
+            item: { type: "agentMessage", id: "final", phase: "final_answer", text: "" },
+          },
+        });
+        server.emit({
+          method: "item/agentMessage/delta",
+          params: { turnId: "turn-1", itemId: "final", delta: "Hello " },
+        });
+        server.emit(
+          {
+            method: "item/agentMessage/delta",
+            params: { turnId: "turn-1", itemId: "final", delta: "🙂" },
+          },
+          true,
+        );
+        server.emit({
+          method: "item/completed",
+          params: {
+            turnId: "turn-1",
+            item: { type: "agentMessage", id: "final", phase: "final_answer", text: "Hello 🙂" },
+          },
+        });
+        server.emit({
+          method: "turn/completed",
+          params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } },
+        });
+      });
+    });
+    const spawn = makeSpawn({ exec: { exitCode: 0, stdout: "app-server help" } });
+    const provider = createCodexProvider(
+      { ...baseConfig, codexQuickModel: "gpt-5.4" },
+      spawn,
+      appServer.spawn,
+    );
+
+    const content = await collectText(
+      await provider.generateStream({
+        model: "gpt-5.4-mini",
+        messages: [
+          { role: "system", content: "System" },
+          { role: "user", content: "Question" },
+        ],
+        params: { reasoningEffort: "high" },
+        webSearch: true,
+      }),
+    );
+
+    expect(content).toBe("Hello 🙂");
+    expect(appServer.messages.map((message) => message.method)).toEqual([
+      "initialize",
+      "initialized",
+      "thread/start",
+      "turn/start",
+    ]);
+    const threadStart = appServer.messages[2]?.params as Record<string, unknown>;
+    expect(threadStart).toMatchObject({
+      model: "gpt-5.4",
+      approvalPolicy: "never",
+      sandbox: "read-only",
+      ephemeral: true,
+      config: { tools: { web_search: true } },
+    });
+    const turnStart = appServer.messages[3]?.params as Record<string, unknown>;
+    expect(turnStart).toMatchObject({
+      model: "gpt-5.4",
+      effort: "high",
+      approvalPolicy: "never",
+      sandboxPolicy: { type: "readOnly", networkAccess: false },
+      input: [{ type: "text", text: "System\n\nQuestion", text_elements: [] }],
+    });
+    expect(appServer.args).toContain("features.shell_tool=false");
+    expect(appServer.args).toContain("features.apps=false");
+    expect(appServer.args).toContain("features.hooks=false");
+    expect(appServer.args).toContain("features.multi_agent=false");
+    expect(appServer.args).toContain("features.plugins=false");
+    expect(appServer.args).toContain("mcp_servers={}");
+    expect(appServer.args).toContain("tools.web_search=true");
+    expect(appServer.args).toContain("web_search=live");
+    expect(appServer.options?.env.OPENAI_API_KEY).toBeUndefined();
+    expect(appServer.killed).toBe(true);
+    expect(existsSync(appServer.options?.cwd ?? "")).toBe(false);
+  });
+
+  test("falls back to a completed final message when no deltas arrive", async () => {
+    const appServer = fakeAppServer((message, server) => {
+      appServerHandshake(message, server, () => {
+        server.emit({
+          method: "item/completed",
+          params: {
+            item: { type: "agentMessage", id: "final", phase: "final_answer", text: "Fallback" },
+          },
+        });
+        server.emit({
+          method: "turn/completed",
+          params: { turn: { id: "turn-1", status: "completed" } },
+        });
+      });
+    });
+    const provider = createCodexProvider(baseConfig, makeSpawn({}), appServer.spawn);
+
+    expect(
+      await collectText(
+        await provider.generateStream({
+          model: "gpt-5.4-mini",
+          messages: [{ role: "user", content: "hi" }],
+        }),
+      ),
+    ).toBe("Fallback");
+  });
+
+  test("kills the process and removes the temporary cwd on cancellation", async () => {
+    const appServer = fakeAppServer((message, server) => {
+      appServerHandshake(message, server, () => {
+        server.emit({
+          method: "item/started",
+          params: { item: { type: "agentMessage", id: "final", phase: "final_answer" } },
+        });
+        server.emit({
+          method: "item/agentMessage/delta",
+          params: { itemId: "final", delta: "partial" },
+        });
+      });
+    });
+    const provider = createCodexProvider(baseConfig, makeSpawn({}), appServer.spawn);
+    const stream = await provider.generateStream({ model: "gpt-5.4-mini", messages: [] });
+    const reader = stream.getReader();
+
+    expect(await reader.read()).toEqual({ done: false, value: "partial" });
+    await reader.cancel();
+
+    expect(appServer.killed).toBe(true);
+    expect(existsSync(appServer.options?.cwd ?? "")).toBe(false);
+  });
+
+  test("surfaces timeout, process failure, and unsupported app-server errors", async () => {
+    const stalled = fakeAppServer((message, server) => appServerHandshake(message, server));
+    const stalledProvider = createCodexProvider(
+      { ...baseConfig, modelTimeoutMs: 1 },
+      makeSpawn({}),
+      stalled.spawn,
+    );
+    await expect(
+      collectText(await stalledProvider.generateStream({ model: "gpt-5.4-mini", messages: [] })),
+    ).rejects.toThrow("timed out");
+
+    const failed = fakeAppServer((message, server) => {
+      appServerHandshake(message, server, () => server.finish(3, "boom"));
+    });
+    const failedProvider = createCodexProvider(baseConfig, makeSpawn({}), failed.spawn);
+    await expect(
+      collectText(await failedProvider.generateStream({ model: "gpt-5.4-mini", messages: [] })),
+    ).rejects.toThrow("exit 3");
+
+    const unsupportedSpawn: SpawnImpl = async (args) => {
+      if (args[1] === "--version") {
+        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "auth") {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      if (args[1] === "app-server") {
+        return { stdout: "", stderr: "unsupported", exitCode: 1 };
+      }
+      return { stdout: agentMessageStream("batch still works"), stderr: "", exitCode: 0 };
+    };
+    const unsupported = createCodexProvider(baseConfig, unsupportedSpawn, failed.spawn);
+    await expect(
+      unsupported.generateStream({ model: "gpt-5.4-mini", messages: [] }),
+    ).rejects.toThrow("app-server streaming is unavailable");
+    await expect(
+      unsupported.generate({ model: "gpt-5.4-mini", messages: [] }),
+    ).resolves.toMatchObject({ content: "batch still works" });
+  });
+
+  test("rejects JSON streaming before starting app-server", async () => {
+    const appServer = fakeAppServer();
+    const provider = createCodexProvider(baseConfig, makeSpawn({}), appServer.spawn);
+
+    await expect(
+      provider.generateStream({ model: "gpt-5.4-mini", messages: [], responseFormat: "json" }),
+    ).rejects.toThrow("does not support JSON");
+    expect(appServer.messages).toHaveLength(0);
   });
 });

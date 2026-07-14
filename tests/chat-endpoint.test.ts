@@ -3,7 +3,12 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RunChatConfig } from "../src/config";
-import type { ModelProvider, ModelRequest, ModelResponse } from "../src/model/types";
+import type {
+  ModelProvider,
+  ModelRequest,
+  ModelResponse,
+  StreamingModelProvider,
+} from "../src/model/types";
 import { handleRunChat, type ReadyChatDeps } from "../app/chat";
 import { handleResearchConsoleRequest } from "../app/server";
 import { researchReport } from "./support/fixtures";
@@ -12,14 +17,24 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function fakeProvider(responseText = "Model response"): ModelProvider {
+function textStream(text: string): ReadableStream<string> {
+  return new ReadableStream<string>({
+    start(controller): void {
+      controller.enqueue(text);
+      controller.close();
+    },
+  });
+}
+
+const generateStub: Pick<ModelProvider, "generate"> = {
+  generate: async (): Promise<ModelResponse> => ({ content: "unused", tokenEstimate: 0 }),
+};
+
+function fakeProvider(responseText = "Model response"): StreamingModelProvider {
   return {
     name: "fake",
-    generate: async (_request: ModelRequest): Promise<ModelResponse> => ({
-      content: responseText,
-      tokenEstimate: 100,
-      costEstimateUsd: 0,
-    }),
+    ...generateStub,
+    generateStream: async (): Promise<ReadableStream<string>> => textStream(responseText),
   };
 }
 
@@ -49,11 +64,13 @@ function chatRequest(
   runId: string,
   messages: readonly { role: string; content: string }[],
   headers: Record<string, string> = {},
+  signal?: AbortSignal,
 ): Request {
   return new Request(`http://127.0.0.1/api/runs/${encodeURIComponent(runId)}/chat`, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify({ messages }),
+    ...(signal !== undefined ? { signal } : {}),
   });
 }
 
@@ -79,6 +96,144 @@ describe("chat endpoint", () => {
     expect(response!.status).toBe(200);
     expect(response!.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     expect(await response!.text()).toBe("Model response");
+  });
+
+  test("exposes streamed chunks before provider completion", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-stream-"));
+    setupRunDir(dataDir, "run-stream");
+    const streamState: { controller?: ReadableStreamDefaultController<string> } = {};
+    const provider: StreamingModelProvider = {
+      name: "streaming",
+      ...generateStub,
+      generateStream: async () =>
+        new ReadableStream<string>({
+          start(streamController): void {
+            streamState.controller = streamController;
+            streamController.enqueue("first ");
+          },
+        }),
+    };
+    const request = chatRequest("run-stream", [{ role: "user", content: "test" }]);
+    const response = await handleRunChat(
+      request,
+      new URL(request.url),
+      chatDeps(dataDir, { provider }),
+    );
+    const reader = response!.body!.getReader();
+
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toBe("first ");
+    streamState.controller?.enqueue("second");
+    streamState.controller?.close();
+    const second = await reader.read();
+    expect(new TextDecoder().decode(second.value)).toBe("second");
+    expect(await reader.read()).toEqual({ done: true, value: undefined });
+  });
+
+  test("propagates mid-stream failures and response cancellation", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-stream-error-"));
+    setupRunDir(dataDir, "run-stream-error");
+    let cancelled = false;
+    const failureState: { controller?: ReadableStreamDefaultController<string> } = {};
+    const failingProvider: StreamingModelProvider = {
+      name: "streaming",
+      ...generateStub,
+      generateStream: async () =>
+        new ReadableStream<string>({
+          start(controller): void {
+            failureState.controller = controller;
+            controller.enqueue("partial");
+          },
+          cancel(): void {
+            cancelled = true;
+          },
+        }),
+    };
+    const request = chatRequest("run-stream-error", [{ role: "user", content: "test" }]);
+    const response = await handleRunChat(
+      request,
+      new URL(request.url),
+      chatDeps(dataDir, { provider: failingProvider }),
+    );
+    const reader = response!.body!.getReader();
+
+    const partial = await reader.read();
+    expect(new TextDecoder().decode(partial.value)).toBe("partial");
+    failureState.controller?.error(new Error("mid-stream failure"));
+    await expect(reader.read()).rejects.toThrow("mid-stream failure");
+
+    const cancellableProvider: StreamingModelProvider = {
+      name: "streaming",
+      ...generateStub,
+      generateStream: async () =>
+        new ReadableStream<string>({
+          start(controller): void {
+            controller.enqueue("partial");
+          },
+          cancel(): void {
+            cancelled = true;
+          },
+        }),
+    };
+    const cancelRequest = chatRequest("run-stream-error", [{ role: "user", content: "test" }]);
+    const cancellableResponse = await handleRunChat(
+      cancelRequest,
+      new URL(cancelRequest.url),
+      chatDeps(dataDir, { provider: cancellableProvider }),
+    );
+    await cancellableResponse!.body!.cancel();
+    expect(cancelled).toBe(true);
+  });
+
+  test("propagates request cancellation during stream negotiation", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-negotiation-cancel-"));
+    setupRunDir(dataDir, "run-negotiation-cancel");
+    const requestController = new AbortController();
+    const providerState: { signal?: AbortSignal } = {};
+    let signalReadyResolve: (() => void) | null = null;
+    const signalReady = new Promise<void>((resolve) => {
+      signalReadyResolve = resolve;
+    });
+    const provider: StreamingModelProvider = {
+      name: "streaming",
+      ...generateStub,
+      generateStream: async (modelRequest) => {
+        if (modelRequest.signal !== undefined) {
+          providerState.signal = modelRequest.signal;
+        }
+        signalReadyResolve?.();
+        return new Promise<ReadableStream<string>>((_, reject) => {
+          if (modelRequest.signal?.aborted === true) {
+            reject(new Error("negotiation aborted"));
+            return;
+          }
+          modelRequest.signal?.addEventListener(
+            "abort",
+            () => reject(new Error("negotiation aborted")),
+            { once: true },
+          );
+        });
+      },
+    };
+    const request = chatRequest(
+      "run-negotiation-cancel",
+      [{ role: "user", content: "test" }],
+      {},
+      requestController.signal,
+    );
+    const responsePromise = handleRunChat(
+      request,
+      new URL(request.url),
+      chatDeps(dataDir, { provider }),
+    );
+
+    await signalReady;
+    requestController.abort();
+    const response = await responsePromise;
+
+    expect(providerState.signal?.aborted).toBe(true);
+    expect(response?.status).toBe(502);
+    expect(await response?.text()).toContain("negotiation aborted");
   });
 
   test("same-origin guard rejects cross-site requests", async () => {
@@ -173,11 +328,12 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-cap");
 
     let capturedMessages: readonly { role: string; content: string }[] = [];
-    const capturingProvider: ModelProvider = {
+    const capturingProvider: StreamingModelProvider = {
       name: "capture",
-      generate: async (request) => {
+      ...generateStub,
+      generateStream: async (request) => {
         capturedMessages = request.messages;
-        return { content: "ok", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("ok");
       },
     };
 
@@ -209,11 +365,12 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-parts");
 
     let capturedMessages: readonly { role: string; content: string }[] = [];
-    const capturingProvider: ModelProvider = {
+    const capturingProvider: StreamingModelProvider = {
       name: "capture",
-      generate: async (request) => {
+      ...generateStub,
+      generateStream: async (request) => {
         capturedMessages = request.messages;
-        return { content: "ok", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("ok");
       },
     };
 
@@ -245,11 +402,12 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-v6-parts");
 
     let capturedMessages: readonly { role: string; content: string }[] = [];
-    const capturingProvider: ModelProvider = {
+    const capturingProvider: StreamingModelProvider = {
       name: "capture",
-      generate: async (request) => {
+      ...generateStub,
+      generateStream: async (request) => {
         capturedMessages = request.messages;
-        return { content: "ok", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("ok");
       },
     };
 
@@ -304,13 +462,14 @@ describe("chat endpoint", () => {
     expect(response).toBeUndefined();
   });
 
-  test("returns 502 when provider generate fails", async () => {
+  test("returns 502 when provider stream negotiation fails", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
     setupRunDir(dataDir, "run-fail");
 
-    const failingProvider: ModelProvider = {
+    const failingProvider: StreamingModelProvider = {
       name: "failing",
-      generate: async () => {
+      ...generateStub,
+      generateStream: async () => {
         throw new Error("Provider unavailable");
       },
     };
@@ -333,13 +492,14 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-ws-codex");
 
     const captured = { webSearch: false as boolean | undefined, systemContent: "" };
-    const codexProvider: ModelProvider = {
+    const codexProvider: StreamingModelProvider = {
       name: "codex",
+      ...generateStub,
       webSearchCapability: async () => ({ supported: true, reason: "supported" }),
-      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+      generateStream: async (req: ModelRequest): Promise<ReadableStream<string>> => {
         captured.webSearch = req.webSearch;
         captured.systemContent = req.messages[0]?.content ?? "";
-        return { content: "searched", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("searched");
       },
     };
 
@@ -364,13 +524,14 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-ws-codex-probe-fail");
 
     const captured = { webSearch: false as boolean | undefined, systemContent: "" };
-    const codexProvider: ModelProvider = {
+    const codexProvider: StreamingModelProvider = {
       name: "codex",
+      ...generateStub,
       webSearchCapability: async () => ({ supported: false, reason: "probe-failed" }),
-      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+      generateStream: async (req: ModelRequest): Promise<ReadableStream<string>> => {
         captured.webSearch = req.webSearch;
         captured.systemContent = req.messages[0]?.content ?? "";
-        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("no search");
       },
     };
 
@@ -396,12 +557,13 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-ws-openai");
 
     const captured = { webSearch: false as boolean | undefined, systemContent: "" };
-    const openaiProvider: ModelProvider = {
+    const openaiProvider: StreamingModelProvider = {
       name: "openai",
-      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+      ...generateStub,
+      generateStream: async (req: ModelRequest): Promise<ReadableStream<string>> => {
         captured.webSearch = req.webSearch;
         captured.systemContent = req.messages[0]?.content ?? "";
-        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("no search");
       },
     };
 
@@ -425,12 +587,13 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-ws-anthropic");
 
     const captured = { webSearch: false as boolean | undefined, systemContent: "" };
-    const anthropicProvider: ModelProvider = {
+    const anthropicProvider: StreamingModelProvider = {
       name: "anthropic",
-      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+      ...generateStub,
+      generateStream: async (req: ModelRequest): Promise<ReadableStream<string>> => {
         captured.webSearch = req.webSearch;
         captured.systemContent = req.messages[0]?.content ?? "";
-        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("no search");
       },
     };
 
@@ -454,12 +617,13 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-ws-compatible");
 
     const captured = { webSearch: false as boolean | undefined, systemContent: "" };
-    const compatibleProvider: ModelProvider = {
+    const compatibleProvider: StreamingModelProvider = {
       name: "openai-compatible",
-      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+      ...generateStub,
+      generateStream: async (req: ModelRequest): Promise<ReadableStream<string>> => {
         captured.webSearch = req.webSearch;
         captured.systemContent = req.messages[0]?.content ?? "";
-        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("no search");
       },
     };
 
@@ -483,12 +647,13 @@ describe("chat endpoint", () => {
     setupRunDir(dataDir, "run-ws-off");
 
     const captured = { webSearch: false as boolean | undefined, systemContent: "" };
-    const codexProvider: ModelProvider = {
+    const codexProvider: StreamingModelProvider = {
       name: "codex",
-      generate: async (req: ModelRequest): Promise<ModelResponse> => {
+      ...generateStub,
+      generateStream: async (req: ModelRequest): Promise<ReadableStream<string>> => {
         captured.webSearch = req.webSearch;
         captured.systemContent = req.messages[0]?.content ?? "";
-        return { content: "no search", tokenEstimate: 10, costEstimateUsd: 0 };
+        return textStream("no search");
       },
     };
 
@@ -509,10 +674,11 @@ describe("chat endpoint", () => {
 
   test("reports active search capability for configured supported codex", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "chat-cap-"));
-    const codexProvider: ModelProvider = {
+    const codexProvider: StreamingModelProvider = {
       name: "codex",
+      ...generateStub,
       webSearchCapability: async () => ({ supported: true, reason: "supported" }),
-      generate: async () => ({ content: "ok", tokenEstimate: 10, costEstimateUsd: 0 }),
+      generateStream: async () => textStream("ok"),
     };
 
     const request = new Request("http://127.0.0.1/api/runs/run-cap/chat/search-capability");

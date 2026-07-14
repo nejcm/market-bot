@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
-import type { ModelMessage, ModelProvider, ModelRequest, ModelResponse } from "./types";
+import { decodeServerSentEvents, mapSseEventsToText, type SseTextResult } from "./sse";
+import type { ModelMessage, ModelRequest, ModelResponse, StreamingModelProvider } from "./types";
 import { estimateAnthropicCost } from "./pricing";
 
 const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
@@ -65,6 +66,55 @@ function estimateTokens(messages: readonly ModelMessage[]): number {
   return Math.ceil(messages.reduce((total, message) => total + message.content.length / 4, 0));
 }
 
+function anthropicRequestBody(request: ModelRequest, stream = false): Record<string, unknown> {
+  const system = buildSystem(request.messages, request.responseFormat);
+  const messages = request.messages
+    .filter((message) => message.role !== "system")
+    .map((message) => ({ role: message.role, content: message.content }));
+
+  return {
+    model: request.model,
+    max_tokens: request.params?.max_completion_tokens ?? DEFAULT_MAX_TOKENS,
+    ...(system !== undefined ? { system } : {}),
+    messages,
+    ...(stream ? { stream: true } : {}),
+    ...(request.webSearch === true
+      ? { tools: [{ type: ANTHROPIC_WEB_SEARCH_TOOL_TYPE, name: "web_search" }] }
+      : {}),
+    ...(request.params?.reasoningEffort !== undefined
+      ? { output_config: { effort: request.params.reasoningEffort } }
+      : {}),
+  };
+}
+
+function parseAnthropicStreamEvent(event: string | undefined, data: string): SseTextResult {
+  let payload: unknown = undefined;
+  try {
+    payload = JSON.parse(data) as unknown;
+  } catch {
+    throw new Error("Anthropic stream included malformed JSON");
+  }
+  if (event === "error") {
+    const errorPayload = readAnthropicErrorResponse(payload);
+    const detail = errorPayload.error?.message ?? errorPayload.error?.type ?? data;
+    throw new Error(`Anthropic stream failed: ${detail}`);
+  }
+  if (event === "message_stop") {
+    return { done: true };
+  }
+  if (event !== "content_block_delta" || typeof payload !== "object" || payload === null) {
+    return {};
+  }
+  const { delta } = payload as { readonly delta?: unknown };
+  if (typeof delta !== "object" || delta === null) {
+    return {};
+  }
+  const typedDelta = delta as { readonly type?: unknown; readonly text?: unknown };
+  return typedDelta.type === "text_delta" && typeof typedDelta.text === "string"
+    ? { text: typedDelta.text }
+    : {};
+}
+
 async function buildErrorMessage(response: Response): Promise<string> {
   const status = String(response.status);
   const body = await response.text();
@@ -94,7 +144,7 @@ async function buildErrorMessage(response: Response): Promise<string> {
 export function createAnthropicProvider(
   config: AppConfig,
   fetchImpl: FetchLike = fetch,
-): ModelProvider {
+): StreamingModelProvider {
   if (config.apiKey === undefined) {
     throw new Error("ANTHROPIC_API_KEY or MARKET_BOT_ANTHROPIC_API_KEY is required");
   }
@@ -102,12 +152,22 @@ export function createAnthropicProvider(
 
   return {
     name: "anthropic",
-    generate: async (request: ModelRequest): Promise<ModelResponse> => {
-      const system = buildSystem(request.messages, request.responseFormat);
-      const messages = request.messages
-        .filter((message) => message.role !== "system")
-        .map((message) => ({ role: message.role, content: message.content }));
+    generateStream: async (request: ModelRequest): Promise<ReadableStream<string>> => {
+      if (request.responseFormat === "json") {
+        throw new Error("Anthropic streaming does not support JSON response format");
+      }
+      if (request.webSearch === true) {
+        throw new Error("Anthropic streaming does not support web search");
+      }
 
+      request.signal?.throwIfAborted();
+      const abortController = new AbortController();
+      const abortFromRequest = (): void => abortController.abort(request.signal?.reason);
+      if (request.signal?.aborted === true) {
+        abortFromRequest();
+      } else {
+        request.signal?.addEventListener("abort", abortFromRequest, { once: true });
+      }
       const response = await fetchImpl(`${ANTHROPIC_BASE_URL}/messages`, {
         method: "POST",
         headers: {
@@ -115,18 +175,34 @@ export function createAnthropicProvider(
           "x-api-key": apiKey,
           "anthropic-version": ANTHROPIC_VERSION,
         },
-        body: JSON.stringify({
-          model: request.model,
-          max_tokens: request.params?.max_completion_tokens ?? DEFAULT_MAX_TOKENS,
-          ...(system !== undefined ? { system } : {}),
-          messages,
-          ...(request.webSearch === true
-            ? { tools: [{ type: ANTHROPIC_WEB_SEARCH_TOOL_TYPE, name: "web_search" }] }
-            : {}),
-          ...(request.params?.reasoningEffort !== undefined
-            ? { output_config: { effort: request.params.reasoningEffort } }
-            : {}),
-        }),
+        body: JSON.stringify(anthropicRequestBody(request, true)),
+        signal: abortController.signal,
+      });
+      if (!response.ok) {
+        const message = await buildErrorMessage(response);
+        abortController.abort();
+        throw new Error(message);
+      }
+      if (response.body === null) {
+        abortController.abort();
+        throw new Error("Anthropic streaming response did not include a body");
+      }
+
+      return mapSseEventsToText(decodeServerSentEvents(response.body), {
+        providerName: "Anthropic",
+        parse: (event) => parseAnthropicStreamEvent(event.event, event.data),
+        cancel: () => abortController.abort(),
+      });
+    },
+    generate: async (request: ModelRequest): Promise<ModelResponse> => {
+      const response = await fetchImpl(`${ANTHROPIC_BASE_URL}/messages`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": ANTHROPIC_VERSION,
+        },
+        body: JSON.stringify(anthropicRequestBody(request)),
       });
 
       if (!response.ok) {

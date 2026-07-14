@@ -1,10 +1,25 @@
 import type { AppConfig } from "../config";
-import type { ModelProvider, ModelRequest, ModelResponse } from "./types";
+import { decodeServerSentEvents, mapSseEventsToText, type SseTextResult } from "./sse";
+import type { ModelRequest, ModelResponse, StreamingModelProvider } from "./types";
 import { estimateOpenAICost } from "./pricing";
 
 interface OpenAIChoice {
   readonly message?: {
     readonly content?: string;
+  };
+}
+
+interface OpenAIStreamChoice {
+  readonly delta?: {
+    readonly content?: string;
+  };
+}
+
+interface OpenAIStreamChunk {
+  readonly choices?: readonly OpenAIStreamChoice[];
+  readonly error?: {
+    readonly message?: string;
+    readonly type?: string;
   };
 }
 
@@ -53,6 +68,51 @@ function readOpenAIResponsesResponse(value: unknown): OpenAIResponsesResponse {
   return typeof value === "object" && value !== null ? (value as OpenAIResponsesResponse) : {};
 }
 
+function chatCompletionsBody(request: ModelRequest, stream = false): Record<string, unknown> {
+  return {
+    model: request.model,
+    messages: request.messages,
+    ...(stream ? { stream: true } : {}),
+    ...(!stream && request.responseFormat === "json"
+      ? { response_format: { type: "json_object" } }
+      : {}),
+    ...(request.params?.temperature !== undefined
+      ? { temperature: request.params.temperature }
+      : {}),
+    ...(request.params?.top_p !== undefined ? { top_p: request.params.top_p } : {}),
+    ...(request.params?.max_completion_tokens !== undefined
+      ? { max_completion_tokens: request.params.max_completion_tokens }
+      : {}),
+    ...(request.params?.seed !== undefined ? { seed: request.params.seed } : {}),
+    ...(request.params?.frequency_penalty !== undefined
+      ? { frequency_penalty: request.params.frequency_penalty }
+      : {}),
+    ...(request.params?.presence_penalty !== undefined
+      ? { presence_penalty: request.params.presence_penalty }
+      : {}),
+    ...(request.params?.stop !== undefined ? { stop: request.params.stop } : {}),
+    ...(request.params?.reasoningEffort !== undefined
+      ? { reasoning_effort: request.params.reasoningEffort }
+      : {}),
+    ...(request.params?.verbosity !== undefined ? { verbosity: request.params.verbosity } : {}),
+  };
+}
+
+function parseOpenAIStreamEvent(data: string): SseTextResult {
+  let payload: OpenAIStreamChunk = {};
+  try {
+    payload = JSON.parse(data) as OpenAIStreamChunk;
+  } catch {
+    throw new Error("OpenAI stream included malformed JSON");
+  }
+  if (payload.error !== undefined) {
+    const detail = payload.error.message ?? payload.error.type ?? "unknown provider error";
+    throw new Error(`OpenAI stream failed: ${detail}`);
+  }
+  const text = payload.choices?.map((choice) => choice.delta?.content ?? "").join("");
+  return text !== undefined ? { text } : {};
+}
+
 function openAIResponsesInput(messages: ModelRequest["messages"]): readonly {
   readonly role: "system" | "user" | "assistant";
   readonly content: string;
@@ -76,7 +136,7 @@ function openAIResponsesContent(payload: OpenAIResponsesResponse): string | unde
 export function createOpenAIProvider(
   config: AppConfig,
   fetchImpl: FetchLike = fetch,
-): ModelProvider {
+): StreamingModelProvider {
   if (config.apiKey === undefined) {
     throw new Error("OPENAI_API_KEY or MARKET_BOT_OPENAI_API_KEY is required");
   }
@@ -85,6 +145,51 @@ export function createOpenAIProvider(
 
   return {
     name: config.provider,
+    generateStream: async (request: ModelRequest): Promise<ReadableStream<string>> => {
+      if (request.responseFormat === "json") {
+        throw new Error("OpenAI streaming does not support JSON response format");
+      }
+      if (request.webSearch === true) {
+        throw new Error("OpenAI streaming does not support web search");
+      }
+
+      request.signal?.throwIfAborted();
+      const abortController = new AbortController();
+      const abortFromRequest = (): void => abortController.abort(request.signal?.reason);
+      if (request.signal?.aborted === true) {
+        abortFromRequest();
+      } else {
+        request.signal?.addEventListener("abort", abortFromRequest, { once: true });
+      }
+      const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify(chatCompletionsBody(request, true)),
+        signal: abortController.signal,
+      });
+      if (!response.ok) {
+        abortController.abort();
+        throw new Error(`OpenAI request failed with status ${response.status}`);
+      }
+      if (response.body === null) {
+        abortController.abort();
+        throw new Error("OpenAI streaming response did not include a body");
+      }
+
+      return mapSseEventsToText(decodeServerSentEvents(response.body), {
+        providerName: "OpenAI",
+        parse: (event) => {
+          if (event.event === "error") {
+            throw new Error(`OpenAI stream failed: ${event.data}`);
+          }
+          return parseOpenAIStreamEvent(event.data);
+        },
+        cancel: () => abortController.abort(),
+      });
+    },
     generate: async (request: ModelRequest): Promise<ModelResponse> => {
       if (request.webSearch === true) {
         if (request.responseFormat === "json") {
@@ -151,32 +256,7 @@ export function createOpenAIProvider(
           "content-type": "application/json",
           authorization: `Bearer ${config.apiKey}`,
         },
-        body: JSON.stringify({
-          model: request.model,
-          messages: request.messages,
-          response_format: request.responseFormat === "json" ? { type: "json_object" } : undefined,
-          ...(request.params?.temperature !== undefined
-            ? { temperature: request.params.temperature }
-            : {}),
-          ...(request.params?.top_p !== undefined ? { top_p: request.params.top_p } : {}),
-          ...(request.params?.max_completion_tokens !== undefined
-            ? { max_completion_tokens: request.params.max_completion_tokens }
-            : {}),
-          ...(request.params?.seed !== undefined ? { seed: request.params.seed } : {}),
-          ...(request.params?.frequency_penalty !== undefined
-            ? { frequency_penalty: request.params.frequency_penalty }
-            : {}),
-          ...(request.params?.presence_penalty !== undefined
-            ? { presence_penalty: request.params.presence_penalty }
-            : {}),
-          ...(request.params?.stop !== undefined ? { stop: request.params.stop } : {}),
-          ...(request.params?.reasoningEffort !== undefined
-            ? { reasoning_effort: request.params.reasoningEffort }
-            : {}),
-          ...(request.params?.verbosity !== undefined
-            ? { verbosity: request.params.verbosity }
-            : {}),
-        }),
+        body: JSON.stringify(chatCompletionsBody(request)),
       });
 
       if (!response.ok) {

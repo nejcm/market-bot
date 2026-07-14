@@ -6,7 +6,7 @@
 - **Explicit types on public exports.** Locals can be inferred.
 - **`unknown` over `any`.** Narrow with type guards.
 - **`interface`** for object shapes, **`type`** for unions/intersections/tuples.
-- **Custom runtime validation at boundaries.** Validate untrusted reads with type guards (`isRecord`, `readString`, `readNumber`); see `src/report/schema.ts` and `src/sources/guards.ts`. No Zod dependency.
+- **Custom runtime validation at boundaries.** Validate untrusted reads with type guards (`isRecord`, `readString`, `readNumber`); see `src/report/schema.ts` and `src/guards.ts`. No Zod dependency.
 - **No `console.log` in `src/`.** The CLI writes to `process.stdout` / `process.stderr` explicitly.
 - **Early returns** over deep nesting (>4 levels is a smell).
 - **Name your magic numbers.** Pattern in repo: `MAX_SCORE_ATTEMPTS`, `SCORE_FILE`.

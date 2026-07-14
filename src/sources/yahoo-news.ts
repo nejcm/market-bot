@@ -1,5 +1,5 @@
 import type { AssetClass, Source } from "../domain/types";
-import { isRecord, optionalString, readString } from "./guards";
+import { isRecord, optionalString, readString } from "../guards";
 import { canonicalizeUrl, encodeQuery, newsQuery } from "./news-utils";
 import {
   isFetchJsonResult,

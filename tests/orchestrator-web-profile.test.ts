@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
-import { isRecord } from "../src/sources/guards";
+import { isRecord } from "../src/guards";
 import { collectedSources as collectedSourceBundle } from "./support/fixtures";
 import {
   config,

@@ -1,5 +1,5 @@
 import { predictions, type PredictionView } from "../src/run-artifact-projection";
-import { isRecord, readNumber } from "../src/sources/guards";
+import { isRecord, readNumber, readStringVerbatim } from "../src/guards";
 
 export {
   extendedEvidenceItems,
@@ -90,18 +90,12 @@ export interface PredictionTargetHealth {
   readonly targetMet: boolean;
 }
 
-// Verbatim string reader: unlike guards.readString this preserves empty/whitespace values.
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
-
 function readPredictionScoreStatus(
   item: Record<string, unknown>,
   resolved: boolean,
   outcome: "hit" | "miss" | undefined,
 ): PredictionScoreStatus {
-  const status = readString(item, "status");
+  const status = readStringVerbatim(item, "status");
   if (
     status === "pending" ||
     status === "pending-condition" ||
@@ -129,22 +123,22 @@ export function predictionScores(
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const predictionId = readString(item, "predictionId");
+      const predictionId = readStringVerbatim(item, "predictionId");
       if (predictionId === undefined) {
         return [];
       }
 
       const resolved = item.resolved === true;
-      const rawOutcome = readString(item, "outcome");
+      const rawOutcome = readStringVerbatim(item, "outcome");
       const outcome = rawOutcome === "hit" || rawOutcome === "miss" ? rawOutcome : undefined;
       const status = readPredictionScoreStatus(item, resolved, outcome);
-      const observedAt = readString(item, "observedAt");
+      const observedAt = readStringVerbatim(item, "observedAt");
       const evidence = isRecord(item.evidence) ? item.evidence : {};
       const close0 = readNumber(evidence, "close0");
       const closeN = readNumber(evidence, "closeN");
       const hasCloses = close0 !== undefined && closeN !== undefined;
       const changePct = hasCloses && close0 !== 0 ? ((closeN - close0) / close0) * 100 : undefined;
-      const pendingReason = readString(evidence, "reason");
+      const pendingReason = readStringVerbatim(evidence, "reason");
       return [
         {
           predictionId,
@@ -219,7 +213,7 @@ export function forecastDisagreements(
     if (!isRecord(item)) {
       return [];
     }
-    const predictionId = readString(item, "predictionId");
+    const predictionId = readStringVerbatim(item, "predictionId");
     const meanProbability = readNumber(item, "meanProbability");
     const probabilityVariance = readNumber(item, "probabilityVariance");
     const probabilitySpread = readNumber(item, "probabilitySpread");
@@ -261,10 +255,10 @@ export function missAutopsies(
     if (!isRecord(item)) {
       return [];
     }
-    const predictionId = readString(item, "predictionId");
-    const cause = readString(item, "cause");
-    const forecastError = readString(item, "forecastError");
-    const rationale = readString(item, "rationale");
+    const predictionId = readStringVerbatim(item, "predictionId");
+    const cause = readStringVerbatim(item, "cause");
+    const forecastError = readStringVerbatim(item, "forecastError");
+    const rationale = readStringVerbatim(item, "rationale");
     if (
       predictionId === undefined ||
       cause === undefined ||

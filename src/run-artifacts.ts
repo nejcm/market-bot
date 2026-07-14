@@ -69,7 +69,7 @@ import {
   readString,
   readStringArray,
   stringArrayValue,
-} from "./sources/guards";
+} from "./guards";
 
 // ---------------------------------------------------------------------------
 // Run Artifact reader — the single read seam for persisted research runs under

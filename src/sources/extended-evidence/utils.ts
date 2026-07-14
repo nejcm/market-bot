@@ -1,4 +1,4 @@
-import { isRecord, readNumber, readString } from "../guards";
+import { isRecord, readNumber, readString } from "../../guards";
 
 export function encodeQuery(params: Record<string, string>): string {
   return new URLSearchParams(params).toString();

@@ -3,7 +3,7 @@ import {
   marketUpdateHorizonBucketOf,
   type SourceGapCause,
 } from "../domain/types";
-import { numberAt } from "../sources/guards";
+import { numberAt } from "../guards";
 import { hasNonUsSuffix, isInternationalIdentity } from "../sources/instrument-capability";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";
 

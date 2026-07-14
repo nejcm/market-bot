@@ -27,7 +27,7 @@ import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
 import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
-import { isRecord } from "../sources/guards";
+import { isRecord, readStringVerbatim } from "../guards";
 
 export const HISTORY_SECTIONS = [...REPORT_SEARCH_SECTIONS, "fundamentals", "validation"] as const;
 
@@ -220,11 +220,6 @@ function sidecarFingerprintMatches(
   indexed: readonly HistorySourceSidecar[] | undefined,
 ): boolean {
   return JSON.stringify(current) === JSON.stringify(indexed ?? []);
-}
-
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
 }
 
 export async function readJson(path: string): Promise<unknown | undefined> {
@@ -445,7 +440,7 @@ export function buildInstrumentTimelines(
         ...(identity !== undefined ? { identity } : {}),
         ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
         snapshots: run.snapshots.filter(
-          (snapshot) => readString(snapshot, "symbol")?.toUpperCase() === symbol,
+          (snapshot) => readStringVerbatim(snapshot, "symbol")?.toUpperCase() === symbol,
         ),
         fundamentals: run.fundamentals,
         validation: run.validation,

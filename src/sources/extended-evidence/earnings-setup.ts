@@ -1,6 +1,6 @@
 import type { SourceGap } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
-import { isRecord, readNumber, readString } from "../guards";
+import { isRecord, readNumber, readString } from "../../guards";
 import { tradierRequestInit } from "../tradier";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import { encodeQuery, readArray } from "./utils";

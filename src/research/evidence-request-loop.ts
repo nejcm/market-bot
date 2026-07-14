@@ -11,7 +11,7 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import {
   availableEvidenceRequestTools,

@@ -1,7 +1,7 @@
 import type { Prediction } from "../domain/types";
 import type { ModelParams, ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
-import { isRecord, readNumber, readString } from "../sources/guards";
+import { isRecord, readNumber, readString } from "../guards";
 import type { LoadedPrompt } from "./prompt-loader";
 import type { StageOutput } from "./final-synthesis";
 

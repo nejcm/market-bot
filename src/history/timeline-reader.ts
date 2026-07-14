@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { AssetClass } from "../domain/types";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { scanRunArtifacts } from "../run-artifacts";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import {
   buildInstrumentTimelines,
   historyDir,

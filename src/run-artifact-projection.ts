@@ -3,18 +3,17 @@ import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { ReportSearchCandidate } from "./report-search-entries";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
-import { isRecord, parseStringArrayJson, readNumber, stringArrayValue } from "./sources/guards";
+import {
+  isRecord,
+  parseStringArrayJson,
+  readNumber,
+  readStringVerbatim,
+  stringArrayValue,
+} from "./guards";
 
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SNIPPET_RADIUS = 72;
 const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
-
-// Local, non-trimming string reader for summary projection.
-// Values are preserved verbatim, unlike guards.readString which drops empty/whitespace.
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
 
 function arrayCount(record: Record<string, unknown>, key: string): number {
   const value = record[key];
@@ -26,7 +25,7 @@ function arrayCount(record: Record<string, unknown>, key: string): number {
 // Index row path (typed ResearchReport). The narrow parameter type accepts either.
 export function readDepth(report: { readonly extras?: unknown }): string | undefined {
   const { extras } = report;
-  return isRecord(extras) ? readString(extras, "depth") : undefined;
+  return isRecord(extras) ? readStringVerbatim(extras, "depth") : undefined;
 }
 
 export function runSummaryFromReport(
@@ -34,18 +33,18 @@ export function runSummaryFromReport(
   report: Record<string, unknown> | undefined,
   availableFiles: readonly string[],
 ): RunSummary {
-  const generatedAt = report === undefined ? undefined : readString(report, "generatedAt");
-  const jobType = report === undefined ? undefined : readString(report, "jobType");
-  const assetClass = report === undefined ? undefined : readString(report, "assetClass");
-  const symbol = report === undefined ? undefined : readString(report, "symbol");
+  const generatedAt = report === undefined ? undefined : readStringVerbatim(report, "generatedAt");
+  const jobType = report === undefined ? undefined : readStringVerbatim(report, "jobType");
+  const assetClass = report === undefined ? undefined : readStringVerbatim(report, "assetClass");
+  const symbol = report === undefined ? undefined : readStringVerbatim(report, "symbol");
   const depth = report === undefined ? undefined : readDepth(report);
   const confidence =
     report === undefined
       ? undefined
-      : (readString(report, "evidenceQuality") ?? readString(report, "confidence"));
+      : (readStringVerbatim(report, "evidenceQuality") ?? readStringVerbatim(report, "confidence"));
 
   return {
-    runId: readString(report ?? {}, "runId") ?? runId,
+    runId: readStringVerbatim(report ?? {}, "runId") ?? runId,
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     ...(jobType !== undefined ? { jobType } : {}),
     ...(assetClass !== undefined ? { assetClass } : {}),
@@ -186,8 +185,8 @@ export function scenarios(report: Record<string, unknown> | undefined): readonly
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const name = readString(item, "name");
-      const description = readString(item, "description");
+      const name = readStringVerbatim(item, "name");
+      const description = readStringVerbatim(item, "description");
       return name === undefined || description === undefined
         ? []
         : [{ name, description, sourceIds: stringArrayValue(item.sourceIds) }];
@@ -216,15 +215,15 @@ export function predictions(
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const id = readString(item, "id");
-      const storedClaim = readString(item, "claim");
-      const measurableAs = readString(item, "measurableAs");
+      const id = readStringVerbatim(item, "id");
+      const storedClaim = readStringVerbatim(item, "claim");
+      const measurableAs = readStringVerbatim(item, "measurableAs");
       const claim =
         measurableAs === undefined
           ? storedClaim
           : renderClaimForMeasurableAs(measurableAs, storedClaim);
-      const kind = readString(item, "kind");
-      const subject = readString(item, "subject");
+      const kind = readStringVerbatim(item, "kind");
+      const subject = readStringVerbatim(item, "subject");
       const probability = readNumber(item, "probability");
       const horizonTradingDays = readNumber(item, "horizonTradingDays");
       return id === undefined || claim === undefined
@@ -253,7 +252,7 @@ export interface SourceView {
 }
 
 function readHttpUrl(record: Record<string, unknown>, key: string): string | undefined {
-  const value = readString(record, key);
+  const value = readStringVerbatim(record, key);
   if (value === undefined) {
     return undefined;
   }
@@ -275,10 +274,10 @@ export function sources(report: Record<string, unknown> | undefined): readonly S
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const id = readString(item, "id");
-      const title = readString(item, "title");
-      const kind = readString(item, "kind");
-      const provider = readString(item, "provider");
+      const id = readStringVerbatim(item, "id");
+      const title = readStringVerbatim(item, "title");
+      const kind = readStringVerbatim(item, "kind");
+      const provider = readStringVerbatim(item, "provider");
       const url = readHttpUrl(item, "url");
       return id === undefined || title === undefined
         ? []

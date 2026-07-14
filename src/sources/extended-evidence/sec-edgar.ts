@@ -2,7 +2,7 @@ import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
 import { isInstrumentCommand } from "../../cli/args";
 import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
-import { isRecord, readNumber, readString } from "../guards";
+import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";

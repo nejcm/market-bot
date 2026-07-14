@@ -25,6 +25,7 @@ import type {
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
+import { isRecord, numberAt, readStringVerbatim } from "../../src/guards";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
@@ -666,9 +667,9 @@ function businessFrameworkMetricTile(value: unknown): BusinessFrameworkMetricTil
   if (record === undefined) {
     return undefined;
   }
-  const key = readStringField(record, "key");
-  const label = readStringField(record, "label");
-  const unit = readStringField(record, "unit");
+  const key = readStringVerbatim(record, "key");
+  const label = readStringVerbatim(record, "label");
+  const unit = readStringVerbatim(record, "unit");
   const raw = record.value;
   if (
     key === undefined ||
@@ -679,7 +680,7 @@ function businessFrameworkMetricTile(value: unknown): BusinessFrameworkMetricTil
   ) {
     return undefined;
   }
-  const currency = readStringField(record, "currency");
+  const currency = readStringVerbatim(record, "currency");
   const typedUnit = unit as BusinessFrameworkMetric["unit"];
   return {
     key,
@@ -694,7 +695,7 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
   if (record === undefined) {
     return undefined;
   }
-  const phase = readStringField(record, "phase");
+  const phase = readStringVerbatim(record, "phase");
   if (phase === undefined || !isBusinessLifecyclePhase(phase)) {
     return undefined;
   }
@@ -704,9 +705,9 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
     if (section === undefined) {
       return [];
     }
-    const name = readStringField(section, "name");
-    const posture = readStringField(section, "posture");
-    const summary = readStringField(section, "summary");
+    const name = readStringVerbatim(section, "name");
+    const posture = readStringVerbatim(section, "posture");
+    const summary = readStringVerbatim(section, "summary");
     if (
       name === undefined ||
       posture === undefined ||
@@ -716,7 +717,7 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
     ) {
       return [];
     }
-    const text = readStringField(section, "text");
+    const text = readStringVerbatim(section, "text");
     const metrics = Array.isArray(section.metrics)
       ? section.metrics.flatMap((metric) => {
           const tile = businessFrameworkMetricTile(metric);
@@ -752,7 +753,7 @@ function businessFrameworkGapTexts(value: unknown): readonly string[] {
       return [gap];
     }
     const record = readRecord(gap);
-    const text = record === undefined ? undefined : readStringField(record, "text");
+    const text = record === undefined ? undefined : readStringVerbatim(record, "text");
     return text === undefined ? [] : [text];
   });
 }
@@ -798,7 +799,7 @@ function webProfileFacts(value: unknown): readonly WebSubjectProfileFactView[] {
   return Array.isArray(value)
     ? value.flatMap((item): readonly WebSubjectProfileFactView[] => {
         const record = readRecord(item);
-        const claim = readStringField(record, "claim");
+        const claim = readStringVerbatim(record, "claim");
         const sourceIds = stringArray(record?.sourceIds);
         return claim === undefined || sourceIds.length === 0 ? [] : [{ claim, sourceIds }];
       })
@@ -811,7 +812,7 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
     return undefined;
   }
   const rawQuestions = readRecord(record.questions);
-  const subjectKind = readStringField(record, "subjectKind");
+  const subjectKind = readStringVerbatim(record, "subjectKind");
   const keys =
     subjectKind === "company" || subjectKind === "crypto-asset" || subjectKind === "theme"
       ? WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]
@@ -821,14 +822,14 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
       ? []
       : keys.flatMap((key): readonly WebSubjectProfileQuestionView[] => {
           const question = readRecord(rawQuestions[key]);
-          const answer = readStringField(question, "answer");
+          const answer = readStringVerbatim(question, "answer");
           const sourceIds = stringArray(question?.sourceIds);
           return answer === undefined || answer === "" || sourceIds.length === 0
             ? []
             : [{ key, label: WEB_SUBJECT_PROFILE_QUESTION_LABELS[key], answer, sourceIds }];
         });
   const rawSummary = readRecord(record.subjectSummary);
-  const summaryAnswer = readStringField(rawSummary, "answer");
+  const summaryAnswer = readStringVerbatim(rawSummary, "answer");
   const summarySourceIds = stringArray(rawSummary?.sourceIds);
   const subjectSummary =
     summaryAnswer === undefined || summaryAnswer === "" || summarySourceIds.length === 0
@@ -851,8 +852,8 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
     return undefined;
   }
   const subjectLabel =
-    readStringField(record, "subjectLabel") ?? readStringField(record, "companyName");
-  const generatedAt = readStringField(record, "generatedAt");
+    readStringVerbatim(record, "subjectLabel") ?? readStringVerbatim(record, "companyName");
+  const generatedAt = readStringVerbatim(record, "generatedAt");
   return {
     ...(subjectKind !== undefined ? { subjectKind } : {}),
     ...(subjectLabel !== undefined ? { subjectLabel } : {}),
@@ -952,22 +953,7 @@ function horizonBucketRank(bucket: string): number {
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function readNumberField(record: Record<string, unknown> | undefined, key: string): number {
-  const value = record?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function readStringField(
-  record: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
-  const value = record?.[key];
-  return typeof value === "string" ? value : undefined;
+  return isRecord(value) ? value : undefined;
 }
 
 function formatSkill(value: number | undefined): string {
@@ -997,13 +983,13 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
 
     const predictions = readRecord(analytics.predictions);
     const shortfall = readRecord(predictions?.shortfall);
-    const targetCount = readNumberField(predictions, "targetCount");
-    const count = readNumberField(predictions, "count");
+    const targetCount = numberAt(predictions, ["targetCount"]);
+    const count = numberAt(predictions, ["count"]);
     const targetMet = predictions?.targetMet === true;
     const calibration = preferredCalibrationSlice(analytics);
     const snapshot = readRecord(analytics.verifiedMarketSnapshot);
     const snapshotAge = readFiniteNumber(snapshot?.latestSessionAgeDays);
-    const snapshotSymbol = readStringField(snapshot, "symbol");
+    const snapshotSymbol = readStringVerbatim(snapshot, "symbol");
 
     return [
       {
@@ -1015,7 +1001,7 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
         shortfall:
           shortfall === undefined
             ? "none"
-            : `${String(readNumberField(shortfall, "missingCount"))} missing${
+            : `${String(numberAt(shortfall, ["missingCount"]))} missing${
                 shortfall.disclosed === true ? ", disclosed" : ""
               }`,
         calibration: formatSkill(readFiniteNumber(calibration?.brierSkillScore)),
@@ -1037,31 +1023,31 @@ export function historicalContextAuditView(
   }
 
   return {
-    scannedRunCount: readNumberField(audit, "scannedRunCount"),
-    candidateRunCount: readNumberField(audit, "candidateRunCount"),
-    selectedRunCount: readNumberField(audit, "selectedRunCount"),
-    recentSelectedCount: readNumberField(audit, "recentSelectedCount"),
-    anchorSelectedCount: readNumberField(audit, "anchorSelectedCount"),
-    sameSymbolSelectedCount: readNumberField(audit, "sameSymbolSelectedCount"),
-    spotlightSymbolSelectedCount: readNumberField(audit, "spotlightSymbolSelectedCount"),
-    sameSubjectSelectedCount: readNumberField(audit, "sameSubjectSelectedCount"),
-    sameHorizonSelectedCount: readNumberField(audit, "sameHorizonSelectedCount"),
-    crossHorizonSelectedCount: readNumberField(audit, "crossHorizonSelectedCount"),
-    resolvedMissRunCount: readNumberField(audit, "resolvedMissRunCount"),
-    missCorrectionSelectedCount: readNumberField(audit, "missCorrectionSelectedCount"),
-    gapCount: readNumberField(audit, "gapCount"),
+    scannedRunCount: numberAt(audit, ["scannedRunCount"]),
+    candidateRunCount: numberAt(audit, ["candidateRunCount"]),
+    selectedRunCount: numberAt(audit, ["selectedRunCount"]),
+    recentSelectedCount: numberAt(audit, ["recentSelectedCount"]),
+    anchorSelectedCount: numberAt(audit, ["anchorSelectedCount"]),
+    sameSymbolSelectedCount: numberAt(audit, ["sameSymbolSelectedCount"]),
+    spotlightSymbolSelectedCount: numberAt(audit, ["spotlightSymbolSelectedCount"]),
+    sameSubjectSelectedCount: numberAt(audit, ["sameSubjectSelectedCount"]),
+    sameHorizonSelectedCount: numberAt(audit, ["sameHorizonSelectedCount"]),
+    crossHorizonSelectedCount: numberAt(audit, ["crossHorizonSelectedCount"]),
+    resolvedMissRunCount: numberAt(audit, ["resolvedMissRunCount"]),
+    missCorrectionSelectedCount: numberAt(audit, ["missCorrectionSelectedCount"]),
+    gapCount: numberAt(audit, ["gapCount"]),
   };
 }
 
 export function alphaCohortHeadline(detail: AlphaCohortDetail): AlphaCohortHeadline {
   const { summary } = detail;
-  const generatedAt = readStringField(summary, "generatedAt");
+  const generatedAt = readStringVerbatim(summary, "generatedAt");
   return {
     ...(generatedAt !== undefined ? { generatedAt } : {}),
-    rejectedCandidateCount: readNumberField(summary, "rejectedCandidateCount"),
-    watchlistCandidateCount: readNumberField(summary, "watchlistCandidateCount"),
-    tickerBriefedLeadCount: readNumberField(summary, "tickerBriefedLeadCount"),
-    unbriefedLeadCount: readNumberField(summary, "unbriefedLeadCount"),
+    rejectedCandidateCount: numberAt(summary, ["rejectedCandidateCount"]),
+    watchlistCandidateCount: numberAt(summary, ["watchlistCandidateCount"]),
+    tickerBriefedLeadCount: numberAt(summary, ["tickerBriefedLeadCount"]),
+    unbriefedLeadCount: numberAt(summary, ["unbriefedLeadCount"]),
   };
 }
 
@@ -1077,7 +1063,7 @@ function metricText(metrics: unknown): string {
       if (metric === undefined) {
         return [];
       }
-      const resolvedCount = readNumberField(metric, "resolvedCount");
+      const resolvedCount = numberAt(metric, ["resolvedCount"]);
       if (resolvedCount === 0) {
         return [];
       }
@@ -1103,10 +1089,10 @@ export function alphaRejectionBucketRows(
   return buckets
     .filter((bucket): bucket is Record<string, unknown> => readRecord(bucket) !== undefined)
     .map((bucket) => ({
-      reason: readStringField(bucket, "reason") ?? "unknown",
-      rejectedCount: readNumberField(bucket, "rejectedCount"),
-      uniqueSymbolCount: readNumberField(bucket, "uniqueSymbolCount"),
-      laterValidatedSymbolCount: readNumberField(bucket, "laterValidatedSymbolCount"),
+      reason: readStringVerbatim(bucket, "reason") ?? "unknown",
+      rejectedCount: numberAt(bucket, ["rejectedCount"]),
+      uniqueSymbolCount: numberAt(bucket, ["uniqueSymbolCount"]),
+      laterValidatedSymbolCount: numberAt(bucket, ["laterValidatedSymbolCount"]),
       validation: metricText(bucket.validation),
     }));
 }
@@ -1120,8 +1106,8 @@ export function alphaStaleLeadRows(detail: AlphaCohortDetail): readonly AlphaSta
   return buckets
     .filter((bucket): bucket is Record<string, unknown> => readRecord(bucket) !== undefined)
     .map((bucket) => ({
-      ageBucket: readStringField(bucket, "ageBucket") ?? "unknown",
-      unbriefedLeadCount: readNumberField(bucket, "unbriefedLeadCount"),
+      ageBucket: readStringVerbatim(bucket, "ageBucket") ?? "unknown",
+      unbriefedLeadCount: numberAt(bucket, ["unbriefedLeadCount"]),
       validation: metricText(bucket.validation),
     }));
 }

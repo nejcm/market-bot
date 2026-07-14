@@ -1,4 +1,4 @@
-import { isRecord, readNumber, readString } from "./guards";
+import { isRecord, readNumber, readString } from "../guards";
 
 export const FRED_SERIES = [
   "DGS10",

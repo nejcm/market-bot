@@ -15,7 +15,7 @@ import type {
   JsonToolLoopAuditEntry,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
-import { isRecord, readString } from "../sources/guards";
+import { isRecord, readString } from "../guards";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { canonicalizeUrl } from "../sources/news-utils";
 import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";

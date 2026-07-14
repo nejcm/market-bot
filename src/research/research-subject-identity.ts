@@ -1,6 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { ResearchReport } from "../domain/types";
-import { isRecord, readString } from "../sources/guards";
+import { isRecord, readString } from "../guards";
 import {
   resolveResearchSubjectProxy,
   type ResearchSubjectInstrument,

@@ -14,7 +14,7 @@ import {
   requestFirecrawlScrape,
   requestFirecrawlSearch,
 } from "./firecrawl-web-tools";
-import { isRecord, optionalString, readString, stringArrayValue } from "./guards";
+import { isRecord, optionalString, readString, stringArrayValue } from "../guards";
 import { encodeQuery } from "./news-utils";
 import {
   isFetchJsonResult,

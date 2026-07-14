@@ -1,5 +1,5 @@
 import type { ResearchReport } from "../domain/types";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "./extended-evidence-projections";
 

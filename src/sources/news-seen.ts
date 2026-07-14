@@ -5,7 +5,7 @@ import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
 import type { Source, SourceGap } from "../domain/types";
-import { isRecord } from "./guards";
+import { isRecord } from "../guards";
 import { canonicalizeUrl } from "./news-utils";
 
 export interface NewsSeenEntry {

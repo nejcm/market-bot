@@ -8,7 +8,7 @@ import type {
   SourceGap,
   SubjectKind,
 } from "../../domain/types";
-import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
+import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../../guards";
 
 const LEGACY_COMPANY_QUESTION_KEYS = [
   "whatItDoes",

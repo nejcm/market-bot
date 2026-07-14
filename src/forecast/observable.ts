@@ -1,5 +1,5 @@
 import type { Prediction, PredictionKind } from "../domain/types";
-import { stringArrayValue } from "../sources/guards";
+import { stringArrayValue } from "../guards";
 import type {
   ObservableBaseExpression,
   ObservableExpression,

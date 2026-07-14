@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createCodexAppServerStream,
+  removeWorkingDirectory,
   type AppServerProcess,
   type AppServerSpawnImpl,
 } from "../src/model/codex-app-server";
@@ -112,6 +113,22 @@ async function collectText(stream: ReadableStream<string>): Promise<string> {
 }
 
 describe("Codex app-server stream hardening", () => {
+  test("retries transient Windows directory locks beyond the initial attempts", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "codex-busy-cleanup-"));
+    let attempts = 0;
+
+    await removeWorkingDirectory(cwd, async () => {
+      attempts++;
+      if (attempts <= 3) {
+        throw Object.assign(new Error("directory is busy"), { code: "EBUSY" });
+      }
+      rmSync(cwd, { recursive: true, force: true });
+    });
+
+    expect(attempts).toBe(4);
+    expect(existsSync(cwd)).toBe(false);
+  });
+
   test("rejects oversized complete JSONL frames and cleans up", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "codex-oversized-jsonl-"));
     const server = testServer((_emit, emitRaw) => {

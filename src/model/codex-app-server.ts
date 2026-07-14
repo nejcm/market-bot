@@ -1,6 +1,7 @@
 import { rm } from "node:fs/promises";
 
 const MAX_JSONL_BUFFER_CHARS = 1_048_576;
+const WORKING_DIRECTORY_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 1000] as const;
 
 export interface AppServerProcess {
   readonly stdin: {
@@ -175,22 +176,33 @@ async function waitForProcessExit(process: AppServerProcess): Promise<void> {
   }
 }
 
-async function removeWorkingDirectory(cwd: string): Promise<void> {
-  let lastError: unknown = undefined;
-  for (let attempt = 0; attempt < 3; attempt++) {
+function isTransientRemovalError(error: unknown): boolean {
+  if (!isRecord(error)) {
+    return false;
+  }
+  return ["EBUSY", "EMFILE", "ENFILE", "ENOTEMPTY", "EPERM"].includes(
+    readString(error, "code") ?? "",
+  );
+}
+
+export async function removeWorkingDirectory(
+  cwd: string,
+  removeImpl: typeof rm = rm,
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
     try {
       // oxlint-disable-next-line no-await-in-loop -- Retries handle transient Windows file locks.
-      await rm(cwd, { recursive: true, force: true });
+      await removeImpl(cwd, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      lastError = error;
-      if (attempt < 2) {
-        // oxlint-disable-next-line no-await-in-loop -- Backoff is intentionally sequential.
-        await Bun.sleep(25);
+      const delayMs = WORKING_DIRECTORY_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined || !isTransientRemovalError(error)) {
+        throw error;
       }
+      // oxlint-disable-next-line no-await-in-loop -- Backoff is intentionally sequential.
+      await Bun.sleep(delayMs);
     }
   }
-  throw lastError;
 }
 
 export function defaultAppServerSpawn(

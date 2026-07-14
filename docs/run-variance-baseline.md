@@ -53,5 +53,5 @@ Recurring claims were near-identical across runs (spread ≤ 0.02 per claim):
 - All 15 probabilities landed 0.01–0.04 outside the widened 0.40–0.60
   near-base-rate band (0.34–0.39 / 0.61–0.64). Watch
   `calibrationAtGeneration` on future resolved cohorts for band-escape
-  overshoot (the risk noted in ADR 0004's 2026-07-12 amendment).
+  overshoot (the risk noted in ADR 0003's 2026-07-12 amendment).
 - Token totals swing ~15% run-to-run; treat sub-20% token deltas as noise.

@@ -40,17 +40,17 @@ Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normaliz
 
 ## What it does
 
-| Capability                 | Summary                                                                                                                                                                                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Market overview**        | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights                                                                                                                                                                                        |
-| **Instrument briefs**      | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation, financial lens, deep-run earnings setup)                                                                                                                              |
-| **Web evidence**           | Targeted web search with publish-date cutoff and sanitized model-visible snippets for instrument and thematic runs                                                                                                                                                             |
-| **Thematic research**      | Equity subject research via `research <subject>` with checked-in subject/proxy identity                                                                                                                                                                                        |
-| **Alpha search**           | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads                                                                                                                                                                                          |
-| **Predictions**            | Typed forecasts via a small DSL; claims rendered from `measurableAs` ([ADR 0020](./docs/adr/0020-claim-rendered-from-dsl.md)); soft target count ([ADR 0021](./docs/adr/0021-prediction-count-soft-target.md)); thematic research forecasts only score a resolved listed proxy |
-| **Scoring & calibration**  | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline                                                                                                                                                                                              |
-| **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas                                                                                                                                                                                        |
-| **Research Console**       | Local Svelte UI to browse runs, search artifacts, view calibration, source-gap classification, and queue jobs                                                                                                                                                                  |
+| Capability                 | Summary                                                                                                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Market overview**        | Equity or crypto regime, movers, themes, risks, source gaps, optional Market Spotlights                                                                                                                                                                       |
+| **Instrument briefs**      | Single-instrument research with Extended Evidence (SEC, Finnhub, FRED, Tradier IV, Glassnode, valuation, financial lens, deep-run earnings setup)                                                                                                             |
+| **Web evidence**           | Targeted web search with publish-date cutoff and sanitized model-visible snippets for instrument and thematic runs                                                                                                                                            |
+| **Thematic research**      | Equity subject research via `research <subject>` with checked-in subject/proxy identity                                                                                                                                                                       |
+| **Alpha search**           | Equity social-momentum discovery (ApeWisdom + SEC filings) → validated Research Leads                                                                                                                                                                         |
+| **Predictions**            | Typed forecasts via a small DSL; claims rendered from `measurableAs` and count treated as a soft target ([ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)); thematic research forecasts only score a resolved listed proxy |
+| **Scoring & calibration**  | Resolves due predictions against public Observations; Brier skill vs 0.5 baseline                                                                                                                                                                             |
+| **Cross-run intelligence** | Historical context, error correction on prior misses, searchable history, thesis deltas                                                                                                                                                                       |
+| **Research Console**       | Local Svelte UI to browse runs, search artifacts, view calibration, source-gap classification, and queue jobs                                                                                                                                                 |
 
 Market overview runs take an explicit `--horizon` in trading days; cadence is a scheduling concern (`daily` / `weekly` are deprecated horizon-preset aliases). At longer horizons, mover inputs still come from daily-style Yahoo screeners and CoinGecko 24h fields — disclosed as source gaps in reports.
 
@@ -206,7 +206,7 @@ assets/        Logo and favicons
 - [docs/configuration.md](./docs/configuration.md) — configuration reference and provider notes
 - [docs/testing.md](./docs/testing.md) — test commands and fixture replay workflows
 - [docs/conventions.md](./docs/conventions.md) — code style, testing, commits
-- [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index (many ADR files are superseded redirects)
+- [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index
 - [SECURITY.md](./SECURITY.md) — vulnerability reporting
 
 ## Contributing

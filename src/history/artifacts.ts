@@ -388,7 +388,7 @@ interface HistoryRunSidecars {
   readonly validation: readonly Record<string, unknown>[];
 }
 
-// Report and score come from the canonical Run Artifact seam (ADR 0016). The history-only
+// Report and score come from the canonical Run Artifact seam (ADR 0002). The history-only
 // Sidecars below — supplemental snapshot records (kept as Record so unknown provider fields
 // Survive into timelines), SEC fundamentals, and alpha validation — have a single caller and
 // Are read here, not folded into the shared bundle.
@@ -499,7 +499,7 @@ export async function rebuildHistoryArtifacts(
       };
     }),
   );
-  // Stricter ADR 0016 counting: only report-present-but-broken dirs are "malformed";
+  // Stricter ADR 0002 counting: only report-present-but-broken dirs are "malformed";
   // Report-absent dirs are not counted (the prior local reader conflated the two).
   const malformedRunCount = scan.entries.filter(
     (entry) => entry.status.report === "malformed",

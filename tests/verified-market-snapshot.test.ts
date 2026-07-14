@@ -103,7 +103,7 @@ function verifiedSnapshotFixture(): VerifiedMarketSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Contract — locked indicator key schema (ADR 0019)
+// Contract — locked indicator key schema (ADR 0004)
 // ---------------------------------------------------------------------------
 
 describe("verified-snapshot contract", () => {

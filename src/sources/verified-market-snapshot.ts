@@ -1,5 +1,5 @@
 /**
- * Verified Market Snapshot collector (ADR 0019).
+ * Verified Market Snapshot collector (ADR 0004).
  *
  * Fetches ≥400 calendar days of daily OHLCV bars for an equity ticker via
  * ctx.request.json (cache + rate-limit + circuit-breaker), computes canonical

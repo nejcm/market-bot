@@ -87,7 +87,7 @@ function normalizeYahooQuote(
   // Capture Yahoo fundamental fields once at the single parse point so downstream
   // Evidence can derive ratios from the normalized snapshot rather than re-reading
   // The raw payload (immune to the Massive quote fallback, which replaces the
-  // Yahoo payload with a non-Yahoo shape carrying none of these fields). See ADR 0033.
+  // Yahoo payload with a non-Yahoo shape carrying none of these fields). See ADR 0004.
   const fundamentals = readYahooFundamentals(value);
   const identity: InstrumentIdentity = {
     ...(exchange !== undefined ? { exchange } : {}),

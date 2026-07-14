@@ -1,10 +1,10 @@
 /**
- * Pure deterministic indicator compute (ADR 0019).
+ * Pure deterministic indicator compute (ADR 0004).
  *
  * Input: sorted daily OHLCV bars (oldest → newest).
  * Output: canonical key map with null for insufficient-bar or compute-error cases.
  *
- * Canonical key schema (locked in ADR 0019):
+ * Canonical key schema (locked in ADR 0004):
  *   ema10, sma50, sma200, rsi14, macd, macdSignal, macdHistogram,
  *   bollUpper, bollMiddle, bollLower, atr14
  *

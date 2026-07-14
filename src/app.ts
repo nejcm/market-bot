@@ -283,7 +283,7 @@ export async function runCli(
   emitUnresolvedResearchSubjectGuidance(resolvedSubject);
   const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
   // Freeze the Source Plan before this run's source collection begins so it
-  // Records pre-collection intent (ADR 0028); collection outcomes cannot
+  // Records pre-collection intent (ADR 0004); collection outcomes cannot
   // Change it. The pre-run score pass above is scoring-subsystem I/O, not
   // This run's collection.
   const sourcePlan = buildSourcePlan(researchCommand, now().toISOString(), resolvedSubject);

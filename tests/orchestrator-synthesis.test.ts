@@ -400,7 +400,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(reportRetryPrompt.predictionRepromptErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",
     );
-    // The validation error keeps the reprompt alive; a count shortfall never does (ADR 0004).
+    // The validation error keeps the reprompt alive; a count shortfall never does (ADR 0003).
     expect(
       (reportRetryPrompt.predictionRepromptErrors as readonly string[] | undefined)?.some(
         (reason) => reason.includes("predictionShortfall"),

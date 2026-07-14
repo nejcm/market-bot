@@ -168,7 +168,7 @@ export function runSearchResultFromIndexRow(
 }
 
 // Report-derived read projections (scenarios, predictions, sources, data-gap helpers)
-// Share this module per ADR 0016; app/report-artifact-view.ts re-exports them and keeps
+// Share this module per ADR 0002; app/report-artifact-view.ts re-exports them and keeps
 // Only score/analytics-derived views. See docs/architecture.md for the boundary rationale.
 
 export interface ScenarioView {

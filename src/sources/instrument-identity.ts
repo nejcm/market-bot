@@ -1,11 +1,11 @@
 /**
- * Canonical Instrument Identity derivation for equity ticker runs (ADR 0019).
+ * Canonical Instrument Identity derivation for equity ticker runs (ADR 0004).
  *
  * No second quote fetch in the happy path — the ticker quote is already
  * fetched by collectEquity via requestJsonWithQuoteFallback. Derive identity
  * from the already-collected MarketSnapshot.
  *
- * ADR 0008 note: this is run-scoped canonicalization, not a global resolver.
+ * ADR 0004 note: this is run-scoped canonicalization, not a global resolver.
  */
 
 import type { InstrumentIdentity, MarketSnapshot, SourceGap } from "../domain/types";

@@ -733,7 +733,7 @@ export async function collectSources(
   const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
 
-  // Verified Market Snapshot: equity ticker only (ADR 0019); joins the parallel batch
+  // Verified Market Snapshot: equity ticker only (ADR 0004); joins the parallel batch
   const isEquityTicker = isInstrumentCommand(command) && command.assetClass === "equity";
   const isTicker = isInstrumentCommand(command);
 

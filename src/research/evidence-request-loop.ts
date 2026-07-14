@@ -32,7 +32,7 @@ import {
   rejectedJsonToolRequest,
   withStaleFallbackGaps,
 } from "./json-tool-loop-support";
-import type { EvidenceRequestContext, ResearchContext } from "./research-context";
+import type { EvidenceRequestContext, ResearchContext } from "./research-context-types";
 
 export interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";

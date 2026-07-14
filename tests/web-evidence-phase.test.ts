@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import type { AppConfig } from "../src/config";
 import type { Source } from "../src/domain/types";
 import type { StageOutput } from "../src/research/final-synthesis";
-import type { ResearchContext } from "../src/research/research-context";
+import type { ResearchContext } from "../src/research/research-context-types";
 import { runWebEvidencePhase } from "../src/research/web-evidence-phase";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 

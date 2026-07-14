@@ -10,7 +10,7 @@ import {
 } from "../sources/extended-evidence/web-subject-profile";
 import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
 import type { StageOutput } from "./final-synthesis";
-import type { ResearchContext } from "./research-context";
+import type { ResearchContext } from "./research-context-types";
 import { commandWithResolvedResearchSubject } from "./research-subject-identity";
 import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
 import {

@@ -55,7 +55,7 @@ import {
   rejectedJsonToolRequest,
   withStaleFallbackGaps,
 } from "./json-tool-loop-support";
-import type { ResearchContext, WebGatherContext } from "./research-context";
+import type { ResearchContext, WebGatherContext } from "./research-context-types";
 
 export interface WebGatherStageOutput {
   readonly stage: "web-gather";

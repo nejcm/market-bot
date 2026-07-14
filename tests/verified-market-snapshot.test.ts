@@ -8,11 +8,9 @@ import {
   verifiedSnapshotSourceId,
 } from "../src/research/verified-snapshot-contract";
 import { deriveCanonicalInstrumentIdentity } from "../src/sources/instrument-identity";
-import {
-  buildDepthProfile,
-  buildStagePrompt,
-  deterministicSourceGaps,
-} from "../src/research/research-context";
+import { buildStagePrompt } from "../src/research/prompts";
+import { buildDepthProfile } from "../src/research/depth-profile";
+import { deterministicSourceGaps } from "../src/research/deterministic-gaps";
 import { buildSourceList, readPredictions } from "../src/research/report-assembly";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";

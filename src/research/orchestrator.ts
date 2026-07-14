@@ -48,11 +48,11 @@ import {
 import { refreshCalibrationContext } from "./calibration-context";
 import {
   buildPlaybookSelectionPrompt,
-  buildDepthProfileFromParams,
   buildStagePrompt,
   buildStageSteeringSegment,
-  type ResearchContext,
-} from "./research-context";
+} from "./prompts";
+import { buildDepthProfileFromParams } from "./depth-profile";
+import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
 import { validateResearchReport } from "../report/schema";
 import {

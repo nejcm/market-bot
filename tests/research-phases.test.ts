@@ -9,7 +9,7 @@ import { runEvidenceRequestLoop } from "../src/research/evidence-request-loop";
 import type { StageOutput } from "../src/research/final-synthesis";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import { runMarketUpdatePhase } from "../src/research/market-update-phase";
-import type { ResearchContext } from "../src/research/research-context";
+import type { ResearchContext } from "../src/research/research-context-types";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 import { secEvidenceFetch } from "./support/orchestrator-helpers";
 

@@ -11,7 +11,7 @@ import type { CostPricing } from "../model/pricing";
 import type { ModelProvider } from "../model/types";
 import { effectiveConfigHash } from "../reproducibility";
 import type { CollectedSources } from "../sources/types";
-import { buildWebSourceSynthesisInputs } from "./research-context";
+import { buildWebSourceSynthesisInputs } from "./prompts";
 import type { StageOutput } from "./final-synthesis";
 import type { ForecastDisagreementArtifact } from "./forecast-disagreement";
 import type { HistoricalResearchContext } from "./historical-context";

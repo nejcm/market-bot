@@ -26,9 +26,8 @@ import {
   deterministicSourceGapEntries,
   EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP,
   type DataGapEntry,
-  type DepthProfile,
-  type ResearchContext,
-} from "./research-context";
+} from "./deterministic-gaps";
+import type { DepthProfile, ResearchContext } from "./research-context-types";
 import {
   commandResearchSubjectIdentity,
   researchIdentityExtras,

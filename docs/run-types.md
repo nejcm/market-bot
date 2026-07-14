@@ -609,8 +609,8 @@ market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since] [--to
 
 ### Prompt Construction
 
-`buildStagePrompt` in `src/research/research-context.ts` builds a JSON prompt
-containing:
+`buildStagePrompt` in `src/research/prompts/` (a thin dispatcher over per-stage
+prompt modules) builds a JSON prompt containing:
 
 - `instruction`, `stage`, `stageGoal`.
 - `depthProfile`.

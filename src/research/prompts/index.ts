@@ -6,9 +6,9 @@ import type { StageInput } from "./stage-envelope";
 import { buildWebGatherStagePrompt } from "./web-gather";
 import { buildWebSubjectProfileStagePrompt } from "./web-subject-profile";
 
-// Thin dispatcher: the four bespoke-shape stages route to their modules; the seven
-// Generic-path analysis stages share one assembly. Stage-specific logic lives in the
-// Stage modules, never in the shared segment modules.
+// This thin dispatcher routes the four bespoke-shape stages to their modules.
+// The seven generic-path analysis stages share one assembly.
+// Stage-specific logic lives in stage modules, never in shared segment modules.
 export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
   if (stage === "evidence-request") {
     return buildEvidenceRequestStagePrompt(input);

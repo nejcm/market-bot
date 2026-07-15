@@ -24,7 +24,7 @@ src/
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache,
                       web gather provider execution (Exa/Firecrawl tools, emit, rejection reasons)
   web-evidence/       Web Evidence package: gather-loop orchestration and policy, Web Subject Profile
-                      contract and reuse, web source usage; external consumers import only its index
+                      contract and reuse, web source usage; public index plus dependency-neutral contract leaf
 prompts/              Stage prompt files and checked-in Domain Playbooks
 tests/                Bun test suites
 app/                  Local Svelte + Bun Research Console App

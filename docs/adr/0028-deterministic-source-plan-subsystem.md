@@ -8,7 +8,8 @@ Accepted
 
 2026-06-30 (amended 2026-07-04: generalized untrusted model-input hardening;
 amended 2026-07-08: thematic research web gather enabled for brief and deep runs;
-amended 2026-07-12: near-duplicate headline dedupe at web-source acceptance)
+amended 2026-07-12: near-duplicate headline dedupe at web-source acceptance;
+amended 2026-07-16: clarified web-gather provider and contract module ownership)
 
 ## Context
 
@@ -90,7 +91,10 @@ rather than model confidence. Web evidence also introduces prompt-injection and 
 - `src/sources/cache.ts` implements freshness and stale-audit behavior.
 - `src/sources/model-input-sanitizer.ts`, news collection, SEC filing emission, historical prompt
   projection, and `src/web-evidence/web-gather-loop.ts` implement profile-aware model-input hardening.
-  `src/web-evidence/web-gather-emit.ts` remains the shared provider-neutral Exa/Firecrawl emit path.
+- `src/sources/web-gather-tools.ts`, `src/sources/firecrawl-web-tools.ts`, and
+  `src/sources/web-gather-emit.ts` implement provider execution and normalized emission through the
+  Source Provider seam; `src/web-evidence/web-gather-loop.ts` owns orchestration and policy.
+- `src/web-evidence/contract.ts` is the dependency-neutral Web Subject Profile contract entry point.
 - `src/web-evidence/web-subject-profile-reuse.ts` implements reuse.
 - `src/reproducibility.ts` implements configuration and source-state fingerprints.
 

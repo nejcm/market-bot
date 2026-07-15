@@ -100,8 +100,7 @@ function defaultPromptDir(): string {
   return join(import.meta.dir, "../../prompts");
 }
 
-// Diverges from guards.readStringArray: a throwing validator that also rejects empty
-// Strings, not a lenient reader.
+// This throwing validator rejects empty strings instead of reading leniently.
 function readStringArray(record: Record<string, unknown>, key: string): readonly string[] {
   const value = record[key];
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item === "")) {

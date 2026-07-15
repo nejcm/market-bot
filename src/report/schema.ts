@@ -51,8 +51,8 @@ function validateSourceIds(
   }
 }
 
-// Diverges from guards.readStringArray (record+key, undefined on miss) and
-// Guards.stringArrayValue (filters mixed arrays): all-or-nothing over a raw value.
+// This raw-value reader is all-or-nothing and falls back to an empty array.
+// The shared guards instead read record keys or filter mixed arrays.
 function readStringArray(value: unknown): readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
 }

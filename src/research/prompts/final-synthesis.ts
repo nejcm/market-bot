@@ -29,7 +29,12 @@ import {
   supportedPredictionKinds,
 } from "./prediction-coverage";
 import { FINAL_SYNTHESIS_SOURCE_ID_GUIDANCE } from "./source-id-guidance";
-import { assembleStagePrompt, stagePlaybooks, type StageInput } from "./stage-envelope";
+import {
+  assembleStagePrompt,
+  stagePlaybooks,
+  type PredictionCompletionPrompt,
+  type StageInput,
+} from "./stage-envelope";
 import { buildFreshWebSteering } from "./steering";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
@@ -255,15 +260,6 @@ function buildCompletionKindGrammar(
     clauses.push(`For a conditional forecast, use ${conditionalForecastGrammar()}`);
   }
   return clauses.length > 0 ? ` ${clauses.join(" ")}` : "";
-}
-
-export interface PredictionCompletionPrompt {
-  readonly requestedCount: number;
-  readonly existingPredictions: readonly Prediction[];
-  /** First-attempt report draft. The completion pass uses it for a distilled context (report
-   *  narrative + critique + compact source index) instead of the full evidence payload and
-   *  prior-stage transcript. Never serialized into the prompt directly. */
-  readonly reportDraft: ResearchReport;
 }
 
 interface CompletionSourceEntry {

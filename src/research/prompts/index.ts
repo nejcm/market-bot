@@ -25,8 +25,8 @@ export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
   return buildAnalysisStagePrompt(stage, input);
 }
 
-export type { StageInput } from "./stage-envelope";
-export { buildStageSteeringSegment, type PredictionCompletionPrompt } from "./final-synthesis";
+export type { PredictionCompletionPrompt, StageInput } from "./stage-envelope";
+export { buildStageSteeringSegment } from "./final-synthesis";
 export { buildPlaybookSelectionPrompt } from "./playbook-selection";
 export { buildSpotlightSelectionPrompt } from "./spotlight-selection";
 export { buildWebSourceSynthesisInputs } from "./web-source-synthesis-inputs";

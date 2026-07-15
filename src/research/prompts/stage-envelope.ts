@@ -1,11 +1,22 @@
 import type { AppConfig } from "../../config";
 import type { ResearchCommand } from "../../cli/args";
-import type { Prediction } from "../../domain/types";
+import type { Prediction, ResearchReport } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
 import type { LoadedPrompt, StageLabel } from "../prompt-loader";
 import type { LoadedPlaybook } from "../playbooks";
 import type { DepthProfile, ResearchContext } from "../research-context-types";
-import type { PredictionCompletionPrompt } from "./final-synthesis";
+
+// The final-synthesis prediction-completion pass is the only caller that sets this. It lives on the
+// Base envelope (not the leaf that consumes it) so the dependency points downward: final-synthesis
+// Imports the envelope, never the reverse.
+export interface PredictionCompletionPrompt {
+  readonly requestedCount: number;
+  readonly existingPredictions: readonly Prediction[];
+  /** First-attempt report draft. The completion pass uses it for a distilled context (report
+   *  narrative + critique + compact source index) instead of the full evidence payload and
+   *  prior-stage transcript. Never serialized into the prompt directly. */
+  readonly reportDraft: ResearchReport;
+}
 
 // Everything buildStagePrompt needs: the evidence payload plus the per-stage steering inputs.
 export interface StageInput {

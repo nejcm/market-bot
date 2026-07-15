@@ -44,11 +44,13 @@ describe("createProvider", () => {
     const provider = createProvider(minimalConfig());
     expect(provider.name).toBe("openai");
     expect(typeof provider.generate).toBe("function");
+    expect(typeof provider.generateStream).toBe("function");
   });
 
   test("returns an anthropic provider for anthropic config", () => {
     const provider = createProvider(minimalConfig({ provider: "anthropic" }));
     expect(provider.name).toBe("anthropic");
+    expect(typeof provider.generateStream).toBe("function");
   });
 
   test("returns an openai provider for openai-compatible config", () => {
@@ -59,10 +61,12 @@ describe("createProvider", () => {
       }),
     );
     expect(provider.name).toBe("openai-compatible");
+    expect(typeof provider.generateStream).toBe("function");
   });
 
   test("returns a codex provider for codex config", () => {
     const provider = createProvider(minimalConfig({ provider: "codex" }));
     expect(provider.name).toBe("codex");
+    expect(typeof provider.generateStream).toBe("function");
   });
 });

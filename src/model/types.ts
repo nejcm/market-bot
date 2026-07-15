@@ -20,6 +20,7 @@ export interface ModelParams {
 export interface ModelRequest {
   readonly model: string;
   readonly messages: readonly ModelMessage[];
+  readonly signal?: AbortSignal;
   readonly responseFormat?: "json";
   readonly webSearch?: boolean;
   readonly params?: ModelParams;
@@ -43,4 +44,8 @@ export interface ModelProvider {
   readonly name: string;
   readonly generate: (request: ModelRequest) => Promise<ModelResponse>;
   readonly webSearchCapability?: () => Promise<WebSearchCapability>;
+}
+
+export interface StreamingModelProvider extends ModelProvider {
+  readonly generateStream: (request: ModelRequest) => Promise<ReadableStream<string>>;
 }

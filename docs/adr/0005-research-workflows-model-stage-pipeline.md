@@ -1,4 +1,4 @@
-# ADR 0011: Model-stage pipeline and domain playbooks
+# ADR 0005: Research workflows and model-stage pipeline
 
 ## Status
 
@@ -6,15 +6,20 @@ Accepted
 
 ## Date
 
-2026-06-30 (amended 2026-07-07: per-stage duration telemetry; distilled completion context;
-amended 2026-07-10: research quality driver)
+2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
+amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
+incremental Run Chat provider streaming)
 
 ## Context
 
 Research quality depends on a predictable stage graph, bounded context, and reviewable domain
-guidance rather than provider-native agents.
+guidance rather than provider-native agents. Market overview, instrument/thematic synthesis,
+alpha-search discovery, and ephemeral Run Chat are distinct workflows that share platform and
+research boundaries without sharing persistence or scoring semantics.
 
 ## Decision
+
+### Synthesis pipeline and domain playbooks
 
 - Brief runs execute specialist analysis, critique, and final synthesis.
 - Deep runs add a fixed two-role Coverage Panel after specialist analysis and before critique.
@@ -69,6 +74,62 @@ guidance rather than provider-native agents.
 - A model repair call and summary-sentence pruning remain explicitly deferred until real runs show
   deterministic pruning fires often enough to justify a repair pass.
 
+### Market overview workflow
+
+- `market-overview` is the canonical whole-market run type for equity and crypto.
+- `--horizon` expresses forecast horizon in trading days and defaults to 15. Deprecated `daily` and
+  `weekly` CLI aliases map to 5 and 15 days; new artifacts persist `jobType: "market-overview"`, and
+  legacy artifacts remain readable.
+- Calibration, history relevance, market-update deltas, prior-miss correction, and provider health
+  group overview runs by horizon bucket rather than invocation cadence.
+- Market overviews may select Spotlights only from current collected movers and may render a narrow
+  catalyst calendar only from already-collected or persisted evidence.
+- Equity movers remain Yahoo daily screeners and crypto movers remain CoinGecko 24-hour changes,
+  even at longer forecast horizons. Reports disclose this horizon/input mismatch.
+
+### Alpha-search discovery workflow
+
+- `alpha-search --asset equity [--deep]` is an equity-only deterministic discovery workflow, not a
+  synthesis report or scored-forecast workflow.
+- ApeWisdom aggregate social momentum and SEC current-filing discovery create candidates. Official
+  listed-universe metadata filters eligibility; Yahoo validates listed-stock metadata and configured
+  screening limits.
+- Social ranking uses aggregate momentum features. Yahoo metadata validates candidates but does not
+  alter the social score.
+- Output includes Research Leads, rejected candidates, normalized candidate profiles, and
+  provenance artifacts. It contains no predictions and triggers no immediate calibration pass.
+- Later explicit or research-triggered score passes may update alpha validation, watchlist,
+  attribution, and cohort artifacts. These mutable sidecars are historical research state, not
+  promotion verdicts.
+- Alpha output follows ADR 0001 and contains no expected-return, trade-action, sizing, execution, or
+  portfolio language.
+
+### Ephemeral Run Chat
+
+- The Svelte client uses AI SDK chat state and text transport. The Bun server calls
+  `StreamingModelProvider.generateStream` and incrementally returns plain text. Buffered research
+  and JSON-producing stages continue using `ModelProvider.generate`.
+- The server builds bounded context from the selected Run Artifact and recent browser-supplied chat
+  turns. It is stateless server-side; browser `localStorage` may hold transcripts, but no transcript
+  is written under the run data directory.
+- Same-origin POST validation protects the local paid-model endpoint. The server binds to localhost
+  by default and provides no authentication or TLS.
+- Chat follows the explicit boundary exception in ADR 0001.
+- Live web search is configuration-enabled by default, but becomes active only for Codex after a
+  once-per-process probe confirms CLI support. Codex receives `tools.web_search=true` and
+  `web_search=live`; other providers run without live search until explicitly supported.
+- The UI discloses active live search because selected artifacts and questions may be sent to Codex
+  and external web requests may occur.
+- Web findings are ephemeral conversational context: not persisted Sources, not inputs to Evidence
+  Quality or predictions, and cited inline by URL/title when used.
+
+## Current operational limitations
+
+- Non-Codex providers do not expose Run Chat live search.
+- Same-origin localhost protection is not authentication if the console is exposed.
+- Chat may disclose selected artifacts and user content to the configured provider and can incur
+  paid model or web-search usage.
+
 ## Consequences
 
 - Deep runs pay additional latency and token cost for broader analysis.
@@ -80,6 +141,11 @@ guidance rather than provider-native agents.
 - Warning-only post-synthesis findings must not be represented as enforced factual correctness.
 - Deterministic pruning can leave sections empty; grading discloses that rather than padding
   reports with unsupported claims.
+- Legacy market-overview commands keep working without preserving cadence as product semantics;
+  comparisons remain stable by asset class and horizon bucket.
+- Alpha discovery can be evaluated later without presenting candidates as recommendations.
+- Run Chat streams provider text deltas without becoming reproducible or durable Run Artifact
+  state; operators disable chat or web search when disclosure or cost is unacceptable.
 
 ## Implementation validation
 
@@ -89,7 +155,9 @@ guidance rather than provider-native agents.
 - `src/research/final-synthesis.ts` and `report-assembly.ts` separate generation from authority.
 - `src/research/post-synthesis-audit.ts` implements current warning-only behavior.
 - `src/research/report-integrity-audit.ts` implements deterministic pruning and grading.
-
-## Supersedes
-
-- ADR 0012
+- `src/cli/args.ts`, `src/cli/job-registry.ts`, `src/domain/run-types.ts`, and market-overview run
+  profiles implement canonical overview and horizon semantics.
+- `src/alpha-search/workflow.ts`, `validation.ts`, `candidate-state.ts`,
+  `feature-attribution.ts`, and `cohorts.ts` implement alpha-search and later evaluation.
+- `app/chat.ts`, `app/client/components/run-chat.svelte`, `run-chat-storage.ts`, and
+  `src/model/codex.ts` implement Run Chat and gated live search.

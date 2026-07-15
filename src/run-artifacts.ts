@@ -79,7 +79,7 @@ import {
 // MARKET_BOT_DATA_DIR/<run-id>/. Parses report.json, score.json, and normalized
 // Market snapshots once, leniently, at full fidelity. Callers project down to
 // What they need. Reading is intentionally tolerant: older artifacts predate the
-// Current schema, and report/schema.ts only validates on write. See ADR 0016.
+// Current schema, and report/schema.ts only validates on write. See ADR 0002.
 // ---------------------------------------------------------------------------
 
 // Per-file load outcome. "absent" = the file is missing (ENOENT); "malformed" =

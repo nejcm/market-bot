@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RunChatConfig } from "../src/config";
-import type { ModelMessage, ModelProvider } from "../src/model/types";
+import type { ModelMessage, StreamingModelProvider } from "../src/model/types";
 import { withUntrustedModelInputRule } from "../src/model/trust-guard";
 import { isRecord } from "../src/guards";
 import { readRunDetail } from "./artifacts";
@@ -38,7 +38,7 @@ export interface RunChatSearchCapability {
 
 export interface ReadyChatDeps {
   readonly status: "ready";
-  readonly provider: ModelProvider;
+  readonly provider: StreamingModelProvider;
   readonly chatConfig: RunChatConfig;
   readonly dataDir: string;
   readonly systemPromptPath?: string;
@@ -65,6 +65,34 @@ function isChatRequestBody(value: unknown): value is ChatRequestBody {
 function textResponse(text: string, status = 200): Response {
   return new Response(text, {
     status,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+function encodedTextStream(stream: ReadableStream<string>): ReadableStream<Uint8Array> {
+  const reader = stream.getReader();
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller): Promise<void> {
+      try {
+        const next = await reader.read();
+        if (next.done) {
+          controller.close();
+        } else {
+          controller.enqueue(encoder.encode(next.value));
+        }
+      } catch (error: unknown) {
+        controller.error(error);
+      }
+    },
+    async cancel(reason: unknown): Promise<void> {
+      await reader.cancel(reason).catch(() => {});
+    },
+  });
+}
+
+function streamResponse(stream: ReadableStream<string>): Response {
+  return new Response(encodedTextStream(stream), {
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 }
@@ -264,14 +292,15 @@ export async function handleRunChat(
   const messages: ModelMessage[] = [{ role: "system", content: finalSystemContent }, ...history];
 
   try {
-    const response = await deps.provider.generate({
+    const response = await deps.provider.generateStream({
       model,
       messages,
+      signal: request.signal,
       webSearch: webSearchActive,
       params: { max_completion_tokens: deps.chatConfig.maxOutputTokens },
     });
 
-    return textResponse(response.content);
+    return streamResponse(response);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return textResponse(`Chat generation failed: ${message}`, 502);

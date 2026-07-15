@@ -223,7 +223,7 @@ Resolved prior **misses** are surfaced as explicit error-correction signal in th
 
 Historical Research Context also has user-facing derived views. `history rebuild` scans existing run artifacts and writes `data/history/index.json` plus per-Instrument timelines under `data/history/instruments/`. These derived files keep `data/runs/<run-id>/` as the source of truth, use `assetClass:symbol` as the compatibility key, preserve any Instrument Identity metadata that prior Sources exposed, and record mutable sidecar fingerprints so in-place score/autopsy/alpha validation changes trigger rebuilds. History commands are artifact-only: they do not fetch fresh market data, news, fundamentals, or Observations.
 
-The Run Artifact Index ([ADR 0018](./adr/0018-run-artifact-index.md)) is a separate derived SQLite file (`data/index.sqlite` by default). Run `index rebuild` once to bootstrap it; research jobs, `alpha-search`, and `score` then write through affected runs when mutable sidecars change. Index reads check run-directory set equality and mutable sidecar mtimes. A **stale** index (present and schema-matched but drifted) self-heals: the next research, `score`, or `alpha-search` run detects the drift and triggers a full rebuild as a non-fatal side effect ([ADR 0022](./adr/0022-stale-index-rebuild-follow-up.md)), so subsequent runs and the console return to index-backed reads without operator intervention. **Missing or unsupported-schema** indexes warn on `stderr` and fall back to disk scans until `index rebuild` is run. Provider-health includes the index status and fails on unsupported schemas until `bun run src/cli.ts index rebuild` is run. Console list/search, `history search`, and calibration resolved-pair loading use the SQLite path when fresh.
+The Run Artifact Index is a separate derived SQLite file (`data/index.sqlite` by default). Run `index rebuild` once to bootstrap it; research jobs, `alpha-search`, and `score` then write through affected runs when mutable sidecars change. Index reads check run-directory set equality and mutable sidecar mtimes. A **stale** index (present and schema-matched but drifted) self-heals: the next research, `score`, or `alpha-search` run detects the drift and triggers a full rebuild as a non-fatal side effect, so subsequent runs and the console return to index-backed reads without operator intervention. **Missing or unsupported-schema** indexes warn on `stderr` and fall back to disk scans until `index rebuild` is run. Provider-health includes the index status and fails on unsupported schemas until `bun run src/cli.ts index rebuild` is run. Console list/search, `history search`, and calibration resolved-pair loading use the SQLite path when fresh ([ADR 0002](./adr/0002-typescript-bun-orchestration.md)).
 
 Markdown reports list cited Sources first and replace uncited normalized Sources with a compact provider/kind inventory line. `report.json` and console artifact views keep the full source array for audit and inspection.
 
@@ -322,7 +322,7 @@ Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 
-The prediction count is a soft target, not a hard floor ([ADR 0021](./adr/0021-prediction-count-soft-target.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and discloses a `predictionShortfall` data gap rather than padding with coin-flip (≈0.5) predictions. Report assembly also rejects adjacent same-subject direction forecasts whose horizons are fewer than two trading days apart.
+The prediction count is a soft target, not a hard floor ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and discloses a `predictionShortfall` data gap rather than padding with coin-flip (≈0.5) predictions. Report assembly also rejects adjacent same-subject direction forecasts whose horizons are fewer than two trading days apart.
 
 ## Predictions
 
@@ -342,7 +342,7 @@ abs(earningsReturn(SUBJECT, DATE, +N)) > T
 if (<existing expression>) then (<existing expression>)
 ```
 
-The two `earningsReturn` forms (`earnings-direction` and `earnings-move`) are event-anchored: `+N` counts trading days after the named earnings `DATE`, not days from `generatedAt`, and they resolve against the post-event return ([ADR 0030](./adr/0030-earnings-event-anchored-horizons.md)). They are emitted only from the deep-equity Earnings Setup.
+The two `earningsReturn` forms (`earnings-direction` and `earnings-move`) are event-anchored: `+N` counts trading days after the named earnings `DATE`, not days from `generatedAt`, and they resolve against the post-event return ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)). They are emitted only from the deep-equity Earnings Setup.
 
 Prediction validation checks:
 
@@ -354,7 +354,7 @@ Prediction validation checks:
 - source IDs exist in the report source list;
 - direction forecasts on the same subject are at least two trading days apart.
 
-Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output. The stored public `claim` remains present for compatibility, but it is generated from the parsed `measurableAs`; model-authored claim text is ignored ([ADR 0020](./adr/0020-claim-rendered-from-dsl.md)). Legacy artifact display and indexes render from `measurableAs` when parseable and fall back to the stored `claim` otherwise.
+Accepted predictions are canonicalized so the stored `measurableAs` matches the parser output. The stored public `claim` remains present for compatibility, but it is generated from the parsed `measurableAs`; model-authored claim text is ignored ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)). Legacy artifact display and indexes render from `measurableAs` when parseable and fall back to the stored `claim` otherwise.
 
 ## Report validation and rendering
 
@@ -484,4 +484,4 @@ Common extension points:
 | Change CLI syntax              | `src/cli/args.ts`, CLI tests, README command docs                                                                         |
 | Add or change Domain Playbooks | `prompts/playbooks/registry.json`, `prompts/playbooks/*.md`, `src/research/playbooks.ts`, playbook and orchestrator tests |
 
-Keep changes inside the research-only boundary in [ADR 0001](./adr/0001-research-only-boundary.md) and the observable-forecast boundary in [ADR 0004](./adr/0004-predictions-as-observable-forecasts.md).
+Keep changes inside the research-only boundary in [ADR 0001](./adr/0001-research-only-boundary.md) and the observable-forecast boundary in [ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).

@@ -6,7 +6,7 @@
 - [docs/architecture.md](./docs/architecture.md) — layout, subsystems, data flow
 - [docs/conventions.md](./docs/conventions.md) — code style, testing, commits
 - [docs/configuration.md](./docs/configuration.md) — env vars
-- [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index; many ADR files are superseded redirects, cite only canonical records
+- [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index
 
 ## Project basics
 
@@ -48,7 +48,7 @@ ADRs document current architectural decisions and should be followed by default,
 ## Non-negotiables
 
 1. **Research-only.** No buy/sell/hold calls, sizing, or execution language ([ADR 0001](./docs/adr/0001-research-only-boundary.md)).
-2. **Predictions must be observable.** Resolvable from public price data ([ADR 0004](./docs/adr/0004-predictions-as-observable-forecasts.md)).
+2. **Predictions must be observable.** Resolvable from public price data ([ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)).
 3. **No secrets in code, tests, or fixtures.** Env vars only.
 4. **Bun + oxc only.** Do not add Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-typescript-bun-orchestration.md)).
 5. **Scope discipline.** No speculative abstractions, no bundled refactors, no unsolicited planning docs.

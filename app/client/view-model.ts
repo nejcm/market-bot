@@ -121,6 +121,16 @@ export type {
 
 const RUN_PATH_PREFIX = "/runs/";
 const INSTRUMENT_PATH_PREFIX = "/instruments/";
+const SIDEBAR_VIEW_PATHS = {
+  dashboard: "/",
+  search: "/search",
+  jobs: "/jobs",
+  calibration: "/calibration",
+  "alpha-cohorts": "/alpha-cohorts",
+  health: "/health",
+} as const;
+
+export type SidebarView = keyof typeof SIDEBAR_VIEW_PATHS;
 const RECENT_RUN_LIMIT = 5;
 const RUN_TYPE_ORDER = ["market-overview", "daily", "weekly", "equity", "crypto"];
 const PROVIDER_GAP_KEYS = ["missingCredential", "fetchFailed", "yahooAuth", "other"];
@@ -1344,6 +1354,25 @@ export function formatDateMinute(value: string | undefined): string {
 
 export function runPath(runId: string): string {
   return `${RUN_PATH_PREFIX}${encodeURIComponent(runId)}`;
+}
+
+export function sidebarViewPath(view: SidebarView): string {
+  return SIDEBAR_VIEW_PATHS[view];
+}
+
+export function searchPath(query: string): string {
+  return `${SIDEBAR_VIEW_PATHS.search}?${new URLSearchParams({ q: query.trim() }).toString()}`;
+}
+
+export function searchQueryFromSearchParams(search: string): string | undefined {
+  const params = new URLSearchParams(search);
+  return params.has("q") ? (params.get("q") ?? "") : undefined;
+}
+
+export function sidebarViewFromPathname(pathname: string): SidebarView | undefined {
+  return (Object.entries(SIDEBAR_VIEW_PATHS) as readonly [SidebarView, string][]).find(
+    ([, path]) => path === pathname,
+  )?.[0];
 }
 
 export function runIdFromPathname(pathname: string): string | undefined {

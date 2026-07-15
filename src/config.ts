@@ -25,7 +25,7 @@ export interface SourceOptions {
   readonly cacheFallbackDays?: number;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
-  // Learned peer-universe cache (model-proposed-validated entries). See ADR 0039.
+  // Learned peer-universe cache (model-proposed-validated entries). See ADR 0004.
   readonly peerUniverseLearnedPath?: string;
   readonly peerUniverseTtlDays?: number;
 }

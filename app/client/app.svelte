@@ -48,6 +48,11 @@
     runIdFromPathname,
     runPath,
     runTrend,
+    searchPath,
+    searchQueryFromSearchParams,
+    sidebarViewFromPathname,
+    sidebarViewPath,
+    type SidebarView,
   } from "./view-model";
 
   let view = $state<View>("dashboard");
@@ -78,6 +83,7 @@
   let searchLoading = $state(false);
   let searchNotice = $state("");
   let hasSearched = $state(false);
+  let searchRequestId = 0;
   const searchForm = $state({
     query: "",
     symbol: "",
@@ -127,7 +133,7 @@
     loadingInstrument = false;
   }
 
-  function navigate(nextView: Exclude<View, "run" | "instrument">): void {
+  function selectSidebarView(nextView: SidebarView): void {
     view = nextView;
     clearSelectedRun();
     clearSelectedInstrument();
@@ -137,8 +143,16 @@
         compareDetails = [];
       });
     }
-    if (globalThis.location.pathname !== "/") {
-      globalThis.history.pushState({}, "", "/");
+  }
+
+  function navigate(nextView: SidebarView): void {
+    selectSidebarView(nextView);
+    const pathname = sidebarViewPath(nextView);
+    if (`${globalThis.location.pathname}${globalThis.location.search}` !== pathname) {
+      globalThis.history.pushState({}, "", pathname);
+    }
+    if (nextView === "search") {
+      restoreSearchFromLocation();
     }
   }
 
@@ -270,10 +284,11 @@
       return;
     }
 
-    view = "dashboard";
-    clearSelectedRun();
-    clearSelectedInstrument();
-    error = "";
+    const sidebarView = sidebarViewFromPathname(globalThis.location.pathname) ?? "dashboard";
+    selectSidebarView(sidebarView);
+    if (sidebarView === "search") {
+      restoreSearchFromLocation();
+    }
   }
 
   function handleRunKeyNav(event: KeyboardEvent): void {
@@ -325,6 +340,7 @@
   }
 
   async function runSearch(): Promise<void> {
+    const requestId = ++searchRequestId;
     const searchQuery = searchForm.query.trim();
     searchNotice = "";
     error = "";
@@ -333,12 +349,13 @@
     if (searchQuery === "") {
       searchResults = [];
       searchNotice = "Enter a search query.";
+      searchLoading = false;
       return;
     }
 
     searchLoading = true;
     try {
-      searchResults = await fetchRunSearch({
+      const nextResults = await fetchRunSearch({
         query: searchQuery,
         symbol: searchForm.symbol,
         assetClass: searchForm.assetClass,
@@ -346,19 +363,49 @@
         from: searchForm.from,
         to: searchForm.to,
       });
+      if (requestId !== searchRequestId) {
+        return;
+      }
+      searchResults = nextResults;
       searchNotice =
         searchResults.length === 0
           ? `No sections match “${searchQuery}”. Search covers findings, cases, risks, catalysts, forecasts, extended evidence, and gaps.`
           : "";
     } catch (caughtError: unknown) {
+      if (requestId !== searchRequestId) {
+        return;
+      }
       searchResults = [];
       error =
         caughtError instanceof Error
           ? caughtError.message
           : String(caughtError);
     } finally {
-      searchLoading = false;
+      if (requestId === searchRequestId) {
+        searchLoading = false;
+      }
     }
+  }
+
+  function submitSearch(): void {
+    searchForm.query = searchForm.query.trim();
+    globalThis.history.pushState({}, "", searchPath(searchForm.query));
+    void runSearch();
+  }
+
+  function restoreSearchFromLocation(): void {
+    const searchQuery = searchQueryFromSearchParams(globalThis.location.search);
+    searchForm.query = searchQuery ?? "";
+    if (searchQuery !== undefined) {
+      void runSearch();
+      return;
+    }
+
+    searchRequestId += 1;
+    searchResults = [];
+    searchLoading = false;
+    searchNotice = "";
+    hasSearched = false;
   }
 
   async function loadFile(path: string): Promise<void> {
@@ -436,6 +483,9 @@
         const initialInstrument = instrumentFromPathname(
           globalThis.location.pathname,
         );
+        const initialSidebarView = sidebarViewFromPathname(
+          globalThis.location.pathname,
+        );
         const [
           nextRuns,
           nextProviderHealth,
@@ -462,9 +512,10 @@
             initialInstrument.symbol,
           );
         } else {
-          void loadCompareDetails(nextRuns).catch(() => {
-            compareDetails = [];
-          });
+          selectSidebarView(initialSidebarView ?? "dashboard");
+          if (initialSidebarView === "search") {
+            restoreSearchFromLocation();
+          }
         }
       } catch (caughtError: unknown) {
         error =
@@ -557,7 +608,7 @@
           {searchNotice}
           {searchForm}
           {hasSearched}
-          onRunSearch={() => void runSearch()}
+          onRunSearch={submitSearch}
           onOpenSearchResult={(result) => void openSearchResult(result)}
           onSearchFormChange={updateSearchForm}
         />

@@ -6,7 +6,7 @@ import type { ExtendedEvidenceItem, MarketFundamentals, MarketSnapshot } from ".
 // The raw payload. This makes the item immune to the Massive quote fallback,
 // Which replaces the Yahoo payload with a non-Yahoo shape carrying none of these
 // Fields — in that case snapshot.fundamentals is absent and no item is produced.
-// See ADR 0033.
+// See ADR 0004.
 
 function tickerSnapshot(
   command: InstrumentCommand,

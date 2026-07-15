@@ -471,7 +471,7 @@ function priorThematicForecastErrorsFor(
   return parsed.evidence?.priorThematicForecastErrors;
 }
 
-describe("buildStagePrompt market-scoped forecast error correction (ADR 0015)", () => {
+describe("buildStagePrompt market-scoped forecast error correction (ADR 0003)", () => {
   const dailyCommand: ResearchCommand = legacyMarketOverviewCommand("daily", {
     assetClass: "equity",
     depth: "brief",

@@ -478,7 +478,7 @@ export async function runScorePass(
 
   const results = await Promise.all(
     runDirs.map(async (runDir) => {
-      // Single guarded read of report + existing scores via the canonical seam (ADR 0016),
+      // Single guarded read of report + existing scores via the canonical seam (ADR 0002),
       // Replacing the prior raw `as ResearchReport`/`as ScoreFile` casts. score.json is parsed
       // Leniently; malformed score files degrade to no prior scores rather than throwing.
       const { artifact } = await loadRunArtifact(runDir);

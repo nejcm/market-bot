@@ -19,8 +19,8 @@ export interface RebuildIfStaleResult {
  *  - state !== "available" → early return (disabled / missing / unsupported-schema / unreadable)
  *  - index is fresh        → early return (no work needed)
  *
- * Does NOT auto-create a missing index (see ADR 0018 rejected alternatives and
- * ADR 0022 for the stale-healing carve-out).
+ * Does NOT auto-create a missing index; ADR 0002 permits stale healing only for
+ * an existing schema-compatible index.
  *
  * @param {string} dataDir - Canonical run artifacts directory.
  * @param {RebuildOptions} options - Optional override for the SQLite DB path.

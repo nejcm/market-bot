@@ -37,6 +37,10 @@ import {
   runLabel,
   runPath,
   runTrend,
+  searchPath,
+  searchQueryFromSearchParams,
+  sidebarViewFromPathname,
+  sidebarViewPath,
   scenarios,
   sources,
   formatShortfallGap,
@@ -185,6 +189,33 @@ describe("research console app view model", () => {
     expect(runPath(runId)).toBe("/runs/daily%20run%2Balpha");
     expect(runIdFromPathname(runPath(runId))).toBe(runId);
     expect(runIdFromPathname("/runs/%")).toBeUndefined();
+  });
+
+  test("maps sidebar views to distinct client routes", () => {
+    expect(sidebarViewPath("dashboard")).toBe("/");
+    expect(sidebarViewPath("search")).toBe("/search");
+    expect(sidebarViewPath("jobs")).toBe("/jobs");
+    expect(sidebarViewPath("calibration")).toBe("/calibration");
+    expect(sidebarViewPath("alpha-cohorts")).toBe("/alpha-cohorts");
+    expect(sidebarViewPath("health")).toBe("/health");
+  });
+
+  test("selects sidebar views from exact client routes", () => {
+    expect(sidebarViewFromPathname("/")).toBe("dashboard");
+    expect(sidebarViewFromPathname("/search")).toBe("search");
+    expect(sidebarViewFromPathname("/jobs")).toBe("jobs");
+    expect(sidebarViewFromPathname("/calibration")).toBe("calibration");
+    expect(sidebarViewFromPathname("/alpha-cohorts")).toBe("alpha-cohorts");
+    expect(sidebarViewFromPathname("/health")).toBe("health");
+    expect(sidebarViewFromPathname("/search/results")).toBeUndefined();
+    expect(sidebarViewFromPathname("/unknown")).toBeUndefined();
+  });
+
+  test("round-trips search queries through the search URL", () => {
+    expect(searchPath("  term premium & capex  ")).toBe("/search?q=term+premium+%26+capex");
+    expect(searchQueryFromSearchParams("?q=term+premium+%26+capex")).toBe("term premium & capex");
+    expect(searchQueryFromSearchParams("?q=")).toBe("");
+    expect(searchQueryFromSearchParams("")).toBeUndefined();
   });
 
   test("returns the five newest run summaries from the current order", () => {

@@ -383,7 +383,7 @@ describe("addFinancialLensEvidence", () => {
 
 // ---------------------------------------------------------------------------
 // Forbes/Investopedia ratio expansion: SEC + Yahoo two-tier provenance.
-// See plan: financial-lens-ratio-expansion. ADR 0033.
+// See plan: financial-lens-ratio-expansion. ADR 0004.
 // ---------------------------------------------------------------------------
 
 function secEvidenceWithRatios(

@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30
+2026-06-30 (consolidated 2026-07-15)
 
 ## Context
 
@@ -20,7 +20,7 @@ implementation deliberately permits positioning and trade-oriented questions.
   research-only. They must not contain buy/sell/hold conclusions, position sizing, execution
   instructions, allocation changes, or portfolio actions.
 - Predictions are probabilistic statements about public observable quantities, not
-  recommendations. Their scored event is defined by the forecast DSL in ADR 0004.
+  recommendations. Their scored event is defined by the forecast DSL in ADR 0003.
 - Report validation and research prompts enforce the persisted-output boundary.
 - Run Chat is the sole current exception. It is not report-validated, is not persisted server-side,
   and may discuss positioning or trade ideas over run artifacts. Browser-local chat storage does
@@ -42,7 +42,3 @@ implementation deliberately permits positioning and trade-oriented questions.
 - `src/report/schema.ts` and research prompts reject trade-action language in reports.
 - `src/history/artifacts.ts` validates narrative thesis deltas before persistence.
 - `prompts/console-run-chat.md` implements the explicit chat exception.
-
-## Supersedes
-
-- ADR 0029’s boundary-exception section; Run Chat architecture remains in ADR 0029.

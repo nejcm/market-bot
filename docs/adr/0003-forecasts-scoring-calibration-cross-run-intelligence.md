@@ -1,4 +1,4 @@
-# ADR 0004: Observable forecasts, scoring, and calibration
+# ADR 0003: Forecasts, scoring, calibration, and cross-run intelligence
 
 ## Status
 
@@ -10,15 +10,19 @@ Accepted
 split-adjusted equity closes, provider-window anchor validation, and calibration presentation;
 amended 2026-07-06: primary Near-Base-Rate prompt steering;
 amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range after the first
-resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58)
+resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58;
+consolidated 2026-07-15)
 
 ## Context
 
 Research reports need measurable forecasts without becoming recommendations. Forecast generation,
-display, conditional semantics, event anchoring, disagreement analysis, scoring, and calibration
-must share one contract.
+display, conditional semantics, event anchoring, disagreement analysis, scoring, calibration, and
+reuse of prior research must share one contract. Prior artifacts can improve new work, but must not
+be mistaken for current market evidence.
 
 ## Decision
+
+### Forecast contract and generation
 
 - `ResearchReport.predictions` contains probabilistic forecasts about future public observations.
 - `measurableAs` is the scored source of truth. Code parses and canonicalizes the DSL and renders
@@ -39,6 +43,11 @@ must share one contract.
   signals an uninformative claim that should be recommitted or replaced, never inflated past the
   evidence — while in-band primary Predictions remain valid telemetry rather than triggering a
   hard rejection. Both paths retain the soft count target and must not pad it with coin flips.
+- Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast
+  IDs. The primary synthesis probability remains the only scored probability.
+
+### Scoring and calibration
+
 - Calibration reporting remains descriptive. Each slice keeps prediction-weighted Brier scoring
   and adds its distinct Run count plus a Run-clustered standard error when calculable.
 - Current calibration summaries aggregate resolved policy-v3 forecasts only and present resolved
@@ -60,8 +69,6 @@ must share one contract.
   readable but cannot activate guidance.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
   listed proxy and emits no predictions when no proxy resolves.
-- Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast
-  IDs. The primary synthesis probability remains the only scored probability.
 - Scoring resolves observations through the repository and close cache, then aggregates Brier
   metrics and calibration slices.
 - Scoring interpretation is keyed by the Prediction's persisted `scoringPolicyVersion` through an
@@ -92,6 +99,24 @@ must share one contract.
   unresolved. Massive and other providers cannot fill or replace any portion of a v3 equity
   resolution window. Legacy policy-v2 forecasts retain their historical raw-close provider behavior.
 
+### Historical context and correction
+
+- Build Historical Research Context only from canonical Run Artifacts under the configured data
+  directory, never from source-cache entries.
+- Select recent and anchor runs using run type, subject or instrument, horizon, recency, and
+  resolved-miss relevance. Collapse redundant same-day entries while preserving eligible
+  miss-correction runs.
+- Prior reports are citeable internal `model` sources and narrative context, not current market
+  observations.
+- Keep correction blocks aligned with the new run's forecast scope: instrument runs receive
+  same-instrument misses; market overviews receive same-asset, same-horizon-bucket misses for
+  configured subjects; thematic research receives same-subject or same-proxy misses.
+- Market Spotlights exist only for market-overview runs. Candidates originate in current collected
+  market evidence; history and alpha state may enrich candidates but never create them.
+- History rebuild, search, and thesis-delta operate only on artifacts. Narrative deltas are
+  generated only on request and must pass the persisted research-only boundary in ADR 0001.
+- Missing or malformed history is a soft historical-context gap.
+
 ## Current scoring limitations
 
 - Calibration guidance still compares slice Brier confidence bounds with the fixed 0.25 reference
@@ -118,6 +143,9 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 - Thin Calibration slices remain visible and are labeled unreliable; reporting thresholds do not
   grant synthesis authority.
 - Calibration consumers must interpret current confidence bounds within the limitations above.
+- Prior errors can inform new probability discipline without becoming a second market-data source.
+- History is reproducible from disk, and Spotlight selection cannot promote stale watchlist state
+  into current evidence.
 
 ## Implementation validation
 
@@ -128,11 +156,6 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 - `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and
   analytics.
 - `src/research/forecast-disagreement.ts` keeps challenger output separate from canonical scores.
-
-## Supersedes
-
-- ADR 0020
-- ADR 0021
-- ADR 0023
-- ADR 0024
-- ADR 0030
+- `src/research/historical-context.ts`, `prior-forecast-errors.ts`, and `spotlights.ts` implement
+  artifact-backed context, scoped correction, and current-evidence candidate constraints.
+- `src/history/` owns derived search, timelines, and thesis deltas.

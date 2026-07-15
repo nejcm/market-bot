@@ -1,7 +1,7 @@
 import type { AssetClass, Prediction } from "../domain/types";
 import { resolutionDate } from "./exchange-calendar";
 
-// Scoring Policy registry (ADR 0004). A Prediction's persisted
+// Scoring Policy registry (ADR 0003). A Prediction's persisted
 // `scoringPolicyVersion` — not a global constant — selects how its horizon
 // Count maps onto a clock. Historical forecasts without a version resolve
 // Permanently under policy v2; already-resolved scores are never rewritten.

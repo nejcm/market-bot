@@ -2,7 +2,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppConfig } from "../config";
-import type { ModelProvider, ModelRequest, ModelResponse, WebSearchCapability } from "./types";
+import {
+  createCodexAppServerStream,
+  defaultAppServerSpawn,
+  type AppServerSpawnImpl,
+} from "./codex-app-server";
+import type {
+  ModelRequest,
+  ModelResponse,
+  StreamingModelProvider,
+  WebSearchCapability,
+} from "./types";
 
 const MIN_CODEX_VERSION = [0, 125, 0] as const;
 
@@ -123,6 +133,34 @@ function timeoutError(timeoutMs: number): Error {
   return new Error(`Codex request timed out after ${String(timeoutMs)}ms`);
 }
 
+function abortError(): Error {
+  const error = new Error("Codex request was aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+async function withAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) {
+    return promise;
+  }
+  if (signal.aborted) {
+    throw abortError();
+  }
+
+  let onAbort: (() => void) | undefined = undefined;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = (): void => reject(abortError());
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    if (onAbort !== undefined) {
+      signal.removeEventListener("abort", onAbort);
+    }
+  }
+}
+
 function authStatusUnsupported(result: SpawnResult): boolean {
   const output = `${result.stdout}\n${result.stderr}`.toLowerCase();
   return output.includes("unrecognized subcommand") && output.includes("status");
@@ -210,10 +248,28 @@ async function probeWebSearchCapability(spawnImpl: SpawnImpl): Promise<WebSearch
     : { supported: false, reason: "provider-unsupported" };
 }
 
+async function probeAppServerSupport(spawnImpl: SpawnImpl): Promise<boolean> {
+  const result = await spawnImpl(["codex", "app-server", "--help"], "").catch(() => null);
+  return result !== null && result.exitCode === 0;
+}
+
+function buildCodexPrompt(request: ModelRequest): string {
+  const systemMessage =
+    request.messages.find((message) => message.role === "system")?.content ?? "";
+  const userMessages = request.messages.filter((message) => message.role !== "system");
+  const userContent = userMessages.map((message) => message.content).join("\n\n");
+  const jsonInstruction =
+    request.responseFormat === "json"
+      ? "\n\nIMPORTANT: Respond with a valid JSON object only. No prose, no markdown, no code fences."
+      : "";
+  return `${systemMessage}${jsonInstruction}${userContent ? `\n\n${userContent}` : ""}`;
+}
+
 export function createCodexProvider(
   config: AppConfig,
   spawnImpl: SpawnImpl = defaultSpawn,
-): ModelProvider {
+  appServerSpawn: AppServerSpawnImpl = defaultAppServerSpawn,
+): StreamingModelProvider {
   const modelMap = new Map<string, string>([
     [config.quickModel, config.codexQuickModel ?? config.quickModel],
     [config.synthesisModel, config.codexSynthesisModel ?? config.synthesisModel],
@@ -222,6 +278,7 @@ export function createCodexProvider(
   let preflightDone = false;
   let preflightPromise: Promise<void> | null = null;
   let webSearchCapabilityPromise: Promise<WebSearchCapability> | null = null;
+  let appServerSupportPromise: Promise<boolean> | null = null;
 
   function ensurePreflight(): Promise<void> {
     if (preflightDone) {
@@ -241,21 +298,38 @@ export function createCodexProvider(
       webSearchCapabilityPromise ??= probeWebSearchCapability(spawnImpl);
       return webSearchCapabilityPromise;
     },
+    generateStream: async (request: ModelRequest): Promise<ReadableStream<string>> => {
+      if (request.responseFormat === "json") {
+        throw new Error("Codex streaming does not support JSON response format");
+      }
+      await withAbort(ensurePreflight(), request.signal);
+      appServerSupportPromise ??= probeAppServerSupport(spawnImpl);
+      if (!(await withAbort(appServerSupportPromise, request.signal))) {
+        throw new Error("Codex app-server streaming is unavailable; update the Codex CLI");
+      }
+
+      const cwd = await mkdtemp(join(tmpdir(), "market-bot-codex-chat-"));
+      const resolvedModel = modelMap.get(request.model) ?? request.model;
+      return createCodexAppServerStream({
+        cwd,
+        env: codexChildEnv(),
+        model: resolvedModel,
+        prompt: buildCodexPrompt(request),
+        ...(request.params?.reasoningEffort !== undefined
+          ? { reasoningEffort: request.params.reasoningEffort }
+          : {}),
+        webSearch: request.webSearch === true,
+        timeoutMs: config.modelTimeoutMs,
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+        spawn: appServerSpawn,
+      });
+    },
     generate: async (request: ModelRequest): Promise<ModelResponse> => {
       await ensurePreflight();
 
       const resolvedModel = modelMap.get(request.model) ?? request.model;
 
-      const systemMessage = request.messages.find((m) => m.role === "system")?.content ?? "";
-      const userMessages = request.messages.filter((m) => m.role !== "system");
-      const userContent = userMessages.map((m) => m.content).join("\n\n");
-
-      const jsonInstruction =
-        request.responseFormat === "json"
-          ? "\n\nIMPORTANT: Respond with a valid JSON object only. No prose, no markdown, no code fences."
-          : "";
-
-      const prompt = `${systemMessage}${jsonInstruction}${userContent ? `\n\n${userContent}` : ""}`;
+      const prompt = buildCodexPrompt(request);
 
       const args = [
         "codex",

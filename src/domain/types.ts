@@ -337,7 +337,7 @@ export interface MarketSnapshot {
   readonly fiftyDayAverage?: number;
   // Pre-computed issuer fundamentals captured once from the Yahoo quote payload
   // At the single normalize point. Optional: absent for Massive fallback quotes,
-  // ETFs/ADRs, or any payload lacking these fields. See ADR 0033.
+  // ETFs/ADRs, or any payload lacking these fields. See ADR 0004.
   readonly fundamentals?: MarketFundamentals;
   readonly observedAt: string;
 }
@@ -455,7 +455,7 @@ export interface MarketContextItem {
 }
 
 // ---------------------------------------------------------------------------
-// Verified Market Snapshot (ADR 0019)
+// Verified Market Snapshot (ADR 0004)
 // ---------------------------------------------------------------------------
 
 export interface OhlcvBar {
@@ -468,7 +468,7 @@ export interface OhlcvBar {
   readonly volume: number;
 }
 
-/** Canonical indicator key schema, locked in ADR 0019. Phase A.2 matches these keys. */
+/** Canonical indicator key schema, locked in ADR 0004. Phase A.2 matches these keys. */
 export interface IndicatorMap {
   readonly ema10: number | null;
   readonly sma50: number | null;
@@ -526,7 +526,7 @@ export interface Prediction {
   readonly subject: string;
   readonly measurableAs: string;
   // Under scoring policy v3 this is the horizon count whose clock the policy
-  // Defines per forecast family; the field name is legacy (ADR 0004).
+  // Defines per forecast family; the field name is legacy (ADR 0003).
   readonly horizonTradingDays: number;
   readonly probability: number;
   readonly sourceIds: readonly string[];

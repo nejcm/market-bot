@@ -22,7 +22,7 @@ import {
 import { indexIsFresh } from "./run-artifact-index-freshness";
 import { indexRowsForRun } from "./run-artifact-index-rows";
 import { runSearchResultFromIndexRow, runSummaryFromIndexRow } from "./run-artifact-projection";
-import { parseStringArrayJson } from "./sources/guards";
+import { parseStringArrayJson } from "./guards";
 import type {
   PredictionRow,
   RebuildOptions,

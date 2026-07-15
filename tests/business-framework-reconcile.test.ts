@@ -7,10 +7,7 @@ import {
   type BusinessFrameworkGapValue,
   type BusinessFrameworkSection,
 } from "../src/sources/extended-evidence/business-framework";
-import type {
-  WebSubjectProfileArtifact,
-  WebSubjectProfileAnswer,
-} from "../src/sources/extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact, WebSubjectProfileAnswer } from "../src/web-evidence";
 
 function answer(text: string, sourceIds: readonly string[] = ["web-1"]): WebSubjectProfileAnswer {
   return { answer: text, sourceIds: [...sourceIds] };

@@ -1,5 +1,5 @@
 import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validation";
-import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
+import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 import { socialMomentumBaseSourceId, socialMomentumReportSourceId } from "./source-ids";
 

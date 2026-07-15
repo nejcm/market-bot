@@ -7,7 +7,7 @@ import {
   type MoverFeatures,
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
-import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
+import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
 import type { HistoricalResearchContext } from "./historical-context";
 
 export interface SpotlightAlphaAnnotation {

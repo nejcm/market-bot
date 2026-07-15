@@ -2,7 +2,7 @@ import { RESEARCH_SUBJECT_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
 import type { ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import { isUsListing } from "../sources/instrument-capability";
 import { findSecTicker } from "../sources/extended-evidence/sec-edgar";
 import { collectListedUniverse, type ListedUniverseEntry } from "../alpha-search/listed-universe";

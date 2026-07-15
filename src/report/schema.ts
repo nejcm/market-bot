@@ -9,7 +9,7 @@ import {
 } from "../domain/types";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -51,6 +51,8 @@ function validateSourceIds(
   }
 }
 
+// This raw-value reader is all-or-nothing and falls back to an empty array.
+// The shared guards instead read record keys or filter mixed arrays.
 function readStringArray(value: unknown): readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
 }

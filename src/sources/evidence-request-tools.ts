@@ -8,7 +8,7 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { sourceGap } from "../domain/source-gaps";
-import { isRecord, readNumber, stringArrayValue } from "./guards";
+import { isRecord, readNumber, stringArrayValue } from "../guards";
 import { isUsListing } from "./instrument-capability";
 import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";

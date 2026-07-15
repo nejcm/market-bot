@@ -12,7 +12,7 @@ import {
   type LegacyMarketUpdateJobType,
 } from "../domain/types";
 import type { HistorySection } from "../history/artifacts";
-import { isRecord } from "../sources/guards";
+import { isRecord, readStringVerbatim } from "../guards";
 
 export interface MarketOverviewCommand {
   readonly jobType: "market-overview";
@@ -153,11 +153,6 @@ export const SEARCH_JOB_TYPE_OPTIONS = [
 export const USAGE =
   "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> | market-bot alpha-search --asset equity [--deep] | market-bot score [--force] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
-
 function readPositiveIntegerString(
   record: Record<string, unknown>,
   key: string,
@@ -246,43 +241,48 @@ export function jobRequestArgv(value: unknown): readonly string[] {
     throw new Error("Job request must be an object");
   }
 
-  const jobType = readString(value, "jobType");
+  const jobType = readStringVerbatim(value, "jobType");
   if (jobType === "market-overview") {
-    const assetClass = readAssetClass(readString(value, "assetClass"));
+    const assetClass = readAssetClass(readStringVerbatim(value, "assetClass"));
     const horizon = readPositiveIntegerString(value, "horizonTradingDays");
     return [
       "market-overview",
       "--asset",
       assetClass,
       ...(horizon !== undefined ? ["--horizon", horizon] : []),
-      ...depthArg(readDepth(readString(value, "depth"))),
+      ...depthArg(readDepth(readStringVerbatim(value, "depth"))),
     ];
   }
 
   if (jobType === "daily" || jobType === "weekly") {
-    const assetClass = readAssetClass(readString(value, "assetClass"));
-    return [jobType, "--asset", assetClass, ...depthArg(readDepth(readString(value, "depth")))];
+    const assetClass = readAssetClass(readStringVerbatim(value, "assetClass"));
+    return [
+      jobType,
+      "--asset",
+      assetClass,
+      ...depthArg(readDepth(readStringVerbatim(value, "depth"))),
+    ];
   }
 
   if (jobType === "equity" || jobType === "crypto") {
-    const symbol = readString(value, "symbol");
+    const symbol = readStringVerbatim(value, "symbol");
     if (symbol === undefined || symbol.trim() === "") {
       throw new Error(`Expected ${jobType} symbol`);
     }
 
-    return [jobType, symbol, ...depthArg(readDepth(readString(value, "depth")))];
+    return [jobType, symbol, ...depthArg(readDepth(readStringVerbatim(value, "depth")))];
   }
 
   if (jobType === "alpha-search") {
     return [
       "alpha-search",
       ...fixedAssetArg(jobType),
-      ...depthArg(readDepth(readString(value, "depth"))),
+      ...depthArg(readDepth(readStringVerbatim(value, "depth"))),
     ];
   }
 
   if (jobType === "research") {
-    const subject = readString(value, "subject")?.trim();
+    const subject = readStringVerbatim(value, "subject")?.trim();
     if (subject === undefined || subject === "") {
       throw new Error("Expected research subject");
     }

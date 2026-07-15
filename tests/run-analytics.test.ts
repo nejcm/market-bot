@@ -3,7 +3,7 @@ import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
 import type { RunTrace, Source } from "../src/domain/types";
 import type { CollectedSources } from "../src/sources/types";
-import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 import {
   collectedSources as collectedSourceBundle,
   marketSnapshot,

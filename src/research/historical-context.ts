@@ -19,7 +19,7 @@ import {
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import type { PredictionScore } from "../scoring/types";
-import { isRecord, readNumber, readString, stringArrayValue } from "../sources/guards";
+import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
 import {
   commandResearchSubjectIdentity,
   isSameResearchSubjectIdentity,

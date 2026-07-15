@@ -1,4 +1,4 @@
-import { isRecord, readNumber } from "./guards";
+import { isRecord, readNumber } from "../guards";
 import type { FetchLike } from "./types";
 
 function encodeQuery(params: Record<string, string>): string {

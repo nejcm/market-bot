@@ -1,6 +1,6 @@
 import type { Observation } from "../forecast/observable";
 import type { MarketSnapshot } from "../domain/types";
-import { isRecord, optionalString, readNumber, readString } from "./guards";
+import { isRecord, optionalString, readNumber, readString } from "../guards";
 import {
   buildMassiveAggregatesUrl,
   buildMassiveSnapshotUrl,

@@ -1,4 +1,4 @@
-import { setSourceHostMinDelayMsForTests } from "../../src/sources/collector";
+import { setSourceHostMinDelayMsForTests } from "../../src/sources/source-request";
 
 // Eliminate the real per-host rate-limit sleep so tests never wait on wall-clock time.
 setSourceHostMinDelayMsForTests(0);

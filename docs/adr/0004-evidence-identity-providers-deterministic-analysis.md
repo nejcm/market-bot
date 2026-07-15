@@ -8,7 +8,8 @@ Accepted
 
 2026-06-30 (amended 2026-07-02: deterministic peer comparability gates; amended 2026-07-05:
 tier-scoped SIC gate; amended 2026-07-09: research representative snapshots and thematic news;
-amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15)
+amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15; amended
+2026-07-16: clarified web-gather provider and contract module ownership)
 
 ## Context
 
@@ -180,6 +181,13 @@ without pretending the project has a global security master.
   `src/research/subject-registry.ts`, and `research-subject-identity.ts` implement identity.
 - `src/sources/providers.ts`, `registry.ts`, `collector.ts`, `yahoo-resilience.ts`, and
   `massive-fallback.ts` implement provider composition and fallback.
-- `src/research/source-plan.ts`, `evidence-quality.ts`, `web-gather-loop.ts`, and
-  `web-subject-profile-reuse.ts`; `src/sources/cache.ts`, `model-input-sanitizer.ts`, and
-  `web-gather-emit.ts`; and `src/reproducibility.ts` implement evidence governance.
+- `src/research/source-plan.ts` and `evidence-quality.ts` implement deterministic authority.
+- `src/sources/cache.ts` implements freshness and stale-audit behavior.
+- `src/sources/model-input-sanitizer.ts`, news collection, SEC filing emission, historical prompt
+  projection, and `src/web-evidence/web-gather-loop.ts` implement profile-aware model-input hardening.
+- `src/sources/web-gather-tools.ts`, `src/sources/firecrawl-web-tools.ts`, and
+  `src/sources/web-gather-emit.ts` implement provider execution and normalized emission through the
+  Source Provider seam; `src/web-evidence/web-gather-loop.ts` owns orchestration and policy.
+- `src/web-evidence/contract.ts` is the dependency-neutral Web Subject Profile contract entry point.
+- `src/web-evidence/web-subject-profile-reuse.ts` implements reuse.
+- `src/reproducibility.ts` implements configuration and source-state fingerprints.

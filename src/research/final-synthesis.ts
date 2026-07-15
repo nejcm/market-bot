@@ -9,7 +9,8 @@ import {
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
 import type { StageLabel } from "./prompt-loader";
-import type { PredictionCompletionPrompt, ResearchContext } from "./research-context";
+import type { PredictionCompletionPrompt } from "./prompts";
+import type { ResearchContext } from "./research-context-types";
 import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
   assembleResearchReport,

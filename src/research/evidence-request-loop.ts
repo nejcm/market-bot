@@ -11,7 +11,7 @@ import type {
   SourceGap,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import {
   availableEvidenceRequestTools,
@@ -19,7 +19,8 @@ import {
   executeEvidenceRequestTool,
   type EvidenceRequestToolOutput,
 } from "../sources/evidence-request-tools";
-import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
+import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
+import { createCollectContext } from "../sources/source-request";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   runJsonToolLoop,
@@ -32,7 +33,7 @@ import {
   rejectedJsonToolRequest,
   withStaleFallbackGaps,
 } from "./json-tool-loop-support";
-import type { EvidenceRequestContext, ResearchContext } from "./research-context";
+import type { EvidenceRequestContext, ResearchContext } from "./research-context-types";
 
 export interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";

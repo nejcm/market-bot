@@ -16,6 +16,7 @@ const OLDER_FORMATTER = new Intl.DateTimeFormat(TIMESTAMP_LOCALE, {
   minute: "2-digit",
 });
 
+// Diverges from guards.isRecord: does not exclude arrays.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

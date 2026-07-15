@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import type { AppConfig } from "../../src/config";
 import type { MarketContext, MarketSnapshot, Source } from "../../src/domain/types";
 import type { runResearchJob } from "../../src/research/orchestrator";
-import { isRecord } from "../../src/sources/guards";
+import { isRecord } from "../../src/guards";
 import { marketSnapshot, newsSource } from "./fixtures";
 
 const defaultDataDir = join(

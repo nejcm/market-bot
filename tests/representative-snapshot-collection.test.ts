@@ -5,12 +5,11 @@ import {
   type ResolvedResearchSubject,
 } from "../src/research/research-subject-identity";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
+import { collectSources, researchThematicNewsQuery } from "../src/sources/collector";
 import {
-  collectSources,
-  researchThematicNewsQuery,
   resetSourceResilienceForTests,
   setSourceHostMinDelayMsForTests,
-} from "../src/sources/collector";
+} from "../src/sources/source-request";
 
 const generatedAt = "2026-07-09T00:00:00.000Z";
 const command = {

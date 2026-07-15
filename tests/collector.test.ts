@@ -7,13 +7,12 @@ import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
 import { summarizeMarketRegime } from "../src/research/regime";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
+import { collectSources, researchNewsRelevanceTargets } from "../src/sources/collector";
 import {
-  collectSources,
   createCollectContext,
   resetSourceResilienceForTests,
-  researchNewsRelevanceTargets,
   setSourceHostMinDelayMsForTests,
-} from "../src/sources/collector";
+} from "../src/sources/source-request";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 
 function jsonResponse(payload: unknown): Response {

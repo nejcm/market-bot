@@ -7,7 +7,7 @@ import {
   buildWebSubjectProfileReuseEvidence,
   type WebSubjectProfileArtifact,
   webSubjectProfileSubjectForCommand,
-} from "../sources/extended-evidence/web-subject-profile";
+} from "./web-subject-profile";
 import type { CollectedSources } from "../sources/types";
 import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
 

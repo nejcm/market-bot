@@ -10,16 +10,13 @@ import type {
   RunSearchResult,
   RunSummary,
 } from "../types";
+import { isRecord } from "../../src/guards";
 
 export interface CreateJobRequest {
   readonly jobType: string;
   readonly assetClass?: string;
   readonly symbol?: string;
   readonly depth?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isRunSummary(value: unknown): value is RunSummary {

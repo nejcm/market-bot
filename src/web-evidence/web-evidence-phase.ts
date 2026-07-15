@@ -7,11 +7,11 @@ import {
   buildWebSubjectProfileFailureEvidence,
   isCompanyProfileSecSource,
   webSubjectProfileSubjectForCommand,
-} from "../sources/extended-evidence/web-subject-profile";
+} from "./web-subject-profile";
 import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
-import type { StageOutput } from "./final-synthesis";
-import type { ResearchContext } from "./research-context";
-import { commandWithResolvedResearchSubject } from "./research-subject-identity";
+import type { StageOutput } from "../research/final-synthesis";
+import type { ResearchContext } from "../research/research-context-types";
+import { commandWithResolvedResearchSubject } from "../research/research-subject-identity";
 import { isWebGatherLoopEnabled, runWebGatherLoop } from "./web-gather-loop";
 import {
   attachReusableWebSubjectProfile,

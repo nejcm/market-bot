@@ -15,10 +15,11 @@ import type {
   JsonToolLoopAuditEntry,
 } from "../domain/types";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
-import { isRecord, readString } from "../sources/guards";
+import { isRecord, readString } from "../guards";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { canonicalizeUrl } from "../sources/news-utils";
-import { createCollectContext, DEFAULT_RETRY_DELAYS_MS } from "../sources/collector";
+import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
+import { createCollectContext } from "../sources/source-request";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import {
   executeWebGatherTool,
@@ -39,23 +40,23 @@ import {
   type WebGatherSubject,
   type WebGatherToolOutput,
 } from "../sources/web-gather-emit";
-import { dedupeWebSourcesByHeadline } from "../sources/web-headline-dedupe";
+import { dedupeWebSourcesByHeadline } from "./web-headline-dedupe";
 import {
   isCompanyProfileSecSource,
   webSubjectProfileSubjectForCommand,
-} from "../sources/extended-evidence/web-subject-profile";
+} from "./web-subject-profile";
 import {
   runJsonToolLoop,
   type JsonToolLoopAccepted,
   type JsonToolLoopRoundState,
-} from "./json-tool-loop";
+} from "../research/json-tool-loop";
 import {
   acceptedJsonToolAuditEntry,
   budgetRejectionReason,
   rejectedJsonToolRequest,
   withStaleFallbackGaps,
-} from "./json-tool-loop-support";
-import type { ResearchContext, WebGatherContext } from "./research-context";
+} from "../research/json-tool-loop-support";
+import type { ResearchContext, WebGatherContext } from "../research/research-context-types";
 
 export interface WebGatherStageOutput {
   readonly stage: "web-gather";

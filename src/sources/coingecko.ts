@@ -11,7 +11,7 @@ import {
   type MarketCollectionResult,
   type MarketDataAdapter,
 } from "./types";
-import { isRecord, optionalString, readNumber, readString } from "./guards";
+import { isRecord, optionalString, readNumber, readString } from "../guards";
 
 function normalizeCoinGeckoMarket(value: unknown, fetchedAt: string): MarketSnapshot | undefined {
   if (!isRecord(value)) {

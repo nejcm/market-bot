@@ -55,13 +55,16 @@ import {
   isBusinessLifecyclePhase,
   type BusinessFrameworkArtifact,
 } from "./sources/extended-evidence/business-framework";
+// Import the public profile contract leaf directly, not the ./web-evidence barrel.
+// The web-evidence phase reuses this reader, while its barrel eagerly exports that phase.
+// Importing the barrel here would form a run-artifacts → phase → profile-reuse → run-artifacts cycle.
 import {
   LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   type WebSubjectProfileAnswer,
   type WebSubjectProfileArtifact,
   type WebSubjectProfileFact,
-} from "./sources/extended-evidence/web-subject-profile";
+} from "./web-evidence/contract";
 import {
   isRecord,
   nonEmptyStringArrayValue,
@@ -69,7 +72,7 @@ import {
   readString,
   readStringArray,
   stringArrayValue,
-} from "./sources/guards";
+} from "./guards";
 
 // ---------------------------------------------------------------------------
 // Run Artifact reader — the single read seam for persisted research runs under

@@ -1,5 +1,6 @@
 import type { AssetClass, JobType, Prediction, ResearchReport, Source } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
+import { isRecord, readStringVerbatim, stringArrayValue } from "./guards";
 import type { PredictionScore } from "./scoring/types";
 
 export const REPORT_SEARCH_SECTIONS = [
@@ -104,25 +105,13 @@ function metricsSearchText(metrics: Readonly<Record<string, number | string>> | 
   return Object.values(metrics).map(String).join(" ");
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readString(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
-
 function readInputString(record: ReportSearchInput, key: ReportSearchInputKey): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
 }
 
 function readSourceIds(record: Record<string, unknown>): readonly string[] {
-  const { sourceIds } = record;
-  return Array.isArray(sourceIds)
-    ? sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
-    : [];
+  return stringArrayValue(record.sourceIds);
 }
 
 function readMetrics(
@@ -159,7 +148,7 @@ export function textItems(
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const text = readString(item, "text");
+      const text = readStringVerbatim(item, "text");
       return text === undefined ? [] : [{ text, sourceIds: readSourceIds(item) }];
     });
 }
@@ -190,9 +179,9 @@ export function extendedEvidenceItems(
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const category = readString(item, "category");
-      const title = readString(item, "title");
-      const summary = readString(item, "summary");
+      const category = readStringVerbatim(item, "category");
+      const title = readStringVerbatim(item, "title");
+      const summary = readStringVerbatim(item, "summary");
       if (category === undefined || title === undefined || summary === undefined) {
         return [];
       }
@@ -262,9 +251,9 @@ function predictionCandidates(
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const id = readString(item, "id");
-      const measurableAs = readString(item, "measurableAs");
-      const storedClaim = readString(item, "claim");
+      const id = readStringVerbatim(item, "id");
+      const measurableAs = readStringVerbatim(item, "measurableAs");
+      const storedClaim = readStringVerbatim(item, "claim");
       const claim =
         measurableAs === undefined
           ? storedClaim
@@ -307,8 +296,8 @@ function sourceCandidates(
   return value
     .filter((item) => isRecord(item))
     .flatMap((item) => {
-      const id = readString(item, "id");
-      const title = readString(item, "title");
+      const id = readStringVerbatim(item, "id");
+      const title = readStringVerbatim(item, "title");
       if (id === undefined || title === undefined) {
         return [];
       }
@@ -318,15 +307,17 @@ function sourceCandidates(
         scope === "console"
           ? [
               title,
-              readString(item, "publisher"),
-              readString(item, "provider"),
-              readString(item, "summary"),
-              readString(item, "snippet"),
-              readString(item, "url"),
+              readStringVerbatim(item, "publisher"),
+              readStringVerbatim(item, "provider"),
+              readStringVerbatim(item, "summary"),
+              readStringVerbatim(item, "snippet"),
+              readStringVerbatim(item, "url"),
             ]
               .filter((part): part is string => part !== undefined)
               .join(" ")
-          : [title, readString(item, "summary"), readString(item, "snippet")].join(" ");
+          : [title, readStringVerbatim(item, "summary"), readStringVerbatim(item, "snippet")].join(
+              " ",
+            );
 
       return [{ section: "sources", label, text, sourceIds: [id], identityId: id }];
     });
@@ -371,7 +362,7 @@ function alphaResearchLeadCandidates(report: ReportSearchInput): readonly Report
   return leads
     .filter((lead) => isRecord(lead))
     .flatMap((lead) => {
-      const symbol = readString(lead, "symbol");
+      const symbol = readStringVerbatim(lead, "symbol");
       if (symbol === undefined) {
         return [];
       }
@@ -381,10 +372,10 @@ function alphaResearchLeadCandidates(report: ReportSearchInput): readonly Report
           label: `Research lead ${symbol}`,
           text: [
             symbol,
-            readString(lead, "name"),
-            readString(lead, "exchange"),
+            readStringVerbatim(lead, "name"),
+            readStringVerbatim(lead, "exchange"),
             stringListText(lead.discoverySources),
-            readString(lead, "secCompanyName"),
+            readStringVerbatim(lead, "secCompanyName"),
           ]
             .filter((part): part is string => part !== undefined && part !== "")
             .join(" "),
@@ -405,8 +396,8 @@ function alphaRejectedCandidateCandidates(
   return rejected
     .filter((candidate) => isRecord(candidate))
     .flatMap((candidate) => {
-      const symbol = readString(candidate, "symbol");
-      const reason = readString(candidate, "reason");
+      const symbol = readStringVerbatim(candidate, "symbol");
+      const reason = readStringVerbatim(candidate, "reason");
       if (symbol === undefined || reason === undefined) {
         return [];
       }
@@ -418,7 +409,7 @@ function alphaRejectedCandidateCandidates(
             symbol,
             reason,
             stringListText(candidate.discoverySources),
-            readString(candidate, "secCompanyName"),
+            readStringVerbatim(candidate, "secCompanyName"),
           ]
             .filter((part): part is string => part !== undefined && part !== "")
             .join(" "),

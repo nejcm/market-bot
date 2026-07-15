@@ -14,7 +14,7 @@ import { isExchangeTradingDay, resolutionDate } from "./exchange-calendar";
 import type { ObservationRepository } from "./observations";
 import { scoringPolicyFor, type ScoringPolicy } from "./policy";
 import type { ScoreOutcome } from "./types";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 
 export type { Observation };
 

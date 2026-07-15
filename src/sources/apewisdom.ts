@@ -1,6 +1,6 @@
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
-import { isRecord, readString } from "./guards";
+import { isRecord, readString } from "../guards";
 import { isFetchJsonResult, type RawSourceSnapshot, type SourceRequestExecutor } from "./types";
 
 const APEWISDOM_ADAPTER = "apewisdom";

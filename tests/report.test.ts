@@ -7,7 +7,7 @@ import { violatesResearchOnly } from "../src/domain/research-language";
 import { validateResearchReport } from "../src/report/schema";
 import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
-import type { DepthProfile, ResearchContext } from "../src/research/research-context";
+import type { DepthProfile, ResearchContext } from "../src/research/research-context-types";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
 import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";

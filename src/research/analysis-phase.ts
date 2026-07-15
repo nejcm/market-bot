@@ -3,7 +3,7 @@ import type { ResearchCommand } from "../cli/args";
 import type { CollectedSources } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";
 import type { PlaybookStage } from "./playbooks";
-import type { ResearchContext } from "./research-context";
+import type { ResearchContext } from "./research-context-types";
 
 type AnalysisStage = Extract<
   StageOutput["stage"],

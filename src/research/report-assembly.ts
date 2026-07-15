@@ -16,7 +16,7 @@ import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
-import { isRecord, nonEmptyStringArrayValue, readString } from "../sources/guards";
+import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { extractCatalystDate } from "./catalyst-date";
 import { verifiedSnapshotSource, verifiedSnapshotSourceId } from "./verified-snapshot-contract";
@@ -26,9 +26,8 @@ import {
   deterministicSourceGapEntries,
   EQUITY_MARKET_OVERVIEW_MOVER_UNIVERSE_GAP,
   type DataGapEntry,
-  type DepthProfile,
-  type ResearchContext,
-} from "./research-context";
+} from "./deterministic-gaps";
+import type { DepthProfile, ResearchContext } from "./research-context-types";
 import {
   commandResearchSubjectIdentity,
   researchIdentityExtras,

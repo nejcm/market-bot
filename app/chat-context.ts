@@ -1,5 +1,6 @@
 import type { RunDetail } from "./types";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { isRecord, stringArrayValue } from "../src/guards";
 
 // ~24k tokens at ~4 chars/token
 const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000;
@@ -14,16 +15,6 @@ interface ContextSection {
 function truncateToBudget(block: string, budgetChars: number): string {
   const keep = Math.max(0, budgetChars - TRUNCATION_NOTICE.length);
   return `${block.slice(0, keep)}${TRUNCATION_NOTICE}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stringArray(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
 }
 
 function formatScoreOutcomes(score: Record<string, unknown> | undefined): string | undefined {
@@ -105,7 +96,7 @@ function formatReportFields(report: Record<string, unknown>): string | undefined
     }
   }
 
-  const dataGaps = stringArray(report.dataGaps);
+  const dataGaps = stringArrayValue(report.dataGaps);
   if (dataGaps.length > 0) {
     parts.push(`Data gaps:\n${dataGaps.map((gap) => `- ${gap}`).join("\n")}`);
   }

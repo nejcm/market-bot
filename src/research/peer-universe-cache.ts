@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { DAY_MS } from "../config/shared";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import {
   validatePeerUniverse,
   type ProposalAudit,

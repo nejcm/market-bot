@@ -56,6 +56,16 @@ bun test tests/equity-fixture-run.test.ts
 `--write-golden` uses replayed data and replayed model output. It should not require live provider
 keys or live network access.
 
+## Refreshing prompt baseline hashes
+
+`tests/prompt-baseline.test.ts` compares SHA-256 hashes of the prompts built from a deterministic
+case matrix against `tests/support/prompt-baseline.golden.json`. When a prompt change is
+intentional, refresh the goldens and inspect the diff:
+
+```sh
+UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts
+```
+
 ## Eval mode
 
 Eval mode replays the static data cassette but uses the live configured model provider. Use it when

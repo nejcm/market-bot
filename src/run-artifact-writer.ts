@@ -30,7 +30,7 @@ import type {
 } from "./research/source-plan";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/spotlights";
 import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
-import { isRecord } from "./sources/guards";
+import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
 
 export interface RunArtifactWrite {

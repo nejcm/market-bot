@@ -1,4 +1,4 @@
-import { isRecord, readNumber, readString, readStringArray } from "../sources/guards";
+import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import { isAlphaCandidateProfile, type AlphaCandidateWatchlist } from "./candidate-state";
 import { isAlphaSearchRejectedCandidate, type AlphaSearchRejectedCandidate } from "./report-extras";
 import type {

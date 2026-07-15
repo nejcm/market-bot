@@ -12,7 +12,7 @@ import {
 } from "../domain/types";
 import { rankMovers } from "../movers/ranking";
 import { scanRunArtifacts, type RunArtifact } from "../run-artifacts";
-import { isRecord, readString } from "../sources/guards";
+import { isRecord, readString } from "../guards";
 import type { ScoreOutcome } from "../scoring/types";
 
 // ---------------------------------------------------------------------------

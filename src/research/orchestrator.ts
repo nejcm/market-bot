@@ -48,11 +48,11 @@ import {
 import { refreshCalibrationContext } from "./calibration-context";
 import {
   buildPlaybookSelectionPrompt,
-  buildDepthProfileFromParams,
   buildStagePrompt,
   buildStageSteeringSegment,
-  type ResearchContext,
-} from "./research-context";
+} from "./prompts";
+import { buildDepthProfileFromParams } from "./depth-profile";
+import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
 import { validateResearchReport } from "../report/schema";
 import {
@@ -60,7 +60,7 @@ import {
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
-import { runWebEvidencePhase } from "./web-evidence-phase";
+import { computeWebSourceUsage, runWebEvidencePhase } from "../web-evidence";
 import {
   loadAlphaWatchlistForSpotlights,
   type SpotlightCandidate,
@@ -68,7 +68,6 @@ import {
 } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
-import { computeWebSourceUsage } from "./web-source-usage";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
@@ -82,8 +81,6 @@ import {
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
 import { buildRunTrace } from "./run-trace";
-
-export { reconcileBusinessFrameworkEvidence } from "./web-evidence-phase";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;

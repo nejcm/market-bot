@@ -8,7 +8,7 @@ import type {
   SourceGap,
   SourceGapCapability,
 } from "../domain/types";
-import { isRecord, optionalString, readNumber, readString } from "./guards";
+import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays } from "./news-utils";
 import {
   isFetchJsonResult,

@@ -1,6 +1,6 @@
 import type { JsonToolLoopAudit, SourceGap } from "../domain/types";
 import type { CostPricing } from "../model/pricing";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 
 export interface JsonToolLoopOptions {
   readonly maxRounds: number;

@@ -1,7 +1,7 @@
 import type { VerifiedMarketSnapshot } from "../src/domain/types";
 import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
-import type { WebSubjectProfileArtifact } from "../src/sources/extended-evidence/web-subject-profile";
+import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 
 export interface RunSummary {
   readonly runId: string;

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssetClass, Depth, JobType } from "../domain/types";
 import { runTypeProducesSynthesisReport } from "../domain/run-types";
-import { isRecord, readString } from "../sources/guards";
+import { isRecord, readString } from "../guards";
 import { parseSections } from "./markdown-sections";
 import type { StageLabel } from "./prompt-loader";
 
@@ -100,6 +100,7 @@ function defaultPromptDir(): string {
   return join(import.meta.dir, "../../prompts");
 }
 
+// This throwing validator rejects empty strings instead of reading leniently.
 function readStringArray(record: Record<string, unknown>, key: string): readonly string[] {
   const value = record[key];
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item === "")) {

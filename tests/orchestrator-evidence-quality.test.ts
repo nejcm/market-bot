@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { marketContextGap, sourceGap } from "../src/domain/source-gaps";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
-import { isRecord } from "../src/sources/guards";
+import { isRecord } from "../src/guards";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { collectedSources as collectedSourceBundle } from "./support/fixtures";
 import { providerReturning } from "./support/mocks";

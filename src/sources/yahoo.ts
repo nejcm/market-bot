@@ -23,7 +23,7 @@ import {
   type MarketDataAdapter,
   type SourceRequest,
 } from "./types";
-import { isRecord, optionalString, readNumber, readString } from "./guards";
+import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { fetchMassiveCloseWindow, fetchMassiveQuoteFallback } from "./massive-fallback";
 import {
   fetchYahooJsonWithResilience,

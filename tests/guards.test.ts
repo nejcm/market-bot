@@ -2,11 +2,28 @@ import { describe, expect, test } from "bun:test";
 import {
   nonEmptyStringArrayValue,
   numberAt,
+  readString,
   readStringArray,
+  readStringVerbatim,
   stringArrayValue,
-} from "../src/sources/guards";
+} from "../src/guards";
 
 describe("source guards", () => {
+  test("readString drops empty and whitespace-only strings", () => {
+    expect(readString({ name: "value" }, "name")).toBe("value");
+    expect(readString({ name: "" }, "name")).toBeUndefined();
+    expect(readString({ name: "   " }, "name")).toBeUndefined();
+    expect(readString({ name: 1 }, "name")).toBeUndefined();
+  });
+
+  test("readStringVerbatim preserves empty and whitespace-only strings", () => {
+    expect(readStringVerbatim({ name: "value" }, "name")).toBe("value");
+    expect(readStringVerbatim({ name: "" }, "name")).toBe("");
+    expect(readStringVerbatim({ name: "   " }, "name")).toBe("   ");
+    expect(readStringVerbatim({ name: 1 }, "name")).toBeUndefined();
+    expect(readStringVerbatim(undefined, "name")).toBeUndefined();
+  });
+
   test("reads nested finite numbers with zero fallback", () => {
     const record = {
       analytics: {

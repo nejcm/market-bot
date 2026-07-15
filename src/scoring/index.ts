@@ -33,7 +33,7 @@ import {
 } from "../domain/types";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
-import { isRecord, readNumber, readString } from "../sources/guards";
+import { isRecord, readNumber, readString } from "../guards";
 import { scoringPolicyFor } from "./policy";
 import { resolveOutcome } from "./resolver";
 import {

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
-import { isRecord, readNumber, readString } from "../sources/guards";
+import { isRecord, readNumber, readString } from "../guards";
 import { brierSkillScore } from "../scoring/calibration";
 import { buildAndWriteCalibration } from "../scoring/index";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";

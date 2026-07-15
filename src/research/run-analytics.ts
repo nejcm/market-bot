@@ -8,7 +8,7 @@ import {
   type SourceGap,
 } from "../domain/types";
 import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
-import { isRecord } from "../sources/guards";
+import { isRecord } from "../guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationMetric } from "../scoring/types";
@@ -24,8 +24,7 @@ import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
-import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
-import { computeWebSourceUsage } from "./web-source-usage";
+import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
 
 export interface RunAnalyticsStage {
   readonly stage: string;

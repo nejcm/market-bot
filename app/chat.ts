@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { RunChatConfig } from "../src/config";
 import type { ModelMessage, StreamingModelProvider } from "../src/model/types";
 import { withUntrustedModelInputRule } from "../src/model/trust-guard";
+import { isRecord } from "../src/guards";
 import { readRunDetail } from "./artifacts";
 import { buildRunChatContext } from "./chat-context";
 import { isSameOriginPost } from "./server";
@@ -50,10 +51,6 @@ export interface UnavailableChatDeps {
 }
 
 export type ChatEndpointDeps = ReadyChatDeps | UnavailableChatDeps;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isChatRequestBody(value: unknown): value is ChatRequestBody {
   if (!isRecord(value)) {

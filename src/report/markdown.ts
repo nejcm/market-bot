@@ -13,7 +13,7 @@ import {
   readAlphaSearchProfileCoverage,
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
-import { isRecord } from "../sources/guards";
+import { isRecord, readNumber } from "../guards";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
@@ -34,6 +34,8 @@ function markdownText(value: string): string {
   });
 }
 
+// Diverges from guards.readStringArray (record+key, undefined on miss) and
+// Guards.stringArrayValue (filters mixed arrays): all-or-nothing over a raw value.
 function readStringArray(value: unknown): readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
 }
@@ -276,11 +278,6 @@ function renderSpotlights(report: ResearchReport): string {
   return rows.length === 0 ? "" : `## Market Spotlights\n\n${rows.join("\n")}\n`;
 }
 
-function readNumberField(record: Record<string, unknown>, key: string): number | undefined {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
 function deltaRegimeLine(delta: Record<string, unknown>): string {
   const current =
     typeof delta.currentRegime === "string" ? delta.currentRegime : "insufficient-data";
@@ -309,7 +306,7 @@ function deltaResolvedLines(delta: Record<string, unknown>): readonly string[] {
       return [];
     }
     const { claim, runId, outcome } = item;
-    const probability = readNumberField(item, "probability");
+    const probability = readNumber(item, "probability");
     if (
       typeof claim !== "string" ||
       typeof runId !== "string" ||

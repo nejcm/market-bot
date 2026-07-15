@@ -20,7 +20,7 @@ import {
 } from "../domain/types";
 import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
-import { isRecord, numberAt } from "../sources/guards";
+import { isRecord, numberAt } from "../guards";
 import {
   buildValidation,
   type ProviderValidationSummary,

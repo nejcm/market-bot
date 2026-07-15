@@ -14,11 +14,9 @@ import {
 } from "../sources/model-input-sanitizer";
 import { buildMarketUpdateDelta } from "./market-update-delta";
 import { loadStagePrompt } from "./prompt-loader";
-import {
-  buildSpotlightSelectionPrompt,
-  moverLimitFor,
-  type ResearchContext,
-} from "./research-context";
+import { buildSpotlightSelectionPrompt } from "./prompts";
+import { moverLimitFor } from "./depth-profile";
+import type { ResearchContext } from "./research-context-types";
 import {
   buildSpotlightCandidates,
   parseSpotlightSelection,

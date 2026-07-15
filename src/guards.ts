@@ -38,6 +38,15 @@ export function readString(record: Record<string, unknown>, key: string): string
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
+// Preserves empty and whitespace-only strings, unlike readString which drops them.
+export function readStringVerbatim(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = record?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
 export function optionalString(record: Record<string, unknown>, key: string): string | undefined {
   const value = readString(record, key);
   return value === undefined ? undefined : value;

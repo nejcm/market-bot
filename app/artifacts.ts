@@ -25,6 +25,7 @@ import {
 } from "../src/run-artifact-projection";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { isRecord } from "../src/guards";
 
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
 const MARKDOWN_FILE = RUN_ARTIFACT_FILES.reportMarkdown;
@@ -41,10 +42,6 @@ const COHORTS_FILE = "cohorts.json";
 const COHORTS_MARKDOWN_FILE = "cohorts.md";
 const MAX_RUN_FILE_BYTES = 5_000_000;
 const MAX_SEARCH_RESULTS = 100;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 async function readJsonRecord(path: string): Promise<Record<string, unknown> | undefined> {
   try {

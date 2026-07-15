@@ -3,8 +3,6 @@
 // Are explicit and recorded in the commit body — never deep-import into the package.
 export { runWebEvidencePhase } from "./web-evidence-phase";
 export { computeWebSourceUsage, type WebSourceUsage } from "./web-source-usage";
-export { executeWebGatherTool } from "./web-gather-tools";
-export type { WebGatherSubject } from "./web-gather-emit";
 // The Web Subject Profile contract: artifact types, question-key constants, and the
 // Helpers the prompts package, run-artifacts, and Evidence Reconciliation rely on.
 export {

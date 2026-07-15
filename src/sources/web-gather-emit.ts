@@ -10,8 +10,8 @@ import type {
   WebSearchType,
 } from "../domain/types";
 import { sourceGap } from "../domain/source-gaps";
-import { canonicalizeUrl } from "../sources/news-utils";
-import type { CollectContext, RawSourceSnapshot } from "../sources/types";
+import { canonicalizeUrl } from "./news-utils";
+import type { CollectContext, RawSourceSnapshot } from "./types";
 import {
   aggregateModelInputSanitization,
   droppedModelInputItemEntry,
@@ -20,7 +20,7 @@ import {
   type ModelInputSanitizationAggregate,
   type ModelInputSanitizationAggregateEntry,
   type ModelInputSanitizerTelemetry,
-} from "../sources/model-input-sanitizer";
+} from "./model-input-sanitizer";
 
 // Provider-neutral emit layer for web gather.
 // Normalized provider results are validated, sanitized, and turned into low-trust `web` Sources.

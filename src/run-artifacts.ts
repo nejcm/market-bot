@@ -55,13 +55,17 @@ import {
   isBusinessLifecyclePhase,
   type BusinessFrameworkArtifact,
 } from "./sources/extended-evidence/business-framework";
+// Import the profile contract leaf directly, not the ./web-evidence barrel. run-artifacts sits
+// Below the web-evidence package (its phase reuses this reader), so importing the barrel — which
+// Eagerly re-exports runWebEvidencePhase — would form a run-artifacts → phase → profile-reuse →
+// Run-artifacts cycle. The contract module is dependency-neutral, matching the pre-package layout.
 import {
   LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   type WebSubjectProfileAnswer,
   type WebSubjectProfileArtifact,
   type WebSubjectProfileFact,
-} from "./web-evidence";
+} from "./web-evidence/web-subject-profile";
 import {
   isRecord,
   nonEmptyStringArrayValue,

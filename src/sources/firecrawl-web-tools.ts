@@ -1,6 +1,6 @@
 import { isRecord, optionalString, readNumber, readString } from "../guards";
-import { encodeQuery } from "../sources/news-utils";
-import type { CollectContext, FetchJsonResult, FetchLike } from "../sources/types";
+import { encodeQuery } from "./news-utils";
+import type { CollectContext, FetchJsonResult, FetchLike } from "./types";
 import type { SourceGap } from "../domain/types";
 import {
   validatedWebUrl,

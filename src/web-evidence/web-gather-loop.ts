@@ -26,20 +26,20 @@ import {
   MAX_WEB_GATHER_SEARCH_RESULTS,
   REUSED_PROFILE_DEFAULT_SEARCH_RESULTS,
   WEB_GATHER_TOOL_UNITS,
-} from "./web-gather-tools";
+} from "../sources/web-gather-tools";
 import {
   WEB_GATHER_DUPLICATE_REQUEST_REASON,
   WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON,
   WEB_GATHER_OFF_SUBJECT_REASON,
   WEB_GATHER_SOURCE_BUDGET_EXCEEDED_REASON,
   WEB_GATHER_TOOL_CALL_BUDGET_EXCEEDED_REASON,
-} from "./web-gather-rejection-reasons";
+} from "../sources/web-gather-rejection-reasons";
 import {
   aggregateSanitizerAudit,
   isSurfacedUrl,
   type WebGatherSubject,
   type WebGatherToolOutput,
-} from "./web-gather-emit";
+} from "../sources/web-gather-emit";
 import { dedupeWebSourcesByHeadline } from "./web-headline-dedupe";
 import {
   isCompanyProfileSecSource,

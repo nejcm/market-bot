@@ -5,7 +5,7 @@ import {
   parseFirecrawlSearchResults,
   requestFirecrawlScrape,
   requestFirecrawlSearch,
-} from "../src/web-evidence/firecrawl-web-tools";
+} from "../src/sources/firecrawl-web-tools";
 import type {
   CollectContext,
   FetchJsonResult,

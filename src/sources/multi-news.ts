@@ -4,7 +4,8 @@ import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
 import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
 import { isNewsRelevant } from "./news-relevance";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
-import { executeWebGatherTool, type WebGatherSubject } from "../web-evidence";
+import { executeWebGatherTool } from "./web-gather-tools";
+import type { WebGatherSubject } from "./web-gather-emit";
 import {
   type CollectContext,
   type NewsAdapter,

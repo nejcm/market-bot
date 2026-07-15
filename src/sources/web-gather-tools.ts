@@ -15,14 +15,14 @@ import {
   requestFirecrawlSearch,
 } from "./firecrawl-web-tools";
 import { isRecord, optionalString, readString, stringArrayValue } from "../guards";
-import { encodeQuery } from "../sources/news-utils";
+import { encodeQuery } from "./news-utils";
 import {
   isFetchJsonResult,
   type CollectContext,
   type FetchJsonResult,
   type FetchLike,
   type RawSourceSnapshot,
-} from "../sources/types";
+} from "./types";
 import {
   EXA_PROVIDER,
   emptyOutput,

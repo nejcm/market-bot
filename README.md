@@ -17,6 +17,14 @@
 
 > **Research-only.** Reports are sourced research views — not trading advice. No buy/sell calls, position sizing, execution, or portfolio actions. Predictions are observable forecasts scored for calibration, not trade signals.
 
+<br />
+<br />
+<p align="center">
+  <img src="./assets/screen.webp" alt="market-bot screen" width="800" />
+</p>
+<br />
+<br />
+
 ## Quick start
 
 **Requirements:** [Bun](https://bun.sh) ≥ 1.1 (tested with 1.3.x), an LLM provider key (or [Codex](#codex-chatgpt-subscription-no-api-key-required) login), and optionally free [FRED](https://fred.stlouisfed.org/) + [SEC EDGAR](https://www.sec.gov/edgar/search/) credentials for richer evidence.

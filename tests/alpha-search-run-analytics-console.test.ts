@@ -38,7 +38,7 @@ describe("alpha-search run analytics console", () => {
       [
         "Run quality — alpha-search (alpha-run)",
         "  Candidates: 8 social, 4 SEC · 9 rejected",
-        "  Leads: 3 surfaced of 5 valid",
+        "  Leads: 3 evaluated (5 Yahoo-valid)",
         "  Evidence: 14 source(s) · 2 source gap(s), 1 fundamental gap(s), 1 data gap(s)",
       ].join("\n"),
     );
@@ -57,6 +57,6 @@ describe("alpha-search run analytics console", () => {
     );
 
     expect(output).toContain("  Candidates: 0 social, 0 SEC · 0 rejected");
-    expect(output).toContain("  Leads: 0 surfaced of 0 valid");
+    expect(output).toContain("  Leads: 0 evaluated (0 Yahoo-valid)");
   });
 });

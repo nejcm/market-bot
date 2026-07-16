@@ -41,6 +41,7 @@ export type AlphaSearchReportExtras = Readonly<Record<string, unknown>> & {
   readonly depth: string;
   readonly socialCandidateCount: number;
   readonly researchLeads: readonly AlphaSearchLead[];
+  readonly leadDisplayLimit?: number;
   readonly rejectedCandidates: readonly AlphaSearchRejectedCandidate[];
   readonly profileCoverage?: AlphaSearchProfileCoverage;
 };
@@ -212,6 +213,12 @@ export function readAlphaSearchLeads(
 ): readonly AlphaSearchLead[] {
   const leads = extras?.researchLeads;
   return Array.isArray(leads) ? leads.filter((lead) => isAlphaSearchLead(lead)) : [];
+}
+
+export function readAlphaSearchLeadDisplayLimit(
+  extras: Record<string, unknown> | undefined,
+): number | undefined {
+  return extras === undefined ? undefined : readNumber(extras, "leadDisplayLimit");
 }
 
 export function readAlphaSearchRejectedCandidates(

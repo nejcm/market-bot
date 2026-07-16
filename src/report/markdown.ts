@@ -9,6 +9,7 @@ import {
 import { renderClaimForMeasurableAs } from "../forecast/observable";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 import {
+  readAlphaSearchLeadDisplayLimit,
   readAlphaSearchLeads,
   readAlphaSearchProfileCoverage,
   readAlphaSearchRejectedCandidates,
@@ -428,13 +429,18 @@ function renderAlphaSearchReport(report: ResearchReport): string {
       : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
   const sources = renderSources(report);
   const leads = readAlphaSearchLeads(report.extras);
+  const rawLeadLimit = readAlphaSearchLeadDisplayLimit(report.extras);
+  const leadLimit =
+    rawLeadLimit !== undefined && Number.isInteger(rawLeadLimit) && rawLeadLimit >= 0
+      ? rawLeadLimit
+      : leads.length;
   const rejected = readAlphaSearchRejectedCandidates(report.extras);
   const coverage = renderAlphaSearchCoverage(report);
   const leadRows =
     leads.length === 0
       ? "- No Yahoo-validated research leads."
-      : leads
-          .map((lead) => {
+      : [
+          ...leads.slice(0, leadLimit).map((lead) => {
             const name = lead.name === undefined ? "" : ` (${markdownText(lead.name)})`;
             const social = socialDriverText(lead);
             const sec =
@@ -442,8 +448,13 @@ function renderAlphaSearchReport(report: ResearchReport): string {
                 ? ""
                 : `SEC filings ${lead.recentSecFilings.map((filing) => `${markdownText(filing.form)} ${markdownText(filing.filingDate)}`).join(", ")}; `;
             return `- **${markdownText(lead.symbol)}${name}:** Sources ${lead.discoverySources.map(markdownText).join(", ")}; ${social}${sec}Yahoo listed stock on ${markdownText(lead.exchange)}, $${String(lead.price)}, volume ${String(lead.volume)}, market cap ${String(lead.marketCap)}. ${sourceRefs(lead.sourceIds)}`;
-          })
-          .join("\n");
+          }),
+          ...(leads.length > leadLimit
+            ? [
+                `- ...plus ${String(leads.length - leadLimit)} more evaluated lead(s) recorded in normalized/research-leads.json.`,
+              ]
+            : []),
+        ].join("\n");
   const rejectedRows =
     rejected.length === 0
       ? "- No rejected candidates."

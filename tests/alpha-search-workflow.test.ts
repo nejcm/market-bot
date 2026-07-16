@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { readAlphaRejectedCandidateFile } from "../src/alpha-search/cohorts";
 import { runAlphaSearchWorkflow } from "../src/alpha-search/workflow";
 import type { AppConfig } from "../src/config";
+import { renderMarkdownReport } from "../src/report/markdown";
 import { resetSourceResilienceForTests } from "../src/sources/source-request";
 import type { FetchLike } from "../src/sources/types";
 
@@ -322,6 +323,16 @@ function validationLimitFetchImpl(requestedUrls: string[]): FetchLike {
   return async (input) => {
     const url = String(input);
     requestedUrls.push(url);
+    if (url.includes("company_tickers.json")) {
+      return jsonResponse({
+        "0": { cik_str: 3_200_193, ticker: "AAPL", title: "Apple Inc." },
+        "1": { cik_str: 789_019, ticker: "MSFT", title: "Microsoft" },
+        "2": { cik_str: 1_318_605, ticker: "TSLA", title: "Tesla" },
+      });
+    }
+    if (url.includes("companyfacts")) {
+      return jsonResponse(secCompanyFactsPayload());
+    }
     const sec = secResponse(url);
     if (sec !== undefined) {
       return sec;
@@ -694,7 +705,7 @@ describe("alpha-search workflow", () => {
     expect(candidateProfiles).toHaveLength(1);
   });
 
-  test("validates a wider candidate pool than the displayed lead limit", async () => {
+  test("evaluates all valid leads while limiting report display", async () => {
     const requestedUrls: string[] = [];
     const baseConfig = config();
     const cfg = {
@@ -722,15 +733,45 @@ describe("alpha-search workflow", () => {
       decodeURIComponent(requestedUrls.find((url) => url.includes("symbols=")) ?? ""),
     ).toContain("symbols=AAPL,MSFT,TSLA");
     const researchLeadRows = Array.isArray(researchLeads) ? researchLeads : [];
-    expect(researchLeadRows).toHaveLength(1);
+    expect(researchLeadRows).toHaveLength(result.analytics.alphaSearch.validLeadCount);
+    expect(researchLeadRows).toHaveLength(3);
     expect(persistedLeads).toEqual(researchLeadRows);
     expect(JSON.stringify(persistedLeads)).not.toContain("candidate");
     expect(JSON.stringify(persistedLeads)).not.toContain("instrumentKind");
-    // More leads validated than the display limit: validLeadCount > researchLeadCount.
-    expect(result.analytics.alphaSearch.validLeadCount).toBeGreaterThan(
-      result.analytics.alphaSearch.researchLeadCount,
+    expect(result.analytics.alphaSearch.researchLeadCount).toBe(3);
+    expect(result.report.keyFindings).toHaveLength(1);
+    expect(result.report.summary).toContain("Key findings highlight the top 1 lead(s).");
+    const researchLeadSection = result.markdown
+      .split("## Research Leads\n\n")[1]
+      ?.split("\n\n## Rejected Candidates")[0];
+    expect(researchLeadSection?.match(/^- \*\*/gmu)).toHaveLength(1);
+    expect(researchLeadSection).toContain(
+      "- ...plus 2 more evaluated lead(s) recorded in normalized/research-leads.json.",
     );
-    expect(result.analytics.alphaSearch.researchLeadCount).toBe(1);
+    expect(result.report.extras?.profileCoverage).toMatchObject({ displayedLeadCount: 1 });
+    expect(
+      requestedUrls
+        .filter((url) => url.includes("companyfacts"))
+        .map((url) => url.match(/CIK(\d+)\.json/u)?.[1]),
+    ).toEqual(expect.arrayContaining(["0003200193", "0000789019", "0001318605"]));
+
+    const { leadDisplayLimit: _leadDisplayLimit, ...legacyExtras } = result.report.extras ?? {};
+    const legacyMarkdown = renderMarkdownReport({ ...result.report, extras: legacyExtras });
+    const legacyLeadSection = legacyMarkdown
+      .split("## Research Leads\n\n")[1]
+      ?.split("\n\n## Rejected Candidates")[0];
+    expect(legacyLeadSection?.match(/^- \*\*/gmu)).toHaveLength(3);
+    expect(legacyLeadSection).not.toContain("more evaluated lead(s)");
+
+    const corruptMarkdown = renderMarkdownReport({
+      ...result.report,
+      extras: { ...result.report.extras, leadDisplayLimit: -1 },
+    });
+    const corruptLeadSection = corruptMarkdown
+      .split("## Research Leads\n\n")[1]
+      ?.split("\n\n## Rejected Candidates")[0];
+    expect(corruptLeadSection?.match(/^- \*\*/gmu)).toHaveLength(3);
+    expect(corruptLeadSection).not.toContain("more evaluated lead(s)");
   });
 
   test("persists SEC fundamentals in candidate profiles without changing report semantics", async () => {

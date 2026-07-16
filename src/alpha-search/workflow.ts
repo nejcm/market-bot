@@ -90,7 +90,7 @@ export interface AlphaSearchRunAnalytics {
     readonly secCandidateCount: number;
     /** All Yahoo-validated leads before the display limit is applied. */
     readonly validLeadCount: number;
-    /** Leads actually surfaced in the report (after leadLimit slice). */
+    /** Equals validLeadCount; retained for analytics-shape compatibility. */
     readonly researchLeadCount: number;
     readonly rejectedCandidateCount: number;
     readonly fundamentalGapCount: number;
@@ -201,12 +201,13 @@ function unmappedSecFilingCount(gaps: readonly SourceGap[]): number {
 
 function profileCoverage(input: {
   readonly researchLeads: readonly unknown[];
+  readonly leadLimit: number;
   readonly candidateProfiles: readonly AlphaCandidateProfile[];
   readonly fundamentalSourceGaps: readonly SourceGap[];
   readonly sourceGaps: readonly SourceGap[];
 }): AlphaSearchProfileCoverage {
   return {
-    displayedLeadCount: input.researchLeads.length,
+    displayedLeadCount: Math.min(input.leadLimit, input.researchLeads.length),
     candidateProfilesWithFundamentals: input.candidateProfiles.filter(
       (profile) => profile.fundamentals !== undefined,
     ).length,
@@ -291,22 +292,22 @@ function buildAlphaSearchReport(input: {
   readonly sources: readonly Source[];
 }): ResearchReport {
   const yahooSourceId = input.sources.find((source) => source.provider === "yahoo")?.id;
-  const validLeads = input.validLeads.slice(0, input.leadLimit);
-  const researchLeads = validLeads.map((lead) => alphaSearchLead(lead, yahooSourceId));
+  const researchLeads = input.validLeads.map((lead) => alphaSearchLead(lead, yahooSourceId));
   const extras: AlphaSearchReportExtras = {
     depth: input.command.depth,
     socialCandidateCount: input.rankedCandidates.length,
     secCandidateCount: input.secCandidates.length,
     researchLeads,
+    leadDisplayLimit: input.leadLimit,
     rejectedCandidates: input.rejectedCandidates.map(alphaSearchRejectedCandidate),
   };
   const gaps = dataGaps({
     sourceGaps: input.sourceGaps,
     rankedCandidates: input.rankedCandidates,
-    validLeads,
+    validLeads: input.validLeads,
   });
   const evidenceQuality =
-    validLeads.length > 0 && input.sourceGaps.filter(isCoreEvidenceQualityGap).length === 0
+    input.validLeads.length > 0 && input.sourceGaps.filter(isCoreEvidenceQualityGap).length === 0
       ? ("medium" as const)
       : ("low" as const);
 
@@ -315,8 +316,10 @@ function buildAlphaSearchReport(input: {
     jobType: "alpha-search",
     assetClass: "equity",
     generatedAt: input.generatedAt,
-    summary: `Alpha search reviewed ApeWisdom social momentum and SEC filing discovery, then found ${String(validLeads.length)} Yahoo-validated research lead(s) from ${String(input.rankedCandidates.length)} ranked social candidate(s) and ${String(input.secCandidates.length)} SEC candidate(s).`,
-    keyFindings: validLeads.map((lead) => leadFinding(lead, yahooSourceId)),
+    summary: `Alpha search reviewed ApeWisdom social momentum and SEC filing discovery, then found ${String(input.validLeads.length)} Yahoo-validated research lead(s) from ${String(input.rankedCandidates.length)} ranked social candidate(s) and ${String(input.secCandidates.length)} SEC candidate(s).${input.validLeads.length > input.leadLimit ? ` Key findings highlight the top ${String(input.leadLimit)} lead(s).` : ""}`,
+    keyFindings: input.validLeads
+      .slice(0, input.leadLimit)
+      .map((lead) => leadFinding(lead, yahooSourceId)),
     bullCase: [],
     bearCase: [],
     risks: [],
@@ -403,7 +406,7 @@ function buildAlphaSearchAnalytics(input: {
   readonly rankedCandidates: readonly SocialMomentumRankedCandidate[];
   readonly secCandidates: readonly SecDiscoveryCandidate[];
   readonly validLeads: readonly YahooValidatedLead[];
-  /** Number of leads actually surfaced after the leadLimit slice. */
+  /** Number of Yahoo-validated leads evaluated by downstream consumers. */
   readonly researchLeadCount: number;
   readonly rejectedCandidates: readonly (
     | YahooRejectedCandidate
@@ -568,6 +571,7 @@ export async function runAlphaSearchWorkflow(input: {
     initialReport,
     profileCoverage({
       researchLeads,
+      leadLimit: alphaSearchOptions.leadLimit,
       candidateProfiles,
       fundamentalSourceGaps: fundamentals.sourceGaps,
       sourceGaps,

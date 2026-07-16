@@ -11,9 +11,9 @@ export function renderAlphaSearchAnalyticsConsole(analytics: AlphaSearchRunAnaly
     `  Candidates: ${String(alphaSearch.socialCandidateCount)} social, ${String(
       alphaSearch.secCandidateCount,
     )} SEC · ${String(alphaSearch.rejectedCandidateCount)} rejected`,
-    `  Leads: ${String(alphaSearch.researchLeadCount)} surfaced of ${String(
+    `  Leads: ${String(alphaSearch.researchLeadCount)} evaluated (${String(
       alphaSearch.validLeadCount,
-    )} valid`,
+    )} Yahoo-valid)`,
     `  Evidence: ${String(sourceFunnel.reportSources.total)} source(s) · ${String(
       sourceFunnel.sourceGaps.total,
     )} source gap(s), ${String(alphaSearch.fundamentalGapCount)} fundamental gap(s), ${String(

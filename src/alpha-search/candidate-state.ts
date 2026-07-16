@@ -3,6 +3,7 @@ import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import type { AlphaValidationFile, AlphaValidationHorizon } from "./validation";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 import { readAlphaSearchLeads } from "./report-extras";
+import type { SocialScoringVersion } from "./social-momentum-ranking";
 
 export type AlphaCandidateSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
 
@@ -25,6 +26,7 @@ export interface AlphaCandidateProfile {
   readonly volume: number;
   readonly marketCap: number;
   readonly socialRank?: number;
+  readonly socialScoringVersion?: SocialScoringVersion;
   readonly socialMomentumScore?: number;
   readonly mentions?: number;
   readonly upvotes?: number;
@@ -136,6 +138,8 @@ export function isAlphaCandidateProfile(value: unknown): value is AlphaCandidate
     readNumber(value, "volume") !== undefined &&
     readNumber(value, "marketCap") !== undefined &&
     (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
+    (value.socialScoringVersion === undefined ||
+      readNumber(value, "socialScoringVersion") !== undefined) &&
     (value.socialMomentumScore === undefined ||
       readNumber(value, "socialMomentumScore") !== undefined) &&
     (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&
@@ -251,6 +255,9 @@ export function buildAlphaCandidateProfiles(
       volume: lead.volume,
       marketCap: lead.marketCap,
       ...(lead.socialRank !== undefined ? { socialRank: lead.socialRank } : {}),
+      ...(lead.socialScoringVersion !== undefined
+        ? { socialScoringVersion: lead.socialScoringVersion }
+        : {}),
       ...(lead.socialMomentumScore !== undefined
         ? { socialMomentumScore: lead.socialMomentumScore }
         : {}),

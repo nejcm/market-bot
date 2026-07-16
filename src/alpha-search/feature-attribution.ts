@@ -151,6 +151,28 @@ function signedBucket(
     : { feature, key: "nonnegative", label: "nonnegative" };
 }
 
+function socialMomentumScoreBucket(profile: AlphaCandidateProfile): BucketAssignment {
+  const bucket = numericBucket(
+    "socialMomentumScore",
+    profile.socialMomentumScore,
+    [
+      [50, "lt-50", "< 50"],
+      [75, "50-to-75", "50-75"],
+      [Number.POSITIVE_INFINITY, "gte-75", ">= 75"],
+    ],
+    "social score missing",
+  );
+  if (bucket.key === "missing") {
+    return bucket;
+  }
+  const version = profile.socialScoringVersion ?? 1;
+  return {
+    ...bucket,
+    key: `v${String(version)}:${bucket.key}`,
+    label: `v${String(version)}:${bucket.label}`,
+  };
+}
+
 function profileBuckets(profile: AlphaCandidateProfile): readonly BucketAssignment[] {
   const upvotesPerMention =
     profile.upvotes === undefined || profile.mentions === undefined
@@ -207,16 +229,7 @@ function profileBuckets(profile: AlphaCandidateProfile): readonly BucketAssignme
       ],
       "social rank missing",
     ),
-    numericBucket(
-      "socialMomentumScore",
-      profile.socialMomentumScore,
-      [
-        [50, "lt-50", "< 50"],
-        [75, "50-to-75", "50-75"],
-        [Number.POSITIVE_INFINITY, "gte-75", ">= 75"],
-      ],
-      "social score missing",
-    ),
+    socialMomentumScoreBucket(profile),
     numericBucket(
       "mentions",
       profile.mentions,

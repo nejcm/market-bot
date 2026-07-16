@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CURRENT_SOCIAL_SCORING_VERSION,
   rankSocialMomentumCandidates,
   type SocialMomentumRankInput,
 } from "../src/alpha-search/social-momentum-ranking";
@@ -81,8 +82,10 @@ describe("Social Momentum ranking", () => {
     });
 
     expect(result.map((entry) => entry.symbol)).toEqual(["TSLA", "AAPL"]);
+    expect(result.map((entry) => entry.socialMomentumScore)).toEqual([88, 68.5]);
     expect(result[0]).toMatchObject({
       socialRank: 1,
+      socialScoringVersion: CURRENT_SOCIAL_SCORING_VERSION,
       symbol: "TSLA",
       sourceProvider: "apewisdom",
       sourceIds: ["apewisdom-all-stocks-TSLA"],
@@ -92,6 +95,32 @@ describe("Social Momentum ranking", () => {
       mentions24hAgo: 1,
     });
     expect(result[0]?.socialMomentumScore).toBeGreaterThan(result[1]?.socialMomentumScore ?? 0);
+  });
+
+  test("shrinks a one-mention upvote outlier without zeroing other candidates", () => {
+    const result = ranked({
+      candidates: [
+        candidate({
+          ticker: "BILL",
+          mentions: 1,
+          upvotes: 1273,
+          rank24hAgo: undefined,
+          mentions24hAgo: undefined,
+        }),
+        candidate({
+          ticker: "STEADY",
+          mentions: 100,
+          upvotes: 1000,
+          rank: 1,
+          rank24hAgo: 101,
+          mentions24hAgo: 0,
+        }),
+      ],
+    });
+
+    expect(result.map((entry) => entry.symbol)).toEqual(["STEADY", "BILL"]);
+    expect(result.map((entry) => entry.socialMomentumScore)).toEqual([85.67, 15.2]);
+    expect(result.every((entry) => entry.socialScoringVersion === 2)).toBe(true);
   });
 
   test("uses mentions then ticker as stable tie-breakers", () => {

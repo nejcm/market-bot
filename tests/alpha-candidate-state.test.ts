@@ -200,6 +200,10 @@ describe("buildAlphaCandidateProfiles", () => {
 
   test("narrows persisted candidate profiles", () => {
     expect(isAlphaCandidateProfile(profile())).toBe(true);
+    const { socialScoringVersion: _socialScoringVersion, ...legacyProfile } = profile({
+      socialScoringVersion: 2,
+    });
+    expect(isAlphaCandidateProfile(legacyProfile)).toBe(true);
     expect(isAlphaCandidateProfile({ ...profile(), symbol: undefined })).toBe(false);
     expect(isAlphaCandidateProfile({ ...profile(), discoverySources: ["other"] })).toBe(false);
   });

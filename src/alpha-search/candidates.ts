@@ -1,4 +1,7 @@
-import type { SocialMomentumRankedCandidate } from "./social-momentum-ranking";
+import type {
+  SocialMomentumRankedCandidate,
+  SocialScoringVersion,
+} from "./social-momentum-ranking";
 
 export type AlphaSearchDiscoverySource = "apewisdom" | "sec-filings";
 
@@ -16,6 +19,7 @@ export interface AlphaSearchCandidate {
   readonly sourceIds: readonly string[];
   readonly discoverySources: readonly AlphaSearchDiscoverySource[];
   readonly socialRank?: number;
+  readonly socialScoringVersion?: SocialScoringVersion;
   readonly socialMomentumScore?: number;
   readonly mentions?: number;
   readonly upvotes?: number;
@@ -35,6 +39,7 @@ export function socialAlphaSearchCandidate(
     sourceIds: candidate.sourceIds,
     discoverySources: ["apewisdom"],
     socialRank: candidate.socialRank,
+    socialScoringVersion: candidate.socialScoringVersion,
     socialMomentumScore: candidate.socialMomentumScore,
     mentions: candidate.mentions,
     upvotes: candidate.upvotes,

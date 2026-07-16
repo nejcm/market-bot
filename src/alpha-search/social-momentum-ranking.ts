@@ -5,6 +5,12 @@ const RANK_IMPROVEMENT_WEIGHT = 25;
 const CURRENT_MENTIONS_WEIGHT = 20;
 const UPVOTES_PER_MENTION_WEIGHT = 15;
 
+export const UPVOTE_RATIO_SHRINKAGE_K = 5;
+
+export type SocialScoringVersion = 1 | 2;
+
+export const CURRENT_SOCIAL_SCORING_VERSION = 2 as const satisfies SocialScoringVersion;
+
 export interface SocialMomentumRankInput {
   readonly candidates: readonly ApeWisdomCandidate[];
   readonly candidateLimit: number;
@@ -12,6 +18,7 @@ export interface SocialMomentumRankInput {
 
 export interface SocialMomentumRankedCandidate {
   readonly socialRank: number;
+  readonly socialScoringVersion: SocialScoringVersion;
   readonly symbol: string;
   readonly name: string;
   readonly sourceProvider: "apewisdom";
@@ -49,7 +56,9 @@ function featuresFor(candidate: ApeWisdomCandidate): CandidateFeatures {
     rankImprovement:
       candidate.rank24hAgo === undefined ? 0 : Math.max(0, candidate.rank24hAgo - candidate.rank),
     currentMentions: candidate.mentions,
-    upvotesPerMention: candidate.upvotes / Math.max(1, candidate.mentions),
+    upvotesPerMention:
+      (candidate.upvotes / Math.max(1, candidate.mentions)) *
+      (candidate.mentions / (candidate.mentions + UPVOTE_RATIO_SHRINKAGE_K)),
   };
 }
 
@@ -92,6 +101,7 @@ function scoreCandidate(
     normalize(features.upvotesPerMention, maxValues.upvotesPerMention) * UPVOTES_PER_MENTION_WEIGHT;
 
   return {
+    socialScoringVersion: CURRENT_SOCIAL_SCORING_VERSION,
     symbol: candidate.ticker,
     name: candidate.name,
     sourceProvider: "apewisdom",

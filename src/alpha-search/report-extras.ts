@@ -2,6 +2,7 @@ import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validat
 import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 import { socialMomentumBaseSourceId, socialMomentumReportSourceId } from "./source-ids";
+import type { SocialScoringVersion } from "./social-momentum-ranking";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
@@ -12,6 +13,7 @@ export interface AlphaSearchLead {
   readonly marketCap: number;
   readonly discoverySources: readonly AlphaSearchDiscoverySource[];
   readonly socialRank?: number;
+  readonly socialScoringVersion?: SocialScoringVersion;
   readonly socialMomentumScore?: number;
   readonly mentions?: number;
   readonly upvotes?: number;
@@ -78,6 +80,9 @@ export function alphaSearchLead(
     marketCap: lead.marketCap,
     discoverySources: lead.candidate.discoverySources,
     ...(lead.candidate.socialRank !== undefined ? { socialRank: lead.candidate.socialRank } : {}),
+    ...(lead.candidate.socialScoringVersion !== undefined
+      ? { socialScoringVersion: lead.candidate.socialScoringVersion }
+      : {}),
     ...(lead.candidate.socialMomentumScore !== undefined
       ? { socialMomentumScore: lead.candidate.socialMomentumScore }
       : {}),
@@ -159,6 +164,8 @@ function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): 
     typeof value.marketCap === "number" &&
     Number.isFinite(value.marketCap) &&
     (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
+    (value.socialScoringVersion === undefined ||
+      readNumber(value, "socialScoringVersion") !== undefined) &&
     (value.socialMomentumScore === undefined ||
       readNumber(value, "socialMomentumScore") !== undefined) &&
     (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&

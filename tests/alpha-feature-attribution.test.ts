@@ -196,6 +196,47 @@ describe("buildAlphaFeatureAttribution", () => {
     });
   });
 
+  test("separates social momentum score buckets by scoring version", () => {
+    const { socialMomentumScore: _socialMomentumScore, ...missingScoreProfile } = profile({
+      symbol: "MISS",
+      socialScoringVersion: 2,
+    });
+    const attribution = buildAlphaFeatureAttribution({
+      profiles: [
+        profile(),
+        profile({ symbol: "BETA", socialScoringVersion: 2 }),
+        missingScoreProfile,
+      ],
+      validations: [
+        validationFile(),
+        validationFile({
+          leads: [
+            {
+              symbol: "BETA",
+              discoverySources: ["apewisdom"],
+              sourceGroup: "apewisdom-only",
+              sourceIds: ["apewisdom-BETA"],
+              horizons: [resolvedHorizon(5, 0.05, "outperformed")],
+            },
+            {
+              symbol: "MISS",
+              discoverySources: ["apewisdom"],
+              sourceGroup: "apewisdom-only",
+              sourceIds: ["apewisdom-MISS"],
+              horizons: [unresolvedHorizon(5)],
+            },
+          ],
+        }),
+      ],
+    });
+
+    const buckets = attribution.features.socialMomentumScore?.buckets;
+    expect(buckets?.["v1:gte-75"]?.label).toBe("v1:>= 75");
+    expect(buckets?.["v2:gte-75"]?.label).toBe("v2:>= 75");
+    expect(buckets?.missing?.label).toBe("social score missing");
+    expect(buckets?.["v2:missing"]).toBeUndefined();
+  });
+
   test("treats debt-to-market-cap as missing when market cap is zero", () => {
     const attribution = buildAlphaFeatureAttribution({
       profiles: [profile({ marketCap: 0 })],

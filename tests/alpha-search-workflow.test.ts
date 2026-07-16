@@ -611,6 +611,7 @@ describe("alpha-search workflow", () => {
         marketCap: 3_000_000_000,
         discoverySources: ["apewisdom"],
         socialRank: 1,
+        socialScoringVersion: 2,
         socialMomentumScore: 100,
         mentions: 40,
         upvotes: 120,
@@ -655,6 +656,11 @@ describe("alpha-search workflow", () => {
     const candidateProfiles = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "candidate-profiles.json"), "utf8"),
     ) as readonly unknown[];
+    const socialCandidates = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "social-candidates.json"), "utf8"),
+    ) as readonly { readonly socialScoringVersion?: number }[];
+    expect(socialCandidates).not.toHaveLength(0);
+    expect(socialCandidates.every((candidate) => candidate.socialScoringVersion === 2)).toBe(true);
     expect(candidateProfiles).toEqual([
       expect.objectContaining({
         symbol: "AAPL",
@@ -662,6 +668,7 @@ describe("alpha-search workflow", () => {
         sourceGroup: "apewisdom-only",
         price: 195.5,
         socialMomentumScore: 100,
+        socialScoringVersion: 2,
       }),
     ]);
   });

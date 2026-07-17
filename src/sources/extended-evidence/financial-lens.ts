@@ -8,6 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { MIXED_PERIOD_METRIC } from "./valuation-comps";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
@@ -308,7 +309,10 @@ function strengthLens(
   const netIncome = readMetric(secItem?.metrics, "netIncome");
   const dividendsPaid = readMetric(secItem?.metrics, "dividendsPaid");
   const fallbackNetDebt = debt === undefined || cash === undefined ? undefined : debt - cash;
-  const netDebt = readMetric(valuationItem?.metrics, "netDebt") ?? fallbackNetDebt;
+  const netDebt =
+    valuationItem?.metrics?.netDebt === MIXED_PERIOD_METRIC
+      ? undefined
+      : (readMetric(valuationItem?.metrics, "netDebt") ?? fallbackNetDebt);
   const debtToMarketCap = readMetric(valuationItem?.metrics, "debtToMarketCap");
   const netDebtToMarketCap = readMetric(valuationItem?.metrics, "netDebtToMarketCap");
   const currentRatio = ratio(currentAssets, currentLiabilities);

@@ -1237,6 +1237,52 @@ describe("SEC fundamental evidence", () => {
     );
   });
 
+  test("uses fresher debt components instead of a stale direct debt fact", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          LongTermDebt: {
+            units: {
+              USD: [
+                secFact(2_500_000_000, {
+                  fy: 2025,
+                  fp: "Q4",
+                  filed: "2026-02-15",
+                  end: "2025-12-31",
+                }),
+              ],
+            },
+          },
+          LongTermDebtCurrent: {
+            units: {
+              USD: [
+                secFact(8_236_000, {
+                  fp: "Q1",
+                  filed: "2026-05-01",
+                  end: "2026-03-31",
+                }),
+              ],
+            },
+          },
+          LongTermDebtNoncurrent: {
+            units: {
+              USD: [
+                secFact(2_963_296_000, {
+                  fp: "Q1",
+                  filed: "2026-05-01",
+                  end: "2026-03-31",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.debt).toBe(2_971_532_000);
+    expect(result?.metrics.debtPeriodEnd).toBe("2026-03-31");
+  });
+
   test("uses contract revenue fallback for comparable revenue deltas", () => {
     const result = summarizeSecFundamentals(secCompanyFactsPayloadWithRevenueContractConcept());
 
@@ -1248,6 +1294,47 @@ describe("SEC fundamental evidence", () => {
     expect(result?.gaps.map((gap) => gap.message)).not.toContain(
       "Missing comparable SEC company facts for YoY deltas: revenue",
     );
+  });
+
+  test("uses the including-assessed-tax revenue concept when it is freshest", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(60_000_000, {
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2024,
+                  filed: "2025-02-20",
+                  start: "2024-01-01",
+                  end: "2024-12-31",
+                }),
+              ],
+            },
+          },
+          RevenueFromContractWithCustomerIncludingAssessedTax: {
+            units: {
+              USD: [
+                secFact(70_918_000, {
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-20",
+                  start: "2025-01-01",
+                  end: "2025-12-31",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics.revenue).toBe(70_918_000);
+    expect(result?.metrics.revenuePeriodEnd).toBe("2025-12-31");
+    expect(result?.metrics.revenuePrior).toBeUndefined();
   });
 
   test("selects a newer fallback concept before an older preferred concept", () => {

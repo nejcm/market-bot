@@ -26,6 +26,8 @@ import { evidenceSource } from "./common";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
 
 const MIN_USABLE_PEERS = 3;
+const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
+export const MIXED_PERIOD_METRIC = "mixed-period" as const;
 
 // Deterministic peer-comparability size gate: a peer qualifies for the primary
 // Aggregate only when its market cap and annualized revenue are inclusively
@@ -45,8 +47,10 @@ export interface ValuationCompsRow {
   readonly marketCap?: number;
   readonly cash?: number;
   readonly debt?: number;
-  readonly netDebt?: number;
-  readonly enterpriseValue?: number;
+  readonly cashPeriodEnd?: string;
+  readonly debtPeriodEnd?: string;
+  readonly netDebt?: number | typeof MIXED_PERIOD_METRIC;
+  readonly enterpriseValue?: number | typeof MIXED_PERIOD_METRIC;
   readonly latestPeriodRevenue?: number;
   readonly revenuePeriodMonths?: number;
   readonly revenuePeriodEnd?: string;
@@ -124,13 +128,26 @@ export async function collectValuationComps(
   if (valuationItem === undefined) {
     return emptyResult(ctx, command, extendedEvidence, "missing valuation item");
   }
+  const targetPeriodDivergence = targetBalanceSheetPeriodDivergence(
+    extendedEvidence,
+    valuationItem,
+  );
+  const guardedValuationItem = guardMixedPeriodValuationItem(valuationItem, targetPeriodDivergence);
+  const mixedPeriodGaps =
+    targetPeriodDivergence === undefined
+      ? []
+      : [
+          valuationCompsGap(
+            `Mixed-period valuation inputs for ${command.symbol}: cash period end ${targetPeriodDivergence.cashPeriodEnd} and debt period end ${targetPeriodDivergence.debtPeriodEnd} diverge by ${String(targetPeriodDivergence.divergenceDays)} days; enterprise value and net debt flagged as mixed-period`,
+          ),
+        ];
 
   const targetSnapshot = marketSnapshots.find(
     (snapshot) =>
       snapshot.assetClass === "equity" &&
       snapshot.symbol.toUpperCase() === command.symbol.toUpperCase(),
   );
-  const target = targetRow(command.symbol, valuationItem, targetSnapshot, ctx.fetchedAt);
+  const target = targetRow(command.symbol, guardedValuationItem, targetSnapshot, ctx.fetchedAt);
   const resolution = await resolvePeerUniverseWithFallback(
     command.symbol,
     options.peerUniverseFallback,
@@ -143,17 +160,18 @@ export async function collectValuationComps(
       "unsupported-coverage",
       "valuation-peers",
     );
-    const artifact = buildArtifact(ctx.fetchedAt, target, [], [], undefined, [gap], []);
+    const allGaps = [...mixedPeriodGaps, gap];
+    const artifact = buildArtifact(ctx.fetchedAt, target, [], [], undefined, allGaps, []);
     return {
       extendedEvidence: replaceValuationItem(
         extendedEvidence,
-        enrichValuationItem(valuationItem, artifact),
-        [gap],
+        enrichValuationItem(guardedValuationItem, artifact),
+        allGaps,
       ),
       artifact,
       sources: [],
       rawSnapshots: [],
-      gaps: [gap],
+      gaps: allGaps,
     };
   }
 
@@ -191,6 +209,7 @@ export async function collectValuationComps(
     excludedPeer(row, universe.peers, universe.provenance, ctx.fetchedAt, target),
   );
   const peerGaps = [
+    ...mixedPeriodGaps,
     ...quoteGap,
     ...peerSecResults.flatMap((entry) => entry.sec.gaps),
     ...excludedPeers.map((peer) =>
@@ -222,7 +241,7 @@ export async function collectValuationComps(
   return {
     extendedEvidence: replaceValuationItem(
       extendedEvidence,
-      enrichValuationItem(valuationItem, artifact),
+      enrichValuationItem(guardedValuationItem, artifact),
       allGaps,
     ),
     artifact,
@@ -280,6 +299,74 @@ function readStringMetric(
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
+interface BalanceSheetPeriodDivergence {
+  readonly cashPeriodEnd: string;
+  readonly debtPeriodEnd: string;
+  readonly divergenceDays: number;
+}
+
+function balanceSheetPeriodDivergence(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): BalanceSheetPeriodDivergence | undefined {
+  const cashPeriodEnd = readStringMetric(metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(metrics, "debtPeriodEnd");
+  if (cashPeriodEnd === undefined || debtPeriodEnd === undefined) {
+    return undefined;
+  }
+  const cashPeriodMs = Date.parse(cashPeriodEnd);
+  const debtPeriodMs = Date.parse(debtPeriodEnd);
+  if (!Number.isFinite(cashPeriodMs) || !Number.isFinite(debtPeriodMs)) {
+    return undefined;
+  }
+  const divergenceDays = Math.abs(cashPeriodMs - debtPeriodMs) / DAY_MS;
+  return divergenceDays > MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+    ? { cashPeriodEnd, debtPeriodEnd, divergenceDays }
+    : undefined;
+}
+
+function targetBalanceSheetPeriodDivergence(
+  evidence: ExtendedEvidence,
+  valuationItem: ExtendedEvidenceItem,
+): BalanceSheetPeriodDivergence | undefined {
+  const valuationCashPeriodEnd = readStringMetric(valuationItem.metrics, "cashPeriodEnd");
+  const valuationDebtPeriodEnd = readStringMetric(valuationItem.metrics, "debtPeriodEnd");
+  if (valuationCashPeriodEnd !== undefined && valuationDebtPeriodEnd !== undefined) {
+    return balanceSheetPeriodDivergence(valuationItem.metrics);
+  }
+  const secItem = evidence.items.find(
+    (item) =>
+      item.category === "sec-edgar" &&
+      readStringMetric(item.metrics, "cashPeriodEnd") !== undefined &&
+      readStringMetric(item.metrics, "debtPeriodEnd") !== undefined,
+  );
+  return balanceSheetPeriodDivergence(secItem?.metrics);
+}
+
+function guardMixedPeriodValuationItem(
+  item: ExtendedEvidenceItem,
+  divergence: BalanceSheetPeriodDivergence | undefined,
+): ExtendedEvidenceItem {
+  if (divergence === undefined) {
+    return item;
+  }
+  const retainedMetrics = Object.fromEntries(
+    Object.entries(item.metrics ?? {}).filter(
+      ([key]) => key !== "evToAnnualizedRevenue" && key !== "netDebtToMarketCap",
+    ),
+  );
+  return {
+    ...item,
+    summary: `Valuation Evidence: cash period end ${divergence.cashPeriodEnd} and debt period end ${divergence.debtPeriodEnd} diverge by ${String(divergence.divergenceDays)} days; enterprise value and net debt are mixed-period. Raw market cap, cash, debt, and revenue metrics are retained.`,
+    metrics: {
+      ...retainedMetrics,
+      cashPeriodEnd: divergence.cashPeriodEnd,
+      debtPeriodEnd: divergence.debtPeriodEnd,
+      netDebt: MIXED_PERIOD_METRIC,
+      enterpriseValue: MIXED_PERIOD_METRIC,
+    },
+  };
+}
+
 function targetRow(
   symbol: string,
   item: ExtendedEvidenceItem,
@@ -294,6 +381,13 @@ function targetRow(
   const enterpriseValue = readNumberMetric(item.metrics, "enterpriseValue");
   const evToAnnualizedRevenue = readNumberMetric(item.metrics, "evToAnnualizedRevenue");
   const netDebt = readNumberMetric(item.metrics, "netDebt");
+  const cashPeriodEnd = readStringMetric(item.metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(item.metrics, "debtPeriodEnd");
+  const mixedPeriod =
+    item.metrics?.enterpriseValue === MIXED_PERIOD_METRIC ||
+    item.metrics?.netDebt === MIXED_PERIOD_METRIC;
+  const guardedNetDebt = mixedPeriod ? MIXED_PERIOD_METRIC : netDebt;
+  const guardedEnterpriseValue = mixedPeriod ? MIXED_PERIOD_METRIC : enterpriseValue;
   const revenuePeriodMonths = readNumberMetric(item.metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(item.metrics, "revenuePeriodEnd");
   const sic = readStringMetric(item.metrics, "sic");
@@ -316,8 +410,10 @@ function targetRow(
     ...(marketCap !== undefined ? { marketCap } : {}),
     ...(cash !== undefined ? { cash } : {}),
     ...(debt !== undefined ? { debt } : {}),
-    ...(netDebt !== undefined ? { netDebt } : {}),
-    ...(enterpriseValue !== undefined ? { enterpriseValue } : {}),
+    ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
+    ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
+    ...(guardedNetDebt !== undefined ? { netDebt: guardedNetDebt } : {}),
+    ...(guardedEnterpriseValue !== undefined ? { enterpriseValue: guardedEnterpriseValue } : {}),
     ...(revenue !== undefined ? { latestPeriodRevenue: revenue } : {}),
     ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
     ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),

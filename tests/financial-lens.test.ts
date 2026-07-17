@@ -6,6 +6,7 @@ import type {
 } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { MIXED_PERIOD_METRIC } from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
@@ -131,6 +132,37 @@ describe("addFinancialLensEvidence", () => {
     expect(item?.sourceIds).toContain("verified-snapshot-AAPL");
     expect(item?.metrics?.qualityPosture).toBe("criteria-supported");
     expect(item?.metrics?.financialStrengthPosture).toBe("criteria-supported");
+  });
+
+  test("does not recompute net debt when valuation marks it mixed-period", () => {
+    const baseEvidence = evidence();
+    const mixedPeriodEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "valuation"
+          ? {
+              ...item,
+              metrics: Object.fromEntries(
+                Object.entries({ ...item.metrics, netDebt: MIXED_PERIOD_METRIC }).filter(
+                  ([key]) => key !== "netDebtToMarketCap",
+                ),
+              ),
+            }
+          : item,
+      ),
+    };
+
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      mixedPeriodEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const strength = result.artifact?.lenses.find((lens) => lens.name === "Financial Strength");
+    expect(strength?.metrics.find((metric) => metric.key === "netDebt")).toBeUndefined();
+    expect(strength?.metrics.find((metric) => metric.key === "netDebtToMarketCap")).toBeUndefined();
   });
 
   test("emits partial no-cap gap when derived inputs are missing", () => {

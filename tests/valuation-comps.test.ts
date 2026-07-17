@@ -310,6 +310,61 @@ describe("collectValuationComps", () => {
     );
   });
 
+  test("guards mixed-period enterprise value while retaining cash and debt", async () => {
+    const evidence = valuationEvidence();
+    const mixedPeriodItems = evidence.items.map((item) =>
+      item.category === "sec-edgar"
+        ? {
+            ...item,
+            metrics: {
+              ...item.metrics,
+              cashPeriodEnd: "2026-06-29",
+              debtPeriodEnd: "2026-03-01",
+            },
+          }
+        : item,
+    );
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      { ...evidence, items: mixedPeriodItems },
+    );
+
+    const valuation = result.extendedEvidence.items.find((item) => item.category === "valuation");
+    expect(valuation?.metrics).toMatchObject({
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      debtPeriodEnd: "2026-03-01",
+      enterpriseValue: "mixed-period",
+      netDebt: "mixed-period",
+    });
+    expect(valuation?.metrics?.evToAnnualizedRevenue).toBeUndefined();
+    expect(valuation?.metrics?.netDebtToMarketCap).toBeUndefined();
+    expect(result.artifact.target).toMatchObject({
+      cash: 10,
+      debt: 20,
+      enterpriseValue: "mixed-period",
+      netDebt: "mixed-period",
+      usable: false,
+    });
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation",
+        message:
+          "Mixed-period valuation inputs for NVDA: cash period end 2026-06-29 and debt period end 2026-03-01 diverge by 120 days; enterprise value and net debt flagged as mixed-period",
+      }),
+    );
+  });
+
   test("attaches submissions provenance to peer SIC even without recent filings", async () => {
     // The fixture submissions payload carries a SIC but no filings, so the
     // Submissions source must still be emitted and referenced by the row.

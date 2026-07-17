@@ -77,6 +77,7 @@ const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
       "Revenues",
       "SalesRevenueNet",
       "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "RevenueFromContractWithCustomerIncludingAssessedTax",
     ],
     unitKeys: ["USD"],
   },
@@ -499,24 +500,23 @@ function selectDebtMetric(
   analysisAsOf?: string,
 ): SecMetricSelection | undefined {
   const direct = selectMetric(gaap, DEBT_METRIC, analysisAsOf);
-  if (direct !== undefined) {
-    return direct;
-  }
   const componentValues = DEBT_COMPONENTS.map((metric) =>
     factValuesForMetric(gaap, metric).filter((value) => isFactObservableAsOf(value, analysisAsOf)),
   );
   const latest = latestFact(componentValues.flat());
-  if (latest === undefined) {
-    return undefined;
-  }
-  const summedLatest = sumMatchingFacts(latest, componentValues);
-  if (summedLatest === undefined) {
-    return undefined;
-  }
-  const priorPeriod = comparablePrior(latest, componentValues.flat());
+  const summedLatest = latest === undefined ? undefined : sumMatchingFacts(latest, componentValues);
+  const priorPeriod =
+    latest === undefined ? undefined : comparablePrior(latest, componentValues.flat());
   const prior =
     priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentValues);
-  return { latest: summedLatest, ...(prior !== undefined ? { prior } : {}) };
+  const components =
+    summedLatest === undefined
+      ? undefined
+      : { latest: summedLatest, ...(prior !== undefined ? { prior } : {}) };
+  if (direct === undefined || components === undefined) {
+    return direct ?? components;
+  }
+  return compareFactRecency(direct.latest, components.latest) < 0 ? direct : components;
 }
 
 function deltaPercent(latest: number, prior: number): number | undefined {

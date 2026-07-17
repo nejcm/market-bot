@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   ACTIONABLE_CALIBRATION_Z,
   applicableCalibrationSlices,
+  applicableKindSlices,
   assessNegativeCalibration,
 } from "../src/research/calibration-guidance";
 
@@ -92,6 +93,49 @@ describe("applicableCalibrationSlices", () => {
       { dimension: "jobType", actionable: false, reason: "below-outcome-floor" },
       { dimension: "predictionHorizon", actionable: true, reason: "actionable-negative" },
       { dimension: "marketRegime", actionable: false, reason: "slice-unavailable" },
+    ]);
+  });
+});
+
+describe("applicableKindSlices", () => {
+  test("assesses every prediction kind independently", () => {
+    const slices = applicableKindSlices({
+      byKind: {
+        direction: {
+          brierScore: 0.4,
+          count: 30,
+          runCount: 10,
+          brierStandardError: 0.05,
+        },
+        range: {
+          brierScore: 0.4,
+          count: 29,
+          runCount: 10,
+          brierStandardError: 0.05,
+        },
+      },
+    });
+
+    expect(
+      slices.map(({ dimension, key, actionable, reason }) => ({
+        dimension,
+        key,
+        actionable,
+        reason,
+      })),
+    ).toEqual([
+      {
+        dimension: "predictionKind",
+        key: "direction",
+        actionable: true,
+        reason: "actionable-negative",
+      },
+      {
+        dimension: "predictionKind",
+        key: "range",
+        actionable: false,
+        reason: "below-outcome-floor",
+      },
     ]);
   });
 });

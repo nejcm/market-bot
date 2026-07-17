@@ -6,7 +6,7 @@ import { isRecord, readNumber, readString } from "../guards";
 import { brierSkillScore } from "../scoring/calibration";
 import { buildAndWriteCalibration } from "../scoring/index";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
-import { applicableCalibrationSlices } from "./calibration-guidance";
+import { applicableCalibrationSlices, applicableKindSlices } from "./calibration-guidance";
 import type { CalibrationContext, ResearchContext } from "./research-context-types";
 
 export async function loadCalibrationContext(
@@ -234,6 +234,9 @@ function calibrationSliceLabel(dimension: string, key: string): string {
     case "jobType": {
       return `job type ${key}`;
     }
+    case "predictionKind": {
+      return `prediction kind ${key}`;
+    }
     case "predictionHorizon": {
       return `default horizon ${key}`;
     }
@@ -252,12 +255,15 @@ export function buildCalibrationBlock(
     return undefined;
   }
   const horizonBucket = marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon);
-  const actionableSlices = applicableCalibrationSlices(calibration, {
-    assetClass: command.assetClass,
-    jobType: command.jobType,
-    predictionHorizon: horizonBucket,
-    marketRegime: context.marketRegime.label,
-  }).filter(
+  const actionableSlices = [
+    ...applicableCalibrationSlices(calibration, {
+      assetClass: command.assetClass,
+      jobType: command.jobType,
+      predictionHorizon: horizonBucket,
+      marketRegime: context.marketRegime.label,
+    }),
+    ...applicableKindSlices(calibration),
+  ].filter(
     (
       slice,
     ): slice is typeof slice & {

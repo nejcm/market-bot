@@ -145,6 +145,24 @@ describe("buildCalibrationBlock", () => {
     expect(block).not.toContain("job type equity");
     expect(block).not.toContain("6-10d");
   });
+
+  test("includes actionable prediction kinds and omits kinds below the floors", () => {
+    const block = buildCalibrationBlock(
+      {
+        byKind: {
+          direction: actionableMetric,
+          range: { ...actionableMetric, count: 29 },
+          volatility: { ...actionableMetric, runCount: 9 },
+        },
+      },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toContain("prediction kind direction: skill -0.60 (Brier 0.400, n=30, runs=10");
+    expect(block).not.toContain("prediction kind range");
+    expect(block).not.toContain("prediction kind volatility");
+  });
 });
 
 describe("parseCalibrationContext", () => {

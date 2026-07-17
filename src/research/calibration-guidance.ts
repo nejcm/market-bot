@@ -9,6 +9,7 @@ export const BASE_RATE_BRIER = 0.25;
 export type CalibrationGuidanceDimension =
   | "assetClass"
   | "jobType"
+  | "predictionKind"
   | "predictionHorizon"
   | "marketRegime";
 
@@ -111,6 +112,17 @@ export function applicableCalibrationSlices(
     dimension,
     key,
     ...(metric !== undefined ? { metric } : {}),
+    ...assessNegativeCalibration(metric),
+  }));
+}
+
+export function applicableKindSlices(
+  calibration: CalibrationContext | undefined,
+): readonly ApplicableCalibrationSlice[] {
+  return Object.entries(calibration?.byKind ?? {}).map(([key, metric]) => ({
+    dimension: "predictionKind",
+    key,
+    metric,
     ...assessNegativeCalibration(metric),
   }));
 }

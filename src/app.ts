@@ -317,7 +317,7 @@ export async function runCli(
 
   const scoreResult = await runScore(
     config.dataDir,
-    invokedAt,
+    now(),
     scorePassOptions(config.sourceOptions),
   ).catch((error: unknown) => {
     process.stderr.write(

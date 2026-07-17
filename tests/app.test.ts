@@ -164,6 +164,9 @@ describe("runCli", () => {
     process.env.MARKET_BOT_DATA_DIR = dataDir;
     const calls: string[] = [];
     const indexedRunDirs: (readonly string[])[] = [];
+    const scoreTimestamps: Date[] = [];
+    const persistTimestamps: Date[] = [];
+    let clockCalls = 0;
     const provider: ModelProvider = {
       name: "test",
       generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
@@ -173,8 +176,12 @@ describe("runCli", () => {
     const result = await runCli(["daily", "--asset", "equity"], {
       createProvider: () => provider,
       collectSources: async () => collectedSources(),
-      persistResearchJob: async () => {
+      persistResearchJob: async ({ now }) => {
         calls.push("persist");
+        if (now === undefined) {
+          throw new Error("Expected persist timestamp");
+        }
+        persistTimestamps.push(now);
         return {
           report: researchReport({ runId: "run-1" }),
           markdown: "",
@@ -190,9 +197,13 @@ describe("runCli", () => {
           },
         } as unknown as PersistedResearchJobResult;
       },
-      runScorePass: async (receivedDataDir) => {
+      runScorePass: async (receivedDataDir, receivedNow) => {
         calls.push("score");
         expect(receivedDataDir).toBe(dataDir);
+        if (receivedNow === undefined) {
+          throw new Error("Expected score pass timestamp");
+        }
+        scoreTimestamps.push(receivedNow);
         // The pre-run pass resolves an older run; the post-run pass finds
         // Nothing new. Both sets of touched dirs must reach the index.
         return calls.filter((call) => call === "score").length === 1
@@ -210,12 +221,19 @@ describe("runCli", () => {
         indexedRunDirs.push(runDirs);
       },
       rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
-      now: () => new Date("2026-06-01T00:00:00.000Z"),
+      now: () => {
+        clockCalls += 1;
+        return new Date(Date.UTC(2026, 5, 1, 0, 0, clockCalls));
+      },
     });
 
     expect(result).toBe(runDir);
     expect(calls).toEqual(["score", "index", "persist", "score", "calibration", "index"]);
     expect(indexedRunDirs).toEqual([["old-run"], ["run-1"]]);
+    expect(scoreTimestamps[0]?.getTime()).toBeLessThan(persistTimestamps[0]?.getTime() ?? 0);
+    expect(scoreTimestamps[1]?.getTime()).toBeGreaterThan(
+      persistTimestamps[0]?.getTime() ?? Infinity,
+    );
   });
 
   test("indexes pre-run score mutations before a later collection failure", async () => {

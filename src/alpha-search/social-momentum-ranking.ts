@@ -11,6 +11,10 @@ export type SocialScoringVersion = 1 | 2;
 
 export const CURRENT_SOCIAL_SCORING_VERSION = 2 as const satisfies SocialScoringVersion;
 
+export function isSocialScoringVersion(value: unknown): value is SocialScoringVersion {
+  return value === 1 || value === 2;
+}
+
 export interface SocialMomentumRankInput {
   readonly candidates: readonly ApeWisdomCandidate[];
   readonly candidateLimit: number;

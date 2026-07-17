@@ -1137,7 +1137,7 @@ describe("runScorePass Alpha validation", () => {
     expect(summary.generatedAt).toBe(now.toISOString());
   });
 
-  test("continues the score pass and warns when provider-health refresh fails", async () => {
+  test("continues scoring but blocks source promotion when provider-health refresh fails", async () => {
     const originalStderrWrite = process.stderr.write.bind(process.stderr);
     const stderrChunks: string[] = [];
     process.stderr.write = ((chunk: unknown) => {
@@ -1146,15 +1146,57 @@ describe("runScorePass Alpha validation", () => {
     }) as typeof process.stderr.write;
 
     try {
+      await writeRun(
+        "alpha-run-refresh-failure",
+        report([], {
+          runId: "alpha-run-refresh-failure",
+          jobType: "alpha-search",
+          assetClass: "equity",
+          extras: {
+            depth: "brief",
+            socialCandidateCount: 1,
+            secCandidateCount: 0,
+            researchLeads: [
+              {
+                symbol: "ALFA",
+                exchange: "NMS",
+                price: 10,
+                volume: 1_000_000,
+                marketCap: 500_000_000,
+                discoverySources: ["apewisdom"],
+                sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+              },
+            ],
+            rejectedCandidates: [],
+          },
+        }),
+      );
       const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
         refreshProviderHealth: async () => {
           throw new Error("simulated provider-health failure");
         },
+        observationRepository: {
+          point: noObservation,
+          window: async (subject) =>
+            [10, 10, 10, 10, 10, 12].map((value, index) => ({
+              subject,
+              date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+              value: subject === "IWM" ? value * 10 : value,
+            })),
+        },
       });
 
-      expect(result).toMatchObject({ scored: 0, skipped: 0 });
+      expect(result).toMatchObject({ scored: 1, skipped: 0 });
       expect(stderrChunks.join("")).toContain("provider-health summary refresh failed:");
       expect(stderrChunks.join("")).toContain("simulated provider-health failure");
+      const summary = await readAlphaValidationSummary();
+      expect(summary.sourcePromotionCriteria.prerequisites).toMatchObject({
+        status: "blocked",
+        providerHealthStatus: "unavailable",
+      });
+      expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom-only"]?.["5"]).toMatchObject({
+        status: "blocked-prerequisite",
+      });
     } finally {
       process.stderr.write = originalStderrWrite;
     }

@@ -502,14 +502,20 @@ export async function runScorePass(
       };
     }),
   );
+  let providerHealthRefreshFailed = false;
   try {
     await (options.refreshProviderHealth ?? writeProviderHealthSummary)(dataDir, now);
   } catch (error: unknown) {
+    providerHealthRefreshFailed = true;
     process.stderr.write(
       `provider-health summary refresh failed: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   }
-  await buildAndWriteAlphaValidationSummary(dataDir, now);
+  await buildAndWriteAlphaValidationSummary(
+    dataDir,
+    now,
+    providerHealthRefreshFailed ? { providerHealthStatus: "unavailable" } : undefined,
+  );
   await buildAndWriteAlphaFeatureAttribution(dataDir, now);
   await buildAndWriteAlphaCandidateWatchlist(dataDir, now);
   await buildAndWriteAlphaLeadCohorts(dataDir, now);
@@ -652,9 +658,10 @@ export async function buildAndWriteAlphaFeatureAttribution(
 export async function buildAndWriteAlphaValidationSummary(
   dataDir: string,
   now: Date = new Date(),
+  prerequisiteOverride?: AlphaValidationPrerequisiteInput,
 ): Promise<boolean> {
   const runDirs = await listRunDirs(dataDir);
-  const [maybeFiles, prerequisites] = await Promise.all([
+  const [maybeFiles, persistedPrerequisites] = await Promise.all([
     Promise.all(runDirs.map((runDir) => loadAlphaValidationFile(runDir))),
     loadAlphaValidationPrerequisites(dataDir),
   ]);
@@ -663,7 +670,11 @@ export async function buildAndWriteAlphaValidationSummary(
     return false;
   }
 
-  const summary = buildAlphaValidationSummary(files, now, prerequisites);
+  const summary = buildAlphaValidationSummary(
+    files,
+    now,
+    prerequisiteOverride ?? persistedPrerequisites,
+  );
   const summaryDir = join(dataDir, "../alpha-validation");
   await mkdir(summaryDir, { recursive: true });
   await writeFile(

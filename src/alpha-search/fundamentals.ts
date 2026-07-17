@@ -107,7 +107,7 @@ export async function collectAlphaSearchFundamentals(options: {
   const fundamentals: AlphaSearchFundamentals[] = [];
   for (const { entry, result } of facts) {
     if (!isFetchJsonResult(result)) {
-      fetchGaps.push(result);
+      fetchGaps.push({ ...result, symbol: entry.symbol });
       continue;
     }
     rawSnapshots.push(result.rawSnapshot);

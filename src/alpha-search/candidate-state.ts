@@ -3,7 +3,7 @@ import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import type { AlphaValidationFile, AlphaValidationHorizon } from "./validation";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 import { readAlphaSearchLeads } from "./report-extras";
-import type { SocialScoringVersion } from "./social-momentum-ranking";
+import { isSocialScoringVersion, type SocialScoringVersion } from "./social-momentum-ranking";
 
 export type AlphaCandidateSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
 
@@ -139,7 +139,7 @@ export function isAlphaCandidateProfile(value: unknown): value is AlphaCandidate
     readNumber(value, "marketCap") !== undefined &&
     (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
     (value.socialScoringVersion === undefined ||
-      readNumber(value, "socialScoringVersion") !== undefined) &&
+      isSocialScoringVersion(value.socialScoringVersion)) &&
     (value.socialMomentumScore === undefined ||
       readNumber(value, "socialMomentumScore") !== undefined) &&
     (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&

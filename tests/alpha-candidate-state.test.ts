@@ -204,8 +204,28 @@ describe("buildAlphaCandidateProfiles", () => {
       socialScoringVersion: 2,
     });
     expect(isAlphaCandidateProfile(legacyProfile)).toBe(true);
+    expect(isAlphaCandidateProfile({ ...profile(), socialScoringVersion: 3 })).toBe(false);
     expect(isAlphaCandidateProfile({ ...profile(), symbol: undefined })).toBe(false);
     expect(isAlphaCandidateProfile({ ...profile(), discoverySources: ["other"] })).toBe(false);
+  });
+
+  test("rejects research leads with unsupported social scoring versions", () => {
+    expect(
+      buildAlphaCandidateProfiles(
+        alphaReport([
+          {
+            symbol: "ALFA",
+            exchange: "NMS",
+            price: 10,
+            volume: 1_000_000,
+            marketCap: 500_000_000,
+            discoverySources: ["apewisdom"],
+            sourceIds: ["apewisdom-ALFA", "market-yahoo-alpha-search"],
+            socialScoringVersion: 3,
+          },
+        ]),
+      ),
+    ).toEqual([]);
   });
 });
 

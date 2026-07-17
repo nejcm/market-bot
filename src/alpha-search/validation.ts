@@ -25,7 +25,7 @@ export interface AlphaSourcePromotionThresholds {
 
 export interface AlphaSourcePromotionPrerequisites {
   readonly status: "met" | "blocked";
-  readonly providerHealthStatus?: "pass" | "warn" | "fail";
+  readonly providerHealthStatus?: "pass" | "warn" | "fail" | "unavailable";
   readonly blockingIssueCount?: number;
   readonly unmetRequiredCoverage: readonly string[];
 }
@@ -124,7 +124,7 @@ export interface AlphaValidationSummary {
 }
 
 export interface AlphaValidationPrerequisiteInput {
-  readonly providerHealthStatus?: "pass" | "warn" | "fail";
+  readonly providerHealthStatus?: "pass" | "warn" | "fail" | "unavailable";
   readonly blockingIssueCount?: number;
   readonly unmetRequiredCoverage?: readonly string[];
 }
@@ -523,6 +523,7 @@ function sourcePromotionPrerequisites(
   const blockingIssueCount = input?.blockingIssueCount ?? 0;
   const blocked =
     input?.providerHealthStatus === "fail" ||
+    input?.providerHealthStatus === "unavailable" ||
     blockingIssueCount > 0 ||
     unmetRequiredCoverage.length > 0;
   return {

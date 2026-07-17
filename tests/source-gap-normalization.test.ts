@@ -90,6 +90,25 @@ describe("source gap normalization", () => {
     expect(normalized.extendedEvidence?.gaps).toEqual([consolidated]);
   });
 
+  test("keeps identical SEC company-fact gaps for different symbols", () => {
+    const aapl = sourceGap({
+      source: "sec-edgar",
+      symbol: "AAPL",
+      message: "Missing SEC company facts: grossProfit",
+      cause: "provider-data-missing",
+    });
+    const msft = sourceGap({
+      source: "sec-edgar",
+      symbol: "MSFT",
+      message: "Missing SEC company facts: grossProfit",
+      cause: "provider-data-missing",
+    });
+
+    const normalized = normalizeCanonicalSourceGaps(collectedSources({ sourceGaps: [aapl, msft] }));
+
+    expect(normalized.sourceGaps).toEqual([aapl, msft]);
+  });
+
   test("preserves source gap symbol through artifact write and read", async () => {
     const runDir = join(
       tmpdir(),

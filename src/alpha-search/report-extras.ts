@@ -2,7 +2,7 @@ import type { YahooRejectedCandidate, YahooValidatedLead } from "./yahoo-validat
 import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";
 import { socialMomentumBaseSourceId, socialMomentumReportSourceId } from "./source-ids";
-import type { SocialScoringVersion } from "./social-momentum-ranking";
+import { isSocialScoringVersion, type SocialScoringVersion } from "./social-momentum-ranking";
 
 export interface AlphaSearchLead {
   readonly symbol: string;
@@ -165,7 +165,7 @@ function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): 
     Number.isFinite(value.marketCap) &&
     (value.socialRank === undefined || readNumber(value, "socialRank") !== undefined) &&
     (value.socialScoringVersion === undefined ||
-      readNumber(value, "socialScoringVersion") !== undefined) &&
+      isSocialScoringVersion(value.socialScoringVersion)) &&
     (value.socialMomentumScore === undefined ||
       readNumber(value, "socialMomentumScore") !== undefined) &&
     (value.mentions === undefined || readNumber(value, "mentions") !== undefined) &&

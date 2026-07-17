@@ -105,7 +105,7 @@ export function sourceGapReportTextKey(gap: SourceGap): string {
 export function dedupeSourceGaps(gaps: readonly SourceGap[]): readonly SourceGap[] {
   const seen = new Set<string>();
   return gaps.filter((gap) => {
-    const key = sourceGapReportTextKey(gap);
+    const key = JSON.stringify([gap.symbol ?? null, sourceGapReportTextKey(gap)]);
     if (seen.has(key)) {
       return false;
     }

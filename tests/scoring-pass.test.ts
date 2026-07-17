@@ -1025,6 +1025,8 @@ describe("runScorePass Alpha validation", () => {
     );
 
     const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      // TmpDir is not named "runs"; a real refresh would add provider-health/ and skew directory counts.
+      refreshProviderHealth: async () => {},
       observationRepository: {
         point: noObservation,
         window: async () => {
@@ -1042,6 +1044,7 @@ describe("runScorePass Alpha validation", () => {
     const profilesPath = join(runDir, "normalized", "candidate-profiles.json");
     const profilesRaw = await readFile(profilesPath, "utf8");
     const secondResult = await runScorePass(tmpDir, new Date("2026-06-02T00:00:00.000Z"), {
+      refreshProviderHealth: async () => {},
       observationRepository: {
         point: noObservation,
         window: async () => {
@@ -1089,6 +1092,7 @@ describe("runScorePass Alpha validation", () => {
     );
 
     await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      refreshProviderHealth: async () => {},
       observationRepository: {
         point: noObservation,
         window: async (subject) => {
@@ -1113,6 +1117,47 @@ describe("runScorePass Alpha validation", () => {
     expect(summary.sourcePromotionCriteria.bySourceGroup["apewisdom-only"]?.["5"]).toMatchObject({
       status: "blocked-prerequisite",
     });
+  });
+
+  test("refreshes a stale provider-health summary during the score pass", async () => {
+    const runsDir = join(tmpDir, "runs");
+    await mkdir(join(tmpDir, "provider-health"), { recursive: true });
+    await writeFile(
+      join(tmpDir, "provider-health", "summary.json"),
+      `${JSON.stringify({ generatedAt: "2026-05-01T00:00:00.000Z" })}\n`,
+      "utf8",
+    );
+    const now = new Date("2026-06-01T00:00:00.000Z");
+
+    const result = await runScorePass(runsDir, now);
+
+    const raw = await readFile(join(tmpDir, "provider-health", "summary.json"), "utf8");
+    const summary = JSON.parse(raw) as { generatedAt: string };
+    expect(result).toMatchObject({ scored: 0, skipped: 0 });
+    expect(summary.generatedAt).toBe(now.toISOString());
+  });
+
+  test("continues the score pass and warns when provider-health refresh fails", async () => {
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    const stderrChunks: string[] = [];
+    process.stderr.write = ((chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    try {
+      const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+        refreshProviderHealth: async () => {
+          throw new Error("simulated provider-health failure");
+        },
+      });
+
+      expect(result).toMatchObject({ scored: 0, skipped: 0 });
+      expect(stderrChunks.join("")).toContain("provider-health summary refresh failed:");
+      expect(stderrChunks.join("")).toContain("simulated provider-health failure");
+    } finally {
+      process.stderr.write = originalStderrWrite;
+    }
   });
 
   test("throws when persisted alpha watchlist is malformed while building cohorts", async () => {

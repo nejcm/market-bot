@@ -34,6 +34,7 @@ import {
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, readNumber, readString } from "../guards";
+import { writeProviderHealthSummary } from "../health/provider-health";
 import { scoringPolicyFor } from "./policy";
 import { resolveOutcome } from "./resolver";
 import {
@@ -82,6 +83,7 @@ export interface ScorePassOptions {
   readonly tradierApiToken?: string;
   readonly massiveApiKey?: string;
   readonly force?: boolean;
+  readonly refreshProviderHealth?: (dataDir: string, now?: Date) => Promise<unknown>;
 }
 
 function unresolvedScore(
@@ -500,6 +502,13 @@ export async function runScorePass(
       };
     }),
   );
+  try {
+    await (options.refreshProviderHealth ?? writeProviderHealthSummary)(dataDir, now);
+  } catch (error: unknown) {
+    process.stderr.write(
+      `provider-health summary refresh failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  }
   await buildAndWriteAlphaValidationSummary(dataDir, now);
   await buildAndWriteAlphaFeatureAttribution(dataDir, now);
   await buildAndWriteAlphaCandidateWatchlist(dataDir, now);

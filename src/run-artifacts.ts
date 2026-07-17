@@ -406,6 +406,7 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
       {
         source: item.source,
         message: item.message,
+        ...(typeof item.symbol === "string" ? { symbol: item.symbol } : {}),
         ...(typeof item.provider === "string" ? { provider: item.provider } : {}),
         ...(capability !== undefined ? { capability } : {}),
         ...(cause !== undefined ? { cause } : {}),

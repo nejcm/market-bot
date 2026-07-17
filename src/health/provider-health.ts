@@ -163,7 +163,7 @@ async function listRunDirs(dataDir: string): Promise<readonly string[]> {
   }
 }
 
-function parseSourceGap(value: unknown): SourceGap | undefined {
+export function parseSourceGap(value: unknown): SourceGap | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -175,6 +175,7 @@ function parseSourceGap(value: unknown): SourceGap | undefined {
   }
 
   const provider = stringValue(value.provider);
+  const symbol = stringValue(value.symbol);
   const capability = isSourceGapCapability(value.capability) ? value.capability : undefined;
   const cause = isSourceGapCause(value.cause) ? value.cause : undefined;
   const evidenceQualityImpact = isSourceGapEvidenceQualityImpact(value.evidenceQualityImpact)
@@ -184,6 +185,7 @@ function parseSourceGap(value: unknown): SourceGap | undefined {
   return {
     source,
     message,
+    ...(symbol !== undefined ? { symbol } : {}),
     ...(provider !== undefined ? { provider } : {}),
     ...(capability !== undefined ? { capability } : {}),
     ...(cause !== undefined ? { cause } : {}),

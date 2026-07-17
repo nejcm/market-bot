@@ -69,6 +69,7 @@ export function isSourceGapEvidenceQualityImpact(
 export interface SourceGapInput {
   readonly source: string;
   readonly message: string;
+  readonly symbol?: string;
   readonly provider?: string;
   readonly capability?: SourceGapCapability;
   readonly cause?: SourceGapCause;
@@ -79,6 +80,7 @@ export function sourceGap(input: SourceGapInput): SourceGap {
   return {
     source: input.source,
     message: input.message,
+    ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
     ...(input.provider !== undefined ? { provider: input.provider } : {}),
     ...(input.capability !== undefined ? { capability: input.capability } : {}),
     ...(input.cause !== undefined ? { cause: input.cause } : {}),
@@ -133,6 +135,7 @@ export function sourceGapWithContext(
   return sourceGap({
     source: gap.source,
     message: gap.message,
+    ...(gap.symbol !== undefined ? { symbol: gap.symbol } : {}),
     ...(provider !== undefined ? { provider } : {}),
     ...(capability !== undefined ? { capability } : {}),
     ...(cause !== undefined ? { cause } : {}),
@@ -218,6 +221,7 @@ function secCompanyFactNames(gap: SourceGap): readonly string[] | undefined {
 // Different provider/capability/cause/impact are never merged into one another.
 function secCompanyFactsGroupKey(gap: SourceGap): string {
   return JSON.stringify([
+    gap.symbol ?? null,
     gap.provider ?? null,
     gap.capability ?? null,
     gap.cause ?? null,

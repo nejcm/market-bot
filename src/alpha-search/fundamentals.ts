@@ -37,6 +37,7 @@ function sourceId(symbol: string): string {
 function noSecMappingGap(symbol: string): SourceGap {
   return sourceGap({
     source: "sec-alpha-fundamentals",
+    symbol,
     provider: "sec-edgar",
     capability: "extended-evidence",
     cause: "unsupported-coverage",
@@ -48,6 +49,7 @@ function noSecMappingGap(symbol: string): SourceGap {
 function noFundamentalsGap(symbol: string): SourceGap {
   return sourceGap({
     source: "sec-alpha-fundamentals",
+    symbol,
     provider: "sec-edgar",
     capability: "extended-evidence",
     cause: "provider-data-missing",
@@ -114,7 +116,7 @@ export async function collectAlphaSearchFundamentals(options: {
       missingFactsGaps.push(noFundamentalsGap(entry.symbol));
       continue;
     }
-    fundamentalGaps.push(...summary.gaps);
+    fundamentalGaps.push(...summary.gaps.map((gap) => ({ ...gap, symbol: entry.symbol })));
     fundamentals.push({
       symbol: entry.symbol,
       secCik: entry.cik,

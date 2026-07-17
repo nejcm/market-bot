@@ -7,6 +7,7 @@ import { Database } from "bun:sqlite";
 import type { AssetClass, JobType, Source, SourceGap } from "../src/domain/types";
 import {
   buildProviderHealthSummary,
+  parseSourceGap,
   writeProviderHealthSummary,
 } from "../src/health/provider-health";
 import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
@@ -145,6 +146,15 @@ async function writeBaselineRuns(
 }
 
 describe("provider health", () => {
+  test("preserves optional source gap symbols while parsing", () => {
+    expect(parseSourceGap({ source: "sec-edgar", message: "missing", symbol: "AAPL" })).toEqual(
+      expect.objectContaining({ symbol: "AAPL" }),
+    );
+    expect(parseSourceGap({ source: "sec-edgar", message: "missing" })).not.toHaveProperty(
+      "symbol",
+    );
+  });
+
   test("fails when FRED baseline coverage is missing", async () => {
     await writeBaselineRuns({
       "daily-equity": {

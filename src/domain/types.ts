@@ -160,6 +160,7 @@ export interface SourceProviderAlias {
 export interface SourceGap {
   readonly source: string;
   readonly message: string;
+  readonly symbol?: string;
   readonly provider?: string;
   readonly capability?: SourceGapCapability;
   readonly cause?: SourceGapCause;

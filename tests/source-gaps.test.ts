@@ -12,9 +12,21 @@ import {
   sourceGap,
   sourceGapAnalyticsClass,
   sourceGapReportText,
+  sourceGapWithContext,
 } from "../src/domain/source-gaps";
 
 describe("source gaps", () => {
+  test("carries symbol when provided and omits it when absent", () => {
+    const symbolGap = sourceGap({ source: "sec-edgar", message: "missing", symbol: "AAPL" });
+    expect(symbolGap).toEqual({
+      source: "sec-edgar",
+      message: "missing",
+      symbol: "AAPL",
+    });
+    expect(sourceGapWithContext(symbolGap, { provider: "sec-edgar" }).symbol).toBe("AAPL");
+    expect(sourceGap({ source: "sec-edgar", message: "missing" })).not.toHaveProperty("symbol");
+  });
+
   test("classifies missing credentials without reading message text", () => {
     const gap = sourceGap({
       source: "marketaux-news",
@@ -225,6 +237,41 @@ describe("source gaps", () => {
     const result = consolidateSecCompanyFactGaps([extended, core]);
 
     expect(result).toEqual([extended, core]);
+  });
+
+  test("consolidateSecCompanyFactGaps: keeps different symbols separate", () => {
+    const aapl = sourceGap({
+      source: "sec-edgar",
+      symbol: "AAPL",
+      message: "Missing SEC company facts: grossProfit",
+    });
+    const msft = sourceGap({
+      source: "sec-edgar",
+      symbol: "MSFT",
+      message: "Missing SEC company facts: capex",
+    });
+
+    expect(consolidateSecCompanyFactGaps([aapl, msft])).toEqual([aapl, msft]);
+  });
+
+  test("consolidateSecCompanyFactGaps: merges matching symbols and preserves the symbol", () => {
+    const grossProfit = sourceGap({
+      source: "sec-edgar",
+      symbol: "AAPL",
+      message: "Missing SEC company facts: grossProfit",
+    });
+    const capex = sourceGap({
+      source: "sec-edgar",
+      symbol: "AAPL",
+      message: "Missing SEC company facts: capex",
+    });
+
+    expect(consolidateSecCompanyFactGaps([grossProfit, capex])).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        message: "Missing SEC company facts: grossProfit, capex",
+      }),
+    ]);
   });
 
   test("separates Market Context and Extended Evidence quality impact", () => {

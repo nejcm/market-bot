@@ -802,7 +802,7 @@ describe("alpha-search workflow", () => {
         join(result.artifacts.normalizedDir, "sec-fundamentals-source-gaps.json"),
         "utf8",
       ),
-    ) as readonly { readonly message?: string }[];
+    ) as readonly { readonly message?: string; readonly symbol?: string }[];
 
     expect(requestedUrls.some((url) => url.includes("companyfacts"))).toBe(true);
     expect(result.report.extras?.researchLeads).toEqual([
@@ -831,6 +831,7 @@ describe("alpha-search workflow", () => {
     expect(fundamentalGaps.some((gap) => gap.message?.includes("Missing SEC company facts"))).toBe(
       true,
     );
+    expect(fundamentalGaps).toEqual([expect.objectContaining({ symbol: "AAPL" })]);
     expect(result.report.extras?.profileCoverage).toEqual({
       displayedLeadCount: 1,
       candidateProfilesWithFundamentals: 1,

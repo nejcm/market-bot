@@ -1,7 +1,17 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { sourceGap } from "../src/domain/source-gaps";
 import { normalizeCanonicalSourceGaps } from "../src/research/source-gap-normalization";
-import { collectedSources } from "./support/fixtures";
+import { loadRunArtifact } from "../src/run-artifacts";
+import { collectedSources, researchReport } from "./support/fixtures";
+
+const tmpDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tmpDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
 
 describe("source gap normalization", () => {
   test("dedupes top-level, extended evidence, and market context gaps", () => {
@@ -78,5 +88,35 @@ describe("source gap normalization", () => {
     const consolidated = { ...superset };
     expect(normalized.sourceGaps).toEqual([consolidated]);
     expect(normalized.extendedEvidence?.gaps).toEqual([consolidated]);
+  });
+
+  test("preserves source gap symbol through artifact write and read", async () => {
+    const runDir = join(
+      tmpdir(),
+      `market-bot-source-gap-normalization-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    tmpDirs.push(runDir);
+    const gap = sourceGap({ source: "sec-edgar", message: "missing", symbol: "AAPL" });
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "report.json"),
+      `${JSON.stringify(
+        researchReport({
+          runId: "source-gap-symbol-round-trip",
+          extendedEvidence: {
+            instrument: { symbol: "AAPL", assetClass: "equity" },
+            items: [],
+            gaps: [gap],
+          },
+        }),
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.report.extendedEvidence?.gaps).toEqual([gap]);
   });
 });

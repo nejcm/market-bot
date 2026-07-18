@@ -82,6 +82,12 @@ Check these explicitly before final ranking:
 
 - Prediction quality: compare prediction count, probabilities, horizon buckets,
   `nearBaseRateCount`, `informativeCount`, and `signalTargetMet`.
+  - Describe `informativeCount`, `signalTargetMet`, and `nearBaseRateCount` as
+    non-blocking **forecast structural telemetry** (`docs/architecture.md:150`),
+    never as signal quality or forecast accuracy.
+  - When predictions are `pending` or `pending-condition`, state that forecast
+    quality is unknown until resolution; do not frame kind diversity or
+    probability spread as an improvement.
 - Positive deltas: compare target fulfillment, informative forecast count,
   source-gap totals/classes, web-source usage, source integrity, report
   integrity, evidence-lane coverage, forecast-completion outcome, and resolved
@@ -99,6 +105,15 @@ Check these explicitly before final ranking:
 - Fresh vs reused evidence: compare `trace` stages, `normalized/source-gaps.json`,
   and `normalized/web-subject-profile.json:generatedAt`; do not count reused web
   profile coverage as fresh gathering without calling it out.
+  - Web-subject-profile reuse is selected before Web Gather and independently
+    of Exa/fetch outcomes (`src/web-evidence/web-evidence-phase.ts`); never
+    attribute profile reuse to a fetch or Exa failure.
+  - Reuse within the configured window (company 30d / crypto 7d / theme 7d;
+    `src/config.ts:177-179`, gated on SEC-basis currency) is intended behavior,
+    not a defect absent a stated freshness SLA.
+  - Treat reused profile coverage and fresh web supplementation as separate
+    lanes: compare `analytics.json:webSources` (fresh) and
+    `reusedProfileWebSources` (reused) distinctly.
 - Source integrity: verify cited source IDs in report sections/predictions exist
   in `report.sources`; cite clean integrity if it prevents a false finding.
 - Coverage constraints: separate local config/provider-plan gaps from synthesis
@@ -115,3 +130,7 @@ Check these explicitly before final ranking:
   large `report.json` or `stages.json` snippets.
 - Treat missing optional artifacts as context, not a finding, unless their
   absence blocks review quality.
+- Report any web-provider failure (`fetch-failed` / `circuit-open`) as a
+  **PROVIDER-INCIDENT / OBSERVABILITY** item. Recommend changes to
+  retry/circuit/reuse behavior only when a same-code reproduction demonstrates
+  a systematic classification defect.

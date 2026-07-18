@@ -49,6 +49,10 @@ export interface WebGatherToolOutput {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly freshness?: WebSearchFreshnessAudit;
   readonly fallback?: WebGatherFallbackAudit;
+  readonly failedExaRequest?: {
+    readonly reason: string;
+    readonly cause: "fetch-failed" | "circuit-open";
+  };
 }
 
 export interface WebSearchFreshnessAudit {

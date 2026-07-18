@@ -84,6 +84,22 @@ function modelInputSanitizationLine(analytics: RunAnalytics): string | undefined
   )} emptied, ${String(totals.dropped)} dropped`;
 }
 
+function webFallbackLine(analytics: RunAnalytics): string | undefined {
+  const fallback = analytics.webSources?.fallback;
+  if (fallback === undefined) {
+    return undefined;
+  }
+  const fields = [`attempted=${fallback.attempted.join(",")}`];
+  if (fallback.servedBy !== undefined) {
+    fields.push(`servedBy=${fallback.servedBy}`);
+  }
+  if (fallback.unavailableReason !== undefined) {
+    fields.push(`unavailableReason=${fallback.unavailableReason}`);
+  }
+  fields.push(`failedExaRequests=${String(fallback.failedExaRequests)}`);
+  return `  Web fallback: ${fields.join(" · ")}`;
+}
+
 export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   const { evidenceLanes, evidenceQuality, postSynthesisAudit, predictions } = analytics;
   const lines: string[] = [
@@ -112,6 +128,11 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   const sanitizationLine = modelInputSanitizationLine(analytics);
   if (sanitizationLine !== undefined) {
     lines.push(sanitizationLine);
+  }
+
+  const fallbackLine = webFallbackLine(analytics);
+  if (fallbackLine !== undefined) {
+    lines.push(fallbackLine);
   }
 
   if (postSynthesisAudit !== undefined && postSynthesisAudit.warningCount > 0) {

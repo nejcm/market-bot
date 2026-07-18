@@ -769,6 +769,11 @@ describe("web gather tools", () => {
         message: "Exa search response was malformed",
       }),
     ]);
+    expect(result.fallback).toEqual({
+      attemptedProviders: ["exa"],
+      fallbackReason: "hard-failure",
+      unavailableReason: "no-firecrawl-key",
+    });
   });
 });
 
@@ -894,7 +899,7 @@ describe("firecrawl fallback", () => {
     expect(result.fallback).toBeUndefined();
   });
 
-  test("does not fall back when Firecrawl key is unset", async () => {
+  test("records unavailable fallback without calling Firecrawl when its key is unset", async () => {
     const adapters: string[] = [];
     const result = await executeWebGatherTool(
       "web_search",
@@ -915,6 +920,11 @@ describe("firecrawl fallback", () => {
     expect(result.gaps).toEqual([
       expect.objectContaining({ source: "exa-search", provider: "exa", cause: "fetch-failed" }),
     ]);
+    expect(result.fallback).toEqual({
+      attemptedProviders: ["exa"],
+      fallbackReason: "hard-failure",
+      unavailableReason: "no-firecrawl-key",
+    });
   });
 
   test("emits provider-tagged Firecrawl gap when the fallback also fails, keeping the Exa gap", async () => {

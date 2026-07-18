@@ -270,7 +270,7 @@ export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
     readonly livecrawl: boolean;
     readonly widened: boolean;
   };
-  // Present only when the configured Exa call hard-failed or returned empty/thin results and MARKET_BOT_FIRECRAWL_API_KEY was set, triggering a Firecrawl fallback attempt.
+  // Present when Exa was unusable and Firecrawl fallback was attempted or unavailable.
   readonly fallback?: WebGatherFallbackAudit;
   // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
   readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
@@ -289,6 +289,7 @@ export interface WebGatherFallbackAudit {
   // Omitted when neither provider served a usable result.
   readonly servedProvider?: string;
   readonly fallbackReason: "hard-failure" | "empty" | "thin";
+  readonly unavailableReason?: "no-firecrawl-key";
   readonly firecrawlCreditsUsed?: number;
 }
 

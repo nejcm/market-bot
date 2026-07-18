@@ -230,4 +230,48 @@ describe("run analytics console", () => {
       "Model input sanitation: 1 instruction, 2 markup/chrome, 1 truncated, 0 emptied, 0 dropped",
     );
   });
+
+  test("renders web fallback summaries only when present", () => {
+    const analytics = baseAnalytics();
+    const servedOutput = renderRunAnalyticsConsole({
+      ...analytics,
+      webSources: {
+        accepted: 0,
+        profileUsed: 0,
+        reportCited: 0,
+        extrasCited: 0,
+        unused: 0,
+        usageRatio: 0,
+        fallback: {
+          attempted: ["exa", "firecrawl"],
+          servedBy: "firecrawl",
+          failedExaRequests: 1,
+        },
+      },
+    });
+    const unavailableOutput = renderRunAnalyticsConsole({
+      ...analytics,
+      webSources: {
+        accepted: 0,
+        profileUsed: 0,
+        reportCited: 0,
+        extrasCited: 0,
+        unused: 0,
+        usageRatio: 0,
+        fallback: {
+          attempted: ["exa"],
+          unavailableReason: "no-firecrawl-key",
+          failedExaRequests: 1,
+        },
+      },
+    });
+
+    expect(servedOutput).toContain(
+      "Web fallback: attempted=exa,firecrawl · servedBy=firecrawl · failedExaRequests=1",
+    );
+    expect(unavailableOutput).toContain(
+      "Web fallback: attempted=exa · unavailableReason=no-firecrawl-key · failedExaRequests=1",
+    );
+    expect(renderRunAnalyticsConsole(analytics)).not.toContain("Web fallback:");
+  });
 });

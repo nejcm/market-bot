@@ -1755,6 +1755,55 @@ describe("runWebGatherLoop", () => {
     });
   });
 
+  test("records hard Exa failures as rejected requests when Firecrawl is unavailable", async () => {
+    const fetchedUrls: string[] = [];
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: async (input) => {
+        fetchedUrls.push(String(input));
+        return new Response("boom", { status: 500 });
+      },
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model", searchType: "background" },
+              rationale: "profile evidence",
+            },
+          ],
+        }),
+    });
+
+    const exaFailure = result.collectedSources.sourceGaps.find(
+      (gap) => gap.provider === "exa" && gap.cause === "fetch-failed",
+    );
+    expect(exaFailure).toBeDefined();
+    expect(result.audit?.rejectedRequests).toContainEqual(
+      expect.objectContaining({
+        tool: "web_search",
+        status: "rejected",
+        reason: exaFailure?.message,
+      }),
+    );
+    expect(result.audit?.acceptedRequests[0]?.fallback).toEqual({
+      attemptedProviders: ["exa"],
+      fallbackReason: "hard-failure",
+      unavailableReason: "no-firecrawl-key",
+    });
+    expect(fetchedUrls.every((url) => url.includes("api.exa.ai"))).toBe(true);
+  });
+
   test("accepts a background search for a topic the SEC packet does not cover", async () => {
     const result = await runWebGatherLoop({
       command,

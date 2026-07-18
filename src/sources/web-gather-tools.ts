@@ -397,7 +397,7 @@ async function withFirecrawlFallback(
   exa: ExaWebOutcome,
 ): Promise<WebGatherToolOutput> {
   const exaUsable = exa.results.length >= spec.minUsableResults;
-  if (exaUsable || ctx.firecrawlApiKey === undefined) {
+  if (exaUsable) {
     if (spec.surfacedUrls !== undefined) {
       rememberSurfacedUrls(exa.results, spec.surfacedUrls);
     }
@@ -408,6 +408,28 @@ async function withFirecrawlFallback(
       finishOutput(ctx, subject, spec, exa, EXA_PROVIDER, exa.gaps),
       exa.freshness,
     );
+  }
+
+  if (ctx.firecrawlApiKey === undefined) {
+    if (spec.surfacedUrls !== undefined) {
+      rememberSurfacedUrls(exa.results, spec.surfacedUrls);
+    }
+    const output =
+      exa.results.length === 0 && exa.gaps.length > 0
+        ? withFreshness(emptyOutput(exa.gaps, exa.rawSnapshots), exa.freshness)
+        : withFreshness(
+            finishOutput(ctx, subject, spec, exa, EXA_PROVIDER, exa.gaps),
+            exa.freshness,
+          );
+    return {
+      ...output,
+      fallback: {
+        attemptedProviders: [EXA_PROVIDER],
+        fallbackReason: fallbackReasonFor(exa),
+        unavailableReason: "no-firecrawl-key",
+      },
+      ...failedExaRequestAudit(exa),
+    };
   }
 
   const exaGaps = exa.gaps.length > 0 ? exa.gaps : [spec.exaShortfallGap(exa.results.length)];
@@ -431,7 +453,22 @@ async function withFirecrawlFallback(
     resolved.results.length === 0
       ? emptyOutput(gaps, resolved.rawSnapshots)
       : finishOutput(ctx, subject, spec, resolved, resolved.servedProvider ?? EXA_PROVIDER, gaps);
-  return { ...withFreshness(output, exa.freshness), fallback };
+  return {
+    ...withFreshness(output, exa.freshness),
+    fallback,
+    ...failedExaRequestAudit(exa),
+  };
+}
+
+function failedExaRequestAudit(exa: ExaWebOutcome): Pick<WebGatherToolOutput, "failedExaRequest"> {
+  const failure = exa.gaps.find(
+    (gap) =>
+      gap.provider === EXA_PROVIDER &&
+      (gap.cause === "fetch-failed" || gap.cause === "circuit-open"),
+  );
+  return failure?.cause === "fetch-failed" || failure?.cause === "circuit-open"
+    ? { failedExaRequest: { reason: failure.message, cause: failure.cause } }
+    : {};
 }
 
 function fallbackReasonFor(exa: ExaWebOutcome): WebGatherFallbackAudit["fallbackReason"] {

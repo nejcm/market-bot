@@ -211,6 +211,12 @@ export interface RunAnalytics {
     readonly unused: number;
     readonly usageRatio: number;
     readonly usageWarning?: string;
+    readonly fallback?: {
+      readonly attempted: readonly string[];
+      readonly servedBy?: string;
+      readonly unavailableReason?: "no-firecrawl-key";
+      readonly failedExaRequests: number;
+    };
   };
   readonly reusedProfileWebSources?: {
     readonly accepted: number;
@@ -488,12 +494,14 @@ function verifiedMarketSnapshotFreshness(
 function webSourceRoles(
   report: ResearchReport,
   collectedSources: CollectedSources,
+  trace: RunTrace,
 ): Pick<RunAnalytics, "webSources" | "reusedProfileWebSources"> {
   const reuse = collectedSources.webSubjectProfileReuse;
   const usage = computeWebSourceUsage(report, collectedSources);
+  const fallback = webFallbackSummary(trace);
   const { currentRunIds, reusedProfileIds, profileUsedIds, reportCitedIds, currentRunUsedIds } =
     usage;
-  if (currentRunIds.size === 0 && reuse === undefined) {
+  if (currentRunIds.size === 0 && reuse === undefined && fallback === undefined) {
     return {};
   }
   const reusedProfileAgeDays =
@@ -508,7 +516,7 @@ function webSourceRoles(
   );
   const usageRatio = currentRunIds.size === 0 ? 0 : currentRunUsedIds.size / currentRunIds.size;
   return {
-    ...(currentRunIds.size === 0
+    ...(currentRunIds.size === 0 && fallback === undefined
       ? {}
       : {
           webSources: {
@@ -524,6 +532,7 @@ function webSourceRoles(
                     "Accepted web-source usage is disproportionately low; review gather relevance and synthesis citations.",
                 }
               : {}),
+            ...(fallback !== undefined ? { fallback } : {}),
           },
         }),
     ...(reuse !== undefined && reusedProfileIds.size > 0 && reusedProfileAgeDays !== undefined
@@ -537,6 +546,40 @@ function webSourceRoles(
           },
         }
       : {}),
+  };
+}
+
+function webFallbackSummary(
+  trace: RunTrace,
+): NonNullable<NonNullable<RunAnalytics["webSources"]>["fallback"]> | undefined {
+  const audit = trace.webGatherLoop;
+  if (audit === undefined) {
+    return undefined;
+  }
+  const fallbackRecords = audit.acceptedRequests.flatMap((entry) =>
+    entry.fallback === undefined ? [] : [entry.fallback],
+  );
+  const failedExaRequests = audit.rejectedRequests.filter(
+    (entry) => entry.sourceUnits !== undefined && entry.reason !== undefined,
+  ).length;
+  if (fallbackRecords.length === 0 && failedExaRequests === 0) {
+    return undefined;
+  }
+  const attempted = new Set(fallbackRecords.flatMap((record) => record.attemptedProviders));
+  if (failedExaRequests > 0) {
+    attempted.add("exa");
+  }
+  const servedBy = fallbackRecords
+    .flatMap((record) => (record.servedProvider === undefined ? [] : [record.servedProvider]))
+    .at(-1);
+  const unavailableReason = fallbackRecords.find(
+    (record) => record.unavailableReason !== undefined,
+  )?.unavailableReason;
+  return {
+    attempted: [...attempted],
+    ...(servedBy !== undefined ? { servedBy } : {}),
+    ...(unavailableReason !== undefined ? { unavailableReason } : {}),
+    failedExaRequests,
   };
 }
 
@@ -732,7 +775,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ? { forecastPersistence: input.forecastPersistence }
       : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
-    ...webSourceRoles(report, collectedSources),
+    ...webSourceRoles(report, collectedSources, trace),
     runShape: {
       traceStages: trace.stages,
       stages: input.stageOutputs.map((output) => ({

@@ -828,6 +828,71 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources).toBeUndefined();
   });
 
+  test("summarizes web fallback availability and failed Exa requests", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace: {
+        ...trace,
+        webGatherLoop: {
+          rounds: 1,
+          acceptedRequests: [
+            {
+              round: 1,
+              tool: "web_search",
+              args: { query: "AAPL business model", searchType: "background" },
+              status: "accepted",
+              sourceUnits: 2,
+              fallback: {
+                attemptedProviders: ["exa"],
+                fallbackReason: "hard-failure",
+                unavailableReason: "no-firecrawl-key",
+              },
+            },
+          ],
+          rejectedRequests: [
+            {
+              round: 1,
+              tool: "web_search",
+              args: { query: "AAPL business model", searchType: "background" },
+              status: "rejected",
+              sourceUnits: 2,
+              reason: "status 500",
+            },
+          ],
+          sourceUnitsUsed: 2,
+          executedTools: ["web_search"],
+          emittedGaps: [],
+          sanitizer: {
+            sourceCount: 0,
+            sanitizedSourceCount: 0,
+            emptyAfterSanitizeCount: 0,
+            inputCharCount: 0,
+            outputCharCount: 0,
+            removedInstructionSpanCount: 0,
+            removedChromeHtmlCount: 0,
+          },
+        },
+      },
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toEqual({
+      accepted: 0,
+      profileUsed: 0,
+      reportCited: 0,
+      extrasCited: 0,
+      unused: 0,
+      usageRatio: 0,
+      fallback: {
+        attempted: ["exa"],
+        unavailableReason: "no-firecrawl-key",
+        failedExaRequests: 1,
+      },
+    });
+  });
+
   test("all web sources unused when no profile and no report citations", () => {
     const report = researchReport({
       sources: [webSource("web-1"), webSource("web-2")],

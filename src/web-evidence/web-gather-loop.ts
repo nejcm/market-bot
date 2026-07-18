@@ -357,6 +357,8 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     readonly fallback?: NonNullable<WebGatherToolOutput["fallback"]>;
     readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
   }[] = [];
+  const executionRejections: { readonly acceptedRequestIndex: number; readonly reason: string }[] =
+    [];
 
   const loop = await runJsonToolLoop<
     CollectedSources,
@@ -426,6 +428,12 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         currentSources.extendedSources,
         outputWithStale.sources,
       );
+      if (outputWithStale.failedExaRequest !== undefined) {
+        executionRejections.push({
+          acceptedRequestIndex: executionAudits.length,
+          reason: outputWithStale.failedExaRequest.reason,
+        });
+      }
       executionAudits.push({
         sanitizer: outputWithStale.sanitizer,
         ...(outputWithStale.freshness !== undefined
@@ -455,6 +463,14 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         ...entry,
         ...executionAudits[index]!,
       })),
+      rejectedRequests: [
+        ...loop.audit.rejectedRequests,
+        ...executionRejections.map(({ acceptedRequestIndex, reason }) => ({
+          ...loop.audit.acceptedRequests[acceptedRequestIndex]!,
+          status: "rejected" as const,
+          reason,
+        })),
+      ],
       sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
     },
   };

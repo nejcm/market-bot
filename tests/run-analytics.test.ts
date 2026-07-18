@@ -75,6 +75,16 @@ const trace: RunTrace = {
   },
 };
 
+function analyticsFor(reportIntegrityTrace: RunTrace): ReturnType<typeof buildRunAnalytics> {
+  return buildRunAnalytics({
+    report: researchReport(),
+    trace: reportIntegrityTrace,
+    collectedSources: collectedSourceBundle(),
+    stageOutputs: [],
+    targetPredictions: 0,
+  });
+}
+
 describe("run analytics", () => {
   test("summarizes deterministic source, evidence, news, prediction, and run metrics", () => {
     const collectedSources: CollectedSources = collectedSourceBundle({
@@ -550,6 +560,56 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.informativeCount).toBe(0);
     expect(result.signalTargetMet).toBe(true);
     expect(result.mixWarnings).toHaveLength(0);
+  });
+});
+
+describe("report integrity advisories", () => {
+  const reportIntegrityAudit = {
+    reportIntegrity: "high",
+    researchQuality: "high",
+    prunedItemCount: 0,
+    advisoryWarningCount: 0,
+    pruned: [],
+  } as const;
+
+  test("surfaces report integrity advisory codes and locations", () => {
+    const analytics = analyticsFor({
+      ...trace,
+      reportIntegrityAudit: {
+        ...reportIntegrityAudit,
+        advisoryWarningCount: 1,
+        advisories: [
+          {
+            code: "uncited-numeric-summary-sentence",
+            location: "summary[0]",
+          },
+        ],
+      },
+    });
+
+    expect(analytics.reportIntegrity?.advisories).toEqual([
+      {
+        code: "uncited-numeric-summary-sentence",
+        location: "summary[0]",
+      },
+    ]);
+  });
+
+  test("omits empty advisories without changing analytics serialization", () => {
+    const withoutAdvisories = analyticsFor({
+      ...trace,
+      reportIntegrityAudit,
+    });
+    const withEmptyAdvisories = analyticsFor({
+      ...trace,
+      reportIntegrityAudit: {
+        ...reportIntegrityAudit,
+        advisories: [],
+      },
+    });
+
+    expect(withEmptyAdvisories.reportIntegrity).not.toHaveProperty("advisories");
+    expect(JSON.stringify(withEmptyAdvisories)).toBe(JSON.stringify(withoutAdvisories));
   });
 });
 

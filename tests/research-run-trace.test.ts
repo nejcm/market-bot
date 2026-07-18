@@ -211,9 +211,14 @@ describe("run trace builder", () => {
         reportIntegrity: "high",
         researchQuality: "high",
         prunedItemCount: 0,
-        advisoryWarningCount: 0,
+        advisoryWarningCount: 1,
         pruned: [],
-        advisories: [],
+        advisories: [
+          {
+            code: "uncited-numeric-summary-sentence",
+            location: "summary[0]",
+          },
+        ],
       },
       sourcePlanning,
       configuredForecastDisagreementModels: [],
@@ -236,6 +241,26 @@ describe("run trace builder", () => {
     expect(trace.reproducibility?.effectiveConfigHash).toBeString();
     // No web sources collected, so the per-source synthesis-input block is absent.
     expect(trace.webSourceSynthesisInputs).toBeUndefined();
+    expect(trace.reportIntegrityAudit?.advisories).toEqual([
+      {
+        code: "uncited-numeric-summary-sentence",
+        location: "summary[0]",
+      },
+    ]);
+  });
+
+  test("omits empty report integrity advisories", () => {
+    const trace = traceFor(
+      {
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        depth: "deep",
+      },
+      collectedSources(),
+    );
+
+    expect(trace.reportIntegrityAudit).not.toHaveProperty("advisories");
   });
 
   test("records per-web-source synthesis inputs when web sources were gathered", () => {

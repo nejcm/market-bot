@@ -728,6 +728,10 @@ export interface RunTrace {
     readonly researchQuality: ReportIntegrity;
     readonly prunedItemCount: number;
     readonly advisoryWarningCount: number;
+    readonly advisories?: readonly {
+      readonly code: string;
+      readonly location: string;
+    }[];
     readonly pruned: readonly {
       readonly location: string;
       readonly text: string;

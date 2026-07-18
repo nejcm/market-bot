@@ -1064,7 +1064,13 @@
       "label": "high",
       "researchQuality": "medium",
       "prunedItemCount": 0,
-      "advisoryWarningCount": 1
+      "advisoryWarningCount": 1,
+      "advisories": [
+        {
+          "code": "weak-evidence-posture-missing",
+          "location": "risks[0]"
+        }
+      ]
     },
     "sourcePlan": {
       "plannedLaneCount": 11,

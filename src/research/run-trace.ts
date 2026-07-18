@@ -131,6 +131,9 @@ export function buildRunTrace(input: {
       researchQuality: input.integrityAudit.researchQuality,
       prunedItemCount: input.integrityAudit.prunedItemCount,
       advisoryWarningCount: input.integrityAudit.advisoryWarningCount,
+      ...(input.integrityAudit.advisories.length > 0
+        ? { advisories: input.integrityAudit.advisories }
+        : {}),
       pruned: input.integrityAudit.pruned,
     },
     sourcePlan: {

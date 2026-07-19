@@ -49,6 +49,7 @@ export type EvidenceLane = (typeof EVIDENCE_LANES)[number] | (typeof LEGACY_EVID
 export type EvidenceClass = "core" | "material" | "supplemental";
 export type LaneRequirement = "required" | "optional";
 
+// Legacy-read-only; assessSourcePlan no longer produces "not-covered".
 export type LaneCoverageStatus = "covered" | "gap" | "not-covered";
 
 // ---------------------------------------------------------------------------
@@ -414,7 +415,7 @@ function gapText(gap: SourceGap): string {
 }
 
 function syntheticMissingGap(lane: EvidenceLane): readonly string[] {
-  return [`${lane}: required evidence lane had no backing source`];
+  return [`${lane}: planned evidence lane had no backing source or recorded gap`];
 }
 
 function sourceProvider(source: Source): string | undefined {
@@ -698,7 +699,7 @@ export function assessSourcePlan(
       (syntheticQualityGaps.length > 0
         ? [...matchedGaps.map((gap) => gapText(gap)), ...syntheticQualityGaps]
         : undefined) ??
-      (sourceIds.length === 0 && evidenceClass === "core" && matchedGaps.length === 0
+      (sourceIds.length === 0 && matchedGaps.length === 0
         ? syntheticMissingGap(planLane.lane)
         : matchedGaps.map((gap) => gapText(gap)));
     // One gap ID per gap line keeps gapIds and gapText parallel for every consumer

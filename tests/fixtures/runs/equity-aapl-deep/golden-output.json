@@ -53,6 +53,7 @@
       "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
       "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "valuation-peers: Valuation peer comps skipped for AAPL: target valuation unavailable",
       "Fixture replay uses static source cassettes.",
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
@@ -840,7 +841,7 @@
         }
       },
       "sourceGaps": {
-        "total": 9,
+        "total": 10,
         "bySource": {
           "marketaux-news": 1,
           "finnhub-news": 1,
@@ -849,6 +850,7 @@
           "fred-macro": 1,
           "tradier-options": 1,
           "valuation": 1,
+          "valuation-peers": 1,
           "financial-lens": 1,
           "business-framework": 1
         }
@@ -857,10 +859,10 @@
         "missingCredential": 5,
         "fetchFailed": 0,
         "unsupportedCoverage": 0,
-        "other": 4
+        "other": 5
       },
       "dataGaps": {
-        "total": 11
+        "total": 12
       }
     },
     "newsDedupe": {
@@ -998,7 +1000,7 @@
           "target-valuation: evidence missing or unusable"
         ]
       },
-      "dataGapCount": 11,
+      "dataGapCount": 12,
       "extendedEvidence": {
         "itemCount": 4,
         "gapCount": 7,
@@ -1081,11 +1083,11 @@
     },
     "evidenceLanes": {
       "coveredLaneCount": 4,
-      "gapLaneCount": 4,
+      "gapLaneCount": 7,
       "coreGapLaneCount": 0,
       "materialGapLaneCount": 3,
       "sourceCount": 10,
-      "gapCount": 7,
+      "gapCount": 10,
       "coverageRatio": 0.36363636363636365
     },
     "calibrationAtGeneration": {
@@ -1193,7 +1195,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# AAPL equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; corporate event evidence missing; remediation: add a second current news source or rerun; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nequity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\n\n\n## Key Findings\n\n- AAPL has a current fixture market snapshot and verified close history. [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- Fixture news coverage is intentionally narrow for regression determinism. [news-equity-1]\n\n## Bull Case\n\n- The fixture shows positive price momentum in the latest close sequence. [verified-snapshot-AAPL]\n\n## Bear Case\n\n- The fixture omits live optional providers, limiting corroboration. [news-equity-1]\n\n## Risks\n\n- Static cassette inputs can become stale versus live market conditions. [market-yahoo-equity-aapl]\n\n## Catalysts\n\n- AAPL fixture news remains the only current catalyst input. [news-equity-1]\n\n\n## Scenarios\n\n- **Base:** AAPL remains within a fixture-defined evidence envelope. [market-yahoo-equity-aapl]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (insufficient-data): Business insufficient-data [extended-sec-edgar-aapl-filings]\n- **Phase**: Phase classification \\(Phase operating-leverage\\) [extended-sec-edgar-aapl-filings] [market-yahoo-equity-aapl]\n- **Moat** (insufficient-data): Moat insufficient-data [extended-sec-edgar-aapl-filings]\n- **Growth** (insufficient-data): Growth insufficient-data [extended-sec-edgar-aapl-filings]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (insufficient-data): Risk insufficient-data [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-aapl]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **AAPL SEC Fundamental Evidence:** Recent SEC filings: 8-K 2026-05-01. [extended-sec-edgar-aapl-filings]\n- **AAPL Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-aapl]\n- **AAPL Financial Lens Evidence:** Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- **AAPL Business Framework Evidence:** Business Framework: Business insufficient-data; Phase classification \\(Phase operating-leverage\\); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-aapl-filings] [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for AAPL\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for AAPL\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- Fixture replay uses static source cassettes.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence\n- business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-aapl] AAPL market snapshot\n- [verified-snapshot-AAPL] AAPL verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [news-equity-1] Apple fixture headline\n- [extended-sec-edgar-aapl-filings] AAPL SEC filings\n- 6 uncited normalized source(s) omitted from markdown (yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "markdown": "# AAPL equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; corporate event evidence missing; remediation: add a second current news source or rerun; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nequity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\n\n\n## Key Findings\n\n- AAPL has a current fixture market snapshot and verified close history. [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- Fixture news coverage is intentionally narrow for regression determinism. [news-equity-1]\n\n## Bull Case\n\n- The fixture shows positive price momentum in the latest close sequence. [verified-snapshot-AAPL]\n\n## Bear Case\n\n- The fixture omits live optional providers, limiting corroboration. [news-equity-1]\n\n## Risks\n\n- Static cassette inputs can become stale versus live market conditions. [market-yahoo-equity-aapl]\n\n## Catalysts\n\n- AAPL fixture news remains the only current catalyst input. [news-equity-1]\n\n\n## Scenarios\n\n- **Base:** AAPL remains within a fixture-defined evidence envelope. [market-yahoo-equity-aapl]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (insufficient-data): Business insufficient-data [extended-sec-edgar-aapl-filings]\n- **Phase**: Phase classification \\(Phase operating-leverage\\) [extended-sec-edgar-aapl-filings] [market-yahoo-equity-aapl]\n- **Moat** (insufficient-data): Moat insufficient-data [extended-sec-edgar-aapl-filings]\n- **Growth** (insufficient-data): Growth insufficient-data [extended-sec-edgar-aapl-filings]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (insufficient-data): Risk insufficient-data [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-aapl]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **AAPL SEC Fundamental Evidence:** Recent SEC filings: 8-K 2026-05-01. [extended-sec-edgar-aapl-filings]\n- **AAPL Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-aapl]\n- **AAPL Financial Lens Evidence:** Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- **AAPL Business Framework Evidence:** Business Framework: Business insufficient-data; Phase classification \\(Phase operating-leverage\\); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-aapl-filings] [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for AAPL\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for AAPL\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for AAPL: target valuation unavailable\n- Fixture replay uses static source cassettes.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence\n- business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-aapl] AAPL market snapshot\n- [verified-snapshot-AAPL] AAPL verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [news-equity-1] Apple fixture headline\n- [extended-sec-edgar-aapl-filings] AAPL SEC filings\n- 6 uncited normalized source(s) omitted from markdown (yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -1426,10 +1428,12 @@
         {
           "lane": "supplemental-market",
           "evidenceClass": "supplemental",
-          "status": "not-covered",
+          "status": "gap",
           "coveredSourceIds": [],
-          "gapIds": [],
-          "gapText": [],
+          "gapIds": ["supplemental-market:gap:1"],
+          "gapText": [
+            "supplemental-market: planned evidence lane had no backing source or recorded gap"
+          ],
           "freshnessNotes": []
         },
         {
@@ -1503,19 +1507,23 @@
         {
           "lane": "peer-valuation",
           "evidenceClass": "supplemental",
-          "status": "not-covered",
+          "status": "gap",
           "coveredSourceIds": [],
-          "gapIds": [],
-          "gapText": [],
+          "gapIds": ["peer-valuation:gap:1"],
+          "gapText": [
+            "valuation-peers: Valuation peer comps skipped for AAPL: target valuation unavailable"
+          ],
           "freshnessNotes": []
         },
         {
           "lane": "subject-profile",
           "evidenceClass": "supplemental",
-          "status": "not-covered",
+          "status": "gap",
           "coveredSourceIds": [],
-          "gapIds": [],
-          "gapText": [],
+          "gapIds": ["subject-profile:gap:1"],
+          "gapText": [
+            "subject-profile: planned evidence lane had no backing source or recorded gap"
+          ],
           "freshnessNotes": []
         }
       ],
@@ -1525,11 +1533,11 @@
         "materialLaneCount": 5,
         "supplementalLaneCount": 4,
         "coveredLaneCount": 4,
-        "gapLaneCount": 4,
+        "gapLaneCount": 7,
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 3,
         "sourceCount": 10,
-        "gapCount": 7,
+        "gapCount": 10,
         "coverageRatio": 0.36363636363636365
       }
     },
@@ -2136,6 +2144,15 @@
         "capability": "extended-evidence",
         "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "valuation-peers",
+        "message": "Valuation peer comps skipped for AAPL: target valuation unavailable",
+        "symbol": "AAPL",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
       },
       {
         "source": "financial-lens",

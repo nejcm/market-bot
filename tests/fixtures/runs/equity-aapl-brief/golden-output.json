@@ -1053,11 +1053,11 @@
     },
     "evidenceLanes": {
       "coveredLaneCount": 4,
-      "gapLaneCount": 4,
+      "gapLaneCount": 5,
       "coreGapLaneCount": 0,
       "materialGapLaneCount": 1,
       "sourceCount": 10,
-      "gapCount": 7,
+      "gapCount": 8,
       "coverageRatio": 0.4444444444444444
     },
     "calibrationAtGeneration": {
@@ -1384,10 +1384,12 @@
         {
           "lane": "supplemental-market",
           "evidenceClass": "supplemental",
-          "status": "not-covered",
+          "status": "gap",
           "coveredSourceIds": [],
-          "gapIds": [],
-          "gapText": [],
+          "gapIds": ["supplemental-market:gap:1"],
+          "gapText": [
+            "supplemental-market: planned evidence lane had no backing source or recorded gap"
+          ],
           "freshnessNotes": []
         },
         {
@@ -1465,11 +1467,11 @@
         "materialLaneCount": 3,
         "supplementalLaneCount": 4,
         "coveredLaneCount": 4,
-        "gapLaneCount": 4,
+        "gapLaneCount": 5,
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 1,
         "sourceCount": 10,
-        "gapCount": 7,
+        "gapCount": 8,
         "coverageRatio": 0.4444444444444444
       }
     },

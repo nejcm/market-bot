@@ -169,6 +169,12 @@ export interface EvidenceLaneCoverageV2 {
   readonly gapIds: readonly string[];
   readonly gapText: readonly string[];
   readonly freshnessNotes: readonly string[];
+  // Lane-specific usability posture layered on top of source-acquisition
+  // Coverage. Currently only the target-valuation lane sets it: false means the
+  // Target valuation inputs were collected but are not supportable (target row
+  // Unusable), which the Evidence Quality grader treats as a failed material
+  // Check even though sources are present. Absent for lanes without a posture.
+  readonly supportable?: boolean;
 }
 
 export interface EvidenceLaneSummaryV2 {
@@ -649,6 +655,20 @@ const LANE_DEFINITIONS_BY_LANE = new Map(
   LANE_DEFINITIONS.map((definition) => [definition.lane, definition]),
 );
 
+// Post-collection usability posture for lanes that carry one. Only the
+// Target-valuation lane reports it today: it is supportable when the collected
+// Target valuation row is usable, and not supportable when the row was present
+// But failed the deterministic usability gate. Other lanes have no posture.
+function laneSupportable(
+  lane: EvidenceLane,
+  collectedSources: CollectedSources,
+): boolean | undefined {
+  if (lane !== "target-valuation" || collectedSources.valuationComps === undefined) {
+    return undefined;
+  }
+  return collectedSources.valuationComps.target.usable;
+}
+
 // Grades collected sources against the frozen plan after collection: every
 // Planned lane gets a coverage entry, and lane identity plus evidence class
 // Come from the plan, never from collection outcomes.
@@ -687,6 +707,7 @@ export function assessSourcePlan(
     const gapIds = gapLines.map((_, index) => gapId(planLane.lane, index));
     const entries = ledgerEntriesForLane(planLane.lane, sourceIds, collectedSources, gapIds);
     ledger.push(...entries);
+    const supportable = laneSupportable(planLane.lane, collectedSources);
     return {
       lane: planLane.lane,
       evidenceClass,
@@ -695,6 +716,7 @@ export function assessSourcePlan(
       gapIds,
       gapText: gapLines,
       freshnessNotes: freshnessNotes(entries),
+      ...(supportable !== undefined ? { supportable } : {}),
     };
   });
 

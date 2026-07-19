@@ -9,7 +9,8 @@ Accepted
 2026-06-30 (amended 2026-07-02: deterministic peer comparability gates; amended 2026-07-05:
 tier-scoped SIC gate; amended 2026-07-09: research representative snapshots and thematic news;
 amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15; amended
-2026-07-16: clarified web-gather provider and contract module ownership)
+2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
+present-but-unsupportable material target valuation caps Evidence Quality at medium)
 
 ## Context
 
@@ -68,9 +69,10 @@ without pretending the project has a global security master.
   rewritten.
 - Plan applicable lanes as core, material, or supplemental. Evidence Quality is entirely
   deterministic: `low` means core evidence is unusable; `medium` means core is complete but material
-  coverage or corroboration is missing; `high` requires complete core plus sufficiently broad,
-  fresh, corroborated material evidence. Supplemental gaps do not lower it, and synthesis cannot
-  author or lower it.
+  coverage or corroboration is missing, or a material lane acquired sources yet is not usable (the
+  target-valuation lane is present but not supportable); `high` requires complete core plus
+  sufficiently broad, fresh, corroborated, and usable material evidence. Supplemental gaps do not
+  lower it, and synthesis cannot author or lower it.
 - Every model evidence payload carries `analysisAsOf`. Adapters exclude facts published, filed, or
   ending after that cutoff when their data supports those semantics.
 - Cache entries are freshness-budgeted and validated. A failed refresh may retain stale data in raw

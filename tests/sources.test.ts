@@ -19,7 +19,8 @@ import {
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { normalizeTitle } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
-import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
@@ -1838,6 +1839,70 @@ describe("extended evidence provider collection", () => {
     expect(
       result.sources.find((source) => source.id === "extended-sec-edgar-aapl-filings")?.url,
     ).toBe("https://data.sec.gov/submissions/CIK0000320193.json");
+  });
+
+  test("collectSec tags target SEC gaps with the upper-cased target symbol", async () => {
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              return rawJson(adapter, { sic: "3571", sicDescription: "Electronic Computers" });
+            }
+            if (adapter === "sec-companyfacts") {
+              return rawJson(adapter, secCompanyFactsPayload());
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    const missingFactsGap = result.gaps.find((gap) =>
+      gap.message.includes("Missing SEC company facts"),
+    );
+    expect(missingFactsGap).toBeDefined();
+    expect(missingFactsGap?.symbol).toBe("AAPL");
+    // Every target SEC gap is attributed to the upper-cased target symbol.
+    expect(result.gaps.every((gap) => gap.symbol === "AAPL")).toBe(true);
+  });
+
+  test("collectSec preserves a gap that already carries a symbol", async () => {
+    // Exercises the `gap.symbol ? gap : {…}` preserve branch: an upstream gap
+    // That already names a symbol must not be re-attributed to the target.
+    const preTagged = sourceGap({ source: "sec-edgar", message: "preset gap", symbol: "PRESET" });
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              return rawJson(adapter, { sic: "3571", sicDescription: "Electronic Computers" });
+            }
+            if (adapter === "sec-companyfacts") {
+              return preTagged;
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    expect(result.gaps).toContainEqual(preTagged);
+    expect(result.gaps.find((gap) => gap.message === "preset gap")?.symbol).toBe("PRESET");
   });
 
   test("emits gaps for missing crypto extended evidence tokens", async () => {

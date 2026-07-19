@@ -254,6 +254,44 @@ describe("source gaps", () => {
     expect(consolidateSecCompanyFactGaps([aapl, msft])).toEqual([aapl, msft]);
   });
 
+  test("consolidateSecCompanyFactGaps: keeps a target gap and a like-messaged peer gap separate", () => {
+    const target = sourceGap({
+      source: "sec-edgar",
+      symbol: "APLD",
+      message: "Missing SEC company facts: revenue",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const peer = sourceGap({
+      source: "sec-edgar",
+      symbol: "CLSK",
+      message: "Missing SEC company facts: revenue",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+
+    expect(consolidateSecCompanyFactGaps([target, peer])).toEqual([target, peer]);
+  });
+
+  test("dedupeSourceGaps: keeps a target and peer gap with identical text but distinct symbols", () => {
+    const target = sourceGap({
+      source: "sec-edgar",
+      symbol: "APLD",
+      message: "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const peer = sourceGap({
+      source: "sec-edgar",
+      symbol: "CLSK",
+      message: "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+
+    expect(dedupeSourceGaps([target, peer])).toEqual([target, peer]);
+  });
+
   test("consolidateSecCompanyFactGaps: merges matching symbols and preserves the symbol", () => {
     const grossProfit = sourceGap({
       source: "sec-edgar",

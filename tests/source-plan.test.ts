@@ -7,7 +7,11 @@ import {
   resolveResearchSubject,
   type ResolvedResearchSubject,
 } from "../src/research/research-subject-identity";
-import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
+import {
+  assessSourcePlan,
+  buildSourcePlan,
+  type BuildSourcePlanResult,
+} from "../src/research/source-plan";
 import type { CollectedSources } from "../src/sources/types";
 import {
   collectedSources,
@@ -638,6 +642,143 @@ describe("source plan", () => {
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation")).toMatchObject({
       gapText: ["valuation-peers: Peer AMD excluded from valuation comps: missing SEC facts"],
     });
+  });
+
+  // Builds an equity-brief NVDA run whose core lanes (market-data,
+  // Verified-price-history) and material lanes (news, regulatory-filings) are all
+  // Covered, fresh, and corroborated, so the baseline Evidence Quality is `high`.
+  // Only the target-valuation lane varies, isolating the supportability wiring
+  // Through assessSourcePlan (real collectedSources), not the grader alone.
+  function equityValuationRun(options: {
+    valuationComps?: CollectedSources["valuationComps"];
+    valuationItem?: boolean;
+  }): BuildSourcePlanResult {
+    return plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "brief" },
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-nvda", symbol: "NVDA" })],
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ symbol: "NVDA" }),
+        newsSources: [newsSource({ id: "news-nvda-1" }), newsSource({ id: "news-nvda-2" })],
+        extendedSources: [
+          {
+            id: "extended-sec-edgar-nvda-fundamentals",
+            title: "NVDA SEC fundamentals",
+            fetchedAt: generatedAt,
+            kind: "extended-evidence",
+            provider: "sec-edgar",
+          },
+          ...(options.valuationItem === true
+            ? [
+                {
+                  id: "extended-yahoo-valuation-nvda",
+                  title: "NVDA valuation evidence",
+                  fetchedAt: generatedAt,
+                  kind: "extended-evidence" as const,
+                  provider: "yahoo",
+                },
+              ]
+            : []),
+        ],
+        extendedEvidence: {
+          instrument: { symbol: "NVDA", assetClass: "equity" },
+          items: [
+            {
+              category: "sec-edgar",
+              title: "NVDA SEC filing",
+              summary: "10-Q filing captured.",
+              sourceIds: ["extended-sec-edgar-nvda-fundamentals"],
+              observedAt: generatedAt,
+            },
+            ...(options.valuationItem === true
+              ? [
+                  {
+                    category: "valuation" as const,
+                    title: "NVDA Valuation Evidence",
+                    summary: "Valuation evidence captured.",
+                    sourceIds: ["extended-yahoo-valuation-nvda"],
+                    observedAt: generatedAt,
+                  },
+                ]
+              : []),
+          ],
+          gaps: [],
+        },
+        ...(options.valuationComps !== undefined ? { valuationComps: options.valuationComps } : {}),
+      }),
+    );
+  }
+
+  function valuationComps(
+    usable: boolean,
+    supportability: "supported" | "screening-only" | "not-supportable",
+    usablePeerCount: number,
+  ): CollectedSources["valuationComps"] {
+    return {
+      version: 1,
+      generatedAt,
+      target: { symbol: "NVDA", sourceIds: ["market-yahoo-equity-nvda"], usable },
+      peers: [{ symbol: "AMD", sourceIds: ["market-yahoo-equity-amd"], usable: false }],
+      excludedPeers: [],
+      peerUniverseSourceIds: [],
+      summary: {
+        corePeerCount: 0,
+        secondaryPeerCount: 0,
+        usablePeerCount,
+        valuationSupportability: supportability,
+      },
+      sourceIds: ["market-yahoo-equity-nvda"],
+      freshnessFlags: {
+        targetQuoteFresh: true,
+        targetSecFresh: true,
+        peerQuoteFresh: false,
+        peerSecFresh: false,
+      },
+    };
+  }
+
+  test("assessSourcePlan flags an unusable covered target valuation and drops the label", () => {
+    const plan = equityValuationRun({
+      valuationComps: valuationComps(false, "not-supportable", 0),
+    });
+
+    const lane = plan.evidenceLanes.lanes.find((entry) => entry.lane === "target-valuation");
+    expect(lane).toMatchObject({ status: "covered", supportable: false });
+
+    const assessment = assessEvidenceQuality(plan, generatedAt);
+    expect(assessment.label).toBe("medium");
+    const check = assessment.checks.find((entry) => entry.capability === "target-valuation");
+    expect(check?.coverage).toBe("pass");
+    expect(check?.passed).toBe(false);
+    expect(check?.reasons).toContain("target-valuation: evidence present but not supportable");
+  });
+
+  test("assessSourcePlan keeps a usable target with screening-only peers at high", () => {
+    const plan = equityValuationRun({
+      valuationComps: valuationComps(true, "screening-only", 2),
+    });
+
+    const lane = plan.evidenceLanes.lanes.find((entry) => entry.lane === "target-valuation");
+    expect(lane).toMatchObject({ status: "covered", supportable: true });
+
+    const assessment = assessEvidenceQuality(plan, generatedAt);
+    expect(assessment.label).toBe("high");
+    expect(assessment.checks.find((entry) => entry.capability === "target-valuation")?.passed).toBe(
+      true,
+    );
+  });
+
+  test("assessSourcePlan leaves supportable undefined when valuation comps are absent", () => {
+    const plan = equityValuationRun({ valuationItem: true });
+
+    const lane = plan.evidenceLanes.lanes.find((entry) => entry.lane === "target-valuation");
+    expect(lane?.status).toBe("covered");
+    expect(lane?.supportable).toBeUndefined();
+
+    const assessment = assessEvidenceQuality(plan, generatedAt);
+    expect(assessment.label).toBe("high");
+    expect(assessment.checks.find((entry) => entry.capability === "target-valuation")?.passed).toBe(
+      true,
+    );
   });
 
   test("marks crypto ticker on-chain as applicable without equity-only IV", () => {

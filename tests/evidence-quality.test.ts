@@ -16,6 +16,7 @@ function planning(
     sourceCount?: number;
     observedAt?: string;
     provider?: string;
+    supportable?: boolean;
   }[],
 ): BuildSourcePlanResult {
   const coverage = lanes.map((lane) => ({
@@ -32,6 +33,7 @@ function planning(
     gapIds: lane.covered === false ? [`${lane.lane}:gap:1`] : [],
     gapText: lane.covered === false ? [`${lane.lane}: missing`] : [],
     freshnessNotes: [],
+    ...(lane.supportable !== undefined ? { supportable: lane.supportable } : {}),
   }));
   const sources = lanes.flatMap((lane) =>
     lane.covered === false
@@ -147,6 +149,54 @@ describe("deterministic evidence quality", () => {
         generatedAt,
       ).label,
     ).toBe("medium");
+  });
+
+  test("covered but unsupportable target valuation caps material at medium", () => {
+    const assessment = assessEvidenceQuality(
+      planning([
+        { lane: "market-data", evidenceClass: "core" },
+        { lane: "news", evidenceClass: "material", sourceCount: 2 },
+        { lane: "target-valuation", evidenceClass: "material", supportable: false },
+      ]),
+      generatedAt,
+    );
+    expect(assessment.label).toBe("medium");
+    const valuationCheck = assessment.checks.find(
+      (check) => check.capability === "target-valuation",
+    );
+    expect(valuationCheck?.coverage).toBe("pass");
+    expect(valuationCheck?.passed).toBe(false);
+    expect(valuationCheck?.reasons).toContain(
+      "target-valuation: evidence present but not supportable",
+    );
+  });
+
+  test("covered and supportable target valuation stays high", () => {
+    const assessment = assessEvidenceQuality(
+      planning([
+        { lane: "market-data", evidenceClass: "core" },
+        { lane: "news", evidenceClass: "material", sourceCount: 2 },
+        { lane: "target-valuation", evidenceClass: "material", supportable: true },
+      ]),
+      generatedAt,
+    );
+    expect(assessment.label).toBe("high");
+    expect(assessment.checks.find((check) => check.capability === "target-valuation")?.passed).toBe(
+      true,
+    );
+  });
+
+  test("unsupportable supplemental peer valuation does not lower the label", () => {
+    expect(
+      assessEvidenceQuality(
+        planning([
+          { lane: "market-data", evidenceClass: "core" },
+          { lane: "news", evidenceClass: "material", sourceCount: 2 },
+          { lane: "peer-valuation", evidenceClass: "supplemental", supportable: false },
+        ]),
+        generatedAt,
+      ).label,
+    ).toBe("high");
   });
 
   test("provider identity does not affect capability assessment", () => {

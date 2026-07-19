@@ -788,11 +788,18 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
+  // Attribute target SEC gaps (e.g. "Missing SEC company facts", "Stale SEC
+  // Revenue period", non-US unsupported coverage) to the target symbol so they
+  // Never collide with a peer's like-messaged gap under a null symbol during
+  // Dedupe/consolidation. Applied on every return path in collectSec.
+  const tagTargetGaps = (gaps: readonly SourceGap[]): readonly SourceGap[] =>
+    gaps.map((gap) => (gap.symbol ? gap : { ...gap, symbol: command.symbol.toUpperCase() }));
+
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return {
       rawSnapshots: [],
       items: [],
-      gaps: [
+      gaps: tagTargetGaps([
         sourceGap({
           source: "sec-edgar",
           message: `SEC EDGAR does not support ${command.symbol} (non-US listing)`,
@@ -801,13 +808,14 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
           cause: "unsupported-coverage",
           evidenceQualityImpact: "extended-evidence-cap",
         }),
-      ],
+      ]),
     };
   }
 
   const factsResult = await fetchSecCompanyFactsForSymbol(ctx, command.symbol);
+  const gaps = tagTargetGaps(factsResult.gaps);
   if (factsResult.cik === undefined || factsResult.identity === undefined) {
-    return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps: factsResult.gaps };
+    return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps };
   }
 
   const { rawSnapshots, filingsSummary } = factsResult;
@@ -887,6 +895,6 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   return {
     rawSnapshots,
     items,
-    gaps: factsResult.gaps,
+    gaps,
   };
 }

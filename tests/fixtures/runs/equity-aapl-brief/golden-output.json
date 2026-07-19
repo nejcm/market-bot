@@ -385,6 +385,7 @@
         {
           "source": "sec-edgar",
           "message": "No SEC company facts found for AAPL",
+          "symbol": "AAPL",
           "provider": "sec-edgar",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -1592,6 +1593,7 @@
         {
           "source": "sec-edgar",
           "message": "No SEC company facts found for AAPL",
+          "symbol": "AAPL",
           "provider": "sec-edgar",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -2037,6 +2039,7 @@
       {
         "source": "sec-edgar",
         "message": "No SEC company facts found for AAPL",
+        "symbol": "AAPL",
         "provider": "sec-edgar",
         "capability": "extended-evidence",
         "cause": "provider-data-missing",

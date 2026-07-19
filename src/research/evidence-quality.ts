@@ -70,8 +70,14 @@ function checkFor(
   const coverage = lane.status === "covered" ? "pass" : "fail";
   const freshnessResult = freshness(lane, sourcePlanning, generatedAt);
   const corroborationResult = corroboration(lane);
+  // The target-valuation lane can acquire sources yet still be unusable: a
+  // Present-but-not-supportable target valuation is a failed material check, so
+  // The run does not read as a clean pass. Coverage stays acquisition-only.
+  const supportabilityFailed =
+    lane.lane === "target-valuation" && coverage === "pass" && lane.supportable === false;
   const reasons = [
     ...(coverage === "fail" ? [`${lane.lane}: evidence missing or unusable`] : []),
+    ...(supportabilityFailed ? ["target-valuation: evidence present but not supportable"] : []),
     ...(freshnessResult === "fail" ? [`${lane.lane}: freshness check failed`] : []),
     ...(corroborationResult === "fail" ? [`${lane.lane}: corroboration check failed`] : []),
   ];

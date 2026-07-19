@@ -304,6 +304,52 @@ describe("collectSources", () => {
     });
   });
 
+  test("records a peer-valuation skip gap when target valuation is unavailable", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse({ facts: {} });
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.valuationComps).toBeUndefined();
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        message: "Valuation peer comps skipped for AAPL: target valuation unavailable",
+        symbol: "AAPL",
+        provider: "market-bot",
+        capability: "extended-evidence",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
+    );
+  });
+
   test("resolves model-proposed peers for an unmapped deep-equity ticker and writes the cache", async () => {
     const marketCaps: Readonly<Record<string, number>> = {
       ZZZZ: 1000,

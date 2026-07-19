@@ -27,7 +27,10 @@ import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
-import { collectValuationComps } from "./extended-evidence/valuation-comps";
+import {
+  collectValuationComps,
+  valuationCompsSkippedGap,
+} from "./extended-evidence/valuation-comps";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
 import {
   makePeerUniverseCacheReader,
@@ -496,6 +499,7 @@ export async function collectSources(
       ...extendedResult.sourceGaps,
       ...enrichmentResult.valuationResult.sourceGaps,
       ...(enrichmentResult.valuationCompsResult?.gaps ?? []),
+      ...enrichmentResult.valuationCompsSkippedGaps,
       ...enrichmentResult.financialLensResult.sourceGaps,
       ...enrichmentResult.businessFrameworkResult.sourceGaps,
       ...marketContextResult.sourceGaps,
@@ -534,6 +538,7 @@ interface EquityEnrichmentResult {
   readonly identityResult: InstrumentIdentityResult | undefined;
   readonly valuationResult: ValuationResult;
   readonly valuationCompsResult: ValuationCompsResult | undefined;
+  readonly valuationCompsSkippedGaps: readonly SourceGap[];
   readonly financialLensResult: FinancialLensResult;
   readonly businessFrameworkResult: BusinessFrameworkResult;
   readonly earningsSetup: EarningsSetupCollected | undefined;
@@ -576,6 +581,10 @@ async function collectEquityEnrichment(
           peerUniverseFallback !== undefined ? { peerUniverseFallback } : undefined,
         )
       : undefined;
+  const valuationCompsSkippedGaps =
+    input.command.depth === "deep" && valuationCompsResult === undefined
+      ? [valuationCompsSkippedGap(input.command.symbol)]
+      : [];
   const evidenceWithComps =
     valuationCompsResult?.extendedEvidence ?? valuationResult.extendedEvidence;
   const evidenceWithYahooFundamentals = addYahooFundamentals(
@@ -612,6 +621,7 @@ async function collectEquityEnrichment(
     identityResult,
     valuationResult,
     valuationCompsResult,
+    valuationCompsSkippedGaps,
     financialLensResult,
     businessFrameworkResult,
     ...earningsResult,
@@ -629,6 +639,7 @@ function noEquityEnrichment(
     identityResult,
     valuationResult,
     valuationCompsResult: undefined,
+    valuationCompsSkippedGaps: [],
     financialLensResult,
     businessFrameworkResult,
     earningsSetup: undefined,

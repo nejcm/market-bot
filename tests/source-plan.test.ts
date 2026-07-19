@@ -114,10 +114,24 @@ describe("source plan", () => {
     expect(plan.sourcePlan.run.depth).toBe("deep");
     expect(plan.evidenceLanes.summary.coreGapLaneCount).toBe(0);
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
-      status: "not-covered",
+      status: "gap",
       evidenceClass: "material",
     });
     expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
+  });
+
+  test("records a gap for every uncovered lane in a sparse deep-equity run", () => {
+    const plan = plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      collectedSources(),
+    );
+
+    expect(plan.evidenceLanes.lanes.every((lane) => lane.status !== "not-covered")).toBe(true);
+    expect(
+      plan.evidenceLanes.lanes
+        .filter((lane) => lane.status !== "covered")
+        .every((lane) => lane.gapIds.length > 0),
+    ).toBe(true);
   });
 
   test("keeps required market-data gap for resolved research proxy failures", () => {
@@ -644,6 +658,40 @@ describe("source plan", () => {
     });
   });
 
+  test("records a peer-valuation dependency gap without changing evidence quality", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "NVDA",
+      depth: "deep",
+    } as const;
+    const dependencyMessage = "Valuation peer comps skipped for NVDA: target valuation unavailable";
+    const collected = collectedSources({
+      sourceGaps: [
+        sourceGap({
+          source: "valuation-peers",
+          message: dependencyMessage,
+          symbol: "NVDA",
+          provider: "market-bot",
+          capability: "extended-evidence",
+          cause: "provider-data-missing",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
+    });
+    const plan = plannedAndAssessed(command, collected);
+    const withoutDependencyGap = plannedAndAssessed(command, collectedSources());
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation")).toMatchObject({
+      status: "gap",
+      evidenceClass: "supplemental",
+      gapText: [`valuation-peers: ${dependencyMessage}`],
+    });
+    expect(assessEvidenceQuality(plan, generatedAt).label).toBe(
+      assessEvidenceQuality(withoutDependencyGap, generatedAt).label,
+    );
+  });
+
   // Builds an equity-brief NVDA run whose core lanes (market-data,
   // Verified-price-history) and material lanes (news, regulatory-filings) are all
   // Covered, fresh, and corroborated, so the baseline Evidence Quality is `high`.
@@ -812,7 +860,7 @@ describe("source plan", () => {
       evidenceClass: "supplemental",
     });
     expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
-      status: "not-covered",
+      status: "gap",
       evidenceClass: "supplemental",
     });
   });

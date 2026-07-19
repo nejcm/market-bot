@@ -864,6 +864,15 @@ function valuationCompsGap(
   });
 }
 
+export function valuationCompsSkippedGap(symbol: string): SourceGap {
+  return valuationCompsGap(
+    `Valuation peer comps skipped for ${symbol}: target valuation unavailable`,
+    "provider-data-missing",
+    "valuation-peers",
+    symbol.toUpperCase(),
+  );
+}
+
 function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }

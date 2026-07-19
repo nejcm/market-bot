@@ -12,6 +12,7 @@ import {
   sourceGap,
   sourceGapAnalyticsClass,
   sourceGapReportText,
+  sourceGapScopedReportText,
   sourceGapWithContext,
 } from "../src/domain/source-gaps";
 
@@ -252,6 +253,77 @@ describe("source gaps", () => {
     });
 
     expect(consolidateSecCompanyFactGaps([aapl, msft])).toEqual([aapl, msft]);
+  });
+
+  test("consolidateSecCompanyFactGaps: keeps a target gap and a like-messaged peer gap separate", () => {
+    const target = sourceGap({
+      source: "sec-edgar",
+      symbol: "APLD",
+      message: "Missing SEC company facts: revenue",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const peer = sourceGap({
+      source: "sec-edgar",
+      symbol: "CLSK",
+      message: "Missing SEC company facts: revenue",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+
+    expect(consolidateSecCompanyFactGaps([target, peer])).toEqual([target, peer]);
+  });
+
+  test("dedupeSourceGaps: keeps a target and peer gap with identical text but distinct symbols", () => {
+    const target = sourceGap({
+      source: "sec-edgar",
+      symbol: "APLD",
+      message: "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const peer = sourceGap({
+      source: "sec-edgar",
+      symbol: "CLSK",
+      message: "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+
+    expect(dedupeSourceGaps([target, peer])).toEqual([target, peer]);
+  });
+
+  test("sourceGapScopedReportText: keeps symbol-distinct identical messages distinguishable", () => {
+    const target = sourceGap({
+      source: "sec-edgar",
+      symbol: "APLD",
+      message: "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days",
+    });
+    const peer = sourceGap({
+      source: "sec-edgar",
+      symbol: "CLSK",
+      message: "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days",
+    });
+
+    const targetText = sourceGapScopedReportText(target);
+    const peerText = sourceGapScopedReportText(peer);
+    expect(targetText).toBe(`${sourceGapReportText(target)} [APLD]`);
+    expect(peerText).toBe(`${sourceGapReportText(peer)} [CLSK]`);
+    expect(targetText).not.toBe(peerText);
+  });
+
+  test("sourceGapScopedReportText: leaves text unchanged when the message already names the symbol or no symbol", () => {
+    const named = sourceGap({
+      source: "sec-edgar",
+      symbol: "AAPL",
+      message: "No SEC company facts found for AAPL",
+    });
+    const untagged = sourceGap({
+      source: "sec-edgar",
+      message: "Batched peer quote fetch failed",
+    });
+    expect(sourceGapScopedReportText(named)).toBe(sourceGapReportText(named));
+    expect(sourceGapScopedReportText(untagged)).toBe(sourceGapReportText(untagged));
   });
 
   test("consolidateSecCompanyFactGaps: merges matching symbols and preserves the symbol", () => {

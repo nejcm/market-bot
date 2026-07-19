@@ -385,6 +385,7 @@
         {
           "source": "sec-edgar",
           "message": "No SEC company facts found for AAPL",
+          "symbol": "AAPL",
           "provider": "sec-edgar",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -887,7 +888,7 @@
       "label": "medium",
       "assessment": {
         "version": 1,
-        "rubricVersion": 1,
+        "rubricVersion": 2,
         "label": "medium",
         "checks": [
           {
@@ -1652,6 +1653,7 @@
         {
           "source": "sec-edgar",
           "message": "No SEC company facts found for AAPL",
+          "symbol": "AAPL",
           "provider": "sec-edgar",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -2097,6 +2099,7 @@
       {
         "source": "sec-edgar",
         "message": "No SEC company facts found for AAPL",
+        "symbol": "AAPL",
         "provider": "sec-edgar",
         "capability": "extended-evidence",
         "cause": "provider-data-missing",

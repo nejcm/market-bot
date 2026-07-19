@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { sourceGap } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/types";
 import {
   collectValuationComps,
@@ -310,6 +311,44 @@ describe("collectValuationComps", () => {
     );
   });
 
+  test("leaves the batched multi-peer quote-fetch gap untagged", async () => {
+    // The peer quote request is batched across all peers, so its failure is not
+    // Attributable to a single symbol — it must stay untagged while per-peer SEC
+    // Gaps carry their owning symbol.
+    const base = requestExecutor();
+    const failingQuotes: SourceRequestExecutor = {
+      json: async (request) =>
+        request.adapter === "yahoo-valuation-peers"
+          ? sourceGap({
+              source: "yahoo",
+              message: "Batched peer quote fetch failed: status 503",
+              provider: "yahoo",
+              capability: "market-data",
+            })
+          : base.json(request),
+      text: base.text,
+    };
+    const result = await collectValuationComps(
+      collectContext(failingQuotes),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const quoteGap = result.gaps.find((gap) =>
+      gap.message.includes("Batched peer quote fetch failed"),
+    );
+    expect(quoteGap).toBeDefined();
+    expect(quoteGap).not.toHaveProperty("symbol");
+  });
+
   test("guards mixed-period enterprise value while retaining cash and debt", async () => {
     const evidence = valuationEvidence();
     const mixedPeriodItems = evidence.items.map((item) =>
@@ -359,10 +398,64 @@ describe("collectValuationComps", () => {
     expect(result.gaps).toContainEqual(
       expect.objectContaining({
         source: "valuation",
+        symbol: "NVDA",
         message:
           "Mixed-period valuation inputs for NVDA: cash period end 2026-06-29 and debt period end 2026-03-01 diverge by 120 days; enterprise value and net debt flagged as mixed-period",
       }),
     );
+  });
+
+  test("re-tags a peer SEC gap with the peer symbol when it lacks one", async () => {
+    // ZZZZ has no SEC CIK match, so fetchSecCompanyFactsForSymbol emits a
+    // Symbol-less "No SEC CIK match" gap; valuation-comps must attribute it to
+    // The peer so it never collides with the target's gaps under a null symbol.
+    const peerWithoutSecMatch: ValuationCompsOptions = {
+      peerUniverseMappings: {
+        NVDA: {
+          targetSymbol: "NVDA",
+          provenance: "ticker-mapping",
+          peers: [
+            {
+              symbol: "AMD",
+              name: "Advanced Micro Devices",
+              role: "core",
+              rationale: "GPU peer",
+              sourceIds: ["nasdaq-amd"],
+            },
+            {
+              symbol: "ZZZZ",
+              name: "Unlisted Peer",
+              role: "secondary",
+              rationale: "peer without an SEC CIK match",
+              sourceIds: ["nasdaq-zzzz"],
+            },
+          ],
+          sources: [
+            { sourceId: "nasdaq-amd", title: "Nasdaq listed symbol directory: AMD" },
+            { sourceId: "nasdaq-zzzz", title: "Nasdaq listed symbol directory: ZZZZ" },
+          ],
+        },
+      },
+    };
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+      peerWithoutSecMatch,
+    );
+
+    const peerGap = result.gaps.find(
+      (gap) => gap.source === "sec-edgar" && gap.message === "No SEC CIK match for ZZZZ",
+    );
+    expect(peerGap?.symbol).toBe("ZZZZ");
   });
 
   test("attaches submissions provenance to peer SIC even without recent filings", async () => {

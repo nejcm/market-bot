@@ -19,7 +19,8 @@ import {
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { normalizeTitle } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
-import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
@@ -1838,6 +1839,93 @@ describe("extended evidence provider collection", () => {
     expect(
       result.sources.find((source) => source.id === "extended-sec-edgar-aapl-filings")?.url,
     ).toBe("https://data.sec.gov/submissions/CIK0000320193.json");
+  });
+
+  test("collectSec tags target SEC gaps with the upper-cased target symbol", async () => {
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              return rawJson(adapter, { sic: "3571", sicDescription: "Electronic Computers" });
+            }
+            if (adapter === "sec-companyfacts") {
+              return rawJson(adapter, secCompanyFactsPayload());
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    const missingFactsGap = result.gaps.find((gap) =>
+      gap.message.includes("Missing SEC company facts"),
+    );
+    expect(missingFactsGap).toBeDefined();
+    expect(missingFactsGap?.symbol).toBe("AAPL");
+    // Every target SEC gap is attributed to the upper-cased target symbol.
+    expect(result.gaps.every((gap) => gap.symbol === "AAPL")).toBe(true);
+  });
+
+  test("collectSec re-attributes a pre-tagged gap to the target symbol", async () => {
+    // Every target SEC gap is owned by the target, so a stale or upstream-
+    // Supplied symbol must be overwritten rather than preserved — otherwise a
+    // Wrong attribution could survive dedupe/consolidation.
+    const preTagged = sourceGap({ source: "sec-edgar", message: "preset gap", symbol: "PRESET" });
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "aapl", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              return rawJson(adapter, { sic: "3571", sicDescription: "Electronic Computers" });
+            }
+            if (adapter === "sec-companyfacts") {
+              return preTagged;
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    expect(result.gaps).not.toContainEqual(preTagged);
+    expect(result.gaps.find((gap) => gap.message === "preset gap")?.symbol).toBe("AAPL");
+    expect(result.gaps.every((gap) => gap.symbol === "AAPL")).toBe(true);
+  });
+
+  test("collectSec attributes the non-US unsupported-coverage gap to the target symbol", async () => {
+    // The non-US early return must tag its gap so it never collides under a null
+    // Symbol with a peer's like-messaged gap during dedupe/consolidation.
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "rr.l", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async () => {
+            throw new Error("must not fetch SEC for a non-US listing");
+          },
+        }),
+      }),
+    );
+
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0]?.cause).toBe("unsupported-coverage");
+    expect(result.gaps[0]?.message).toContain("non-US listing");
+    expect(result.gaps[0]?.symbol).toBe("RR.L");
   });
 
   test("emits gaps for missing crypto extended evidence tokens", async () => {

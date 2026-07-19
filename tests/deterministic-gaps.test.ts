@@ -54,6 +54,40 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
     ]);
   });
 
+  test("keeps target and peer gaps with identical messages distinct in report text", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "APLD",
+      depth: "brief",
+    };
+    const identicalMessage = "Stale SEC revenue period: period end 2025-02-28 exceeds 180 days";
+    const sources = collectedSources({
+      marketSnapshots: [marketSnapshot({ assetClass: "equity", symbol: "APLD" })],
+      newsSources: [newsSource({ assetClass: "equity" })],
+      sourceGaps: [
+        sourceGap({
+          source: "sec-edgar",
+          symbol: "APLD",
+          message: identicalMessage,
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+        sourceGap({
+          source: "sec-edgar",
+          symbol: "CLSK",
+          message: identicalMessage,
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ],
+    });
+
+    const texts = deterministicSourceGaps(command, sources);
+    expect(texts).toContain(`sec-edgar: ${identicalMessage} [APLD]`);
+    expect(texts).toContain(`sec-edgar: ${identicalMessage} [CLSK]`);
+    // Both survive rendering instead of collapsing into one indistinct line.
+    expect(texts.filter((text) => text.includes(identicalMessage))).toHaveLength(2);
+  });
+
   test("adds gap for each registry representative without a live snapshot", () => {
     const command: ResearchCommand = {
       jobType: "research",

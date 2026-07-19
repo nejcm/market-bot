@@ -139,6 +139,9 @@ export async function collectValuationComps(
       : [
           valuationCompsGap(
             `Mixed-period valuation inputs for ${command.symbol}: cash period end ${targetPeriodDivergence.cashPeriodEnd} and debt period end ${targetPeriodDivergence.debtPeriodEnd} diverge by ${String(targetPeriodDivergence.divergenceDays)} days; enterprise value and net debt flagged as mixed-period`,
+            "provider-data-missing",
+            "valuation",
+            command.symbol.toUpperCase(),
           ),
         ];
 
@@ -159,6 +162,7 @@ export async function collectValuationComps(
       `Peer Universe unavailable for ${command.symbol}: ${resolution.reason}`,
       "unsupported-coverage",
       "valuation-peers",
+      command.symbol.toUpperCase(),
     );
     const allGaps = [...mixedPeriodGaps, gap];
     const artifact = buildArtifact(ctx.fetchedAt, target, [], [], undefined, allGaps, []);
@@ -211,12 +215,18 @@ export async function collectValuationComps(
   const peerGaps = [
     ...mixedPeriodGaps,
     ...quoteGap,
-    ...peerSecResults.flatMap((entry) => entry.sec.gaps),
+    ...peerSecResults.flatMap((entry) =>
+      // Every SEC gap here comes from fetching this peer's facts, so it is owned
+      // By the peer — overwrite unconditionally so stale attribution cannot
+      // Survive and collide with the target or another peer during dedupe.
+      entry.sec.gaps.map((gap) => ({ ...gap, symbol: entry.peer.symbol })),
+    ),
     ...excludedPeers.map((peer) =>
       valuationCompsGap(
         `Peer ${peer.symbol} excluded from valuation comps: ${peer.reason}`,
         "provider-data-missing",
         "valuation-peers",
+        peer.symbol,
       ),
     ),
   ];
@@ -235,6 +245,9 @@ export async function collectValuationComps(
       : [
           valuationCompsGap(
             `Valuation peer comps ${artifact.summary.valuationSupportability} for ${command.symbol}: ${artifact.summary.usablePeerCount} usable peers`,
+            "provider-data-missing",
+            "valuation",
+            command.symbol.toUpperCase(),
           ),
         ];
   const allGaps = [...peerGaps, ...supportabilityGaps];
@@ -269,6 +282,7 @@ function emptyResult(
     `Valuation peer comps unavailable for ${command.symbol}: ${reason}`,
     "provider-data-missing",
     "valuation-peers",
+    command.symbol.toUpperCase(),
   );
   return {
     extendedEvidence: { ...extendedEvidence, gaps: [...extendedEvidence.gaps, gap] },
@@ -837,10 +851,12 @@ function valuationCompsGap(
   message: string,
   cause: SourceGap["cause"] = "provider-data-missing",
   source = "valuation",
+  symbol?: string,
 ): SourceGap {
   return sourceGap({
     source,
     message,
+    ...(symbol !== undefined ? { symbol } : {}),
     provider: "market-bot",
     capability: "extended-evidence",
     cause,

@@ -94,6 +94,21 @@ export function sourceGapReportText(gap: SourceGap): string {
   return `${gap.source}: ${gap.message.replaceAll(/\s+/gu, " ").trim()}`;
 }
 
+// Report text that keeps the owning symbol distinguishable. Structured dedupe
+// Keys on the symbol, but text projection/dedupe keys on text alone, so two
+// Symbol-distinct gaps with an identical source+message (e.g. target and peer
+// "Missing SEC company facts") would otherwise collapse into one indistinct
+// Report line. Append the symbol scope only when the message does not already
+// Name it, so symbol-bearing messages stay unchanged.
+export function sourceGapScopedReportText(gap: SourceGap): string {
+  const base = sourceGapReportText(gap);
+  const symbol = gap.symbol?.trim();
+  if (symbol === undefined || symbol === "" || base.toUpperCase().includes(symbol.toUpperCase())) {
+    return base;
+  }
+  return `${base} [${symbol}]`;
+}
+
 function normalizeGapText(value: string): string {
   return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
 }

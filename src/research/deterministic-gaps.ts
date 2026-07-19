@@ -1,5 +1,5 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import { dedupeSourceGaps, sourceGapReportText } from "../domain/source-gaps";
+import { dedupeSourceGaps, sourceGapScopedReportText } from "../domain/source-gaps";
 import { marketUpdateHorizonOf, type SourceGapEvidenceQualityImpact } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import { missingVerifiedSnapshotGapText } from "./verified-snapshot-contract";
@@ -27,7 +27,7 @@ export function deterministicSourceGapEntries(
   collectedSources: CollectedSources,
 ): readonly DataGapEntry[] {
   const gaps = dedupeSourceGaps(collectedSources.sourceGaps).map((gap) => ({
-    text: sourceGapReportText(gap),
+    text: sourceGapScopedReportText(gap),
     ...(gap.evidenceQualityImpact !== undefined ? { impact: gap.evidenceQualityImpact } : {}),
   }));
   const marketGaps =

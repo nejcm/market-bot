@@ -216,7 +216,10 @@ export async function collectValuationComps(
     ...mixedPeriodGaps,
     ...quoteGap,
     ...peerSecResults.flatMap((entry) =>
-      entry.sec.gaps.map((gap) => (gap.symbol ? gap : { ...gap, symbol: entry.peer.symbol })),
+      // Every SEC gap here comes from fetching this peer's facts, so it is owned
+      // By the peer — overwrite unconditionally so stale attribution cannot
+      // Survive and collide with the target or another peer during dedupe.
+      entry.sec.gaps.map((gap) => ({ ...gap, symbol: entry.peer.symbol })),
     ),
     ...excludedPeers.map((peer) =>
       valuationCompsGap(

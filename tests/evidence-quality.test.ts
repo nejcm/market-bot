@@ -112,6 +112,15 @@ describe("deterministic evidence quality", () => {
     ).toBe("medium");
   });
 
+  test("emits rubric version 2 for the current grading contract", () => {
+    const assessment = assessEvidenceQuality(
+      planning([{ lane: "market-data", evidenceClass: "core" }]),
+      generatedAt,
+    );
+    expect(assessment.rubricVersion).toBe(2);
+    expect(assessment.version).toBe(1);
+  });
+
   test("supplemental gaps do not lower high", () => {
     expect(
       assessEvidenceQuality(

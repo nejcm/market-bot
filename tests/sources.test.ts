@@ -1874,9 +1874,10 @@ describe("extended evidence provider collection", () => {
     expect(result.gaps.every((gap) => gap.symbol === "AAPL")).toBe(true);
   });
 
-  test("collectSec preserves a gap that already carries a symbol", async () => {
-    // Exercises the `gap.symbol ? gap : {…}` preserve branch: an upstream gap
-    // That already names a symbol must not be re-attributed to the target.
+  test("collectSec re-attributes a pre-tagged gap to the target symbol", async () => {
+    // Every target SEC gap is owned by the target, so a stale or upstream-
+    // Supplied symbol must be overwritten rather than preserved — otherwise a
+    // Wrong attribution could survive dedupe/consolidation.
     const preTagged = sourceGap({ source: "sec-edgar", message: "preset gap", symbol: "PRESET" });
     const result = await collectSec(
       collectContext({
@@ -1901,8 +1902,30 @@ describe("extended evidence provider collection", () => {
       }),
     );
 
-    expect(result.gaps).toContainEqual(preTagged);
-    expect(result.gaps.find((gap) => gap.message === "preset gap")?.symbol).toBe("PRESET");
+    expect(result.gaps).not.toContainEqual(preTagged);
+    expect(result.gaps.find((gap) => gap.message === "preset gap")?.symbol).toBe("AAPL");
+    expect(result.gaps.every((gap) => gap.symbol === "AAPL")).toBe(true);
+  });
+
+  test("collectSec attributes the non-US unsupported-coverage gap to the target symbol", async () => {
+    // The non-US early return must tag its gap so it never collides under a null
+    // Symbol with a peer's like-messaged gap during dedupe/consolidation.
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "rr.l", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async () => {
+            throw new Error("must not fetch SEC for a non-US listing");
+          },
+        }),
+      }),
+    );
+
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0]?.cause).toBe("unsupported-coverage");
+    expect(result.gaps[0]?.message).toContain("non-US listing");
+    expect(result.gaps[0]?.symbol).toBe("RR.L");
   });
 
   test("emits gaps for missing crypto extended evidence tokens", async () => {

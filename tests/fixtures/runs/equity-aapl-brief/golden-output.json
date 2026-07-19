@@ -880,7 +880,7 @@
       "label": "medium",
       "assessment": {
         "version": 1,
-        "rubricVersion": 1,
+        "rubricVersion": 2,
         "label": "medium",
         "checks": [
           {

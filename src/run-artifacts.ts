@@ -835,6 +835,7 @@ function hasEvidenceLaneCoverageShape(value: unknown): boolean {
     isEvidenceLane(value.lane) &&
     isLaneCoverageStatus(value.status) &&
     (typeof value.required === "boolean" || isEvidenceClass(value.evidenceClass)) &&
+    (value.supportable === undefined || typeof value.supportable === "boolean") &&
     readStringArray(value, "coveredSourceIds") !== undefined &&
     readStringArray(value, "gapIds") !== undefined &&
     readStringArray(value, "gapText") !== undefined &&

@@ -791,9 +791,11 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   // Attribute target SEC gaps (e.g. "Missing SEC company facts", "Stale SEC
   // Revenue period", non-US unsupported coverage) to the target symbol so they
   // Never collide with a peer's like-messaged gap under a null symbol during
-  // Dedupe/consolidation. Applied on every return path in collectSec.
+  // Dedupe/consolidation. Every gap on these paths is owned by the target, so
+  // Overwrite unconditionally — a stale or upstream-supplied symbol must not
+  // Survive re-attribution. Applied on every return path in collectSec.
   const tagTargetGaps = (gaps: readonly SourceGap[]): readonly SourceGap[] =>
-    gaps.map((gap) => (gap.symbol ? gap : { ...gap, symbol: command.symbol.toUpperCase() }));
+    gaps.map((gap) => ({ ...gap, symbol: command.symbol.toUpperCase() }));
 
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return {

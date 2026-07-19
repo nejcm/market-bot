@@ -10,7 +10,8 @@ Accepted
 tier-scoped SIC gate; amended 2026-07-09: research representative snapshots and thematic news;
 amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15; amended
 2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
-present-but-unsupportable material target valuation caps Evidence Quality at medium)
+present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
+rubric version 2)
 
 ## Context
 

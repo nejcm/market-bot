@@ -406,7 +406,11 @@ export interface EvidenceQualityCheck {
 
 export interface EvidenceQualityAssessment {
   readonly version: 1;
-  readonly rubricVersion: 1;
+  // Rubric v2 (2026-07-19): a present-but-unsupportable material target
+  // Valuation lane fails its check, capping Evidence Quality at medium. v1
+  // Stays assignable so persisted assessments graded under the old rubric
+  // Continue to parse.
+  readonly rubricVersion: 1 | 2;
   readonly label: EvidenceQuality;
   readonly checks: readonly EvidenceQualityCheck[];
   readonly limitingReasons: readonly string[];

@@ -111,7 +111,7 @@ export function assessEvidenceQuality(
   }
   return {
     version: 1,
-    rubricVersion: 1,
+    rubricVersion: 2,
     label,
     checks,
     limitingReasons: [...failedCore, ...failedMaterial].flatMap((check) => check.reasons),

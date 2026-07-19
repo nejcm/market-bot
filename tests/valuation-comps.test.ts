@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { sourceGap } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/types";
 import {
   collectValuationComps,
@@ -308,6 +309,44 @@ describe("collectValuationComps", () => {
     expect(result.sources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
     );
+  });
+
+  test("leaves the batched multi-peer quote-fetch gap untagged", async () => {
+    // The peer quote request is batched across all peers, so its failure is not
+    // Attributable to a single symbol — it must stay untagged while per-peer SEC
+    // Gaps carry their owning symbol.
+    const base = requestExecutor();
+    const failingQuotes: SourceRequestExecutor = {
+      json: async (request) =>
+        request.adapter === "yahoo-valuation-peers"
+          ? sourceGap({
+              source: "yahoo",
+              message: "Batched peer quote fetch failed: status 503",
+              provider: "yahoo",
+              capability: "market-data",
+            })
+          : base.json(request),
+      text: base.text,
+    };
+    const result = await collectValuationComps(
+      collectContext(failingQuotes),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const quoteGap = result.gaps.find((gap) =>
+      gap.message.includes("Batched peer quote fetch failed"),
+    );
+    expect(quoteGap).toBeDefined();
+    expect(quoteGap).not.toHaveProperty("symbol");
   });
 
   test("guards mixed-period enterprise value while retaining cash and debt", async () => {

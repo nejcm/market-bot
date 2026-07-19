@@ -135,6 +135,18 @@ function secTextRequestInit(userAgent: string | undefined): RequestInit | undefi
   return userAgent === undefined ? undefined : { headers: { "user-agent": userAgent } };
 }
 
+const FOREIGN_PRIVATE_ISSUER_FORMS = ["20-F", "40-F", "6-K"] as const;
+
+function detectForeignPrivateIssuerForms(payload: unknown): readonly string[] {
+  if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
+    return [];
+  }
+  const forms = stringArrayValue(payload.filings.recent.form);
+  return FOREIGN_PRIVATE_ISSUER_FORMS.filter((base) =>
+    forms.some((form) => form === base || form.startsWith(`${base}/`)),
+  );
+}
+
 function selectLatestFilingByForm(
   payload: unknown,
   form: SecFiling["form"],
@@ -560,14 +572,18 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const tenQ = selectCurrentQuarterlyFiling(submissions.payload, tenK);
 
   if (tenK === undefined && tenQ === undefined) {
+    const fpiForms = detectForeignPrivateIssuerForms(submissions.payload);
     return emptyOutput(
       [
         sourceGap({
           source: "sec-edgar",
-          message: `No SEC 10-K or 10-Q filing found for ${command.symbol}`,
+          message:
+            fpiForms.length > 0
+              ? `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); these forms are not yet supported`
+              : `No SEC 10-K or 10-Q filing found for ${command.symbol}`,
           provider: "sec-edgar",
           capability: "evidence-request",
-          cause: "provider-data-missing",
+          cause: fpiForms.length > 0 ? "unsupported-coverage" : "provider-data-missing",
           evidenceQualityImpact: "core-cap",
         }),
       ],

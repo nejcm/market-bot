@@ -199,6 +199,47 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps[0]?.message).toContain("No SEC 10-K or 10-Q filing found");
   });
 
+  test("identifies unsupported foreign private issuer forms", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["20-F", "6-K"])),
+        }),
+      }),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("files as a foreign private issuer (20-F, 6-K)"),
+        cause: "unsupported-coverage",
+        evidenceQualityImpact: "core-cap",
+      }),
+    ]);
+  });
+
+  test("identifies amended foreign private issuer forms", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["20-F/A"])),
+        }),
+      }),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.gaps[0]?.message).toContain("files as a foreign private issuer (20-F)");
+    expect(result.gaps[0]?.cause).toBe("unsupported-coverage");
+  });
+
   test("normalizes HTML and entities to plain text", () => {
     expect(normalizeFilingText("<p>Revenue&nbsp;&amp;&nbsp;margin</p><script>x()</script>")).toBe(
       "Revenue & margin",

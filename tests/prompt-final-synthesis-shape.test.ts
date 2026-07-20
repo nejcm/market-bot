@@ -4,6 +4,7 @@ import type { ResearchCommand } from "../src/cli/args";
 import { buildDepthProfile } from "../src/research/depth-profile";
 import { buildCalibrationSummary } from "../src/scoring/calibration";
 import type { Prediction } from "../src/domain/types";
+import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { collectedSources, marketSnapshot, newsSource, researchReport } from "./support/fixtures";
 import {
   completionInstruction,
@@ -125,6 +126,82 @@ describe("buildStagePrompt final-synthesis shape", () => {
     expect(parsed.requiredShape?.predictions?.[0]?.id).toBe("pred-1");
     // The soft target count still reaches the model through the instruction text.
     expect(parsed.instruction).toContain("Emit up to 8 predictions");
+  });
+
+  test("final-synthesis evidence carries the not-meaningful revenue-multiple caveat", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "ASTS",
+      depth: "deep",
+    };
+    const depthProfile = buildDepthProfile(command, config);
+    const prompt = stagePromptFromArgs(
+      "final-synthesis",
+      command,
+      collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "ASTS" })],
+        newsSources: [newsSource()],
+        extendedEvidence: {
+          instrument: { symbol: "ASTS", assetClass: "equity" },
+          items: [
+            {
+              category: "valuation",
+              title: "ASTS Valuation Evidence",
+              summary: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+              sourceIds: ["market-aapl"],
+              observedAt: "2026-07-01T00:00:00.000Z",
+              metrics: {
+                valuationSupportability: "not-meaningful",
+                valuationCaveat: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+              },
+            },
+          ],
+          gaps: [],
+        },
+      }),
+      config,
+      {
+        depthProfile,
+        runParams: {
+          quickModel: "quick-test",
+          synthesisModel: "synthesis-test",
+          analystStyle: "fuller analyst-style",
+          minimumKeyFindings: 6,
+          minimumScenarios: 3,
+          targetPredictions: depthProfile.targetPredictions,
+          defaultPredictionHorizon: depthProfile.defaultPredictionHorizon,
+          predictionSubjects: depthProfile.predictionSubjects,
+          focus: depthProfile.focus,
+          targetKindMix: depthProfile.targetKindMix,
+          modelParams: undefined,
+        },
+        marketRegime: {
+          assetClass: "equity",
+          label: "mixed",
+          proxyCount: 1,
+          drivers: [],
+          sourceIds: [],
+        },
+        calibrationContext: undefined,
+      },
+      { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence?: {
+        readonly extendedEvidence?: {
+          readonly items?: readonly {
+            readonly summary?: string;
+            readonly metrics?: Readonly<Record<string, unknown>>;
+          }[];
+        };
+      };
+    };
+    const valuation = parsed.evidence?.extendedEvidence?.items?.[0];
+
+    expect(valuation?.summary).toBe(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
+    expect(valuation?.metrics?.valuationSupportability).toBe("not-meaningful");
+    expect(valuation?.metrics?.valuationCaveat).toBe(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
   });
 
   test("crypto final-synthesis prompt omits equity-only IV and VIX prediction shapes", () => {

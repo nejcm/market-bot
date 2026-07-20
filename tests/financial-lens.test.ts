@@ -6,7 +6,10 @@ import type {
 } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
-import { MIXED_PERIOD_METRIC } from "../src/sources/extended-evidence/valuation-comps";
+import {
+  MIXED_PERIOD_METRIC,
+  REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+} from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
@@ -622,6 +625,40 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(pbv?.value).toBe(41.05);
     // Value posture is driven only by peer supportability — PE/PBV do not change it.
     expect(value?.posture).toBe("criteria-supported");
+  });
+
+  test("renders not-meaningful revenue supportability as a Value-lens caveat", () => {
+    const valuation = valuationEvidence();
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios(),
+          {
+            ...valuation,
+            metrics: {
+              ...valuation.metrics,
+              valuationSupportability: "not-meaningful",
+            },
+          },
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const value = lensByName(result, "Value");
+    expect(value?.posture).toBe("insufficient-data");
+    expect(value?.metrics[0]).toMatchObject({
+      key: "valuationCaveat",
+      value: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+    });
+    expect(result.extendedEvidence?.items.at(-1)?.summary).toContain(
+      REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+    );
   });
 
   test("Yahoo dividendYield is whole-percent (verified against captured fixture) and display-only", () => {

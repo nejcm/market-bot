@@ -164,6 +164,36 @@ function valuationEvidence(): ExtendedEvidence {
   };
 }
 
+function astsValuationEvidence(): ExtendedEvidence {
+  return {
+    instrument: { symbol: "ASTS", assetClass: "equity" },
+    items: [
+      {
+        category: "valuation",
+        title: "ASTS Valuation Evidence",
+        summary: "Valuation Evidence: pre-commercial target.",
+        sourceIds: ["market-yahoo-equity-asts", "extended-sec-edgar-asts-fundamentals"],
+        observedAt: generatedAt,
+        metrics: {
+          marketCap: 22_000_000_000,
+          cash: 141_560_000,
+          debt: 500_000_000,
+          netDebt: 358_440_000,
+          enterpriseValue: 22_358_440_000,
+          latestPeriodRevenue: 14_725_000,
+          revenuePeriodMonths: 3,
+          revenuePeriodEnd: "2026-06-29",
+          annualizedRevenue: 58_900_000,
+          evToAnnualizedRevenue: 379.6,
+          sic: "4899",
+          sicDescription: "Communications Services, Not Elsewhere Classified",
+        },
+      },
+    ],
+    gaps: [],
+  };
+}
+
 function requestExecutor(
   options: {
     readonly quoteFetchedAt?: string;
@@ -225,9 +255,70 @@ function requestExecutor(
   };
 }
 
-function collectContext(request: SourceRequestExecutor): CollectContext {
+const astsPeers = [
+  { symbol: "GSAT", cik: "0000000011", marketCap: 8_000_000_000, revenue: 50_000_000 },
+  { symbol: "IRDM", cik: "0000000012", marketCap: 5_000_000_000, revenue: 200_000_000 },
+  { symbol: "VSAT", cik: "0000000013", marketCap: 4_500_000_000, revenue: 300_000_000 },
+] as const;
+
+function astsRequestExecutor(
+  options: {
+    readonly quoteOverrides?: Readonly<Record<string, number>>;
+    readonly sicOverrides?: Readonly<Record<string, string>>;
+  } = {},
+): SourceRequestExecutor {
   return {
-    command,
+    json: async ({ adapter, url }) => {
+      if (adapter === "yahoo-valuation-peers") {
+        return rawJson(adapter, {
+          quoteResponse: {
+            result: astsPeers.map((peer) => ({
+              symbol: peer.symbol,
+              shortName: peer.symbol,
+              regularMarketPrice: 20,
+              regularMarketChangePercent: 1,
+              regularMarketVolume: 1_000_000,
+              marketCap: options.quoteOverrides?.[peer.symbol] ?? peer.marketCap,
+            })),
+          },
+        });
+      }
+      if (adapter === "sec-tickers") {
+        return rawJson(
+          adapter,
+          Object.fromEntries(
+            astsPeers.map((peer, index) => [
+              String(index),
+              { cik_str: Number(peer.cik), ticker: peer.symbol, title: peer.symbol },
+            ]),
+          ),
+        );
+      }
+      const cik = url.match(/CIK(?<cik>\d+)\.json/u)?.groups?.cik ?? "";
+      const peer = astsPeers.find((candidate) => candidate.cik === cik) ?? astsPeers[0];
+      if (adapter === "sec-submissions") {
+        return rawJson(adapter, {
+          sic: options.sicOverrides?.[peer.symbol] ?? "4899",
+          sicDescription: "Communications Services, Not Elsewhere Classified",
+        });
+      }
+      if (adapter === "sec-companyfacts") {
+        return rawJson(adapter, secPayload({ revenue: peer.revenue }));
+      }
+      throw new Error(`unexpected adapter ${adapter}`);
+    },
+    text: async () => {
+      throw new Error("unexpected text request");
+    },
+  };
+}
+
+function collectContext(
+  request: SourceRequestExecutor,
+  contextCommand: CollectContext["command"] = command,
+): CollectContext {
+  return {
+    command: contextCommand,
     fetchedAt: generatedAt,
     newsLimit: 10,
     cryptoMoverLimit: 10,
@@ -268,6 +359,26 @@ const threePeerOptions: ValuationCompsOptions = {
         { sourceId: "nasdaq-avgo", title: "Nasdaq listed symbol directory: AVGO" },
         { sourceId: "nyse-anet", title: "NYSE listed symbol directory: ANET" },
       ],
+    },
+  },
+};
+
+const astsOptions: ValuationCompsOptions = {
+  peerUniverseMappings: {
+    ASTS: {
+      targetSymbol: "ASTS",
+      provenance: "ticker-mapping",
+      peers: astsPeers.map((peer, index) => ({
+        symbol: peer.symbol,
+        name: peer.symbol,
+        role: index < 2 ? "core" : "secondary",
+        rationale: "satellite communications peer",
+        sourceIds: [`nasdaq-${peer.symbol.toLowerCase()}`],
+      })),
+      sources: astsPeers.map((peer) => ({
+        sourceId: `nasdaq-${peer.symbol.toLowerCase()}`,
+        title: `Nasdaq listed symbol directory: ${peer.symbol}`,
+      })),
     },
   },
 };
@@ -810,6 +921,170 @@ describe("collectValuationComps", () => {
         reason: "annualized revenue outside 0.2x-5x of target",
       }),
     ]);
+    expect(outside.artifact.summary.gateProfile).toBe("curated-no-sic");
+  });
+
+  test("pre-commercial targets skip only the revenue band and retain named SIC and market-cap gates", async () => {
+    const astsCommand = { ...command, symbol: "ASTS" };
+    const result = await collectValuationComps(
+      collectContext(
+        astsRequestExecutor({
+          quoteOverrides: { VSAT: 4_300_000_000 },
+          sicOverrides: { IRDM: "7372" },
+        }),
+        astsCommand,
+      ),
+      astsCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-asts",
+          symbol: "ASTS",
+          marketCap: 22_000_000_000,
+          observedAt: generatedAt,
+        }),
+      ],
+      astsValuationEvidence(),
+      astsOptions,
+    );
+
+    expect(result.artifact.summary).toMatchObject({
+      gateProfile: "revenue-exempt",
+      usablePeerCount: 1,
+      valuationSupportability: "not-meaningful",
+    });
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "IRDM",
+        reason: "SIC gate (revenue-exempt profile): SIC group mismatch (peer 73 vs target 48)",
+      }),
+      expect.objectContaining({
+        symbol: "VSAT",
+        reason: "market-cap gate (revenue-exempt profile): market cap outside 0.2x-5x of target",
+      }),
+    ]);
+    expect(result.artifact.excludedPeers.map((peer) => peer.reason).join(" ")).not.toContain(
+      "annualized revenue",
+    );
+  });
+
+  test("zero-revenue targets are not meaningful while SIC and market-cap gates still apply", async () => {
+    const astsCommand = { ...command, symbol: "ASTS" };
+    const zeroRevenueEvidence = astsValuationEvidence();
+    const result = await collectValuationComps(
+      collectContext(
+        astsRequestExecutor({
+          quoteOverrides: { VSAT: 4_300_000_000 },
+          sicOverrides: { IRDM: "7372" },
+        }),
+        astsCommand,
+      ),
+      astsCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-asts",
+          symbol: "ASTS",
+          marketCap: 22_000_000_000,
+          observedAt: generatedAt,
+        }),
+      ],
+      {
+        ...zeroRevenueEvidence,
+        items: zeroRevenueEvidence.items.map((item) =>
+          item.category === "valuation"
+            ? {
+                ...item,
+                metrics: {
+                  ...Object.fromEntries(
+                    Object.entries(item.metrics ?? {}).filter(
+                      ([key]) => key !== "evToAnnualizedRevenue",
+                    ),
+                  ),
+                  latestPeriodRevenue: 0,
+                  annualizedRevenue: 0,
+                },
+              }
+            : item,
+        ),
+      },
+      astsOptions,
+    );
+
+    expect(result.artifact.target).toMatchObject({
+      annualizedRevenue: 0,
+      usable: false,
+    });
+    expect(result.artifact.target.evToAnnualizedRevenue).toBeUndefined();
+    expect(result.artifact.summary).toMatchObject({
+      gateProfile: "revenue-exempt",
+      usablePeerCount: 1,
+      valuationSupportability: "not-meaningful",
+    });
+    expect(result.artifact.excludedPeers).toEqual([
+      expect.objectContaining({
+        symbol: "IRDM",
+        reason: "SIC gate (revenue-exempt profile): SIC group mismatch (peer 73 vs target 48)",
+      }),
+      expect.objectContaining({
+        symbol: "VSAT",
+        reason: "market-cap gate (revenue-exempt profile): market cap outside 0.2x-5x of target",
+      }),
+    ]);
+    expect(result.artifact.excludedPeers.map((peer) => peer.reason).join(" ")).not.toContain(
+      "annualized revenue",
+    );
+  });
+
+  test("ASTS-shaped target admits GSAT, IRDM, and VSAT as size/sector peers", async () => {
+    const astsCommand = { ...command, symbol: "ASTS" };
+    const result = await collectValuationComps(
+      collectContext(astsRequestExecutor(), astsCommand),
+      astsCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-asts",
+          symbol: "ASTS",
+          marketCap: 22_000_000_000,
+          observedAt: generatedAt,
+        }),
+      ],
+      astsValuationEvidence(),
+      astsOptions,
+    );
+
+    expect(result.artifact.target.evToAnnualizedRevenue).toBe(379.6);
+    expect(result.artifact.summary).toMatchObject({
+      gateProfile: "revenue-exempt",
+      usablePeerCount: 3,
+      valuationSupportability: "not-meaningful",
+    });
+    expect(result.artifact.peers.filter((peer) => peer.usable).map((peer) => peer.symbol)).toEqual([
+      "GSAT",
+      "IRDM",
+      "VSAT",
+    ]);
+    const targetRevenue = result.artifact.target.annualizedRevenue ?? 0;
+    expect(
+      result.artifact.peers.find((peer) => peer.symbol === "IRDM")?.annualizedRevenue,
+    ).toBeGreaterThan(5 * targetRevenue);
+    expect(
+      result.artifact.peers.find((peer) => peer.symbol === "VSAT")?.annualizedRevenue,
+    ).toBeGreaterThan(5 * targetRevenue);
+    expect(result.artifact.summary.peerMedianEvToAnnualizedRevenue).toBeDefined();
+    expect(result.artifact.excludedPeers).toEqual([]);
+    const valuationItem = result.extendedEvidence.items.find(
+      (item) => item.category === "valuation",
+    );
+    expect(valuationItem?.summary).toContain(
+      "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+    );
+    expect(valuationItem?.metrics).toMatchObject({
+      valuationSupportability: "not-meaningful",
+      valuationCaveat:
+        "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+    });
+    expect(result.gaps.map((gap) => gap.message)).toContain(
+      "Valuation peer comps not-meaningful for ASTS: Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. 3 usable peers passed the applicable gates",
+    );
   });
 
   test("labels comps screening-only when fewer than three peers are usable", async () => {

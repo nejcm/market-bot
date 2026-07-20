@@ -35,7 +35,23 @@ export const MIXED_PERIOD_METRIC = "mixed-period" as const;
 const SIZE_GATE_MIN_RATIO = 0.2;
 const SIZE_GATE_MAX_RATIO = 5;
 
-export type ValuationSupportability = "screening-only" | "supported" | "not-supportable";
+// Revenue-multiple applicability gate: above 50x, current revenue is too
+// De-minimis relative to enterprise value for EV/revenue to be a meaningful
+// Target valuation basis.
+const MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE = 50;
+
+// Revenue-multiple applicability fallback: below 2% of market cap, current
+// Revenue is de-minimis even when EV/revenue is unavailable.
+const MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP = 0.02;
+
+export const REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT =
+  "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.";
+
+export type ValuationSupportability =
+  | "screening-only"
+  | "supported"
+  | "not-supportable"
+  | "not-meaningful";
 
 export interface ValuationCompsRow {
   readonly symbol: string;
@@ -244,7 +260,9 @@ export async function collectValuationComps(
       ? []
       : [
           valuationCompsGap(
-            `Valuation peer comps ${artifact.summary.valuationSupportability} for ${command.symbol}: ${artifact.summary.usablePeerCount} usable peers`,
+            artifact.summary.valuationSupportability === "not-meaningful"
+              ? `Valuation peer comps not-meaningful for ${command.symbol}: ${REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT} ${String(artifact.summary.usablePeerCount)} usable peers passed the applicable gates`
+              : `Valuation peer comps ${artifact.summary.valuationSupportability} for ${command.symbol}: ${artifact.summary.usablePeerCount} usable peers`,
             "provider-data-missing",
             "valuation",
             command.symbol.toUpperCase(),
@@ -458,20 +476,52 @@ type ComparabilityInputs = Pick<ValuationCompsRow, "sic" | "marketCap" | "annual
 const SIZE_GATE_LABEL = `${SIZE_GATE_MIN_RATIO}x-${SIZE_GATE_MAX_RATIO}x`;
 
 // Which comparability gates apply to a candidate. The checked-in ticker-mapping
-// Tier is a human-audited peer judgment, so it skips the SIC-group gate (whose
-// Job is to screen untrusted provenance); size bands stay universal. All other
-// Tiers get the full gate set.
-export type ValuationGateProfile = "curated-no-sic" | "full";
+// Tier skips the SIC-group gate; the revenue-exempt profile instead keeps SIC
+// And market-cap checks while skipping only the revenue-size band.
+export type ValuationGateProfile = "curated-no-sic" | "full" | "revenue-exempt";
 
-function gateProfileFor(provenance: PeerUniverse["provenance"]): ValuationGateProfile {
+function revenueMultipleMeaningful(
+  target: Pick<ValuationCompsRow, "annualizedRevenue" | "evToAnnualizedRevenue" | "marketCap">,
+): boolean {
+  const revenueDeMinimis =
+    target.annualizedRevenue !== undefined &&
+    (target.annualizedRevenue <= 0 ||
+      (target.marketCap !== undefined &&
+        target.marketCap > 0 &&
+        target.annualizedRevenue <
+          MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP * target.marketCap));
+  return (
+    !revenueDeMinimis &&
+    (target.evToAnnualizedRevenue === undefined ||
+      target.evToAnnualizedRevenue <= MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE)
+  );
+}
+
+function gateProfileFor(
+  provenance: PeerUniverse["provenance"],
+  target: Pick<ValuationCompsRow, "annualizedRevenue" | "evToAnnualizedRevenue" | "marketCap">,
+): ValuationGateProfile {
+  if (!revenueMultipleMeaningful(target)) {
+    return "revenue-exempt";
+  }
   return provenance === "ticker-mapping" ? "curated-no-sic" : "full";
 }
 
-// Deterministic comparability gate. Size bands (market cap and annualized
-// Revenue within 0.2x-5x of target) apply to every candidate; the SIC-group
-// Gate is skipped only for the curated-no-sic profile. Returns the first
-// Failed-gate reason, or undefined when the candidate is comparable to the
-// Target. Business-model metadata (role/rationale) never overrides a failure.
+function comparabilityGateFailure(
+  gateProfile: ValuationGateProfile,
+  gate: "market-cap" | "SIC",
+  reason: string,
+): string {
+  return gateProfile === "revenue-exempt"
+    ? `${gate} gate (revenue-exempt profile): ${reason}`
+    : reason;
+}
+
+// Deterministic comparability gate. The SIC-group gate is skipped only for the
+// Curated-no-sic profile; the revenue-size band is skipped only for the
+// Revenue-exempt profile. Returns the first failed-gate reason, or undefined
+// When the candidate is comparable to the target. Business-model metadata
+// (role/rationale) never overrides a failure.
 function comparabilityFailure(
   row: ComparabilityInputs,
   target: ComparabilityInputs,
@@ -479,26 +529,37 @@ function comparabilityFailure(
 ): string | undefined {
   if (gateProfile !== "curated-no-sic") {
     if (row.sic === undefined) {
-      return "missing SIC classification";
+      return comparabilityGateFailure(gateProfile, "SIC", "missing SIC classification");
     }
     if (target.sic === undefined) {
-      return "target SIC classification unavailable";
+      return comparabilityGateFailure(gateProfile, "SIC", "target SIC classification unavailable");
     }
     if (sicGroup(row.sic) !== sicGroup(target.sic)) {
-      return `SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`;
+      return comparabilityGateFailure(
+        gateProfile,
+        "SIC",
+        `SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`,
+      );
     }
   }
   if (row.marketCap === undefined) {
-    return "missing market cap";
+    return comparabilityGateFailure(gateProfile, "market-cap", "missing market cap");
   }
   if (target.marketCap === undefined) {
-    return "target market cap unavailable";
+    return comparabilityGateFailure(gateProfile, "market-cap", "target market cap unavailable");
   }
   if (target.marketCap <= 0) {
-    return "target market cap not positive";
+    return comparabilityGateFailure(gateProfile, "market-cap", "target market cap not positive");
   }
   if (!withinSizeGate(row.marketCap, target.marketCap)) {
-    return `market cap outside ${SIZE_GATE_LABEL} of target`;
+    return comparabilityGateFailure(
+      gateProfile,
+      "market-cap",
+      `market cap outside ${SIZE_GATE_LABEL} of target`,
+    );
+  }
+  if (gateProfile === "revenue-exempt") {
+    return undefined;
   }
   if (row.annualizedRevenue === undefined) {
     return "missing annualized revenue";
@@ -588,7 +649,7 @@ function peerRow(
     ...row,
     usable:
       inputsUsable &&
-      comparabilityFailure(row, target, gateProfileFor(entry.provenance)) === undefined,
+      comparabilityFailure(row, target, gateProfileFor(entry.provenance, target)) === undefined,
   };
 }
 
@@ -649,7 +710,7 @@ function exclusionReason(
   if (!isFreshPeriodEnd(row.revenuePeriodEnd, generatedAt)) {
     return "stale SEC revenue period";
   }
-  return comparabilityFailure(row, target, gateProfileFor(provenance)) ?? "not usable";
+  return comparabilityFailure(row, target, gateProfileFor(provenance, target)) ?? "not usable";
 }
 
 function buildArtifact(
@@ -689,7 +750,9 @@ function buildArtifact(
           }
         : {}),
       valuationSupportability: supportability,
-      ...(universe !== undefined ? { gateProfile: gateProfileFor(universe.provenance) } : {}),
+      ...(universe !== undefined
+        ? { gateProfile: gateProfileFor(universe.provenance, target) }
+        : {}),
     },
     sourceIds: unique([
       ...target.sourceIds,
@@ -723,6 +786,9 @@ function supportabilityFor(
   target: ValuationCompsRow,
   usablePeerCount: number,
 ): ValuationSupportability {
+  if (!revenueMultipleMeaningful(target)) {
+    return "not-meaningful";
+  }
   if (!target.usable) {
     return "not-supportable";
   }
@@ -734,10 +800,14 @@ function enrichValuationItem(
   artifact: ValuationCompsArtifact,
 ): ExtendedEvidenceItem {
   const { summary } = artifact;
+  const applicabilityCaveat =
+    summary.valuationSupportability === "not-meaningful"
+      ? ` ${REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT}`
+      : "";
   const peerReadThrough =
     summary.peerMedianEvToAnnualizedRevenue === undefined
-      ? ` Peer comps supportability: ${summary.valuationSupportability}; ${summary.usablePeerCount} usable peers.`
-      : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x.`;
+      ? ` Peer comps supportability: ${summary.valuationSupportability}; ${summary.usablePeerCount} usable peers.${applicabilityCaveat}`
+      : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x.${applicabilityCaveat}`;
   const provenanceNote =
     artifact.provenance === "model-proposed-validated"
       ? " Peer set provenance: model-proposed (LLM-proposed, code-validated against SEC directory + US-listing; cached)."
@@ -759,6 +829,9 @@ function enrichValuationItem(
         ? { peerP75EvToAnnualizedRevenue: summary.peerP75EvToAnnualizedRevenue }
         : {}),
       valuationSupportability: summary.valuationSupportability,
+      ...(summary.valuationSupportability === "not-meaningful"
+        ? { valuationCaveat: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT }
+        : {}),
     },
   };
 }

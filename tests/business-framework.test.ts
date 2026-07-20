@@ -4,6 +4,7 @@ import {
   addBusinessFrameworkEvidence,
   classifyBusinessLifecyclePhase,
 } from "../src/sources/extended-evidence/business-framework";
+import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { marketSnapshot } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -146,6 +147,38 @@ describe("business framework evidence", () => {
         evidenceQualityImpact: "no-cap",
       }),
     ]);
+  });
+
+  test("renders not-meaningful revenue supportability as a Valuation-section caveat", () => {
+    const baseEvidence = evidence();
+    const result = addBusinessFrameworkEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-aapl" })],
+      {
+        ...baseEvidence,
+        items: baseEvidence.items.map((item) =>
+          item.category === "valuation"
+            ? {
+                ...item,
+                metrics: {
+                  ...item.metrics,
+                  valuationSupportability: "not-meaningful",
+                },
+              }
+            : item,
+        ),
+      },
+      undefined,
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    const valuation = result.artifact?.sections.find((section) => section.name === "Valuation");
+    expect(valuation?.posture).toBe("insufficient-data");
+    expect(valuation?.metrics[0]).toMatchObject({
+      key: "valuationCaveat",
+      value: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+    });
+    expect(valuation?.summary).toContain(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
   });
 
   test("discloses missing source coverage instead of guessing", () => {

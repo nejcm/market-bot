@@ -284,8 +284,16 @@ function relevantNewsCount(
   return sources.filter((source) => isNewsRelevant(source, targets)).length;
 }
 
-function tickerRelevanceFloor(newsLimit: number): number {
-  return Math.max(2, Math.ceil(newsLimit / 2));
+// Deep runs demand a mostly-relevant slate; the floor is clamped by available relevant sources, so it never invents items.
+const DEEP_TICKER_RELEVANCE_RATIO = 0.75;
+
+function tickerRelevanceFloor(
+  newsLimit: number,
+  depth: CollectContext["command"]["depth"],
+): number {
+  return depth === "deep"
+    ? Math.max(2, Math.floor(newsLimit * DEEP_TICKER_RELEVANCE_RATIO))
+    : Math.max(2, Math.ceil(newsLimit / 2));
 }
 
 function canonicalUrlOf(source: Source): string | undefined {
@@ -314,7 +322,7 @@ function keepRelevantSeenSources(args: {
   ).length;
   const availableRelevantCount = relevantNewsCount(dedupedSources, targets);
   const requiredRelevantCount = Math.min(
-    tickerRelevanceFloor(newsLimit),
+    tickerRelevanceFloor(newsLimit, command.depth),
     availableRelevantCount,
     newsLimit,
   );

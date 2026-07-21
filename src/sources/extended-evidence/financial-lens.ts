@@ -8,7 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
-import { MIXED_PERIOD_METRIC } from "./valuation-comps";
+import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
@@ -390,6 +390,10 @@ function valueLens(
     ...new Set([...(valuationItem?.sourceIds ?? []), ...(yahooFundamentalsItem?.sourceIds ?? [])]),
   ];
   const supportability = valuationItem?.metrics?.valuationSupportability;
+  const supportabilityCriterion =
+    supportability === undefined || supportability === "not-meaningful"
+      ? undefined
+      : supportability === "supported";
   const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
   // PCF = marketCap / annualized operating cash flow. marketCap comes from the
   // Ticker snapshot (market data) or, failing that, the valuation item; the cash
@@ -414,10 +418,17 @@ function valueLens(
     name: "Value",
     // Research-only: posture reports peer supportability, not a cheap/expensive judgement.
     // PE/Forward PE/PBV/PCF are display-only (industry-relative, no threshold).
-    posture: postureFrom([
-      supportability === undefined ? undefined : supportability === "supported",
-    ]),
+    posture: postureFrom([supportabilityCriterion]),
     metrics: [
+      ...(supportability === "not-meaningful"
+        ? metric(
+            "valuationCaveat",
+            "Valuation caveat",
+            REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+            "text",
+            valuationItem?.sourceIds ?? [],
+          )
+        : []),
       ...metric(
         "enterpriseValue",
         "Enterprise value",

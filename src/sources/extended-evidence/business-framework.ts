@@ -8,6 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
 export const BUSINESS_FRAMEWORK_SECTION_NAMES = [
@@ -387,6 +388,10 @@ export function addBusinessFrameworkEvidence(
     dividendYield,
   });
   const valuationSupportability = valuationItem?.metrics?.valuationSupportability;
+  const valuationSupportabilityCriterion =
+    valuationSupportability === undefined || valuationSupportability === "not-meaningful"
+      ? undefined
+      : valuationSupportability === "supported";
   const phase = classifyBusinessLifecyclePhase({
     revenueDeltaPercent,
     operatingIncome,
@@ -564,10 +569,17 @@ export function addBusinessFrameworkEvidence(
     ),
     section(
       "Valuation",
-      postureFrom([
-        valuationSupportability === undefined ? undefined : valuationSupportability === "supported",
-      ]),
+      postureFrom([valuationSupportabilityCriterion]),
       [
+        ...(valuationSupportability === "not-meaningful"
+          ? metric(
+              "valuationCaveat",
+              "Valuation caveat",
+              REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+              "text",
+              valuationSourceIds,
+            )
+          : []),
         ...metric(
           "trailingPE",
           "Trailing PE",

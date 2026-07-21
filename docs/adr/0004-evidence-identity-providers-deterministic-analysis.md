@@ -11,7 +11,7 @@ tier-scoped SIC gate; amended 2026-07-09: research representative snapshots and 
 amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15; amended
 2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
-rubric version 2)
+rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability)
 
 ## Context
 
@@ -130,13 +130,21 @@ without pretending the project has a global security master.
   valuation-input checks. SIC classification is normalized from the already-fetched SEC
   submissions payload for the target and every candidate. Missing SIC, market cap, annualized
   revenue, or freshness excludes a candidate with a recorded deterministic reason, and at least
-  three qualifying peers are required before median/IQR aggregates are emitted.
+  three qualifying peers are required before median/IQR aggregates are emitted. When the target's
+  EV/annualized-revenue multiple exceeds 50x or annualized revenue is below 2% of market cap,
+  revenue multiples are classified as not meaningful: the revenue-size band is skipped while SIC
+  and market-cap gates remain enforced, the peer set is explicitly caveated as
+  size/sector-comparable only, and target supportability records `not-meaningful` rather than
+  conflating applicability with missing data.
 - The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a
   human-audited comparability judgment, so it runs the `curated-no-sic` gate profile: the three
   SIC checks (missing peer SIC, unavailable target SIC, group mismatch) are skipped and only the
-  universal size and freshness gates apply. All other tiers (subject-registry, cached, and
-  model-proposed-validated) run the `full` profile with the SIC gate enforced, because the SIC
-  gate exists to screen untrusted provenance and must not second-guess an audited mapping.
+  universal size and freshness gates apply. The `revenue-exempt` profile takes precedence for a
+  target above the 50x applicability threshold or below the 2% de-minimis-revenue threshold, and
+  enforces SIC plus market cap while omitting only the revenue-size band. All other tiers
+  (subject-registry, cached, and model-proposed-validated) run the `full` profile with the SIC
+  gate enforced, because the SIC gate exists to screen
+  untrusted provenance and must not second-guess an audited mapping.
   Applying the registrant SIC uniformly zeroed out the flagship AAPL peer set — its mega-cap
   platform peers register under services SIC groups while AAPL registers under electronic
   computers — so the curated tier lost every comp. The applied profile is recorded on the
@@ -152,10 +160,11 @@ without pretending the project has a global security master.
   dates for non-US listings.
 - SEC duration selection cannot always distinguish quarter-only from year-to-date facts. Derived
   annualized metrics must preserve period metadata and be treated as screening evidence.
-- Peer comparability gates enforce SIC industry group and size similarity deterministically, but
-  finer economic comparability (business model, segment mix, growth profile) remains weakly
-  grounded and must be disclosed. Two-digit SIC groups are coarse and can admit peers with
-  different economics or reject conglomerates classified under a different group.
+- Peer comparability gates enforce SIC industry group and size similarity deterministically; for
+  revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
+  (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.
+  Two-digit SIC groups are coarse and can admit peers with different economics or reject
+  conglomerates classified under a different group.
 - Company profile reuse can remain valid through material non-filing events until its TTL expires.
 - The sanitizer does not detect every Unicode homoglyph or confusable attack.
 - The post-synthesis unsupported-claim audit is warning-only; the separate Report Integrity Audit

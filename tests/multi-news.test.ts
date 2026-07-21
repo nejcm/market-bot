@@ -58,6 +58,47 @@ function context(): CollectContext {
   };
 }
 
+async function runRepeatedTickerScenario(depth: "brief" | "deep") {
+  const newsSeenPath = tempSeenPath();
+  const relevant = Array.from({ length: 25 }, (_, index) => ({
+    ...source(
+      `relevant-${index}`,
+      "provider-a",
+      `AAPL material update ${index}`,
+      "2026-06-01T11:00:00.000Z",
+    ),
+    url: `https://example.test/aapl-repeat-${index}`,
+  }));
+  await recordSeenNewsSources({
+    path: newsSeenPath,
+    retentionDays: 30,
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth },
+    runId: "previous-run",
+    seenAt: "2026-05-18T00:00:00.000Z",
+    sources: relevant.slice(0, 17),
+  });
+  const generic = Array.from({ length: 7 }, (_, index) => ({
+    ...source(
+      `generic-${index}`,
+      "provider-b",
+      `Markets rise broadly ${index}`,
+      "2026-06-01T12:00:00.000Z",
+    ),
+    url: `https://example.test/generic-repeat-${index}`,
+  }));
+
+  return createMultiNewsAdapter(
+    [adapter("provider-a", relevant), adapter("provider-b", generic)],
+    ["provider-a", "provider-b"],
+  ).collect({
+    ...context(),
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth },
+    newsLimit: 15,
+    newsSeenPath,
+    newsSeenRetentionDays: 30,
+  });
+}
+
 describe("multi-news", () => {
   test("runs optional thematic search while providers without it remain unchanged", async () => {
     let genericOnlyCalls = 0;
@@ -551,6 +592,30 @@ describe("multi-news", () => {
     expect(result.newsAnalytics?.selectedRelevantTickerNewsSourceCount).toBe(3);
     expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(3);
     expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
+
+  test("deep runs replace generic survivors with relevant repeats above the brief floor", async () => {
+    const result = await runRepeatedTickerScenario("deep");
+
+    expect(result.newsSources).toHaveLength(15);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantTickerNewsSourceCount: 11,
+      selectedGenericTickerNewsSourceCount: 4,
+      relevantRepeatKeptCount: 3,
+    });
+    expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
+  });
+
+  test("brief runs retain the existing relevance floor on repeated ticker news", async () => {
+    const result = await runRepeatedTickerScenario("brief");
+
+    expect(result.newsSources).toHaveLength(15);
+    expect(result.newsAnalytics).toMatchObject({
+      selectedRelevantTickerNewsSourceCount: 8,
+      selectedGenericTickerNewsSourceCount: 7,
+      relevantRepeatKeptCount: 0,
+    });
+    expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(0);
   });
 
   test("clamps the relevance floor to available relevant supply when candidates are scarce", async () => {

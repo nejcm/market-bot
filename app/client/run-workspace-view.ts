@@ -1,5 +1,9 @@
 import type { RunDetail } from "../types";
 import type {
+  FinancialLensName,
+  FinancialLensPosture,
+} from "../../src/sources/extended-evidence/financial-lens";
+import type {
   ExtendedEvidenceItemView,
   ForecastGroup,
   ForecastRollup,
@@ -49,11 +53,17 @@ export interface RunWorkspaceCaseSection {
 
 export interface RunWorkspaceReportView {
   readonly summary: string;
-  readonly financialLensStats: readonly FinancialLensStatTile[];
+  readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
   readonly findings: readonly RunWorkspaceTextItem[];
   readonly cases: readonly RunWorkspaceCaseSection[];
   readonly scenarios: readonly ScenarioView[];
   readonly markdown?: string;
+}
+
+export interface RunWorkspaceFinancialLensGroup {
+  readonly lens: FinancialLensName;
+  readonly posture: FinancialLensPosture;
+  readonly tiles: readonly FinancialLensStatTile[];
 }
 
 export interface RunWorkspaceForecastsView {
@@ -129,6 +139,16 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const { report } = detail;
   const summary = typeof report?.summary === "string" ? report.summary : "";
   const financialLensStats = financialLensStatTiles(detail.financialLenses);
+  const financialLensGroups =
+    detail.financialLenses?.lenses
+      .map(
+        (lens): RunWorkspaceFinancialLensGroup => ({
+          lens: lens.name,
+          posture: lens.posture,
+          tiles: financialLensStats.filter((tile) => tile.lens === lens.name),
+        }),
+      )
+      .filter((group) => group.tiles.length > 0) ?? [];
   const findings = textItems(report, "keyFindings");
   const cases = CASE_SECTIONS.map((section) => ({
     ...section,
@@ -154,7 +174,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     {
       key: "financialLensStats",
       label: "Financial lens stats",
-      visible: financialLensStats.length > 0,
+      visible: financialLensGroups.length > 0,
     },
     { key: "findings", label: "Key findings", visible: findings.length > 0 },
     { key: "cases", label: "Cases & risks", visible: cases.length > 0 },
@@ -185,7 +205,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   return {
     report: {
       summary,
-      financialLensStats,
+      financialLensGroups,
       findings,
       cases,
       scenarios: scenarioItems,

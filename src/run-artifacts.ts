@@ -887,7 +887,10 @@ function hasFinancialLensMetricShape(value: unknown): boolean {
     typeof value.unit === "string" &&
     FINANCIAL_LENS_UNITS.has(value.unit) &&
     readStringArray(value, "sourceIds") !== undefined &&
-    (value.currency === undefined || typeof value.currency === "string")
+    (value.currency === undefined || typeof value.currency === "string") &&
+    (value.periodEnd === undefined || typeof value.periodEnd === "string") &&
+    (value.periodMonths === undefined ||
+      (typeof value.periodMonths === "number" && Number.isFinite(value.periodMonths)))
   );
 }
 

@@ -93,7 +93,7 @@
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
-  const financialLensStats = $derived(workspace?.report.financialLensStats ?? []);
+  const financialLensGroups = $derived(workspace?.report.financialLensGroups ?? []);
   const targetHealth = $derived(workspace?.forecasts.targetHealth);
   const historicalAudit = $derived(workspace?.evidence.historicalContext);
   const showForecastsSection = $derived(workspace?.forecasts.visible ?? false);
@@ -326,7 +326,7 @@
             </div>
           {/if}
 
-          {#if financialLensStats.length > 0}
+          {#if financialLensGroups.length > 0}
             <section
               {@attach bindSection("financialLensStats")}
               class="mt-5 scroll-mt-5"
@@ -343,35 +343,50 @@
                   normalized evidence metrics
                 </span>
               </div>
-              <div
-                class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
-              >
-                {#each financialLensStats as tile}
-                  <div
-                    class="px-3 py-2.5 {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}"
-                  >
-                    <div class="flex items-start justify-between gap-2">
+              <div class="mt-3 space-y-4">
+                {#each financialLensGroups as group}
+                  <div>
+                    <div class="flex items-baseline justify-between gap-2">
                       <div
-                        class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[
-                          tile.tone
-                        ]}"
+                        class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#353a40]"
                       >
-                        {tile.value}
+                        {group.lens}
                       </div>
-                      {#if tile.assessment !== undefined}
-                        <span
-                          class="rounded border border-current uppercase font-medium px-1 py-px font-mono text-[10px] leading-tight {FINANCIAL_LENS_VALUE_CLASSES[
-                            tile.tone
-                          ]}"
-                        >
-                          {tile.assessment}
-                        </span>
-                      {/if}
+                      <div class="font-mono text-[10px] text-[#737980]">
+                        {group.posture.replaceAll("-", " ")}
+                      </div>
                     </div>
-                    <div
-                      class="mt-1 text-[10px] uppercase tracking-wider text-[#5c6066]"
-                    >
-                      {tile.label}
+                    <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                      {#each group.tiles as tile}
+                        <div class="px-3 py-2.5 {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}">
+                          <div class="flex items-start justify-between gap-2">
+                            <div
+                              class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[
+                                tile.tone
+                              ]}"
+                            >
+                              {tile.value}
+                            </div>
+                            {#if tile.assessment !== undefined}
+                              <span
+                                class="rounded border border-current uppercase font-medium px-1 py-px font-mono text-[10px] leading-tight {FINANCIAL_LENS_VALUE_CLASSES[
+                                  tile.tone
+                                ]}"
+                              >
+                                {tile.assessment}
+                              </span>
+                            {/if}
+                          </div>
+                          <div class="mt-1 text-[10px] uppercase tracking-wider text-[#5c6066]">
+                            {tile.label}
+                          </div>
+                          {#if tile.caption !== undefined}
+                            <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
+                              {tile.caption}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
                     </div>
                   </div>
                 {/each}

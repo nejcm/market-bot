@@ -203,6 +203,62 @@ describe("run workspace view", () => {
     expect(tocKeys(view)).toEqual(["forecasts", "gaps"]);
   });
 
+  test("groups legacy financial lens metrics by lens and retains posture", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      financialLenses: {
+        version: 1,
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        symbol: "AAPL",
+        lenses: [
+          {
+            name: "Quality",
+            posture: "criteria-supported",
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+            metrics: [
+              {
+                key: "grossMargin",
+                label: "Gross margin",
+                value: 0.42,
+                unit: "ratio-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+            ],
+          },
+          {
+            name: "Momentum",
+            posture: "criteria-mixed",
+            sourceIds: ["verified-snapshot-AAPL"],
+            metrics: [
+              {
+                key: "rsi14",
+                label: "RSI14",
+                value: 58,
+                unit: "number",
+                sourceIds: ["verified-snapshot-AAPL"],
+              },
+            ],
+          },
+        ],
+        sourceIds: ["extended-sec-edgar-aapl-fundamentals", "verified-snapshot-AAPL"],
+      },
+    });
+
+    expect(view.report.financialLensGroups).toEqual([
+      {
+        lens: "Quality",
+        posture: "criteria-supported",
+        tiles: [expect.objectContaining({ key: "grossMargin", lens: "Quality", tone: "strong" })],
+      },
+      {
+        lens: "Momentum",
+        posture: "criteria-mixed",
+        tiles: [expect.objectContaining({ key: "rsi14", lens: "Momentum", tone: "strong" })],
+      },
+    ]);
+    expect(tocKeys(view)).toEqual(["financialLensStats"]);
+  });
+
   test("requires snapshot job type, file availability, and valid content", () => {
     const eligible: RunDetail = {
       summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH] }),

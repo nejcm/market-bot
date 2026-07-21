@@ -198,6 +198,7 @@ export interface FinancialLensStatTile extends ValuationMetricTile {
   readonly lens: FinancialLensName;
   readonly tone: FinancialLensStatTone;
   readonly assessment?: "Strong" | "Healthy" | "Watch" | "Weak";
+  readonly caption?: string;
 }
 
 export interface BusinessFrameworkMetricTile extends ValuationMetricTile {
@@ -523,22 +524,6 @@ function assessFinancialLensMetric(
         (v) => v >= 0.5,
       );
     }
-    case "roe": {
-      return assessment(
-        rawValue,
-        (v) => v >= 0.15,
-        (v) => v >= 0.1,
-        (v) => v >= 0.05,
-      );
-    }
-    case "roa": {
-      return assessment(
-        rawValue,
-        (v) => v >= 0.07,
-        (v) => v >= 0.04,
-        (v) => v >= 0.02,
-      );
-    }
     case "revenueDeltaPercent":
     case "grossProfitDeltaPercent":
     case "operatingIncomeDeltaPercent":
@@ -569,47 +554,12 @@ function assessFinancialLensMetric(
         (v) => v >= 1 && v <= 4,
       );
     }
-    case "debtToEquity": {
-      return assessment(
-        rawValue,
-        (v) => v <= 0.5,
-        (v) => v <= 1,
-        (v) => v <= 1.5,
-      );
-    }
     case "payoutRatio": {
       return assessment(
         rawValue,
         (v) => v >= 0 && v <= 0.6,
         (v) => v >= 0 && v <= 0.75,
         (v) => v >= 0 && v <= 0.8,
-      );
-    }
-    case "evToAnnualizedRevenue":
-    case "marketCapToAnnualizedRevenue": {
-      return assessment(
-        rawValue,
-        (v) => v > 0 && v <= 3,
-        (v) => v > 0 && v <= 5,
-        (v) => v > 0 && v <= 8,
-      );
-    }
-    case "peRatio":
-    case "forwardPe":
-    case "pcfRatio": {
-      return assessment(
-        rawValue,
-        (v) => v > 0 && v <= 15,
-        (v) => v > 0 && v <= 20,
-        (v) => v > 0 && v <= 25,
-      );
-    }
-    case "priceToBook": {
-      return assessment(
-        rawValue,
-        (v) => v > 0 && v <= 3,
-        (v) => v > 0 && v <= 4.5,
-        (v) => v > 0 && v <= 6,
       );
     }
     case "rsi14": {
@@ -634,6 +584,43 @@ function assessFinancialLensMetric(
   }
 }
 
+function financialLensSourceLabel(sourceIds: readonly string[]): string | undefined {
+  const hasSec = sourceIds.some((sourceId) => sourceId.includes("sec-edgar"));
+  const hasYahoo = sourceIds.some((sourceId) => sourceId.includes("yahoo"));
+  const hasVerifiedSnapshot = sourceIds.some((sourceId) =>
+    sourceId.startsWith("verified-snapshot-"),
+  );
+  if (hasSec && hasYahoo) {
+    return "SEC EDGAR + Yahoo quote";
+  }
+  if (hasSec) {
+    return "SEC EDGAR";
+  }
+  if (hasYahoo) {
+    return "Yahoo quote";
+  }
+  if (hasVerifiedSnapshot) {
+    return "Verified market snapshot";
+  }
+  return undefined;
+}
+
+function financialLensMetricCaption(metric: FinancialLensMetric): string | undefined {
+  const source = financialLensSourceLabel(metric.sourceIds);
+  if (source === undefined) {
+    return undefined;
+  }
+  if (metric.periodEnd === undefined) {
+    return source;
+  }
+  const date = metric.periodEnd.slice(0, 10);
+  if (metric.periodMonths === undefined) {
+    return `${source} · observed ${date}`;
+  }
+  const period = metric.periodMonths === 12 ? "FY" : `${String(metric.periodMonths)}M`;
+  return `${source} · ${period} period ended ${date}`;
+}
+
 export function financialLensStatTiles(
   artifact?: FinancialLensArtifact,
 ): readonly FinancialLensStatTile[] {
@@ -646,12 +633,14 @@ export function financialLensStatTiles(
         typeof metric.value === "string"
           ? metric.value
           : formatLensValue(metric.value, metric.unit, metric.currency);
+      const caption = financialLensMetricCaption(metric);
       return {
         key: metric.key,
         lens: lens.name,
         label: metric.label,
         value,
         ...assessFinancialLensMetric(metric),
+        ...(caption !== undefined ? { caption } : {}),
       };
     }),
   );

@@ -11,7 +11,8 @@ tier-scoped SIC gate; amended 2026-07-09: research representative snapshots and 
 amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15; amended
 2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
-rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability)
+rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
+2026-07-21: normalized fundamental history)
 
 ## Context
 
@@ -120,6 +121,14 @@ without pretending the project has a global security master.
 - Financial Lens metrics preserve per-metric source IDs. SEC facts are preferred for
   filing-intrinsic metrics; Yahoo snapshot fundamentals supply price-relative metrics and
   non-US fallback coverage.
+- Equity runs persist `normalized/fundamental-history.json` as a deterministic SEC companyfacts
+  sidecar without changing `report.json`. Each series selects the first configured concept with
+  facts, filters by the analysis cutoff, retains up to ten 10-14-month 10-K periods, and resolves
+  duplicate period ends to the latest-filed restatement. TTM flows use full FY plus latest YTD less
+  aligned prior-year YTD; mismatched periods are omitted with an audit note. Diluted-EPS TTM is
+  explicitly labeled an approximation because per-share periods are added without reweighting
+  diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
+  matched periods and compatible units.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -160,6 +169,10 @@ without pretending the project has a global security master.
   dates for non-US listings.
 - SEC duration selection cannot always distinguish quarter-only from year-to-date facts. Derived
   annualized metrics must preserve period metadata and be treated as screening evidence.
+- Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
+  series: the first configured concept with facts supplies the whole series. This keeps selection
+  consistent and deterministic but can shorten history. Diluted-EPS TTM remains approximate when
+  share counts vary across component periods.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.

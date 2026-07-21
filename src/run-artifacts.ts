@@ -48,6 +48,10 @@ import {
   type SourcePlanArtifact,
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
+import type {
+  FundamentalHistoryArtifact,
+  FundamentalHistorySeriesKey,
+} from "./sources/extended-evidence/fundamental-history";
 import {
   isBusinessFrameworkGapCode,
   isBusinessFrameworkPosture,
@@ -119,6 +123,7 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
   readonly status: RunArtifactStatus;
@@ -925,6 +930,100 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
   return value as unknown as FinancialLensArtifact;
 }
 
+const FUNDAMENTAL_HISTORY_SERIES_KEYS: readonly FundamentalHistorySeriesKey[] = [
+  "revenue",
+  "grossProfit",
+  "operatingIncome",
+  "netIncome",
+  "dilutedEps",
+  "operatingCashFlow",
+  "capex",
+  "freeCashFlowProxy",
+  "grossMargin",
+  "operatingMargin",
+  "netMargin",
+];
+
+function hasFundamentalHistoryPointShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "value") !== undefined &&
+    (value.form === "10-K" || value.form === "TTM") &&
+    readNumber(value, "fy") !== undefined &&
+    readString(value, "fp") !== undefined &&
+    readString(value, "periodStart") !== undefined &&
+    readString(value, "periodEnd") !== undefined &&
+    readNumber(value, "periodMonths") !== undefined &&
+    readString(value, "filedAt") !== undefined &&
+    readString(value, "currency") !== undefined
+  );
+}
+
+function hasFundamentalHistoryCagrShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "percent") !== undefined &&
+    readNumber(value, "years") !== undefined &&
+    readString(value, "periodStart") !== undefined &&
+    readString(value, "periodEnd") !== undefined
+  );
+}
+
+function hasFundamentalHistoryMarginChangeShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "percentagePoints") !== undefined &&
+    readNumber(value, "years") !== undefined &&
+    readString(value, "periodStart") !== undefined &&
+    readString(value, "periodEnd") !== undefined
+  );
+}
+
+function hasFundamentalHistorySeriesShape(
+  value: unknown,
+  key: FundamentalHistorySeriesKey,
+): boolean {
+  return (
+    isRecord(value) &&
+    value.key === key &&
+    readString(value, "label") !== undefined &&
+    (value.unit === "currency" || value.unit === "per-share" || value.unit === "ratio") &&
+    (value.concept === undefined || readString(value, "concept") !== undefined) &&
+    Array.isArray(value.annual) &&
+    value.annual.every(hasFundamentalHistoryPointShape) &&
+    (value.ttm === undefined || hasFundamentalHistoryPointShape(value.ttm)) &&
+    (value.cagr === undefined || hasFundamentalHistoryCagrShape(value.cagr)) &&
+    (value.marginChange === undefined ||
+      hasFundamentalHistoryMarginChangeShape(value.marginChange)) &&
+    readStringArray(value, "notes") !== undefined
+  );
+}
+
+export function readFundamentalHistoryArtifact(
+  value: unknown,
+): FundamentalHistoryArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
+    readString(value, "symbol") === undefined ||
+    readString(value, "sourceId") === undefined ||
+    (value.sourceUrl !== undefined && readString(value, "sourceUrl") === undefined) ||
+    !isRecord(value.series)
+  ) {
+    return undefined;
+  }
+  const { series } = value;
+  if (
+    !FUNDAMENTAL_HISTORY_SERIES_KEYS.every((key) =>
+      hasFundamentalHistorySeriesShape(series[key], key),
+    )
+  ) {
+    return undefined;
+  }
+  return value as unknown as FundamentalHistoryArtifact;
+}
+
 function hasBusinessFrameworkGaps(value: unknown, version: 1 | 2): boolean {
   return (
     Array.isArray(value) &&
@@ -1148,6 +1247,7 @@ const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
+const FUNDAMENTAL_HISTORY_FILE = RUN_ARTIFACT_FILES.fundamentalHistory;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
 const WEB_SUBJECT_PROFILE_FILE = RUN_ARTIFACT_FILES.webSubjectProfile;
 
@@ -1178,6 +1278,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
+  const fundamentalHistoryFile = await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
   const webSubjectProfileFile = await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
   const status: RunArtifactStatus = {
@@ -1204,6 +1305,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     financialLensesFile.status === "ok"
       ? readFinancialLensesArtifact(financialLensesFile.value)
       : undefined;
+  const fundamentalHistory =
+    fundamentalHistoryFile.status === "ok"
+      ? readFundamentalHistoryArtifact(fundamentalHistoryFile.value)
+      : undefined;
   const businessFramework =
     businessFrameworkFile.status === "ok"
       ? readBusinessFrameworkArtifact(businessFrameworkFile.value)
@@ -1227,6 +1332,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
+      ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
       ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),
       status,

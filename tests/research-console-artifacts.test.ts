@@ -13,6 +13,7 @@ import {
   searchRunReports,
 } from "../app/artifacts";
 import { researchReport } from "./support/fixtures";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -136,6 +137,37 @@ describe("research console app artifacts", () => {
       sourceIds: [webSourceId],
       secFilingBasisDate: "2026-05-01",
     });
+    writeJson(
+      join(runDir, "normalized", "fundamental-history.json"),
+      deriveFundamentalHistory(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: {
+                units: {
+                  USD: [
+                    {
+                      val: 100,
+                      form: "10-K",
+                      fp: "FY",
+                      fy: 2025,
+                      filed: "2025-11-01",
+                      start: "2024-10-01",
+                      end: "2025-09-30",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          symbol: "AAPL",
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-aapl-fundamentals",
+        },
+      ),
+    );
 
     const detail = await readRunDetail(dataDir, "run-c");
 
@@ -152,6 +184,11 @@ describe("research console app artifacts", () => {
     expect(detail?.webSubjectProfile).toMatchObject({
       subjectKind: "company",
       companyName: "Apple Inc.",
+    });
+    expect(detail?.fundamentalHistory).toMatchObject({
+      version: 1,
+      symbol: "AAPL",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
     });
   });
 

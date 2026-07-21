@@ -4,7 +4,16 @@ import type {
   FinancialLensName,
   FinancialLensPosture,
 } from "../../src/sources/extended-evidence/financial-lens";
-import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
+import type {
+  FundamentalHistoryArtifact,
+  FundamentalHistoryPoint,
+  FundamentalHistorySeriesKey,
+} from "../../src/sources/extended-evidence/fundamental-history";
+import {
+  CURRENCY_SYMBOLS,
+  formatLensValue,
+  scaleCurrency,
+} from "../../src/sources/extended-evidence/value-format";
 import type {
   ExtendedEvidenceItemView,
   ForecastGroup,
@@ -117,6 +126,39 @@ export interface RunWorkspaceEquityHeaderView {
   readonly financials: readonly RunWorkspaceEquityHeaderFinancial[];
 }
 
+export interface RunWorkspaceSparklineBar {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface RunWorkspaceSparklineGeometry {
+  readonly bars: readonly RunWorkspaceSparklineBar[];
+  readonly baseline: number;
+}
+
+export interface RunWorkspaceFundamentalHistoryCard {
+  readonly key:
+    | "revenue"
+    | "freeCashFlowProxy"
+    | "dilutedEps"
+    | "grossMargin"
+    | "operatingMargin"
+    | "netMargin";
+  readonly label: string;
+  readonly value: string;
+  readonly valuePeriod: string;
+  readonly trendLabel?: string;
+  readonly periodRange: string;
+  readonly sourceCaption: string;
+  readonly geometry: RunWorkspaceSparklineGeometry;
+}
+
+export interface RunWorkspaceFundamentalHistoryView {
+  readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
+}
+
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
@@ -124,6 +166,7 @@ export interface RunWorkspaceTableOfContentsEntry {
 
 export interface RunWorkspaceView {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
+  readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly report: RunWorkspaceReportView;
   readonly forecasts: RunWorkspaceForecastsView;
   readonly evidence: RunWorkspaceEvidenceView;
@@ -131,6 +174,107 @@ export interface RunWorkspaceView {
   readonly sources: RunWorkspaceSourcesView;
   readonly snapshot?: RunWorkspaceSnapshotView;
   readonly tableOfContents: readonly RunWorkspaceTableOfContentsEntry[];
+}
+
+const FUNDAMENTAL_HISTORY_CARD_KEYS: readonly RunWorkspaceFundamentalHistoryCard["key"][] = [
+  "revenue",
+  "freeCashFlowProxy",
+  "dilutedEps",
+  "grossMargin",
+  "operatingMargin",
+  "netMargin",
+];
+
+function sparklineGeometry(
+  points: readonly FundamentalHistoryPoint[],
+): RunWorkspaceSparklineGeometry {
+  const values = points.map((point) => point.value);
+  const minimum = Math.min(0, ...values);
+  const maximum = Math.max(0, ...values);
+  const span = maximum - minimum;
+  const baseline = span === 0 ? 0.5 : maximum / span;
+  const slotWidth = points.length === 0 ? 1 : 1 / points.length;
+  const width = Math.min(0.12, slotWidth * 0.68);
+  return {
+    baseline,
+    bars: points.map((point, index) => {
+      const valueY = span === 0 ? baseline : (maximum - point.value) / span;
+      return {
+        x: (index + 0.5) * slotWidth - width / 2,
+        y: Math.min(valueY, baseline),
+        width,
+        height: Math.abs(valueY - baseline),
+      };
+    }),
+  };
+}
+
+function historyPointValue(
+  artifact: FundamentalHistoryArtifact,
+  key: FundamentalHistorySeriesKey,
+  point: FundamentalHistoryPoint,
+): string {
+  const { unit } = artifact.series[key];
+  if (unit === "ratio") {
+    return formatLensValue(point.value, "ratio-percent");
+  }
+  const [currency = point.currency] = point.currency.split("/");
+  if (unit === "per-share") {
+    const value = formatLensValue(point.value, "number");
+    const symbol = CURRENCY_SYMBOLS[currency];
+    return symbol === undefined ? `${currency} ${value}` : `${symbol}${value}`;
+  }
+  return formatLensValue(point.value, "currency", currency);
+}
+
+function historyTrendLabel(
+  artifact: FundamentalHistoryArtifact,
+  key: FundamentalHistorySeriesKey,
+): string | undefined {
+  const series = artifact.series[key];
+  if (series.cagr !== undefined) {
+    const sign = series.cagr.percent > 0 ? "+" : "";
+    return `${sign}${series.cagr.percent.toFixed(1)}% CAGR · ${series.cagr.years.toFixed(1)}Y`;
+  }
+  if (series.marginChange !== undefined) {
+    const sign = series.marginChange.percentagePoints > 0 ? "+" : "";
+    return `${sign}${series.marginChange.percentagePoints.toFixed(1)}pp change · ${series.marginChange.years.toFixed(1)}Y`;
+  }
+  return undefined;
+}
+
+export function fundamentalHistoryView(
+  detail: RunDetail,
+): RunWorkspaceFundamentalHistoryView | undefined {
+  const artifact = detail.fundamentalHistory;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const cards = FUNDAMENTAL_HISTORY_CARD_KEYS.flatMap((key) => {
+    const series = artifact.series[key];
+    const latest = series.ttm ?? series.annual.at(-1);
+    const [firstAnnual] = series.annual;
+    const lastAnnual = series.annual.at(-1);
+    if (latest === undefined || firstAnnual === undefined || lastAnnual === undefined) {
+      return [];
+    }
+    const points = [...series.annual, ...(series.ttm !== undefined ? [series.ttm] : [])];
+    const trendLabel = historyTrendLabel(artifact, key);
+    return [
+      {
+        key,
+        label: series.label,
+        value: historyPointValue(artifact, key, latest),
+        valuePeriod:
+          latest.form === "TTM" ? `TTM through ${latest.periodEnd}` : `FY ${String(latest.fy)}`,
+        ...(trendLabel !== undefined ? { trendLabel } : {}),
+        periodRange: `FY ${String(firstAnnual.fy)}–FY ${String(lastAnnual.fy)} · ${firstAnnual.periodEnd} to ${lastAnnual.periodEnd}`,
+        sourceCaption: "SEC EDGAR · companyfacts",
+        geometry: sparklineGeometry(points),
+      },
+    ];
+  });
+  return cards.length === 0 ? undefined : { cards };
 }
 
 const CASE_SECTIONS: readonly {
@@ -281,6 +425,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const extendedItems = extendedEvidenceItems(report);
   const snapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
+  const fundamentalHistory = fundamentalHistoryView(detail);
   const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
 
   const tableOfContents = [
@@ -294,6 +439,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     { key: "cases", label: "Cases & risks", visible: cases.length > 0 },
     { key: "scenarios", label: "Scenarios", visible: scenarioItems.length > 0 },
     { key: "snapshot", label: "Market snapshot", visible: snapshot !== undefined },
+    {
+      key: "fundamentalHistory",
+      label: "Fundamental history",
+      visible: fundamentalHistory !== undefined,
+    },
     { key: "history", label: "Historical context", visible: historicalContext !== undefined },
     {
       key: "webSubjectProfile",
@@ -318,6 +468,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
 
   return {
     ...(equityHeader !== undefined ? { equityHeader } : {}),
+    ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
     report: {
       summary,
       financialLensGroups,

@@ -7,6 +7,7 @@ import {
   scanRunArtifacts,
   scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import {
   marketSnapshot,
   prediction,
@@ -66,6 +67,46 @@ function webSubjectProfile(symbol: string): unknown {
 }
 
 describe("loadRunArtifact", () => {
+  test("round-trips a validated fundamental-history sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "fundamental-history");
+    const fundamentalHistory = deriveFundamentalHistory(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  {
+                    val: 100,
+                    form: "10-K",
+                    fp: "FY",
+                    fy: 2024,
+                    filed: "2024-11-01",
+                    start: "2023-10-01",
+                    end: "2024-09-30",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2025-08-01T00:00:00.000Z",
+        analysisAsOf: "2025-08-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "fundamental-history" }));
+    await writeJson(join(runDir, "normalized", "fundamental-history.json"), fundamentalHistory);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.fundamentalHistory).toEqual(fundamentalHistory);
+  });
+
   test("loads report, scores, and snapshots at full fidelity", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "run-ok");

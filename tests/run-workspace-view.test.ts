@@ -3,6 +3,7 @@ import type { RunDetail, RunSummary } from "../app/types";
 import { buildRunWorkspaceView, type RunWorkspaceView } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -77,11 +78,116 @@ function marketSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot
   };
 }
 
+function fundamentalHistoryAnnualFacts(values: readonly number[]) {
+  return values.map((val, index) => {
+    const fy = 2022 + index;
+    return {
+      val,
+      form: "10-K",
+      fp: "FY",
+      fy,
+      filed: `${String(fy)}-11-01`,
+      start: `${String(fy - 1)}-10-01`,
+      end: `${String(fy)}-09-30`,
+    };
+  });
+}
+
+function fundamentalHistoryFixture(epsValues: readonly number[] = [2, 2.5, 6.13]) {
+  return deriveFundamentalHistory(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: { units: { USD: fundamentalHistoryAnnualFacts([100, 120, 150]) } },
+          GrossProfit: { units: { USD: fundamentalHistoryAnnualFacts([40, 50, 66]) } },
+          OperatingIncomeLoss: {
+            units: { USD: fundamentalHistoryAnnualFacts([25, 32, 42]) },
+          },
+          NetIncomeLoss: { units: { USD: fundamentalHistoryAnnualFacts([20, 25, 33]) } },
+          EarningsPerShareDiluted: {
+            units: { "USD/shares": fundamentalHistoryAnnualFacts(epsValues) },
+          },
+          NetCashProvidedByUsedInOperatingActivities: {
+            units: { USD: fundamentalHistoryAnnualFacts([30, 36, 45]) },
+          },
+          PaymentsToAcquirePropertyPlantAndEquipment: {
+            units: { USD: fundamentalHistoryAnnualFacts([8, 9, 10]) },
+          },
+        },
+      },
+    },
+    {
+      symbol: "AAPL",
+      generatedAt: "2025-08-01T00:00:00.000Z",
+      analysisAsOf: "2025-08-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    },
+  );
+}
+
 function tocKeys(view: RunWorkspaceView): readonly string[] {
   return view.tableOfContents.map((entry) => entry.key);
 }
 
 describe("run workspace view", () => {
+  test("projects fundamental history into pre-scaled sparkline cards", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      fundamentalHistory: fundamentalHistoryFixture(),
+    });
+    const subDollarView = buildRunWorkspaceView({
+      summary: summary(),
+      fundamentalHistory: fundamentalHistoryFixture([2, 1, 0.5]),
+    });
+
+    expect(view.fundamentalHistory?.cards.map((card) => card.key)).toEqual([
+      "revenue",
+      "freeCashFlowProxy",
+      "dilutedEps",
+      "grossMargin",
+      "operatingMargin",
+      "netMargin",
+    ]);
+    expect(view.fundamentalHistory?.cards[0]).toMatchObject({
+      value: "$150",
+      trendLabel: expect.stringContaining("CAGR"),
+      periodRange: "FY 2022–FY 2024 · 2022-09-30 to 2024-09-30",
+      sourceCaption: "SEC EDGAR · companyfacts",
+    });
+    expect(view.fundamentalHistory?.cards.find((card) => card.key === "dilutedEps")?.value).toBe(
+      "$6.13",
+    );
+    expect(
+      subDollarView.fundamentalHistory?.cards.find((card) => card.key === "dilutedEps")?.value,
+    ).toBe("$0.50");
+    expect(
+      view.fundamentalHistory?.cards.every(
+        (card) =>
+          card.geometry.baseline >= 0 &&
+          card.geometry.baseline <= 1 &&
+          card.geometry.bars.every(
+            (bar) =>
+              bar.x >= 0 &&
+              bar.x <= 1 &&
+              bar.y >= 0 &&
+              bar.y <= 1 &&
+              bar.width >= 0 &&
+              bar.width <= 1 &&
+              bar.height >= 0 &&
+              bar.height <= 1,
+          ),
+      ),
+    ).toBe(true);
+    expect(tocKeys(view)).toContain("fundamentalHistory");
+  });
+
+  test("omits the fundamental-history projection for old runs without the sidecar", () => {
+    const view = buildRunWorkspaceView({ summary: summary() });
+
+    expect(view.fundamentalHistory).toBeUndefined();
+    expect(tocKeys(view)).not.toContain("fundamentalHistory");
+  });
+
   test("builds populated report, forecast, evidence, gap, source, and snapshot sections", () => {
     const detail: RunDetail = {
       summary: summary({

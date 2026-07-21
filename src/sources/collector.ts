@@ -23,7 +23,12 @@ import { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 import { createCollectContext } from "./source-request";
 import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
+import { isUsListing } from "./instrument-capability";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
+import {
+  collectFundamentalHistory,
+  type FundamentalHistoryArtifact,
+} from "./extended-evidence/fundamental-history";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
@@ -490,6 +495,9 @@ export async function collectSources(
     ...(enrichmentResult.financialLensResult.artifact !== undefined
       ? { financialLenses: enrichmentResult.financialLensResult.artifact }
       : {}),
+    ...(enrichmentResult.fundamentalHistory !== undefined
+      ? { fundamentalHistory: enrichmentResult.fundamentalHistory }
+      : {}),
     ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
       ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
@@ -540,6 +548,7 @@ interface EquityEnrichmentResult {
   readonly valuationCompsResult: ValuationCompsResult | undefined;
   readonly valuationCompsSkippedGaps: readonly SourceGap[];
   readonly financialLensResult: FinancialLensResult;
+  readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly businessFrameworkResult: BusinessFrameworkResult;
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
@@ -593,6 +602,12 @@ async function collectEquityEnrichment(
     evidenceWithComps,
     input.fetchedAt,
   );
+  const fundamentalHistory = isUsListing(
+    input.command.symbol,
+    input.identityContext.instrumentIdentity,
+  )
+    ? await collectFundamentalHistory(input.identityContext, input.command.symbol)
+    : undefined;
   const financialLensResult = addFinancialLensEvidence(
     input.command,
     input.marketSnapshots,
@@ -622,6 +637,7 @@ async function collectEquityEnrichment(
     valuationResult,
     valuationCompsResult,
     valuationCompsSkippedGaps,
+    fundamentalHistory,
     financialLensResult,
     businessFrameworkResult,
     ...earningsResult,
@@ -640,6 +656,7 @@ function noEquityEnrichment(
     valuationResult,
     valuationCompsResult: undefined,
     valuationCompsSkippedGaps: [],
+    fundamentalHistory: undefined,
     financialLensResult,
     businessFrameworkResult,
     earningsSetup: undefined,

@@ -273,6 +273,9 @@ export async function readRunDetail(
     ...(artifact.artifact?.financialLenses !== undefined
       ? { financialLenses: artifact.artifact.financialLenses }
       : {}),
+    ...(artifact.artifact?.fundamentalHistory !== undefined
+      ? { fundamentalHistory: artifact.artifact.fundamentalHistory }
+      : {}),
     ...(artifact.artifact?.businessFramework !== undefined
       ? { businessFramework: artifact.artifact.businessFramework }
       : {}),

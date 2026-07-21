@@ -1,5 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
+import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
@@ -151,6 +152,7 @@ export interface CollectedSources {
   readonly earningsSetup?: EarningsSetupCollected;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
   readonly webSubjectProfileReuse?: {

@@ -264,6 +264,9 @@ export async function readRunDetail(
     ...(trace !== undefined ? { trace } : {}),
     ...(score !== undefined ? { score } : {}),
     ...(missAutopsy !== undefined ? { missAutopsy } : {}),
+    ...(artifact.artifact !== undefined
+      ? { marketSnapshots: artifact.artifact.marketSnapshots }
+      : {}),
     ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
       ? { verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot }
       : {}),

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
 import { buildRunWorkspaceView, type RunWorkspaceView } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
-import type { VerifiedMarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
 
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -52,6 +52,28 @@ function snapshot(): VerifiedMarketSnapshot {
       { date: "2026-07-02", close: 209 },
       { date: "2026-07-03", close: 211 },
     ],
+  };
+}
+
+function marketSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot {
+  return {
+    sourceId: "market-yahoo-equity-aapl",
+    assetClass: "equity",
+    symbol: "AAPL",
+    name: "Apple",
+    identity: { displayName: "Apple Inc.", quoteCurrency: "USD" },
+    price: 211.25,
+    changePercent24h: 1.4,
+    volume: 62_000_000,
+    marketCap: 3_000_000_000_000,
+    fundamentals: {
+      trailingPE: 31,
+      forwardPE: 28,
+      dividendYield: 0.36,
+      sharesOutstanding: 15_000_000_000,
+    },
+    observedAt: "2026-07-04T12:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -188,6 +210,106 @@ describe("run workspace view", () => {
     expect(view.sources.items).toEqual([]);
     expect(view.snapshot).toBeUndefined();
     expect(view.tableOfContents).toEqual([]);
+  });
+
+  test("projects a matching equity snapshot into an unassessed header", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      marketSnapshots: [marketSnapshot()],
+    });
+
+    expect(view.equityHeader).toEqual({
+      displayName: "Apple Inc.",
+      symbol: "AAPL",
+      price: "$211",
+      quoteCurrency: "USD",
+      dailyChange: "+1.4%",
+      changeDirection: "positive",
+      asOf: "Yahoo quote · 2026-07-04T12:00:00.000Z",
+      financials: [
+        {
+          key: "marketCap",
+          label: "Market cap",
+          value: "$3000.0B",
+          caption: "Yahoo quote · point in time · 2026-07-04T12:00:00.000Z",
+        },
+        {
+          key: "trailingPE",
+          label: "Trailing P/E",
+          value: "31.00x",
+          caption: "Yahoo quote · trailing 12M · 2026-07-04T12:00:00.000Z",
+        },
+        {
+          key: "forwardPE",
+          label: "Forward P/E",
+          value: "28.00x",
+          caption: "Yahoo quote · forward · 2026-07-04T12:00:00.000Z",
+        },
+        {
+          key: "dividendYield",
+          label: "Dividend yield",
+          value: "0.4%",
+          caption: "Yahoo quote · quote snapshot · 2026-07-04T12:00:00.000Z",
+        },
+        {
+          key: "sharesOutstanding",
+          label: "Shares outstanding",
+          value: "15.0B",
+          caption: "Yahoo quote · point in time · 2026-07-04T12:00:00.000Z",
+        },
+      ],
+    });
+  });
+
+  test("passes through GBp quote currency formatting", () => {
+    const {
+      marketCap: _marketCap,
+      fundamentals: _fundamentals,
+      ...gbpSnapshot
+    } = marketSnapshot({
+      symbol: "rr.l",
+      identity: { displayName: "Rolls-Royce Holdings", quoteCurrency: "GBp" },
+      price: 912.4,
+    });
+    const view = buildRunWorkspaceView({
+      summary: summary({ symbol: "RR.L" }),
+      marketSnapshots: [gbpSnapshot],
+    });
+
+    expect(view.equityHeader).toMatchObject({ price: "912.4p", quoteCurrency: "GBp" });
+  });
+
+  test("omits the equity header without snapshots or without an asset and symbol match", () => {
+    expect(buildRunWorkspaceView({ summary: summary() }).equityHeader).toBeUndefined();
+
+    const researchView = buildRunWorkspaceView({
+      summary: summary({ jobType: "research", assetClass: "research", symbol: "AI" }),
+      marketSnapshots: [marketSnapshot()],
+    });
+    expect(researchView.equityHeader).toBeUndefined();
+
+    const mismatchedView = buildRunWorkspaceView({
+      summary: summary(),
+      marketSnapshots: [marketSnapshot({ symbol: "MSFT" })],
+    });
+    expect(mismatchedView.equityHeader).toBeUndefined();
+  });
+
+  test("falls back from identity display name to snapshot name and symbol", () => {
+    const named = buildRunWorkspaceView({
+      summary: summary(),
+      marketSnapshots: [marketSnapshot({ identity: { quoteCurrency: "USD" } })],
+    });
+    const { name: _name, ...unnamedSnapshot } = marketSnapshot({
+      identity: { quoteCurrency: "USD" },
+    });
+    const symbolOnly = buildRunWorkspaceView({
+      summary: summary(),
+      marketSnapshots: [unnamedSnapshot],
+    });
+
+    expect(named.equityHeader?.displayName).toBe("Apple");
+    expect(symbolOnly.equityHeader?.displayName).toBe("AAPL");
   });
 
   test("shows forecasts and table-of-contents entries for a disclosed forecast shortfall", () => {

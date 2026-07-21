@@ -94,6 +94,7 @@
   const businessFramework = $derived(workspace?.evidence.businessFramework);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
   const financialLensGroups = $derived(workspace?.report.financialLensGroups ?? []);
+  const equityHeader = $derived(workspace?.equityHeader);
   const targetHealth = $derived(workspace?.forecasts.targetHealth);
   const historicalAudit = $derived(workspace?.evidence.historicalContext);
   const showForecastsSection = $derived(workspace?.forecasts.visible ?? false);
@@ -283,7 +284,30 @@
           {/if}
         </div>
       </div>
-      <div class="flex gap-5.5">
+      <div class="flex flex-wrap items-end justify-end gap-5.5">
+        {#if equityHeader !== undefined}
+          <div class="text-right">
+            <div class="flex items-baseline justify-end gap-2 font-mono">
+              <span class="text-[19px] font-semibold">{equityHeader.price}</span>
+              <span
+                class="text-[13px] font-medium {equityHeader.changeDirection ===
+                'positive'
+                  ? 'text-[#0F9D58]'
+                  : equityHeader.changeDirection === 'negative'
+                    ? 'text-[#9B0F06]'
+                    : 'text-muted-foreground'}"
+              >
+                {equityHeader.dailyChange}
+              </span>
+            </div>
+            <div class="mt-0.5 text-[10.5px] text-muted-foreground">
+              {equityHeader.displayName} · {equityHeader.quoteCurrency}
+            </div>
+            <div class="mt-0.5 font-mono text-[9px] text-[#8a8f96]">
+              {equityHeader.asOf}
+            </div>
+          </div>
+        {/if}
         {#each [{ value: detail.summary.confidence ?? "—", label: "Evidence Quality" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
           <div class="text-right">
             <div class="font-mono text-[17px] font-medium">{stat.value}</div>
@@ -296,6 +320,22 @@
         {/each}
       </div>
     </div>
+
+    {#if equityHeader !== undefined && equityHeader.financials.length > 0}
+      <div class="mt-4 grid grid-cols-2 gap-2 border-y border-border py-3 sm:grid-cols-3 xl:grid-cols-5">
+        {#each equityHeader.financials as financial}
+          <div class="min-w-0 px-2 first:pl-0 last:pr-0">
+            <div class="font-mono text-[15px] font-medium">{financial.value}</div>
+            <div class="mt-0.5 text-[10px] uppercase tracking-wider text-[#5c6066]">
+              {financial.label}
+            </div>
+            <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
+              {financial.caption}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <div class="mt-5 flex gap-0.5 border-b border-border" role="tablist">
       {#each TABS as tab}

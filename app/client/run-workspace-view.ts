@@ -1,8 +1,10 @@
 import type { RunDetail } from "../types";
+import type { MarketSnapshot } from "../../src/domain/types";
 import type {
   FinancialLensName,
   FinancialLensPosture,
 } from "../../src/sources/extended-evidence/financial-lens";
+import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
 import type {
   ExtendedEvidenceItemView,
   ForecastGroup,
@@ -97,12 +99,31 @@ export interface RunWorkspaceSnapshotView {
   readonly tradingViewUrl: string;
 }
 
+export interface RunWorkspaceEquityHeaderFinancial {
+  readonly key: "marketCap" | "trailingPE" | "forwardPE" | "dividendYield" | "sharesOutstanding";
+  readonly label: string;
+  readonly value: string;
+  readonly caption: string;
+}
+
+export interface RunWorkspaceEquityHeaderView {
+  readonly displayName: string;
+  readonly symbol: string;
+  readonly price: string;
+  readonly quoteCurrency: string;
+  readonly dailyChange: string;
+  readonly changeDirection: "positive" | "negative" | "flat";
+  readonly asOf: string;
+  readonly financials: readonly RunWorkspaceEquityHeaderFinancial[];
+}
+
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
 }
 
 export interface RunWorkspaceView {
+  readonly equityHeader?: RunWorkspaceEquityHeaderView;
   readonly report: RunWorkspaceReportView;
   readonly forecasts: RunWorkspaceForecastsView;
   readonly evidence: RunWorkspaceEvidenceView;
@@ -121,6 +142,98 @@ const CASE_SECTIONS: readonly {
   { key: "risks", title: "Risks" },
   { key: "catalysts", title: "Catalysts" },
 ];
+
+function matchingMarketSnapshot(detail: RunDetail): MarketSnapshot | undefined {
+  const { assetClass, symbol } = detail.summary;
+  if (assetClass !== "equity" || symbol === undefined) {
+    return undefined;
+  }
+  const normalizedSymbol = symbol.toUpperCase();
+  return detail.marketSnapshots?.find(
+    (snapshot) =>
+      snapshot.assetClass === assetClass && snapshot.symbol.toUpperCase() === normalizedSymbol,
+  );
+}
+
+function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquityHeaderFinancial[] {
+  const quoteCurrency = snapshot.identity?.quoteCurrency ?? "USD";
+  const observed = snapshot.observedAt;
+  const candidates: readonly (RunWorkspaceEquityHeaderFinancial | undefined)[] = [
+    snapshot.marketCap === undefined
+      ? undefined
+      : {
+          key: "marketCap",
+          label: "Market cap",
+          value: formatLensValue(snapshot.marketCap, "currency", quoteCurrency),
+          caption: `Yahoo quote · point in time · ${observed}`,
+        },
+    snapshot.fundamentals?.trailingPE === undefined
+      ? undefined
+      : {
+          key: "trailingPE",
+          label: "Trailing P/E",
+          value: formatLensValue(snapshot.fundamentals.trailingPE, "ratio"),
+          caption: `Yahoo quote · trailing 12M · ${observed}`,
+        },
+    snapshot.fundamentals?.forwardPE === undefined
+      ? undefined
+      : {
+          key: "forwardPE",
+          label: "Forward P/E",
+          value: formatLensValue(snapshot.fundamentals.forwardPE, "ratio"),
+          caption: `Yahoo quote · forward · ${observed}`,
+        },
+    snapshot.fundamentals?.dividendYield === undefined
+      ? undefined
+      : {
+          key: "dividendYield",
+          label: "Dividend yield",
+          value: formatLensValue(snapshot.fundamentals.dividendYield, "whole-percent"),
+          caption: `Yahoo quote · quote snapshot · ${observed}`,
+        },
+    snapshot.fundamentals?.sharesOutstanding === undefined
+      ? undefined
+      : {
+          key: "sharesOutstanding",
+          label: "Shares outstanding",
+          value: scaleCurrency(snapshot.fundamentals.sharesOutstanding),
+          caption: `Yahoo quote · point in time · ${observed}`,
+        },
+  ];
+  return candidates.filter(
+    (candidate): candidate is RunWorkspaceEquityHeaderFinancial => candidate !== undefined,
+  );
+}
+
+function dailyChangeDirection(changePercent24h: number): "positive" | "negative" | "flat" {
+  if (changePercent24h > 0) {
+    return "positive";
+  }
+  if (changePercent24h < 0) {
+    return "negative";
+  }
+  return "flat";
+}
+
+export function equityHeaderView(detail: RunDetail): RunWorkspaceEquityHeaderView | undefined {
+  const snapshot = matchingMarketSnapshot(detail);
+  if (snapshot === undefined) {
+    return undefined;
+  }
+  const quoteCurrency = snapshot.identity?.quoteCurrency ?? "USD";
+  const change = formatLensValue(snapshot.changePercent24h, "whole-percent");
+
+  return {
+    displayName: snapshot.identity?.displayName?.trim() || snapshot.name?.trim() || snapshot.symbol,
+    symbol: snapshot.symbol,
+    price: formatLensValue(snapshot.price, "currency", quoteCurrency),
+    quoteCurrency,
+    dailyChange: snapshot.changePercent24h > 0 ? `+${change}` : change,
+    changeDirection: dailyChangeDirection(snapshot.changePercent24h),
+    asOf: `Yahoo quote · ${snapshot.observedAt}`,
+    financials: headerFinancials(snapshot),
+  };
+}
 
 function snapshotView(detail: RunDetail): RunWorkspaceSnapshotView | undefined {
   const { jobType, availableFiles } = detail.summary;
@@ -167,6 +280,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const businessFramework = businessFrameworkView(report, detail.businessFramework);
   const extendedItems = extendedEvidenceItems(report);
   const snapshot = snapshotView(detail);
+  const equityHeader = equityHeaderView(detail);
   const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
 
   const tableOfContents = [
@@ -203,6 +317,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     .map(({ key, label }) => ({ key, label }));
 
   return {
+    ...(equityHeader !== undefined ? { equityHeader } : {}),
     report: {
       summary,
       financialLensGroups,

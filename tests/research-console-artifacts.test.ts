@@ -101,6 +101,17 @@ describe("research console app artifacts", () => {
     writeJson(join(runDir, "trace.json"), { stages: ["source-collection"] });
     writeJson(join(runDir, "score.json"), { scores: [] });
     writeJson(join(runDir, "miss-autopsy.json"), { version: 1, autopsies: [] });
+    writeJson(join(runDir, "normalized", "market-snapshots.json"), [
+      {
+        sourceId: "market-yahoo-equity-aapl",
+        assetClass: "equity",
+        symbol: "AAPL",
+        price: 211,
+        changePercent24h: 1.4,
+        volume: 62_000_000,
+        observedAt: "2026-06-01T00:00:00.000Z",
+      },
+    ]);
     writeJson(join(runDir, "normalized", "web-subject-profile.json"), {
       version: 2,
       generatedAt: "2026-06-01T00:00:00.000Z",
@@ -135,6 +146,9 @@ describe("research console app artifacts", () => {
     expect(detail?.trace).toEqual({ stages: ["source-collection"] });
     expect(detail?.score).toEqual({ scores: [] });
     expect(detail?.missAutopsy).toEqual({ version: 1, autopsies: [] });
+    expect(detail?.marketSnapshots).toEqual([
+      expect.objectContaining({ symbol: "AAPL", price: 211 }),
+    ]);
     expect(detail?.webSubjectProfile).toMatchObject({
       subjectKind: "company",
       companyName: "Apple Inc.",

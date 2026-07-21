@@ -14,6 +14,7 @@ import {
 } from "../app/artifacts";
 import { researchReport } from "./support/fixtures";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -168,6 +169,23 @@ describe("research console app artifacts", () => {
         },
       ),
     );
+    writeJson(join(runDir, "normalized", "valuation-comps.json"), {
+      version: 1,
+      impliedPriceRange: derivePeerImpliedRange({
+        supportability: "supported",
+        usablePeerCount: 3,
+        peerP25EvToAnnualizedRevenue: 1,
+        peerMedianEvToAnnualizedRevenue: 2,
+        peerP75EvToAnnualizedRevenue: 3,
+        annualizedRevenue: 400,
+        netDebt: 10,
+        sharesOutstanding: 10,
+        currentPrice: 79,
+        quoteCurrency: "USD",
+        quoteObservedAt: "2026-06-01T00:00:00.000Z",
+      }),
+      unrelatedCompsData: { mustNotBeThreaded: true },
+    });
 
     const detail = await readRunDetail(dataDir, "run-c");
 
@@ -190,6 +208,14 @@ describe("research console app artifacts", () => {
       symbol: "AAPL",
       sourceId: "extended-sec-edgar-aapl-fundamentals",
     });
+    expect(detail?.peerImpliedRange).toMatchObject({
+      status: "derived",
+      low: 39,
+      mid: 79,
+      high: 119,
+      position: "within-range",
+    });
+    expect(detail).not.toHaveProperty("valuationComps");
   });
 
   test("reads run files inside the run directory", async () => {

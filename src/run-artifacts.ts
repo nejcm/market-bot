@@ -49,6 +49,10 @@ import {
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
 import type {
+  PeerImpliedRange,
+  PeerImpliedRangeSuppressedReason,
+} from "./sources/extended-evidence/valuation-comps";
+import type {
   FundamentalHistoryArtifact,
   FundamentalHistorySeriesKey,
 } from "./sources/extended-evidence/fundamental-history";
@@ -123,6 +127,7 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly peerImpliedRange?: PeerImpliedRange;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
@@ -930,6 +935,87 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
   return value as unknown as FinancialLensArtifact;
 }
 
+const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppressedReason> =
+  new Set([
+    "peer supportability is not supported",
+    "fewer than 3 usable peers",
+    "annualized revenue is not positive",
+    "net debt is unavailable",
+    "net debt uses mixed reporting periods",
+    "shares outstanding is not positive",
+    "quote currency is not USD",
+    "one or more implied prices are not positive",
+    "current price is unavailable",
+  ]);
+
+function isNullableFiniteNumber(value: unknown): boolean {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function hasPeerImpliedRangeInputsShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isNullableFiniteNumber(value.peerP25EvToAnnualizedRevenue) &&
+    isNullableFiniteNumber(value.peerMedianEvToAnnualizedRevenue) &&
+    isNullableFiniteNumber(value.peerP75EvToAnnualizedRevenue) &&
+    isNullableFiniteNumber(value.annualizedRevenue) &&
+    (isNullableFiniteNumber(value.netDebt) || value.netDebt === "mixed-period") &&
+    isNullableFiniteNumber(value.sharesOutstanding) &&
+    isNullableFiniteNumber(value.currentPrice) &&
+    (value.quoteCurrency === null || typeof value.quoteCurrency === "string") &&
+    (value.quoteObservedAt === null || typeof value.quoteObservedAt === "string")
+  );
+}
+
+// Reads only the optional range block from valuation-comps.json. The console
+// Does not consume the broader comps artifact.
+export function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefined {
+  if (!isRecord(value) || !isRecord(value.impliedPriceRange)) {
+    return undefined;
+  }
+  const range = value.impliedPriceRange;
+  if (
+    range.label !== "peer-implied price reference range" ||
+    range.basis !== "peer EV/annualized revenue percentiles applied to target annualized revenue" ||
+    range.formula !== "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding" ||
+    !hasPeerImpliedRangeInputsShape(range.inputs)
+  ) {
+    return undefined;
+  }
+  if (
+    range.status === "suppressed" &&
+    typeof range.suppressedReason === "string" &&
+    PEER_IMPLIED_RANGE_SUPPRESSED_REASONS.has(
+      range.suppressedReason as PeerImpliedRangeSuppressedReason,
+    )
+  ) {
+    return range as unknown as PeerImpliedRange;
+  }
+  const { inputs } = range;
+  if (
+    range.status === "derived" &&
+    isRecord(inputs) &&
+    readNumber(inputs, "peerP25EvToAnnualizedRevenue") !== undefined &&
+    readNumber(inputs, "peerMedianEvToAnnualizedRevenue") !== undefined &&
+    readNumber(inputs, "peerP75EvToAnnualizedRevenue") !== undefined &&
+    readNumber(inputs, "annualizedRevenue") !== undefined &&
+    readNumber(inputs, "netDebt") !== undefined &&
+    readNumber(inputs, "sharesOutstanding") !== undefined &&
+    readNumber(inputs, "currentPrice") !== undefined &&
+    inputs.quoteCurrency === "USD" &&
+    readString(inputs, "quoteObservedAt") !== undefined &&
+    readNumber(range, "low") !== undefined &&
+    readNumber(range, "mid") !== undefined &&
+    readNumber(range, "high") !== undefined &&
+    (range.position === "below-range" ||
+      range.position === "within-range" ||
+      range.position === "above-range")
+  ) {
+    return range as unknown as PeerImpliedRange;
+  }
+  return undefined;
+}
+
 const FUNDAMENTAL_HISTORY_SERIES_KEYS: readonly FundamentalHistorySeriesKey[] = [
   "revenue",
   "grossProfit",
@@ -1247,6 +1333,7 @@ const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
+const VALUATION_COMPS_FILE = RUN_ARTIFACT_FILES.valuationComps;
 const FUNDAMENTAL_HISTORY_FILE = RUN_ARTIFACT_FILES.fundamentalHistory;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
 const WEB_SUBJECT_PROFILE_FILE = RUN_ARTIFACT_FILES.webSubjectProfile;
@@ -1278,6 +1365,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
+  const valuationCompsFile = await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
   const fundamentalHistoryFile = await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
   const webSubjectProfileFile = await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
@@ -1305,6 +1393,8 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     financialLensesFile.status === "ok"
       ? readFinancialLensesArtifact(financialLensesFile.value)
       : undefined;
+  const peerImpliedRange =
+    valuationCompsFile.status === "ok" ? readPeerImpliedRange(valuationCompsFile.value) : undefined;
   const fundamentalHistory =
     fundamentalHistoryFile.status === "ok"
       ? readFundamentalHistoryArtifact(fundamentalHistoryFile.value)
@@ -1332,6 +1422,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
+      ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
       ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
       ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),

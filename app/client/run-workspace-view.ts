@@ -9,6 +9,7 @@ import type {
   FundamentalHistoryPoint,
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
+import type { PeerImpliedRange } from "../../src/sources/extended-evidence/valuation-comps";
 import {
   CURRENCY_SYMBOLS,
   formatLensValue,
@@ -159,6 +160,31 @@ export interface RunWorkspaceFundamentalHistoryView {
   readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
 }
 
+export interface RunWorkspacePeerImpliedRangeGeometry {
+  readonly mid: number;
+  readonly current: number;
+}
+
+export type RunWorkspacePeerImpliedRangeView =
+  | {
+      readonly status: "derived";
+      readonly label: string;
+      readonly position: "below-range" | "within-range" | "above-range";
+      readonly positionLabel: string;
+      readonly lowLabel: string;
+      readonly midLabel: string;
+      readonly highLabel: string;
+      readonly currentLabel: string;
+      readonly methodDisclosure: string;
+      readonly boundaryDisclosure: string;
+      readonly geometry: RunWorkspacePeerImpliedRangeGeometry;
+    }
+  | {
+      readonly status: "suppressed";
+      readonly label: string;
+      readonly message: string;
+    };
+
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
@@ -167,6 +193,7 @@ export interface RunWorkspaceTableOfContentsEntry {
 export interface RunWorkspaceView {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
+  readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
   readonly report: RunWorkspaceReportView;
   readonly forecasts: RunWorkspaceForecastsView;
   readonly evidence: RunWorkspaceEvidenceView;
@@ -174,6 +201,55 @@ export interface RunWorkspaceView {
   readonly sources: RunWorkspaceSourcesView;
   readonly snapshot?: RunWorkspaceSnapshotView;
   readonly tableOfContents: readonly RunWorkspaceTableOfContentsEntry[];
+}
+
+function formatReferencePrice(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function rangeGeometry(
+  range: Extract<PeerImpliedRange, { status: "derived" }>,
+): RunWorkspacePeerImpliedRangeGeometry {
+  const span = range.high - range.low;
+  if (span <= 0) {
+    return { mid: 0.5, current: 0.5 };
+  }
+  const { currentPrice } = range.inputs;
+  return {
+    mid: Math.max(0, Math.min(1, (range.mid - range.low) / span)),
+    current: Math.max(0, Math.min(1, (currentPrice - range.low) / span)),
+  };
+}
+
+export function peerImpliedRangeView(
+  detail: RunDetail,
+): RunWorkspacePeerImpliedRangeView | undefined {
+  const range = detail.peerImpliedRange;
+  if (range === undefined) {
+    return undefined;
+  }
+  const { label } = range;
+  if (range.status === "suppressed") {
+    return {
+      status: "suppressed",
+      label,
+      message: `Reference range suppressed: ${range.suppressedReason}.`,
+    };
+  }
+  const { inputs } = range;
+  return {
+    status: "derived",
+    label,
+    position: range.position,
+    positionLabel: range.position,
+    lowLabel: `Low ${formatReferencePrice(range.low)}`,
+    midLabel: `Mid ${formatReferencePrice(range.mid)}`,
+    highLabel: `High ${formatReferencePrice(range.high)}`,
+    currentLabel: `Current price ${formatReferencePrice(inputs.currentPrice)}`,
+    methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatReferencePrice(inputs.annualizedRevenue)}, net debt ${formatReferencePrice(inputs.netDebt)}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo quote ${inputs.quoteObservedAt ?? "unavailable"}.`,
+    boundaryDisclosure: "Boundary rule: prices equal to low or high are within-range.",
+    geometry: rangeGeometry(range),
+  };
 }
 
 const FUNDAMENTAL_HISTORY_CARD_KEYS: readonly RunWorkspaceFundamentalHistoryCard["key"][] = [
@@ -426,6 +502,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const snapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
+  const peerImpliedRange = peerImpliedRangeView(detail);
   const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
 
   const tableOfContents = [
@@ -443,6 +520,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       key: "fundamentalHistory",
       label: "Fundamental history",
       visible: fundamentalHistory !== undefined,
+    },
+    {
+      key: "peerImpliedRange",
+      label: "Peer-implied price reference range",
+      visible: peerImpliedRange !== undefined,
     },
     { key: "history", label: "Historical context", visible: historicalContext !== undefined },
     {
@@ -469,6 +551,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   return {
     ...(equityHeader !== undefined ? { equityHeader } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
+    ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
     report: {
       summary,
       financialLensGroups,

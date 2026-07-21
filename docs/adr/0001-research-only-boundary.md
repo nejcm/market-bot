@@ -30,6 +30,11 @@ implementation deliberately permits positioning and trade-oriented questions.
 - Provider and source integrations must never use account, order, portfolio, or execution
   endpoints.
 
+Positional peer-implied price reference ranges are inside the research-only boundary when they use
+only `below-range`, `within-range`, or `above-range` to describe an observed quote relative to a
+fully disclosed peer-derived interval. Calling such an interval fair value or a target price,
+claiming a margin of safety, or labeling a security undervalued or overvalued remains prohibited.
+
 ## Consequences
 
 - Persisted research remains auditable and separated from execution.

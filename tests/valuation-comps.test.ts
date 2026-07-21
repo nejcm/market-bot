@@ -3,6 +3,8 @@ import { sourceGap } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/types";
 import {
   collectValuationComps,
+  derivePeerImpliedRange,
+  MIXED_PERIOD_METRIC,
   type ValuationCompsOptions,
 } from "../src/sources/extended-evidence/valuation-comps";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
@@ -11,6 +13,25 @@ import { marketSnapshot } from "./support/fixtures";
 
 const generatedAt = "2026-07-15T00:00:00.000Z";
 const command = { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" } as const;
+
+function impliedRangeInput(
+  overrides: Partial<Parameters<typeof derivePeerImpliedRange>[0]> = {},
+): Parameters<typeof derivePeerImpliedRange>[0] {
+  return {
+    supportability: "supported",
+    usablePeerCount: 3,
+    peerP25EvToAnnualizedRevenue: 1,
+    peerMedianEvToAnnualizedRevenue: 2,
+    peerP75EvToAnnualizedRevenue: 3,
+    annualizedRevenue: 400,
+    netDebt: 10,
+    sharesOutstanding: 10,
+    currentPrice: 79,
+    quoteCurrency: "USD",
+    quoteObservedAt: generatedAt,
+    ...overrides,
+  };
+}
 
 // Cache-reader stub that always misses, mirroring the real reader's miss result.
 async function cacheMiss(): Promise<PeerUniverse | undefined> {
@@ -393,6 +414,8 @@ describe("collectValuationComps", () => {
           sourceId: "market-yahoo-equity-nvda",
           symbol: "NVDA",
           marketCap: 1000,
+          identity: { quoteCurrency: "USD" },
+          fundamentals: { sharesOutstanding: 10 },
           observedAt: generatedAt,
         }),
       ],
@@ -407,6 +430,27 @@ describe("collectValuationComps", () => {
       peerMedianEvToAnnualizedRevenue: 1.75,
       peerP25EvToAnnualizedRevenue: 1.375,
       peerP75EvToAnnualizedRevenue: 2.125,
+    });
+    expect(result.artifact.impliedPriceRange).toEqual({
+      status: "derived",
+      label: "peer-implied price reference range",
+      basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+      formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+      low: 54,
+      mid: 69,
+      high: 84,
+      position: "above-range",
+      inputs: {
+        peerP25EvToAnnualizedRevenue: 1.375,
+        peerMedianEvToAnnualizedRevenue: 1.75,
+        peerP75EvToAnnualizedRevenue: 2.125,
+        annualizedRevenue: 400,
+        netDebt: 10,
+        sharesOutstanding: 10,
+        currentPrice: 100,
+        quoteCurrency: "USD",
+        quoteObservedAt: generatedAt,
+      },
     });
     expect(result.artifact.excludedPeers).toEqual([]);
     expect(
@@ -1117,6 +1161,14 @@ describe("collectValuationComps", () => {
     expect(result.gaps.map((gap) => gap.message)).toContain(
       "Valuation peer comps screening-only for NVDA: 2 usable peers",
     );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation",
+        symbol: "NVDA",
+        message:
+          "Peer-implied price reference range suppressed for NVDA: peer supportability is not supported",
+      }),
+    );
   });
 
   test("labels comps not-supportable when target SEC period is stale", async () => {
@@ -1714,5 +1766,87 @@ describe("collectValuationComps", () => {
 
     expect(result.artifact.peers).toEqual([]);
     expect(result.gaps[0]).toMatchObject({ cause: "unsupported-coverage" });
+  });
+});
+
+describe("derivePeerImpliedRange", () => {
+  test("applies every suppression gate in order with its first-failing reason", () => {
+    const { netDebt: _netDebt, ...withoutNetDebt } = impliedRangeInput();
+    const { currentPrice: _currentPrice, ...withoutCurrentPrice } = impliedRangeInput();
+    const cases: readonly {
+      readonly input: Parameters<typeof derivePeerImpliedRange>[0];
+      readonly reason: string;
+    }[] = [
+      {
+        input: impliedRangeInput({ supportability: "screening-only", usablePeerCount: 2 }),
+        reason: "peer supportability is not supported",
+      },
+      {
+        input: impliedRangeInput({ usablePeerCount: 2 }),
+        reason: "fewer than 3 usable peers",
+      },
+      {
+        input: impliedRangeInput({ annualizedRevenue: 0 }),
+        reason: "annualized revenue is not positive",
+      },
+      { input: withoutNetDebt, reason: "net debt is unavailable" },
+      {
+        input: impliedRangeInput({ netDebt: MIXED_PERIOD_METRIC }),
+        reason: "net debt uses mixed reporting periods",
+      },
+      {
+        input: impliedRangeInput({ sharesOutstanding: 0 }),
+        reason: "shares outstanding is not positive",
+      },
+      {
+        input: impliedRangeInput({ quoteCurrency: "EUR" }),
+        reason: "quote currency is not USD",
+      },
+      {
+        input: impliedRangeInput({ peerP25EvToAnnualizedRevenue: 0 }),
+        reason: "one or more implied prices are not positive",
+      },
+      { input: withoutCurrentPrice, reason: "current price is unavailable" },
+    ];
+
+    for (const entry of cases) {
+      expect(derivePeerImpliedRange(entry.input)).toMatchObject({
+        status: "suppressed",
+        suppressedReason: entry.reason,
+      });
+    }
+  });
+
+  test("uses inclusive low and high boundaries for within-range", () => {
+    expect(derivePeerImpliedRange(impliedRangeInput({ currentPrice: 38.99 }))).toMatchObject({
+      position: "below-range",
+    });
+    expect(derivePeerImpliedRange(impliedRangeInput({ currentPrice: 39 }))).toMatchObject({
+      position: "within-range",
+    });
+    expect(derivePeerImpliedRange(impliedRangeInput({ currentPrice: 79 }))).toMatchObject({
+      position: "within-range",
+    });
+    expect(derivePeerImpliedRange(impliedRangeInput({ currentPrice: 119 }))).toMatchObject({
+      position: "within-range",
+    });
+    expect(derivePeerImpliedRange(impliedRangeInput({ currentPrice: 119.01 }))).toMatchObject({
+      position: "above-range",
+    });
+  });
+
+  test("retains complete audit inputs on USD-gate suppression", () => {
+    expect(derivePeerImpliedRange(impliedRangeInput({ quoteCurrency: "GBp" }))).toMatchObject({
+      status: "suppressed",
+      suppressedReason: "quote currency is not USD",
+      inputs: {
+        annualizedRevenue: 400,
+        netDebt: 10,
+        sharesOutstanding: 10,
+        currentPrice: 79,
+        quoteCurrency: "GBp",
+        quoteObservedAt: generatedAt,
+      },
+    });
   });
 });

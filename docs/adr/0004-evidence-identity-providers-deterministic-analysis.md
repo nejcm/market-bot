@@ -12,7 +12,7 @@ amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15;
 2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
 rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
-2026-07-21: normalized fundamental history)
+2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range)
 
 ## Context
 
@@ -145,6 +145,18 @@ without pretending the project has a global security master.
   and market-cap gates remain enforced, the peer set is explicitly caveated as
   size/sector-comparable only, and target supportability records `not-meaningful` rather than
   conflating applicability with missing data.
+- A supported peer aggregate may add a peer-implied price reference range to the valuation-comps
+  sidecar without changing `report.json`. The derivation applies peer EV/annualized-revenue P25,
+  median, and P75 multiples to target annualized revenue, subtracts target net debt, and divides by
+  Yahoo `sharesOutstanding` from the same quote as market cap and current price. Yahoo shares are
+  used instead of filing-dated diluted shares to keep price, shares, market cap, quote currency,
+  and observation time point-in-time consistent. Derivation requires, in order, supported comps,
+  at least three usable peers, positive annualized revenue, defined non-mixed-period net debt,
+  positive shares, a USD quote, three positive derived prices, and a defined current price. The
+  first failed gate persists as the suppression reason and emits a `SourceGap`; inputs, basis, and
+  formula remain auditable. Quotes equal to either endpoint are `within-range`; only strict
+  inequality yields `below-range` or `above-range`. This remains research context, not a composite
+  score.
 - The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a
   human-audited comparability judgment, so it runs the `curated-no-sic` gate profile: the three
   SIC checks (missing peer SIC, unavailable target SIC, group mismatch) are skipped and only the

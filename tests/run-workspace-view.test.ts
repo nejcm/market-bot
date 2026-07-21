@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
-import { buildRunWorkspaceView, type RunWorkspaceView } from "../app/client/run-workspace-view";
+import {
+  buildRunWorkspaceView,
+  peerImpliedRangeView,
+  type RunWorkspaceView,
+} from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
+import { violatesResearchOnly } from "../src/domain/research-language";
 
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -76,6 +82,35 @@ function marketSnapshot(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot
     observedAt: "2026-07-04T12:00:00.000Z",
     ...overrides,
   };
+}
+
+function peerImpliedRange(currentPrice = 79) {
+  return derivePeerImpliedRange({
+    supportability: "supported",
+    usablePeerCount: 3,
+    peerP25EvToAnnualizedRevenue: 1,
+    peerMedianEvToAnnualizedRevenue: 2,
+    peerP75EvToAnnualizedRevenue: 3,
+    annualizedRevenue: 400,
+    netDebt: 10,
+    sharesOutstanding: 10,
+    currentPrice,
+    quoteCurrency: "USD",
+    quoteObservedAt: "2026-07-04T12:00:00.000Z",
+  });
+}
+
+function renderedStrings(value: unknown): readonly string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => renderedStrings(entry));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).flatMap((entry) => renderedStrings(entry));
+  }
+  return [];
 }
 
 function fundamentalHistoryAnnualFacts(values: readonly number[]) {
@@ -520,5 +555,90 @@ describe("run workspace view", () => {
         },
       }).snapshot,
     ).toBeUndefined();
+  });
+
+  test("projects a derived peer-implied price reference range", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      peerImpliedRange: peerImpliedRange(),
+    });
+
+    expect(view.peerImpliedRange).toMatchObject({
+      status: "derived",
+      label: "peer-implied price reference range",
+      position: "within-range",
+      positionLabel: "within-range",
+      lowLabel: "Low $39.00",
+      midLabel: "Mid $79.00",
+      highLabel: "High $119.00",
+      currentLabel: "Current price $79.00",
+      geometry: { mid: 0.5, current: 0.5 },
+    });
+    expect(view.peerImpliedRange).toMatchObject({
+      methodDisclosure: expect.stringContaining("impliedPrice(m)"),
+      boundaryDisclosure: "Boundary rule: prices equal to low or high are within-range.",
+    });
+    expect(tocKeys(view)).toEqual(["peerImpliedRange"]);
+  });
+
+  test("projects suppression and omits an absent range block", () => {
+    const suppressed = derivePeerImpliedRange({
+      supportability: "screening-only",
+      usablePeerCount: 2,
+    });
+
+    expect(
+      buildRunWorkspaceView({ summary: summary(), peerImpliedRange: suppressed }).peerImpliedRange,
+    ).toEqual({
+      status: "suppressed",
+      label: "peer-implied price reference range",
+      message: "Reference range suppressed: peer supportability is not supported.",
+    });
+    expect(buildRunWorkspaceView({ summary: summary() }).peerImpliedRange).toBeUndefined();
+  });
+
+  test("keeps every peer-implied range view string inside the research-only boundary", () => {
+    const derivedViews = [20, 79, 140].map((currentPrice) =>
+      peerImpliedRangeView({
+        summary: summary(),
+        peerImpliedRange: peerImpliedRange(currentPrice),
+      }),
+    );
+    const baseInput = {
+      supportability: "supported" as const,
+      usablePeerCount: 3,
+      peerP25EvToAnnualizedRevenue: 1,
+      peerMedianEvToAnnualizedRevenue: 2,
+      peerP75EvToAnnualizedRevenue: 3,
+      annualizedRevenue: 400,
+      netDebt: 10,
+      sharesOutstanding: 10,
+      currentPrice: 79,
+      quoteCurrency: "USD",
+      quoteObservedAt: "2026-07-04T12:00:00.000Z",
+    };
+    const { netDebt: _netDebt, ...withoutNetDebt } = baseInput;
+    const { currentPrice: _currentPrice, ...withoutCurrentPrice } = baseInput;
+    const suppressedInputs: readonly Parameters<typeof derivePeerImpliedRange>[0][] = [
+      { ...baseInput, supportability: "screening-only" },
+      { ...baseInput, usablePeerCount: 2 },
+      { ...baseInput, annualizedRevenue: 0 },
+      withoutNetDebt,
+      { ...baseInput, netDebt: "mixed-period" },
+      { ...baseInput, sharesOutstanding: 0 },
+      { ...baseInput, quoteCurrency: "EUR" },
+      { ...baseInput, peerP25EvToAnnualizedRevenue: 0 },
+      withoutCurrentPrice,
+    ];
+    const suppressedViews = suppressedInputs.map((input) =>
+      peerImpliedRangeView({
+        summary: summary(),
+        peerImpliedRange: derivePeerImpliedRange(input),
+      }),
+    );
+
+    for (const text of renderedStrings([...derivedViews, ...suppressedViews])) {
+      expect(violatesResearchOnly(text)).toBeNull();
+    }
   });
 });

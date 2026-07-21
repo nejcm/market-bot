@@ -944,6 +944,7 @@ const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppres
     "net debt uses mixed reporting periods",
     "shares outstanding is not positive",
     "quote currency is not USD",
+    "peer percentile inputs are unavailable",
     "one or more implied prices are not positive",
     "current price is unavailable",
   ]);

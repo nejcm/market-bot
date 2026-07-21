@@ -160,6 +160,45 @@ function fundamentalHistoryFixture(epsValues: readonly number[] = [2, 2.5, 6.13]
   );
 }
 
+function fundamentalHistoryWithEpsTtm() {
+  const epsFacts = [
+    ...fundamentalHistoryAnnualFacts([2, 2.5, 3]),
+    {
+      val: 2.2,
+      form: "10-Q",
+      fp: "Q3",
+      fy: 2024,
+      filed: "2024-08-01",
+      start: "2023-10-01",
+      end: "2024-06-30",
+    },
+    {
+      val: 2.4,
+      form: "10-Q",
+      fp: "Q3",
+      fy: 2025,
+      filed: "2025-08-01",
+      start: "2024-10-01",
+      end: "2025-06-30",
+    },
+  ];
+  return deriveFundamentalHistory(
+    {
+      facts: {
+        "us-gaap": {
+          EarningsPerShareDiluted: { units: { "USD/shares": epsFacts } },
+        },
+      },
+    },
+    {
+      symbol: "AAPL",
+      generatedAt: "2025-08-02T00:00:00.000Z",
+      analysisAsOf: "2025-08-02T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    },
+  );
+}
+
 function tocKeys(view: RunWorkspaceView): readonly string[] {
   return view.tableOfContents.map((entry) => entry.key);
 }
@@ -221,6 +260,19 @@ describe("run workspace view", () => {
 
     expect(view.fundamentalHistory).toBeUndefined();
     expect(tocKeys(view)).not.toContain("fundamentalHistory");
+  });
+
+  test("surfaces the diluted-EPS TTM approximation on its console card", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      fundamentalHistory: fundamentalHistoryWithEpsTtm(),
+    });
+
+    expect(view.fundamentalHistory?.cards.find((card) => card.key === "dilutedEps")).toMatchObject({
+      valuePeriod: "TTM through 2025-06-30",
+      disclosure:
+        "Approximation: diluted EPS TTM adds per-share periods without reweighting diluted shares.",
+    });
   });
 
   test("builds populated report, forecast, evidence, gap, source, and snapshot sections", () => {
@@ -567,7 +619,7 @@ describe("run workspace view", () => {
       status: "derived",
       label: "peer-implied price reference range",
       position: "within-range",
-      positionLabel: "within-range",
+      positionLabel: "Within range",
       lowLabel: "Low $39.00",
       midLabel: "Mid $79.00",
       highLabel: "High $119.00",
@@ -576,9 +628,34 @@ describe("run workspace view", () => {
     });
     expect(view.peerImpliedRange).toMatchObject({
       methodDisclosure: expect.stringContaining("impliedPrice(m)"),
-      boundaryDisclosure: "Boundary rule: prices equal to low or high are within-range.",
+      boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     });
     expect(tocKeys(view)).toEqual(["peerImpliedRange"]);
+  });
+
+  test("scales large peer-implied range disclosure inputs", () => {
+    const view = peerImpliedRangeView({
+      summary: summary(),
+      peerImpliedRange: derivePeerImpliedRange({
+        supportability: "supported",
+        usablePeerCount: 3,
+        peerP25EvToAnnualizedRevenue: 1,
+        peerMedianEvToAnnualizedRevenue: 2,
+        peerP75EvToAnnualizedRevenue: 3,
+        annualizedRevenue: 391_035_000_000,
+        netDebt: 40_000_000_000,
+        sharesOutstanding: 15_000_000_000,
+        currentPrice: 198.5,
+        quoteCurrency: "USD",
+        quoteObservedAt: "2026-07-04T12:00:00.000Z",
+      }),
+    });
+
+    expect(view).toMatchObject({
+      methodDisclosure: expect.stringContaining(
+        "annualized revenue $391.0B, net debt $40.0B, shares 15.0B",
+      ),
+    });
   });
 
   test("projects suppression and omits an absent range block", () => {

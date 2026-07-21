@@ -1167,8 +1167,12 @@ describe("collectValuationComps", () => {
         symbol: "NVDA",
         message:
           "Peer-implied price reference range suppressed for NVDA: peer supportability is not supported",
+        evidenceQualityImpact: "no-cap",
       }),
     );
+    expect(
+      result.gaps.find((gap) => gap.message.startsWith("Peer-implied price reference range")),
+    ).not.toHaveProperty("cause");
   });
 
   test("labels comps not-supportable when target SEC period is stale", async () => {
@@ -1773,6 +1777,7 @@ describe("derivePeerImpliedRange", () => {
   test("applies every suppression gate in order with its first-failing reason", () => {
     const { netDebt: _netDebt, ...withoutNetDebt } = impliedRangeInput();
     const { currentPrice: _currentPrice, ...withoutCurrentPrice } = impliedRangeInput();
+    const { peerP25EvToAnnualizedRevenue: _peerP25, ...withoutPeerP25 } = impliedRangeInput();
     const cases: readonly {
       readonly input: Parameters<typeof derivePeerImpliedRange>[0];
       readonly reason: string;
@@ -1801,6 +1806,10 @@ describe("derivePeerImpliedRange", () => {
       {
         input: impliedRangeInput({ quoteCurrency: "EUR" }),
         reason: "quote currency is not USD",
+      },
+      {
+        input: withoutPeerP25,
+        reason: "peer percentile inputs are unavailable",
       },
       {
         input: impliedRangeInput({ peerP25EvToAnnualizedRevenue: 0 }),

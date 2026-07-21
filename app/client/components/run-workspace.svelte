@@ -490,6 +490,11 @@
                     <div class="mt-0.5 font-mono text-[9px] leading-snug text-[#8a8f96]">
                       {card.sourceCaption}
                     </div>
+                    {#if card.disclosure !== undefined}
+                      <div class="mt-1 text-[9px] leading-snug text-[#8a6116]">
+                        {card.disclosure}
+                      </div>
+                    {/if}
                   </div>
                 {/each}
               </div>

@@ -119,6 +119,9 @@ describe("violatesResearchOnly", () => {
     "undervalued",
     "overvalued",
     "target price",
+    "target prices",
+    "price target",
+    "price targets",
   ]) {
     test(`blocks valuation-certainty wording: "${phrase}"`, () => {
       expect(violatesResearchOnly(phrase)).not.toBeNull();

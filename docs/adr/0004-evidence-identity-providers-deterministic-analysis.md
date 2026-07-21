@@ -184,7 +184,9 @@ without pretending the project has a global security master.
 - Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
   series: the first configured concept with facts supplies the whole series. This keeps selection
   consistent and deterministic but can shorten history. Diluted-EPS TTM remains approximate when
-  share counts vary across component periods.
+  share counts vary across component periods. Because each period independently selects its
+  latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
+  was not restated in the same filing.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.

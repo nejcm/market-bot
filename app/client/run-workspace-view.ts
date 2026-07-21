@@ -153,6 +153,7 @@ export interface RunWorkspaceFundamentalHistoryCard {
   readonly trendLabel?: string;
   readonly periodRange: string;
   readonly sourceCaption: string;
+  readonly disclosure?: string;
   readonly geometry: RunWorkspaceSparklineGeometry;
 }
 
@@ -207,6 +208,12 @@ function formatReferencePrice(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
+const PEER_IMPLIED_RANGE_POSITION_LABELS = {
+  "below-range": "Below range",
+  "within-range": "Within range",
+  "above-range": "Above range",
+} satisfies Record<Extract<PeerImpliedRange, { status: "derived" }>["position"], string>;
+
 function rangeGeometry(
   range: Extract<PeerImpliedRange, { status: "derived" }>,
 ): RunWorkspacePeerImpliedRangeGeometry {
@@ -241,13 +248,13 @@ export function peerImpliedRangeView(
     status: "derived",
     label,
     position: range.position,
-    positionLabel: range.position,
+    positionLabel: PEER_IMPLIED_RANGE_POSITION_LABELS[range.position],
     lowLabel: `Low ${formatReferencePrice(range.low)}`,
     midLabel: `Mid ${formatReferencePrice(range.mid)}`,
     highLabel: `High ${formatReferencePrice(range.high)}`,
     currentLabel: `Current price ${formatReferencePrice(inputs.currentPrice)}`,
-    methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatReferencePrice(inputs.annualizedRevenue)}, net debt ${formatReferencePrice(inputs.netDebt)}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo quote ${inputs.quoteObservedAt ?? "unavailable"}.`,
-    boundaryDisclosure: "Boundary rule: prices equal to low or high are within-range.",
+    methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo quote ${inputs.quoteObservedAt ?? "unavailable"}.`,
+    boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     geometry: rangeGeometry(range),
   };
 }
@@ -336,6 +343,10 @@ export function fundamentalHistoryView(
     }
     const points = [...series.annual, ...(series.ttm !== undefined ? [series.ttm] : [])];
     const trendLabel = historyTrendLabel(artifact, key);
+    const epsTtmApproximation =
+      key === "dilutedEps" && latest.form === "TTM"
+        ? series.notes.find((note) => note.startsWith("ttm:eps-approximation:"))
+        : undefined;
     return [
       {
         key,
@@ -346,6 +357,12 @@ export function fundamentalHistoryView(
         ...(trendLabel !== undefined ? { trendLabel } : {}),
         periodRange: `FY ${String(firstAnnual.fy)}–FY ${String(lastAnnual.fy)} · ${firstAnnual.periodEnd} to ${lastAnnual.periodEnd}`,
         sourceCaption: "SEC EDGAR · companyfacts",
+        ...(epsTtmApproximation !== undefined
+          ? {
+              disclosure:
+                "Approximation: diluted EPS TTM adds per-share periods without reweighting diluted shares.",
+            }
+          : {}),
         geometry: sparklineGeometry(points),
       },
     ];

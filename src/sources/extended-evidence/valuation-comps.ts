@@ -90,6 +90,7 @@ export type PeerImpliedRangeSuppressedReason =
   | "net debt uses mixed reporting periods"
   | "shares outstanding is not positive"
   | "quote currency is not USD"
+  | "peer percentile inputs are unavailable"
   | "one or more implied prices are not positive"
   | "current price is unavailable";
 
@@ -963,7 +964,7 @@ export function derivePeerImpliedRange(input: DerivePeerImpliedRangeInput): Peer
     peerMedianEvToAnnualizedRevenue === undefined ||
     peerP75EvToAnnualizedRevenue === undefined
   ) {
-    return suppressed("one or more implied prices are not positive");
+    return suppressed("peer percentile inputs are unavailable");
   }
   const low = (peerP25EvToAnnualizedRevenue * annualizedRevenue - netDebt) / sharesOutstanding;
   const mid = (peerMedianEvToAnnualizedRevenue * annualizedRevenue - netDebt) / sharesOutstanding;
@@ -1166,12 +1167,14 @@ function peerImpliedRangeSuppressionGaps(artifact: ValuationCompsArtifact): read
     return [];
   }
   return [
-    valuationCompsGap(
-      `Peer-implied price reference range suppressed for ${artifact.target.symbol}: ${range.suppressedReason}`,
-      "provider-data-missing",
-      "valuation",
-      artifact.target.symbol,
-    ),
+    sourceGap({
+      source: "valuation",
+      message: `Peer-implied price reference range suppressed for ${artifact.target.symbol}: ${range.suppressedReason}`,
+      symbol: artifact.target.symbol,
+      provider: "market-bot",
+      capability: "extended-evidence",
+      evidenceQualityImpact: "no-cap",
+    }),
   ];
 }
 

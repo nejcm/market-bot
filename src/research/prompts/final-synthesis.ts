@@ -550,7 +550,7 @@ function buildReportLanguageRepairInstruction(
   if (languageErrors.length === 0) {
     return undefined;
   }
-  return `Your previous report was rejected for reader-directed advice or trade-action language: ${languageErrors.join("; ")}. Rewrite every affected field in neutral, research-only language. Never instruct anyone to act: do not write "investors should", "readers should", "you should", "buy", "sell", "hold", "accumulate", or any recommendation, allocation, position-sizing, or execution phrasing. Replace advice with observational phrasing such as "evidence supports", "the data shows", "a source states", or "the setup is consistent with". Keep the same factual claims and sourceIds; change only the wording.`;
+  return `Your previous report was rejected for reader-directed advice or trade-action language: ${languageErrors.join("; ")}. Rewrite every affected field in neutral, research-only language. Never instruct anyone to act: do not write "investors should", "readers should", "you should", "buy", "sell", "hold", "accumulate", or any recommendation, allocation, position-sizing, or execution phrasing. Replace advice with observational phrasing such as "evidence supports", "the data shows", "a source states", or "the setup is consistent with". Valuation-certainty wording is rejected by the same gate: never write "fair value", "margin of safety", "undervalued", "overvalued", "price target", or "target price" — even when quoting a source. Describe prices positionally instead, such as "trades below the peer-median multiple" or "the quote sits above the peer-implied reference range". Keep the same factual claims and sourceIds; change only the wording.`;
 }
 
 export function buildFinalSynthesisStagePrompt(input: StageInput): string {

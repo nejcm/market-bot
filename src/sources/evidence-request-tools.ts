@@ -44,7 +44,7 @@ export interface EvidenceRequestToolOutput {
 }
 
 interface SecFiling {
-  readonly form: "10-K" | "10-Q";
+  readonly form: "10-K" | "10-Q" | "8-K";
   readonly filingDate: string;
   readonly reportDate?: string;
   readonly accessionNumber: string;
@@ -65,6 +65,9 @@ const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
 const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
 const SEC_PACKET_MIN_CHARS = 50;
 const SEC_SECTION_MIN_ALPHA_CHARS = 40;
+const SEC_8K_PACKET_BUDGET = 3000;
+const SEC_8K_LOOKBACK_DAYS = 120;
+const SEC_8K_LIMIT = 2;
 
 export function availableEvidenceRequestTools(
   ctx: CollectContext,
@@ -147,12 +150,9 @@ function detectForeignPrivateIssuerForms(payload: unknown): readonly string[] {
   );
 }
 
-function selectLatestFilingByForm(
-  payload: unknown,
-  form: SecFiling["form"],
-): SecFiling | undefined {
+function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
   if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
-    return undefined;
+    return [];
   }
 
   const { recent } = payload.filings;
@@ -162,32 +162,39 @@ function selectLatestFilingByForm(
   const accessionNumbers = stringArrayValue(recent.accessionNumber);
   const primaryDocuments = stringArrayValue(recent.primaryDocument);
 
-  return forms
-    .flatMap((f, index): SecFiling[] => {
-      if (f !== form) {
-        return [];
-      }
-      const filingDate = filingDates[index];
-      const accessionNumber = accessionNumbers[index];
-      const primaryDocument = primaryDocuments[index];
-      if (
-        filingDate === undefined ||
-        accessionNumber === undefined ||
-        primaryDocument === undefined
-      ) {
-        return [];
-      }
-      const reportDate = reportDates[index];
-      return [
-        {
-          form,
-          filingDate,
-          ...(reportDate !== undefined ? { reportDate } : {}),
-          accessionNumber,
-          primaryDocument,
-        },
-      ];
-    })
+  return forms.flatMap((f, index): SecFiling[] => {
+    if (f !== "10-K" && f !== "10-Q" && f !== "8-K") {
+      return [];
+    }
+    const filingDate = filingDates[index];
+    const accessionNumber = accessionNumbers[index];
+    const primaryDocument = primaryDocuments[index];
+    if (
+      filingDate === undefined ||
+      accessionNumber === undefined ||
+      primaryDocument === undefined
+    ) {
+      return [];
+    }
+    const reportDate = reportDates[index];
+    return [
+      {
+        form: f,
+        filingDate,
+        ...(reportDate !== undefined ? { reportDate } : {}),
+        accessionNumber,
+        primaryDocument,
+      },
+    ];
+  });
+}
+
+function selectLatestFilingByForm(
+  payload: unknown,
+  form: SecFiling["form"],
+): SecFiling | undefined {
+  return recentSecFilingRows(payload)
+    .filter((filing) => filing.form === form)
     .toSorted((a, b) => b.filingDate.localeCompare(a.filingDate))[0];
 }
 
@@ -201,6 +208,33 @@ function selectCurrentQuarterlyFiling(payload: unknown, annual?: SecFiling): Sec
     return latestQuarterly;
   }
   return filingBasisDate(latestQuarterly) > filingBasisDate(annual) ? latestQuarterly : undefined;
+}
+
+function selectRecentMaterialEightKs(
+  payload: unknown,
+  newestPeriodicFilingDate: string,
+  fetchedAt: string,
+): readonly SecFiling[] {
+  const fetchedAtMs = Date.parse(fetchedAt);
+  if (!Number.isFinite(fetchedAtMs)) {
+    return [];
+  }
+  return recentSecFilingRows(payload)
+    .filter((filing) => filing.form === "8-K" && filing.filingDate > newestPeriodicFilingDate)
+    .filter((filing) => {
+      const filingDateMs = Date.parse(`${filing.filingDate}T00:00:00.000Z`);
+      if (!Number.isFinite(filingDateMs)) {
+        return false;
+      }
+      const ageDays = (fetchedAtMs - filingDateMs) / DAY_MS;
+      return ageDays >= 0 && ageDays <= SEC_8K_LOOKBACK_DAYS;
+    })
+    .toSorted(
+      (left, right) =>
+        right.filingDate.localeCompare(left.filingDate) ||
+        right.accessionNumber.localeCompare(left.accessionNumber),
+    )
+    .slice(0, SEC_8K_LIMIT);
 }
 
 function filingUrl(cik: string, filing: SecFiling): string {
@@ -292,6 +326,10 @@ function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): st
   if (normalized.length < SEC_PACKET_MIN_CHARS) {
     return undefined;
   }
+  if (form === "8-K") {
+    const firstItem = /ITEM\s+\d+\.\d{2}/iu.exec(normalized);
+    return truncateText(normalized.slice(firstItem?.index ?? 0), SEC_8K_PACKET_BUDGET);
+  }
   const parts: string[] = [];
   const business = selectSection(
     normalized,
@@ -352,6 +390,16 @@ type SecFilingSourceItem =
     }
   | { readonly kind: "missing" };
 
+function secFilingKey(filing: SecFiling): string {
+  if (filing.form === "10-K") {
+    return "10k";
+  }
+  if (filing.form === "10-Q") {
+    return "10q";
+  }
+  return `8k-${filing.accessionNumber}`;
+}
+
 function buildSecFilingSourceItem(
   command: InstrumentCommand,
   match: { cik: string; ticker: string; name?: string },
@@ -359,7 +407,7 @@ function buildSecFilingSourceItem(
   url: string,
   filingText: FetchTextResult,
 ): SecFilingSourceItem {
-  const formKey = filing.form === "10-K" ? "10k" : "10q";
+  const formKey = secFilingKey(filing);
   const normalized = normalizeFilingText(filingText.payload);
   const packet = secFilingSectionPacket(normalized, filing.form);
   if (packet === undefined) {
@@ -404,6 +452,10 @@ function buildSecFilingSourceItem(
   });
   const summaryExcerpt = truncateText(sanitizedPacket.text, SEC_FILING_SUMMARY_EXCERPT_CHARS);
   const title = `${command.symbol} SEC ${filing.form}`;
+  const summary =
+    filing.form === "8-K"
+      ? `8-K filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for event date ${filing.reportDate}` : ""} (material current report).`
+      : `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`;
   const source: Source = {
     id: `extended-sec-edgar-${command.symbol.toLowerCase()}-${formKey}`,
     title,
@@ -414,7 +466,7 @@ function buildSecFilingSourceItem(
     symbol: command.symbol,
     provider: "sec-edgar",
     rawRef: filingText.rawSnapshot.id,
-    summary: `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`,
+    summary,
     snippet: sanitizedPacket.text,
     identity,
   };
@@ -602,8 +654,16 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
   let droppedItemCount = 0;
 
+  const [newestPeriodicFilingDate] = [tenK?.filingDate, tenQ?.filingDate]
+    .filter((date): date is string => date !== undefined)
+    .toSorted((left, right) => right.localeCompare(left));
+  const eightKs =
+    newestPeriodicFilingDate === undefined
+      ? []
+      : selectRecentMaterialEightKs(submissions.payload, newestPeriodicFilingDate, ctx.fetchedAt);
+
   const filingResults = await Promise.all(
-    [tenK, tenQ].flatMap((filing) =>
+    [tenK, tenQ, ...eightKs].flatMap((filing) =>
       filing === undefined ? [] : [collectSecFiling(ctx, command, match, filing)],
     ),
   );

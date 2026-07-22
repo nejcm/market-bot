@@ -833,6 +833,53 @@ describe("renderMarkdownReport — earnings setup section", () => {
     expect(markdown).toContain("AAPL earnings on 2026-07-24 (timing: bmo)");
   });
 
+  test("labels provider-estimated dates and estimates without changing legacy artifacts", () => {
+    const providerEstimated: ResearchReport = {
+      ...baseReport,
+      extras: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-24",
+            timing: "amc",
+            dateStatus: "provider-estimated",
+            epsEstimate: 2.1,
+            revenueEstimate: 95_000_000_000,
+            sourceIds: ["src-1"],
+            fetchedAt: "2026-05-14T00:00:00.000Z",
+          },
+          gaps: [],
+        },
+      },
+    };
+
+    const currentMarkdown = renderMarkdownReport(providerEstimated);
+    const legacyMarkdown = renderMarkdownReport({
+      ...providerEstimated,
+      extras: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-24",
+            timing: "amc",
+            sourceIds: ["src-1"],
+            fetchedAt: "2026-05-14T00:00:00.000Z",
+          },
+          gaps: [],
+        },
+      },
+    });
+
+    expect(currentMarkdown).toContain(
+      "AAPL earnings on 2026-07-24 (timing: amc) — date provider-estimated (Finnhub), unconfirmed",
+    );
+    expect(currentMarkdown).toContain("**EPS estimate:** 2.1 — single-provider snapshot (Finnhub)");
+    expect(currentMarkdown).toContain(
+      "**Revenue estimate:** 95,000,000,000 — single-provider snapshot (Finnhub)",
+    );
+    expect(legacyMarkdown).not.toContain("provider-estimated");
+  });
+
   test("renders implied move bar", () => {
     const report: ResearchReport = {
       ...baseReport,
@@ -998,6 +1045,7 @@ describe("parseNearEarningsEvent", () => {
       symbol: "AAPL",
       date: "2026-06-15",
       timing: "amc",
+      dateStatus: "provider-estimated",
       epsEstimate: 1.5,
       sourceIds: ["finnhub-1"],
       fetchedAt: today,
@@ -1081,6 +1129,7 @@ function makeEarningsEvent(symbol = "AAPL", date = "2026-07-24"): EarningsEvent 
     symbol,
     date,
     timing: "amc",
+    dateStatus: "provider-estimated",
     sourceIds: ["src-1"],
     fetchedAt: "2026-07-20T00:00:00.000Z",
   };

@@ -2,7 +2,7 @@
 // (server) and the console tile renderer (client) so the two cannot drift.
 // Sits alongside percent-format.ts which holds the percent conventions.
 
-import { formatRatioPercent, formatWholePercent } from "./percent-format";
+import { clampRoundedZero, formatRatioPercent, formatWholePercent } from "./percent-format";
 
 export type LensValueUnit =
   | "ratio"
@@ -17,6 +17,27 @@ export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
   GBP: "£",
   EUR: "€",
 };
+
+export const PE_NOT_MEANINGFUL = "N/M (non-positive earnings)";
+export const PE_NEGATIVE_CAVEAT = "negative earnings";
+
+// A negative P/E is a real, computable figure (price over a forecast/trailing loss)
+// And its sign is genuine signal, so it is shown rather than hidden. Its *magnitude*
+// Is misleading — non-monotonic in the loss, so a tiny loss yields a huge multiple —
+// Hence the caveat, so it is not read as a normal multiple. Only a genuinely
+// Non-computable ratio (zero or non-finite earnings) collapses to N/M.
+export function formatPeRatio(pe: number, eps?: number): string {
+  if (!Number.isFinite(pe) || eps === 0) {
+    return PE_NOT_MEANINGFUL;
+  }
+  if (pe < 0 || (eps !== undefined && eps < 0)) {
+    return `${pe.toFixed(2)}x (${PE_NEGATIVE_CAVEAT})`;
+  }
+  if (pe === 0) {
+    return PE_NOT_MEANINGFUL;
+  }
+  return `${pe.toFixed(2)}x`;
+}
 
 export function scaleCurrency(value: number): string {
   const abs = Math.abs(value);
@@ -55,10 +76,10 @@ export function formatLensValue(value: number, unit: LensValueUnit, currency?: s
     return formatWholePercent(value);
   }
   if (unit === "ratio") {
-    return `${value.toFixed(2)}x`;
+    return `${clampRoundedZero(value, 2).toFixed(2)}x`;
   }
   if (unit === "currency") {
     return formatCurrency(value, currency);
   }
-  return value.toFixed(2);
+  return clampRoundedZero(value, 2).toFixed(2);
 }

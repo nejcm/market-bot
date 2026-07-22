@@ -13,6 +13,7 @@ import type { PeerImpliedRange } from "../../src/sources/extended-evidence/valua
 import {
   CURRENCY_SYMBOLS,
   formatLensValue,
+  formatPeRatio,
   scaleCurrency,
 } from "../../src/sources/extended-evidence/value-format";
 import type {
@@ -409,7 +410,10 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
       : {
           key: "trailingPE",
           label: "Trailing P/E",
-          value: formatLensValue(snapshot.fundamentals.trailingPE, "ratio"),
+          value: formatPeRatio(
+            snapshot.fundamentals.trailingPE,
+            snapshot.fundamentals.epsTrailingTwelveMonths,
+          ),
           caption: `Yahoo quote · trailing 12M · ${observed}`,
         },
     snapshot.fundamentals?.forwardPE === undefined
@@ -417,7 +421,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
       : {
           key: "forwardPE",
           label: "Forward P/E",
-          value: formatLensValue(snapshot.fundamentals.forwardPE, "ratio"),
+          value: formatPeRatio(snapshot.fundamentals.forwardPE, snapshot.fundamentals.epsForward),
           caption: `Yahoo quote · forward · ${observed}`,
         },
     snapshot.fundamentals?.dividendYield === undefined

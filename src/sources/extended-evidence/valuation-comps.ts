@@ -26,7 +26,7 @@ import { evidenceSource } from "./common";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
 
 const MIN_USABLE_PEERS = 3;
-const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
+export const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
 export const MIXED_PERIOD_METRIC = "mixed-period" as const;
 
 // Deterministic peer-comparability size gate: a peer qualifies for the primary

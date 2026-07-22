@@ -10,11 +10,18 @@ import type {
 import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import {
   MIXED_PERIOD_METRIC,
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
+import {
+  formatLensValue,
+  formatPeRatio,
+  PE_NEGATIVE_CAVEAT,
+  PE_NOT_MEANINGFUL,
+} from "../src/sources/extended-evidence/value-format";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -189,6 +196,43 @@ describe("addFinancialLensEvidence", () => {
     expect(strength?.metrics.find((metric) => metric.key === "netDebtToMarketCap")).toBeUndefined();
   });
 
+  test("flags stale EV date mixing and clamps negative zero lens values", () => {
+    const baseEvidence = evidence();
+    const datedEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "valuation"
+          ? {
+              ...item,
+              metrics: {
+                ...item.metrics,
+                quoteObservedAt: "2026-06-21T00:00:00.000Z",
+                cashPeriodEnd: "2025-12-31",
+                debtPeriodEnd: "2025-12-31",
+              },
+            }
+          : item,
+      ),
+    };
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      datedEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Value", "evDateBasis")).toMatchObject({
+      label: "EV date basis",
+      value: "EV mixes market cap (quote 2026-06-21) with cash/debt (balance sheet 2025-12-31)",
+      unit: "text",
+    });
+    expect(formatLensValue(-0.000_01, "ratio")).toBe("0.00x");
+    expect(formatLensValue(-0.000_01, "number")).toBe("0.00");
+    expect(formatLensValue(-0.000_01, "ratio-percent")).toBe("0.0%");
+    expect(formatLensValue(-0.000_01, "whole-percent")).toBe("0.0%");
+  });
+
   test("emits partial no-cap gap when derived inputs are missing", () => {
     const result = addFinancialLensEvidence(
       command,
@@ -265,6 +309,125 @@ describe("addFinancialLensEvidence", () => {
     expect(
       result.extendedEvidence?.items.find((i) => i.category === "financial-lens")?.summary,
     ).toContain("Revenue YoY 0.5%");
+  });
+
+  test("labels parent-attributable loss changes and discloses distinct consolidated income", () => {
+    const baseEvidence = evidence();
+    const attributedEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "sec-edgar"
+          ? {
+              ...item,
+              metrics: {
+                ...item.metrics,
+                netIncome: -20,
+                netIncomePrior: -10,
+                netIncomeDeltaPercent: -100,
+                consolidatedNetIncome: -18,
+                consolidatedNetIncomePeriodEnd: "2025-06-28",
+                consolidatedNetIncomePeriodMonths: 12,
+              },
+            }
+          : item,
+      ),
+    };
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      attributedEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Growth", "netIncomeDeltaPercent")).toMatchObject({
+      label: "Net loss (attrib.) YoY change",
+      value: -100,
+    });
+    expect(metricByKey(result, "Quality", "consolidatedNetIncome")).toMatchObject({
+      label: "Net income (consolidated incl. NCI)",
+      value: -18,
+      periodEnd: "2025-06-28",
+      periodMonths: 12,
+    });
+  });
+
+  test("describes widening parent-attributable losses in SEC summaries", () => {
+    const summary = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                {
+                  val: -20,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  start: "2026-01-01",
+                  end: "2026-03-31",
+                },
+                {
+                  val: -10,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2025,
+                  filed: "2025-05-01",
+                  start: "2025-01-01",
+                  end: "2025-03-31",
+                },
+              ],
+            },
+          },
+          ProfitLoss: {
+            units: {
+              USD: [
+                {
+                  val: -18,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  start: "2026-01-01",
+                  end: "2026-03-31",
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(summary?.summary).toContain(
+      "net income attributable to parent -20 (loss widened 100.0% YoY)",
+    );
+    expect(summary?.summary).toContain("net income consolidated including NCI -18");
+    expect(summary?.metrics.consolidatedNetIncome).toBe(-18);
+  });
+
+  test("omits duplicate consolidated net income from SEC summaries", () => {
+    const incomeFact = {
+      val: -20,
+      form: "10-Q",
+      fp: "Q1",
+      fy: 2026,
+      filed: "2026-05-01",
+      start: "2026-01-01",
+      end: "2026-03-31",
+    };
+    const summary = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          NetIncomeLoss: { units: { USD: [incomeFact] } },
+          ProfitLoss: { units: { USD: [incomeFact] } },
+        },
+      },
+    });
+
+    expect(summary?.summary).toContain("net income attributable to parent -20");
+    expect(summary?.summary).not.toContain("net income consolidated including NCI");
+    expect(summary?.metrics.consolidatedNetIncome).toBe(-20);
   });
 
   test("returns evidence unchanged for non-equity / non-ticker commands", () => {
@@ -699,6 +862,59 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(value?.posture).toBe("criteria-supported");
   });
 
+  test("shows the negative P/E value with a caveat instead of hiding it", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios(),
+          valuationEvidence(),
+          yahooFundamentalsEvidence({
+            trailingPE: -40,
+            epsTrailingTwelveMonths: -2,
+            forwardPE: -222.14,
+            epsForward: -0.47,
+          }),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Value", "peRatio")).toMatchObject({
+      value: `-40.00x (${PE_NEGATIVE_CAVEAT})`,
+      unit: "text",
+    });
+    expect(metricByKey(result, "Value", "epsTrailingTwelveMonths")).toMatchObject({
+      label: "Trailing EPS",
+      value: -2,
+      unit: "number",
+    });
+    expect(metricByKey(result, "Value", "forwardPe")).toMatchObject({
+      value: `-222.14x (${PE_NEGATIVE_CAVEAT})`,
+      unit: "text",
+    });
+    expect(metricByKey(result, "Value", "epsForward")).toMatchObject({
+      label: "Forward EPS",
+      value: -0.47,
+      unit: "number",
+    });
+    expect(result.extendedEvidence?.items.at(-1)?.metrics?.forwardPe).toBe(
+      `-222.14x (${PE_NEGATIVE_CAVEAT})`,
+    );
+  });
+
+  test("renders P/E as not meaningful only when earnings are zero or non-finite", () => {
+    expect(formatPeRatio(10, 0)).toBe(PE_NOT_MEANINGFUL);
+    expect(formatPeRatio(Number.POSITIVE_INFINITY)).toBe(PE_NOT_MEANINGFUL);
+    expect(formatPeRatio(-222.14, -0.47)).toBe(`-222.14x (${PE_NEGATIVE_CAVEAT})`);
+    expect(formatPeRatio(-40)).toBe(`-40.00x (${PE_NEGATIVE_CAVEAT})`);
+    expect(formatPeRatio(31.06, 9.595)).toBe("31.06x");
+  });
+
   test("renders not-meaningful revenue supportability as a Value-lens caveat", () => {
     const valuation = valuationEvidence();
     const result = addFinancialLensEvidence(
@@ -948,6 +1164,27 @@ describe("buildYahooFundamentals", () => {
     });
     expect(item?.summary).toContain("trailing PE 36.08x");
     expect(item?.summary).toContain("dividend yield 0.36%");
+  });
+
+  test("summarizes negative-earnings P/E values with the value and a caveat", () => {
+    const item = buildYahooFundamentals(
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-aapl",
+          fundamentals: {
+            trailingPE: -40,
+            epsTrailingTwelveMonths: -2,
+            forwardPE: -222.14,
+            epsForward: -0.47,
+          },
+        }),
+      ],
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(item?.summary).toContain(`trailing PE -40.00x (${PE_NEGATIVE_CAVEAT})`);
+    expect(item?.summary).toContain(`forward PE -222.14x (${PE_NEGATIVE_CAVEAT})`);
   });
 
   test("returns undefined when the ticker snapshot has no fundamentals (Massive fallback)", () => {

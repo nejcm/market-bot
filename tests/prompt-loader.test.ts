@@ -235,4 +235,15 @@ describe("loadStagePrompt — real prompt files", () => {
     expect(result.instruction).toContain("list/ranking/promising-stock prompts");
     expect(result.instruction).toContain("`numResults`: 8");
   });
+
+  test("real company profile prompt anchors KPIs on the latest filing", async () => {
+    const result = await loadStagePrompt("web-subject-profile", dailyEquityCommand);
+    expect(result.instruction).toContain(
+      "anchor KPI/count/level answers (partnerships, patents, backlog, headcount, cash) on the most recent filing",
+    );
+    expect(result.instruction).toContain("state the as-of period or filing for every KPI figure");
+    expect(result.instruction).toContain(
+      "use an older filing only for facts the newer filing does not restate",
+    );
+  });
 });

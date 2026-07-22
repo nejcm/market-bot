@@ -15,6 +15,7 @@ export interface EarningsEvent {
   readonly symbol: string;
   readonly date: string;
   readonly timing: EarningsEventTiming;
+  readonly dateStatus: "provider-estimated";
   readonly epsEstimate?: number;
   readonly revenueEstimate?: number;
   readonly sourceIds: readonly string[];
@@ -79,6 +80,7 @@ export function parseNearEarningsEvent(
         symbol,
         date,
         timing: parseFinnhubTiming(record.hour),
+        dateStatus: "provider-estimated",
         ...(epsEstimate !== undefined ? { epsEstimate } : {}),
         ...(revenueEstimate !== undefined ? { revenueEstimate } : {}),
         sourceIds: [sourceId],

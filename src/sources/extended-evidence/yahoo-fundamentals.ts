@@ -1,5 +1,6 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { ExtendedEvidenceItem, MarketFundamentals, MarketSnapshot } from "../../domain/types";
+import { formatPeRatio } from "./value-format";
 
 // Derives the `yahoo-fundamentals` ExtendedEvidenceItem from the normalized
 // MarketSnapshot.fundamentals (captured once in normalizeYahooQuote), not from
@@ -29,13 +30,13 @@ function formatPercent(value: number | undefined): string {
 
 function summarize(fundamentals: MarketFundamentals): string {
   const parts: string[] = [];
-  const pe = formatRatio(fundamentals.trailingPE);
-  if (pe !== "") {
-    parts.push(`trailing PE ${pe}`);
+  if (fundamentals.trailingPE !== undefined) {
+    parts.push(
+      `trailing PE ${formatPeRatio(fundamentals.trailingPE, fundamentals.epsTrailingTwelveMonths)}`,
+    );
   }
-  const forwardPe = formatRatio(fundamentals.forwardPE);
-  if (forwardPe !== "") {
-    parts.push(`forward PE ${forwardPe}`);
+  if (fundamentals.forwardPE !== undefined) {
+    parts.push(`forward PE ${formatPeRatio(fundamentals.forwardPE, fundamentals.epsForward)}`);
   }
   const pbv = formatRatio(fundamentals.priceToBook);
   if (pbv !== "") {

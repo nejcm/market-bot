@@ -1,4 +1,5 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
+import { DAY_MS } from "../../config/shared";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
@@ -8,8 +9,12 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
-import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { formatLensValue, type LensValueUnit } from "./value-format";
+import {
+  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
+  MIXED_PERIOD_METRIC,
+  REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+} from "./valuation-comps";
+import { formatLensValue, formatPeRatio, type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -113,6 +118,29 @@ function ratio(numerator: number | undefined, denominator: number | undefined): 
     : undefined;
 }
 
+// A P/E is "clean" (shown as a numeric multiple) only when it is a finite, positive
+// Ratio over positive earnings. Negative or non-computable P/Es render as annotated
+// Text via formatPeRatio instead of a bare multiple. See PE_NEGATIVE_CAVEAT rationale.
+function peIsClean(pe: number | undefined, eps: number | undefined): boolean {
+  return (
+    pe !== undefined && Number.isFinite(pe) && pe > 0 && eps !== 0 && (eps === undefined || eps > 0)
+  );
+}
+
+// Metric value for a P/E cell: the bare number when clean (rendered as a multiple),
+// Otherwise the annotated formatPeRatio text (negative value + caveat, or N/M), and
+// Undefined when absent so the metric is omitted entirely.
+function peMetricValue(
+  pe: number | undefined,
+  eps: number | undefined,
+  clean: boolean,
+): number | string | undefined {
+  if (pe === undefined) {
+    return undefined;
+  }
+  return clean ? pe : formatPeRatio(pe, eps);
+}
+
 // Annualizes a flow-fact value by its own reporting-period length (months),
 // Matching valuation.ts revenue annualization. Undefined period -> already
 // Annual (factor 1); period > 0 -> 12/period. Used for ROE/ROA/PCF so a 9-month
@@ -182,6 +210,40 @@ function observedPeriod(observedAt: string | undefined): Pick<FinancialLensMetri
   return observedAt === undefined ? {} : { periodEnd: observedAt };
 }
 
+function valuationDateBasisMetric(
+  valuationItem: ExtendedEvidenceItem | undefined,
+): readonly FinancialLensMetric[] {
+  const quoteObservedAt = readStringMetric(valuationItem?.metrics, "quoteObservedAt");
+  const cashPeriodEnd = readStringMetric(valuationItem?.metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(valuationItem?.metrics, "debtPeriodEnd");
+  const balanceSheetPeriodEnd =
+    cashPeriodEnd === debtPeriodEnd
+      ? cashPeriodEnd
+      : [cashPeriodEnd, debtPeriodEnd]
+          .filter((value): value is string => value !== undefined)
+          .toSorted()[0];
+  if (quoteObservedAt === undefined || balanceSheetPeriodEnd === undefined) {
+    return [];
+  }
+  const quoteDate = quoteObservedAt.slice(0, 10);
+  const divergenceDays =
+    Math.abs(Date.parse(quoteDate) - Date.parse(balanceSheetPeriodEnd)) / DAY_MS;
+  if (
+    !Number.isFinite(divergenceDays) ||
+    divergenceDays <= MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+  ) {
+    return [];
+  }
+  return metric(
+    "evDateBasis",
+    "EV date basis",
+    `EV mixes market cap (quote ${quoteDate}) with cash/debt (balance sheet ${balanceSheetPeriodEnd})`,
+    "text",
+    valuationItem?.sourceIds ?? [],
+    { periodEnd: balanceSheetPeriodEnd },
+  );
+}
+
 function percentChange(value: number | undefined): boolean | undefined {
   return value === undefined ? undefined : value > 0;
 }
@@ -192,6 +254,7 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const grossProfit = readMetric(secItem?.metrics, "grossProfit");
   const operatingIncome = readMetric(secItem?.metrics, "operatingIncome");
   const netIncome = readMetric(secItem?.metrics, "netIncome");
+  const consolidatedNetIncome = readMetric(secItem?.metrics, "consolidatedNetIncome");
   const netIncomePeriodMonths = readMetric(secItem?.metrics, "netIncomePeriodMonths");
   const operatingCashFlow = readMetric(secItem?.metrics, "operatingCashFlow");
   const capex = readMetric(secItem?.metrics, "capex");
@@ -203,6 +266,10 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   // Annualized by net income's own periodMonths so a partial-year filing does not
   // Understate the return. See plan revision 2 / Q6.
   const annualizedNetIncome = annualize(netIncome, netIncomePeriodMonths);
+  const hasDistinctConsolidatedNetIncome =
+    netIncome !== undefined &&
+    consolidatedNetIncome !== undefined &&
+    consolidatedNetIncome !== netIncome;
   const metrics = [
     ...metric(
       "grossMargin",
@@ -260,6 +327,16 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       sourceIds,
       secPeriod(secItem, "netIncome"),
     ),
+    ...(hasDistinctConsolidatedNetIncome
+      ? metric(
+          "consolidatedNetIncome",
+          "Net income (consolidated incl. NCI)",
+          consolidatedNetIncome,
+          "currency",
+          sourceIds,
+          secPeriod(secItem, "consolidatedNetIncome"),
+        )
+      : []),
   ];
   return {
     name: "Quality",
@@ -276,6 +353,7 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
 
 function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const sourceIds = secItem?.sourceIds ?? [];
+  const netIncomePrior = readMetric(secItem?.metrics, "netIncomePrior");
   const metrics = [
     ...metric(
       "revenueDeltaPercent",
@@ -303,7 +381,9 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
     ),
     ...metric(
       "netIncomeDeltaPercent",
-      "Net income YoY",
+      netIncomePrior !== undefined && netIncomePrior < 0
+        ? "Net loss (attrib.) YoY change"
+        : "Net income (attrib.) YoY",
       readMetric(secItem?.metrics, "netIncomeDeltaPercent"),
       "whole-percent",
       sourceIds,
@@ -497,6 +577,20 @@ function valueLens(
       : supportability === "supported";
   const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
   const revenuePeriodMonths = readMetric(valuationItem?.metrics, "revenuePeriodMonths");
+  const trailingPe = readMetric(yahooFundamentalsItem?.metrics, "trailingPE");
+  const forwardPe = readMetric(yahooFundamentalsItem?.metrics, "forwardPE");
+  const epsTrailingTwelveMonths = readMetric(
+    yahooFundamentalsItem?.metrics,
+    "epsTrailingTwelveMonths",
+  );
+  const epsForward = readMetric(yahooFundamentalsItem?.metrics, "epsForward");
+  // A P/E renders as a bare numeric multiple only when it is "clean": a finite,
+  // Positive ratio over positive earnings. Otherwise formatPeRatio produces annotated
+  // Text — the negative value plus a caveat, or N/M for non-computable earnings — which
+  // Is shown as a text metric so the sign/signal is preserved without implying a
+  // Normal multiple. The paired EPS line surfaces the (meaningful) loss magnitude.
+  const trailingPeClean = peIsClean(trailingPe, epsTrailingTwelveMonths);
+  const forwardPeClean = peIsClean(forwardPe, epsForward);
   const valuationRevenuePeriod: Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> = {
     ...observedPeriod(readStringMetric(valuationItem?.metrics, "revenuePeriodEnd")),
     ...(revenuePeriodMonths !== undefined ? { periodMonths: revenuePeriodMonths } : {}),
@@ -536,6 +630,7 @@ function valueLens(
             valuationRevenuePeriod,
           )
         : []),
+      ...valuationDateBasisMetric(valuationItem),
       ...metric(
         "enterpriseValue",
         "Enterprise value",
@@ -579,19 +674,39 @@ function valueLens(
       ...metric(
         "peRatio",
         "PE",
-        readMetric(yahooFundamentalsItem?.metrics, "trailingPE"),
-        "ratio",
+        peMetricValue(trailingPe, epsTrailingTwelveMonths, trailingPeClean),
+        trailingPeClean ? "ratio" : "text",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
+      ...(trailingPe !== undefined && !trailingPeClean
+        ? metric(
+            "epsTrailingTwelveMonths",
+            "Trailing EPS",
+            epsTrailingTwelveMonths,
+            "number",
+            yahooSourceIds,
+            observedPeriod(yahooFundamentalsItem?.observedAt),
+          )
+        : []),
       ...metric(
         "forwardPe",
         "Forward PE",
-        readMetric(yahooFundamentalsItem?.metrics, "forwardPE"),
-        "ratio",
+        peMetricValue(forwardPe, epsForward, forwardPeClean),
+        forwardPeClean ? "ratio" : "text",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
+      ...(forwardPe !== undefined && !forwardPeClean
+        ? metric(
+            "epsForward",
+            "Forward EPS",
+            epsForward,
+            "number",
+            yahooSourceIds,
+            observedPeriod(yahooFundamentalsItem?.observedAt),
+          )
+        : []),
       ...metric(
         "priceToBook",
         "Price/book",

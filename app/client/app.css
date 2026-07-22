@@ -6,9 +6,9 @@
 @source "./**/*.{svelte,ts}";
 
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Source Serif 4", Georgia, serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+  --font-mono: "Roboto Mono", ui-monospace, "Cascadia Mono", monospace;
 }
 
 @theme inline {
@@ -127,6 +127,10 @@
 
   body {
     @apply bg-background font-sans text-foreground;
+  }
+
+  .font-mono {
+    font-variant-numeric: tabular-nums;
   }
 
   ::selection {

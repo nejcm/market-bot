@@ -96,9 +96,16 @@ export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
   },
   {
     key: "netIncome",
-    label: "net income",
+    label: "net income attributable to parent",
     concepts: ["NetIncomeLoss"],
     unitKeys: ["USD"],
+  },
+  {
+    key: "consolidatedNetIncome",
+    label: "net income consolidated including NCI",
+    concepts: ["ProfitLoss"],
+    unitKeys: ["USD"],
+    optional: true,
   },
   {
     key: "dilutedEps",
@@ -211,6 +218,7 @@ const FLOW_METRIC_KEYS = new Set([
   "grossProfit",
   "operatingIncome",
   "netIncome",
+  "consolidatedNetIncome",
   "dilutedEps",
   "operatingCashFlow",
   "capex",
@@ -524,10 +532,20 @@ function deltaPercent(latest: number, prior: number): number | undefined {
   return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
 }
 
-function formatMetric(label: string, latest: number, delta: number | undefined): string {
-  return delta === undefined
-    ? `${label} ${String(latest)}`
-    : `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
+function formatMetric(
+  label: string,
+  latest: number,
+  prior: number | undefined,
+  delta: number | undefined,
+): string {
+  if (delta === undefined) {
+    return `${label} ${String(latest)}`;
+  }
+  if (prior !== undefined && latest < 0 && prior < 0) {
+    const direction = latest < prior ? "widened" : "narrowed";
+    return `${label} ${String(latest)} (loss ${direction} ${Math.abs(delta).toFixed(1)}% YoY)`;
+  }
+  return `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
 }
 
 export function summarizeSecFundamentals(
@@ -599,7 +617,9 @@ export function summarizeSecFundamentals(
         metrics[`${definition.key}DeltaPercent`] = delta;
       }
     }
-    summaryParts.push(formatMetric(definition.label, latest.val, delta));
+    if (definition.key !== "consolidatedNetIncome" || metrics.netIncome !== latest.val) {
+      summaryParts.push(formatMetric(definition.label, latest.val, prior?.val, delta));
+    }
   }
 
   if (summaryParts.length === 0) {

@@ -22,7 +22,11 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
 
 export function latestSecFilingDate(evidence: ExtendedEvidence | undefined): string | undefined {
   const filingDates = (evidence?.items ?? [])
-    .filter((item) => item.category === "sec-edgar")
+    .filter(
+      (item) =>
+        item.category === "sec-edgar" &&
+        (item.metrics?.form === "10-K" || item.metrics?.form === "10-Q"),
+    )
     .map((item) =>
       typeof item.metrics?.filingDate === "string" ? item.metrics.filingDate : undefined,
     )

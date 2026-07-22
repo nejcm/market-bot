@@ -19,6 +19,18 @@
       "reason": "Phase 0 baseline: current structured SEC normalization accepts only 10-K/10-Q facts"
     },
     {
+      "file": "nbis-20260331-index.txt",
+      "form": "6-K",
+      "role": "filing-index",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/0001104659-26-064092-index.html",
+      "sha256": "56b247d4867f7b77226dc086635a7f1962fd4ab1efab868d3d42ad3db00762e4",
+      "bytes": 7595,
+      "contentType": "text/html",
+      "lastModified": "Wed, 20 May 2026 10:28:13 GMT",
+      "structuredSupport": "discovery",
+      "reason": "Phase 3 replay input for bounded 6-K exhibit discovery"
+    },
+    {
       "file": "nbis-20260331x6k.txt",
       "form": "6-K",
       "role": "interim-filing",
@@ -51,8 +63,8 @@
       "bytes": 1231841,
       "contentType": "text/html",
       "lastModified": "Wed, 20 May 2026 10:28:42 GMT",
-      "structuredSupport": "unsupported",
-      "reason": "Phase 0 baseline: untagged interim 6-K HTML is retained but not normalized"
+      "structuredSupport": "phase-3-candidate",
+      "reason": "Phase 3 candidate for model-mapped, code-validated HTML table extraction"
     }
   ]
 }

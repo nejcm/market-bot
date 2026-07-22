@@ -217,6 +217,7 @@ async function assertNbisUnsupportedInputs(): Promise<void> {
   ) as UnsupportedInputManifest;
   expect(manifest.inputs.map((input) => [input.form, input.role])).toEqual([
     ["20-F", "annual-filing"],
+    ["6-K", "filing-index"],
     ["6-K", "interim-filing"],
     ["6-K", "interim-exhibit"],
     ["6-K", "interim-exhibit"],
@@ -225,7 +226,7 @@ async function assertNbisUnsupportedInputs(): Promise<void> {
     const body = await readFile(join(root, "unsupported-inputs", input.file));
     expect(body.byteLength).toBe(input.bytes);
     expect(createHash("sha256").update(body).digest("hex")).toBe(input.sha256);
-    expect(input.structuredSupport).toBe("unsupported");
+    expect(["unsupported", "discovery", "phase-3-candidate"]).toContain(input.structuredSupport);
   }
 }
 
@@ -306,6 +307,26 @@ describe("static equity run fixtures", () => {
             sourceIds: ["extended-sec-edgar-nbis-filings"],
           }),
         );
+        expect(result.collectedSources.untaggedFinancialStatements).toMatchObject({
+          symbol: "NBIS",
+          filing: {
+            accessionNumber: "0001104659-26-064092",
+            documentName: "nbis-20260331xex99d2.htm",
+          },
+          validation: {
+            status: "accepted",
+            acceptedStatements: ["incomeStatement", "balanceSheet", "cashFlowStatement"],
+          },
+          completenessGate: { passed: false },
+        });
+        expect(result.collectedSources.untaggedFinancialStatements?.validation.values).toHaveLength(
+          14,
+        );
+        expect(
+          result.collectedSources.untaggedFinancialStatements?.validation.values.every(
+            (value) => value.extractionMethod === "model-validated-table",
+          ),
+        ).toBe(true);
         expect(result.report.equityAnalysisCompleteness).toMatchObject({
           financialCoreStatus: "partial",
           dimensions: {

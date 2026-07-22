@@ -1,0 +1,39 @@
+{
+  "values": [
+    {
+      "field": "revenue",
+      "displayedValue": 1023670,
+      "valueCellRef": "t004:r005:c008"
+    },
+    {
+      "field": "operatingIncome",
+      "displayedValue": 50150,
+      "valueCellRef": "t004:r007:c008"
+    },
+    {
+      "field": "netIncome",
+      "displayedValue": 102127,
+      "valueCellRef": "t004:r014:c008"
+    },
+    {
+      "field": "cash",
+      "displayedValue": 131530,
+      "valueCellRef": "t008:r007:c008"
+    },
+    {
+      "field": "totalAssets",
+      "displayedValue": 1909570,
+      "valueCellRef": "t008:r020:c008"
+    },
+    {
+      "field": "totalLiabilities",
+      "displayedValue": 783300,
+      "valueCellRef": "t009:r012:c008"
+    },
+    {
+      "field": "stockholdersEquity",
+      "displayedValue": 1118425,
+      "valueCellRef": "t009:r029:c008"
+    }
+  ]
+}

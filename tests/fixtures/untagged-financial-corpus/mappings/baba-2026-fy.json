@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "field": "revenue",
+      "labelCellRef": "t004:r005:c001",
+      "valueCellRef": "t004:r005:c008",
+      "periodHeaderCellRefs": ["t004:r001:c003", "t004:r002:c007"]
+    },
+    {
+      "field": "operatingIncome",
+      "labelCellRef": "t004:r007:c001",
+      "valueCellRef": "t004:r007:c008",
+      "periodHeaderCellRefs": ["t004:r001:c003", "t004:r002:c007"]
+    },
+    {
+      "field": "netIncome",
+      "labelCellRef": "t004:r014:c001",
+      "valueCellRef": "t004:r014:c008",
+      "periodHeaderCellRefs": ["t004:r001:c003", "t004:r002:c007"]
+    },
+    {
+      "field": "cash",
+      "labelCellRef": "t008:r007:c001",
+      "valueCellRef": "t008:r007:c008",
+      "periodHeaderCellRefs": ["t008:r001:c007", "t008:r002:c007"]
+    },
+    {
+      "field": "totalAssets",
+      "labelCellRef": "t008:r020:c001",
+      "valueCellRef": "t008:r020:c008",
+      "periodHeaderCellRefs": ["t008:r001:c007", "t008:r002:c007"]
+    },
+    {
+      "field": "totalLiabilities",
+      "labelCellRef": "t009:r012:c001",
+      "valueCellRef": "t009:r012:c008",
+      "periodHeaderCellRefs": ["t009:r001:c007", "t009:r002:c007"]
+    },
+    {
+      "field": "stockholdersEquity",
+      "labelCellRef": "t009:r029:c001",
+      "valueCellRef": "t009:r029:c008",
+      "periodHeaderCellRefs": ["t009:r001:c007", "t009:r002:c007"]
+    }
+  ]
+}

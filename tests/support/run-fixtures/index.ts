@@ -41,6 +41,7 @@ export interface FixtureMeta {
 
 export interface LoadedFixture {
   readonly name: string;
+  readonly dir: string;
   readonly dataCassette: DataCassette;
   readonly llmCassette: LlmCassette;
   readonly meta: FixtureMeta;
@@ -86,6 +87,7 @@ export async function loadFixture(name: string): Promise<LoadedFixture> {
   const dir = join(FIXTURE_ROOT, name);
   return {
     name,
+    dir,
     dataCassette: await readJson<DataCassette>(join(dir, "data-cassette.json")),
     llmCassette: await readJson<LlmCassette>(join(dir, "llm-cassette.json")),
     meta: await readJson<FixtureMeta>(join(dir, "meta.json")),
@@ -160,7 +162,7 @@ export async function runFixture(
   const { dataDir: requestedDataDir } = resolvedOptions;
   const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
   const config = createFixtureConfig(fixture.meta, dataDir);
-  const fetchImpl = makeReplayFetch(fixture.dataCassette);
+  const fetchImpl = makeReplayFetch(fixture.dataCassette, fixture.dir);
   const provider =
     resolvedOptions.provider ??
     (resolvedOptions.llm === "replay"

@@ -8,7 +8,7 @@ Accepted
 
 2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
 amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
-incremental Run Chat provider streaming)
+incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping)
 
 ## Context
 
@@ -123,12 +123,43 @@ research boundaries without sharing persistence or scoring semantics.
 - Web findings are ephemeral conversational context: not persisted Sources, not inputs to Evidence
   Quality or predictions, and cited inline by URL/title when used.
 
+### Untagged 6-K financial-table mapping
+
+- Untagged SEC HTML financial exhibits are untrusted source documents. Code converts them to a
+  bounded, sha256-addressed table packet with table, row, column, header, unit, and source
+  locators before any model call. Image-only, HTML-of-image, inaccessible PDF, oversized, and
+  irreducibly ambiguous layouts remain unsupported.
+- The `financial-table-mapping` quick-model stage may return only allowlisted semantic fields and
+  references to packet cells. It has no authority to provide numeric values, periods, currency,
+  scale, signs, calculations, confidence, or corrections. Split parenthesis signs and inherited
+  page-continuation headers are represented only by existing packet cell references.
+- Code re-reads every referenced source cell. Strict parsing rejects missing or cross-table
+  references (except packet-declared inherited headers), label mismatches, ambiguous numbers or
+  signs, unresolved periods, unsupported or mixed units/currencies, and duplicate field-period or
+  value-cell mappings. Code then enforces `assets = liabilities + equity` and every available cash
+  reconciliation, including both pre- and post-foreign-exchange net-change presentations.
+- Only a fully validated current income statement, balance sheet, and cash-flow statement receives
+  `model-validated-table` values. Rejected and partial results retain validation issues and Source
+  Gaps; source evidence is never reclassified to improve coverage.
+- Admission was evaluated on corpus version 1: ten public FPI exhibits, five layout families,
+  seven supported full-statement HTML cases, six accepted (85.7%), two insufficient-coverage
+  exhibits measured separately, and one image-only exhibit measured as unsupported. The corpus
+  recorded zero silently wrong values and zero source-cell mismatches. A fresh SEC fetch of the
+  NBIS exhibit was byte-identical to the fixture and produced the same 14 accepted cell mappings.
+- Passing this evaluation authorizes the extraction subsystem but does not make its facts canonical
+  financial evidence. Phase 3 persists a separate optional sidecar and leaves the canonical
+  `financial-statements.json` artifact and financial-core completeness contract unchanged. A later
+  explicit consumer migration must define canonical merge, precedence, and history semantics before
+  these values can satisfy completeness.
+
 ## Current operational limitations
 
 - Non-Codex providers do not expose Run Chat live search.
 - Same-origin localhost protection is not authentication if the console is exposed.
 - Chat may disclose selected artifacts and user content to the configured provider and can incur
   paid model or web-search usage.
+- Model mapping quality outside the checked-in HTML-table layout families is unknown. Unsupported
+  images and PDFs require a separate architectural decision and evaluation corpus.
 
 ## Consequences
 
@@ -146,6 +177,9 @@ research boundaries without sharing persistence or scoring semantics.
 - Alpha discovery can be evaluated later without presenting candidates as recommendations.
 - Run Chat streams provider text deltas without becoming reproducible or durable Run Artifact
   state; operators disable chat or web search when disclosure or cost is unacceptable.
+- Untagged table extraction is auditable and fixture-replayable, while deterministic code remains
+  the numeric authority. Passing its corpus gate does not silently widen financial-core
+  completeness.
 
 ## Implementation validation
 
@@ -161,3 +195,9 @@ research boundaries without sharing persistence or scoring semantics.
   `feature-attribution.ts`, and `cohorts.ts` implement alpha-search and later evaluation.
 - `app/chat.ts`, `app/client/components/run-chat.svelte`, `run-chat-storage.ts`, and
   `src/model/codex.ts` implement Run Chat and gated live search.
+- `src/sources/extended-evidence/untagged-financial-table-packet.ts`,
+  `untagged-financial-table-validation.ts`, and `untagged-financial-exhibit.ts` implement bounded
+  discovery, source-cell parsing, and accounting validation.
+- `prompts/financial-table-mapping/base.md` defines the constrained model authority;
+  `tests/fixtures/untagged-financial-corpus/` and `scripts/evaluate-untagged-financial-corpus.ts`
+  record and enforce the pre-production gate.

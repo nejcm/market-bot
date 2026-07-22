@@ -14,6 +14,7 @@ import type {
 } from "../src/sources/types";
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";
+const SEC_8K_PACKET_MAX_TEST_CHARS = 3003;
 
 function rawSnapshot(
   adapter: string,
@@ -321,6 +322,140 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.rawSnapshots).toHaveLength(4);
   });
 
+  test("selects two recent exact-form 8-Ks and builds bounded numbered or top packets", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["8-K/A", "8-K", "8-K", "8-K", "8-K", "10-K", "8-K"],
+          filingDate: [
+            "2026-07-19",
+            "2026-07-18",
+            "2026-06-15",
+            "2026-06-01",
+            "2026-02-01",
+            "2026-01-15",
+            "2026-01-10",
+          ],
+          reportDate: [
+            "2026-07-18",
+            "2026-07-17",
+            "2026-06-14",
+            "2026-05-31",
+            "2026-01-31",
+            "2025-12-31",
+            "2026-01-09",
+          ],
+          accessionNumber: [
+            "0000320193-26-000199",
+            "0000320193-26-000198",
+            "0000320193-26-000150",
+            "0000320193-26-000140",
+            "0000320193-26-000120",
+            "0000320193-26-000010",
+            "0000320193-26-000009",
+          ],
+          primaryDocument: [
+            "amended-8k.htm",
+            "numbered-8k.htm",
+            "unnumbered-8k.htm",
+            "third-8k.htm",
+            "old-8k.htm",
+            "annual-10k.htm",
+            "pre-periodic-8k.htm",
+          ],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        fetchedAt: "2026-07-20T12:00:00.000Z",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ url, adapter }) => {
+            if (url.includes("annual-10k")) {
+              return textResult(
+                adapter,
+                "ITEM 7. MANAGEMENT annual discussion with enough substantive filing text.",
+              );
+            }
+            if (url.includes("/numbered-8k.htm")) {
+              return textResult(
+                adapter,
+                `Cover page boilerplate ${"cover ".repeat(30)} ITEM 2.02 Results of Operations and Financial Condition. Revenue and liquidity changed materially. ${"detail ".repeat(500)}`,
+              );
+            }
+            return textResult(
+              adapter,
+              "Material current report without a numbered item heading describes a financing update and revised cash balance with enough substantive detail.",
+            );
+          },
+        }),
+      }),
+    );
+
+    expect(result.gaps).toEqual([]);
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10k",
+      "extended-sec-edgar-aapl-8k-0000320193-26-000198",
+      "extended-sec-edgar-aapl-8k-0000320193-26-000150",
+    ]);
+    expect(result.sources[1]?.summary).toBe(
+      "8-K filed 2026-07-18 for event date 2026-07-17 (material current report).",
+    );
+    expect(result.sources[1]?.snippet).toStartWith("ITEM 2.02");
+    expect((result.sources[1]?.snippet ?? "").length).toBeLessThanOrEqual(
+      SEC_8K_PACKET_MAX_TEST_CHARS,
+    );
+    expect(result.sources[2]?.snippet).toStartWith("Material current report without");
+    expect(result.items[1]?.metrics).toMatchObject({
+      form: "8-K",
+      accessionNumber: "0000320193-26-000198",
+    });
+    expect(result.rawSnapshots).toHaveLength(5);
+  });
+
+  test("excludes 8-Ks outside the periodic-filing and 120-day window", async () => {
+    const requestedFilingUrls: string[] = [];
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["8-K", "8-K", "10-K"],
+          filingDate: ["2026-02-01", "2026-01-10", "2026-01-15"],
+          reportDate: ["2026-01-31", "2026-01-09", "2025-12-31"],
+          accessionNumber: ["0000320193-26-000020", "0000320193-26-000009", "0000320193-26-000010"],
+          primaryDocument: ["old-8k.htm", "pre-periodic-8k.htm", "annual-10k.htm"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        fetchedAt: "2026-07-20T12:00:00.000Z",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ url, adapter }) => {
+            requestedFilingUrls.push(url);
+            return textResult(
+              adapter,
+              "ITEM 7. MANAGEMENT annual discussion with enough substantive filing text.",
+            );
+          },
+        }),
+      }),
+    );
+
+    expect(result.sources.map((source) => source.id)).toEqual(["extended-sec-edgar-aapl-10k"]);
+    expect(requestedFilingUrls).toHaveLength(1);
+    expect(requestedFilingUrls[0]).toContain("annual-10k.htm");
+  });
+
   test("marks quarterly coverage not-applicable when no 10-Q follows the 10-K", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
@@ -434,6 +569,49 @@ describe("SEC latest filing evidence tool", () => {
       expect.objectContaining({
         message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
       }),
+    ]);
+  });
+
+  test("isolates an 8-K fetch failure from periodic and sibling current reports", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["8-K", "8-K", "10-K"],
+          filingDate: ["2026-07-18", "2026-07-10", "2026-01-15"],
+          reportDate: ["2026-07-17", "2026-07-09", "2025-12-31"],
+          accessionNumber: ["0000320193-26-000198", "0000320193-26-000190", "0000320193-26-000010"],
+          primaryDocument: ["failed-8k.htm", "working-8k.htm", "annual-10k.htm"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        fetchedAt: "2026-07-20T12:00:00.000Z",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ url, adapter }) =>
+            url.includes("failed-8k")
+              ? gap("sec-filing-text", "8-K timeout")
+              : textResult(
+                  adapter,
+                  url.includes("annual-10k")
+                    ? "ITEM 7. MANAGEMENT annual discussion with enough substantive filing text."
+                    : "ITEM 8.01 Other Events. Material current report with enough substantive filing text.",
+                ),
+        }),
+      }),
+    );
+
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10k",
+      "extended-sec-edgar-aapl-8k-0000320193-26-000190",
+    ]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({ source: "sec-filing-text", message: "8-K timeout" }),
     ]);
   });
 

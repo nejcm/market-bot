@@ -12,7 +12,8 @@ amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15;
 2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
 rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
-2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range)
+2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range;
+amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures)
 
 ## Context
 
@@ -88,6 +89,10 @@ without pretending the project has a global security master.
 - For company subjects, Stage-1 gather derives durable sections already covered by the SEC 10-K/Q
   packet and rejects duplicate background searches without a recency, corroboration, or explicit-gap
   rationale.
+- Deep US-equity filing evidence includes the latest 10-K, a newer current 10-Q when present, and up
+  to two exact-form 8-K current reports filed after the newest periodic filing and within 120 days of
+  collection. Company-profile reuse freshness remains keyed only to 10-K/10-Q filings because 8-K
+  evidence enriches current events without replacing the durable periodic profile basis.
 - Deterministic title dedupe rejects an incoming accepted-web candidate when normalized title tokens
   match an already-accepted source at a 0.8 maximum Jaccard/containment threshold with at least three
   tokens. Rejections are audited as `duplicate-headline`; the rule cannot empty coverage and emits
@@ -121,6 +126,9 @@ without pretending the project has a global security master.
 - Financial Lens metrics preserve per-metric source IDs. SEC facts are preferred for
   filing-intrinsic metrics; Yahoo snapshot fundamentals supply price-relative metrics and
   non-US fallback coverage.
+- SEC `netIncome` maps to parent-attributable `NetIncomeLoss`; optional consolidated `ProfitLoss`
+  is disclosure-only when it differs. ROE and ROA retain parent-attributable income and their
+  existing balance-sheet scopes rather than mixing consolidated and parent measures.
 - Equity runs persist `normalized/fundamental-history.json` as a deterministic SEC companyfacts
   sidecar without changing `report.json`. Each series selects the first configured concept with
   facts, filters by the analysis cutoff, retains up to ten 10-14-month 10-K periods, and resolves
@@ -157,6 +165,9 @@ without pretending the project has a global security master.
   formula remain auditable. Quotes equal to either endpoint are `within-range`; only strict
   inequality yields `below-range` or `above-range`. This remains research context, not a composite
   score.
+- Valuation evidence preserves quote, cash, and debt dates. It discloses the market-cap and
+  balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
+  quote with cash/debt more than 92 days apart.
 - The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a
   human-audited comparability judgment, so it runs the `curated-no-sic` gate profile: the three
   SIC checks (missing peer SIC, unavailable target SIC, group mismatch) are skipped and only the

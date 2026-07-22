@@ -39,6 +39,11 @@ function assertInvariants(result: RunFixtureResult, name: string, meta: FixtureM
         meta.challengerModels?.length,
       );
     }
+    expect(
+      result.collectedSources.fundamentalHistory?.series.revenue.annual.length,
+    ).toBeGreaterThan(0);
+    expect(result.collectedSources.fundamentalHistory?.series.revenue.ttm).toBeDefined();
+    expect(result.collectedSources.valuationComps?.impliedPriceRange?.status).toBe("derived");
   }
 }
 

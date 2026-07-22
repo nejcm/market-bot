@@ -113,6 +113,21 @@ describe("violatesResearchOnly", () => {
     expect(result).not.toBeNull();
   });
 
+  for (const phrase of [
+    "fair value",
+    "margin of safety",
+    "undervalued",
+    "overvalued",
+    "target price",
+    "target prices",
+    "price target",
+    "price targets",
+  ]) {
+    test(`blocks valuation-certainty wording: "${phrase}"`, () => {
+      expect(violatesResearchOnly(phrase)).not.toBeNull();
+    });
+  }
+
   const terseImperatives = [
     "Buy now",
     "Sell immediately",

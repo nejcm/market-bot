@@ -226,6 +226,7 @@ describe("collectSources", () => {
       ANET: 4,
       VRT: 5,
     };
+    let nvdaCompanyFactsRequests = 0;
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
       if (url.includes("/v7/finance/quote")) {
@@ -255,6 +256,9 @@ describe("collectSources", () => {
       }
 
       if (url.includes("companyfacts")) {
+        if (url.includes("CIK0000000001")) {
+          nvdaCompanyFactsRequests += 1;
+        }
         return jsonResponse(collectorSecPayload());
       }
 
@@ -280,6 +284,7 @@ describe("collectSources", () => {
         cryptoMoverLimit: 2,
         newsLimit: 2,
         sourceTimeoutMs: 1000,
+        cacheDir: tempCacheDir(),
       },
       { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
     );
@@ -288,6 +293,15 @@ describe("collectSources", () => {
       usablePeerCount: 4,
       valuationSupportability: "supported",
     });
+    expect(result.fundamentalHistory).toMatchObject({
+      version: 1,
+      symbol: "NVDA",
+      sourceId: "extended-sec-edgar-nvda-fundamentals",
+    });
+    expect(nvdaCompanyFactsRequests).toBe(1);
+    expect(
+      result.rawSnapshots.filter((snapshot) => snapshot.adapter === "sec-companyfacts"),
+    ).toHaveLength(5);
     expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
       "yahoo-valuation-peers",
     );

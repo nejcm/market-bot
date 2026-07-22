@@ -1712,21 +1712,24 @@
               "label": "PE",
               "value": 31,
               "unit": "ratio",
-              "sourceIds": ["market-yahoo-equity-aapl"]
+              "sourceIds": ["market-yahoo-equity-aapl"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             },
             {
               "key": "forwardPe",
               "label": "Forward PE",
               "value": 28,
               "unit": "ratio",
-              "sourceIds": ["market-yahoo-equity-aapl"]
+              "sourceIds": ["market-yahoo-equity-aapl"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             },
             {
               "key": "priceToBook",
               "label": "Price/book",
               "value": 45,
               "unit": "ratio",
-              "sourceIds": ["market-yahoo-equity-aapl"]
+              "sourceIds": ["market-yahoo-equity-aapl"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             }
           ],
           "sourceIds": ["market-yahoo-equity-aapl"]
@@ -1741,34 +1744,164 @@
               "value": 216.6,
               "unit": "currency",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "currency": "USD"
+              "currency": "USD",
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             },
             {
               "key": "sma50",
               "label": "SMA50",
               "value": 206.8,
               "unit": "number",
-              "sourceIds": ["verified-snapshot-AAPL"]
+              "sourceIds": ["verified-snapshot-AAPL"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             },
             {
               "key": "rsi14",
               "label": "RSI14",
               "value": 100,
               "unit": "number",
-              "sourceIds": ["verified-snapshot-AAPL"]
+              "sourceIds": ["verified-snapshot-AAPL"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             },
             {
               "key": "macdHistogram",
               "label": "MACD histogram",
               "value": 2.220446049250313e-15,
               "unit": "number",
-              "sourceIds": ["verified-snapshot-AAPL"]
+              "sourceIds": ["verified-snapshot-AAPL"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
             }
           ],
           "sourceIds": ["verified-snapshot-AAPL"]
         }
       ],
       "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"]
+    },
+    "fundamental-history.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "AAPL",
+      "sourceId": "extended-sec-edgar-aapl-fundamentals",
+      "sourceUrl": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "series": {
+        "revenue": {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "grossProfit": {
+          "key": "grossProfit",
+          "label": "Gross profit",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "operatingIncome": {
+          "key": "operatingIncome",
+          "label": "Operating income",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "netIncome": {
+          "key": "netIncome",
+          "label": "Net income",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "dilutedEps": {
+          "key": "dilutedEps",
+          "label": "Diluted EPS",
+          "unit": "per-share",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "operatingCashFlow": {
+          "key": "operatingCashFlow",
+          "label": "Operating cash flow",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "capex": {
+          "key": "capex",
+          "label": "Capital expenditure",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "freeCashFlowProxy": {
+          "key": "freeCashFlowProxy",
+          "label": "Free cash flow proxy",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "grossMargin": {
+          "key": "grossMargin",
+          "label": "Gross margin",
+          "unit": "ratio",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "margin-change:insufficient-points: at least two matched annual points are required"
+          ]
+        },
+        "operatingMargin": {
+          "key": "operatingMargin",
+          "label": "Operating margin",
+          "unit": "ratio",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "margin-change:insufficient-points: at least two matched annual points are required"
+          ]
+        },
+        "netMargin": {
+          "key": "netMargin",
+          "label": "Net margin",
+          "unit": "ratio",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "margin-change:insufficient-points: at least two matched annual points are required"
+          ]
+        }
+      }
     },
     "historical-context.json": {
       "generatedAt": "<generatedAt>",

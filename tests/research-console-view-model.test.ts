@@ -1823,6 +1823,91 @@ describe("report artifact parsers", () => {
     ]);
   });
 
+  test("leaves industry-relative financial lens metrics neutral", () => {
+    const keys = [
+      "roe",
+      "roa",
+      "debtToEquity",
+      "evToAnnualizedRevenue",
+      "marketCapToAnnualizedRevenue",
+      "peRatio",
+      "forwardPe",
+      "pcfRatio",
+      "priceToBook",
+    ];
+    const tiles = financialLensStatTiles({
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Value",
+          posture: "criteria-supported",
+          sourceIds: ["s"],
+          metrics: keys.map((key) => ({
+            key,
+            label: key,
+            value: 1,
+            unit: "ratio" as const,
+            sourceIds: ["s"],
+          })),
+        },
+      ],
+      sourceIds: ["s"],
+    });
+
+    expect(tiles.map(({ key, tone, assessment }) => ({ key, tone, assessment }))).toEqual(
+      keys.map((key) => ({ key, tone: "neutral", assessment: undefined })),
+    );
+  });
+
+  test("formats financial lens filing-period and quote-source captions", () => {
+    const tiles = financialLensStatTiles({
+      version: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Quality",
+          posture: "criteria-supported",
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          metrics: [
+            {
+              key: "grossMargin",
+              label: "Gross margin",
+              value: 0.42,
+              unit: "ratio-percent",
+              sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              periodEnd: "2025-06-28",
+              periodMonths: 12,
+            },
+          ],
+        },
+        {
+          name: "Value",
+          posture: "insufficient-data",
+          sourceIds: ["market-yahoo-equity-aapl"],
+          metrics: [
+            {
+              key: "peRatio",
+              label: "PE",
+              value: 36.08,
+              unit: "ratio",
+              sourceIds: ["market-yahoo-equity-aapl"],
+              periodEnd: "2026-06-21T14:30:00.000Z",
+            },
+          ],
+        },
+      ],
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+    });
+
+    expect(tiles.map((tile) => tile.caption)).toEqual([
+      "SEC EDGAR · FY period ended 2025-06-28",
+      "Yahoo quote · observed 2026-06-21",
+    ]);
+  });
+
   test("formats sub-1 percent values by convention, not by magnitude", () => {
     // Ratio convention: 0.005 -> 0.5%. Whole-percent convention: 0.5 -> 0.5%.
     const tiles = financialLensMetricTiles({

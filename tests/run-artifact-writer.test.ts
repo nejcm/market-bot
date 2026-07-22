@@ -21,6 +21,7 @@ import type {
   SourcePlanArtifact,
 } from "../src/research/source-plan";
 import type { RawSourceSnapshot } from "../src/sources/types";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import {
   collectedSources,
   marketSnapshot,
@@ -212,6 +213,7 @@ const instrumentFiles = [
   RUN_ARTIFACT_FILES.instrumentIdentity,
   RUN_ARTIFACT_FILES.valuationComps,
   RUN_ARTIFACT_FILES.financialLenses,
+  RUN_ARTIFACT_FILES.fundamentalHistory,
   RUN_ARTIFACT_FILES.businessFramework,
 ] as const;
 
@@ -242,7 +244,26 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.instrumentIdentity)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationComps)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialLenses)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.businessFramework)).toBeNull();
+  });
+
+  test("writes the collected fundamental-history sidecar", () => {
+    const fundamentalHistory = deriveFundamentalHistory(
+      { facts: { "us-gaap": {} } },
+      {
+        symbol: "AAPL",
+        generatedAt: GENERATED_AT,
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ fundamentalHistory }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toEqual(fundamentalHistory);
   });
 
   test("research deep instrument manifest includes conditional audit artifacts", () => {

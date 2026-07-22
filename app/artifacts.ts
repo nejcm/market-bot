@@ -264,11 +264,20 @@ export async function readRunDetail(
     ...(trace !== undefined ? { trace } : {}),
     ...(score !== undefined ? { score } : {}),
     ...(missAutopsy !== undefined ? { missAutopsy } : {}),
+    ...(artifact.artifact !== undefined
+      ? { marketSnapshots: artifact.artifact.marketSnapshots }
+      : {}),
     ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
       ? { verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot }
       : {}),
     ...(artifact.artifact?.financialLenses !== undefined
       ? { financialLenses: artifact.artifact.financialLenses }
+      : {}),
+    ...(artifact.artifact?.peerImpliedRange !== undefined
+      ? { peerImpliedRange: artifact.artifact.peerImpliedRange }
+      : {}),
+    ...(artifact.artifact?.fundamentalHistory !== undefined
+      ? { fundamentalHistory: artifact.artifact.fundamentalHistory }
       : {}),
     ...(artifact.artifact?.businessFramework !== undefined
       ? { businessFramework: artifact.artifact.businessFramework }

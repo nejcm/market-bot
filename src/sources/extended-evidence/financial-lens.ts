@@ -28,6 +28,8 @@ export interface FinancialLensMetric {
   readonly unit: LensValueUnit;
   readonly sourceIds: readonly string[];
   readonly currency?: string;
+  readonly periodEnd?: string;
+  readonly periodMonths?: number;
 }
 
 export interface FinancialLens {
@@ -70,6 +72,14 @@ function readMetric(
 ): number | undefined {
   const value = metrics?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readStringMetric(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+  key: string,
+): string | undefined {
+  const value = metrics?.[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 function tickerSnapshot(
@@ -151,11 +161,25 @@ function metric(
   value: number | string | undefined,
   unit: FinancialLensMetric["unit"],
   sourceIds: readonly string[],
-  currency?: string,
+  metadata: Pick<FinancialLensMetric, "currency" | "periodEnd" | "periodMonths"> = {},
 ): readonly FinancialLensMetric[] {
-  return value === undefined
-    ? []
-    : [{ key, label, value, unit, sourceIds, ...(currency !== undefined ? { currency } : {}) }];
+  return value === undefined ? [] : [{ key, label, value, unit, sourceIds, ...metadata }];
+}
+
+function secPeriod(
+  item: ExtendedEvidenceItem | undefined,
+  key: string,
+): Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> {
+  const periodEnd = readStringMetric(item?.metrics, `${key}PeriodEnd`);
+  const periodMonths = readMetric(item?.metrics, `${key}PeriodMonths`);
+  return {
+    ...(periodEnd !== undefined ? { periodEnd } : {}),
+    ...(periodMonths !== undefined ? { periodMonths } : {}),
+  };
+}
+
+function observedPeriod(observedAt: string | undefined): Pick<FinancialLensMetric, "periodEnd"> {
+  return observedAt === undefined ? {} : { periodEnd: observedAt };
 }
 
 function percentChange(value: number | undefined): boolean | undefined {
@@ -186,6 +210,7 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       ratio(grossProfit, revenue),
       "ratio-percent",
       sourceIds,
+      secPeriod(secItem, "revenue"),
     ),
     ...metric(
       "operatingMargin",
@@ -193,15 +218,31 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       ratio(operatingIncome, revenue),
       "ratio-percent",
       sourceIds,
+      secPeriod(secItem, "revenue"),
     ),
-    ...metric("netMargin", "Net margin", ratio(netIncome, revenue), "ratio-percent", sourceIds),
-    ...metric("freeCashFlowProxy", "FCF proxy", freeCashFlowProxy, "currency", sourceIds),
+    ...metric(
+      "netMargin",
+      "Net margin",
+      ratio(netIncome, revenue),
+      "ratio-percent",
+      sourceIds,
+      secPeriod(secItem, "revenue"),
+    ),
+    ...metric(
+      "freeCashFlowProxy",
+      "FCF proxy",
+      freeCashFlowProxy,
+      "currency",
+      sourceIds,
+      secPeriod(secItem, "operatingCashFlow"),
+    ),
     ...metric(
       "cashConversion",
       "Cash conversion",
       ratio(operatingCashFlow, netIncome),
       "ratio",
       sourceIds,
+      secPeriod(secItem, "operatingCashFlow"),
     ),
     ...metric(
       "roe",
@@ -209,8 +250,16 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       ratio(annualizedNetIncome, stockholdersEquity),
       "ratio-percent",
       sourceIds,
+      secPeriod(secItem, "netIncome"),
     ),
-    ...metric("roa", "ROA", ratio(annualizedNetIncome, assets), "ratio-percent", sourceIds),
+    ...metric(
+      "roa",
+      "ROA",
+      ratio(annualizedNetIncome, assets),
+      "ratio-percent",
+      sourceIds,
+      secPeriod(secItem, "netIncome"),
+    ),
   ];
   return {
     name: "Quality",
@@ -234,6 +283,7 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       readMetric(secItem?.metrics, "revenueDeltaPercent"),
       "whole-percent",
       sourceIds,
+      secPeriod(secItem, "revenue"),
     ),
     ...metric(
       "grossProfitDeltaPercent",
@@ -241,6 +291,7 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       readMetric(secItem?.metrics, "grossProfitDeltaPercent"),
       "whole-percent",
       sourceIds,
+      secPeriod(secItem, "grossProfit"),
     ),
     ...metric(
       "operatingIncomeDeltaPercent",
@@ -248,6 +299,7 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       readMetric(secItem?.metrics, "operatingIncomeDeltaPercent"),
       "whole-percent",
       sourceIds,
+      secPeriod(secItem, "operatingIncome"),
     ),
     ...metric(
       "netIncomeDeltaPercent",
@@ -255,6 +307,7 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       readMetric(secItem?.metrics, "netIncomeDeltaPercent"),
       "whole-percent",
       sourceIds,
+      secPeriod(secItem, "netIncome"),
     ),
     ...metric(
       "dilutedEpsDeltaPercent",
@@ -262,6 +315,7 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       readMetric(secItem?.metrics, "dilutedEpsDeltaPercent"),
       "whole-percent",
       sourceIds,
+      secPeriod(secItem, "dilutedEps"),
     ),
     ...metric(
       "operatingCashFlowDeltaPercent",
@@ -269,6 +323,7 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       readMetric(secItem?.metrics, "operatingCashFlowDeltaPercent"),
       "whole-percent",
       sourceIds,
+      secPeriod(secItem, "operatingCashFlow"),
     ),
   ];
   return {
@@ -342,26 +397,72 @@ function strengthLens(
   // Dividend yield is whole-percent (verified against captured RR.L/AAPL fixtures).
   const dividendYield = readMetric(yahooFundamentalsItem?.metrics, "dividendYield");
   const metrics = [
-    ...metric("cash", "Cash", cash, "currency", secItem?.sourceIds ?? []),
-    ...metric("debt", "Debt", debt, "currency", secItem?.sourceIds ?? []),
-    ...metric("netDebt", "Net debt", netDebt, "currency", sourceIds),
-    ...metric("debtToMarketCap", "Debt/market cap", debtToMarketCap, "ratio-percent", sourceIds),
+    ...metric(
+      "cash",
+      "Cash",
+      cash,
+      "currency",
+      secItem?.sourceIds ?? [],
+      secPeriod(secItem, "cash"),
+    ),
+    ...metric(
+      "debt",
+      "Debt",
+      debt,
+      "currency",
+      secItem?.sourceIds ?? [],
+      secPeriod(secItem, "debt"),
+    ),
+    ...metric("netDebt", "Net debt", netDebt, "currency", sourceIds, secPeriod(secItem, "debt")),
+    ...metric(
+      "debtToMarketCap",
+      "Debt/market cap",
+      debtToMarketCap,
+      "ratio-percent",
+      sourceIds,
+      secPeriod(secItem, "debt"),
+    ),
     ...metric(
       "netDebtToMarketCap",
       "Net debt/market cap",
       netDebtToMarketCap,
       "ratio-percent",
       sourceIds,
+      secPeriod(secItem, "debt"),
     ),
-    ...metric("currentRatio", "Current ratio", currentRatio, "ratio", secItem?.sourceIds ?? []),
-    ...metric("debtToEquity", "Debt/equity", debtToEquity, "ratio", secItem?.sourceIds ?? []),
-    ...metric("payoutRatio", "Payout ratio", payoutRatio, "ratio-percent", payoutSourceIds),
+    ...metric(
+      "currentRatio",
+      "Current ratio",
+      currentRatio,
+      "ratio",
+      secItem?.sourceIds ?? [],
+      secPeriod(secItem, "currentAssets"),
+    ),
+    ...metric(
+      "debtToEquity",
+      "Debt/equity",
+      debtToEquity,
+      "ratio",
+      secItem?.sourceIds ?? [],
+      secPeriod(secItem, "debt"),
+    ),
+    ...metric(
+      "payoutRatio",
+      "Payout ratio",
+      payoutRatio,
+      "ratio-percent",
+      payoutSourceIds,
+      payoutFromSec
+        ? secPeriod(secItem, "dividendsPaid")
+        : observedPeriod(yahooFundamentalsItem?.observedAt),
+    ),
     ...metric(
       "dividendYield",
       "Dividend yield",
       dividendYield,
       "whole-percent",
       yahooFundamentalsItem?.sourceIds ?? [],
+      observedPeriod(yahooFundamentalsItem?.observedAt),
     ),
   ];
   return {
@@ -395,6 +496,11 @@ function valueLens(
       ? undefined
       : supportability === "supported";
   const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
+  const revenuePeriodMonths = readMetric(valuationItem?.metrics, "revenuePeriodMonths");
+  const valuationRevenuePeriod: Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> = {
+    ...observedPeriod(readStringMetric(valuationItem?.metrics, "revenuePeriodEnd")),
+    ...(revenuePeriodMonths !== undefined ? { periodMonths: revenuePeriodMonths } : {}),
+  };
   // PCF = marketCap / annualized operating cash flow. marketCap comes from the
   // Ticker snapshot (market data) or, failing that, the valuation item; the cash
   // Flow comes from SEC, annualized by its own periodMonths. Display-only
@@ -427,6 +533,7 @@ function valueLens(
             REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
             "text",
             valuationItem?.sourceIds ?? [],
+            valuationRevenuePeriod,
           )
         : []),
       ...metric(
@@ -435,6 +542,7 @@ function valueLens(
         readMetric(valuationItem?.metrics, "enterpriseValue"),
         "currency",
         valuationItem?.sourceIds ?? [],
+        observedPeriod(snapshot?.observedAt),
       ),
       ...metric(
         "annualizedRevenue",
@@ -442,6 +550,7 @@ function valueLens(
         readMetric(valuationItem?.metrics, "annualizedRevenue"),
         "currency",
         valuationItem?.sourceIds ?? [],
+        valuationRevenuePeriod,
       ),
       ...metric(
         "evToAnnualizedRevenue",
@@ -449,6 +558,7 @@ function valueLens(
         readMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
         "ratio",
         valuationItem?.sourceIds ?? [],
+        valuationRevenuePeriod,
       ),
       ...metric(
         "marketCapToAnnualizedRevenue",
@@ -456,6 +566,7 @@ function valueLens(
         readMetric(valuationItem?.metrics, "marketCapToAnnualizedRevenue"),
         "ratio",
         valuationItem?.sourceIds ?? [],
+        valuationRevenuePeriod,
       ),
       ...metric(
         "valuationSupportability",
@@ -463,6 +574,7 @@ function valueLens(
         typeof supportability === "string" ? supportability : undefined,
         "text",
         valuationItem?.sourceIds ?? [],
+        valuationRevenuePeriod,
       ),
       ...metric(
         "peRatio",
@@ -470,6 +582,7 @@ function valueLens(
         readMetric(yahooFundamentalsItem?.metrics, "trailingPE"),
         "ratio",
         yahooSourceIds,
+        observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
       ...metric(
         "forwardPe",
@@ -477,6 +590,7 @@ function valueLens(
         readMetric(yahooFundamentalsItem?.metrics, "forwardPE"),
         "ratio",
         yahooSourceIds,
+        observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
       ...metric(
         "priceToBook",
@@ -484,8 +598,16 @@ function valueLens(
         readMetric(yahooFundamentalsItem?.metrics, "priceToBook"),
         "ratio",
         yahooSourceIds,
+        observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
-      ...metric("pcfRatio", "PCF", pcfRatio, "ratio", pcfSourceIds),
+      ...metric(
+        "pcfRatio",
+        "PCF",
+        pcfRatio,
+        "ratio",
+        pcfSourceIds,
+        secPeriod(secItem, "operatingCashFlow"),
+      ),
     ],
     sourceIds,
   };
@@ -511,11 +633,42 @@ function momentumLens(
       macdHistogram === undefined ? undefined : macdHistogram >= 0,
     ]),
     metrics: [
-      ...metric("latestClose", "Latest close", close, "currency", sourceIds, quoteCurrency),
-      ...metric("sma50", "SMA50", sma50 ?? undefined, "number", sourceIds),
-      ...metric("sma200", "SMA200", sma200 ?? undefined, "number", sourceIds),
-      ...metric("rsi14", "RSI14", rsi14 ?? undefined, "number", sourceIds),
-      ...metric("macdHistogram", "MACD histogram", macdHistogram ?? undefined, "number", sourceIds),
+      ...metric("latestClose", "Latest close", close, "currency", sourceIds, {
+        currency: quoteCurrency,
+        ...observedPeriod(snapshot?.fetchedAt),
+      }),
+      ...metric(
+        "sma50",
+        "SMA50",
+        sma50 ?? undefined,
+        "number",
+        sourceIds,
+        observedPeriod(snapshot?.fetchedAt),
+      ),
+      ...metric(
+        "sma200",
+        "SMA200",
+        sma200 ?? undefined,
+        "number",
+        sourceIds,
+        observedPeriod(snapshot?.fetchedAt),
+      ),
+      ...metric(
+        "rsi14",
+        "RSI14",
+        rsi14 ?? undefined,
+        "number",
+        sourceIds,
+        observedPeriod(snapshot?.fetchedAt),
+      ),
+      ...metric(
+        "macdHistogram",
+        "MACD histogram",
+        macdHistogram ?? undefined,
+        "number",
+        sourceIds,
+        observedPeriod(snapshot?.fetchedAt),
+      ),
     ],
     sourceIds,
   };

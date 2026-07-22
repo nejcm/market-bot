@@ -13,6 +13,8 @@ import {
   searchRunReports,
 } from "../app/artifacts";
 import { researchReport } from "./support/fixtures";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -101,6 +103,17 @@ describe("research console app artifacts", () => {
     writeJson(join(runDir, "trace.json"), { stages: ["source-collection"] });
     writeJson(join(runDir, "score.json"), { scores: [] });
     writeJson(join(runDir, "miss-autopsy.json"), { version: 1, autopsies: [] });
+    writeJson(join(runDir, "normalized", "market-snapshots.json"), [
+      {
+        sourceId: "market-yahoo-equity-aapl",
+        assetClass: "equity",
+        symbol: "AAPL",
+        price: 211,
+        changePercent24h: 1.4,
+        volume: 62_000_000,
+        observedAt: "2026-06-01T00:00:00.000Z",
+      },
+    ]);
     writeJson(join(runDir, "normalized", "web-subject-profile.json"), {
       version: 2,
       generatedAt: "2026-06-01T00:00:00.000Z",
@@ -125,6 +138,54 @@ describe("research console app artifacts", () => {
       sourceIds: [webSourceId],
       secFilingBasisDate: "2026-05-01",
     });
+    writeJson(
+      join(runDir, "normalized", "fundamental-history.json"),
+      deriveFundamentalHistory(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: {
+                units: {
+                  USD: [
+                    {
+                      val: 100,
+                      form: "10-K",
+                      fp: "FY",
+                      fy: 2025,
+                      filed: "2025-11-01",
+                      start: "2024-10-01",
+                      end: "2025-09-30",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          symbol: "AAPL",
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-aapl-fundamentals",
+        },
+      ),
+    );
+    writeJson(join(runDir, "normalized", "valuation-comps.json"), {
+      version: 1,
+      impliedPriceRange: derivePeerImpliedRange({
+        supportability: "supported",
+        usablePeerCount: 3,
+        peerP25EvToAnnualizedRevenue: 1,
+        peerMedianEvToAnnualizedRevenue: 2,
+        peerP75EvToAnnualizedRevenue: 3,
+        annualizedRevenue: 400,
+        netDebt: 10,
+        sharesOutstanding: 10,
+        currentPrice: 79,
+        quoteCurrency: "USD",
+        quoteObservedAt: "2026-06-01T00:00:00.000Z",
+      }),
+      unrelatedCompsData: { mustNotBeThreaded: true },
+    });
 
     const detail = await readRunDetail(dataDir, "run-c");
 
@@ -135,10 +196,26 @@ describe("research console app artifacts", () => {
     expect(detail?.trace).toEqual({ stages: ["source-collection"] });
     expect(detail?.score).toEqual({ scores: [] });
     expect(detail?.missAutopsy).toEqual({ version: 1, autopsies: [] });
+    expect(detail?.marketSnapshots).toEqual([
+      expect.objectContaining({ symbol: "AAPL", price: 211 }),
+    ]);
     expect(detail?.webSubjectProfile).toMatchObject({
       subjectKind: "company",
       companyName: "Apple Inc.",
     });
+    expect(detail?.fundamentalHistory).toMatchObject({
+      version: 1,
+      symbol: "AAPL",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    });
+    expect(detail?.peerImpliedRange).toMatchObject({
+      status: "derived",
+      low: 39,
+      mid: 79,
+      high: 119,
+      position: "within-range",
+    });
+    expect(detail).not.toHaveProperty("valuationComps");
   });
 
   test("reads run files inside the run directory", async () => {

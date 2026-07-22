@@ -22,6 +22,8 @@
     type Tab,
   } from "./console-types";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
+  import SparklineBars from "./sparkline-bars.svelte";
+  import RangeBar from "./range-bar.svelte";
   import RunChat from "./run-chat.svelte";
 
   interface Props {
@@ -93,7 +95,10 @@
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
-  const financialLensStats = $derived(workspace?.report.financialLensStats ?? []);
+  const financialLensGroups = $derived(workspace?.report.financialLensGroups ?? []);
+  const fundamentalHistory = $derived(workspace?.fundamentalHistory);
+  const peerImpliedRange = $derived(workspace?.peerImpliedRange);
+  const equityHeader = $derived(workspace?.equityHeader);
   const targetHealth = $derived(workspace?.forecasts.targetHealth);
   const historicalAudit = $derived(workspace?.evidence.historicalContext);
   const showForecastsSection = $derived(workspace?.forecasts.visible ?? false);
@@ -283,7 +288,30 @@
           {/if}
         </div>
       </div>
-      <div class="flex gap-5.5">
+      <div class="flex flex-wrap items-end justify-end gap-5.5">
+        {#if equityHeader !== undefined}
+          <div class="text-right">
+            <div class="flex items-baseline justify-end gap-2 font-mono">
+              <span class="text-[19px] font-semibold">{equityHeader.price}</span>
+              <span
+                class="text-[13px] font-medium {equityHeader.changeDirection ===
+                'positive'
+                  ? 'text-[#0F9D58]'
+                  : equityHeader.changeDirection === 'negative'
+                    ? 'text-[#9B0F06]'
+                    : 'text-muted-foreground'}"
+              >
+                {equityHeader.dailyChange}
+              </span>
+            </div>
+            <div class="mt-0.5 text-[10.5px] text-muted-foreground">
+              {equityHeader.displayName} · {equityHeader.quoteCurrency}
+            </div>
+            <div class="mt-0.5 font-mono text-[9px] text-[#8a8f96]">
+              {equityHeader.asOf}
+            </div>
+          </div>
+        {/if}
         {#each [{ value: detail.summary.confidence ?? "—", label: "Evidence Quality" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
           <div class="text-right">
             <div class="font-mono text-[17px] font-medium">{stat.value}</div>
@@ -296,6 +324,22 @@
         {/each}
       </div>
     </div>
+
+    {#if equityHeader !== undefined && equityHeader.financials.length > 0}
+      <div class="mt-4 grid grid-cols-2 gap-2 border-y border-border py-3 sm:grid-cols-3 xl:grid-cols-5">
+        {#each equityHeader.financials as financial}
+          <div class="min-w-0 px-2 first:pl-0 last:pr-0">
+            <div class="font-mono text-[15px] font-medium">{financial.value}</div>
+            <div class="mt-0.5 text-[10px] uppercase tracking-wider text-[#5c6066]">
+              {financial.label}
+            </div>
+            <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
+              {financial.caption}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <div class="mt-5 flex gap-0.5 border-b border-border" role="tablist">
       {#each TABS as tab}
@@ -326,7 +370,7 @@
             </div>
           {/if}
 
-          {#if financialLensStats.length > 0}
+          {#if financialLensGroups.length > 0}
             <section
               {@attach bindSection("financialLensStats")}
               class="mt-5 scroll-mt-5"
@@ -343,39 +387,166 @@
                   normalized evidence metrics
                 </span>
               </div>
-              <div
-                class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
-              >
-                {#each financialLensStats as tile}
-                  <div
-                    class="px-3 py-2.5 {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}"
-                  >
-                    <div class="flex items-start justify-between gap-2">
+              <div class="mt-3 space-y-4">
+                {#each financialLensGroups as group}
+                  <div>
+                    <div class="flex items-baseline justify-between gap-2">
                       <div
-                        class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[
-                          tile.tone
-                        ]}"
+                        class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#353a40]"
                       >
-                        {tile.value}
+                        {group.lens}
                       </div>
-                      {#if tile.assessment !== undefined}
-                        <span
-                          class="rounded border border-current uppercase font-medium px-1 py-px font-mono text-[10px] leading-tight {FINANCIAL_LENS_VALUE_CLASSES[
-                            tile.tone
-                          ]}"
-                        >
-                          {tile.assessment}
-                        </span>
-                      {/if}
+                      <div class="font-mono text-[10px] text-[#737980]">
+                        {group.posture.replaceAll("-", " ")}
+                      </div>
                     </div>
-                    <div
-                      class="mt-1 text-[10px] uppercase tracking-wider text-[#5c6066]"
-                    >
-                      {tile.label}
+                    <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                      {#each group.tiles as tile}
+                        <div class="px-3 py-2.5 {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}">
+                          <div class="flex items-start justify-between gap-2">
+                            <div
+                              class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[
+                                tile.tone
+                              ]}"
+                            >
+                              {tile.value}
+                            </div>
+                            {#if tile.assessment !== undefined}
+                              <span
+                                class="rounded border border-current uppercase font-medium px-1 py-px font-mono text-[10px] leading-tight {FINANCIAL_LENS_VALUE_CLASSES[
+                                  tile.tone
+                                ]}"
+                              >
+                                {tile.assessment}
+                              </span>
+                            {/if}
+                          </div>
+                          <div class="mt-1 text-[10px] uppercase tracking-wider text-[#5c6066]">
+                            {tile.label}
+                          </div>
+                          {#if tile.caption !== undefined}
+                            <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
+                              {tile.caption}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
                     </div>
                   </div>
                 {/each}
               </div>
+            </section>
+          {/if}
+
+          {#if fundamentalHistory !== undefined}
+            <section
+              {@attach bindSection("fundamentalHistory")}
+              class="mt-8.5 scroll-mt-5"
+            >
+              <div
+                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2"
+              >
+                <span
+                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
+                >
+                  Fundamental history
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]">
+                  normalized SEC fiscal history
+                </span>
+              </div>
+              <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {#each fundamentalHistory.cards as card}
+                  <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <div
+                          class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]"
+                        >
+                          {card.label}
+                        </div>
+                        <div class="mt-1 font-mono text-[17px] font-semibold text-foreground">
+                          {card.value}
+                        </div>
+                      </div>
+                      {#if card.trendLabel !== undefined}
+                        <div class="text-right font-mono text-[10px] text-primary">
+                          {card.trendLabel}
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="mt-1 font-mono text-[9px] text-[#737980]">
+                      {card.valuePeriod}
+                    </div>
+                    <div class="mt-2">
+                      <SparklineBars
+                        geometry={card.geometry}
+                        label={`${card.label} annual history`}
+                      />
+                    </div>
+                    <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
+                      {card.periodRange}
+                    </div>
+                    <div class="mt-0.5 font-mono text-[9px] leading-snug text-[#8a8f96]">
+                      {card.sourceCaption}
+                    </div>
+                    {#if card.disclosure !== undefined}
+                      <div class="mt-1 text-[9px] leading-snug text-[#8a6116]">
+                        {card.disclosure}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+
+          {#if peerImpliedRange !== undefined}
+            <section
+              {@attach bindSection("peerImpliedRange")}
+              class="mt-8.5 scroll-mt-5"
+            >
+              {#if peerImpliedRange.status === "suppressed"}
+                <div class="rounded-lg border border-border bg-secondary px-4 py-3.5">
+                  <div
+                    class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                  >
+                    {peerImpliedRange.label}
+                  </div>
+                  <div class="mt-1.5 text-sm text-muted-foreground">
+                    {peerImpliedRange.message}
+                  </div>
+                </div>
+              {:else}
+                <div class="rounded-lg border border-border bg-card px-4 py-3.5">
+                  <div class="flex flex-wrap items-baseline justify-between gap-2">
+                    <div
+                      class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]"
+                    >
+                      {peerImpliedRange.label}
+                    </div>
+                    <div class="font-mono text-[10px] text-primary">
+                      {peerImpliedRange.positionLabel}
+                    </div>
+                  </div>
+                  <div class="mt-2.5">
+                    <RangeBar
+                      geometry={peerImpliedRange.geometry}
+                      label={peerImpliedRange.label}
+                      lowLabel={peerImpliedRange.lowLabel}
+                      midLabel={peerImpliedRange.midLabel}
+                      highLabel={peerImpliedRange.highLabel}
+                      currentLabel={peerImpliedRange.currentLabel}
+                    />
+                  </div>
+                  <div class="mt-2 font-mono text-[9px] leading-relaxed text-[#737980]">
+                    {peerImpliedRange.methodDisclosure}
+                  </div>
+                  <div class="mt-0.5 font-mono text-[9px] leading-relaxed text-[#8a8f96]">
+                    {peerImpliedRange.boundaryDisclosure}
+                  </div>
+                </div>
+              {/if}
             </section>
           {/if}
 

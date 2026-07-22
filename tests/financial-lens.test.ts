@@ -1,10 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { loadRunArtifact } from "../src/run-artifacts";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import {
   MIXED_PERIOD_METRIC,
@@ -14,6 +18,11 @@ import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-f
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
 
 function verifiedSnapshot(overrides: Partial<VerifiedMarketSnapshot> = {}): VerifiedMarketSnapshot {
   return {
@@ -63,6 +72,8 @@ function evidence(): ExtendedEvidence {
         observedAt: "2026-06-20T00:00:00.000Z",
         metrics: {
           revenue: 100,
+          revenuePeriodEnd: "2025-06-28",
+          revenuePeriodMonths: 12,
           revenueDeltaPercent: 12,
           grossProfit: 42,
           grossProfitDeltaPercent: 10,
@@ -95,6 +106,8 @@ function evidence(): ExtendedEvidence {
           netDebt: -15,
           netDebtToMarketCap: -0.015,
           valuationSupportability: "supported",
+          revenuePeriodEnd: "2025-06-28",
+          revenuePeriodMonths: 12,
         },
       },
     ],
@@ -135,6 +148,14 @@ describe("addFinancialLensEvidence", () => {
     expect(item?.sourceIds).toContain("verified-snapshot-AAPL");
     expect(item?.metrics?.qualityPosture).toBe("criteria-supported");
     expect(item?.metrics?.financialStrengthPosture).toBe("criteria-supported");
+    expect(metricByKey(result, "Quality", "grossMargin")).toMatchObject({
+      periodEnd: "2025-06-28",
+      periodMonths: 12,
+    });
+    expect(metricByKey(result, "Value", "evToAnnualizedRevenue")).toMatchObject({
+      periodEnd: "2025-06-28",
+      periodMonths: 12,
+    });
   });
 
   test("does not recompute net debt when valuation marks it mixed-period", () => {
@@ -504,6 +525,53 @@ function metricByKey(
   return lensByName(result, lensName)?.metrics.find((metric) => metric.key === key);
 }
 
+describe("financial lens artifact compatibility", () => {
+  test("loads persisted metrics without optional period fields", async () => {
+    const runDir = join(
+      tmpdir(),
+      `market-bot-financial-lens-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    tempDirs.push(runDir);
+    await mkdir(join(runDir, "normalized"), { recursive: true });
+    await Bun.write(
+      join(runDir, "report.json"),
+      `${JSON.stringify(researchReport({ runId: "legacy-financial-lens" }))}\n`,
+    );
+    await Bun.write(
+      join(runDir, "normalized", "financial-lenses.json"),
+      `${JSON.stringify({
+        version: 1,
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        symbol: "AAPL",
+        lenses: [
+          {
+            name: "Quality",
+            posture: "criteria-supported",
+            metrics: [
+              {
+                key: "grossMargin",
+                label: "Gross margin",
+                value: 0.42,
+                unit: "ratio-percent",
+                sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              },
+            ],
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          },
+        ],
+        sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+      })}\n`,
+    );
+
+    const loaded = await loadRunArtifact(runDir);
+
+    expect(loaded.artifact?.financialLenses?.lenses[0]?.metrics[0]).toMatchObject({
+      key: "grossMargin",
+      value: 0.42,
+    });
+  });
+});
+
 describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
   test("SEC ROE/ROA are annualized by net income's own period and display-only", () => {
     // 9-month netIncome 71.7 annualized by netIncomePeriodMonths=9 -> 95.6.
@@ -517,6 +585,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
           secEvidenceWithRatios({
             netIncome: 71.7,
             netIncomePeriodMonths: 9,
+            netIncomePeriodEnd: "2026-03-28",
             stockholdersEquity: 50,
             assets: 120,
           }),
@@ -533,6 +602,8 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(roe).toMatchObject({
       unit: "ratio-percent",
       sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+      periodEnd: "2026-03-28",
+      periodMonths: 9,
     });
     expect(roe?.value).toBeCloseTo((71.7 * (12 / 9)) / 50, 5);
     expect(roa?.value).toBeCloseTo((71.7 * (12 / 9)) / 120, 5);
@@ -620,6 +691,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       value: 36.08,
       unit: "ratio",
       sourceIds: ["market-yahoo-equity-aapl"],
+      periodEnd: "2026-06-21T00:00:00.000Z",
     });
     expect(forwardPe?.value).toBe(31.06);
     expect(pbv?.value).toBe(41.05);
@@ -691,7 +763,11 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
         items: [
-          secEvidenceWithRatios({ operatingCashFlow: 30, operatingCashFlowPeriodMonths: 9 }),
+          secEvidenceWithRatios({
+            operatingCashFlow: 30,
+            operatingCashFlowPeriodMonths: 9,
+            operatingCashFlowPeriodEnd: "2026-03-28",
+          }),
           valuationEvidence(),
           yahooFundamentalsEvidence(),
         ],
@@ -709,6 +785,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       "extended-sec-edgar-aapl-fundamentals",
       "market-yahoo-equity-aapl",
     ]);
+    expect(pcf).toMatchObject({ periodEnd: "2026-03-28", periodMonths: 9 });
   });
 
   test("PCF sourceIds reflect SEC + market snapshot even with no valuation item", () => {

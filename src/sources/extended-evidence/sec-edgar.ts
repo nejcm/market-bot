@@ -10,7 +10,7 @@ import { readArray } from "./utils";
 
 type SecForm = "10-K" | "10-Q";
 
-interface SecFactValue {
+export interface SecFactValue {
   readonly val: number;
   readonly form: SecForm;
   readonly fp?: string;
@@ -22,7 +22,7 @@ interface SecFactValue {
 
 const DAYS_PER_MONTH = 30.4368;
 
-interface SecMetricDefinition {
+export interface SecMetricDefinition {
   readonly key: string;
   readonly label: string;
   readonly concepts: readonly string[];
@@ -57,6 +57,7 @@ export interface SecCompanyFactsResult {
   readonly sourceId?: string;
   readonly sourceUrl?: string;
   readonly fetchedAt?: string;
+  readonly factsPayload?: unknown;
   readonly metrics?: Record<string, number | string>;
   readonly summary?: string;
   readonly revenuePeriodEnd?: string;
@@ -69,7 +70,7 @@ export interface SecCompanyFactsResult {
   readonly gaps: readonly SourceGap[];
 }
 
-const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
+export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
   {
     key: "revenue",
     label: "revenue",
@@ -302,7 +303,7 @@ function readFiscalYear(value: Record<string, unknown>): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function readSecFactValue(value: unknown): SecFactValue | undefined {
+export function readSecFactValue(value: unknown): SecFactValue | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -330,7 +331,7 @@ function readSecFactValue(value: unknown): SecFactValue | undefined {
 // Reporting period length in months for a duration (flow) fact, rounded to the
 // Nearest whole month: ~3 for a single quarter, ~12 for a full fiscal year.
 // Undefined when the fact lacks a start/end span (e.g. balance-sheet instants).
-function periodMonths(fact: SecFactValue): number | undefined {
+export function periodMonths(fact: SecFactValue): number | undefined {
   if (fact.start === undefined || fact.end === undefined) {
     return undefined;
   }
@@ -343,7 +344,7 @@ function periodMonths(fact: SecFactValue): number | undefined {
   return months > 0 ? months : undefined;
 }
 
-function isFactObservableAsOf(fact: SecFactValue, analysisAsOf?: string): boolean {
+export function isFactObservableAsOf(fact: SecFactValue, analysisAsOf?: string): boolean {
   if (analysisAsOf === undefined) {
     return true;
   }
@@ -768,6 +769,7 @@ export async function fetchSecCompanyFactsForSymbol(
     sourceId: `extended-sec-edgar-${symbol.toLowerCase()}-fundamentals`,
     sourceUrl: factsUrl,
     fetchedAt: facts.rawSnapshot.fetchedAt,
+    factsPayload: facts.payload,
     ...(fundamentals !== undefined
       ? {
           metrics: fundamentals.metrics,

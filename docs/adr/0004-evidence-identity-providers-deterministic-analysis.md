@@ -11,7 +11,8 @@ tier-scoped SIC gate; amended 2026-07-09: research representative snapshots and 
 amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15; amended
 2026-07-16: clarified web-gather provider and contract module ownership; amended 2026-07-19:
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
-rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability)
+rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
+2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range)
 
 ## Context
 
@@ -120,6 +121,14 @@ without pretending the project has a global security master.
 - Financial Lens metrics preserve per-metric source IDs. SEC facts are preferred for
   filing-intrinsic metrics; Yahoo snapshot fundamentals supply price-relative metrics and
   non-US fallback coverage.
+- Equity runs persist `normalized/fundamental-history.json` as a deterministic SEC companyfacts
+  sidecar without changing `report.json`. Each series selects the first configured concept with
+  facts, filters by the analysis cutoff, retains up to ten 10-14-month 10-K periods, and resolves
+  duplicate period ends to the latest-filed restatement. TTM flows use full FY plus latest YTD less
+  aligned prior-year YTD; mismatched periods are omitted with an audit note. Diluted-EPS TTM is
+  explicitly labeled an approximation because per-share periods are added without reweighting
+  diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
+  matched periods and compatible units.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -136,6 +145,18 @@ without pretending the project has a global security master.
   and market-cap gates remain enforced, the peer set is explicitly caveated as
   size/sector-comparable only, and target supportability records `not-meaningful` rather than
   conflating applicability with missing data.
+- A supported peer aggregate may add a peer-implied price reference range to the valuation-comps
+  sidecar without changing `report.json`. The derivation applies peer EV/annualized-revenue P25,
+  median, and P75 multiples to target annualized revenue, subtracts target net debt, and divides by
+  Yahoo `sharesOutstanding` from the same quote as market cap and current price. Yahoo shares are
+  used instead of filing-dated diluted shares to keep price, shares, market cap, quote currency,
+  and observation time point-in-time consistent. Derivation requires, in order, supported comps,
+  at least three usable peers, positive annualized revenue, defined non-mixed-period net debt,
+  positive shares, a USD quote, three positive derived prices, and a defined current price. The
+  first failed gate persists as the suppression reason and emits a `SourceGap`; inputs, basis, and
+  formula remain auditable. Quotes equal to either endpoint are `within-range`; only strict
+  inequality yields `below-range` or `above-range`. This remains research context, not a composite
+  score.
 - The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a
   human-audited comparability judgment, so it runs the `curated-no-sic` gate profile: the three
   SIC checks (missing peer SIC, unavailable target SIC, group mismatch) are skipped and only the
@@ -160,6 +181,12 @@ without pretending the project has a global security master.
   dates for non-US listings.
 - SEC duration selection cannot always distinguish quarter-only from year-to-date facts. Derived
   annualized metrics must preserve period metadata and be treated as screening evidence.
+- Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
+  series: the first configured concept with facts supplies the whole series. This keeps selection
+  consistent and deterministic but can shorten history. Diluted-EPS TTM remains approximate when
+  share counts vary across component periods. Because each period independently selects its
+  latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
+  was not restated in the same filing.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.

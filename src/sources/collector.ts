@@ -29,6 +29,9 @@ import {
   collectFundamentalHistory,
   type FundamentalHistoryArtifact,
 } from "./extended-evidence/fundamental-history";
+import { collectFinancialStatements } from "./extended-evidence/financial-statements";
+import { attachFinancialStatementParity } from "./extended-evidence/financial-statements-parity";
+import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
@@ -498,6 +501,9 @@ export async function collectSources(
     ...(enrichmentResult.fundamentalHistory !== undefined
       ? { fundamentalHistory: enrichmentResult.fundamentalHistory }
       : {}),
+    ...(enrichmentResult.financialStatements !== undefined
+      ? { financialStatements: enrichmentResult.financialStatements }
+      : {}),
     ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
       ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
@@ -549,6 +555,7 @@ interface EquityEnrichmentResult {
   readonly valuationCompsSkippedGaps: readonly SourceGap[];
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
+  readonly financialStatements: FinancialStatementsArtifact | undefined;
   readonly businessFrameworkResult: BusinessFrameworkResult;
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
@@ -602,12 +609,19 @@ async function collectEquityEnrichment(
     evidenceWithComps,
     input.fetchedAt,
   );
-  const fundamentalHistory = isUsListing(
+  const collectStructuredSec = isUsListing(
     input.command.symbol,
     input.identityContext.instrumentIdentity,
-  )
-    ? await collectFundamentalHistory(input.identityContext, input.command.symbol)
-    : undefined;
+  );
+  const [fundamentalHistory, financialStatementsWithoutParity]: readonly [
+    FundamentalHistoryArtifact | undefined,
+    FinancialStatementsArtifact | undefined,
+  ] = collectStructuredSec
+    ? await Promise.all([
+        collectFundamentalHistory(input.identityContext, input.command.symbol),
+        collectFinancialStatements(input.identityContext, input.command.symbol),
+      ])
+    : [undefined, undefined];
   const financialLensResult = addFinancialLensEvidence(
     input.command,
     input.marketSnapshots,
@@ -615,6 +629,15 @@ async function collectEquityEnrichment(
     input.verifiedMarketSnapshot,
     input.fetchedAt,
   );
+  const financialStatements =
+    financialStatementsWithoutParity === undefined
+      ? undefined
+      : attachFinancialStatementParity(financialStatementsWithoutParity, {
+          ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
+          ...(financialLensResult.artifact !== undefined
+            ? { financialLenses: financialLensResult.artifact }
+            : {}),
+        });
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
     input.marketSnapshots,
@@ -638,6 +661,7 @@ async function collectEquityEnrichment(
     valuationCompsResult,
     valuationCompsSkippedGaps,
     fundamentalHistory,
+    financialStatements,
     financialLensResult,
     businessFrameworkResult,
     ...earningsResult,
@@ -657,6 +681,7 @@ function noEquityEnrichment(
     valuationCompsResult: undefined,
     valuationCompsSkippedGaps: [],
     fundamentalHistory: undefined,
+    financialStatements: undefined,
     financialLensResult,
     businessFrameworkResult,
     earningsSetup: undefined,

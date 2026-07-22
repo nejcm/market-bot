@@ -116,6 +116,10 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     value: (result) => result.collectedSources.fundamentalHistory ?? null,
   },
   {
+    file: RUN_ARTIFACT_FILES.financialStatements,
+    value: (result) => result.collectedSources.financialStatements ?? null,
+  },
+  {
     file: RUN_ARTIFACT_FILES.businessFramework,
     value: (result) => result.collectedSources.businessFramework ?? null,
   },

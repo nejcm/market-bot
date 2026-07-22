@@ -44,6 +44,7 @@ export const RUN_ARTIFACT_FILES = {
   valuationComps: `${NORMALIZED_DIR}/valuation-comps.json`,
   financialLenses: `${NORMALIZED_DIR}/financial-lenses.json`,
   fundamentalHistory: `${NORMALIZED_DIR}/fundamental-history.json`,
+  financialStatements: `${NORMALIZED_DIR}/financial-statements.json`,
   businessFramework: `${NORMALIZED_DIR}/business-framework.json`,
   webSubjectProfile: `${NORMALIZED_DIR}/web-subject-profile.json`,
   webGatherAudit: `${NORMALIZED_DIR}/web-gather-audit.json`,

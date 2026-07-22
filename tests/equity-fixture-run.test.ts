@@ -102,6 +102,52 @@ function assertAaplPopulatedPath(result: RunFixtureResult): void {
   });
   expect(result.collectedSources.earningsSetup).toBeUndefined();
   expect(result.report.predictions).toHaveLength(0);
+
+  const statements = result.collectedSources.financialStatements;
+  expect(statements).toMatchObject({
+    version: 1,
+    taxonomy: "us-gaap",
+    reportingCurrency: "USD",
+    interimCadence: "quarterly",
+    shadowParity: {
+      status: "matched",
+      matchedCount: 33,
+      explainedCount: 0,
+      unexplainedCount: 0,
+    },
+  });
+  expect(statements?.statements.incomeStatement.revenue.ttm).toMatchObject({
+    value: 426_000_000_000,
+    formula: "FY + latest-YTD - prior-YTD",
+    components: {
+      fiscalYear: { value: 405_000_000_000 },
+      latestYearToDate: { value: 210_000_000_000 },
+      priorYearToDate: { value: 189_000_000_000 },
+    },
+  });
+}
+
+function assertStatementCapsAndParity(result: RunFixtureResult): void {
+  const artifact = result.collectedSources.financialStatements;
+  expect(artifact).toBeDefined();
+  const series =
+    artifact === undefined
+      ? []
+      : [
+          ...Object.values(artifact.statements.incomeStatement),
+          ...Object.values(artifact.statements.balanceSheet),
+          ...Object.values(artifact.statements.cashFlowStatement),
+          ...Object.values(artifact.statements.perShare),
+        ];
+  expect(series.every((item) => item.annual.length <= 10)).toBe(true);
+  expect(series.every((item) => item.interim.length <= 12)).toBe(true);
+  expect(
+    new Set(series.flatMap((item) => item.annual.map((fact) => fact.periodKey))).size,
+  ).toBeLessThanOrEqual(10);
+  expect(
+    new Set(series.flatMap((item) => item.interim.map((fact) => fact.periodKey))).size,
+  ).toBeLessThanOrEqual(12);
+  expect(artifact?.shadowParity.unexplainedCount).toBe(0);
 }
 
 function factTaxonomies(result: RunFixtureResult): readonly string[] {
@@ -230,6 +276,7 @@ describe("static equity run fixtures", () => {
       runResults.push(result);
 
       assertInvariants(result, name, fixture.meta);
+      assertStatementCapsAndParity(result);
       if (name === "equity-aapl-deep") {
         assertAaplPopulatedPath(result);
       }
@@ -238,16 +285,66 @@ describe("static equity run fixtures", () => {
         expect(factForms(result).has("20-F")).toBe(true);
         assertCurrentFpiGap(result, "NBIS");
         await assertNbisUnsupportedInputs();
+        expect(result.collectedSources.financialStatements).toMatchObject({
+          taxonomy: "us-gaap",
+          reportingCurrency: "USD",
+          interimCadence: "annual-only",
+          shadowParity: {
+            status: "explained",
+            matchedCount: 0,
+            explainedCount: 2,
+            unexplainedCount: 0,
+          },
+        });
+        expect(
+          result.collectedSources.financialStatements?.statements.incomeStatement.revenue.annual,
+        ).toHaveLength(5);
+        expect(result.collectedSources.financialStatements?.structuredFinancialGaps).toContainEqual(
+          expect.objectContaining({
+            code: "untagged-6-k",
+            sourceIds: ["extended-sec-edgar-nbis-filings"],
+          }),
+        );
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
         expect([...factForms(result)]).toEqual(expect.arrayContaining(["20-F", "6-K"]));
         assertCurrentFpiGap(result, "FPIQ");
+        expect(result.collectedSources.financialStatements).toMatchObject({
+          taxonomy: "us-gaap",
+          reportingCurrency: "USD",
+          interimCadence: "quarterly",
+          shadowParity: { status: "explained", explainedCount: 2, unexplainedCount: 0 },
+        });
+        expect(
+          result.collectedSources.financialStatements?.statements.incomeStatement.revenue.ttm,
+        ).toMatchObject({
+          value: 1_620_000_000,
+          components: {
+            fiscalYear: { value: 1_500_000_000 },
+            latestYearToDate: { value: 420_000_000 },
+            priorYearToDate: { value: 300_000_000 },
+          },
+        });
       }
       if (name === "equity-fpi-ifrs-semiannual") {
         expect(factTaxonomies(result)).toEqual(["ifrs-full"]);
         expect([...factForms(result)]).toEqual(expect.arrayContaining(["20-F", "6-K"]));
         assertCurrentFpiGap(result, "IFRSSA");
+        expect(result.collectedSources.financialStatements).toMatchObject({
+          taxonomy: "ifrs-full",
+          reportingCurrency: "USD",
+          interimCadence: "semiannual",
+          shadowParity: { status: "explained", explainedCount: 2, unexplainedCount: 0 },
+        });
+        expect(
+          result.collectedSources.financialStatements?.statements.incomeStatement.revenue.interim,
+        ).toEqual([
+          expect.objectContaining({ periodStart: "2025-01-01", periodEnd: "2025-06-30" }),
+        ]);
+        expect(result.collectedSources.financialStatements?.validationNotes).toContainEqual(
+          expect.objectContaining({ code: "unreconciled-ttm", seriesKey: "revenue" }),
+        );
       }
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result);

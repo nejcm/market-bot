@@ -1848,6 +1848,2175 @@
       ],
       "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"]
     },
+    "financial-statements.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "analysisAsOf": "2026-07-22T16:16:13.510Z",
+      "symbol": "NBIS",
+      "sourceId": "extended-sec-edgar-nbis-fundamentals",
+      "sourceUrl": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001513845.json",
+      "taxonomy": "us-gaap",
+      "reportingCurrency": "USD",
+      "interimCadence": "annual-only",
+      "extractionMethod": "sec-companyfacts",
+      "statements": {
+        "incomeStatement": {
+          "revenue": {
+            "key": "revenue",
+            "label": "Revenue",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": 4794200000,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Revenues",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 13500000,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Revenues",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 9800000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Revenues",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 91500000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Revenues",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 529800000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Revenues",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "grossProfit": {
+            "key": "grossProfit",
+            "label": "Gross profit",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
+          },
+          "operatingIncome": {
+            "key": "operatingIncome",
+            "label": "Operating income",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": -178700000,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "OperatingIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -158000000,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "OperatingIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -285700000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "OperatingIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -399600000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "OperatingIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -611700000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "OperatingIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "netIncome": {
+            "key": "netIncome",
+            "label": "Net income",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": -197200000,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 745600000,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 241300000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -641400000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 82500000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetIncomeLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          }
+        },
+        "balanceSheet": {
+          "cash": {
+            "key": "cash",
+            "label": "Cash and cash equivalents",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 1127100000,
+                "periodKey": "instant|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "CashAndCashEquivalentsAtCarryingValue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 288500000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "CashAndCashEquivalentsAtCarryingValue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 110700000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "CashAndCashEquivalentsAtCarryingValue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 2434700000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "CashAndCashEquivalentsAtCarryingValue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3678100000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "CashAndCashEquivalentsAtCarryingValue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "currentAssets": {
+            "key": "currentAssets",
+            "label": "Current assets",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 2691700000,
+                "periodKey": "instant|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "AssetsCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3411200000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "AssetsCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3453500000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "AssetsCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 2533300000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "AssetsCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 4711400000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "AssetsCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "currentLiabilities": {
+            "key": "currentLiabilities",
+            "label": "Current liabilities",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 1495500000,
+                "periodKey": "instant|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LiabilitiesCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 2670600000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LiabilitiesCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3870400000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LiabilitiesCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 264000000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LiabilitiesCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 1527800000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LiabilitiesCurrent",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "totalAssets": {
+            "key": "totalAssets",
+            "label": "Total assets",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 6938700000,
+                "periodKey": "instant|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 8768000000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 8755100000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3548600000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 12430600000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "totalLiabilities": {
+            "key": "totalLiabilities",
+            "label": "Total liabilities",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 3265000000,
+                "periodKey": "instant|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3960100000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 5461200000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 294900000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 7836600000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "stockholdersEquity": {
+            "key": "stockholdersEquity",
+            "label": "Stockholders' equity",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 3475100000,
+                "periodKey": "instant|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "StockholdersEquity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 4497000000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "StockholdersEquity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3293700000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "StockholdersEquity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 3253700000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "StockholdersEquity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 4594000000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "StockholdersEquity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "debt": {
+            "key": "debt",
+            "label": "Debt",
+            "statement": "balanceSheet",
+            "annual": [
+              {
+                "value": 727800000,
+                "periodKey": "instant|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-23-006319",
+                "filedAt": "2023-04-20",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LongTermDebt",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 1577500000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-24-005891",
+                "filedAt": "2024-04-26",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LongTermDebt",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 4103200000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "LongTermDebt",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          }
+        },
+        "cashFlowStatement": {
+          "operatingCashFlow": {
+            "key": "operatingCashFlow",
+            "label": "Operating cash flow",
+            "statement": "cashFlowStatement",
+            "annual": [
+              {
+                "value": 125100000,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetCashProvidedByUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 697000000,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetCashProvidedByUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 829800000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetCashProvidedByUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 245600000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetCashProvidedByUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 384800000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "NetCashProvidedByUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "capitalExpenditure": {
+            "key": "capitalExpenditure",
+            "label": "Capital expenditure",
+            "statement": "cashFlowStatement",
+            "annual": [
+              {
+                "value": 600600000,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 14600000,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 82900000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 807500000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 4066000000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "dividendsPaid": {
+            "key": "dividendsPaid",
+            "label": "Dividends paid",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "shareRepurchases": {
+            "key": "shareRepurchases",
+            "label": "Share repurchases",
+            "statement": "cashFlowStatement",
+            "annual": [
+              {
+                "value": 93800000,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "PaymentsForRepurchaseOfCommonStock",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          }
+        },
+        "perShare": {
+          "dilutedEps": {
+            "key": "dilutedEps",
+            "label": "Diluted EPS",
+            "statement": "perShare",
+            "annual": [
+              {
+                "value": -0.54,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-22-005654",
+                "filedAt": "2022-04-20",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2021,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "EarningsPerShareDiluted",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 1.59,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "EarningsPerShareDiluted",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 0.65,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "EarningsPerShareDiluted",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -2.28,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "EarningsPerShareDiluted",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 0.33,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "EarningsPerShareDiluted",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "dilutedShares": {
+            "key": "dilutedShares",
+            "label": "Diluted weighted-average shares",
+            "statement": "perShare",
+            "annual": [
+              {
+                "value": 362386669,
+                "periodKey": "2021-01-01|2021-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-24-005891",
+                "filedAt": "2024-04-26",
+                "periodStart": "2021-01-01",
+                "periodEnd": "2021-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+                "currency": null,
+                "unit": "shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 368020254,
+                "periodKey": "2022-01-01|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+                "currency": null,
+                "unit": "shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 370839686,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+                "currency": null,
+                "unit": "shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 281005226,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+                "currency": null,
+                "unit": "shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 247679946,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+                "currency": null,
+                "unit": "shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          }
+        }
+      },
+      "validationNotes": [
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "revenue",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "revenue",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "revenue",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "revenue",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "operatingIncome",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "operatingIncome",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "operatingIncome",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "operatingIncome",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "netIncome",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "netIncome",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "netIncome",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "netIncome",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2011-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001047469-13-004131 filed 2013-04-09"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2012-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001047469-14-003438 filed 2014-04-04"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2013-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001047469-15-004230 filed 2015-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2014-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001047469-16-011404 filed 2016-03-22"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2015-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001513845-17-000004 filed 2017-03-22"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2016-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001513845-18-000013 filed 2018-03-27"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2017-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001513845-19-000009 filed 2019-04-19"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2018-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-20-003563 filed 2020-04-02"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2019-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001513845-21-000014 filed 2021-04-01"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2020-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-22-005654 filed 2022-04-20"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2021-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-23-006319 filed 2023-04-20"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2022-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "cash",
+          "periodKey": "instant|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "currentAssets",
+          "periodKey": "instant|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "currentAssets",
+          "periodKey": "instant|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "currentLiabilities",
+          "periodKey": "instant|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "currentLiabilities",
+          "periodKey": "instant|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "totalAssets",
+          "periodKey": "instant|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "totalAssets",
+          "periodKey": "instant|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "totalLiabilities",
+          "periodKey": "instant|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "totalLiabilities",
+          "periodKey": "instant|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "stockholdersEquity",
+          "periodKey": "instant|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "stockholdersEquity",
+          "periodKey": "instant|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "operatingCashFlow",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "operatingCashFlow",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "operatingCashFlow",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "operatingCashFlow",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "capitalExpenditure",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "capitalExpenditure",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "capitalExpenditure",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "capitalExpenditure",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "shareRepurchases",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedEps",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedEps",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedEps",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "dilutedEps",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2010-01-01|2010-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001047469-13-004131 filed 2013-04-09"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2011-01-01|2011-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001047469-14-003438 filed 2014-04-04"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2012-01-01|2012-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001047469-15-004230 filed 2015-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2013-01-01|2013-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001047469-16-011404 filed 2016-03-22"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2014-01-01|2014-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001513845-17-000004 filed 2017-03-22"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2015-01-01|2015-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001513845-18-000013 filed 2018-03-27"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2016-01-01|2016-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001513845-19-000009 filed 2019-04-19"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2017-01-01|2017-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001558370-20-003563 filed 2020-04-02"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2018-01-01|2018-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001513845-21-000014 filed 2021-04-01"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2019-01-01|2019-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001558370-22-005654 filed 2022-04-20"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2020-01-01|2020-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001558370-23-006319 filed 2023-04-20"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2021-01-01|2021-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001558370-24-005891 filed 2024-04-26"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2022-01-01|2022-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2023-01-01|2023-12-31",
+          "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "dilutedShares",
+          "periodKey": "2024-01-01|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        }
+      ],
+      "omissionNotes": [
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "revenue",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "operatingIncome",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "netIncome",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "cash",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "currentAssets",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "currentLiabilities",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "totalAssets",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "totalLiabilities",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "stockholdersEquity",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "debt",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "operatingCashFlow",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "capitalExpenditure",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "shareRepurchases",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "mixed-currencies",
+          "seriesKey": "dilutedEps",
+          "message": "Excluded incompatible reporting currency: RUB"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2009-01-01|2009-12-31",
+          "message": "Older annual canonical period 2009-01-01|2009-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2010-01-01|2010-12-31",
+          "message": "Older annual canonical period 2010-01-01|2010-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2010-12-31",
+          "message": "Older annual canonical period instant|2010-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2011-01-01|2011-12-31",
+          "message": "Older annual canonical period 2011-01-01|2011-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2011-12-31",
+          "message": "Older annual canonical period instant|2011-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2012-01-01|2012-12-31",
+          "message": "Older annual canonical period 2012-01-01|2012-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2012-12-31",
+          "message": "Older annual canonical period instant|2012-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2013-01-01|2013-12-31",
+          "message": "Older annual canonical period 2013-01-01|2013-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2013-12-31",
+          "message": "Older annual canonical period instant|2013-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2014-01-01|2014-12-31",
+          "message": "Older annual canonical period 2014-01-01|2014-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2014-12-31",
+          "message": "Older annual canonical period instant|2014-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2015-01-01|2015-12-31",
+          "message": "Older annual canonical period 2015-01-01|2015-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2015-12-31",
+          "message": "Older annual canonical period instant|2015-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2016-01-01|2016-12-31",
+          "message": "Older annual canonical period 2016-01-01|2016-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2016-12-31",
+          "message": "Older annual canonical period instant|2016-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2017-01-01|2017-12-31",
+          "message": "Older annual canonical period 2017-01-01|2017-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2017-12-31",
+          "message": "Older annual canonical period instant|2017-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2018-01-01|2018-12-31",
+          "message": "Older annual canonical period 2018-01-01|2018-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2018-12-31",
+          "message": "Older annual canonical period instant|2018-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2019-01-01|2019-12-31",
+          "message": "Older annual canonical period 2019-01-01|2019-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2019-12-31",
+          "message": "Older annual canonical period instant|2019-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|2020-01-01|2020-12-31",
+          "message": "Older annual canonical period 2020-01-01|2020-12-31 omitted by the shared 10-period cap"
+        },
+        {
+          "code": "history-cap",
+          "periodKey": "annual|instant|2020-12-31",
+          "message": "Older annual canonical period instant|2020-12-31 omitted by the shared 10-period cap"
+        }
+      ],
+      "structuredFinancialGaps": [
+        {
+          "code": "untagged-6-k",
+          "message": "SEC submissions include 6-K filing evidence without supported structured companyfacts; table extraction is deferred",
+          "forms": ["6-K/A", "6-K"],
+          "sourceIds": ["extended-sec-edgar-nbis-filings"]
+        }
+      ],
+      "shadowParity": {
+        "version": 1,
+        "status": "explained",
+        "matchedCount": 0,
+        "explainedCount": 2,
+        "unexplainedCount": 0,
+        "comparisons": [
+          {
+            "consumer": "fundamental-history",
+            "field": "structured-financial-coverage",
+            "status": "explained",
+            "reasonCode": "legacy-form-unsupported",
+            "explanation": "The shadow artifact supports 20-F/6-K companyfacts while the Phase 1 legacy consumer remains limited to 10-K/10-Q."
+          },
+          {
+            "consumer": "financial-lens",
+            "field": "structured-financial-coverage",
+            "status": "explained",
+            "reasonCode": "legacy-form-unsupported",
+            "explanation": "The shadow artifact supports 20-F/6-K companyfacts while the Phase 1 legacy consumer remains limited to 10-K/10-Q."
+          }
+        ]
+      }
+    },
     "fundamental-history.json": {
       "version": 1,
       "generatedAt": "<generatedAt>",

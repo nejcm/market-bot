@@ -13,7 +13,8 @@ amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15;
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
 rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
 2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range;
-amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures)
+amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures; amended
+2026-07-23: canonical financial-statements shadow artifact)
 
 ## Context
 
@@ -137,6 +138,30 @@ without pretending the project has a global security master.
   explicitly labeled an approximation because per-share periods are added without reweighting
   diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
   matched periods and compatible units.
+- Equity runs also persist versioned `normalized/financial-statements.json` as the canonical
+  structured-financial artifact in shadow mode. It accepts standard `us-gaap` and `ifrs-full`
+  companyfacts from `10-K`, `10-Q`, `20-F`, and `6-K`, including amended forms, while current
+  Financial Lens, valuation, fundamental-history, Run Artifact reader, and Console consumers remain
+  unchanged until separately migrated.
+- Canonical financial series apply the run analysis cutoff before selection, use one standard
+  taxonomy and one reporting currency, and exclude issuer-extension concepts from primary statement
+  totals. Matching period keys resolve by filed date, amendment status, and accession number; a
+  later valid amendment supersedes only its matching period. Selected facts preserve form,
+  canonical form, accession, filing and period metadata, fiscal identifiers, taxonomy, unit/currency,
+  unit scale, extraction method, and source IDs.
+- The artifact retains a shared roster of at most ten annual and twelve interim exact start/end
+  period keys and projects every series onto that roster, detects
+  `quarterly`, `semiannual`, `irregular`, `annual-only`, or `unknown` cadence, and derives TTM only
+  from an exactly reconciled FY plus latest-YTD less aligned prior-YTD basis with all three component
+  facts retained. Validation/omission notes disclose duplicate, mixed-period, mixed-currency,
+  incomplete-statement, cutoff, history-cap, and unreconciled-TTM conditions. An untagged `6-K`
+  remains filing evidence and produces an explicit structured-financial gap; model table extraction
+  is outside this artifact's Phase 1 trust boundary.
+- Shadow parity telemetry compares overlapping canonical periods, values, TTM derivations, and
+  currency/unit basis with current fundamental-history and Financial Lens outputs. Differences are
+  either matched, assigned a deterministic explanation (including the legacy `10-K`/`10-Q` form
+  boundary), or marked unexplained; fixture gates require zero unexplained differences before a
+  consumer migration.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -198,6 +223,10 @@ without pretending the project has a global security master.
   share counts vary across component periods. Because each period independently selects its
   latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
   was not restated in the same filing.
+- The canonical financial-statements artifact is shadow-only. Current report, lens, valuation,
+  history, reader/API, and Console behavior can remain narrower until Phase 2 migrations establish
+  parity at each consumer seam. Companyfacts without accession metadata retain an explicit null and
+  omission note rather than inventing provenance.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.
@@ -226,6 +255,8 @@ without pretending the project has a global security master.
   bounded tool flow.
 - `src/sources/verified-market-snapshot.ts` and `src/sources/indicators.ts` implement snapshots.
 - `src/sources/extended-evidence/` implements lenses, valuation, framework, and reconciliation.
+- `src/sources/extended-evidence/financial-statement*.ts` implements the canonical structured
+  financial contract, normalization, cadence/TTM derivation, and shadow parity telemetry.
 - `src/research/peer-universe*.ts` implements deterministic, learned, and proposed peer tiers.
 - `src/domain/instrument.ts`, `src/sources/instrument-identity.ts`,
   `src/research/subject-registry.ts`, and `research-subject-identity.ts` implement identity.

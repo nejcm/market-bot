@@ -1777,6 +1777,163 @@
       ],
       "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"]
     },
+    "financial-statements.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "analysisAsOf": "2026-06-15T14:30:00.000Z",
+      "symbol": "AAPL",
+      "sourceId": "extended-sec-edgar-aapl-fundamentals",
+      "sourceUrl": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "interimCadence": "unknown",
+      "extractionMethod": "sec-companyfacts",
+      "statements": {
+        "incomeStatement": {
+          "revenue": {
+            "key": "revenue",
+            "label": "Revenue",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
+          },
+          "grossProfit": {
+            "key": "grossProfit",
+            "label": "Gross profit",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
+          },
+          "operatingIncome": {
+            "key": "operatingIncome",
+            "label": "Operating income",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
+          },
+          "netIncome": {
+            "key": "netIncome",
+            "label": "Net income",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
+          }
+        },
+        "balanceSheet": {
+          "cash": {
+            "key": "cash",
+            "label": "Cash and cash equivalents",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "currentAssets": {
+            "key": "currentAssets",
+            "label": "Current assets",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "currentLiabilities": {
+            "key": "currentLiabilities",
+            "label": "Current liabilities",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "totalAssets": {
+            "key": "totalAssets",
+            "label": "Total assets",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "totalLiabilities": {
+            "key": "totalLiabilities",
+            "label": "Total liabilities",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "stockholdersEquity": {
+            "key": "stockholdersEquity",
+            "label": "Stockholders' equity",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "debt": {
+            "key": "debt",
+            "label": "Debt",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          }
+        },
+        "cashFlowStatement": {
+          "operatingCashFlow": {
+            "key": "operatingCashFlow",
+            "label": "Operating cash flow",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "capitalExpenditure": {
+            "key": "capitalExpenditure",
+            "label": "Capital expenditure",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "dividendsPaid": {
+            "key": "dividendsPaid",
+            "label": "Dividends paid",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "shareRepurchases": {
+            "key": "shareRepurchases",
+            "label": "Share repurchases",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          }
+        },
+        "perShare": {
+          "dilutedEps": {
+            "key": "dilutedEps",
+            "label": "Diluted EPS",
+            "statement": "perShare",
+            "annual": [],
+            "interim": []
+          },
+          "dilutedShares": {
+            "key": "dilutedShares",
+            "label": "Diluted weighted-average shares",
+            "statement": "perShare",
+            "annual": [],
+            "interim": []
+          }
+        }
+      },
+      "validationNotes": [],
+      "omissionNotes": [],
+      "structuredFinancialGaps": [
+        {
+          "code": "no-standard-taxonomy",
+          "message": "No supported us-gaap or ifrs-full standard concepts were available",
+          "forms": [],
+          "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+        }
+      ],
+      "shadowParity": {
+        "version": 1,
+        "status": "not-applicable",
+        "matchedCount": 0,
+        "explainedCount": 0,
+        "unexplainedCount": 0,
+        "comparisons": []
+      }
+    },
     "fundamental-history.json": {
       "version": 1,
       "generatedAt": "<generatedAt>",

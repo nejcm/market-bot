@@ -1680,6 +1680,619 @@
       ],
       "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"]
     },
+    "financial-statements.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "analysisAsOf": "2026-06-15T14:30:00.000Z",
+      "symbol": "IFRSSA",
+      "sourceId": "extended-sec-edgar-ifrssa-fundamentals",
+      "sourceUrl": "https://data.sec.gov/api/xbrl/companyfacts/CIK0009000002.json",
+      "taxonomy": "ifrs-full",
+      "reportingCurrency": "USD",
+      "interimCadence": "semiannual",
+      "extractionMethod": "sec-companyfacts",
+      "statements": {
+        "incomeStatement": {
+          "revenue": {
+            "key": "revenue",
+            "label": "Revenue",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": 1000000000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Revenue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1200000000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Revenue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1500000000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Revenue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "interim": [
+              {
+                "value": 650000000,
+                "periodKey": "2025-01-01|2025-06-30",
+                "periodType": "interim",
+                "form": "6-K",
+                "canonicalForm": "6-K",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-h1",
+                "filedAt": "2025-08-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-06-30",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "H1",
+                "taxonomy": "ifrs-full",
+                "concept": "Revenue",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ]
+          },
+          "grossProfit": {
+            "key": "grossProfit",
+            "label": "Gross profit",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": 850000000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "GrossProfit",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1020000000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "GrossProfit",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1275000000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "GrossProfit",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "interim": [
+              {
+                "value": 552500000,
+                "periodKey": "2025-01-01|2025-06-30",
+                "periodType": "interim",
+                "form": "6-K",
+                "canonicalForm": "6-K",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-h1",
+                "filedAt": "2025-08-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-06-30",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "H1",
+                "taxonomy": "ifrs-full",
+                "concept": "GrossProfit",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ]
+          },
+          "operatingIncome": {
+            "key": "operatingIncome",
+            "label": "Operating income",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": 700000000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLossFromOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 840000000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLossFromOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1049999999.9999999,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLossFromOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "interim": [
+              {
+                "value": 455000000,
+                "periodKey": "2025-01-01|2025-06-30",
+                "periodType": "interim",
+                "form": "6-K",
+                "canonicalForm": "6-K",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-h1",
+                "filedAt": "2025-08-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-06-30",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "H1",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLossFromOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ]
+          },
+          "netIncome": {
+            "key": "netIncome",
+            "label": "Net income",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": 550000000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 660000000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 825000000.0000001,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "interim": [
+              {
+                "value": 357500000,
+                "periodKey": "2025-01-01|2025-06-30",
+                "periodType": "interim",
+                "form": "6-K",
+                "canonicalForm": "6-K",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-h1",
+                "filedAt": "2025-08-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-06-30",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "H1",
+                "taxonomy": "ifrs-full",
+                "concept": "ProfitLoss",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ]
+          }
+        },
+        "balanceSheet": {
+          "cash": {
+            "key": "cash",
+            "label": "Cash and cash equivalents",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "currentAssets": {
+            "key": "currentAssets",
+            "label": "Current assets",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "currentLiabilities": {
+            "key": "currentLiabilities",
+            "label": "Current liabilities",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "totalAssets": {
+            "key": "totalAssets",
+            "label": "Total assets",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "totalLiabilities": {
+            "key": "totalLiabilities",
+            "label": "Total liabilities",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "stockholdersEquity": {
+            "key": "stockholdersEquity",
+            "label": "Stockholders' equity",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          },
+          "debt": {
+            "key": "debt",
+            "label": "Debt",
+            "statement": "balanceSheet",
+            "annual": [],
+            "interim": []
+          }
+        },
+        "cashFlowStatement": {
+          "operatingCashFlow": {
+            "key": "operatingCashFlow",
+            "label": "Operating cash flow",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "capitalExpenditure": {
+            "key": "capitalExpenditure",
+            "label": "Capital expenditure",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "dividendsPaid": {
+            "key": "dividendsPaid",
+            "label": "Dividends paid",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          },
+          "shareRepurchases": {
+            "key": "shareRepurchases",
+            "label": "Share repurchases",
+            "statement": "cashFlowStatement",
+            "annual": [],
+            "interim": []
+          }
+        },
+        "perShare": {
+          "dilutedEps": {
+            "key": "dilutedEps",
+            "label": "Diluted EPS",
+            "statement": "perShare",
+            "annual": [],
+            "interim": []
+          },
+          "dilutedShares": {
+            "key": "dilutedShares",
+            "label": "Diluted weighted-average shares",
+            "statement": "perShare",
+            "annual": [],
+            "interim": []
+          }
+        }
+      },
+      "validationNotes": [
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "revenue",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "grossProfit",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "operatingIncome",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "netIncome",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2023-01-01|2023-12-31",
+          "message": "balanceSheet annual period 2023-01-01|2023-12-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2023-01-01|2023-12-31",
+          "message": "cashFlowStatement annual period 2023-01-01|2023-12-31 is missing operatingCashFlow"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2023-01-01|2023-12-31",
+          "message": "perShare annual period 2023-01-01|2023-12-31 is missing dilutedEps"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2024-01-01|2024-12-31",
+          "message": "balanceSheet annual period 2024-01-01|2024-12-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2024-01-01|2024-12-31",
+          "message": "cashFlowStatement annual period 2024-01-01|2024-12-31 is missing operatingCashFlow"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2024-01-01|2024-12-31",
+          "message": "perShare annual period 2024-01-01|2024-12-31 is missing dilutedEps"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2025-01-01|2025-12-31",
+          "message": "balanceSheet annual period 2025-01-01|2025-12-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2025-01-01|2025-12-31",
+          "message": "cashFlowStatement annual period 2025-01-01|2025-12-31 is missing operatingCashFlow"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "annual|2025-01-01|2025-12-31",
+          "message": "perShare annual period 2025-01-01|2025-12-31 is missing dilutedEps"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "interim|2025-01-01|2025-06-30",
+          "message": "balanceSheet interim period 2025-01-01|2025-06-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "interim|2025-01-01|2025-06-30",
+          "message": "cashFlowStatement interim period 2025-01-01|2025-06-30 is missing operatingCashFlow"
+        },
+        {
+          "code": "incomplete-statement",
+          "periodKey": "interim|2025-01-01|2025-06-30",
+          "message": "perShare interim period 2025-01-01|2025-06-30 is missing dilutedEps"
+        }
+      ],
+      "omissionNotes": [
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "revenue",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "grossProfit",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "operatingIncome",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "netIncome",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        }
+      ],
+      "structuredFinancialGaps": [],
+      "shadowParity": {
+        "version": 1,
+        "status": "explained",
+        "matchedCount": 0,
+        "explainedCount": 2,
+        "unexplainedCount": 0,
+        "comparisons": [
+          {
+            "consumer": "fundamental-history",
+            "field": "structured-financial-coverage",
+            "status": "explained",
+            "reasonCode": "legacy-form-unsupported",
+            "explanation": "The shadow artifact supports 20-F/6-K companyfacts while the Phase 1 legacy consumer remains limited to 10-K/10-Q."
+          },
+          {
+            "consumer": "financial-lens",
+            "field": "structured-financial-coverage",
+            "status": "explained",
+            "reasonCode": "legacy-form-unsupported",
+            "explanation": "The shadow artifact supports 20-F/6-K companyfacts while the Phase 1 legacy consumer remains limited to 10-K/10-Q."
+          }
+        ]
+      }
+    },
     "fundamental-history.json": {
       "version": 1,
       "generatedAt": "<generatedAt>",

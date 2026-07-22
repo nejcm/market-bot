@@ -64,6 +64,7 @@ export interface SecCompanyFactsResult {
   readonly sicClassification?: SecSicClassification;
   readonly filingsSummary?: string;
   readonly submissionsUrl?: string;
+  readonly submissionsPayload?: unknown;
   readonly submissionsSourceId?: string;
   readonly submissionsFetchedAt?: string;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
@@ -743,6 +744,7 @@ export async function fetchSecCompanyFactsForSymbol(
     ...(filingsSummary !== undefined ? { filingsSummary } : {}),
     ...(isFetchJsonResult(submissions)
       ? {
+          submissionsPayload: submissions.payload,
           submissionsSourceId: `extended-sec-edgar-${symbol.toLowerCase()}-filings`,
           submissionsFetchedAt: submissions.rawSnapshot.fetchedAt,
         }

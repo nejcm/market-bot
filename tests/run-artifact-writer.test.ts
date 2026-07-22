@@ -214,6 +214,7 @@ const instrumentFiles = [
   RUN_ARTIFACT_FILES.valuationComps,
   RUN_ARTIFACT_FILES.financialLenses,
   RUN_ARTIFACT_FILES.fundamentalHistory,
+  RUN_ARTIFACT_FILES.financialStatements,
   RUN_ARTIFACT_FILES.businessFramework,
 ] as const;
 
@@ -245,6 +246,7 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationComps)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialLenses)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.financialStatements)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.businessFramework)).toBeNull();
   });
 

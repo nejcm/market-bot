@@ -15,6 +15,7 @@ import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
 } from "./valuation-comps";
 import { formatLensValue, formatPeRatio, type LensValueUnit } from "./value-format";
+import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -42,6 +43,8 @@ export interface FinancialLens {
   readonly posture: FinancialLensPosture;
   readonly metrics: readonly FinancialLensMetric[];
   readonly sourceIds: readonly string[];
+  readonly currentStatus?: "current" | "partial";
+  readonly currentStatusReasonCodes?: readonly string[];
 }
 
 export interface FinancialLensArtifact {
@@ -561,6 +564,36 @@ function strengthLens(
   };
 }
 
+function applySubsequentFinancingCurrentness(
+  lens: FinancialLens,
+  bridge: SubsequentFinancingBridgeArtifact | undefined,
+): FinancialLens {
+  const unreconciled = bridge?.events.filter((event) => !event.reconciled) ?? [];
+  if (unreconciled.length === 0) {
+    return lens;
+  }
+  const sourceIds = [
+    ...new Set([...lens.sourceIds, ...unreconciled.flatMap((event) => event.sourceIds)]),
+  ];
+  return {
+    ...lens,
+    metrics: [
+      ...lens.metrics,
+      {
+        key: "unreconciledFinancingEvents",
+        label: "Unreconciled post-period financing events",
+        value: unreconciled.length,
+        unit: "number",
+        sourceIds: bridge?.sourceIds ?? [],
+        ...(unreconciled[0] !== undefined ? { periodEnd: unreconciled[0].eventDate } : {}),
+      },
+    ],
+    sourceIds,
+    currentStatus: "partial",
+    currentStatusReasonCodes: ["unreconciled-post-period-financing"],
+  };
+}
+
 function valueLens(
   valuationItem: ExtendedEvidenceItem | undefined,
   secItem: ExtendedEvidenceItem | undefined,
@@ -794,7 +827,11 @@ function summarizeLens(lens: FinancialLens): string {
     .slice(0, 4)
     .map((item) => `${item.label} ${formatValue(item)}`)
     .join(", ");
-  return `${lens.name} ${lens.posture}${metricText === "" ? "" : ` (${metricText})`}`;
+  const currentness =
+    lens.currentStatus === "partial"
+      ? " [current status partial: unreconciled post-period financing]"
+      : "";
+  return `${lens.name} ${lens.posture}${metricText === "" ? "" : ` (${metricText})`}${currentness}`;
 }
 
 function formatValue(lensMetric: FinancialLensMetric): string {
@@ -828,6 +865,7 @@ export function addFinancialLensEvidence(
   extendedEvidence: ExtendedEvidence | undefined,
   verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined,
   generatedAt: string,
+  subsequentFinancing?: SubsequentFinancingBridgeArtifact,
 ): FinancialLensResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -841,7 +879,10 @@ export function addFinancialLensEvidence(
   const lenses = [
     qualityLens(secItem),
     growthLens(secItem),
-    strengthLens(secItem, valuationItem, yahooFundamentalsItem),
+    applySubsequentFinancingCurrentness(
+      strengthLens(secItem, valuationItem, yahooFundamentalsItem),
+      subsequentFinancing,
+    ),
     valueLens(valuationItem, secItem, yahooFundamentalsItem, snapshot),
     momentumLens(verifiedMarketSnapshot, quoteCurrency),
   ];

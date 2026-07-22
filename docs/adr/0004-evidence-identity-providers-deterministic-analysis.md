@@ -15,7 +15,8 @@ rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicabil
 2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range;
 amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures; amended
 2026-07-23: canonical financial-statements shadow artifact; amended 2026-07-23: cadence-aware
-equity completeness contract and incremental consumer migration)
+equity completeness contract and incremental consumer migration; amended 2026-07-23: canonical
+consumer completion and subsequent-financing bridge)
 
 ## Context
 
@@ -140,10 +141,11 @@ without pretending the project has a global security master.
   diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
   matched periods and compatible units.
 - Equity runs also persist versioned `normalized/financial-statements.json` as the canonical
-  structured-financial artifact in shadow mode. It accepts standard `us-gaap` and `ifrs-full`
-  companyfacts from `10-K`, `10-Q`, `20-F`, and `6-K`, including amended forms, while current
-  Financial Lens, valuation, fundamental-history, Run Artifact reader, and Console consumers remain
-  unchanged until separately migrated.
+  structured-financial artifact. It accepts standard `us-gaap` and `ifrs-full` companyfacts from
+  `10-K`, `10-Q`, `20-F`, and `6-K`, including amended forms. Fundamental History, Financial
+  Lenses, valuation inputs, Run Artifact/API projections, and Console completeness views consume
+  the artifact through separately tested seams; legacy selectors remain available for parity and
+  tolerant historical reads.
 - Canonical financial series apply the run analysis cutoff before selection, use one standard
   taxonomy and one reporting currency, and exclude issuer-extension concepts from primary statement
   totals. Matching period keys resolve by filed date, amendment status, and accession number; a
@@ -177,6 +179,13 @@ without pretending the project has a global security master.
 - Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
   fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
   Historical artifacts without the sidecar or completeness field remain readable.
+- Standard-taxonomy proceeds facts disclosed on a post-period `8-K` or `6-K` may produce a
+  separate `normalized/subsequent-financing.json` bridge. Each event retains disclosure and event
+  dates, instrument class, gross/net proceeds, separately disclosed costs, and source IDs. The
+  latest filed cash, debt, equity, ratios, and valuation inputs remain unchanged. Events later
+  covered by a canonical statement period are omitted; otherwise `reconciled` remains false and
+  Financial Strength carries an explicit partial current-status marker. Missing costs remain null,
+  and the bridge never derives a pro-forma cash balance.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -238,10 +247,11 @@ without pretending the project has a global security master.
   share counts vary across component periods. Because each period independently selects its
   latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
   was not restated in the same filing.
-- The canonical financial-statements artifact drives the optional equity completeness contract;
-  lens, valuation, history, reader/API, and Console adoption remains incremental and parity-gated.
-  Companyfacts without accession metadata retain an explicit null and omission note rather than
-  inventing provenance.
+- The canonical financial-statements artifact drives the optional equity completeness contract and
+  its Phase 2 consumers. Companyfacts current-report financing coverage is limited to explicitly
+  tagged standard-taxonomy proceeds and cost facts; untagged narrative disclosures remain outside
+  this deterministic bridge. Companyfacts without accession metadata retain an explicit null and
+  omission note rather than inventing provenance.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.

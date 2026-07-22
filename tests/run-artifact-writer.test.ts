@@ -22,6 +22,7 @@ import type {
 } from "../src/research/source-plan";
 import type { RawSourceSnapshot } from "../src/sources/types";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
 import {
   collectedSources,
   marketSnapshot,
@@ -266,6 +267,36 @@ describe("run artifact writer manifests", () => {
     );
 
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toEqual(fundamentalHistory);
+  });
+
+  test("writes the financing bridge only when events are present", () => {
+    const subsequentFinancing: SubsequentFinancingBridgeArtifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "AAPL",
+      statementPeriodEnd: "2026-03-31",
+      events: [
+        {
+          disclosureDate: "2026-05-16",
+          eventDate: "2026-05-15",
+          instrument: "debt",
+          proceeds: { amount: 100, currency: "USD", basis: "gross" },
+          costs: null,
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          reconciled: false,
+        },
+      ],
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    };
+    const absent = buildResearchRunManifest(equityCommand, config, result());
+    const present = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ subsequentFinancing }) }),
+    );
+
+    expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.subsequentFinancing);
+    expect(valueFor(present, RUN_ARTIFACT_FILES.subsequentFinancing)).toEqual(subsequentFinancing);
   });
 
   test("research deep instrument manifest includes conditional audit artifacts", () => {

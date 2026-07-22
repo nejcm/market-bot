@@ -420,6 +420,7 @@ export type ExtendedEvidenceCategory =
   | "sec-edgar"
   | "valuation"
   | "financial-lens"
+  | "subsequent-events"
   | "business-framework"
   | "web-subject-profile"
   | "yahoo-fundamentals"

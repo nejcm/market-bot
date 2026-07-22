@@ -27,6 +27,11 @@ import { isUsListing } from "./instrument-capability";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
 import { withCanonicalFinancialLensInputs } from "./extended-evidence/financial-lens-canonical";
 import {
+  collectSubsequentFinancingBridge,
+  withSubsequentFinancingEvidence,
+  type SubsequentFinancingBridgeArtifact,
+} from "./extended-evidence/subsequent-financing";
+import {
   collectFundamentalHistory,
   type FundamentalHistoryArtifact,
 } from "./extended-evidence/fundamental-history";
@@ -506,6 +511,9 @@ export async function collectSources(
     ...(enrichmentResult.financialStatements !== undefined
       ? { financialStatements: enrichmentResult.financialStatements }
       : {}),
+    ...(enrichmentResult.subsequentFinancing !== undefined
+      ? { subsequentFinancing: enrichmentResult.subsequentFinancing }
+      : {}),
     ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
       ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
@@ -558,6 +566,7 @@ interface EquityEnrichmentResult {
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
+  readonly subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined;
   readonly businessFrameworkResult: BusinessFrameworkResult;
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
@@ -597,6 +606,14 @@ async function collectEquityEnrichment(
     input.marketSnapshots,
     input.extendedEvidence,
   );
+  const subsequentFinancing =
+    financialStatementsWithoutParity === undefined
+      ? undefined
+      : await collectSubsequentFinancingBridge(
+          input.identityContext,
+          input.command.symbol,
+          financialStatementsWithoutParity,
+        );
   const valuationResult =
     financialStatementsWithoutParity === undefined
       ? legacyValuationResult
@@ -663,9 +680,13 @@ async function collectEquityEnrichment(
       : addFinancialLensEvidence(
           input.command,
           input.marketSnapshots,
-          withCanonicalFinancialLensInputs(evidenceWithYahooFundamentals, financialStatements),
+          withSubsequentFinancingEvidence(
+            withCanonicalFinancialLensInputs(evidenceWithYahooFundamentals, financialStatements),
+            subsequentFinancing,
+          ),
           input.verifiedMarketSnapshot,
           input.fetchedAt,
+          subsequentFinancing,
         );
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
@@ -691,6 +712,7 @@ async function collectEquityEnrichment(
     valuationCompsSkippedGaps,
     fundamentalHistory,
     financialStatements,
+    subsequentFinancing,
     financialLensResult,
     businessFrameworkResult,
     ...earningsResult,
@@ -711,6 +733,7 @@ function noEquityEnrichment(
     valuationCompsSkippedGaps: [],
     fundamentalHistory: undefined,
     financialStatements: undefined,
+    subsequentFinancing: undefined,
     financialLensResult,
     businessFrameworkResult,
     earningsSetup: undefined,

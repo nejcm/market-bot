@@ -53,6 +53,7 @@ import type {
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "./sources/extended-evidence/financial-statements-contract";
+import type { SubsequentFinancingBridgeArtifact } from "./sources/extended-evidence/subsequent-financing";
 import type {
   PeerImpliedRange,
   PeerImpliedRangeSuppressedReason,
@@ -133,6 +134,7 @@ export interface RunArtifact {
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;
+  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
@@ -192,6 +194,7 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "options-iv",
   "on-chain",
   "financial-lens",
+  "subsequent-events",
   "business-framework",
   "web-subject-profile",
   "yahoo-fundamentals",
@@ -972,7 +975,12 @@ function hasFinancialLensShape(value: unknown): boolean {
     FINANCIAL_LENS_POSTURES.has(value.posture) &&
     Array.isArray(value.metrics) &&
     value.metrics.every(hasFinancialLensMetricShape) &&
-    readStringArray(value, "sourceIds") !== undefined
+    readStringArray(value, "sourceIds") !== undefined &&
+    (value.currentStatus === undefined ||
+      value.currentStatus === "current" ||
+      value.currentStatus === "partial") &&
+    (value.currentStatusReasonCodes === undefined ||
+      readStringArray(value, "currentStatusReasonCodes") !== undefined)
   );
 }
 
@@ -1148,6 +1156,49 @@ export function readFinancialStatementsArtifact(
     return undefined;
   }
   return value as unknown as FinancialStatementsArtifact;
+}
+
+export function readSubsequentFinancingBridgeArtifact(
+  value: unknown,
+): SubsequentFinancingBridgeArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
+    readString(value, "symbol") === undefined ||
+    readString(value, "statementPeriodEnd") === undefined ||
+    !Array.isArray(value.events) ||
+    value.events.length === 0 ||
+    readStringArray(value, "sourceIds") === undefined
+  ) {
+    return undefined;
+  }
+  for (const event of value.events) {
+    if (
+      !isRecord(event) ||
+      readString(event, "disclosureDate") === undefined ||
+      readString(event, "eventDate") === undefined ||
+      (event.instrument !== "common-equity" &&
+        event.instrument !== "preferred-equity" &&
+        event.instrument !== "convertible-debt" &&
+        event.instrument !== "debt" &&
+        event.instrument !== "credit-facility") ||
+      !isRecord(event.proceeds) ||
+      readNumber(event.proceeds, "amount") === undefined ||
+      readString(event.proceeds, "currency") === undefined ||
+      (event.proceeds.basis !== "gross" && event.proceeds.basis !== "net") ||
+      (event.costs !== null &&
+        (!isRecord(event.costs) ||
+          readNumber(event.costs, "amount") === undefined ||
+          readString(event.costs, "currency") === undefined ||
+          event.costs.basis !== "cost")) ||
+      readStringArray(event, "sourceIds") === undefined ||
+      event.reconciled !== false
+    ) {
+      return undefined;
+    }
+  }
+  return value as unknown as SubsequentFinancingBridgeArtifact;
 }
 
 const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppressedReason> =
@@ -1550,6 +1601,7 @@ const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
 const FINANCIAL_STATEMENTS_FILE = RUN_ARTIFACT_FILES.financialStatements;
+const SUBSEQUENT_FINANCING_FILE = RUN_ARTIFACT_FILES.subsequentFinancing;
 const VALUATION_COMPS_FILE = RUN_ARTIFACT_FILES.valuationComps;
 const FUNDAMENTAL_HISTORY_FILE = RUN_ARTIFACT_FILES.fundamentalHistory;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
@@ -1583,6 +1635,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
   const financialStatementsFile = await readJsonFile(join(runDir, FINANCIAL_STATEMENTS_FILE));
+  const subsequentFinancingFile = await readJsonFile(join(runDir, SUBSEQUENT_FINANCING_FILE));
   const valuationCompsFile = await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
   const fundamentalHistoryFile = await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
@@ -1615,6 +1668,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     financialStatementsFile.status === "ok"
       ? readFinancialStatementsArtifact(financialStatementsFile.value)
       : undefined;
+  const subsequentFinancing =
+    subsequentFinancingFile.status === "ok"
+      ? readSubsequentFinancingBridgeArtifact(subsequentFinancingFile.value)
+      : undefined;
   const peerImpliedRange =
     valuationCompsFile.status === "ok" ? readPeerImpliedRange(valuationCompsFile.value) : undefined;
   const fundamentalHistory =
@@ -1645,6 +1702,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
       ...(financialStatements !== undefined ? { financialStatements } : {}),
+      ...(subsequentFinancing !== undefined ? { subsequentFinancing } : {}),
       ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
       ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),

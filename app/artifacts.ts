@@ -276,6 +276,9 @@ export async function readRunDetail(
     ...(artifact.artifact?.financialStatements !== undefined
       ? { financialStatements: artifact.artifact.financialStatements }
       : {}),
+    ...(artifact.artifact?.subsequentFinancing !== undefined
+      ? { subsequentFinancing: artifact.artifact.subsequentFinancing }
+      : {}),
     ...(artifact.artifact?.peerImpliedRange !== undefined
       ? { peerImpliedRange: artifact.artifact.peerImpliedRange }
       : {}),

@@ -59,6 +59,25 @@ function durationFact(
   };
 }
 
+function instantFact(
+  form: "20-F" | "6-K",
+  fy: number,
+  fp: string,
+  end: string,
+  filed: string,
+  value: number,
+): Readonly<Record<string, unknown>> {
+  return {
+    end,
+    val: value,
+    accn: `0000000000-${String(fy).slice(-2)}-${fp.toLowerCase().replaceAll(/[^a-z0-9]/gu, "")}`,
+    fy,
+    fp,
+    form,
+    filed,
+  };
+}
+
 function factsForProfile(profile: SyntheticFpiProfile): Readonly<Record<string, unknown>> {
   const annual = [
     durationFact("20-F", 2023, "FY", "2023-01-01", "2023-12-31", "2024-03-15", 1_000_000_000),
@@ -82,22 +101,74 @@ function factsForProfile(profile: SyntheticFpiProfile): Readonly<Record<string, 
           grossProfit: "GrossProfit",
           operatingIncome: "OperatingIncomeLoss",
           netIncome: "NetIncomeLoss",
+          operatingCashFlow: "NetCashProvidedByUsedInOperatingActivities",
+          dilutedEps: "EarningsPerShareDiluted",
         }
       : {
           revenue: "Revenue",
           grossProfit: "GrossProfit",
           operatingIncome: "ProfitLossFromOperatingActivities",
           netIncome: "ProfitLoss",
+          operatingCashFlow: "CashFlowsFromUsedInOperatingActivities",
+          dilutedEps: "DilutedEarningsLossPerShare",
         };
-  const concepts = Object.entries(conceptNames).map(([key, concept], index) => [
+  const durationScale: Readonly<Record<keyof typeof conceptNames, number>> = {
+    revenue: 1,
+    grossProfit: 0.85,
+    operatingIncome: 0.7,
+    netIncome: 0.55,
+    operatingCashFlow: 0.6,
+    dilutedEps: 1,
+  };
+  const durationConcepts = Object.entries(conceptNames).map(([key, concept]) => [
     concept,
     {
       label: concept,
       description: `${profile.companyName} synthetic ${key}`,
       units: {
-        USD: [...annual, ...interim].map((fact) => ({
+        [key === "dilutedEps" ? "USD/shares" : "USD"]: [...annual, ...interim].map((fact) => ({
           ...fact,
-          val: Number(fact.val) * (1 - index * 0.15),
+          val:
+            key === "dilutedEps"
+              ? Number(fact.val) / 100_000_000
+              : Number(fact.val) * durationScale[key as keyof typeof conceptNames],
+        })),
+      },
+    },
+  ]);
+  const instant = [
+    instantFact("20-F", 2023, "FY", "2023-12-31", "2024-03-15", 500_000_000),
+    instantFact("20-F", 2024, "FY", "2024-12-31", "2025-03-15", 600_000_000),
+    instantFact("20-F", 2025, "FY", "2025-12-31", "2026-03-15", 750_000_000),
+    ...(profile.cadence === "quarterly"
+      ? [instantFact("6-K", 2026, "Q1", "2026-03-31", "2026-05-10", 780_000_000)]
+      : [instantFact("6-K", 2026, "H1", "2026-06-30", "2026-08-15", 820_000_000)]),
+  ];
+  const instantConceptNames =
+    profile.taxonomy === "us-gaap"
+      ? {
+          cash: "CashAndCashEquivalentsAtCarryingValue",
+          totalAssets: "Assets",
+          totalLiabilities: "Liabilities",
+          stockholdersEquity: "StockholdersEquity",
+          debt: "LongTermDebt",
+        }
+      : {
+          cash: "CashAndCashEquivalents",
+          totalAssets: "Assets",
+          totalLiabilities: "Liabilities",
+          stockholdersEquity: "Equity",
+          debt: "Borrowings",
+        };
+  const instantConcepts = Object.entries(instantConceptNames).map(([key, concept], index) => [
+    concept,
+    {
+      label: concept,
+      description: `${profile.companyName} synthetic ${key}`,
+      units: {
+        USD: instant.map((fact) => ({
+          ...fact,
+          val: Number(fact.val) * (1 + index),
         })),
       },
     },
@@ -105,7 +176,9 @@ function factsForProfile(profile: SyntheticFpiProfile): Readonly<Record<string, 
   return {
     cik: profile.cik,
     entityName: profile.companyName,
-    facts: { [profile.taxonomy]: Object.fromEntries(concepts) },
+    facts: {
+      [profile.taxonomy]: Object.fromEntries([...durationConcepts, ...instantConcepts]),
+    },
   };
 }
 

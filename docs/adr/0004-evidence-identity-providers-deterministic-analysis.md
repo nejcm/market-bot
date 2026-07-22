@@ -176,6 +176,11 @@ without pretending the project has a global security master.
   interim reconciliation is partial, while only the absence of a usable current annual basis is
   blocked. Exact FY plus aligned current/prior YTD TTM components establish trailing-year coverage
   when four retained quarter-only facts are unavailable.
+  Missing per-share facts remain missing unless checked-in evidence establishes non-issuance.
+  Materially incomplete current balance-sheet or cash-flow validation notes make the primary
+  dimension partial; historical statement omissions do not. Complete annual-as-current results
+  retain an explicit informational reason code, and four retained quarter-only periods remain a
+  valid alternative to reconciled TTM coverage.
 - Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
   fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
   Historical artifacts without the sidecar or completeness field remain readable.

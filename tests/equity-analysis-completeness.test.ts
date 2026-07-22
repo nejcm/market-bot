@@ -3,6 +3,10 @@ import type { ExtendedEvidence, ResearchReport } from "../src/domain/types";
 import { validateResearchReport } from "../src/report/schema";
 import { deriveEquityAnalysisCompleteness } from "../src/sources/extended-evidence/equity-analysis-completeness";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import type {
+  FinancialStatementSeries,
+  FinancialStatementsArtifact,
+} from "../src/sources/extended-evidence/financial-statements-contract";
 
 const AS_OF = "2026-06-15T14:30:00.000Z";
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
@@ -19,17 +23,54 @@ function fact(input: {
   return { ...input, val: input.value, accn: `${input.filed}-${input.form}-${input.fp}` };
 }
 
+function instantFact(input: {
+  readonly value: number;
+  readonly end: string;
+  readonly form: "10-K" | "10-Q" | "20-F" | "6-K";
+  readonly fy: number;
+  readonly fp: string;
+  readonly filed: string;
+}): Record<string, unknown> {
+  return { ...input, val: input.value, accn: `${input.filed}-${input.form}-${input.fp}` };
+}
+
 function statements(input: {
   readonly taxonomy?: "us-gaap" | "ifrs-full";
   readonly annualForm?: "10-K" | "20-F";
   readonly interimForm?: "10-Q" | "6-K";
   readonly cadence?: "quarterly" | "semiannual" | "annual-only";
   readonly untaggedSixK?: boolean;
+  readonly analysisAsOf?: string;
+  readonly currentSemiannual?: boolean;
+  readonly fourQuarters?: boolean;
 }) {
   const taxonomy = input.taxonomy ?? "us-gaap";
   const annualForm = input.annualForm ?? "10-K";
   const interimForm = input.interimForm ?? "10-Q";
-  const concept = taxonomy === "us-gaap" ? "Revenues" : "Revenue";
+  const concepts =
+    taxonomy === "us-gaap"
+      ? {
+          revenue: "Revenues",
+          operatingIncome: "OperatingIncomeLoss",
+          netIncome: "NetIncomeLoss",
+          operatingCashFlow: "NetCashProvidedByUsedInOperatingActivities",
+          dilutedEps: "EarningsPerShareDiluted",
+          cash: "CashAndCashEquivalentsAtCarryingValue",
+          totalAssets: "Assets",
+          totalLiabilities: "Liabilities",
+          equity: "StockholdersEquity",
+        }
+      : {
+          revenue: "Revenue",
+          operatingIncome: "ProfitLossFromOperatingActivities",
+          netIncome: "ProfitLoss",
+          operatingCashFlow: "CashFlowsFromUsedInOperatingActivities",
+          dilutedEps: "DilutedEarningsLossPerShare",
+          cash: "CashAndCashEquivalents",
+          totalAssets: "Assets",
+          totalLiabilities: "Liabilities",
+          equity: "Equity",
+        };
   const annual = [2023, 2024, 2025].map((year) =>
     fact({
       value: year * 100,
@@ -53,28 +94,58 @@ function statements(input: {
         fp: "H1",
         filed: "2025-08-20",
       }),
+      ...(input.currentSemiannual
+        ? [
+            fact({
+              value: 1100,
+              start: "2026-01-01",
+              end: "2026-06-30",
+              form: interimForm,
+              fy: 2026,
+              fp: "H1",
+              filed: "2026-08-20",
+            }),
+          ]
+        : []),
     ];
   } else if (input.cadence !== "annual-only") {
-    interim = [
-      fact({
-        value: 500,
-        start: "2025-01-01",
-        end: "2025-03-31",
-        form: interimForm,
-        fy: 2025,
-        fp: "Q1",
-        filed: "2025-05-10",
-      }),
-      fact({
-        value: 600,
-        start: "2026-01-01",
-        end: "2026-03-31",
-        form: interimForm,
-        fy: 2026,
-        fp: "Q1",
-        filed: "2026-05-10",
-      }),
-    ];
+    interim = input.fourQuarters
+      ? [
+          ["2025-10-01", "2025-12-31", "Q4", "2026-02-10"],
+          ["2026-01-01", "2026-03-31", "Q1", "2026-05-10"],
+          ["2026-04-01", "2026-06-30", "Q2", "2026-08-10"],
+          ["2026-07-01", "2026-09-30", "Q3", "2026-11-10"],
+        ].map(([start, end, fp, filed], index) =>
+          fact({
+            value: 400 + index * 50,
+            start: start as string,
+            end: end as string,
+            form: interimForm,
+            fy: 2026,
+            fp: fp as string,
+            filed: filed as string,
+          }),
+        )
+      : [
+          fact({
+            value: 500,
+            start: "2025-01-01",
+            end: "2025-03-31",
+            form: interimForm,
+            fy: 2025,
+            fp: "Q1",
+            filed: "2025-05-10",
+          }),
+          fact({
+            value: 600,
+            start: "2026-01-01",
+            end: "2026-03-31",
+            form: interimForm,
+            fy: 2026,
+            fp: "Q1",
+            filed: "2026-05-10",
+          }),
+        ];
   }
   const submissionsPayload = input.untaggedSixK
     ? {
@@ -88,18 +159,68 @@ function statements(input: {
         },
       }
     : undefined;
+  const durations = [...annual, ...interim];
+  let latestInstant: Record<string, unknown> | null = null;
+  if (
+    input.cadence !== "annual-only" &&
+    (input.cadence !== "semiannual" || input.currentSemiannual)
+  ) {
+    let end = "2026-03-31";
+    let fp = "Q1";
+    let filed = "2026-05-10";
+    if (input.cadence === "semiannual") {
+      end = "2026-06-30";
+      fp = "H1";
+      filed = "2026-08-20";
+    } else if (input.fourQuarters) {
+      end = "2026-09-30";
+      fp = "Q3";
+      filed = "2026-11-10";
+    }
+    latestInstant = instantFact({
+      value: 110,
+      end,
+      form: interimForm,
+      fy: 2026,
+      fp,
+      filed,
+    });
+  }
+  const instant = [
+    instantFact({
+      value: 100,
+      end: "2025-12-31",
+      form: annualForm,
+      fy: 2025,
+      fp: "FY",
+      filed: "2026-03-15",
+    }),
+    ...(latestInstant === null ? [] : [latestInstant]),
+  ];
   return deriveFinancialStatements(
     {
       facts: {
         [taxonomy]: {
-          [concept]: { units: { USD: [...annual, ...interim] } },
+          [concepts.revenue]: { units: { USD: durations } },
+          [concepts.operatingIncome]: { units: { USD: durations } },
+          [concepts.netIncome]: { units: { USD: durations } },
+          [concepts.operatingCashFlow]: { units: { USD: durations } },
+          [concepts.dilutedEps]: {
+            units: {
+              "USD/shares": durations.map((item) => ({ ...item, val: Number(item.val) / 100 })),
+            },
+          },
+          [concepts.cash]: { units: { USD: instant } },
+          [concepts.totalAssets]: { units: { USD: instant } },
+          [concepts.totalLiabilities]: { units: { USD: instant } },
+          [concepts.equity]: { units: { USD: instant } },
         },
       },
     },
     {
       symbol: "TEST",
-      generatedAt: AS_OF,
-      analysisAsOf: AS_OF,
+      generatedAt: input.analysisAsOf ?? AS_OF,
+      analysisAsOf: input.analysisAsOf ?? AS_OF,
       sourceId: SOURCE_ID,
       ...(submissionsPayload !== undefined
         ? { submissionsPayload, submissionsSourceId: SOURCE_ID }
@@ -138,6 +259,49 @@ function comprehensiveEvidence(): ExtendedEvidence {
     ],
     gaps: [],
   };
+}
+
+function withRevenue(
+  artifact: FinancialStatementsArtifact,
+  revenue: FinancialStatementSeries,
+): FinancialStatementsArtifact {
+  return {
+    ...artifact,
+    statements: {
+      ...artifact.statements,
+      incomeStatement: { ...artifact.statements.incomeStatement, revenue },
+    },
+  };
+}
+
+function withDilutedEps(
+  artifact: FinancialStatementsArtifact,
+  dilutedEps: FinancialStatementSeries,
+): FinancialStatementsArtifact {
+  return {
+    ...artifact,
+    statements: {
+      ...artifact.statements,
+      perShare: { ...artifact.statements.perShare, dilutedEps },
+    },
+  };
+}
+
+function primaryReasons(artifact: FinancialStatementsArtifact, asOf = AS_OF): readonly string[] {
+  return deriveEquityAnalysisCompleteness({ asOf, financialStatements: artifact }).dimensions
+    .primaryFinancials.reasonCodes;
+}
+
+function withoutTtm(series: FinancialStatementSeries): FinancialStatementSeries {
+  const { ttm: _ttm, ...rest } = series;
+  return rest;
+}
+
+function withoutReportingCurrency(
+  artifact: FinancialStatementsArtifact,
+): FinancialStatementsArtifact {
+  const { reportingCurrency: _reportingCurrency, ...rest } = artifact;
+  return rest;
 }
 
 const earningsSetup = {
@@ -184,7 +348,7 @@ describe("equity analysis completeness", () => {
     });
 
     expect(result.financialCoreStatus).toBe("complete");
-    expect(result.dimensions.primaryFinancials.reasonCodes).toEqual([]);
+    expect(result.dimensions.primaryFinancials.reasonCodes).toEqual(["annual-as-current"]);
   });
 
   test("accepts 20-F annual evidence but keeps untagged interim evidence partial", () => {
@@ -204,6 +368,140 @@ describe("equity analysis completeness", () => {
     expect(result.dimensions.primaryFinancials.reasonCodes).not.toContain(
       "current-annual-statement-missing",
     );
+  });
+
+  test("covers quarterly missing-period and unreconciled-TTM reasons", () => {
+    const artifact = statements({ cadence: "quarterly" });
+    const { revenue } = artifact.statements.incomeStatement;
+    const reasons = primaryReasons(withRevenue(artifact, { ...withoutTtm(revenue), interim: [] }));
+
+    expect(reasons).toEqual(
+      expect.arrayContaining([
+        "latest-due-interim-missing",
+        "quarterly-periods-insufficient",
+        "ttm-unreconciled",
+      ]),
+    );
+  });
+
+  test("accepts four retained quarter-only periods without a reconciled TTM", () => {
+    const asOf = "2026-12-15T00:00:00.000Z";
+    const artifact = statements({ cadence: "quarterly", fourQuarters: true, analysisAsOf: asOf });
+
+    expect(artifact.statements.incomeStatement.revenue.ttm).toBeUndefined();
+    expect(deriveEquityAnalysisCompleteness({ asOf, financialStatements: artifact })).toMatchObject(
+      {
+        financialCoreStatus: "complete",
+        dimensions: { primaryFinancials: { reasonCodes: [] } },
+      },
+    );
+  });
+
+  test("covers semiannual comparison gaps and the reconciled H1 complete path", () => {
+    const asOf = "2026-12-15T00:00:00.000Z";
+    const complete = statements({
+      taxonomy: "ifrs-full",
+      annualForm: "20-F",
+      interimForm: "6-K",
+      cadence: "semiannual",
+      currentSemiannual: true,
+      analysisAsOf: asOf,
+    });
+    const { revenue } = complete.statements.incomeStatement;
+    const withoutComparison = withRevenue(complete, {
+      ...withoutTtm(revenue),
+      interim: revenue.interim.filter((item) => item.periodEnd > "2025-12-31"),
+    });
+
+    expect(primaryReasons(withoutComparison, asOf)).toEqual(
+      expect.arrayContaining(["semiannual-comparison-missing", "ttm-unreconciled"]),
+    );
+    expect(deriveEquityAnalysisCompleteness({ asOf, financialStatements: complete })).toMatchObject(
+      {
+        financialCoreStatus: "complete",
+        dimensions: { primaryFinancials: { reasonCodes: [] } },
+      },
+    );
+  });
+
+  test("covers irregular comparison and TTM reasons", () => {
+    const base = statements({ cadence: "quarterly" });
+    const { revenue } = base.statements.incomeStatement;
+    const artifact = withRevenue(
+      { ...base, interimCadence: "irregular" },
+      {
+        ...withoutTtm(revenue),
+        interim: revenue.interim.filter((item) => item.periodEnd > "2025-12-31"),
+      },
+    );
+
+    expect(primaryReasons(artifact)).toEqual(
+      expect.arrayContaining(["irregular-comparison-missing", "ttm-unreconciled"]),
+    );
+  });
+
+  test("does not treat absent per-share evidence as non-issuance", () => {
+    const artifact = statements({ cadence: "quarterly" });
+    const { dilutedEps } = artifact.statements.perShare;
+
+    expect(
+      primaryReasons(
+        withDilutedEps(artifact, { ...withoutTtm(dilutedEps), annual: [], interim: [] }),
+      ),
+    ).toContain("per-share-evidence-missing");
+  });
+
+  test("covers annual history and reporting-currency reasons", () => {
+    const artifact = statements({ cadence: "quarterly" });
+    const { revenue } = artifact.statements.incomeStatement;
+    const shortHistory = withRevenue(artifact, { ...revenue, annual: revenue.annual.slice(-2) });
+
+    expect(primaryReasons(shortHistory)).toContain("annual-history-insufficient");
+    expect(primaryReasons(withoutReportingCurrency(artifact))).toContain(
+      "reporting-currency-missing",
+    );
+    expect(primaryReasons({ ...artifact, reportingCurrency: "EUR" })).toContain(
+      "reporting-currency-incompatible",
+    );
+  });
+
+  test("consumes current incomplete-statement notes but ignores historical ones", () => {
+    const artifact = statements({ cadence: "quarterly" });
+    const currentInterim = artifact.statements.incomeStatement.revenue.interim.at(-1);
+    if (currentInterim === undefined) {
+      throw new Error("Expected a current interim revenue fact");
+    }
+    const currentNote = {
+      code: "incomplete-statement" as const,
+      periodKey: `interim|${currentInterim.periodKey}`,
+      message: `balanceSheet interim period ${currentInterim.periodKey} is missing cash, totalAssets, totalLiabilities, stockholdersEquity`,
+    };
+    const historicalNote = {
+      ...currentNote,
+      periodKey: "annual|2023-01-01|2023-12-31",
+    };
+
+    expect(
+      primaryReasons({ ...artifact, validationNotes: [...artifact.validationNotes, currentNote] }),
+    ).toContain("current-primary-statements-incomplete");
+    expect(
+      primaryReasons({
+        ...artifact,
+        validationNotes: [...artifact.validationNotes, historicalNote],
+      }),
+    ).not.toContain("current-primary-statements-incomplete");
+  });
+
+  test("blocks a stale annual basis older than 550 days", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: "2027-08-01T00:00:00.000Z",
+      financialStatements: statements({ cadence: "quarterly" }),
+    });
+
+    expect(result.financialCoreStatus).toBe("blocked");
+    expect(result.dimensions.primaryFinancials.reasonCodes).toEqual([
+      "current-annual-statement-missing",
+    ]);
   });
 
   test("derives limited, substantial, and comprehensive coverage independently", () => {

@@ -37,15 +37,15 @@
       "dimensions": {
         "primaryFinancials": {
           "status": "complete",
-          "reasonCodes": [],
+          "reasonCodes": ["annual-as-current"],
           "asOf": "2026-06-15T14:30:00.000Z",
           "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
         },
         "valuation": {
-          "status": "partial",
-          "reasonCodes": ["valuation-evidence-missing"],
+          "status": "complete",
+          "reasonCodes": [],
           "asOf": "2026-06-15T14:30:00.000Z",
-          "sourceIds": []
+          "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"]
         },
         "expectations": {
           "status": "partial",
@@ -72,13 +72,12 @@
       "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
       "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
-      "valuation-peers: Valuation peer comps skipped for IFRSSA: target valuation unavailable",
+      "valuation-peers: Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match",
       "sec-edgar: IFRSSA files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
       "Synthetic FPI inputs exercise unsupported current filing forms.",
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
-      "valuation: Valuation Evidence unavailable for IFRSSA: missing cash, debt",
-      "financial-lens: Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
+      "valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported",
       "business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
       "predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more"
     ],
@@ -301,7 +300,52 @@
             "netIncomePeriodEnd": "2025-12-31",
             "netIncomePeriodMonths": 12,
             "netIncomePrior": 660000000,
-            "netIncomeDeltaPercent": 25.000000000000018
+            "netIncomeDeltaPercent": 25.000000000000018,
+            "dilutedEps": 15,
+            "dilutedEpsPeriodEnd": "2025-12-31",
+            "dilutedEpsPeriodMonths": 12,
+            "dilutedEpsPrior": 12,
+            "dilutedEpsDeltaPercent": 25,
+            "operatingCashFlow": 900000000,
+            "operatingCashFlowPeriodEnd": "2025-12-31",
+            "operatingCashFlowPeriodMonths": 12,
+            "operatingCashFlowPrior": 720000000,
+            "operatingCashFlowDeltaPercent": 25,
+            "cash": 750000000,
+            "cashPeriodEnd": "2025-12-31",
+            "debt": 3750000000,
+            "debtPeriodEnd": "2025-12-31",
+            "stockholdersEquity": 3000000000,
+            "stockholdersEquityPeriodEnd": "2025-12-31",
+            "assets": 1500000000,
+            "assetsPeriodEnd": "2025-12-31"
+          }
+        },
+        {
+          "category": "valuation",
+          "title": "IFRSSA Valuation Evidence",
+          "summary": "Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15; cash/debt as of 2025-12-31. Peer comps supportability: screening-only; 0 usable peers.",
+          "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "marketCap": 20000000000,
+            "cash": 750000000,
+            "debt": 3750000000,
+            "netDebt": 3000000000,
+            "enterpriseValue": 23000000000,
+            "latestPeriodRevenue": 1500000000,
+            "annualizedRevenue": 1500000000,
+            "quoteObservedAt": "2026-06-15T14:30:00.000Z",
+            "revenuePeriodMonths": 12,
+            "revenuePeriodEnd": "2025-12-31",
+            "cashPeriodEnd": "2025-12-31",
+            "debtPeriodEnd": "2025-12-31",
+            "evToAnnualizedRevenue": 15.333333333333334,
+            "marketCapToAnnualizedRevenue": 13.333333333333334,
+            "debtToMarketCap": 0.1875,
+            "netDebtToMarketCap": 0.15,
+            "corePeerCount": 0,
+            "valuationSupportability": "screening-only"
           }
         },
         {
@@ -333,7 +377,7 @@
         {
           "category": "financial-lens",
           "title": "IFRSSA Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
+          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength criteria-mixed (Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%); Value criteria-not-supported (EV date basis EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
           "sourceIds": [
             "extended-sec-edgar-ifrssa-fundamentals",
             "market-yahoo-equity-ifrssa",
@@ -345,16 +389,34 @@
             "grossMargin": 0.85,
             "operatingMargin": 0.7,
             "netMargin": 0.55,
+            "cashConversion": 1.0909090909090908,
+            "roe": 0.275,
+            "roa": 0.55,
             "growthPosture": "criteria-supported",
             "revenueDeltaPercent": 25,
             "grossProfitDeltaPercent": 25,
             "operatingIncomeDeltaPercent": 24.999999999999986,
             "netIncomeDeltaPercent": 25.000000000000018,
-            "financialStrengthPosture": "insufficient-data",
-            "valuePosture": "insufficient-data",
+            "dilutedEpsDeltaPercent": 25,
+            "operatingCashFlowDeltaPercent": 25,
+            "financialStrengthPosture": "criteria-mixed",
+            "cash": 750000000,
+            "debt": 3750000000,
+            "netDebt": 3000000000,
+            "debtToMarketCap": 0.1875,
+            "netDebtToMarketCap": 0.15,
+            "debtToEquity": 1.25,
+            "valuePosture": "criteria-not-supported",
+            "evDateBasis": "EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
+            "enterpriseValue": 23000000000,
+            "annualizedRevenue": 1500000000,
+            "evToAnnualizedRevenue": 15.333333333333334,
+            "marketCapToAnnualizedRevenue": 13.333333333333334,
+            "valuationSupportability": "screening-only",
             "peRatio": 31,
             "forwardPe": 28,
             "priceToBook": 45,
+            "pcfRatio": 22.22222222222222,
             "momentumPosture": "criteria-mixed",
             "latestClose": 216.6,
             "sma50": 206.8,
@@ -365,7 +427,7 @@
         {
           "category": "business-framework",
           "title": "IFRSSA Business Framework Evidence",
-          "summary": "Business Framework: Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B); Phase classification (Phase operating-leverage, Revenue YoY 25.0%); Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%); Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
+          "summary": "Business Framework: Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B); Phase classification (Phase operating-leverage, Revenue YoY 25.0%); Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%); Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%); Management insufficient-data; Risk criteria-supported (Debt/market cap 18.8%); Valuation criteria-not-supported (Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x).",
           "sourceIds": [
             "extended-sec-edgar-ifrssa-fundamentals",
             "market-yahoo-equity-ifrssa",
@@ -380,7 +442,7 @@
             "growthPosture": "criteria-supported",
             "managementPosture": "insufficient-data",
             "riskPosture": "criteria-supported",
-            "valuationPosture": "insufficient-data"
+            "valuationPosture": "criteria-not-supported"
           }
         }
       ],
@@ -419,19 +481,20 @@
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "valuation",
-          "message": "Valuation Evidence unavailable for IFRSSA: missing cash, debt",
+          "source": "valuation-peers",
+          "message": "Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match",
+          "symbol": "IFRSSA",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
-          "evidenceQualityImpact": "no-cap"
+          "cause": "unsupported-coverage",
+          "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "financial-lens",
-          "message": "Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
+          "source": "valuation",
+          "message": "Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported",
+          "symbol": "IFRSSA",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -700,8 +763,20 @@
           {
             "name": "Risk",
             "posture": "criteria-supported",
-            "summary": "Risk criteria-supported",
-            "metrics": [],
+            "summary": "Risk criteria-supported (Debt/market cap 18.8%)",
+            "metrics": [
+              {
+                "key": "debtToMarketCap",
+                "label": "Debt/market cap",
+                "value": 0.1875,
+                "unit": "ratio-percent",
+                "sourceIds": [
+                  "extended-sec-edgar-ifrssa-fundamentals",
+                  "market-yahoo-equity-ifrssa",
+                  "verified-snapshot-IFRSSA"
+                ]
+              }
+            ],
             "sourceIds": [
               "extended-sec-edgar-ifrssa-fundamentals",
               "market-yahoo-equity-ifrssa",
@@ -720,8 +795,8 @@
           },
           {
             "name": "Valuation",
-            "posture": "insufficient-data",
-            "summary": "Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x)",
+            "posture": "criteria-not-supported",
+            "summary": "Valuation criteria-not-supported (Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x)",
             "metrics": [
               {
                 "key": "trailingPE",
@@ -736,9 +811,19 @@
                 "value": 28,
                 "unit": "ratio",
                 "sourceIds": ["market-yahoo-equity-ifrssa"]
+              },
+              {
+                "key": "evToAnnualizedRevenue",
+                "label": "EV/revenue",
+                "value": 15.333333333333334,
+                "unit": "ratio",
+                "sourceIds": [
+                  "market-yahoo-equity-ifrssa",
+                  "extended-sec-edgar-ifrssa-fundamentals"
+                ]
               }
             ],
-            "sourceIds": ["market-yahoo-equity-ifrssa"],
+            "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
             "gaps": []
           }
         ]
@@ -930,7 +1015,7 @@
         }
       },
       "sourceGaps": {
-        "total": 11,
+        "total": 10,
         "bySource": {
           "marketaux-news": 1,
           "finnhub-news": 1,
@@ -938,20 +1023,19 @@
           "finnhub-events": 1,
           "fred-macro": 1,
           "tradier-options": 1,
-          "valuation": 1,
           "valuation-peers": 1,
-          "financial-lens": 1,
+          "valuation": 1,
           "business-framework": 1
         }
       },
       "sourceGapClasses": {
         "missingCredential": 5,
         "fetchFailed": 0,
-        "unsupportedCoverage": 1,
-        "other": 5
+        "unsupportedCoverage": 2,
+        "other": 3
       },
       "dataGaps": {
-        "total": 13
+        "total": 12
       }
     },
     "newsDedupe": {
@@ -1057,11 +1141,11 @@
           {
             "capability": "target-valuation",
             "evidenceClass": "material",
-            "coverage": "fail",
-            "freshness": "not-applicable",
+            "coverage": "pass",
+            "freshness": "pass",
             "corroboration": "not-applicable",
-            "passed": false,
-            "reasons": ["target-valuation: evidence missing or unusable"]
+            "passed": true,
+            "reasons": []
           },
           {
             "capability": "peer-valuation",
@@ -1086,16 +1170,16 @@
           "news: corroboration check failed",
           "regulatory-filings: freshness check failed",
           "corporate-events: evidence missing or unusable",
-          "macro-indicators: evidence missing or unusable",
-          "target-valuation: evidence missing or unusable"
+          "macro-indicators: evidence missing or unusable"
         ]
       },
-      "dataGapCount": 13,
+      "dataGapCount": 12,
       "extendedEvidence": {
-        "itemCount": 4,
+        "itemCount": 5,
         "gapCount": 8,
         "itemsByCategory": {
           "sec-edgar": 1,
+          "valuation": 1,
           "yahoo-fundamentals": 1,
           "financial-lens": 1,
           "business-framework": 1
@@ -1105,8 +1189,8 @@
           "finnhub-events": 1,
           "fred-macro": 1,
           "tradier-options": 1,
+          "valuation-peers": 1,
           "valuation": 1,
-          "financial-lens": 1,
           "business-framework": 1
         }
       },
@@ -1168,13 +1252,13 @@
       "supplementalLaneCount": 4
     },
     "evidenceLanes": {
-      "coveredLaneCount": 4,
-      "gapLaneCount": 7,
+      "coveredLaneCount": 5,
+      "gapLaneCount": 6,
       "coreGapLaneCount": 0,
-      "materialGapLaneCount": 3,
-      "sourceCount": 10,
+      "materialGapLaneCount": 2,
+      "sourceCount": 12,
       "gapCount": 11,
-      "coverageRatio": 0.36363636363636365
+      "coverageRatio": 0.45454545454545453
     },
     "calibrationAtGeneration": {
       "generatedAt": "<generatedAt>",
@@ -1273,7 +1357,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# IFRSSA equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture IFRS Semiannual plc synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- IFRSSA has deterministic market and verified close evidence. [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-ifrssa]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** IFRSSA remains within the deterministic fixture evidence envelope. [market-yahoo-equity-ifrssa]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-ifrssa]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **IFRSSA canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-ifrssa]\n- **IFRSSA Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income \\(attrib.\\) YoY 25.0%\\); Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **IFRSSA Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for IFRSSA\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for IFRSSA\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for IFRSSA: target valuation unavailable\n- sec-edgar: IFRSSA files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for IFRSSA: missing cash, debt\n- financial-lens: Financial Lens Evidence partial for IFRSSA: missing valuation evidence\n- business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-ifrssa] IFRSSA market snapshot\n- [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-ifrssa-fundamentals] IFRSSA canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "markdown": "# IFRSSA equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture IFRS Semiannual plc synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- IFRSSA has deterministic market and verified close evidence. [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-ifrssa]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** IFRSSA remains within the deterministic fixture evidence envelope. [market-yahoo-equity-ifrssa]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Debt/market cap 18.8%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **Valuation** (criteria-not-supported): Valuation criteria-not-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x\\) [market-yahoo-equity-ifrssa] [extended-sec-edgar-ifrssa-fundamentals]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **IFRSSA canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Valuation Evidence:** Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15; cash/debt as of 2025-12-31. Peer comps supportability: screening-only; 0 usable peers. [market-yahoo-equity-ifrssa] [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-ifrssa]\n- **IFRSSA Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x\\); Growth criteria-supported \\(Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income \\(attrib.\\) YoY 25.0%\\); Financial Strength criteria-mixed \\(Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%\\); Value criteria-not-supported \\(EV date basis EV mixes market cap \\(quote 2026-06-15\\) with cash/debt \\(balance sheet 2025-12-31\\), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **IFRSSA Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\); Management insufficient-data; Risk criteria-supported \\(Debt/market cap 18.8%\\); Valuation criteria-not-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for IFRSSA\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for IFRSSA\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match\n- sec-edgar: IFRSSA files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported\n- business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-ifrssa] IFRSSA market snapshot\n- [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-ifrssa-fundamentals] IFRSSA canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -1457,8 +1541,20 @@
         {
           "name": "Risk",
           "posture": "criteria-supported",
-          "summary": "Risk criteria-supported",
-          "metrics": [],
+          "summary": "Risk criteria-supported (Debt/market cap 18.8%)",
+          "metrics": [
+            {
+              "key": "debtToMarketCap",
+              "label": "Debt/market cap",
+              "value": 0.1875,
+              "unit": "ratio-percent",
+              "sourceIds": [
+                "extended-sec-edgar-ifrssa-fundamentals",
+                "market-yahoo-equity-ifrssa",
+                "verified-snapshot-IFRSSA"
+              ]
+            }
+          ],
           "sourceIds": [
             "extended-sec-edgar-ifrssa-fundamentals",
             "market-yahoo-equity-ifrssa",
@@ -1477,8 +1573,8 @@
         },
         {
           "name": "Valuation",
-          "posture": "insufficient-data",
-          "summary": "Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x)",
+          "posture": "criteria-not-supported",
+          "summary": "Valuation criteria-not-supported (Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x)",
           "metrics": [
             {
               "key": "trailingPE",
@@ -1493,9 +1589,16 @@
               "value": 28,
               "unit": "ratio",
               "sourceIds": ["market-yahoo-equity-ifrssa"]
+            },
+            {
+              "key": "evToAnnualizedRevenue",
+              "label": "EV/revenue",
+              "value": 15.333333333333334,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"]
             }
           ],
-          "sourceIds": ["market-yahoo-equity-ifrssa"],
+          "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
           "gaps": []
         }
       ],
@@ -1650,11 +1753,17 @@
         {
           "lane": "target-valuation",
           "evidenceClass": "material",
-          "status": "gap",
-          "coveredSourceIds": [],
+          "status": "covered",
+          "coveredSourceIds": [
+            "market-yahoo-equity-ifrssa",
+            "extended-sec-edgar-ifrssa-fundamentals"
+          ],
           "gapIds": ["target-valuation:gap:1"],
-          "gapText": ["valuation: Valuation Evidence unavailable for IFRSSA: missing cash, debt"],
-          "freshnessNotes": []
+          "gapText": [
+            "valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported"
+          ],
+          "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"],
+          "supportable": true
         },
         {
           "lane": "peer-valuation",
@@ -1663,7 +1772,7 @@
           "coveredSourceIds": [],
           "gapIds": ["peer-valuation:gap:1"],
           "gapText": [
-            "valuation-peers: Valuation peer comps skipped for IFRSSA: target valuation unavailable"
+            "valuation-peers: Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match"
           ],
           "freshnessNotes": []
         },
@@ -1684,13 +1793,13 @@
         "coreLaneCount": 2,
         "materialLaneCount": 5,
         "supplementalLaneCount": 4,
-        "coveredLaneCount": 4,
-        "gapLaneCount": 7,
+        "coveredLaneCount": 5,
+        "gapLaneCount": 6,
         "coreGapLaneCount": 0,
-        "materialGapLaneCount": 3,
-        "sourceCount": 10,
+        "materialGapLaneCount": 2,
+        "sourceCount": 12,
         "gapCount": 11,
-        "coverageRatio": 0.36363636363636365
+        "coverageRatio": 0.45454545454545453
       }
     },
     "extended-evidence.json": {
@@ -1725,7 +1834,52 @@
             "netIncomePeriodEnd": "2025-12-31",
             "netIncomePeriodMonths": 12,
             "netIncomePrior": 660000000,
-            "netIncomeDeltaPercent": 25.000000000000018
+            "netIncomeDeltaPercent": 25.000000000000018,
+            "dilutedEps": 15,
+            "dilutedEpsPeriodEnd": "2025-12-31",
+            "dilutedEpsPeriodMonths": 12,
+            "dilutedEpsPrior": 12,
+            "dilutedEpsDeltaPercent": 25,
+            "operatingCashFlow": 900000000,
+            "operatingCashFlowPeriodEnd": "2025-12-31",
+            "operatingCashFlowPeriodMonths": 12,
+            "operatingCashFlowPrior": 720000000,
+            "operatingCashFlowDeltaPercent": 25,
+            "cash": 750000000,
+            "cashPeriodEnd": "2025-12-31",
+            "debt": 3750000000,
+            "debtPeriodEnd": "2025-12-31",
+            "stockholdersEquity": 3000000000,
+            "stockholdersEquityPeriodEnd": "2025-12-31",
+            "assets": 1500000000,
+            "assetsPeriodEnd": "2025-12-31"
+          }
+        },
+        {
+          "category": "valuation",
+          "title": "IFRSSA Valuation Evidence",
+          "summary": "Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15; cash/debt as of 2025-12-31. Peer comps supportability: screening-only; 0 usable peers.",
+          "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "marketCap": 20000000000,
+            "cash": 750000000,
+            "debt": 3750000000,
+            "netDebt": 3000000000,
+            "enterpriseValue": 23000000000,
+            "latestPeriodRevenue": 1500000000,
+            "annualizedRevenue": 1500000000,
+            "quoteObservedAt": "2026-06-15T14:30:00.000Z",
+            "revenuePeriodMonths": 12,
+            "revenuePeriodEnd": "2025-12-31",
+            "cashPeriodEnd": "2025-12-31",
+            "debtPeriodEnd": "2025-12-31",
+            "evToAnnualizedRevenue": 15.333333333333334,
+            "marketCapToAnnualizedRevenue": 13.333333333333334,
+            "debtToMarketCap": 0.1875,
+            "netDebtToMarketCap": 0.15,
+            "corePeerCount": 0,
+            "valuationSupportability": "screening-only"
           }
         },
         {
@@ -1757,7 +1911,7 @@
         {
           "category": "financial-lens",
           "title": "IFRSSA Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
+          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength criteria-mixed (Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%); Value criteria-not-supported (EV date basis EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
           "sourceIds": [
             "extended-sec-edgar-ifrssa-fundamentals",
             "market-yahoo-equity-ifrssa",
@@ -1769,16 +1923,34 @@
             "grossMargin": 0.85,
             "operatingMargin": 0.7,
             "netMargin": 0.55,
+            "cashConversion": 1.0909090909090908,
+            "roe": 0.275,
+            "roa": 0.55,
             "growthPosture": "criteria-supported",
             "revenueDeltaPercent": 25,
             "grossProfitDeltaPercent": 25,
             "operatingIncomeDeltaPercent": 24.999999999999986,
             "netIncomeDeltaPercent": 25.000000000000018,
-            "financialStrengthPosture": "insufficient-data",
-            "valuePosture": "insufficient-data",
+            "dilutedEpsDeltaPercent": 25,
+            "operatingCashFlowDeltaPercent": 25,
+            "financialStrengthPosture": "criteria-mixed",
+            "cash": 750000000,
+            "debt": 3750000000,
+            "netDebt": 3000000000,
+            "debtToMarketCap": 0.1875,
+            "netDebtToMarketCap": 0.15,
+            "debtToEquity": 1.25,
+            "valuePosture": "criteria-not-supported",
+            "evDateBasis": "EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
+            "enterpriseValue": 23000000000,
+            "annualizedRevenue": 1500000000,
+            "evToAnnualizedRevenue": 15.333333333333334,
+            "marketCapToAnnualizedRevenue": 13.333333333333334,
+            "valuationSupportability": "screening-only",
             "peRatio": 31,
             "forwardPe": 28,
             "priceToBook": 45,
+            "pcfRatio": 22.22222222222222,
             "momentumPosture": "criteria-mixed",
             "latestClose": 216.6,
             "sma50": 206.8,
@@ -1789,7 +1961,7 @@
         {
           "category": "business-framework",
           "title": "IFRSSA Business Framework Evidence",
-          "summary": "Business Framework: Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B); Phase classification (Phase operating-leverage, Revenue YoY 25.0%); Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%); Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
+          "summary": "Business Framework: Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B); Phase classification (Phase operating-leverage, Revenue YoY 25.0%); Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%); Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%); Management insufficient-data; Risk criteria-supported (Debt/market cap 18.8%); Valuation criteria-not-supported (Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x).",
           "sourceIds": [
             "extended-sec-edgar-ifrssa-fundamentals",
             "market-yahoo-equity-ifrssa",
@@ -1804,7 +1976,7 @@
             "growthPosture": "criteria-supported",
             "managementPosture": "insufficient-data",
             "riskPosture": "criteria-supported",
-            "valuationPosture": "insufficient-data"
+            "valuationPosture": "criteria-not-supported"
           }
         }
       ],
@@ -1843,19 +2015,20 @@
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "valuation",
-          "message": "Valuation Evidence unavailable for IFRSSA: missing cash, debt",
+          "source": "valuation-peers",
+          "message": "Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match",
+          "symbol": "IFRSSA",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
-          "evidenceQualityImpact": "no-cap"
+          "cause": "unsupported-coverage",
+          "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "financial-lens",
-          "message": "Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
+          "source": "valuation",
+          "message": "Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported",
+          "symbol": "IFRSSA",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -1912,6 +2085,33 @@
               "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
               "periodEnd": "2025-12-31",
               "periodMonths": 12
+            },
+            {
+              "key": "cashConversion",
+              "label": "Cash conversion",
+              "value": 1.0909090909090908,
+              "unit": "ratio",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "roe",
+              "label": "ROE",
+              "value": 0.275,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "roa",
+              "label": "ROA",
+              "value": 0.55,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
             }
           ],
           "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
@@ -1955,20 +2155,139 @@
               "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
               "periodEnd": "2025-12-31",
               "periodMonths": 12
+            },
+            {
+              "key": "dilutedEpsDeltaPercent",
+              "label": "Diluted EPS YoY",
+              "value": 25,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "operatingCashFlowDeltaPercent",
+              "label": "Operating cash flow YoY",
+              "value": 25,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
             }
           ],
           "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
         },
         {
           "name": "Financial Strength",
-          "posture": "insufficient-data",
-          "metrics": [],
+          "posture": "criteria-mixed",
+          "metrics": [
+            {
+              "key": "cash",
+              "label": "Cash",
+              "value": 750000000,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "debt",
+              "label": "Debt",
+              "value": 3750000000,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "netDebt",
+              "label": "Net debt",
+              "value": 3000000000,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "debtToMarketCap",
+              "label": "Debt/market cap",
+              "value": 0.1875,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "netDebtToMarketCap",
+              "label": "Net debt/market cap",
+              "value": 0.15,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "debtToEquity",
+              "label": "Debt/equity",
+              "value": 1.25,
+              "unit": "ratio",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31"
+            }
+          ],
           "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"]
         },
         {
           "name": "Value",
-          "posture": "insufficient-data",
+          "posture": "criteria-not-supported",
           "metrics": [
+            {
+              "key": "evDateBasis",
+              "label": "EV date basis",
+              "value": "EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "enterpriseValue",
+              "label": "Enterprise value",
+              "value": 23000000000,
+              "unit": "currency",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2026-06-15T14:30:00.000Z"
+            },
+            {
+              "key": "annualizedRevenue",
+              "label": "Annualized revenue",
+              "value": 1500000000,
+              "unit": "currency",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "evToAnnualizedRevenue",
+              "label": "EV/revenue",
+              "value": 15.333333333333334,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "marketCapToAnnualizedRevenue",
+              "label": "Market cap/revenue",
+              "value": 13.333333333333334,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "valuationSupportability",
+              "label": "Peer supportability",
+              "value": "screening-only",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
             {
               "key": "peRatio",
               "label": "PE",
@@ -1992,9 +2311,18 @@
               "unit": "ratio",
               "sourceIds": ["market-yahoo-equity-ifrssa"],
               "periodEnd": "2026-06-15T14:30:00.000Z"
+            },
+            {
+              "key": "pcfRatio",
+              "label": "PCF",
+              "value": 22.22222222222222,
+              "unit": "ratio",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
             }
           ],
-          "sourceIds": ["market-yahoo-equity-ifrssa"]
+          "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"]
         },
         {
           "name": "Momentum",
@@ -2434,7 +2762,68 @@
             "key": "cash",
             "label": "Cash and cash equivalents",
             "statement": "balanceSheet",
-            "annual": [],
+            "annual": [
+              {
+                "value": 500000000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "CashAndCashEquivalents",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 600000000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "CashAndCashEquivalents",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 750000000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "CashAndCashEquivalents",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
             "interim": []
           },
           "currentAssets": {
@@ -2455,28 +2844,272 @@
             "key": "totalAssets",
             "label": "Total assets",
             "statement": "balanceSheet",
-            "annual": [],
+            "annual": [
+              {
+                "value": 1000000000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1200000000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1500000000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Assets",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
             "interim": []
           },
           "totalLiabilities": {
             "key": "totalLiabilities",
             "label": "Total liabilities",
             "statement": "balanceSheet",
-            "annual": [],
+            "annual": [
+              {
+                "value": 1500000000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 1800000000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 2250000000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Liabilities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
             "interim": []
           },
           "stockholdersEquity": {
             "key": "stockholdersEquity",
             "label": "Stockholders' equity",
             "statement": "balanceSheet",
-            "annual": [],
+            "annual": [
+              {
+                "value": 2000000000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Equity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 2400000000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Equity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 3000000000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Equity",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
             "interim": []
           },
           "debt": {
             "key": "debt",
             "label": "Debt",
             "statement": "balanceSheet",
-            "annual": [],
+            "annual": [
+              {
+                "value": 2500000000,
+                "periodKey": "instant|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Borrowings",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 3000000000,
+                "periodKey": "instant|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Borrowings",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 3750000000,
+                "periodKey": "instant|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "Borrowings",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
             "interim": []
           }
         },
@@ -2485,8 +3118,94 @@
             "key": "operatingCashFlow",
             "label": "Operating cash flow",
             "statement": "cashFlowStatement",
-            "annual": [],
-            "interim": []
+            "annual": [
+              {
+                "value": 600000000,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "CashFlowsFromUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 720000000,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "CashFlowsFromUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 900000000,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "CashFlowsFromUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "interim": [
+              {
+                "value": 390000000,
+                "periodKey": "2025-01-01|2025-06-30",
+                "periodType": "interim",
+                "form": "6-K",
+                "canonicalForm": "6-K",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-h1",
+                "filedAt": "2025-08-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-06-30",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "H1",
+                "taxonomy": "ifrs-full",
+                "concept": "CashFlowsFromUsedInOperatingActivities",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ]
           },
           "capitalExpenditure": {
             "key": "capitalExpenditure",
@@ -2515,8 +3234,94 @@
             "key": "dilutedEps",
             "label": "Diluted EPS",
             "statement": "perShare",
-            "annual": [],
-            "interim": []
+            "annual": [
+              {
+                "value": 10,
+                "periodKey": "2023-01-01|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-23-fy",
+                "filedAt": "2024-03-15",
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "DilutedEarningsLossPerShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 12,
+                "periodKey": "2024-01-01|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-24-fy",
+                "filedAt": "2025-03-15",
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "DilutedEarningsLossPerShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "value": 15,
+                "periodKey": "2025-01-01|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-fy",
+                "filedAt": "2026-03-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "ifrs-full",
+                "concept": "DilutedEarningsLossPerShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "interim": [
+              {
+                "value": 6.5,
+                "periodKey": "2025-01-01|2025-06-30",
+                "periodType": "interim",
+                "form": "6-K",
+                "canonicalForm": "6-K",
+                "amendment": false,
+                "accessionNumber": "0000000000-25-h1",
+                "filedAt": "2025-08-15",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-06-30",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "H1",
+                "taxonomy": "ifrs-full",
+                "concept": "DilutedEarningsLossPerShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ]
           },
           "dilutedShares": {
             "key": "dilutedShares",
@@ -2549,64 +3354,19 @@
           "message": "No complete post-FY interim duration fact is available"
         },
         {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2023-01-01|2023-12-31",
-          "message": "balanceSheet annual period 2023-01-01|2023-12-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+          "code": "unreconciled-ttm",
+          "seriesKey": "operatingCashFlow",
+          "message": "No complete post-FY interim duration fact is available"
         },
         {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2023-01-01|2023-12-31",
-          "message": "cashFlowStatement annual period 2023-01-01|2023-12-31 is missing operatingCashFlow"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2023-01-01|2023-12-31",
-          "message": "perShare annual period 2023-01-01|2023-12-31 is missing dilutedEps"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2024-01-01|2024-12-31",
-          "message": "balanceSheet annual period 2024-01-01|2024-12-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2024-01-01|2024-12-31",
-          "message": "cashFlowStatement annual period 2024-01-01|2024-12-31 is missing operatingCashFlow"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2024-01-01|2024-12-31",
-          "message": "perShare annual period 2024-01-01|2024-12-31 is missing dilutedEps"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2025-01-01|2025-12-31",
-          "message": "balanceSheet annual period 2025-01-01|2025-12-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2025-01-01|2025-12-31",
-          "message": "cashFlowStatement annual period 2025-01-01|2025-12-31 is missing operatingCashFlow"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "annual|2025-01-01|2025-12-31",
-          "message": "perShare annual period 2025-01-01|2025-12-31 is missing dilutedEps"
+          "code": "unreconciled-ttm",
+          "seriesKey": "dilutedEps",
+          "message": "No complete post-FY interim duration fact is available"
         },
         {
           "code": "incomplete-statement",
           "periodKey": "interim|2025-01-01|2025-06-30",
           "message": "balanceSheet interim period 2025-01-01|2025-06-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "interim|2025-01-01|2025-06-30",
-          "message": "cashFlowStatement interim period 2025-01-01|2025-06-30 is missing operatingCashFlow"
-        },
-        {
-          "code": "incomplete-statement",
-          "periodKey": "interim|2025-01-01|2025-06-30",
-          "message": "perShare interim period 2025-01-01|2025-06-30 is missing dilutedEps"
         }
       ],
       "omissionNotes": [
@@ -2628,6 +3388,41 @@
         {
           "code": "cutoff-exclusion",
           "seriesKey": "netIncome",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "cash",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "totalAssets",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "totalLiabilities",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "stockholdersEquity",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "debt",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "operatingCashFlow",
+          "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
+        },
+        {
+          "code": "cutoff-exclusion",
+          "seriesKey": "dilutedEps",
           "message": "1 fact(s) were excluded before dedupe at the analysis cutoff"
         }
       ],
@@ -2859,23 +3654,97 @@
           "key": "dilutedEps",
           "label": "Diluted EPS",
           "unit": "per-share",
-          "annual": [],
-          "notes": [
-            "annual:missing-concept: no canonical annual facts found",
-            "ttm:unreconciled: canonical TTM is unavailable",
-            "cagr:insufficient-points: no annual points"
-          ]
+          "concept": "DilutedEarningsLossPerShare",
+          "annual": [
+            {
+              "value": 10,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD/shares"
+            },
+            {
+              "value": 12,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD/shares"
+            },
+            {
+              "value": 15,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD/shares"
+            }
+          ],
+          "cagr": {
+            "percent": 22.456995602726117,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": ["ttm:unreconciled: canonical TTM is unavailable"]
         },
         "operatingCashFlow": {
           "key": "operatingCashFlow",
           "label": "Operating cash flow",
           "unit": "currency",
-          "annual": [],
-          "notes": [
-            "annual:missing-concept: no canonical annual facts found",
-            "ttm:unreconciled: canonical TTM is unavailable",
-            "cagr:insufficient-points: no annual points"
-          ]
+          "concept": "CashFlowsFromUsedInOperatingActivities",
+          "annual": [
+            {
+              "value": 600000000,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 720000000,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 900000000,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "cagr": {
+            "percent": 22.456995602726117,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": ["ttm:unreconciled: canonical TTM is unavailable"]
         },
         "capex": {
           "key": "capex",
@@ -2894,6 +3763,9 @@
           "unit": "currency",
           "annual": [],
           "notes": [
+            "annual:unmatched-period: 2023-12-31 has no matching capex point",
+            "annual:unmatched-period: 2024-12-31 has no matching capex point",
+            "annual:unmatched-period: 2025-12-31 has no matching capex point",
             "ttm:missing-component: both component TTM points are required",
             "cagr:insufficient-points: no annual points"
           ]
@@ -3343,28 +4215,20 @@
         "evidenceQualityImpact": "extended-evidence-cap"
       },
       {
-        "source": "valuation",
-        "message": "Valuation Evidence unavailable for IFRSSA: missing cash, debt",
-        "provider": "market-bot",
-        "capability": "extended-evidence",
-        "cause": "provider-data-missing",
-        "evidenceQualityImpact": "no-cap"
-      },
-      {
         "source": "valuation-peers",
-        "message": "Valuation peer comps skipped for IFRSSA: target valuation unavailable",
+        "message": "Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match",
         "symbol": "IFRSSA",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
+        "cause": "unsupported-coverage",
         "evidenceQualityImpact": "extended-evidence-cap"
       },
       {
-        "source": "financial-lens",
-        "message": "Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
+        "source": "valuation",
+        "message": "Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported",
+        "symbol": "IFRSSA",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap"
       },
       {
@@ -3476,6 +4340,23 @@
           "lane": "regulatory-filings",
           "posture": "covered",
           "relatedGapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"]
+        },
+        {
+          "id": "market-yahoo-equity-ifrssa",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "lane": "target-valuation",
+          "posture": "covered",
+          "relatedGapIds": ["target-valuation:gap:1"]
+        },
+        {
+          "id": "extended-sec-edgar-ifrssa-fundamentals",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "lane": "target-valuation",
+          "posture": "covered",
+          "relatedGapIds": ["target-valuation:gap:1"]
         }
       ]
     },
@@ -3558,7 +4439,66 @@
       ]
     },
     "supplemental-market-snapshots.json": [],
-    "valuation-comps.json": null,
+    "valuation-comps.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "target": {
+        "symbol": "IFRSSA",
+        "marketCap": 20000000000,
+        "cash": 750000000,
+        "debt": 3750000000,
+        "cashPeriodEnd": "2025-12-31",
+        "debtPeriodEnd": "2025-12-31",
+        "netDebt": 3000000000,
+        "enterpriseValue": 23000000000,
+        "latestPeriodRevenue": 1500000000,
+        "revenuePeriodMonths": 12,
+        "revenuePeriodEnd": "2025-12-31",
+        "annualizedRevenue": 1500000000,
+        "evToAnnualizedRevenue": 15.333333333333334,
+        "sharesOutstanding": 15000000000,
+        "currentPrice": 198.5,
+        "quoteCurrency": "USD",
+        "quoteObservedAt": "2026-06-15T14:30:00.000Z",
+        "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+        "usable": true
+      },
+      "peers": [],
+      "excludedPeers": [],
+      "peerUniverseSourceIds": [],
+      "summary": {
+        "corePeerCount": 0,
+        "secondaryPeerCount": 0,
+        "usablePeerCount": 0,
+        "targetEvToAnnualizedRevenue": 15.333333333333334,
+        "valuationSupportability": "screening-only"
+      },
+      "impliedPriceRange": {
+        "label": "peer-implied price reference range",
+        "basis": "peer EV/annualized revenue percentiles applied to target annualized revenue",
+        "formula": "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+        "inputs": {
+          "peerP25EvToAnnualizedRevenue": null,
+          "peerMedianEvToAnnualizedRevenue": null,
+          "peerP75EvToAnnualizedRevenue": null,
+          "annualizedRevenue": 1500000000,
+          "netDebt": 3000000000,
+          "sharesOutstanding": 15000000000,
+          "currentPrice": 198.5,
+          "quoteCurrency": "USD",
+          "quoteObservedAt": "2026-06-15T14:30:00.000Z"
+        },
+        "status": "suppressed",
+        "suppressedReason": "peer supportability is not supported"
+      },
+      "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
+      "freshnessFlags": {
+        "targetQuoteFresh": true,
+        "targetSecFresh": true,
+        "peerQuoteFresh": false,
+        "peerSecFresh": false
+      }
+    },
     "verified-market-snapshot.json": {
       "symbol": "IFRSSA",
       "assetClass": "equity",

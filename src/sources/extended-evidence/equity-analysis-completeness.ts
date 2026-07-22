@@ -125,17 +125,35 @@ function hasCompatibleCurrency(artifact: FinancialStatementsArtifact): boolean {
 function perShareEvidenceMissing(
   artifact: FinancialStatementsArtifact,
   currentAnnualEnd: string,
-  interimDue: boolean,
+  expectedInterimEnd: string | undefined,
 ): boolean {
   const series = artifact.statements.perShare.dilutedEps;
-  const issued = series.annual.length > 0 || series.interim.length > 0;
-  if (!issued) {
-    return false;
-  }
   const hasCurrentAnnual = fullYearFacts(series).some(
     (fact) => fact.periodEnd === currentAnnualEnd,
   );
-  return !hasCurrentAnnual || (interimDue && series.ttm === undefined);
+  if (!hasCurrentAnnual) {
+    return true;
+  }
+  if (expectedInterimEnd === undefined) {
+    return false;
+  }
+  const quarterOnlyCount = series.interim.filter((fact) => {
+    const months = financialStatementPeriodMonths(fact);
+    const trailingStart = addMonths(expectedInterimEnd, -12);
+    return (
+      months !== undefined &&
+      months >= 2 &&
+      months <= 4 &&
+      trailingStart !== undefined &&
+      fact.periodEnd > trailingStart &&
+      fact.periodEnd <= expectedInterimEnd
+    );
+  }).length;
+  return !(
+    (series.ttm !== undefined &&
+      alignedWithExpectedEnd(series.ttm.periodEnd, expectedInterimEnd)) ||
+    (artifact.interimCadence === "quarterly" && quarterOnlyCount >= MIN_QUARTER_ONLY_PERIODS)
+  );
 }
 
 function quarterlyReasons(
@@ -169,13 +187,51 @@ function quarterlyReasons(
   }).length;
   const exactTtmCoversWindow =
     revenue.ttm !== undefined && alignedWithExpectedEnd(revenue.ttm.periodEnd, expectedEnd);
-  if (quarterOnlyCount < MIN_QUARTER_ONLY_PERIODS && !exactTtmCoversWindow) {
+  const hasTrailingCoverage = quarterOnlyCount >= MIN_QUARTER_ONLY_PERIODS || exactTtmCoversWindow;
+  if (!hasTrailingCoverage) {
     reasons.push("quarterly-periods-insufficient");
-  }
-  if (!exactTtmCoversWindow) {
     reasons.push("ttm-unreconciled");
   }
   return reasons;
+}
+
+function currentStatementIncomplete(
+  artifact: FinancialStatementsArtifact,
+  currentAnnual: FinancialStatementFact,
+  expectedInterimEnd: string | undefined,
+): boolean {
+  const currentDurationPeriodKeys = new Set([`annual|${currentAnnual.periodKey}`]);
+  let currentBalancePeriodKey = `annual|${currentAnnual.periodKey}`;
+  if (expectedInterimEnd !== undefined) {
+    const latestInterim = latestFact(
+      artifact.statements.incomeStatement.revenue.interim.filter(
+        (fact) =>
+          fact.periodEnd > currentAnnual.periodEnd &&
+          alignedWithExpectedEnd(fact.periodEnd, expectedInterimEnd),
+      ),
+    );
+    if (latestInterim !== undefined) {
+      const interimPeriodKey = `interim|${latestInterim.periodKey}`;
+      currentDurationPeriodKeys.add(interimPeriodKey);
+      currentBalancePeriodKey = interimPeriodKey;
+    }
+  }
+  const requiredBalanceSheetKeys = [
+    "cash",
+    "totalAssets",
+    "totalLiabilities",
+    "stockholdersEquity",
+  ] as const;
+  return artifact.validationNotes.some(
+    (note) =>
+      note.code === "incomplete-statement" &&
+      note.periodKey !== undefined &&
+      ((note.message.startsWith("cashFlowStatement ") &&
+        currentDurationPeriodKeys.has(note.periodKey)) ||
+        (note.message.startsWith("balanceSheet ") &&
+          note.periodKey === currentBalancePeriodKey &&
+          requiredBalanceSheetKeys.every((key) => note.message.includes(key)))),
+  );
 }
 
 function semiannualReasons(
@@ -268,6 +324,7 @@ function primaryFinancialsDimension(
   }
 
   const reasons: string[] = [];
+  const informationalReasons: string[] = [];
   if (annualFacts.length < MIN_ANNUAL_PERIODS) {
     reasons.push("annual-history-insufficient");
   }
@@ -279,17 +336,33 @@ function primaryFinancialsDimension(
     );
   }
   let cadenceReasons: readonly string[] = [];
+  let expectedInterimEnd: string | undefined = undefined;
   switch (artifact.interimCadence) {
     case "quarterly": {
       cadenceReasons = quarterlyReasons(revenue, currentAnnual.periodEnd, asOf);
+      expectedInterimEnd = latestDuePeriodEnd(
+        currentAnnual.periodEnd,
+        asOf,
+        3,
+        QUARTER_FILING_LAG_DAYS,
+      );
       break;
     }
     case "semiannual": {
       cadenceReasons = semiannualReasons(revenue, currentAnnual.periodEnd, asOf);
+      expectedInterimEnd = latestDuePeriodEnd(
+        currentAnnual.periodEnd,
+        asOf,
+        6,
+        HALF_YEAR_FILING_LAG_DAYS,
+      );
       break;
     }
     case "irregular": {
       cadenceReasons = irregularReasons(revenue, currentAnnual.periodEnd);
+      expectedInterimEnd = latestFact(
+        revenue.interim.filter((fact) => fact.periodEnd > currentAnnual.periodEnd),
+      )?.periodEnd;
       break;
     }
     case "annual-only":
@@ -299,24 +372,24 @@ function primaryFinancialsDimension(
     }
   }
   reasons.push(...cadenceReasons);
-  const interimDue =
-    (artifact.interimCadence === "quarterly" &&
-      latestDuePeriodEnd(currentAnnual.periodEnd, asOf, 3, QUARTER_FILING_LAG_DAYS) !==
-        undefined) ||
-    (artifact.interimCadence === "semiannual" &&
-      latestDuePeriodEnd(currentAnnual.periodEnd, asOf, 6, HALF_YEAR_FILING_LAG_DAYS) !==
-        undefined) ||
-    (artifact.interimCadence === "irregular" &&
-      revenue.interim.some((fact) => fact.periodEnd > currentAnnual.periodEnd));
-  if (perShareEvidenceMissing(artifact, currentAnnual.periodEnd, interimDue)) {
+  if (
+    expectedInterimEnd === undefined &&
+    (artifact.interimCadence === "quarterly" || artifact.interimCadence === "semiannual")
+  ) {
+    informationalReasons.push("annual-as-current");
+  }
+  if (perShareEvidenceMissing(artifact, currentAnnual.periodEnd, expectedInterimEnd)) {
     reasons.push("per-share-evidence-missing");
+  }
+  if (currentStatementIncomplete(artifact, currentAnnual, expectedInterimEnd)) {
+    reasons.push("current-primary-statements-incomplete");
   }
   if (artifact.structuredFinancialGaps.some((gap) => gap.code === "untagged-6-k")) {
     reasons.push("untagged-interim-evidence");
   }
   return {
     status: reasons.length === 0 ? "complete" : "partial",
-    reasonCodes: unique(reasons),
+    reasonCodes: unique([...reasons, ...informationalReasons]),
     asOf: artifact.analysisAsOf,
     sourceIds,
   };

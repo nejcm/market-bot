@@ -329,7 +329,7 @@ describe("static equity run fixtures", () => {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
         expect([...factForms(result)]).toEqual(expect.arrayContaining(["20-F", "6-K"]));
         assertLegacyFpiSourceGap(result, "FPIQ");
-        expect(populatedFinancialHistoryCount(result)).toBe(7);
+        expect(populatedFinancialHistoryCount(result)).toBe(9);
         expect(result.collectedSources.financialStatements).toMatchObject({
           taxonomy: "us-gaap",
           reportingCurrency: "USD",
@@ -350,7 +350,7 @@ describe("static equity run fixtures", () => {
         expect(
           result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),
         ).toMatchObject({ posture: "criteria-supported" });
-        expect(result.report.dataGaps).toContain(
+        expect(result.report.dataGaps).not.toContain(
           "valuation: Valuation Evidence unavailable for FPIQ: missing cash, debt",
         );
       }
@@ -358,7 +358,7 @@ describe("static equity run fixtures", () => {
         expect(factTaxonomies(result)).toEqual(["ifrs-full"]);
         expect([...factForms(result)]).toEqual(expect.arrayContaining(["20-F", "6-K"]));
         assertLegacyFpiSourceGap(result, "IFRSSA");
-        expect(populatedFinancialHistoryCount(result)).toBe(7);
+        expect(populatedFinancialHistoryCount(result)).toBe(9);
         expect(result.collectedSources.financialStatements).toMatchObject({
           taxonomy: "ifrs-full",
           reportingCurrency: "USD",
@@ -377,7 +377,7 @@ describe("static equity run fixtures", () => {
         expect(
           result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),
         ).toMatchObject({ posture: "criteria-supported" });
-        expect(result.report.dataGaps).toContain(
+        expect(result.report.dataGaps).not.toContain(
           "valuation: Valuation Evidence unavailable for IFRSSA: missing cash, debt",
         );
       }

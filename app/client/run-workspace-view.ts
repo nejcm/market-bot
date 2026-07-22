@@ -1,5 +1,6 @@
 import type { RunDetail } from "../types";
-import type { MarketSnapshot } from "../../src/domain/types";
+import type { EquityAnalysisDimensionStatus, MarketSnapshot } from "../../src/domain/types";
+import { isRecord } from "../../src/guards";
 import type {
   FinancialLensName,
   FinancialLensPosture,
@@ -162,6 +163,27 @@ export interface RunWorkspaceFundamentalHistoryView {
   readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
 }
 
+export interface RunWorkspaceCompletenessDimension {
+  readonly key:
+    | "primaryFinancials"
+    | "valuation"
+    | "expectations"
+    | "capitalOwnership"
+    | "operatingKpis";
+  readonly label: string;
+  readonly status: EquityAnalysisDimensionStatus;
+  readonly reasonCodes: readonly string[];
+  readonly asOf: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceEquityCompletenessView {
+  readonly financialCoreStatus: "complete" | "partial" | "blocked";
+  readonly coverageLevel: "comprehensive" | "substantial" | "limited";
+  readonly asOf: string;
+  readonly dimensions: readonly RunWorkspaceCompletenessDimension[];
+}
+
 export interface RunWorkspacePeerImpliedRangeGeometry {
   readonly mid: number;
   readonly current: number;
@@ -194,6 +216,7 @@ export interface RunWorkspaceTableOfContentsEntry {
 
 export interface RunWorkspaceView {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
+  readonly equityCompleteness?: RunWorkspaceEquityCompletenessView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
   readonly report: RunWorkspaceReportView;
@@ -203,6 +226,80 @@ export interface RunWorkspaceView {
   readonly sources: RunWorkspaceSourcesView;
   readonly snapshot?: RunWorkspaceSnapshotView;
   readonly tableOfContents: readonly RunWorkspaceTableOfContentsEntry[];
+}
+
+const COMPLETENESS_DIMENSIONS: readonly {
+  readonly key: RunWorkspaceCompletenessDimension["key"];
+  readonly label: string;
+}[] = [
+  { key: "primaryFinancials", label: "Primary financials" },
+  { key: "valuation", label: "Valuation" },
+  { key: "expectations", label: "Expectations" },
+  { key: "capitalOwnership", label: "Capital & ownership" },
+  { key: "operatingKpis", label: "Operating KPIs" },
+];
+
+function stringArrayValue(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : undefined;
+}
+
+export function equityCompletenessView(
+  detail: RunDetail,
+): RunWorkspaceEquityCompletenessView | undefined {
+  const completeness = detail.report?.equityAnalysisCompleteness;
+  const rawDimensions = isRecord(completeness) ? completeness.dimensions : undefined;
+  if (
+    !isRecord(completeness) ||
+    completeness.version !== 1 ||
+    (completeness.financialCoreStatus !== "complete" &&
+      completeness.financialCoreStatus !== "partial" &&
+      completeness.financialCoreStatus !== "blocked") ||
+    (completeness.coverageLevel !== "comprehensive" &&
+      completeness.coverageLevel !== "substantial" &&
+      completeness.coverageLevel !== "limited") ||
+    typeof completeness.asOf !== "string" ||
+    !isRecord(rawDimensions)
+  ) {
+    return undefined;
+  }
+  const dimensions = COMPLETENESS_DIMENSIONS.flatMap(({ key, label }) => {
+    const dimension = rawDimensions[key];
+    if (
+      !isRecord(dimension) ||
+      (dimension.status !== "complete" &&
+        dimension.status !== "partial" &&
+        dimension.status !== "blocked" &&
+        dimension.status !== "not-applicable") ||
+      typeof dimension.asOf !== "string"
+    ) {
+      return [];
+    }
+    const reasonCodes = stringArrayValue(dimension.reasonCodes);
+    const sourceIds = stringArrayValue(dimension.sourceIds);
+    if (reasonCodes === undefined || sourceIds === undefined) {
+      return [];
+    }
+    const item: RunWorkspaceCompletenessDimension = {
+      key,
+      label,
+      status: dimension.status,
+      reasonCodes,
+      asOf: dimension.asOf,
+      sourceIds,
+    };
+    return [item];
+  });
+  if (dimensions.length !== COMPLETENESS_DIMENSIONS.length) {
+    return undefined;
+  }
+  return {
+    financialCoreStatus: completeness.financialCoreStatus,
+    coverageLevel: completeness.coverageLevel,
+    asOf: completeness.asOf,
+    dimensions,
+  };
 }
 
 function formatReferencePrice(value: number): string {
@@ -522,12 +619,18 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const extendedItems = extendedEvidenceItems(report);
   const snapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
+  const equityCompleteness = equityCompletenessView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
   const peerImpliedRange = peerImpliedRangeView(detail);
   const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
 
   const tableOfContents = [
     { key: "summary", label: "Summary", visible: summary !== "" },
+    {
+      key: "equityCompleteness",
+      label: "Analysis completeness",
+      visible: equityCompleteness !== undefined,
+    },
     {
       key: "financialLensStats",
       label: "Financial lens stats",
@@ -571,6 +674,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
 
   return {
     ...(equityHeader !== undefined ? { equityHeader } : {}),
+    ...(equityCompleteness !== undefined ? { equityCompleteness } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
     ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
     report: {

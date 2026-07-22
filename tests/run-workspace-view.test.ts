@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
 import {
   buildRunWorkspaceView,
+  equityCompletenessView,
   peerImpliedRangeView,
   type RunWorkspaceView,
 } from "../app/client/run-workspace-view";
@@ -204,6 +205,69 @@ function tocKeys(view: RunWorkspaceView): readonly string[] {
 }
 
 describe("run workspace view", () => {
+  test("projects equity completeness without changing dimension evidence", () => {
+    const primaryFinancials = {
+      status: "complete",
+      reasonCodes: ["cadence-quarterly", "ttm-reconciled"],
+      asOf: "2026-07-04T12:00:00.000Z",
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    };
+    const partialDimension = {
+      status: "partial",
+      reasonCodes: ["provider-evidence-missing"],
+      asOf: "2026-07-04T12:00:00.000Z",
+      sourceIds: [],
+    };
+    const detail: RunDetail = {
+      summary: summary(),
+      report: {
+        equityAnalysisCompleteness: {
+          version: 1,
+          financialCoreStatus: "complete",
+          coverageLevel: "limited",
+          asOf: "2026-07-04T12:00:00.000Z",
+          dimensions: {
+            primaryFinancials,
+            valuation: partialDimension,
+            expectations: partialDimension,
+            capitalOwnership: partialDimension,
+            operatingKpis: partialDimension,
+          },
+        },
+      },
+    };
+
+    const completeness = equityCompletenessView(detail);
+    const workspace = buildRunWorkspaceView(detail);
+
+    expect(completeness).toMatchObject({
+      financialCoreStatus: "complete",
+      coverageLevel: "limited",
+      dimensions: [
+        {
+          key: "primaryFinancials",
+          status: "complete",
+          reasonCodes: primaryFinancials.reasonCodes,
+          sourceIds: primaryFinancials.sourceIds,
+        },
+        { key: "valuation", status: "partial" },
+        { key: "expectations", status: "partial" },
+        { key: "capitalOwnership", status: "partial" },
+        { key: "operatingKpis", status: "partial" },
+      ],
+    });
+    expect(workspace.equityCompleteness).toEqual(completeness);
+    expect(tocKeys(workspace)).toContain("equityCompleteness");
+  });
+
+  test("suppresses completeness for historical reports without the field", () => {
+    const detail: RunDetail = { summary: summary(), report: { summary: "Historical" } };
+
+    expect(equityCompletenessView(detail)).toBeUndefined();
+    expect(buildRunWorkspaceView(detail).equityCompleteness).toBeUndefined();
+    expect(tocKeys(buildRunWorkspaceView(detail))).not.toContain("equityCompleteness");
+  });
+
   test("projects fundamental history into pre-scaled sparkline cards", () => {
     const view = buildRunWorkspaceView({
       summary: summary(),

@@ -19,6 +19,7 @@ import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-f
 import {
   formatLensValue,
   formatPeRatio,
+  PE_NEGATIVE_CAVEAT,
   PE_NOT_MEANINGFUL,
 } from "../src/sources/extended-evidence/value-format";
 import { marketSnapshot, researchReport } from "./support/fixtures";
@@ -861,7 +862,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(value?.posture).toBe("criteria-supported");
   });
 
-  test("renders P/E as not meaningful when the corresponding earnings are negative", () => {
+  test("shows the negative P/E value with a caveat instead of hiding it", () => {
     const result = addFinancialLensEvidence(
       command,
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
@@ -884,11 +885,16 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     );
 
     expect(metricByKey(result, "Value", "peRatio")).toMatchObject({
-      value: PE_NOT_MEANINGFUL,
+      value: `-40.00x (${PE_NEGATIVE_CAVEAT})`,
       unit: "text",
     });
+    expect(metricByKey(result, "Value", "epsTrailingTwelveMonths")).toMatchObject({
+      label: "Trailing EPS",
+      value: -2,
+      unit: "number",
+    });
     expect(metricByKey(result, "Value", "forwardPe")).toMatchObject({
-      value: PE_NOT_MEANINGFUL,
+      value: `-222.14x (${PE_NEGATIVE_CAVEAT})`,
       unit: "text",
     });
     expect(metricByKey(result, "Value", "epsForward")).toMatchObject({
@@ -896,11 +902,17 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       value: -0.47,
       unit: "number",
     });
-    expect(result.extendedEvidence?.items.at(-1)?.metrics?.forwardPe).toBe(PE_NOT_MEANINGFUL);
+    expect(result.extendedEvidence?.items.at(-1)?.metrics?.forwardPe).toBe(
+      `-222.14x (${PE_NEGATIVE_CAVEAT})`,
+    );
   });
 
-  test("renders P/E as not meaningful when earnings are zero", () => {
-    expect(formatPeRatio(10, 0)).toBe("N/M (non-positive earnings)");
+  test("renders P/E as not meaningful only when earnings are zero or non-finite", () => {
+    expect(formatPeRatio(10, 0)).toBe(PE_NOT_MEANINGFUL);
+    expect(formatPeRatio(Number.POSITIVE_INFINITY)).toBe(PE_NOT_MEANINGFUL);
+    expect(formatPeRatio(-222.14, -0.47)).toBe(`-222.14x (${PE_NEGATIVE_CAVEAT})`);
+    expect(formatPeRatio(-40)).toBe(`-40.00x (${PE_NEGATIVE_CAVEAT})`);
+    expect(formatPeRatio(31.06, 9.595)).toBe("31.06x");
   });
 
   test("renders not-meaningful revenue supportability as a Value-lens caveat", () => {
@@ -1154,7 +1166,7 @@ describe("buildYahooFundamentals", () => {
     expect(item?.summary).toContain("dividend yield 0.36%");
   });
 
-  test("summarizes negative-earnings P/E values as not meaningful", () => {
+  test("summarizes negative-earnings P/E values with the value and a caveat", () => {
     const item = buildYahooFundamentals(
       command,
       [
@@ -1171,8 +1183,8 @@ describe("buildYahooFundamentals", () => {
       "2026-06-22T00:00:00.000Z",
     );
 
-    expect(item?.summary).toContain(`trailing PE ${PE_NOT_MEANINGFUL}`);
-    expect(item?.summary).toContain(`forward PE ${PE_NOT_MEANINGFUL}`);
+    expect(item?.summary).toContain(`trailing PE -40.00x (${PE_NEGATIVE_CAVEAT})`);
+    expect(item?.summary).toContain(`forward PE -222.14x (${PE_NEGATIVE_CAVEAT})`);
   });
 
   test("returns undefined when the ticker snapshot has no fundamentals (Massive fallback)", () => {

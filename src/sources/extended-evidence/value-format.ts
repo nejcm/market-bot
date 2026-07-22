@@ -19,9 +19,24 @@ export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
 };
 
 export const PE_NOT_MEANINGFUL = "N/M (non-positive earnings)";
+export const PE_NEGATIVE_CAVEAT = "negative earnings";
 
-export function formatPeRatio(pe: number, eps: number | undefined): string {
-  return pe <= 0 || (eps !== undefined && eps <= 0) ? PE_NOT_MEANINGFUL : `${pe.toFixed(2)}x`;
+// A negative P/E is a real, computable figure (price over a forecast/trailing loss)
+// And its sign is genuine signal, so it is shown rather than hidden. Its *magnitude*
+// Is misleading — non-monotonic in the loss, so a tiny loss yields a huge multiple —
+// Hence the caveat, so it is not read as a normal multiple. Only a genuinely
+// Non-computable ratio (zero or non-finite earnings) collapses to N/M.
+export function formatPeRatio(pe: number, eps?: number): string {
+  if (!Number.isFinite(pe) || eps === 0) {
+    return PE_NOT_MEANINGFUL;
+  }
+  if (pe < 0 || (eps !== undefined && eps < 0)) {
+    return `${pe.toFixed(2)}x (${PE_NEGATIVE_CAVEAT})`;
+  }
+  if (pe === 0) {
+    return PE_NOT_MEANINGFUL;
+  }
+  return `${pe.toFixed(2)}x`;
 }
 
 export function scaleCurrency(value: number): string {

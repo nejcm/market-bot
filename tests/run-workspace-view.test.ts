@@ -454,7 +454,7 @@ describe("run workspace view", () => {
     });
   });
 
-  test("renders negative-earnings P/E header tiles as not meaningful", () => {
+  test("renders negative-earnings P/E header tiles with the value and a caveat", () => {
     const view = buildRunWorkspaceView({
       summary: summary(),
       marketSnapshots: [
@@ -471,8 +471,8 @@ describe("run workspace view", () => {
 
     expect(view.equityHeader?.financials).toEqual([
       expect.objectContaining({ key: "marketCap" }),
-      expect.objectContaining({ key: "trailingPE", value: "N/M (non-positive earnings)" }),
-      expect.objectContaining({ key: "forwardPE", value: "N/M (non-positive earnings)" }),
+      expect.objectContaining({ key: "trailingPE", value: "-40.00x (negative earnings)" }),
+      expect.objectContaining({ key: "forwardPE", value: "-222.14x (negative earnings)" }),
     ]);
   });
 

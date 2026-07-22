@@ -14,12 +14,7 @@ import {
   MIXED_PERIOD_METRIC,
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
 } from "./valuation-comps";
-import {
-  formatLensValue,
-  formatPeRatio,
-  PE_NOT_MEANINGFUL,
-  type LensValueUnit,
-} from "./value-format";
+import { formatLensValue, formatPeRatio, type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -121,6 +116,29 @@ function ratio(numerator: number | undefined, denominator: number | undefined): 
   return numerator !== undefined && denominator !== undefined && denominator !== 0
     ? numerator / denominator
     : undefined;
+}
+
+// A P/E is "clean" (shown as a numeric multiple) only when it is a finite, positive
+// Ratio over positive earnings. Negative or non-computable P/Es render as annotated
+// Text via formatPeRatio instead of a bare multiple. See PE_NEGATIVE_CAVEAT rationale.
+function peIsClean(pe: number | undefined, eps: number | undefined): boolean {
+  return (
+    pe !== undefined && Number.isFinite(pe) && pe > 0 && eps !== 0 && (eps === undefined || eps > 0)
+  );
+}
+
+// Metric value for a P/E cell: the bare number when clean (rendered as a multiple),
+// Otherwise the annotated formatPeRatio text (negative value + caveat, or N/M), and
+// Undefined when absent so the metric is omitted entirely.
+function peMetricValue(
+  pe: number | undefined,
+  eps: number | undefined,
+  clean: boolean,
+): number | string | undefined {
+  if (pe === undefined) {
+    return undefined;
+  }
+  return clean ? pe : formatPeRatio(pe, eps);
 }
 
 // Annualizes a flow-fact value by its own reporting-period length (months),
@@ -566,11 +584,13 @@ function valueLens(
     "epsTrailingTwelveMonths",
   );
   const epsForward = readMetric(yahooFundamentalsItem?.metrics, "epsForward");
-  const trailingPeSuppressed =
-    trailingPe !== undefined &&
-    formatPeRatio(trailingPe, epsTrailingTwelveMonths) === PE_NOT_MEANINGFUL;
-  const forwardPeSuppressed =
-    forwardPe !== undefined && formatPeRatio(forwardPe, epsForward) === PE_NOT_MEANINGFUL;
+  // A P/E renders as a bare numeric multiple only when it is "clean": a finite,
+  // Positive ratio over positive earnings. Otherwise formatPeRatio produces annotated
+  // Text — the negative value plus a caveat, or N/M for non-computable earnings — which
+  // Is shown as a text metric so the sign/signal is preserved without implying a
+  // Normal multiple. The paired EPS line surfaces the (meaningful) loss magnitude.
+  const trailingPeClean = peIsClean(trailingPe, epsTrailingTwelveMonths);
+  const forwardPeClean = peIsClean(forwardPe, epsForward);
   const valuationRevenuePeriod: Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> = {
     ...observedPeriod(readStringMetric(valuationItem?.metrics, "revenuePeriodEnd")),
     ...(revenuePeriodMonths !== undefined ? { periodMonths: revenuePeriodMonths } : {}),
@@ -654,20 +674,30 @@ function valueLens(
       ...metric(
         "peRatio",
         "PE",
-        trailingPeSuppressed ? PE_NOT_MEANINGFUL : trailingPe,
-        trailingPeSuppressed ? "text" : "ratio",
+        peMetricValue(trailingPe, epsTrailingTwelveMonths, trailingPeClean),
+        trailingPeClean ? "ratio" : "text",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
+      ...(trailingPe !== undefined && !trailingPeClean
+        ? metric(
+            "epsTrailingTwelveMonths",
+            "Trailing EPS",
+            epsTrailingTwelveMonths,
+            "number",
+            yahooSourceIds,
+            observedPeriod(yahooFundamentalsItem?.observedAt),
+          )
+        : []),
       ...metric(
         "forwardPe",
         "Forward PE",
-        forwardPeSuppressed ? PE_NOT_MEANINGFUL : forwardPe,
-        forwardPeSuppressed ? "text" : "ratio",
+        peMetricValue(forwardPe, epsForward, forwardPeClean),
+        forwardPeClean ? "ratio" : "text",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
-      ...(forwardPeSuppressed
+      ...(forwardPe !== undefined && !forwardPeClean
         ? metric(
             "epsForward",
             "Forward EPS",

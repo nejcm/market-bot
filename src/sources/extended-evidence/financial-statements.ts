@@ -11,16 +11,17 @@ import {
   detectFinancialStatementCadence,
   incompleteFinancialStatementNotes,
 } from "./financial-statement-periods";
-import type {
-  CanonicalSecForm,
-  FinancialStatementFact,
-  FinancialStatementNote,
-  FinancialStatementSeries,
-  FinancialStatementSeriesKey,
-  FinancialStatementsArtifact,
-  FinancialStatementTaxonomy,
-  StructuredFinancialGap,
-  SupportedSecForm,
+import {
+  SEC_COMPANYFACTS_UNIT_SCALE,
+  type CanonicalSecForm,
+  type FinancialStatementFact,
+  type FinancialStatementNote,
+  type FinancialStatementSeries,
+  type FinancialStatementSeriesKey,
+  type FinancialStatementsArtifact,
+  type FinancialStatementTaxonomy,
+  type StructuredFinancialGap,
+  type SupportedSecForm,
 } from "./financial-statements-contract";
 
 interface ParsedFact {
@@ -210,7 +211,13 @@ function taxonomyScore(
       isObservable(fact, analysisAsOf),
     ),
   );
-  const revenueAnnual = seriesFacts[0]?.filter(
+  const revenueIndex = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.findIndex(
+    (definition) => definition.key === "revenue",
+  );
+  if (revenueIndex === -1) {
+    throw new Error("Financial statement definitions must include revenue");
+  }
+  const revenueAnnual = seriesFacts[revenueIndex]?.filter(
     (fact) => fact.canonicalForm === "10-K" || fact.canonicalForm === "20-F",
   );
   const latestAnnual =
@@ -264,7 +271,12 @@ function selectReportingCurrency(
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
 ): string | undefined {
-  const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS[0]!;
+  const revenue = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (definition) => definition.key === "revenue",
+  );
+  if (revenue === undefined) {
+    throw new Error("Financial statement definitions must include revenue");
+  }
   const revenueFacts = allFactsForDefinition(payload, taxonomy, revenue).filter(
     (fact) =>
       isObservable(fact, analysisAsOf) &&
@@ -346,7 +358,7 @@ function toSelectedFact(
     concept: fact.concept,
     currency: fact.unit === "shares" ? null : currency,
     unit: fact.unit,
-    unitScale: 1,
+    unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
     extractionMethod: "sec-companyfacts",
     sourceIds: [sourceId],
   };

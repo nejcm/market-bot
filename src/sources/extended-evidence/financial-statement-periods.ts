@@ -1,12 +1,13 @@
 import type { FinancialStatementSeriesDefinition } from "./financial-statement-definitions";
-import type {
-  FinancialStatementFact,
-  FinancialStatementName,
-  FinancialStatementNote,
-  FinancialStatementSeries,
-  FinancialStatementSeriesKey,
-  FinancialStatementTtm,
-  InterimCadence,
+import {
+  SEC_COMPANYFACTS_UNIT_SCALE,
+  type FinancialStatementFact,
+  type FinancialStatementName,
+  type FinancialStatementNote,
+  type FinancialStatementSeries,
+  type FinancialStatementSeriesKey,
+  type FinancialStatementTtm,
+  type InterimCadence,
 } from "./financial-statements-contract";
 
 const DAY_MS = 86_400_000;
@@ -127,7 +128,7 @@ export function deriveFinancialStatementTtm(
       periodEnd: latestYearToDate.periodEnd,
       currency,
       unit: fiscalYear.unit,
-      unitScale: 1,
+      unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
       extractionMethod: "derived-sec-companyfacts",
       formula: "FY + latest-YTD - prior-YTD",
       sourceIds,

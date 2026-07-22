@@ -6,6 +6,9 @@ export type SupportedSecForm = CanonicalSecForm | `${CanonicalSecForm}/A`;
 
 export type FinancialStatementExtractionMethod = "sec-companyfacts";
 
+// SEC companyfacts `val` values are already expressed in the base unit named by the units map.
+export const SEC_COMPANYFACTS_UNIT_SCALE = 1;
+
 export type InterimCadence = "quarterly" | "semiannual" | "irregular" | "annual-only" | "unknown";
 
 export type FinancialStatementName =

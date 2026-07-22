@@ -59,7 +59,7 @@ function differenceComparison(input: {
   readonly periodEnd?: string;
   readonly artifactFact?: FinancialStatementFact;
   readonly currencyDifference?: boolean;
-  readonly periodSelectionDifference?: boolean;
+  readonly verifiedPeriodSelectionDifference?: boolean;
   readonly verifiedRestatementDifference?: boolean;
   readonly verifiedHistoryCapDifference?: boolean;
 }): FinancialStatementParityComparison {
@@ -102,7 +102,7 @@ function differenceComparison(input: {
         "The exact canonical period was explicitly omitted by the shared artifact history cap.",
     };
   }
-  if (input.periodSelectionDifference === true) {
+  if (input.verifiedPeriodSelectionDifference === true) {
     return {
       consumer: input.consumer,
       field: input.field,
@@ -248,7 +248,6 @@ function fundamentalHistoryComparisons(
               legacyValue: historySeries.ttm.value,
               periodEnd: artifactSeries.ttm.periodEnd,
               currencyDifference: !currencyMatch,
-              periodSelectionDifference: !periodMatch,
             }),
       );
     }
@@ -297,6 +296,23 @@ function latestCommonFacts(
     : facts.map((items) => items.find((fact) => fact.periodKey === commonKeys)!);
 }
 
+function hasLegacyMetricWindow(
+  series: readonly (FinancialStatementSeries | undefined)[],
+  metric: FinancialLensMetric,
+): boolean {
+  if (metric.periodEnd === undefined) {
+    return false;
+  }
+  return series.every((item) =>
+    [...(item?.annual ?? []), ...(item?.interim ?? [])].some(
+      (fact) =>
+        fact.periodEnd === metric.periodEnd &&
+        (metric.periodMonths === undefined ||
+          financialStatementPeriodMonths(fact) === metric.periodMonths),
+    ),
+  );
+}
+
 function financialLensComparisons(
   artifact: FinancialStatementsArtifact,
   financialLenses: FinancialLensArtifact | undefined,
@@ -314,6 +330,7 @@ function financialLensComparisons(
     readonly fact: FinancialStatementFact | undefined;
     readonly artifactValue: number | undefined;
     readonly currency?: string | null;
+    readonly sourceSeries: readonly (FinancialStatementSeries | undefined)[];
   }[] = [
     (() => {
       const fact = latestFact(byKey.get("cash"));
@@ -321,6 +338,7 @@ function financialLensComparisons(
         key: "cash",
         fact,
         artifactValue: fact?.value,
+        sourceSeries: [byKey.get("cash")],
         ...(fact?.currency !== undefined ? { currency: fact.currency } : {}),
       };
     })(),
@@ -333,6 +351,7 @@ function financialLensComparisons(
         key: "freeCashFlowProxy",
         fact: facts?.[0],
         artifactValue: facts === undefined ? undefined : facts[0]!.value - facts[1]!.value,
+        sourceSeries: [byKey.get("operatingCashFlow"), byKey.get("capitalExpenditure")],
         ...(facts?.[0]?.currency !== undefined ? { currency: facts[0].currency } : {}),
       };
     })(),
@@ -351,6 +370,7 @@ function financialLensComparisons(
           facts === undefined || facts[1]!.value === 0
             ? undefined
             : facts[0]!.value / facts[1]!.value,
+        sourceSeries: [byKey.get(numeratorKey), byKey.get("revenue")],
       };
     }),
     (() => {
@@ -365,6 +385,7 @@ function financialLensComparisons(
           facts === undefined || facts[1]!.value === 0
             ? undefined
             : facts[0]!.value / facts[1]!.value,
+        sourceSeries: [byKey.get("currentAssets"), byKey.get("currentLiabilities")],
       };
     })(),
   ];
@@ -422,7 +443,8 @@ function financialLensComparisons(
               : {}),
             ...(candidate.fact !== undefined ? { artifactFact: candidate.fact } : {}),
             currencyDifference: !currencyMatch,
-            periodSelectionDifference: !periodMatch,
+            verifiedPeriodSelectionDifference:
+              !periodMatch && !hasLegacyMetricWindow(candidate.sourceSeries, metric),
           }),
     ];
   });

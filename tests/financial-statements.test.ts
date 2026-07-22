@@ -727,4 +727,98 @@ describe("canonical financial statements", () => {
       ]),
     );
   });
+
+  test("does not explain a Financial Lens window mismatch when that window exists", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: {
+          USD: [
+            annual(100, 2025),
+            fact({
+              value: 75,
+              form: "10-K",
+              fiscalYear: 2025,
+              fiscalPeriod: "FY",
+              filedAt: "2026-02-15",
+              periodStart: "2025-04-01",
+              periodEnd: "2025-12-31",
+            }),
+          ],
+        },
+        GrossProfit: {
+          USD: [
+            annual(40, 2025),
+            fact({
+              value: 30,
+              form: "10-K",
+              fiscalYear: 2025,
+              fiscalPeriod: "FY",
+              filedAt: "2026-02-15",
+              periodStart: "2025-04-01",
+              periodEnd: "2025-12-31",
+            }),
+          ],
+        },
+      },
+    });
+    const artifact = derive(companyFacts);
+    const parity = attachFinancialStatementParity(artifact, {
+      financialLenses: {
+        version: 1,
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        symbol: "TEST",
+        lenses: [
+          {
+            name: "Quality",
+            posture: "criteria-mixed",
+            sourceIds: ["extended-sec-edgar-test-fundamentals"],
+            metrics: [
+              {
+                key: "grossMargin",
+                label: "Gross margin",
+                value: 0.4,
+                unit: "ratio-percent",
+                periodEnd: "2025-12-31",
+                periodMonths: 12,
+                sourceIds: ["extended-sec-edgar-test-fundamentals"],
+              },
+            ],
+          },
+        ],
+        sourceIds: ["extended-sec-edgar-test-fundamentals"],
+      },
+    }).shadowParity;
+
+    expect(parity.comparisons).toContainEqual(
+      expect.objectContaining({
+        consumer: "financial-lens",
+        field: "grossMargin",
+        status: "unexplained",
+      }),
+    );
+  });
+
+  test("does not treat current maturities as total long-term debt", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtAndFinanceLeaseObligationsCurrent: {
+            USD: [
+              fact({
+                value: 10,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodEnd: "2025-12-31",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(artifact.statements.balanceSheet.debt.annual).toEqual([]);
+  });
 });

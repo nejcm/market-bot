@@ -140,7 +140,7 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: false,
       concepts: {
-        "us-gaap": ["LongTermDebt", "LongTermDebtAndFinanceLeaseObligationsCurrent"],
+        "us-gaap": ["LongTermDebt"],
         "ifrs-full": ["Borrowings"],
       },
     },

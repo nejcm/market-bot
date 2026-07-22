@@ -454,6 +454,28 @@ describe("run workspace view", () => {
     });
   });
 
+  test("renders negative-earnings P/E header tiles as not meaningful", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      marketSnapshots: [
+        marketSnapshot({
+          fundamentals: {
+            trailingPE: -40,
+            epsTrailingTwelveMonths: -2,
+            forwardPE: -222.14,
+            epsForward: -0.47,
+          },
+        }),
+      ],
+    });
+
+    expect(view.equityHeader?.financials).toEqual([
+      expect.objectContaining({ key: "marketCap" }),
+      expect.objectContaining({ key: "trailingPE", value: "N/M (negative earnings)" }),
+      expect.objectContaining({ key: "forwardPE", value: "N/M (negative earnings)" }),
+    ]);
+  });
+
   test("passes through GBp quote currency formatting", () => {
     const {
       marketCap: _marketCap,

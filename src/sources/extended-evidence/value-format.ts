@@ -18,6 +18,12 @@ export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
   EUR: "€",
 };
 
+export const PE_NOT_MEANINGFUL = "N/M (negative earnings)";
+
+export function formatPeRatio(pe: number, eps: number | undefined): string {
+  return pe <= 0 || (eps !== undefined && eps <= 0) ? PE_NOT_MEANINGFUL : `${pe.toFixed(2)}x`;
+}
+
 export function scaleCurrency(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1_000_000_000) {

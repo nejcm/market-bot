@@ -9,7 +9,12 @@ import type {
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { formatLensValue, type LensValueUnit } from "./value-format";
+import {
+  formatLensValue,
+  formatPeRatio,
+  PE_NOT_MEANINGFUL,
+  type LensValueUnit,
+} from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -497,6 +502,18 @@ function valueLens(
       : supportability === "supported";
   const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
   const revenuePeriodMonths = readMetric(valuationItem?.metrics, "revenuePeriodMonths");
+  const trailingPe = readMetric(yahooFundamentalsItem?.metrics, "trailingPE");
+  const forwardPe = readMetric(yahooFundamentalsItem?.metrics, "forwardPE");
+  const epsTrailingTwelveMonths = readMetric(
+    yahooFundamentalsItem?.metrics,
+    "epsTrailingTwelveMonths",
+  );
+  const epsForward = readMetric(yahooFundamentalsItem?.metrics, "epsForward");
+  const trailingPeSuppressed =
+    trailingPe !== undefined &&
+    formatPeRatio(trailingPe, epsTrailingTwelveMonths) === PE_NOT_MEANINGFUL;
+  const forwardPeSuppressed =
+    forwardPe !== undefined && formatPeRatio(forwardPe, epsForward) === PE_NOT_MEANINGFUL;
   const valuationRevenuePeriod: Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> = {
     ...observedPeriod(readStringMetric(valuationItem?.metrics, "revenuePeriodEnd")),
     ...(revenuePeriodMonths !== undefined ? { periodMonths: revenuePeriodMonths } : {}),
@@ -579,19 +596,29 @@ function valueLens(
       ...metric(
         "peRatio",
         "PE",
-        readMetric(yahooFundamentalsItem?.metrics, "trailingPE"),
-        "ratio",
+        trailingPeSuppressed ? PE_NOT_MEANINGFUL : trailingPe,
+        trailingPeSuppressed ? "text" : "ratio",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
       ...metric(
         "forwardPe",
         "Forward PE",
-        readMetric(yahooFundamentalsItem?.metrics, "forwardPE"),
-        "ratio",
+        forwardPeSuppressed ? PE_NOT_MEANINGFUL : forwardPe,
+        forwardPeSuppressed ? "text" : "ratio",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),
       ),
+      ...(forwardPeSuppressed
+        ? metric(
+            "epsForward",
+            "Forward EPS",
+            epsForward,
+            "number",
+            yahooSourceIds,
+            observedPeriod(yahooFundamentalsItem?.observedAt),
+          )
+        : []),
       ...metric(
         "priceToBook",
         "Price/book",

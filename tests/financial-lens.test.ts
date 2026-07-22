@@ -15,6 +15,7 @@ import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
+import { PE_NOT_MEANINGFUL } from "../src/sources/extended-evidence/value-format";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -699,6 +700,44 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(value?.posture).toBe("criteria-supported");
   });
 
+  test("renders P/E as not meaningful when the corresponding earnings are negative", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios(),
+          valuationEvidence(),
+          yahooFundamentalsEvidence({
+            trailingPE: -40,
+            epsTrailingTwelveMonths: -2,
+            forwardPE: -222.14,
+            epsForward: -0.47,
+          }),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Value", "peRatio")).toMatchObject({
+      value: PE_NOT_MEANINGFUL,
+      unit: "text",
+    });
+    expect(metricByKey(result, "Value", "forwardPe")).toMatchObject({
+      value: PE_NOT_MEANINGFUL,
+      unit: "text",
+    });
+    expect(metricByKey(result, "Value", "epsForward")).toMatchObject({
+      label: "Forward EPS",
+      value: -0.47,
+      unit: "number",
+    });
+    expect(result.extendedEvidence?.items.at(-1)?.metrics?.forwardPe).toBe(PE_NOT_MEANINGFUL);
+  });
+
   test("renders not-meaningful revenue supportability as a Value-lens caveat", () => {
     const valuation = valuationEvidence();
     const result = addFinancialLensEvidence(
@@ -948,6 +987,27 @@ describe("buildYahooFundamentals", () => {
     });
     expect(item?.summary).toContain("trailing PE 36.08x");
     expect(item?.summary).toContain("dividend yield 0.36%");
+  });
+
+  test("summarizes negative-earnings P/E values as not meaningful", () => {
+    const item = buildYahooFundamentals(
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-aapl",
+          fundamentals: {
+            trailingPE: -40,
+            epsTrailingTwelveMonths: -2,
+            forwardPE: -222.14,
+            epsForward: -0.47,
+          },
+        }),
+      ],
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(item?.summary).toContain(`trailing PE ${PE_NOT_MEANINGFUL}`);
+    expect(item?.summary).toContain(`forward PE ${PE_NOT_MEANINGFUL}`);
   });
 
   test("returns undefined when the ticker snapshot has no fundamentals (Massive fallback)", () => {

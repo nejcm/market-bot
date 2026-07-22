@@ -42,10 +42,10 @@
           "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "extended-sec-edgar-nbis-filings"]
         },
         "valuation": {
-          "status": "partial",
-          "reasonCodes": ["valuation-evidence-missing"],
+          "status": "complete",
+          "reasonCodes": [],
           "asOf": "2026-07-22T16:16:13.510Z",
-          "sourceIds": []
+          "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"]
         },
         "expectations": {
           "status": "partial",
@@ -72,13 +72,12 @@
       "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
       "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
-      "valuation-peers: Valuation peer comps skipped for NBIS: target valuation unavailable",
+      "valuation-peers: Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match",
       "sec-edgar: NBIS files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
       "Synthetic FPI inputs exercise unsupported current filing forms.",
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
-      "valuation: Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
-      "financial-lens: Financial Lens Evidence partial for NBIS: missing valuation evidence",
+      "valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported",
       "business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
       "predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more"
     ],
@@ -411,35 +410,6 @@
       },
       "items": [
         {
-          "category": "yahoo-fundamentals",
-          "title": "NBIS Yahoo Fundamentals Evidence",
-          "summary": "Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x (negative earnings), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000.",
-          "sourceIds": ["market-yahoo-equity-nbis"],
-          "observedAt": "2026-07-22T16:16:13.510Z",
-          "metrics": {
-            "trailingPE": 87.325584,
-            "forwardPE": -139.64212,
-            "priceToBook": 7.9687333,
-            "bookValue": 28.273,
-            "epsTrailingTwelveMonths": 2.58,
-            "epsForward": -1.61341,
-            "sharesOutstanding": 220406311,
-            "trailingAnnualDividendRate": 0
-          },
-          "identity": {
-            "exchange": "NasdaqGS",
-            "quoteCurrency": "USD",
-            "displayName": "Nebius Group N.V.",
-            "aliases": [
-              {
-                "provider": "yahoo",
-                "idKind": "symbol",
-                "value": "NBIS"
-              }
-            ]
-          }
-        },
-        {
           "category": "sec-edgar",
           "title": "NBIS canonical financial statements",
           "summary": "Canonical SEC financial statement inputs.",
@@ -491,9 +461,66 @@
           }
         },
         {
+          "category": "valuation",
+          "title": "NBIS Valuation Evidence",
+          "summary": "Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+          "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "marketCap": 57203261440,
+            "cash": 3678100000,
+            "debt": 4103200000,
+            "netDebt": 425100000,
+            "enterpriseValue": 57628361440,
+            "latestPeriodRevenue": 529800000,
+            "annualizedRevenue": 529800000,
+            "quoteObservedAt": "2026-07-22T16:16:13.510Z",
+            "revenuePeriodMonths": 12,
+            "revenuePeriodEnd": "2025-12-31",
+            "cashPeriodEnd": "2025-12-31",
+            "debtPeriodEnd": "2025-12-31",
+            "evToAnnualizedRevenue": 108.77380415251038,
+            "marketCapToAnnualizedRevenue": 107.97142589656474,
+            "debtToMarketCap": 0.07173017581005954,
+            "netDebtToMarketCap": 0.007431394457217857,
+            "corePeerCount": 0,
+            "valuationSupportability": "not-meaningful",
+            "valuationCaveat": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only."
+          }
+        },
+        {
+          "category": "yahoo-fundamentals",
+          "title": "NBIS Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x (negative earnings), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000.",
+          "sourceIds": ["market-yahoo-equity-nbis"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "trailingPE": 87.325584,
+            "forwardPE": -139.64212,
+            "priceToBook": 7.9687333,
+            "bookValue": 28.273,
+            "epsTrailingTwelveMonths": 2.58,
+            "epsForward": -1.61341,
+            "sharesOutstanding": 220406311,
+            "trailingAnnualDividendRate": 0
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Nebius Group N.V.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "NBIS"
+              }
+            ]
+          }
+        },
+        {
           "category": "financial-lens",
           "title": "NBIS Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Current ratio 3.08x); Value insufficient-data (PE 87.33x, Forward PE -139.64x (negative earnings), Forward EPS -1.61, Price/book 7.97x); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
+          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -518,10 +545,19 @@
             "cash": 3678100000,
             "debt": 4103200000,
             "netDebt": 425100000,
+            "debtToMarketCap": 0.07173017581005954,
+            "netDebtToMarketCap": 0.007431394457217857,
             "currentRatio": 3.0837805995549155,
             "debtToEquity": 0.8931649978232478,
             "payoutRatio": 0,
             "valuePosture": "insufficient-data",
+            "valuationCaveat": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+            "evDateBasis": "EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31)",
+            "enterpriseValue": 57628361440,
+            "annualizedRevenue": 529800000,
+            "evToAnnualizedRevenue": 108.77380415251038,
+            "marketCapToAnnualizedRevenue": 107.97142589656474,
+            "valuationSupportability": "not-meaningful",
             "peRatio": 87.325584,
             "forwardPe": "-139.64x (negative earnings)",
             "epsForward": -1.61341,
@@ -538,7 +574,7 @@
         {
           "category": "business-framework",
           "title": "NBIS Business Framework Evidence",
-          "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x); Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x).",
+          "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%); Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -592,19 +628,20 @@
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "valuation",
-          "message": "Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
+          "source": "valuation-peers",
+          "message": "Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match",
+          "symbol": "NBIS",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
-          "evidenceQualityImpact": "no-cap"
+          "cause": "unsupported-coverage",
+          "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "financial-lens",
-          "message": "Financial Lens Evidence partial for NBIS: missing valuation evidence",
+          "source": "valuation",
+          "message": "Peer-implied price reference range suppressed for NBIS: peer supportability is not supported",
+          "symbol": "NBIS",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -852,13 +889,24 @@
           {
             "name": "Risk",
             "posture": "criteria-supported",
-            "summary": "Risk criteria-supported (Current ratio 3.08x)",
+            "summary": "Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%)",
             "metrics": [
               {
                 "key": "currentRatio",
                 "label": "Current ratio",
                 "value": 3.0837805995549155,
                 "unit": "ratio",
+                "sourceIds": [
+                  "extended-sec-edgar-nbis-fundamentals",
+                  "market-yahoo-equity-nbis",
+                  "verified-snapshot-NBIS"
+                ]
+              },
+              {
+                "key": "debtToMarketCap",
+                "label": "Debt/market cap",
+                "value": 0.07173017581005954,
+                "unit": "ratio-percent",
                 "sourceIds": [
                   "extended-sec-edgar-nbis-fundamentals",
                   "market-yahoo-equity-nbis",
@@ -885,8 +933,15 @@
           {
             "name": "Valuation",
             "posture": "insufficient-data",
-            "summary": "Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x)",
+            "summary": "Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x)",
             "metrics": [
+              {
+                "key": "valuationCaveat",
+                "label": "Valuation caveat",
+                "value": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+                "unit": "text",
+                "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"]
+              },
               {
                 "key": "trailingPE",
                 "label": "Trailing PE",
@@ -900,9 +955,16 @@
                 "value": -139.64212,
                 "unit": "ratio",
                 "sourceIds": ["market-yahoo-equity-nbis"]
+              },
+              {
+                "key": "evToAnnualizedRevenue",
+                "label": "EV/revenue",
+                "value": 108.77380415251038,
+                "unit": "ratio",
+                "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"]
               }
             ],
-            "sourceIds": ["market-yahoo-equity-nbis"],
+            "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
             "gaps": []
           }
         ]
@@ -1094,7 +1156,7 @@
         }
       },
       "sourceGaps": {
-        "total": 11,
+        "total": 10,
         "bySource": {
           "marketaux-news": 1,
           "finnhub-news": 1,
@@ -1102,20 +1164,19 @@
           "finnhub-events": 1,
           "fred-macro": 1,
           "tradier-options": 1,
-          "valuation": 1,
           "valuation-peers": 1,
-          "financial-lens": 1,
+          "valuation": 1,
           "business-framework": 1
         }
       },
       "sourceGapClasses": {
         "missingCredential": 5,
         "fetchFailed": 0,
-        "unsupportedCoverage": 1,
-        "other": 5
+        "unsupportedCoverage": 2,
+        "other": 3
       },
       "dataGaps": {
-        "total": 13
+        "total": 12
       }
     },
     "newsDedupe": {
@@ -1221,11 +1282,11 @@
           {
             "capability": "target-valuation",
             "evidenceClass": "material",
-            "coverage": "fail",
-            "freshness": "not-applicable",
+            "coverage": "pass",
+            "freshness": "pass",
             "corroboration": "not-applicable",
             "passed": false,
-            "reasons": ["target-valuation: evidence missing or unusable"]
+            "reasons": ["target-valuation: evidence present but not supportable"]
           },
           {
             "capability": "peer-valuation",
@@ -1250,16 +1311,17 @@
           "regulatory-filings: freshness check failed",
           "corporate-events: evidence missing or unusable",
           "macro-indicators: evidence missing or unusable",
-          "target-valuation: evidence missing or unusable"
+          "target-valuation: evidence present but not supportable"
         ]
       },
-      "dataGapCount": 13,
+      "dataGapCount": 12,
       "extendedEvidence": {
-        "itemCount": 4,
+        "itemCount": 5,
         "gapCount": 8,
         "itemsByCategory": {
-          "yahoo-fundamentals": 1,
           "sec-edgar": 1,
+          "valuation": 1,
+          "yahoo-fundamentals": 1,
           "financial-lens": 1,
           "business-framework": 1
         },
@@ -1268,8 +1330,8 @@
           "finnhub-events": 1,
           "fred-macro": 1,
           "tradier-options": 1,
+          "valuation-peers": 1,
           "valuation": 1,
-          "financial-lens": 1,
           "business-framework": 1
         }
       },
@@ -1331,13 +1393,13 @@
       "supplementalLaneCount": 4
     },
     "evidenceLanes": {
-      "coveredLaneCount": 4,
-      "gapLaneCount": 7,
+      "coveredLaneCount": 5,
+      "gapLaneCount": 6,
       "coreGapLaneCount": 0,
-      "materialGapLaneCount": 3,
-      "sourceCount": 17,
+      "materialGapLaneCount": 2,
+      "sourceCount": 19,
       "gapCount": 11,
-      "coverageRatio": 0.36363636363636365
+      "coverageRatio": 0.45454545454545453
     },
     "calibrationAtGeneration": {
       "generatedAt": "<generatedAt>",
@@ -1436,7 +1498,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# NBIS equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-07-22T16:16:13.510Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: regulatory filing evidence stale; corporate event evidence missing; remediation: rerun with current regulatory filings; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nNebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- NBIS has deterministic market and verified close evidence. [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-nbis]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** NBIS remains within the deterministic fixture evidence envelope. [market-yahoo-equity-nbis]\n\n## Business Framework\n\nPhase: hyper-growth\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\) [extended-sec-edgar-nbis-fundamentals]\n- **Phase**: Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis]\n- **Moat** (criteria-not-supported): Moat criteria-not-supported \\(Operating margin -115.5%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Growth** (criteria-mixed): Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Current ratio 3.08x\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 87.33x, Forward PE -139.64x\\) [market-yahoo-equity-nbis]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **NBIS Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x \\(negative earnings\\), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000. [market-yahoo-equity-nbis]\n- **NBIS canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-mixed \\(Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss \\(attrib.\\) YoY change 112.9%, Diluted EPS YoY 114.5%\\); Financial Strength criteria-mixed \\(Cash $3.7B, Debt $4.1B, Net debt $425.1M, Current ratio 3.08x\\); Value insufficient-data \\(PE 87.33x, Forward PE -139.64x \\(negative earnings\\), Forward EPS -1.61, Price/book 7.97x\\); Momentum criteria-mixed \\(Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **NBIS Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\); Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\); Moat criteria-not-supported \\(Operating margin -115.5%\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\); Management insufficient-data; Risk criteria-supported \\(Current ratio 3.08x\\); Valuation insufficient-data \\(Trailing PE 87.33x, Forward PE -139.64x\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for NBIS\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for NBIS\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for NBIS: target valuation unavailable\n- sec-edgar: NBIS files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for NBIS: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for NBIS: missing valuation evidence\n- business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-nbis] NBIS market snapshot\n- [verified-snapshot-NBIS] NBIS verified market snapshot \\(OHLCV + indicators, 2026-07-22\\)\n- [extended-sec-edgar-nbis-fundamentals] NBIS canonical financial statements\n- 15 uncited normalized source(s) omitted from markdown (sec-edgar/extended-evidence:1, yahoo-news/news:8, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "markdown": "# NBIS equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-07-22T16:16:13.510Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: regulatory filing evidence stale; corporate event evidence missing; remediation: rerun with current regulatory filings; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nNebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- NBIS has deterministic market and verified close evidence. [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-nbis]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** NBIS remains within the deterministic fixture evidence envelope. [market-yahoo-equity-nbis]\n\n## Business Framework\n\nPhase: hyper-growth\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\) [extended-sec-edgar-nbis-fundamentals]\n- **Phase**: Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis]\n- **Moat** (criteria-not-supported): Moat criteria-not-supported \\(Operating margin -115.5%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Growth** (criteria-mixed): Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Current ratio 3.08x, Debt/market cap 7.2%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\\) [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **NBIS canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Valuation Evidence:** Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x \\(negative earnings\\), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000. [market-yahoo-equity-nbis]\n- **NBIS Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-mixed \\(Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss \\(attrib.\\) YoY change 112.9%, Diluted EPS YoY 114.5%\\); Financial Strength criteria-mixed \\(Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%\\); Value insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap \\(quote 2026-07-22\\) with cash/debt \\(balance sheet 2025-12-31\\), Enterprise value $57.6B, Annualized revenue $529.8M\\); Momentum criteria-mixed \\(Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **NBIS Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\); Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\); Moat criteria-not-supported \\(Operating margin -115.5%\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\); Management insufficient-data; Risk criteria-supported \\(Current ratio 3.08x, Debt/market cap 7.2%\\); Valuation insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for NBIS\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for NBIS\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match\n- sec-edgar: NBIS files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported\n- business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-nbis] NBIS market snapshot\n- [verified-snapshot-NBIS] NBIS verified market snapshot \\(OHLCV + indicators, 2026-07-22\\)\n- [extended-sec-edgar-nbis-fundamentals] NBIS canonical financial statements\n- 15 uncited normalized source(s) omitted from markdown (sec-edgar/extended-evidence:1, yahoo-news/news:8, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -1605,13 +1667,24 @@
         {
           "name": "Risk",
           "posture": "criteria-supported",
-          "summary": "Risk criteria-supported (Current ratio 3.08x)",
+          "summary": "Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%)",
           "metrics": [
             {
               "key": "currentRatio",
               "label": "Current ratio",
               "value": 3.0837805995549155,
               "unit": "ratio",
+              "sourceIds": [
+                "extended-sec-edgar-nbis-fundamentals",
+                "market-yahoo-equity-nbis",
+                "verified-snapshot-NBIS"
+              ]
+            },
+            {
+              "key": "debtToMarketCap",
+              "label": "Debt/market cap",
+              "value": 0.07173017581005954,
+              "unit": "ratio-percent",
               "sourceIds": [
                 "extended-sec-edgar-nbis-fundamentals",
                 "market-yahoo-equity-nbis",
@@ -1638,8 +1711,15 @@
         {
           "name": "Valuation",
           "posture": "insufficient-data",
-          "summary": "Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x)",
+          "summary": "Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x)",
           "metrics": [
+            {
+              "key": "valuationCaveat",
+              "label": "Valuation caveat",
+              "value": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"]
+            },
             {
               "key": "trailingPE",
               "label": "Trailing PE",
@@ -1653,9 +1733,16 @@
               "value": -139.64212,
               "unit": "ratio",
               "sourceIds": ["market-yahoo-equity-nbis"]
+            },
+            {
+              "key": "evToAnnualizedRevenue",
+              "label": "EV/revenue",
+              "value": 108.77380415251038,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"]
             }
           ],
-          "sourceIds": ["market-yahoo-equity-nbis"],
+          "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
           "gaps": []
         }
       ],
@@ -1819,13 +1906,14 @@
         {
           "lane": "target-valuation",
           "evidenceClass": "material",
-          "status": "gap",
-          "coveredSourceIds": [],
+          "status": "covered",
+          "coveredSourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
           "gapIds": ["target-valuation:gap:1"],
           "gapText": [
-            "valuation: Valuation Evidence unavailable for NBIS: missing revenue, cash, debt"
+            "valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported"
           ],
-          "freshnessNotes": []
+          "freshnessNotes": ["latest evidence timestamp 2026-07-22T16:16:13.510Z"],
+          "supportable": false
         },
         {
           "lane": "peer-valuation",
@@ -1834,7 +1922,7 @@
           "coveredSourceIds": [],
           "gapIds": ["peer-valuation:gap:1"],
           "gapText": [
-            "valuation-peers: Valuation peer comps skipped for NBIS: target valuation unavailable"
+            "valuation-peers: Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match"
           ],
           "freshnessNotes": []
         },
@@ -1855,13 +1943,13 @@
         "coreLaneCount": 2,
         "materialLaneCount": 5,
         "supplementalLaneCount": 4,
-        "coveredLaneCount": 4,
-        "gapLaneCount": 7,
+        "coveredLaneCount": 5,
+        "gapLaneCount": 6,
         "coreGapLaneCount": 0,
-        "materialGapLaneCount": 3,
-        "sourceCount": 17,
+        "materialGapLaneCount": 2,
+        "sourceCount": 19,
         "gapCount": 11,
-        "coverageRatio": 0.36363636363636365
+        "coverageRatio": 0.45454545454545453
       }
     },
     "extended-evidence.json": {
@@ -1870,35 +1958,6 @@
         "assetClass": "equity"
       },
       "items": [
-        {
-          "category": "yahoo-fundamentals",
-          "title": "NBIS Yahoo Fundamentals Evidence",
-          "summary": "Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x (negative earnings), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000.",
-          "sourceIds": ["market-yahoo-equity-nbis"],
-          "observedAt": "2026-07-22T16:16:13.510Z",
-          "metrics": {
-            "trailingPE": 87.325584,
-            "forwardPE": -139.64212,
-            "priceToBook": 7.9687333,
-            "bookValue": 28.273,
-            "epsTrailingTwelveMonths": 2.58,
-            "epsForward": -1.61341,
-            "sharesOutstanding": 220406311,
-            "trailingAnnualDividendRate": 0
-          },
-          "identity": {
-            "exchange": "NasdaqGS",
-            "quoteCurrency": "USD",
-            "displayName": "Nebius Group N.V.",
-            "aliases": [
-              {
-                "provider": "yahoo",
-                "idKind": "symbol",
-                "value": "NBIS"
-              }
-            ]
-          }
-        },
         {
           "category": "sec-edgar",
           "title": "NBIS canonical financial statements",
@@ -1951,9 +2010,66 @@
           }
         },
         {
+          "category": "valuation",
+          "title": "NBIS Valuation Evidence",
+          "summary": "Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+          "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "marketCap": 57203261440,
+            "cash": 3678100000,
+            "debt": 4103200000,
+            "netDebt": 425100000,
+            "enterpriseValue": 57628361440,
+            "latestPeriodRevenue": 529800000,
+            "annualizedRevenue": 529800000,
+            "quoteObservedAt": "2026-07-22T16:16:13.510Z",
+            "revenuePeriodMonths": 12,
+            "revenuePeriodEnd": "2025-12-31",
+            "cashPeriodEnd": "2025-12-31",
+            "debtPeriodEnd": "2025-12-31",
+            "evToAnnualizedRevenue": 108.77380415251038,
+            "marketCapToAnnualizedRevenue": 107.97142589656474,
+            "debtToMarketCap": 0.07173017581005954,
+            "netDebtToMarketCap": 0.007431394457217857,
+            "corePeerCount": 0,
+            "valuationSupportability": "not-meaningful",
+            "valuationCaveat": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only."
+          }
+        },
+        {
+          "category": "yahoo-fundamentals",
+          "title": "NBIS Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x (negative earnings), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000.",
+          "sourceIds": ["market-yahoo-equity-nbis"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "trailingPE": 87.325584,
+            "forwardPE": -139.64212,
+            "priceToBook": 7.9687333,
+            "bookValue": 28.273,
+            "epsTrailingTwelveMonths": 2.58,
+            "epsForward": -1.61341,
+            "sharesOutstanding": 220406311,
+            "trailingAnnualDividendRate": 0
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Nebius Group N.V.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "NBIS"
+              }
+            ]
+          }
+        },
+        {
           "category": "financial-lens",
           "title": "NBIS Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Current ratio 3.08x); Value insufficient-data (PE 87.33x, Forward PE -139.64x (negative earnings), Forward EPS -1.61, Price/book 7.97x); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
+          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -1978,10 +2094,19 @@
             "cash": 3678100000,
             "debt": 4103200000,
             "netDebt": 425100000,
+            "debtToMarketCap": 0.07173017581005954,
+            "netDebtToMarketCap": 0.007431394457217857,
             "currentRatio": 3.0837805995549155,
             "debtToEquity": 0.8931649978232478,
             "payoutRatio": 0,
             "valuePosture": "insufficient-data",
+            "valuationCaveat": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+            "evDateBasis": "EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31)",
+            "enterpriseValue": 57628361440,
+            "annualizedRevenue": 529800000,
+            "evToAnnualizedRevenue": 108.77380415251038,
+            "marketCapToAnnualizedRevenue": 107.97142589656474,
+            "valuationSupportability": "not-meaningful",
             "peRatio": 87.325584,
             "forwardPe": "-139.64x (negative earnings)",
             "epsForward": -1.61341,
@@ -1998,7 +2123,7 @@
         {
           "category": "business-framework",
           "title": "NBIS Business Framework Evidence",
-          "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x); Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x).",
+          "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%); Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -2052,19 +2177,20 @@
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "valuation",
-          "message": "Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
+          "source": "valuation-peers",
+          "message": "Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match",
+          "symbol": "NBIS",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
-          "evidenceQualityImpact": "no-cap"
+          "cause": "unsupported-coverage",
+          "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
-          "source": "financial-lens",
-          "message": "Financial Lens Evidence partial for NBIS: missing valuation evidence",
+          "source": "valuation",
+          "message": "Peer-implied price reference range suppressed for NBIS: peer supportability is not supported",
+          "symbol": "NBIS",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -2233,6 +2359,22 @@
               "periodEnd": "2025-12-31"
             },
             {
+              "key": "debtToMarketCap",
+              "label": "Debt/market cap",
+              "value": 0.07173017581005954,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "market-yahoo-equity-nbis"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "netDebtToMarketCap",
+              "label": "Net debt/market cap",
+              "value": 0.007431394457217857,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "market-yahoo-equity-nbis"],
+              "periodEnd": "2025-12-31"
+            },
+            {
               "key": "currentRatio",
               "label": "Current ratio",
               "value": 3.0837805995549155,
@@ -2263,6 +2405,67 @@
           "name": "Value",
           "posture": "insufficient-data",
           "metrics": [
+            {
+              "key": "valuationCaveat",
+              "label": "Valuation caveat",
+              "value": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "evDateBasis",
+              "label": "EV date basis",
+              "value": "EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31)",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31"
+            },
+            {
+              "key": "enterpriseValue",
+              "label": "Enterprise value",
+              "value": 57628361440,
+              "unit": "currency",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "annualizedRevenue",
+              "label": "Annualized revenue",
+              "value": 529800000,
+              "unit": "currency",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "evToAnnualizedRevenue",
+              "label": "EV/revenue",
+              "value": 108.77380415251038,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "marketCapToAnnualizedRevenue",
+              "label": "Market cap/revenue",
+              "value": 107.97142589656474,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "valuationSupportability",
+              "label": "Peer supportability",
+              "value": "not-meaningful",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
             {
               "key": "peRatio",
               "label": "PE",
@@ -2305,7 +2508,7 @@
               "periodMonths": 12
             }
           ],
-          "sourceIds": ["market-yahoo-equity-nbis"]
+          "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"]
         },
         {
           "name": "Momentum",
@@ -5648,28 +5851,20 @@
         "evidenceQualityImpact": "extended-evidence-cap"
       },
       {
-        "source": "valuation",
-        "message": "Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
-        "provider": "market-bot",
-        "capability": "extended-evidence",
-        "cause": "provider-data-missing",
-        "evidenceQualityImpact": "no-cap"
-      },
-      {
         "source": "valuation-peers",
-        "message": "Valuation peer comps skipped for NBIS: target valuation unavailable",
+        "message": "Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match",
         "symbol": "NBIS",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
+        "cause": "unsupported-coverage",
         "evidenceQualityImpact": "extended-evidence-cap"
       },
       {
-        "source": "financial-lens",
-        "message": "Financial Lens Evidence partial for NBIS: missing valuation evidence",
+        "source": "valuation",
+        "message": "Peer-implied price reference range suppressed for NBIS: peer supportability is not supported",
+        "symbol": "NBIS",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap"
       },
       {
@@ -5844,6 +6039,23 @@
           "lane": "regulatory-filings",
           "posture": "covered",
           "relatedGapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"]
+        },
+        {
+          "id": "market-yahoo-equity-nbis",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "target-valuation",
+          "posture": "covered",
+          "relatedGapIds": ["target-valuation:gap:1"]
+        },
+        {
+          "id": "extended-sec-edgar-nbis-fundamentals",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "lane": "target-valuation",
+          "posture": "covered",
+          "relatedGapIds": ["target-valuation:gap:1"]
         }
       ]
     },
@@ -5926,7 +6138,66 @@
       ]
     },
     "supplemental-market-snapshots.json": [],
-    "valuation-comps.json": null,
+    "valuation-comps.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "target": {
+        "symbol": "NBIS",
+        "marketCap": 57203261440,
+        "cash": 3678100000,
+        "debt": 4103200000,
+        "cashPeriodEnd": "2025-12-31",
+        "debtPeriodEnd": "2025-12-31",
+        "netDebt": 425100000,
+        "enterpriseValue": 57628361440,
+        "latestPeriodRevenue": 529800000,
+        "revenuePeriodMonths": 12,
+        "revenuePeriodEnd": "2025-12-31",
+        "annualizedRevenue": 529800000,
+        "evToAnnualizedRevenue": 108.77380415251038,
+        "sharesOutstanding": 220406311,
+        "currentPrice": 225.3,
+        "quoteCurrency": "USD",
+        "quoteObservedAt": "2026-07-22T16:16:13.510Z",
+        "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+        "usable": false
+      },
+      "peers": [],
+      "excludedPeers": [],
+      "peerUniverseSourceIds": [],
+      "summary": {
+        "corePeerCount": 0,
+        "secondaryPeerCount": 0,
+        "usablePeerCount": 0,
+        "targetEvToAnnualizedRevenue": 108.77380415251038,
+        "valuationSupportability": "not-meaningful"
+      },
+      "impliedPriceRange": {
+        "label": "peer-implied price reference range",
+        "basis": "peer EV/annualized revenue percentiles applied to target annualized revenue",
+        "formula": "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+        "inputs": {
+          "peerP25EvToAnnualizedRevenue": null,
+          "peerMedianEvToAnnualizedRevenue": null,
+          "peerP75EvToAnnualizedRevenue": null,
+          "annualizedRevenue": 529800000,
+          "netDebt": 425100000,
+          "sharesOutstanding": 220406311,
+          "currentPrice": 225.3,
+          "quoteCurrency": "USD",
+          "quoteObservedAt": "2026-07-22T16:16:13.510Z"
+        },
+        "status": "suppressed",
+        "suppressedReason": "peer supportability is not supported"
+      },
+      "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+      "freshnessFlags": {
+        "targetQuoteFresh": true,
+        "targetSecFresh": false,
+        "peerQuoteFresh": false,
+        "peerSecFresh": false
+      }
+    },
     "verified-market-snapshot.json": {
       "symbol": "NBIS",
       "assetClass": "equity",

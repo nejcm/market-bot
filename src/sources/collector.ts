@@ -579,11 +579,35 @@ async function collectEquityEnrichment(
     return noEquityEnrichment(identityResult, input.extendedEvidence);
   }
 
-  const valuationResult = addValuationEvidence(
+  const collectStructuredSec = isUsListing(
+    input.command.symbol,
+    input.identityContext.instrumentIdentity,
+  );
+  const [legacyFundamentalHistory, financialStatementsWithoutParity]: readonly [
+    FundamentalHistoryArtifact | undefined,
+    FinancialStatementsArtifact | undefined,
+  ] = collectStructuredSec
+    ? await Promise.all([
+        collectFundamentalHistory(input.identityContext, input.command.symbol),
+        collectFinancialStatements(input.identityContext, input.command.symbol),
+      ])
+    : [undefined, undefined];
+  const legacyValuationResult = addValuationEvidence(
     input.command,
     input.marketSnapshots,
     input.extendedEvidence,
   );
+  const valuationResult =
+    financialStatementsWithoutParity === undefined
+      ? legacyValuationResult
+      : addValuationEvidence(
+          input.command,
+          input.marketSnapshots,
+          withCanonicalFinancialLensInputs(
+            input.extendedEvidence,
+            financialStatementsWithoutParity,
+          ),
+        );
   const peerUniverseFallback =
     input.command.depth === "deep"
       ? peerUniverseFallbackFor(input.peerUniverse, input.identityContext, input.now)
@@ -611,19 +635,6 @@ async function collectEquityEnrichment(
     evidenceWithComps,
     input.fetchedAt,
   );
-  const collectStructuredSec = isUsListing(
-    input.command.symbol,
-    input.identityContext.instrumentIdentity,
-  );
-  const [legacyFundamentalHistory, financialStatementsWithoutParity]: readonly [
-    FundamentalHistoryArtifact | undefined,
-    FinancialStatementsArtifact | undefined,
-  ] = collectStructuredSec
-    ? await Promise.all([
-        collectFundamentalHistory(input.identityContext, input.command.symbol),
-        collectFinancialStatements(input.identityContext, input.command.symbol),
-      ])
-    : [undefined, undefined];
   const legacyFinancialLensResult = addFinancialLensEvidence(
     input.command,
     input.marketSnapshots,

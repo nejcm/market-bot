@@ -317,6 +317,13 @@ describe("static equity run fixtures", () => {
             },
           },
         });
+        expect(
+          result.collectedSources.extendedEvidence?.items.find(
+            (item) => item.category === "valuation",
+          ),
+        ).toMatchObject({
+          sourceIds: expect.arrayContaining(["extended-sec-edgar-nbis-fundamentals"]),
+        });
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
@@ -343,6 +350,9 @@ describe("static equity run fixtures", () => {
         expect(
           result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),
         ).toMatchObject({ posture: "criteria-supported" });
+        expect(result.report.dataGaps).toContain(
+          "valuation: Valuation Evidence unavailable for FPIQ: missing cash, debt",
+        );
       }
       if (name === "equity-fpi-ifrs-semiannual") {
         expect(factTaxonomies(result)).toEqual(["ifrs-full"]);
@@ -367,6 +377,9 @@ describe("static equity run fixtures", () => {
         expect(
           result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),
         ).toMatchObject({ posture: "criteria-supported" });
+        expect(result.report.dataGaps).toContain(
+          "valuation: Valuation Evidence unavailable for IFRSSA: missing cash, debt",
+        );
       }
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result);

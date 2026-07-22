@@ -77,7 +77,7 @@
       "Synthetic FPI inputs exercise unsupported current filing forms.",
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
-      "valuation: Valuation Evidence unavailable for FPIQ: missing revenue, cash, debt",
+      "valuation: Valuation Evidence unavailable for FPIQ: missing cash, debt",
       "financial-lens: Financial Lens Evidence partial for FPIQ: missing valuation evidence",
       "business-framework: Business Framework partial for FPIQ: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
       "predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more"
@@ -276,32 +276,6 @@
       },
       "items": [
         {
-          "category": "yahoo-fundamentals",
-          "title": "FPIQ Yahoo Fundamentals Evidence",
-          "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
-          "sourceIds": ["market-yahoo-equity-fpiq"],
-          "observedAt": "2026-06-15T14:30:00.000Z",
-          "metrics": {
-            "trailingPE": 31,
-            "forwardPE": 28,
-            "priceToBook": 45,
-            "epsTrailingTwelveMonths": 6.4,
-            "sharesOutstanding": 15000000000
-          },
-          "identity": {
-            "exchange": "NasdaqGS",
-            "quoteCurrency": "USD",
-            "displayName": "Fixture Quarterly FPI N.V.",
-            "aliases": [
-              {
-                "provider": "yahoo",
-                "idKind": "symbol",
-                "value": "FPIQ"
-              }
-            ]
-          }
-        },
-        {
           "category": "sec-edgar",
           "title": "FPIQ canonical financial statements",
           "summary": "Canonical SEC financial statement inputs.",
@@ -328,6 +302,32 @@
             "netIncomePeriodMonths": 3,
             "netIncomePrior": 165000000,
             "netIncomeDeltaPercent": 40.00000000000002
+          }
+        },
+        {
+          "category": "yahoo-fundamentals",
+          "title": "FPIQ Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
+          "sourceIds": ["market-yahoo-equity-fpiq"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "trailingPE": 31,
+            "forwardPE": 28,
+            "priceToBook": 45,
+            "epsTrailingTwelveMonths": 6.4,
+            "sharesOutstanding": 15000000000
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Fixture Quarterly FPI N.V.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "FPIQ"
+              }
+            ]
           }
         },
         {
@@ -420,7 +420,7 @@
         },
         {
           "source": "valuation",
-          "message": "Valuation Evidence unavailable for FPIQ: missing revenue, cash, debt",
+          "message": "Valuation Evidence unavailable for FPIQ: missing cash, debt",
           "provider": "market-bot",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -1089,8 +1089,8 @@
         "itemCount": 4,
         "gapCount": 8,
         "itemsByCategory": {
-          "yahoo-fundamentals": 1,
           "sec-edgar": 1,
+          "yahoo-fundamentals": 1,
           "financial-lens": 1,
           "business-framework": 1
         },
@@ -1267,7 +1267,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# FPIQ equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture Quarterly FPI N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- FPIQ has deterministic market and verified close evidence. [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-fpiq]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** FPIQ remains within the deterministic fixture evidence envelope. [market-yahoo-equity-fpiq]\n\n## Business Framework\n\nPhase: hyper-growth\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $420.0M, Gross profit $357.0M, Operating income $294.0M\\) [extended-sec-edgar-fpiq-fundamentals]\n- **Phase**: Phase classification \\(Phase hyper-growth, Revenue YoY 40.0%\\) [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-fpiq-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 40.0%, Operating income YoY 40.0%, Net income YoY 40.0%\\) [extended-sec-edgar-fpiq-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-fpiq]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **FPIQ Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-fpiq]\n- **FPIQ canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-fpiq-fundamentals]\n- **FPIQ Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%\\); Growth criteria-supported \\(Revenue YoY 40.0%, Gross profit YoY 40.0%, Operating income YoY 40.0%, Net income \\(attrib.\\) YoY 40.0%\\); Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n- **FPIQ Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $420.0M, Gross profit $357.0M, Operating income $294.0M\\); Phase classification \\(Phase hyper-growth, Revenue YoY 40.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 40.0%, Operating income YoY 40.0%, Net income YoY 40.0%\\); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for FPIQ\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for FPIQ\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for FPIQ: target valuation unavailable\n- sec-edgar: FPIQ files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for FPIQ: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for FPIQ: missing valuation evidence\n- business-framework: Business Framework partial for FPIQ: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-fpiq] FPIQ market snapshot\n- [verified-snapshot-FPIQ] FPIQ verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-fpiq-fundamentals] FPIQ canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "markdown": "# FPIQ equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture Quarterly FPI N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- FPIQ has deterministic market and verified close evidence. [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-fpiq]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** FPIQ remains within the deterministic fixture evidence envelope. [market-yahoo-equity-fpiq]\n\n## Business Framework\n\nPhase: hyper-growth\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $420.0M, Gross profit $357.0M, Operating income $294.0M\\) [extended-sec-edgar-fpiq-fundamentals]\n- **Phase**: Phase classification \\(Phase hyper-growth, Revenue YoY 40.0%\\) [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-fpiq-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 40.0%, Operating income YoY 40.0%, Net income YoY 40.0%\\) [extended-sec-edgar-fpiq-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-fpiq]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **FPIQ canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-fpiq-fundamentals]\n- **FPIQ Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-fpiq]\n- **FPIQ Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%\\); Growth criteria-supported \\(Revenue YoY 40.0%, Gross profit YoY 40.0%, Operating income YoY 40.0%, Net income \\(attrib.\\) YoY 40.0%\\); Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n- **FPIQ Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $420.0M, Gross profit $357.0M, Operating income $294.0M\\); Phase classification \\(Phase hyper-growth, Revenue YoY 40.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 40.0%, Operating income YoY 40.0%, Net income YoY 40.0%\\); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-fpiq-fundamentals] [market-yahoo-equity-fpiq] [verified-snapshot-FPIQ]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for FPIQ\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for FPIQ\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for FPIQ: target valuation unavailable\n- sec-edgar: FPIQ files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for FPIQ: missing cash, debt\n- financial-lens: Financial Lens Evidence partial for FPIQ: missing valuation evidence\n- business-framework: Business Framework partial for FPIQ: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-fpiq] FPIQ market snapshot\n- [verified-snapshot-FPIQ] FPIQ verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-fpiq-fundamentals] FPIQ canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -1647,9 +1647,7 @@
           "status": "gap",
           "coveredSourceIds": [],
           "gapIds": ["target-valuation:gap:1"],
-          "gapText": [
-            "valuation: Valuation Evidence unavailable for FPIQ: missing revenue, cash, debt"
-          ],
+          "gapText": ["valuation: Valuation Evidence unavailable for FPIQ: missing cash, debt"],
           "freshnessNotes": []
         },
         {
@@ -1696,32 +1694,6 @@
       },
       "items": [
         {
-          "category": "yahoo-fundamentals",
-          "title": "FPIQ Yahoo Fundamentals Evidence",
-          "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
-          "sourceIds": ["market-yahoo-equity-fpiq"],
-          "observedAt": "2026-06-15T14:30:00.000Z",
-          "metrics": {
-            "trailingPE": 31,
-            "forwardPE": 28,
-            "priceToBook": 45,
-            "epsTrailingTwelveMonths": 6.4,
-            "sharesOutstanding": 15000000000
-          },
-          "identity": {
-            "exchange": "NasdaqGS",
-            "quoteCurrency": "USD",
-            "displayName": "Fixture Quarterly FPI N.V.",
-            "aliases": [
-              {
-                "provider": "yahoo",
-                "idKind": "symbol",
-                "value": "FPIQ"
-              }
-            ]
-          }
-        },
-        {
           "category": "sec-edgar",
           "title": "FPIQ canonical financial statements",
           "summary": "Canonical SEC financial statement inputs.",
@@ -1748,6 +1720,32 @@
             "netIncomePeriodMonths": 3,
             "netIncomePrior": 165000000,
             "netIncomeDeltaPercent": 40.00000000000002
+          }
+        },
+        {
+          "category": "yahoo-fundamentals",
+          "title": "FPIQ Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
+          "sourceIds": ["market-yahoo-equity-fpiq"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "trailingPE": 31,
+            "forwardPE": 28,
+            "priceToBook": 45,
+            "epsTrailingTwelveMonths": 6.4,
+            "sharesOutstanding": 15000000000
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Fixture Quarterly FPI N.V.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "FPIQ"
+              }
+            ]
           }
         },
         {
@@ -1840,7 +1838,7 @@
         },
         {
           "source": "valuation",
-          "message": "Valuation Evidence unavailable for FPIQ: missing revenue, cash, debt",
+          "message": "Valuation Evidence unavailable for FPIQ: missing cash, debt",
           "provider": "market-bot",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -3779,7 +3777,7 @@
       },
       {
         "source": "valuation",
-        "message": "Valuation Evidence unavailable for FPIQ: missing revenue, cash, debt",
+        "message": "Valuation Evidence unavailable for FPIQ: missing cash, debt",
         "provider": "market-bot",
         "capability": "extended-evidence",
         "cause": "provider-data-missing",

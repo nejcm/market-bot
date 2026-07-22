@@ -219,6 +219,13 @@ describe("untagged financial table mapping validation", () => {
       SUPPORTED_HTML.replaceAll("U.S. dollars ($)", "euros (€)"),
       SOURCE,
     );
+    const ambiguousScalePacket = await buildFinancialTablePacket(
+      SUPPORTED_HTML.replaceAll(
+        "millions of U.S. dollars",
+        "millions and thousands of U.S. dollars",
+      ),
+      SOURCE,
+    );
 
     const missing = validateFinancialTableMapping({
       packet,
@@ -244,11 +251,17 @@ describe("untagged financial table mapping validation", () => {
       filingReportDate: "2026-03-31",
       expectedCurrency: "USD",
     });
+    const ambiguousScale = validateFinancialTableMapping({
+      packet: ambiguousScalePacket,
+      mapping: { version: 1, mappings: [mapping("revenue", 2, 2)] },
+      filingReportDate: "2026-03-31",
+    });
 
     expect(missing.issues.map((item) => item.code)).toContain("missing-cell-reference");
     expect(duplicate.issues.map((item) => item.code)).toContain("duplicate-field-period");
     expect(wrongPeriod.issues.map((item) => item.code)).toContain("unexpected-period");
     expect(mixedCurrency.issues.map((item) => item.code)).toContain("mixed-currency");
+    expect(ambiguousScale.issues.map((item) => item.code)).toContain("unsupported-unit-scale");
   });
 
   test("drops statement values when accounting identities fail", async () => {

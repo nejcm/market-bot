@@ -43,6 +43,8 @@ export interface FinancialTable {
   readonly context: string;
   readonly title?: string;
   readonly unitText?: string;
+  readonly unitCellRef?: string;
+  readonly inheritedHeaderRefs?: readonly string[];
   readonly rows: readonly FinancialTableRow[];
 }
 
@@ -82,6 +84,7 @@ export interface FinancialTableCellMapping {
   readonly field: FinancialTableSemanticField;
   readonly labelCellRef: string;
   readonly valueCellRef: string;
+  readonly signCellRef?: string;
   readonly periodHeaderCellRefs: readonly string[];
 }
 
@@ -129,8 +132,10 @@ export interface FinancialTableCellTrace {
   readonly columnIndex: number;
   readonly labelCellRef: string;
   readonly valueCellRef: string;
+  readonly signCellRef?: string;
   readonly periodHeaderCellRefs: readonly string[];
   readonly unitText: string;
+  readonly unitCellRef?: string;
 }
 
 export interface ValidatedFinancialTableValue {

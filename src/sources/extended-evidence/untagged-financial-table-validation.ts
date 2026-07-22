@@ -14,6 +14,7 @@ import type {
 } from "./untagged-financial-tables-contract";
 
 const MAPPING_KEYS = ["field", "labelCellRef", "valueCellRef", "periodHeaderCellRefs"] as const;
+const MAPPING_KEYS_WITH_SIGN = [...MAPPING_KEYS, "signCellRef"] as const;
 const MONTHS: Readonly<Record<string, number>> = {
   january: 1,
   february: 2,
@@ -28,6 +29,7 @@ const MONTHS: Readonly<Record<string, number>> = {
   november: 11,
   december: 12,
 };
+const NET_CASH_ACTIVITY = String.raw`\bnet cash (?:provided by(?:\s*/\s*\(used in\)|\s+\(used for\))?|generated from|from|used in)`;
 const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegExp[]>> = {
   revenue: [/\brevenue(?:s)?\b/iu, /\bnet sales\b/iu, /\bturnover\b/iu],
   grossProfit: [/\bgross profit\b/iu],
@@ -36,7 +38,11 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
     /\boperating (?:income|loss|profit)\b/iu,
   ],
   netIncome: [/\bnet (?:income|loss|profit)\b/iu, /\bprofit for the period\b/iu],
-  cash: [/\bcash and cash equivalents\b/iu, /\bcash equivalents and short[- ]term deposits\b/iu],
+  cash: [
+    /\bcash and cash equivalents\b/iu,
+    /\bcash equivalents and short[- ]term deposits\b/iu,
+    /\bcash at bank\b/iu,
+  ],
   currentAssets: [/\btotal current assets\b/iu],
   currentLiabilities: [/\btotal current liabilities\b/iu],
   totalAssets: [/\btotal assets\b/iu],
@@ -44,11 +50,13 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
   stockholdersEquity: [
     /\btotal (?:shareholders[’']?|stockholders[’']?) equity\b/iu,
     /\btotal equity\b/iu,
+    /\bequity attributable to owners of the parent\b/iu,
   ],
   debt: [/\btotal debt\b/iu, /\bborrowings\b/iu],
   operatingCashFlow: [
-    /\bnet cash (?:provided by|from|used in) operating activities\b/iu,
-    /\bcash flows? from operating activities\b/iu,
+    new RegExp(`${NET_CASH_ACTIVITY} operating activities\\b`, "iu"),
+    /\bnet cash \(used in\)\/\s*from operating activities\b/iu,
+    /\b(?:net )?cash flows? from operating activities\b/iu,
   ],
   capitalExpenditure: [/\bcapital expenditures?\b/iu, /\bpurchases? of property.*equipment\b/iu],
   dividendsPaid: [/\bdividends? paid\b/iu],
@@ -56,22 +64,32 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
   dilutedEps: [/\bdiluted .* (?:earnings|loss|profit).*per share\b/iu, /\bdiluted eps\b/iu],
   dilutedShares: [/\bweighted average .* diluted .*shares\b/iu],
   cashBeginning: [/\bcash and cash equivalents.*beginning/iu, /\bcash.*at beginning/iu],
-  cashEnding: [/\bcash and cash equivalents.*end/iu, /\bcash.*at end/iu],
+  cashEnding: [
+    /\bcash and cash equivalents.*end/iu,
+    /\bcash.*at end/iu,
+    /\bcash and cash equivalents at (?:january|february|march|april|may|june|july|august|september|october|november|december)\b/iu,
+  ],
   netCashChange: [
-    /\bnet (?:increase|decrease|change) in cash(?: and cash equivalents)?\b/iu,
+    /\bnet (?:\(?(?:increase|decrease)\)?\/?)+(?:increase|decrease)? in cash/iu,
+    /\bnet (?:increase|decrease) \((?:increase|decrease)\) in cash/iu,
+    /\bnet (?:increase|decrease|change) in cash/iu,
+    /\bnet cash generated from activities\b/iu,
     /\bchange in cash and cash equivalents\b/iu,
   ],
   investingCashFlow: [
-    /\bnet cash (?:provided by|from|used in) investing activities\b/iu,
-    /\bcash flows? from investing activities\b/iu,
+    new RegExp(`${NET_CASH_ACTIVITY} investing activities\\b`, "iu"),
+    /\bnet cash from\/\s*\(used in\) investing activities\b/iu,
+    /\b(?:net )?cash flows? (?:from\/?\s*\(used in\)|from|used in) investing activities\b/iu,
   ],
   financingCashFlow: [
-    /\bnet cash (?:provided by|from|used in) financing activities\b/iu,
-    /\bcash flows? from financing activities\b/iu,
+    new RegExp(`${NET_CASH_ACTIVITY} financing activities\\b`, "iu"),
+    /\bnet cash \(used in\)\/\s*from financing activities\b/iu,
+    /\b(?:net )?cash flows? (?:\(used in\)\/\s*from|from|used in) financing activities\b/iu,
   ],
   foreignExchangeEffect: [
     /\beffect of (?:exchange rate|foreign exchange).*cash/iu,
     /\bexchange rate changes.*cash/iu,
+    /\b(?:net )?(?:foreign )?exchange (?:gain|gains)\/?\(loss(?:es)?\).*cash/iu,
   ],
 };
 export const FINANCIAL_TABLE_SEMANTIC_FIELDS = Object.freeze(
@@ -111,18 +129,23 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
 }
 
 function mappingEntry(value: unknown): FinancialTableCellMapping | undefined {
-  if (!isRecord(value) || !exactKeys(value, MAPPING_KEYS)) {
+  if (
+    !isRecord(value) ||
+    (!exactKeys(value, MAPPING_KEYS) && !exactKeys(value, MAPPING_KEYS_WITH_SIGN))
+  ) {
     return undefined;
   }
   const field = readString(value, "field");
   const labelCellRef = readString(value, "labelCellRef");
   const valueCellRef = readString(value, "valueCellRef");
+  const signCellRef = readString(value, "signCellRef");
   const headers = value.periodHeaderCellRefs;
   if (
     field === undefined ||
     !SEMANTIC_FIELD_SET.has(field as FinancialTableSemanticField) ||
     labelCellRef === undefined ||
     valueCellRef === undefined ||
+    ("signCellRef" in value && signCellRef === undefined) ||
     !Array.isArray(headers) ||
     headers.length === 0 ||
     !headers.every((item) => typeof item === "string" && item !== "")
@@ -133,6 +156,7 @@ function mappingEntry(value: unknown): FinancialTableCellMapping | undefined {
     field: field as FinancialTableSemanticField,
     labelCellRef,
     valueCellRef,
+    ...(signCellRef !== undefined ? { signCellRef } : {}),
     periodHeaderCellRefs: headers,
   };
 }
@@ -194,7 +218,10 @@ function isoDate(year: number, month: number, day: number): string | undefined {
 function monthsInHeader(value: string): number | undefined {
   const match = value.match(/\b(three|six|nine|twelve|[369]|12)\s+months?\b/iu);
   if (match?.[1] === undefined) {
-    return /\bquarter(?:ly)?\b/iu.test(value) ? 3 : undefined;
+    if (/\byear ended\b|\bannual\b/iu.test(value)) {
+      return 12;
+    }
+    return /\bquarter(?:ly)?\b|\bq[1-4]\b/iu.test(value) ? 3 : undefined;
   }
   return (
     { three: 3, six: 6, nine: 9, twelve: 12 }[match[1].toLowerCase()] ??
@@ -244,13 +271,29 @@ function parsePeriod(
   if (year === undefined) {
     return undefined;
   }
-  const monthDayMatch = combined.match(
-    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:,\s*(20\d{2}))?/iu,
+  const monthName =
+    "January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec";
+  const monthDayPattern = new RegExp(
+    `\\b(${monthName})\\s+(\\d{1,2})\\b(?:,\\s*(20\\d{2}))?`,
+    "iu",
   );
+  const dayMonthPattern = new RegExp(`\\b(\\d{1,2})\\s+(${monthName})\\s+(20\\d{2})`, "iu");
+  const quarterHeader = /\bq[1-4]\b/iu.test(headerText);
+  const monthDayMatch =
+    headerText.match(monthDayPattern) ?? (quarterHeader ? null : combined.match(monthDayPattern));
+  const dayMonthMatch =
+    headerText.match(dayMonthPattern) ?? (quarterHeader ? null : combined.match(dayMonthPattern));
+  const monthToken = monthDayMatch?.[1] ?? dayMonthMatch?.[2];
   const month =
-    monthDayMatch?.[1] === undefined ? undefined : MONTHS[monthDayMatch[1].toLowerCase()];
-  const day = monthDayMatch?.[2] === undefined ? undefined : Number.parseInt(monthDayMatch[2], 10);
-  const explicitYear = monthDayMatch?.[3] === undefined ? year : Number(monthDayMatch[3]);
+    monthToken === undefined
+      ? undefined
+      : Object.entries(MONTHS).find(([name]) =>
+          name.startsWith(monthToken.toLowerCase().slice(0, 3)),
+        )?.[1];
+  const dayToken = monthDayMatch?.[2] ?? dayMonthMatch?.[1];
+  const day = dayToken === undefined ? undefined : Number.parseInt(dayToken, 10);
+  const explicitYearToken = monthDayMatch?.[3] ?? dayMonthMatch?.[3];
+  const explicitYear = explicitYearToken === undefined ? year : Number(explicitYearToken);
   const periodEnd = periodEndFor(year, month, day, explicitYear, filingReportDate);
   if (periodEnd === undefined) {
     return undefined;
@@ -304,12 +347,23 @@ function currencyFromText(value: string): string | undefined {
 function unitFor(
   field: FinancialTableSemanticField,
   table: FinancialTable,
-): ParsedUnit | undefined {
+): ParsedUnit | "unsupported-currency" | "unsupported-unit-scale" {
   const unitText = table.unitText ?? table.context;
   const currency = currencyFromText(unitText);
   const monetary = !["dilutedEps", "dilutedShares"].includes(field);
   if (monetary && currency === undefined) {
-    return undefined;
+    return "unsupported-currency";
+  }
+  const scaleText = monetary
+    ? unitText.replaceAll(/except[^|)]*share[^|)]*thousands[^|)]*/giu, "")
+    : unitText;
+  const disclosedScales = [
+    /\bbillions?\b/iu.test(scaleText) ? 1_000_000_000 : undefined,
+    /\bmillions?\b/iu.test(scaleText) ? 1_000_000 : undefined,
+    /\bthousands?\b/iu.test(scaleText) ? 1000 : undefined,
+  ].filter((scale): scale is number => scale !== undefined);
+  if (new Set(disclosedScales).size > 1) {
+    return "unsupported-unit-scale";
   }
   let scale = 1;
   if (/\bbillions?\b/iu.test(unitText)) {
@@ -411,11 +465,44 @@ function validateIdentities(values: readonly ValidatedFinancialTableValue[]): {
     const beginning = valueFor(values, "cashBeginning", periodEnd);
     const ending = valueFor(values, "cashEnding", periodEnd);
     const change = valueFor(values, "netCashChange", periodEnd);
+    const operating = valueFor(values, "operatingCashFlow", periodEnd);
+    const investing = valueFor(values, "investingCashFlow", periodEnd);
+    const financing = valueFor(values, "financingCashFlow", periodEnd);
+    const fx = valueFor(values, "foreignExchangeEffect", periodEnd);
     if (beginning !== undefined && ending !== undefined && change !== undefined) {
-      const identityValues = [beginning, ending, change];
-      if (
-        Math.abs(beginning.value + change.value - ending.value) > identityTolerance(identityValues)
-      ) {
+      const identityValues = [
+        beginning,
+        ending,
+        change,
+        ...[operating, investing, financing, fx].filter(
+          (value): value is ValidatedFinancialTableValue => value !== undefined,
+        ),
+      ];
+      const tolerance = identityTolerance(identityValues);
+      const componentsAvailable =
+        operating !== undefined && investing !== undefined && financing !== undefined;
+      const components = componentsAvailable
+        ? operating.value + investing.value + financing.value
+        : undefined;
+      const changeIncludesFx =
+        components !== undefined &&
+        fx !== undefined &&
+        Math.abs(components + fx.value - change.value) <= tolerance;
+      const changeExcludesFx =
+        components !== undefined && Math.abs(components - change.value) <= tolerance;
+      const endingReconciles =
+        Math.abs(
+          beginning.value + change.value + (changeExcludesFx ? (fx?.value ?? 0) : 0) - ending.value,
+        ) <= tolerance ||
+        (components === undefined &&
+          fx !== undefined &&
+          Math.abs(beginning.value + change.value + fx.value - ending.value) <= tolerance);
+      const componentsReconcile =
+        components === undefined ||
+        (fx === undefined
+          ? Math.abs(components - change.value) <= tolerance
+          : changeIncludesFx || changeExcludesFx);
+      if (!endingReconciles || !componentsReconcile) {
         values
           .filter(
             (value) =>
@@ -426,26 +513,7 @@ function validateIdentities(values: readonly ValidatedFinancialTableValue[]): {
         issues.push(
           issue(
             "cash-flow-identity-failed",
-            `beginning cash plus net change does not equal ending cash for ${periodEnd}`,
-            undefined,
-            periodEnd,
-          ),
-        );
-      }
-    }
-    const operating = valueFor(values, "operatingCashFlow", periodEnd);
-    const investing = valueFor(values, "investingCashFlow", periodEnd);
-    const financing = valueFor(values, "financingCashFlow", periodEnd);
-    const fx = valueFor(values, "foreignExchangeEffect", periodEnd);
-    if ([operating, investing, financing, fx, change].every((value) => value !== undefined)) {
-      const identityValues = [operating!, investing!, financing!, fx!, change!];
-      const components = operating!.value + investing!.value + financing!.value + fx!.value;
-      if (Math.abs(components - change!.value) > identityTolerance(identityValues)) {
-        identityValues.forEach((value) => rejected.add(value));
-        issues.push(
-          issue(
-            "cash-flow-identity-failed",
-            `operating, investing, financing, and exchange effects do not reconcile to net cash change for ${periodEnd}`,
+            `cash-flow components, exchange effects, net change, and ending cash do not reconcile for ${periodEnd}`,
             undefined,
             periodEnd,
           ),
@@ -532,10 +600,13 @@ export function validateFinancialTableMapping(
   for (const mapping of input.mapping.mappings) {
     const labelCell = cellByRef.get(mapping.labelCellRef);
     const valueCell = cellByRef.get(mapping.valueCellRef);
+    const signCell =
+      mapping.signCellRef === undefined ? undefined : cellByRef.get(mapping.signCellRef);
     const headerCells = mapping.periodHeaderCellRefs.map((ref) => cellByRef.get(ref));
     if (
       labelCell === undefined ||
       valueCell === undefined ||
+      (mapping.signCellRef !== undefined && signCell === undefined) ||
       headerCells.some((cell) => cell === undefined)
     ) {
       issues.push(
@@ -543,12 +614,36 @@ export function validateFinancialTableMapping(
       );
       continue;
     }
-    const cells = [labelCell, valueCell, ...(headerCells as FinancialTableCell[])];
-    if (cells.some((cell) => cell.tableId !== valueCell.tableId)) {
+    const sourceCells = [labelCell, valueCell, signCell].filter(
+      (cell): cell is FinancialTableCell => cell !== undefined,
+    );
+    const table = tableForCell(input.packet, valueCell);
+    const allowedInheritedHeaders = new Set(table.inheritedHeaderRefs);
+    if (
+      sourceCells.some((cell) => cell.tableId !== valueCell.tableId) ||
+      (headerCells as FinancialTableCell[]).some(
+        (cell) => cell.tableId !== valueCell.tableId && !allowedInheritedHeaders.has(cell.ref),
+      )
+    ) {
       issues.push(
         issue(
           "cross-table-reference",
-          "mapped label, value, and headers must share one table",
+          "mapped cells must share one table except for explicit inherited headers",
+          mapping,
+        ),
+      );
+      continue;
+    }
+    if (
+      signCell !== undefined &&
+      (signCell.rowIndex !== valueCell.rowIndex ||
+        Math.abs(signCell.columnIndex - valueCell.columnIndex) !== 1 ||
+        !/^[()]$/u.test(signCell.text))
+    ) {
+      issues.push(
+        issue(
+          "ambiguous-sign",
+          "mapped sign cell must be an adjacent-row parenthesis cell",
           mapping,
         ),
       );
@@ -560,17 +655,22 @@ export function validateFinancialTableMapping(
       );
       continue;
     }
-    const number = parseNumber(valueCell.text);
+    let numericText = valueCell.text;
+    if (signCell?.text === "(") {
+      numericText = `(${numericText}`;
+    } else if (signCell?.text === ")") {
+      numericText = `${numericText})`;
+    }
+    const number = parseNumber(numericText);
     if ("issue" in number) {
       issues.push(
         issue(number.issue, `value cell is not an unambiguous numeric disclosure`, mapping),
       );
       continue;
     }
-    const table = tableForCell(input.packet, valueCell);
     const period = parsePeriod(
       (headerCells as FinancialTableCell[]).map((cell) => cell.text).join(" | "),
-      table.context,
+      `${table.title ?? ""} | ${table.context}`,
       input.filingReportDate,
     );
     if (period === undefined) {
@@ -592,11 +692,13 @@ export function validateFinancialTableMapping(
       continue;
     }
     const unit = unitFor(mapping.field, table);
-    if (unit === undefined) {
+    if (unit === "unsupported-currency" || unit === "unsupported-unit-scale") {
       issues.push(
         issue(
-          "unsupported-currency",
-          "table currency could not be resolved",
+          unit,
+          unit === "unsupported-currency"
+            ? "table currency could not be resolved"
+            : "table unit scale is ambiguous",
           mapping,
           period.periodEnd,
         ),
@@ -665,8 +767,10 @@ export function validateFinancialTableMapping(
         columnIndex: valueCell.columnIndex,
         labelCellRef: mapping.labelCellRef,
         valueCellRef: mapping.valueCellRef,
+        ...(mapping.signCellRef !== undefined ? { signCellRef: mapping.signCellRef } : {}),
         periodHeaderCellRefs: mapping.periodHeaderCellRefs,
         unitText: table.unitText ?? table.context,
+        ...(table.unitCellRef !== undefined ? { unitCellRef: table.unitCellRef } : {}),
       },
     });
   }

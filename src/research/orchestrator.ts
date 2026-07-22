@@ -253,6 +253,10 @@ async function runFinancialTableMappingStage(
       context: table.context,
       ...(table.title !== undefined ? { title: table.title } : {}),
       ...(table.unitText !== undefined ? { unitText: table.unitText } : {}),
+      ...(table.unitCellRef !== undefined ? { unitCellRef: table.unitCellRef } : {}),
+      ...(table.inheritedHeaderRefs !== undefined
+        ? { inheritedHeaderRefs: table.inheritedHeaderRefs }
+        : {}),
       rows: table.rows.map((row) => ({
         rowIndex: row.rowIndex,
         cells: row.cells.map((cell) => ({

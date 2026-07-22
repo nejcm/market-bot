@@ -222,10 +222,21 @@ function tableUnitText(context: string): string | undefined {
     .split(" | ")
     .toReversed()
     .find((line) =>
-      /\b(?:in\s+)?(?:thousands|millions|billions)\b|\b(?:usd|eur|rmb|cny|dkk|twd)\b|u\.s\. dollars|[$€£¥]/iu.test(
+      /\b(?:in\s+)?(?:thousands|millions|billions)\b|\b(?:usd|eur|rmb|cny|dkk|twd)\b|u\.s\. dollars/iu.test(
         line,
       ),
     );
+}
+
+function tableUnitCell(cells: readonly FinancialTableCell[]): FinancialTableCell | undefined {
+  return cells.find(
+    (cell) =>
+      cell.rowIndex < 8 &&
+      (/\b(?:in\s+)?(?:thousands|millions|billions)\b|\b(?:usd|eur|rmb|cny|dkk|twd)\b|u\.s\. dollars/iu.test(
+        cell.text,
+      ) ||
+        /^[€£¥$]$/u.test(cell.text)),
+  );
 }
 
 function materializeTable(
@@ -264,15 +275,50 @@ function materializeTable(
       cells: materialized.filter((cell) => cell.rowIndex === rowIndex),
     }));
   const title = tableTitle(parsed.context);
-  const unitText = tableUnitText(parsed.context);
+  const unitCell = tableUnitCell(materialized);
+  const contextUnitText = tableUnitText(parsed.context);
+  const unitText =
+    contextUnitText === undefined
+      ? unitCell?.text
+      : `${contextUnitText}${unitCell === undefined ? "" : ` | ${unitCell.text}`}`;
   return {
     id,
     sourceTableIndex: parsed.sourceTableIndex,
     context: parsed.context,
     ...(title !== undefined ? { title } : {}),
     ...(unitText !== undefined ? { unitText } : {}),
+    ...(unitCell !== undefined ? { unitCellRef: unitCell.ref } : {}),
     rows,
   };
+}
+
+function inheritAdjacentTableUnits(tables: readonly FinancialTable[]): readonly FinancialTable[] {
+  let previous: FinancialTable | undefined = undefined;
+  return tables.map((table) => {
+    const inherited =
+      table.unitText === undefined &&
+      previous?.unitText !== undefined &&
+      table.sourceTableIndex === previous.sourceTableIndex + 1
+        ? {
+            ...table,
+            unitText: previous.unitText,
+            ...(table.title === undefined && previous.title !== undefined
+              ? { title: previous.title }
+              : {}),
+            ...(previous.unitCellRef !== undefined ? { unitCellRef: previous.unitCellRef } : {}),
+            inheritedHeaderRefs: [
+              ...new Set(
+                previous.rows.flatMap((row) => [
+                  ...row.cells.flatMap((cell) => cell.headerRefs),
+                  ...(row.rowIndex < 4 ? row.cells.map((cell) => cell.ref) : []),
+                ]),
+              ),
+            ],
+          }
+        : table;
+    previous = inherited;
+    return inherited;
+  });
 }
 
 export async function sha256Hex(value: string): Promise<string> {
@@ -361,7 +407,9 @@ export async function buildFinancialTablePacket(
       candidates.length > boundedCandidates.length ||
       boundedCandidates.some((table) => table.truncated) ||
       candidates.some((table) => table.cells.length > FINANCIAL_TABLE_PACKET_LIMITS.maxCells),
-    tables: boundedCandidates.map((table, index) => materializeTable(table, index, locatedSource)),
+    tables: inheritAdjacentTableUnits(
+      boundedCandidates.map((table, index) => materializeTable(table, index, locatedSource)),
+    ),
     ...(unsupportedReason !== undefined ? { unsupportedReason } : {}),
   };
 }

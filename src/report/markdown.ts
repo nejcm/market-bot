@@ -743,11 +743,11 @@ function renderEarningsSetup(report: ResearchReport): string {
   const symbol = typeof event.symbol === "string" ? event.symbol : "";
   const date = typeof event.date === "string" ? event.date : "";
   const timing = typeof event.timing === "string" ? event.timing : "unknown";
-  const dateStatus = event.dateStatus === "provider-estimated";
+  const isProviderEstimated = event.dateStatus === "provider-estimated";
   const lines = [
     "## Earnings Setup",
     "",
-    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${dateStatus ? " — date provider-estimated (Finnhub), unconfirmed" : ""}`,
+    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${isProviderEstimated ? " — date provider-estimated (Finnhub), unconfirmed" : ""}`,
   ];
 
   if (typeof event.epsEstimate === "number") {

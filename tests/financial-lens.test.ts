@@ -16,7 +16,11 @@ import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
-import { formatLensValue, PE_NOT_MEANINGFUL } from "../src/sources/extended-evidence/value-format";
+import {
+  formatLensValue,
+  formatPeRatio,
+  PE_NOT_MEANINGFUL,
+} from "../src/sources/extended-evidence/value-format";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -397,7 +401,32 @@ describe("addFinancialLensEvidence", () => {
     expect(summary?.summary).toContain(
       "net income attributable to parent -20 (loss widened 100.0% YoY)",
     );
+    expect(summary?.summary).toContain("net income consolidated including NCI -18");
     expect(summary?.metrics.consolidatedNetIncome).toBe(-18);
+  });
+
+  test("omits duplicate consolidated net income from SEC summaries", () => {
+    const incomeFact = {
+      val: -20,
+      form: "10-Q",
+      fp: "Q1",
+      fy: 2026,
+      filed: "2026-05-01",
+      start: "2026-01-01",
+      end: "2026-03-31",
+    };
+    const summary = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          NetIncomeLoss: { units: { USD: [incomeFact] } },
+          ProfitLoss: { units: { USD: [incomeFact] } },
+        },
+      },
+    });
+
+    expect(summary?.summary).toContain("net income attributable to parent -20");
+    expect(summary?.summary).not.toContain("net income consolidated including NCI");
+    expect(summary?.metrics.consolidatedNetIncome).toBe(-20);
   });
 
   test("returns evidence unchanged for non-equity / non-ticker commands", () => {
@@ -868,6 +897,10 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       unit: "number",
     });
     expect(result.extendedEvidence?.items.at(-1)?.metrics?.forwardPe).toBe(PE_NOT_MEANINGFUL);
+  });
+
+  test("renders P/E as not meaningful when earnings are zero", () => {
+    expect(formatPeRatio(10, 0)).toBe("N/M (non-positive earnings)");
   });
 
   test("renders not-meaningful revenue supportability as a Value-lens caveat", () => {

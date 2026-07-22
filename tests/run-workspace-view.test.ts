@@ -471,8 +471,8 @@ describe("run workspace view", () => {
 
     expect(view.equityHeader?.financials).toEqual([
       expect.objectContaining({ key: "marketCap" }),
-      expect.objectContaining({ key: "trailingPE", value: "N/M (negative earnings)" }),
-      expect.objectContaining({ key: "forwardPE", value: "N/M (negative earnings)" }),
+      expect.objectContaining({ key: "trailingPE", value: "N/M (non-positive earnings)" }),
+      expect.objectContaining({ key: "forwardPE", value: "N/M (non-positive earnings)" }),
     ]);
   });
 

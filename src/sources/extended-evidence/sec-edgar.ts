@@ -617,7 +617,9 @@ export function summarizeSecFundamentals(
         metrics[`${definition.key}DeltaPercent`] = delta;
       }
     }
-    summaryParts.push(formatMetric(definition.label, latest.val, prior?.val, delta));
+    if (definition.key !== "consolidatedNetIncome" || metrics.netIncome !== latest.val) {
+      summaryParts.push(formatMetric(definition.label, latest.val, prior?.val, delta));
+    }
   }
 
   if (summaryParts.length === 0) {

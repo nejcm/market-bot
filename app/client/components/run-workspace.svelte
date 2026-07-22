@@ -11,16 +11,8 @@
     valuationMetricTiles,
     type FinancialLensStatTone,
   } from "../view-model";
-  import {
-    buildRunWorkspaceView,
-    type RunWorkspaceCaseKey,
-  } from "../run-workspace-view";
-  import {
-    DATA_SEGMENTS,
-    TABS,
-    type DataSegment,
-    type Tab,
-  } from "./console-types";
+  import { buildRunWorkspaceView, type RunWorkspaceCaseKey } from "../run-workspace-view";
+  import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
   import SparklineBars from "./sparkline-bars.svelte";
   import RangeBar from "./range-bar.svelte";
@@ -70,9 +62,7 @@
   let cite = $state<CitePopover | null>(null);
   const sectionEls: Partial<Record<string, HTMLElement>> = {};
 
-  const workspace = $derived(
-    detail === null ? undefined : buildRunWorkspaceView(detail),
-  );
+  const workspace = $derived(detail === null ? undefined : buildRunWorkspaceView(detail));
   const reportSummary = $derived(workspace?.report.summary ?? "");
   const reportMarkdown = $derived(workspace?.report.markdown);
   const findingItems = $derived(workspace?.report.findings ?? []);
@@ -106,9 +96,7 @@
   const snapshot = $derived(workspace?.snapshot?.value);
   const snapshotTradingViewUrl = $derived(workspace?.snapshot?.tradingViewUrl);
 
-  const CASE_STYLES: Readonly<
-    Record<RunWorkspaceCaseKey, { readonly edge: string; readonly fg: string }>
-  > = {
+  const CASE_STYLES: Readonly<Record<RunWorkspaceCaseKey, { readonly edge: string; readonly fg: string }>> = {
     bullCase: { edge: "#0F9D58", fg: "#0F9D58" },
     bearCase: { edge: "#9B0F06", fg: "#9B0F06" },
     risks: { edge: "#c4b389", fg: "#8a6116" },
@@ -191,10 +179,7 @@
       title: source?.title ?? "Unknown source",
       kind: source?.kind ?? "?",
       provider: source?.provider ?? "?",
-      x: Math.min(
-        event.clientX + 14,
-        globalThis.innerWidth - POPOVER_WIDTH - 20,
-      ),
+      x: Math.min(event.clientX + 14, globalThis.innerWidth - POPOVER_WIDTH - 20),
       y: Math.min(event.clientY + 18, globalThis.innerHeight - POPOVER_MARGIN),
     };
   }
@@ -231,9 +216,7 @@
 {/snippet}
 
 {#snippet sectionHeading(label: string)}
-  <div
-    class="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
-  >
+  <div class="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
     {label}
   </div>
 {/snippet}
@@ -246,9 +229,7 @@
     <Skeleton class="h-64 w-full max-w-180" />
   </div>
 {:else if detail === null}
-  <div
-    class="rounded-lg border border-dashed border-input p-9 text-center text-sm text-muted-foreground"
-  >
+  <div class="rounded-lg border border-dashed border-input p-9 text-center text-sm text-muted-foreground">
     Select a run to inspect the research artifact.
   </div>
 {:else}
@@ -269,19 +250,13 @@
         <h1 class="text-[21px] font-semibold tracking-tight">
           {runLabel(detail.summary)}
         </h1>
-        <div
-          class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5c6066]"
-        >
+        <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5c6066]">
           <span>{formatDate(detail.summary.generatedAt)}</span>
           {#if detail.summary.assetClass !== undefined && detail.summary.symbol !== undefined}
             <button
               class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
-              onclick={() =>
-                onOpenInstrument(
-                  detail.summary.assetClass ?? "",
-                  detail.summary.symbol ?? "",
-                )}
+              onclick={() => onOpenInstrument(detail.summary.assetClass ?? "", detail.summary.symbol ?? "")}
             >
               {detail.summary.assetClass}:{detail.summary.symbol}
             </button>
@@ -289,35 +264,10 @@
         </div>
       </div>
       <div class="flex flex-wrap items-end justify-end gap-5.5">
-        {#if equityHeader !== undefined}
-          <div class="text-right">
-            <div class="flex items-baseline justify-end gap-2 font-mono">
-              <span class="text-[19px] font-semibold">{equityHeader.price}</span>
-              <span
-                class="text-[13px] font-medium {equityHeader.changeDirection ===
-                'positive'
-                  ? 'text-[#0F9D58]'
-                  : equityHeader.changeDirection === 'negative'
-                    ? 'text-[#9B0F06]'
-                    : 'text-muted-foreground'}"
-              >
-                {equityHeader.dailyChange}
-              </span>
-            </div>
-            <div class="mt-0.5 text-[10.5px] text-muted-foreground">
-              {equityHeader.displayName} · {equityHeader.quoteCurrency}
-            </div>
-            <div class="mt-0.5 font-mono text-[9px] text-[#8a8f96]">
-              {equityHeader.asOf}
-            </div>
-          </div>
-        {/if}
         {#each [{ value: detail.summary.confidence ?? "—", label: "Evidence Quality" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
           <div class="text-right">
             <div class="font-mono text-[17px] font-medium">{stat.value}</div>
-            <div
-              class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground"
-            >
+            <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
               {stat.label}
             </div>
           </div>
@@ -327,13 +277,33 @@
 
     {#if equityHeader !== undefined && equityHeader.financials.length > 0}
       <div class="mt-4 grid grid-cols-2 gap-2 border-y border-border py-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div class="min-w-0 px-2 first:pl-0 last:pr-0">
+          <div class="flex items-baseline gap-2 font-mono">
+            <span class="text-[15px] font-medium">{equityHeader.price}</span>
+            <span
+              class="text-[12px] font-medium {equityHeader.changeDirection === 'positive'
+                ? 'text-[#0F9D58]'
+                : equityHeader.changeDirection === 'negative'
+                  ? 'text-[#9B0F06]'
+                  : 'text-muted-foreground'}"
+            >
+              {equityHeader.dailyChange}
+            </span>
+          </div>
+          <div class="mt-0.5 text-[11px] uppercase tracking-wider text-[#5c6066]">
+            Price · {equityHeader.quoteCurrency}
+          </div>
+          <div class="mt-1 font-mono text-[10px] leading-snug text-[#8a8f96]">
+            {equityHeader.asOf}
+          </div>
+        </div>
         {#each equityHeader.financials as financial}
           <div class="min-w-0 px-2 first:pl-0 last:pr-0">
             <div class="font-mono text-[15px] font-medium">{financial.value}</div>
-            <div class="mt-0.5 text-[10px] uppercase tracking-wider text-[#5c6066]">
+            <div class="mt-0.5 text-[11px] uppercase tracking-wider text-[#5c6066]">
               {financial.label}
             </div>
-            <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
+            <div class="mt-1 font-mono text-[10px] leading-snug text-[#8a8f96]">
               {financial.caption}
             </div>
           </div>
@@ -371,29 +341,18 @@
           {/if}
 
           {#if financialLensGroups.length > 0}
-            <section
-              {@attach bindSection("financialLensStats")}
-              class="mt-5 scroll-mt-5"
-            >
-              <div
-                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2"
-              >
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary"
-                >
+            <section {@attach bindSection("financialLensStats")} class="mt-5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
                   Financial Lens stats
                 </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  normalized evidence metrics
-                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]"> normalized evidence metrics </span>
               </div>
               <div class="mt-3 space-y-4">
                 {#each financialLensGroups as group}
                   <div>
                     <div class="flex items-baseline justify-between gap-2">
-                      <div
-                        class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#353a40]"
-                      >
+                      <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#353a40]">
                         {group.lens}
                       </div>
                       <div class="font-mono text-[10px] text-[#737980]">
@@ -402,13 +361,9 @@
                     </div>
                     <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
                       {#each group.tiles as tile}
-                        <div class="px-3 py-2.5 {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}">
+                        <div class="px-3 py-2.5 rounded-lg {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}">
                           <div class="flex items-start justify-between gap-2">
-                            <div
-                              class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[
-                                tile.tone
-                              ]}"
-                            >
+                            <div class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[tile.tone]}">
                               {tile.value}
                             </div>
                             {#if tile.assessment !== undefined}
@@ -439,30 +394,19 @@
           {/if}
 
           {#if fundamentalHistory !== undefined}
-            <section
-              {@attach bindSection("fundamentalHistory")}
-              class="mt-8.5 scroll-mt-5"
-            >
-              <div
-                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2"
-              >
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
-                >
+            <section {@attach bindSection("fundamentalHistory")} class="mt-8.5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                   Fundamental history
                 </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  normalized SEC fiscal history
-                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]"> normalized SEC fiscal history </span>
               </div>
               <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {#each fundamentalHistory.cards as card}
                   <div class="rounded-lg border border-border bg-card px-3.5 py-3">
                     <div class="flex items-start justify-between gap-3">
                       <div>
-                        <div
-                          class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]"
-                        >
+                        <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
                           {card.label}
                         </div>
                         <div class="mt-1 font-mono text-[17px] font-semibold text-foreground">
@@ -479,10 +423,7 @@
                       {card.valuePeriod}
                     </div>
                     <div class="mt-2">
-                      <SparklineBars
-                        geometry={card.geometry}
-                        label={`${card.label} annual history`}
-                      />
+                      <SparklineBars geometry={card.geometry} label={`${card.label} annual history`} />
                     </div>
                     <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
                       {card.periodRange}
@@ -502,15 +443,10 @@
           {/if}
 
           {#if peerImpliedRange !== undefined}
-            <section
-              {@attach bindSection("peerImpliedRange")}
-              class="mt-8.5 scroll-mt-5"
-            >
+            <section {@attach bindSection("peerImpliedRange")} class="mt-8.5 scroll-mt-5">
               {#if peerImpliedRange.status === "suppressed"}
                 <div class="rounded-lg border border-border bg-secondary px-4 py-3.5">
-                  <div
-                    class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
-                  >
+                  <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {peerImpliedRange.label}
                   </div>
                   <div class="mt-1.5 text-sm text-muted-foreground">
@@ -520,9 +456,7 @@
               {:else}
                 <div class="rounded-lg border border-border bg-card px-4 py-3.5">
                   <div class="flex flex-wrap items-baseline justify-between gap-2">
-                    <div
-                      class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]"
-                    >
+                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
                       {peerImpliedRange.label}
                     </div>
                     <div class="font-mono text-[10px] text-primary">
@@ -551,22 +485,15 @@
           {/if}
 
           {#if findingItems.length > 0}
-            <section
-              {@attach bindSection("findings")}
-              class="mt-8.5 scroll-mt-5"
-            >
+            <section {@attach bindSection("findings")} class="mt-8.5 scroll-mt-5">
               {@render sectionHeading("Key findings")}
               {#each findingItems as item, index}
                 <div class="flex gap-3.5 border-b border-[#f0ede7] py-3.5">
-                  <span
-                    class="shrink-0 pt-0.75 font-mono text-xs text-[#a8acb1]"
-                  >
+                  <span class="shrink-0 pt-0.75 font-mono text-xs text-[#a8acb1]">
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <div class="min-w-0">
-                    <span
-                      class="font-serif text-[15.5px] leading-[1.6] text-[#1f2225]"
-                    >
+                    <span class="font-serif text-[15.5px] leading-[1.6] text-[#1f2225]">
                       {item.text}
                     </span>
                     {@render citeChips(item.sourceIds)}
@@ -577,27 +504,19 @@
           {/if}
 
           {#if caseSections.length > 0}
-            <div
-              {@attach bindSection("cases")}
-              class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2"
-            >
+            <div {@attach bindSection("cases")} class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2">
               {#each caseSections as section}
                 <div
                   class="rounded-lg border border-border bg-card px-4.5 py-4"
                   style="border-top: 3px solid {section.edge}"
                 >
-                  <div
-                    class="text-xs font-semibold uppercase tracking-wider"
-                    style="color: {section.fg}"
-                  >
+                  <div class="text-xs font-semibold uppercase tracking-wider" style="color: {section.fg}">
                     {section.title}
                   </div>
                   <div class="mt-3 flex flex-col gap-3">
                     {#each section.items as item}
                       <div class="min-w-0">
-                        <span
-                          class="font-serif text-sm leading-[1.55] text-[#2a2d30]"
-                        >
+                        <span class="font-serif text-sm leading-[1.55] text-[#2a2d30]">
                           {item.text}
                         </span>
                         {@render citeChips(item.sourceIds)}
@@ -610,22 +529,15 @@
           {/if}
 
           {#if scenarioItems.length > 0}
-            <section
-              {@attach bindSection("scenarios")}
-              class="mt-8.5 scroll-mt-5"
-            >
+            <section {@attach bindSection("scenarios")} class="mt-8.5 scroll-mt-5">
               {@render sectionHeading("Scenarios")}
               <div class="mt-3.5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {#each scenarioItems as scenario}
-                  <div
-                    class="rounded-lg border border-border bg-card px-4 py-3.5"
-                  >
+                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
                     <div class="text-[12.5px] font-semibold text-foreground">
                       {scenario.name}
                     </div>
-                    <div
-                      class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]"
-                    >
+                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
                       {scenario.description}
                     </div>
                     {@render citeChips(scenario.sourceIds)}
@@ -636,21 +548,12 @@
           {/if}
 
           {#if snapshot !== undefined}
-            <section
-              {@attach bindSection("snapshot")}
-              class="mt-8.5 scroll-mt-5"
-            >
-              <div
-                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2"
-              >
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
-                >
+            <section {@attach bindSection("snapshot")} class="mt-8.5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                   Market snapshot · {snapshot.symbol}
                 </span>
-                <span
-                  class="flex flex-wrap items-center gap-2 font-mono text-[10px] text-[#a8acb1]"
-                >
+                <span class="flex flex-wrap items-center gap-2 font-mono text-[10px] text-[#a8acb1]">
                   <span>
                     artifact closes{snapshot.latestSessionDate === undefined
                       ? ""
@@ -673,35 +576,20 @@
           {/if}
 
           {#if historicalAudit !== undefined}
-            <section
-              {@attach bindSection("history")}
-              class="mt-8.5 scroll-mt-5"
-            >
-              <div
-                class="flex items-baseline justify-between border-b border-border pb-2"
-              >
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
-                >
+            <section {@attach bindSection("history")} class="mt-8.5 scroll-mt-5">
+              <div class="flex items-baseline justify-between border-b border-border pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                   Historical context audit
                 </span>
-                <span class="font-mono text-[10px] text-[#a8acb1]">
-                  trace.json selection counts
-                </span>
+                <span class="font-mono text-[10px] text-[#a8acb1]"> trace.json selection counts </span>
               </div>
               <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {#each [["Scanned", historicalAudit.scannedRunCount], ["Candidates", historicalAudit.candidateRunCount], ["Selected", historicalAudit.selectedRunCount], ["Recent", historicalAudit.recentSelectedCount], ["Anchors", historicalAudit.anchorSelectedCount], ["Same symbol", historicalAudit.sameSymbolSelectedCount], ["Spotlight", historicalAudit.spotlightSymbolSelectedCount], ["Same subject", historicalAudit.sameSubjectSelectedCount], ["Same horizon", historicalAudit.sameHorizonSelectedCount], ["Cross horizon", historicalAudit.crossHorizonSelectedCount], ["Resolved miss runs", historicalAudit.resolvedMissRunCount], ["Miss-correction", historicalAudit.missCorrectionSelectedCount], ["Gaps", historicalAudit.gapCount]] as row}
-                  <div
-                    class="rounded-md border border-border bg-secondary px-3 py-2"
-                  >
-                    <div
-                      class="font-mono text-[15px] font-medium text-foreground"
-                    >
+                  <div class="rounded-md border border-border bg-secondary px-3 py-2">
+                    <div class="font-mono text-[15px] font-medium text-foreground">
                       {row[1]}
                     </div>
-                    <div
-                      class="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
-                    >
+                    <div class="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                       {row[0]}
                     </div>
                   </div>
@@ -711,16 +599,9 @@
           {/if}
 
           {#if webSubjectProfile !== undefined}
-            <section
-              {@attach bindSection("webSubjectProfile")}
-              class="mt-8.5 scroll-mt-5"
-            >
-              <div
-                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#d9c89a] pb-2"
-              >
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]"
-                >
+            <section {@attach bindSection("webSubjectProfile")} class="mt-8.5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#d9c89a] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]">
                   Web Subject Profile
                 </span>
                 <span class="font-mono text-[10px] text-[#8a8f96]">
@@ -731,9 +612,7 @@
                 </span>
               </div>
               {#if webSubjectProfile.subjectLabel !== undefined}
-                <div
-                  class="mt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
-                >
+                <div class="mt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                   {webSubjectProfile.subjectLabel}
                 </div>
               {/if}
@@ -747,15 +626,11 @@
               {/if}
               <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
                 {#each webSubjectProfile.questions as question}
-                  <div
-                    class="rounded-lg border border-border bg-card px-4 py-3.5"
-                  >
+                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
                     <div class="text-[12.5px] font-semibold text-foreground">
                       {question.label}
                     </div>
-                    <div
-                      class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]"
-                    >
+                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
                       {question.answer}
                     </div>
                     {@render citeChips(question.sourceIds)}
@@ -764,9 +639,7 @@
               </div>
               {#if webSubjectProfile.recentMaterialEvents.length > 0}
                 <div class="mt-4">
-                  <div
-                    class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]"
-                  >
+                  <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
                     Recent material events
                   </div>
                   <div class="mt-2 space-y-2">
@@ -783,16 +656,12 @@
               {/if}
               {#if webSubjectProfile.factLedger.length > 0}
                 <div class="mt-4">
-                  <div
-                    class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]"
-                  >
+                  <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
                     Fact ledger
                   </div>
                   <div class="mt-2 space-y-2">
                     {#each webSubjectProfile.factLedger as fact}
-                      <div
-                        class="rounded-lg border border-border bg-card px-4 py-2.5 text-[12.5px] text-[#45494e]"
-                      >
+                      <div class="rounded-lg border border-border bg-card px-4 py-2.5 text-[12.5px] text-[#45494e]">
                         {fact.claim}
                         {@render citeChips(fact.sourceIds)}
                       </div>
@@ -801,12 +670,8 @@
                 </div>
               {/if}
               {#if webSubjectProfile.openGaps.length > 0}
-                <div
-                  class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
-                >
-                  <div
-                    class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]"
-                  >
+                <div class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
+                  <div class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
                     Profile gaps
                   </div>
                   <div class="space-y-1 text-[12.5px] text-[#5c6066]">
@@ -820,16 +685,9 @@
           {/if}
 
           {#if businessFramework !== undefined}
-            <section
-              {@attach bindSection("businessFramework")}
-              class="mt-8.5 scroll-mt-5"
-            >
-              <div
-                class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2"
-              >
-                <span
-                  class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary"
-                >
+            <section {@attach bindSection("businessFramework")} class="mt-8.5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
                   Business framework
                 </span>
                 <span class="font-mono text-[10px] text-[#8a8f96]">
@@ -838,9 +696,7 @@
               </div>
               <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
                 {#each businessFramework.sections as section}
-                  <div
-                    class="rounded-lg border border-border bg-card px-4 py-3.5"
-                  >
+                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
                     <div class="flex flex-wrap items-center gap-2">
                       {#if section.name !== "Phase"}
                         <span
@@ -853,25 +709,17 @@
                         {section.name}
                       </div>
                     </div>
-                    <div
-                      class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]"
-                    >
+                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
                       {section.text ?? section.summary}
                     </div>
                     {#if section.metrics.length > 0}
                       <div class="mt-3 grid grid-cols-2 gap-2">
                         {#each section.metrics.slice(0, 4) as metric}
-                          <div
-                            class="rounded-md border border-border bg-secondary px-2.5 py-2"
-                          >
-                            <div
-                              class="font-mono text-[12px] font-medium text-foreground"
-                            >
+                          <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
+                            <div class="font-mono text-[12px] font-medium text-foreground">
                               {metric.value}
                             </div>
-                            <div
-                              class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground"
-                            >
+                            <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
                               {metric.label}
                             </div>
                           </div>
@@ -880,9 +728,7 @@
                     {/if}
                     {@render citeChips(section.sourceIds)}
                     {#if section.gaps.length > 0}
-                      <div
-                        class="mt-2 space-y-1 font-mono text-[10px] leading-normal text-[#8a6116]"
-                      >
+                      <div class="mt-2 space-y-1 font-mono text-[10px] leading-normal text-[#8a6116]">
                         {#each section.gaps as gap}
                           <div>{gap}</div>
                         {/each}
@@ -892,12 +738,8 @@
                 {/each}
               </div>
               {#if businessFramework.gaps.length > 0}
-                <div
-                  class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
-                >
-                  <div
-                    class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]"
-                  >
+                <div class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
+                  <div class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
                     Framework data gaps
                   </div>
                   <div class="space-y-1 text-[12.5px] text-[#5c6066]">
@@ -911,20 +753,12 @@
           {/if}
 
           {#if extendedEvidence.length > 0}
-            <section
-              {@attach bindSection("extendedEvidence")}
-              class="mt-8.5 scroll-mt-5"
-            >
+            <section {@attach bindSection("extendedEvidence")} class="mt-8.5 scroll-mt-5">
               {@render sectionHeading("Extended evidence")}
               <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
                 {#each extendedEvidence as item}
-                  {@const metricTiles =
-                    item.category === "valuation"
-                      ? valuationMetricTiles(item.metrics)
-                      : []}
-                  <div
-                    class="rounded-lg border border-border bg-card px-4 py-3.5"
-                  >
+                  {@const metricTiles = item.category === "valuation" ? valuationMetricTiles(item.metrics) : []}
+                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
                     <div class="flex flex-wrap items-center gap-2">
                       <span
                         class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
@@ -935,25 +769,17 @@
                         {item.title}
                       </div>
                     </div>
-                    <div
-                      class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]"
-                    >
+                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
                       {item.summary}
                     </div>
                     {#if metricTiles.length > 0}
                       <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {#each metricTiles as tile}
-                          <div
-                            class="rounded-md border border-border bg-secondary px-2.5 py-2"
-                          >
-                            <div
-                              class="font-mono text-[12px] font-medium text-foreground"
-                            >
+                          <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
+                            <div class="font-mono text-[12px] font-medium text-foreground">
                               {tile.value}
                             </div>
-                            <div
-                              class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground"
-                            >
+                            <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
                               {tile.label}
                             </div>
                           </div>
@@ -968,17 +794,10 @@
           {/if}
 
           {#if showForecastsSection}
-            <section
-              {@attach bindSection("forecasts")}
-              class="mt-8.5 scroll-mt-5"
-            >
-              <div
-                class="flex items-baseline justify-between border-b border-border pb-2"
-              >
+            <section {@attach bindSection("forecasts")} class="mt-8.5 scroll-mt-5">
+              <div class="flex items-baseline justify-between border-b border-border pb-2">
                 <div class="flex items-center gap-2">
-                  <span
-                    class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground"
-                  >
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                     Observable forecasts
                   </span>
                   {#if targetHealth !== undefined && !targetHealth.targetMet}
@@ -995,8 +814,7 @@
                   {/if}
                   {#if forecastStats.resolved > 0}
                     scored {forecastStats.resolved}/{forecastStats.total} ·
-                    {forecastStats.hits} event true · {forecastStats.misses} event
-                    false ·
+                    {forecastStats.hits} event true · {forecastStats.misses} event false ·
                     {#if forecastStats.voided > 0}
                       {forecastStats.voided} voided ·
                     {/if}
@@ -1005,9 +823,7 @@
                 </span>
               </div>
               {#if forecastItems.length === 0}
-                <div class="py-4 text-sm text-muted-foreground">
-                  No forecasts emitted for this run.
-                </div>
+                <div class="py-4 text-sm text-muted-foreground">No forecasts emitted for this run.</div>
               {/if}
               {#each groupedForecastItems as group}
                 {#if group.antecedent !== undefined}
@@ -1021,34 +837,22 @@
                   <div
                     class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_132px] sm:gap-4"
                   >
-                    <div
-                      class="font-serif text-sm leading-normal text-[#1f2225]"
-                    >
+                    <div class="font-serif text-sm leading-normal text-[#1f2225]">
                       {forecast.claim}
                       {@render citeChips(forecast.sourceIds)}
                       {#if forecast.score?.resolved === true && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
-                        <span
-                          class="mt-1 block font-mono text-[10.5px] text-[#8a8f96]"
-                        >
-                          close {formatClose(forecast.score.close0)} → {formatClose(
-                            forecast.score.closeN,
-                          )}
+                        <span class="mt-1 block font-mono text-[10.5px] text-[#8a8f96]">
+                          close {formatClose(forecast.score.close0)} → {formatClose(forecast.score.closeN)}
                           {#if forecast.score.changePct !== undefined}
-                            ({forecast.score.changePct > 0
-                              ? "+"
-                              : ""}{forecast.score.changePct.toFixed(1)}%)
+                            ({forecast.score.changePct > 0 ? "+" : ""}{forecast.score.changePct.toFixed(1)}%)
                           {/if}
                           {#if forecast.score.observedAt !== undefined}
-                            · observed {formatDateMinute(
-                              forecast.score.observedAt,
-                            )}
+                            · observed {formatDateMinute(forecast.score.observedAt)}
                           {/if}
                         </span>
                       {/if}
                       {#if forecast.missAutopsy !== undefined}
-                        <span
-                          class="mt-1 block text-[11.5px] leading-normal text-[#5c6066]"
-                        >
+                        <span class="mt-1 block text-[11.5px] leading-normal text-[#5c6066]">
                           Autopsy: {forecast.missAutopsy.rationale}
                         </span>
                       {/if}
@@ -1066,11 +870,7 @@
                           <button
                             class="rounded border border-[#cfe0e3] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             type="button"
-                            onclick={() =>
-                              onOpenInstrument(
-                                detail.summary.assetClass ?? "",
-                                symbol,
-                              )}
+                            onclick={() => onOpenInstrument(detail.summary.assetClass ?? "", symbol)}
                           >
                             {symbol}
                           </button>
@@ -1081,23 +881,13 @@
                       {#if forecast.probability !== undefined}
                         {@const pct = Math.round(forecast.probability * 100)}
                         <div class="h-1 flex-1 rounded-sm bg-[#f0ede7]">
-                          <div
-                            class="h-1 rounded-sm bg-[#4ba3b2]"
-                            style="width: {pct}%"
-                          ></div>
+                          <div class="h-1 rounded-sm bg-[#4ba3b2]" style="width: {pct}%"></div>
                         </div>
-                        <span
-                          class="w-8.5 text-right font-mono text-xs font-medium"
-                          >{pct}%</span
-                        >
+                        <span class="w-8.5 text-right font-mono text-xs font-medium">{pct}%</span>
                       {/if}
                     </div>
-                    <div
-                      class="text-left font-mono text-[11.5px] text-[#5c6066] sm:text-right"
-                    >
-                      {forecast.horizonTradingDays === undefined
-                        ? ""
-                        : `${forecast.horizonTradingDays} td`}
+                    <div class="text-left font-mono text-[11.5px] text-[#5c6066] sm:text-right">
+                      {forecast.horizonTradingDays === undefined ? "" : `${forecast.horizonTradingDays} td`}
                     </div>
                     <div class="flex flex-wrap gap-1.5 sm:justify-end">
                       {#if forecast.score?.outcome === "hit"}
@@ -1115,40 +905,35 @@
                       {:else if forecast.score?.status === "voided"}
                         <span
                           class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-                          title={forecast.score?.pendingReason ??
-                            "condition unmet"}
+                          title={forecast.score?.pendingReason ?? "condition unmet"}
                         >
                           VOIDED
                         </span>
                       {:else if forecast.score?.status === "active-pending"}
                         <span
                           class="rounded border border-dashed border-[#9fc2c8] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
-                          title={forecast.score?.pendingReason ??
-                            "condition met; consequent pending"}
+                          title={forecast.score?.pendingReason ?? "condition met; consequent pending"}
                         >
                           ACTIVE
                         </span>
                       {:else if forecast.score?.status === "pending-condition"}
                         <span
                           class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
-                          title={forecast.score?.pendingReason ??
-                            "condition pending"}
+                          title={forecast.score?.pendingReason ?? "condition pending"}
                         >
                           CONDITION PENDING
                         </span>
                       {:else if forecast.score?.status === "abandoned"}
                         <span
                           class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-                          title={forecast.score?.pendingReason ??
-                            "scoring abandoned"}
+                          title={forecast.score?.pendingReason ?? "scoring abandoned"}
                         >
                           ABANDONED
                         </span>
                       {:else}
                         <span
                           class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
-                          title={forecast.score?.pendingReason ??
-                            "not yet scored"}
+                          title={forecast.score?.pendingReason ?? "not yet scored"}
                         >
                           PENDING
                         </span>
@@ -1158,26 +943,19 @@
                           class="rounded border px-1.75 py-0.5 font-mono text-[10px] {DISAGREEMENT_BADGE_CLASSES[
                             forecast.forecastDisagreement.band
                           ]}"
-                          title="Forecast Disagreement: {forecast
-                            .forecastDisagreement.band} spread; mean {percent(
+                          title="Forecast Disagreement: {forecast.forecastDisagreement.band} spread; mean {percent(
                             forecast.forecastDisagreement.meanProbability,
-                          )}; spread {spreadPoints(
-                            forecast.forecastDisagreement.probabilitySpread,
-                          )}; {forecast.forecastDisagreement
-                            .participantCount} model probabilities"
+                          )}; spread {spreadPoints(forecast.forecastDisagreement.probabilitySpread)}; {forecast
+                            .forecastDisagreement.participantCount} model probabilities"
                         >
                           FD {forecast.forecastDisagreement.band.toUpperCase()}
-                          {spreadPoints(
-                            forecast.forecastDisagreement.probabilitySpread,
-                          )}
+                          {spreadPoints(forecast.forecastDisagreement.probabilitySpread)}
                         </span>
                       {/if}
                       {#if forecast.missAutopsy !== undefined}
                         <span
                           class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-                          title={forecast.missAutopsy.supportingSignals.join(
-                            "; ",
-                          ) || forecast.missAutopsy.rationale}
+                          title={forecast.missAutopsy.supportingSignals.join("; ") || forecast.missAutopsy.rationale}
                         >
                           AUTOPSY {forecast.missAutopsy.cause}
                         </span>
@@ -1199,17 +977,13 @@
                 </div>
                 <div class="mt-3.5 flex flex-col gap-2.5">
                   {#each splitGaps.shortfalls as gap}
-                    <div
-                      class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
-                    >
+                    <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
                       <span
                         class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
                       >
                         SHORTFALL
                       </span>
-                      <div
-                        class="font-serif text-sm leading-[1.55] text-[#4a4334]"
-                      >
+                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
                         {formatShortfallGap(gap)}
                       </div>
                     </div>
@@ -1228,17 +1002,13 @@
                 </div>
                 <div class="mt-3.5 flex flex-col gap-2.5">
                   {#each splitGaps.otherGaps as gap}
-                    <div
-                      class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
-                    >
+                    <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
                       <span
                         class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
                       >
                         GAP
                       </span>
-                      <div
-                        class="font-serif text-sm leading-[1.55] text-[#4a4334]"
-                      >
+                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
                         {gap}
                       </div>
                     </div>
@@ -1258,9 +1028,7 @@
         </article>
 
         <aside class="sticky top-6 hidden h-fit pt-1 xl:block">
-          <div class="font-mono text-[10px] tracking-[0.08em] text-[#a8acb1]">
-            ON THIS PAGE
-          </div>
+          <div class="font-mono text-[10px] tracking-[0.08em] text-[#a8acb1]">ON THIS PAGE</div>
           <div class="mt-2.5 flex flex-col gap-0.5 border-l border-border">
             {#each tocEntries as entry}
               <button
@@ -1272,11 +1040,8 @@
               </button>
             {/each}
           </div>
-          <div
-            class="mt-5.5 border-t border-border pt-3.5 text-[11.5px] text-[#5c6066]"
-          >
-            Every claim carries its source IDs. Hover a chip to preview; click
-            to open Sources.
+          <div class="mt-5.5 border-t border-border pt-3.5 text-[11.5px] text-[#5c6066]">
+            Every claim carries its source IDs. Hover a chip to preview; click to open Sources.
           </div>
         </aside>
       </div>
@@ -1294,9 +1059,7 @@
               <div>LINK</div>
             </div>
             {#if sourceItems.length === 0}
-              <div class="px-4.5 py-6 text-sm text-muted-foreground">
-                This run cites no normalized sources.
-              </div>
+              <div class="px-4.5 py-6 text-sm text-muted-foreground">This run cites no normalized sources.</div>
             {/if}
             {#each sourceItems as source}
               <div
@@ -1310,16 +1073,10 @@
                   ? 'bg-accent'
                   : 'bg-transparent'}"
               >
-                <div
-                  class="truncate font-mono text-[11.5px] font-medium text-primary"
-                  title={source.id}
-                >
+                <div class="truncate font-mono text-[11.5px] font-medium text-primary" title={source.id}>
                   {source.id}
                 </div>
-                <div
-                  class="truncate text-[12.5px] text-[#1f2225]"
-                  title={source.title}
-                >
+                <div class="truncate text-[12.5px] text-[#1f2225]" title={source.title}>
                   {source.title}
                 </div>
                 <div>
@@ -1351,9 +1108,7 @@
       </div>
     {:else if activeTab === "data"}
       <div class="mt-6">
-        <div
-          class="inline-flex overflow-hidden rounded-md border border-border bg-card"
-        >
+        <div class="inline-flex overflow-hidden rounded-md border border-border bg-card">
           {#each DATA_SEGMENTS as segment}
             <button
               class="border-r border-[#f0ede7] px-4 py-1.5 text-xs font-medium transition last:border-r-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {dataSegment ===
@@ -1368,19 +1123,14 @@
           {/each}
         </div>
         <div class="mt-3 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
-          <pre
-            class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{dataContent}</pre>
+          <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{dataContent}</pre>
         </div>
       </div>
     {:else if activeTab === "files"}
-      <div
-        class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]"
-      >
+      <div class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]">
         <div class="overflow-hidden rounded-lg border border-border bg-card">
           {#if detail.summary.availableFiles.length === 0}
-            <div class="px-3.5 py-5 text-sm text-muted-foreground">
-              No files on disk.
-            </div>
+            <div class="px-3.5 py-5 text-sm text-muted-foreground">No files on disk.</div>
           {/if}
           {#each detail.summary.availableFiles as file}
             <button
@@ -1392,8 +1142,7 @@
               onclick={() => onLoadFile(file)}
             >
               <span
-                class="block truncate font-mono text-[11.5px] {selectedFile ===
-                file
+                class="block truncate font-mono text-[11.5px] {selectedFile === file
                   ? 'text-primary'
                   : 'text-[#45494e]'}"
               >
@@ -1409,14 +1158,11 @@
             Select a file to view its contents
           </div>
         {:else}
-          <div
-            class="min-h-80 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5"
-          >
+          <div class="min-h-80 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
             <div class="mb-3 font-mono text-[10.5px] text-[#6e757d]">
               runs/{detail.summary.runId}/{selectedFile}
             </div>
-            <pre
-              class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{fileContent}</pre>
+            <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{fileContent}</pre>
           </div>
         {/if}
       </div>
@@ -1435,23 +1181,17 @@
       role="tooltip"
     >
       <div class="flex items-center gap-2">
-        <span
-          class="rounded border border-[#cfe0e3] bg-accent px-1.5 font-mono text-[10px] text-primary"
-        >
+        <span class="rounded border border-[#cfe0e3] bg-accent px-1.5 font-mono text-[10px] text-primary">
           {cite.id}
         </span>
         <span class="font-mono text-[10px] text-muted-foreground">
           {cite.kind} · {cite.provider}
         </span>
       </div>
-      <div
-        class="mt-2 text-[12.5px] font-medium leading-snug text-popover-foreground"
-      >
+      <div class="mt-2 text-[12.5px] font-medium leading-snug text-popover-foreground">
         {cite.title}
       </div>
-      <div class="mt-2 text-[11px] text-muted-foreground">
-        Click chip to open in Sources
-      </div>
+      <div class="mt-2 text-[11px] text-muted-foreground">Click chip to open in Sources</div>
     </div>
   {/if}
 {/if}

@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 
 interface FactOverrides {
-  readonly form?: "10-K" | "10-Q";
+  readonly form?: "10-K" | "10-Q" | "20-F" | "6-K";
   readonly fp?: string;
   readonly fy?: number;
   readonly filed?: string;
@@ -23,7 +25,9 @@ function fact(val: number, overrides: FactOverrides = {}): Record<string, unknow
   };
 }
 
-function annualFacts(values: readonly number[] = [100, 120, 150]): readonly unknown[] {
+function annualFacts(
+  values: readonly number[] = [100, 120, 150],
+): readonly Record<string, unknown>[] {
   return values.map((value, index) => {
     const fy = 2022 + index;
     return fact(value, {
@@ -87,6 +91,20 @@ function derive(companyFacts: unknown, analysisAsOf = "2025-08-01T00:00:00.000Z"
 
 function noteStartsWith(notes: readonly string[], prefix: string): boolean {
   return notes.some((note) => note.startsWith(prefix));
+}
+
+function comparableHistoryValues(history: ReturnType<typeof deriveFundamentalHistory>) {
+  return Object.fromEntries(
+    Object.entries(history.series).map(([key, series]) => [
+      key,
+      {
+        annual: series.annual,
+        ttm: series.ttm,
+        cagr: series.cagr,
+        marginChange: series.marginChange,
+      },
+    ]),
+  );
 }
 
 describe("fundamental history", () => {
@@ -241,5 +259,54 @@ describe("fundamental history", () => {
 
     expect(history.series.revenue.annual.at(-1)?.value).toBe(140);
     expect(noteStartsWith(history.series.revenue.notes, "annual:excluded-as-of:")).toBe(true);
+  });
+
+  test("projects populated canonical statements with legacy value parity", () => {
+    const companyFacts = payload({
+      Revenues: { facts: [...annualFacts(), priorYtd(), latestYtd()] },
+      GrossProfit: { facts: [...annualFacts([40, 50, 60]), priorYtd(), latestYtd()] },
+      OperatingIncomeLoss: { facts: [...annualFacts([20, 25, 30]), priorYtd(), latestYtd()] },
+      NetIncomeLoss: { facts: [...annualFacts([15, 18, 21]), priorYtd(), latestYtd()] },
+      EarningsPerShareDiluted: {
+        unit: "USD/shares",
+        facts: [...annualFacts([2, 2.5, 3]), priorYtd(), latestYtd()],
+      },
+      NetCashProvidedByUsedInOperatingActivities: {
+        facts: [...annualFacts([50, 60, 70]), priorYtd(), latestYtd()],
+      },
+      PaymentsToAcquirePropertyPlantAndEquipment: {
+        facts: [...annualFacts([10, 12, 15]), priorYtd(), latestYtd()],
+      },
+    });
+    const legacy = derive(companyFacts);
+    const canonical = deriveFinancialStatements(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2025-08-01T00:00:00.000Z",
+      analysisAsOf: "2025-08-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const migrated = deriveFundamentalHistoryFromFinancialStatements(canonical);
+    expect(comparableHistoryValues(migrated)).toEqual(comparableHistoryValues(legacy));
+  });
+
+  test("projects 20-F annual history from canonical statements", () => {
+    const companyFacts = payload({
+      Revenues: {
+        facts: annualFacts().map((entry) => ({
+          ...entry,
+          form: "20-F",
+        })),
+      },
+    });
+    const canonical = deriveFinancialStatements(companyFacts, {
+      symbol: "FPI",
+      generatedAt: "2025-08-01T00:00:00.000Z",
+      analysisAsOf: "2025-08-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-fpi-fundamentals",
+    });
+    const migrated = deriveFundamentalHistoryFromFinancialStatements(canonical);
+
+    expect(migrated.series.revenue.annual).toHaveLength(3);
+    expect(migrated.series.revenue.annual.every((point) => point.form === "20-F")).toBe(true);
   });
 });

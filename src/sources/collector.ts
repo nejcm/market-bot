@@ -29,6 +29,7 @@ import {
   collectFundamentalHistory,
   type FundamentalHistoryArtifact,
 } from "./extended-evidence/fundamental-history";
+import { deriveFundamentalHistoryFromFinancialStatements } from "./extended-evidence/fundamental-history-canonical";
 import { collectFinancialStatements } from "./extended-evidence/financial-statements";
 import { attachFinancialStatementParity } from "./extended-evidence/financial-statements-parity";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
@@ -613,7 +614,7 @@ async function collectEquityEnrichment(
     input.command.symbol,
     input.identityContext.instrumentIdentity,
   );
-  const [fundamentalHistory, financialStatementsWithoutParity]: readonly [
+  const [legacyFundamentalHistory, financialStatementsWithoutParity]: readonly [
     FundamentalHistoryArtifact | undefined,
     FinancialStatementsArtifact | undefined,
   ] = collectStructuredSec
@@ -633,11 +634,17 @@ async function collectEquityEnrichment(
     financialStatementsWithoutParity === undefined
       ? undefined
       : attachFinancialStatementParity(financialStatementsWithoutParity, {
-          ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
+          ...(legacyFundamentalHistory !== undefined
+            ? { fundamentalHistory: legacyFundamentalHistory }
+            : {}),
           ...(financialLensResult.artifact !== undefined
             ? { financialLenses: financialLensResult.artifact }
             : {}),
         });
+  const fundamentalHistory =
+    financialStatements === undefined
+      ? legacyFundamentalHistory
+      : deriveFundamentalHistoryFromFinancialStatements(financialStatements);
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
     input.marketSnapshots,

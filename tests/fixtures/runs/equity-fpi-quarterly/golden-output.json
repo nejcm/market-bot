@@ -2713,45 +2713,237 @@
           "key": "revenue",
           "label": "Revenue",
           "unit": "currency",
-          "annual": [],
-          "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
-            "cagr:insufficient-points: no annual points"
-          ]
+          "concept": "Revenues",
+          "annual": [
+            {
+              "value": 1000000000,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 1200000000,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 1500000000,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 1620000000,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "cagr": {
+            "percent": 22.456995602726117,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         },
         "grossProfit": {
           "key": "grossProfit",
           "label": "Gross profit",
           "unit": "currency",
-          "annual": [],
-          "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
-            "cagr:insufficient-points: no annual points"
-          ]
+          "concept": "GrossProfit",
+          "annual": [
+            {
+              "value": 850000000,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 1020000000,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 1275000000,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 1377000000,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "cagr": {
+            "percent": 22.456995602726117,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         },
         "operatingIncome": {
           "key": "operatingIncome",
           "label": "Operating income",
           "unit": "currency",
-          "annual": [],
-          "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
-            "cagr:insufficient-points: no annual points"
-          ]
+          "concept": "OperatingIncomeLoss",
+          "annual": [
+            {
+              "value": 700000000,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 840000000,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 1049999999.9999999,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 1134000000,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "cagr": {
+            "percent": 22.456995602726092,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         },
         "netIncome": {
           "key": "netIncome",
           "label": "Net income",
           "unit": "currency",
-          "annual": [],
-          "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
-            "cagr:insufficient-points: no annual points"
-          ]
+          "concept": "NetIncomeLoss",
+          "annual": [
+            {
+              "value": 550000000,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 660000000,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 825000000.0000001,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 891000000.0000001,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "cagr": {
+            "percent": 22.456995602726117,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         },
         "dilutedEps": {
           "key": "dilutedEps",
@@ -2759,8 +2951,8 @@
           "unit": "per-share",
           "annual": [],
           "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "annual:missing-concept: no canonical annual facts found",
+            "ttm:unreconciled: canonical TTM is unavailable",
             "cagr:insufficient-points: no annual points"
           ]
         },
@@ -2770,8 +2962,8 @@
           "unit": "currency",
           "annual": [],
           "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "annual:missing-concept: no canonical annual facts found",
+            "ttm:unreconciled: canonical TTM is unavailable",
             "cagr:insufficient-points: no annual points"
           ]
         },
@@ -2781,8 +2973,8 @@
           "unit": "currency",
           "annual": [],
           "notes": [
-            "annual:missing-concept: no SEC facts found for the ordered concept list",
-            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "annual:missing-concept: no canonical annual facts found",
+            "ttm:unreconciled: canonical TTM is unavailable",
             "cagr:insufficient-points: no annual points"
           ]
         },
@@ -2800,31 +2992,175 @@
           "key": "grossMargin",
           "label": "Gross margin",
           "unit": "ratio",
-          "annual": [],
-          "notes": [
-            "ttm:missing-component: both component TTM points are required",
-            "margin-change:insufficient-points: at least two matched annual points are required"
-          ]
+          "annual": [
+            {
+              "value": 0.85,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 0.85,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 0.85,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 0.85,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "marginChange": {
+            "percentagePoints": 0,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         },
         "operatingMargin": {
           "key": "operatingMargin",
           "label": "Operating margin",
           "unit": "ratio",
-          "annual": [],
-          "notes": [
-            "ttm:missing-component: both component TTM points are required",
-            "margin-change:insufficient-points: at least two matched annual points are required"
-          ]
+          "annual": [
+            {
+              "value": 0.7,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 0.7,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 0.7,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 0.7,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "marginChange": {
+            "percentagePoints": 0,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         },
         "netMargin": {
           "key": "netMargin",
           "label": "Net margin",
           "unit": "ratio",
-          "annual": [],
-          "notes": [
-            "ttm:missing-component: both component TTM points are required",
-            "margin-change:insufficient-points: at least two matched annual points are required"
-          ]
+          "annual": [
+            {
+              "value": 0.55,
+              "form": "20-F",
+              "fy": 2023,
+              "fp": "FY",
+              "periodStart": "2023-01-01",
+              "periodEnd": "2023-12-31",
+              "periodMonths": 12,
+              "filedAt": "2024-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 0.55,
+              "form": "20-F",
+              "fy": 2024,
+              "fp": "FY",
+              "periodStart": "2024-01-01",
+              "periodEnd": "2024-12-31",
+              "periodMonths": 12,
+              "filedAt": "2025-03-15",
+              "currency": "USD"
+            },
+            {
+              "value": 0.55,
+              "form": "20-F",
+              "fy": 2025,
+              "fp": "FY",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12,
+              "filedAt": "2026-03-15",
+              "currency": "USD"
+            }
+          ],
+          "ttm": {
+            "value": 0.55,
+            "form": "TTM",
+            "fy": 2026,
+            "fp": "TTM",
+            "periodStart": "2025-04-01",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12,
+            "filedAt": "2026-05-10",
+            "currency": "USD"
+          },
+          "marginChange": {
+            "percentagePoints": 0,
+            "years": 2.001410022108599,
+            "periodStart": "2023-12-31",
+            "periodEnd": "2025-12-31"
+          },
+          "notes": []
         }
       }
     },

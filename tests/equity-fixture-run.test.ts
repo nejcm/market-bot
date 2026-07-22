@@ -188,8 +188,7 @@ function populatedFinancialHistoryCount(result: RunFixtureResult): number {
   ).length;
 }
 
-function assertCurrentFpiGap(result: RunFixtureResult, symbol: string): void {
-  expect(populatedFinancialHistoryCount(result)).toBe(0);
+function assertLegacyFpiSourceGap(result: RunFixtureResult, symbol: string): void {
   expect(
     result.collectedSources.sourceGaps.some(
       (gap) =>
@@ -284,7 +283,8 @@ describe("static equity run fixtures", () => {
       if (name === "equity-nbis-deep") {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
-        assertCurrentFpiGap(result, "NBIS");
+        assertLegacyFpiSourceGap(result, "NBIS");
+        expect(populatedFinancialHistoryCount(result)).toBe(9);
         await assertNbisUnsupportedInputs();
         expect(result.collectedSources.financialStatements).toMatchObject({
           taxonomy: "us-gaap",
@@ -321,7 +321,8 @@ describe("static equity run fixtures", () => {
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
         expect([...factForms(result)]).toEqual(expect.arrayContaining(["20-F", "6-K"]));
-        assertCurrentFpiGap(result, "FPIQ");
+        assertLegacyFpiSourceGap(result, "FPIQ");
+        expect(populatedFinancialHistoryCount(result)).toBe(7);
         expect(result.collectedSources.financialStatements).toMatchObject({
           taxonomy: "us-gaap",
           reportingCurrency: "USD",
@@ -343,7 +344,8 @@ describe("static equity run fixtures", () => {
       if (name === "equity-fpi-ifrs-semiannual") {
         expect(factTaxonomies(result)).toEqual(["ifrs-full"]);
         expect([...factForms(result)]).toEqual(expect.arrayContaining(["20-F", "6-K"]));
-        assertCurrentFpiGap(result, "IFRSSA");
+        assertLegacyFpiSourceGap(result, "IFRSSA");
+        expect(populatedFinancialHistoryCount(result)).toBe(7);
         expect(result.collectedSources.financialStatements).toMatchObject({
           taxonomy: "ifrs-full",
           reportingCurrency: "USD",

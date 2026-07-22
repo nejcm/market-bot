@@ -91,6 +91,7 @@ export interface FinancialTableMappingOutput {
 }
 
 export type FinancialTableValidationCode =
+  | "unsupported-source-layout"
   | "invalid-model-output"
   | "missing-cell-reference"
   | "cross-table-reference"

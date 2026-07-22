@@ -74,7 +74,10 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
     /\bexchange rate changes.*cash/iu,
   ],
 };
-const SEMANTIC_FIELDS = new Set(Object.keys(FIELD_ALIASES));
+export const FINANCIAL_TABLE_SEMANTIC_FIELDS = Object.freeze(
+  Object.keys(FIELD_ALIASES) as FinancialTableSemanticField[],
+);
+const SEMANTIC_FIELD_SET = new Set(FINANCIAL_TABLE_SEMANTIC_FIELDS);
 const VALIDATION_FIELDS = new Set<FinancialTableSemanticField>([
   "cashBeginning",
   "cashEnding",
@@ -117,7 +120,7 @@ function mappingEntry(value: unknown): FinancialTableCellMapping | undefined {
   const headers = value.periodHeaderCellRefs;
   if (
     field === undefined ||
-    !SEMANTIC_FIELDS.has(field) ||
+    !SEMANTIC_FIELD_SET.has(field as FinancialTableSemanticField) ||
     labelCellRef === undefined ||
     valueCellRef === undefined ||
     !Array.isArray(headers) ||

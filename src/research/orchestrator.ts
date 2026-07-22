@@ -3,7 +3,7 @@ import { readCodeVersion } from "../code-version";
 import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import {
   isMarketUpdateJobType,
@@ -81,6 +81,13 @@ import {
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
 import { buildRunTrace } from "./run-trace";
+import { createSourceRequestContext } from "../sources/source-request";
+import {
+  runFinancialTableExtractionPhase,
+  type FinancialTableExtractionPhaseResult,
+} from "./financial-table-extraction-phase";
+import type { FinancialTablePacket } from "../sources/extended-evidence/untagged-financial-tables-contract";
+import { FINANCIAL_TABLE_SEMANTIC_FIELDS } from "../sources/extended-evidence/untagged-financial-table-validation";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -219,6 +226,63 @@ async function runModelStage(
       : {}),
     ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
     ...(steering !== undefined ? { steering } : {}),
+  };
+}
+
+async function runFinancialTableMappingStage(
+  packet: FinancialTablePacket,
+  filingReportDate: string,
+  job: RunResearchJobInput,
+  runParams: ResolvedRunParams,
+): Promise<StageOutput & { readonly stage: "financial-table-mapping" }> {
+  const loaded = await loadStagePrompt(
+    "financial-table-mapping",
+    job.command,
+    job.config.promptDir,
+  );
+  const prompt = JSON.stringify({
+    stage: "financial-table-mapping",
+    instruction: loaded.instruction,
+    goal: loaded.goal,
+    filing: packet.source,
+    filingReportDate,
+    allowedFields: FINANCIAL_TABLE_SEMANTIC_FIELDS,
+    tables: packet.tables.map((table) => ({
+      id: table.id,
+      sourceTableIndex: table.sourceTableIndex,
+      context: table.context,
+      ...(table.title !== undefined ? { title: table.title } : {}),
+      ...(table.unitText !== undefined ? { unitText: table.unitText } : {}),
+      rows: table.rows.map((row) => ({
+        rowIndex: row.rowIndex,
+        cells: row.cells.map((cell) => ({
+          ref: cell.ref,
+          text: cell.text,
+          headerRefs: cell.headerRefs,
+        })),
+      })),
+    })),
+  });
+  const startedAt = performance.now();
+  const response = await job.provider.generate({
+    model: runParams.quickModel,
+    ...(runParams.modelParams !== undefined ? { params: runParams.modelParams } : {}),
+    responseFormat: "json",
+    messages: [
+      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
+      { role: "user", content: prompt },
+    ],
+  });
+  const endedAt = performance.now();
+  return {
+    stage: "financial-table-mapping",
+    content: response.content,
+    tokenEstimate: response.tokenEstimate,
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
+    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
   };
 }
 
@@ -449,6 +513,44 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       }) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
+  let financialTableExtraction: FinancialTableExtractionPhaseResult = {
+    collectedSources,
+    stageOutputs: [],
+  };
+  if (
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    collectedSources.financialStatements?.structuredFinancialGaps.some(
+      (gap) => gap.code === "untagged-6-k",
+    ) === true
+  ) {
+    const requestContext = createSourceRequestContext(
+      input.config.sourceOptions,
+      now,
+      input.sourceFetchImpl ?? fetch,
+      input.sourceRetryDelaysMs,
+    );
+    financialTableExtraction = await runFinancialTableExtractionPhase({
+      symbol: command.symbol,
+      generatedAt,
+      collectedSources,
+      collect: {
+        request: requestContext.request,
+        ...(input.config.sourceOptions.secUserAgent !== undefined
+          ? { secUserAgent: input.config.sourceOptions.secUserAgent }
+          : {}),
+      },
+      generateMapping: (packet, filingReportDate) =>
+        runFinancialTableMappingStage(packet, filingReportDate, jobInput, runParams),
+    });
+    collectedSources = {
+      ...financialTableExtraction.collectedSources,
+      sourceGaps: [
+        ...financialTableExtraction.collectedSources.sourceGaps,
+        ...requestContext.staleFallbackGaps,
+      ],
+    };
+  }
   const webEvidence = await runWebEvidencePhase({
     command,
     config: input.config,
@@ -579,6 +681,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
+    ...financialTableExtraction.stageOutputs,
     ...webGatherLoop.stageOutputs,
     ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),

@@ -16,6 +16,7 @@ import {
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
 import { PE_NOT_MEANINGFUL } from "../src/sources/extended-evidence/value-format";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -266,6 +267,100 @@ describe("addFinancialLensEvidence", () => {
     expect(
       result.extendedEvidence?.items.find((i) => i.category === "financial-lens")?.summary,
     ).toContain("Revenue YoY 0.5%");
+  });
+
+  test("labels parent-attributable loss changes and discloses distinct consolidated income", () => {
+    const baseEvidence = evidence();
+    const attributedEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "sec-edgar"
+          ? {
+              ...item,
+              metrics: {
+                ...item.metrics,
+                netIncome: -20,
+                netIncomePrior: -10,
+                netIncomeDeltaPercent: -100,
+                consolidatedNetIncome: -18,
+                consolidatedNetIncomePeriodEnd: "2025-06-28",
+                consolidatedNetIncomePeriodMonths: 12,
+              },
+            }
+          : item,
+      ),
+    };
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      attributedEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Growth", "netIncomeDeltaPercent")).toMatchObject({
+      label: "Net loss (attrib.) YoY change",
+      value: -100,
+    });
+    expect(metricByKey(result, "Quality", "consolidatedNetIncome")).toMatchObject({
+      label: "Net income (consolidated incl. NCI)",
+      value: -18,
+      periodEnd: "2025-06-28",
+      periodMonths: 12,
+    });
+  });
+
+  test("describes widening parent-attributable losses in SEC summaries", () => {
+    const summary = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                {
+                  val: -20,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  start: "2026-01-01",
+                  end: "2026-03-31",
+                },
+                {
+                  val: -10,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2025,
+                  filed: "2025-05-01",
+                  start: "2025-01-01",
+                  end: "2025-03-31",
+                },
+              ],
+            },
+          },
+          ProfitLoss: {
+            units: {
+              USD: [
+                {
+                  val: -18,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  start: "2026-01-01",
+                  end: "2026-03-31",
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(summary?.summary).toContain(
+      "net income attributable to parent -20 (loss widened 100.0% YoY)",
+    );
+    expect(summary?.metrics.consolidatedNetIncome).toBe(-18);
   });
 
   test("returns evidence unchanged for non-equity / non-ticker commands", () => {

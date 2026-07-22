@@ -149,6 +149,16 @@ describe("business framework evidence", () => {
     ]);
   });
 
+  test("keeps lifecycle classification on parent-attributable net income", () => {
+    expect(
+      classifyBusinessLifecyclePhase({
+        revenueDeltaPercent: 20,
+        operatingIncome: 0,
+        netIncome: -1,
+      }),
+    ).toBe("startup");
+  });
+
   test("renders not-meaningful revenue supportability as a Valuation-section caveat", () => {
     const baseEvidence = evidence();
     const result = addBusinessFrameworkEvidence(

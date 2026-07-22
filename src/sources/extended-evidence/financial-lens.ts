@@ -197,6 +197,7 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const grossProfit = readMetric(secItem?.metrics, "grossProfit");
   const operatingIncome = readMetric(secItem?.metrics, "operatingIncome");
   const netIncome = readMetric(secItem?.metrics, "netIncome");
+  const consolidatedNetIncome = readMetric(secItem?.metrics, "consolidatedNetIncome");
   const netIncomePeriodMonths = readMetric(secItem?.metrics, "netIncomePeriodMonths");
   const operatingCashFlow = readMetric(secItem?.metrics, "operatingCashFlow");
   const capex = readMetric(secItem?.metrics, "capex");
@@ -208,6 +209,10 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   // Annualized by net income's own periodMonths so a partial-year filing does not
   // Understate the return. See plan revision 2 / Q6.
   const annualizedNetIncome = annualize(netIncome, netIncomePeriodMonths);
+  const hasDistinctConsolidatedNetIncome =
+    netIncome !== undefined &&
+    consolidatedNetIncome !== undefined &&
+    consolidatedNetIncome !== netIncome;
   const metrics = [
     ...metric(
       "grossMargin",
@@ -265,6 +270,16 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
       sourceIds,
       secPeriod(secItem, "netIncome"),
     ),
+    ...(hasDistinctConsolidatedNetIncome
+      ? metric(
+          "consolidatedNetIncome",
+          "Net income (consolidated incl. NCI)",
+          consolidatedNetIncome,
+          "currency",
+          sourceIds,
+          secPeriod(secItem, "consolidatedNetIncome"),
+        )
+      : []),
   ];
   return {
     name: "Quality",
@@ -281,6 +296,7 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
 
 function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const sourceIds = secItem?.sourceIds ?? [];
+  const netIncomePrior = readMetric(secItem?.metrics, "netIncomePrior");
   const metrics = [
     ...metric(
       "revenueDeltaPercent",
@@ -308,7 +324,9 @@ function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
     ),
     ...metric(
       "netIncomeDeltaPercent",
-      "Net income YoY",
+      netIncomePrior !== undefined && netIncomePrior < 0
+        ? "Net loss (attrib.) YoY change"
+        : "Net income (attrib.) YoY",
       readMetric(secItem?.metrics, "netIncomeDeltaPercent"),
       "whole-percent",
       sourceIds,

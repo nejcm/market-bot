@@ -30,7 +30,9 @@ const baseExtendedEvidence: ExtendedEvidence = secEvidence({
   revenuePeriodMonths: 3,
   revenuePeriodEnd: "2026-06-29",
   cash: 30,
+  cashPeriodEnd: "2026-03-31",
   debt: 50,
+  debtPeriodEnd: "2026-03-31",
 });
 
 describe("addValuationEvidence", () => {
@@ -62,8 +64,11 @@ describe("addValuationEvidence", () => {
         enterpriseValue: 1020,
         latestPeriodRevenue: 100,
         annualizedRevenue: 400,
+        quoteObservedAt: "2026-05-19T00:00:00.000Z",
         revenuePeriodMonths: 3,
         revenuePeriodEnd: "2026-06-29",
+        cashPeriodEnd: "2026-03-31",
+        debtPeriodEnd: "2026-03-31",
         evToAnnualizedRevenue: 2.55,
         marketCapToAnnualizedRevenue: 2.5,
         debtToMarketCap: 0.05,
@@ -74,6 +79,19 @@ describe("addValuationEvidence", () => {
       "market cap $1.0K, enterprise value $1.0K, 3-month revenue $100, annualized revenue $400",
     );
     expect(valuation?.summary).toContain("EV/annualized revenue 2.55x");
+    expect(valuation?.summary).toContain("market cap as of 2026-05-19; cash/debt as of 2026-03-31");
+  });
+
+  test("clamps negative-zero valuation multiples", () => {
+    const result = addValuationEvidence(
+      command,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+      secEvidence({ revenue: 400, cash: 50.0001, debt: 50 }),
+    );
+
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+    expect(valuation?.summary).toContain("net debt/market cap 0.00x");
+    expect(valuation?.summary).not.toContain("-0.00x");
   });
 
   test("treats a full-year (12-month) latest revenue fact as already annual", () => {

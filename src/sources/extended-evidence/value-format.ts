@@ -2,7 +2,7 @@
 // (server) and the console tile renderer (client) so the two cannot drift.
 // Sits alongside percent-format.ts which holds the percent conventions.
 
-import { formatRatioPercent, formatWholePercent } from "./percent-format";
+import { clampRoundedZero, formatRatioPercent, formatWholePercent } from "./percent-format";
 
 export type LensValueUnit =
   | "ratio"
@@ -61,10 +61,10 @@ export function formatLensValue(value: number, unit: LensValueUnit, currency?: s
     return formatWholePercent(value);
   }
   if (unit === "ratio") {
-    return `${value.toFixed(2)}x`;
+    return `${clampRoundedZero(value, 2).toFixed(2)}x`;
   }
   if (unit === "currency") {
     return formatCurrency(value, currency);
   }
-  return value.toFixed(2);
+  return clampRoundedZero(value, 2).toFixed(2);
 }

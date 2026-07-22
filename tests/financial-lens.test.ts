@@ -10,13 +10,13 @@ import type {
 import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import {
   MIXED_PERIOD_METRIC,
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildYahooFundamentals } from "../src/sources/extended-evidence/yahoo-fundamentals";
-import { PE_NOT_MEANINGFUL } from "../src/sources/extended-evidence/value-format";
-import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { formatLensValue, PE_NOT_MEANINGFUL } from "../src/sources/extended-evidence/value-format";
 import { marketSnapshot, researchReport } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
@@ -189,6 +189,43 @@ describe("addFinancialLensEvidence", () => {
     const strength = result.artifact?.lenses.find((lens) => lens.name === "Financial Strength");
     expect(strength?.metrics.find((metric) => metric.key === "netDebt")).toBeUndefined();
     expect(strength?.metrics.find((metric) => metric.key === "netDebtToMarketCap")).toBeUndefined();
+  });
+
+  test("flags stale EV date mixing and clamps negative zero lens values", () => {
+    const baseEvidence = evidence();
+    const datedEvidence: ExtendedEvidence = {
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "valuation"
+          ? {
+              ...item,
+              metrics: {
+                ...item.metrics,
+                quoteObservedAt: "2026-06-21T00:00:00.000Z",
+                cashPeriodEnd: "2025-12-31",
+                debtPeriodEnd: "2025-12-31",
+              },
+            }
+          : item,
+      ),
+    };
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      datedEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Value", "evDateBasis")).toMatchObject({
+      label: "EV date basis",
+      value: "EV mixes market cap (quote 2026-06-21) with cash/debt (balance sheet 2025-12-31)",
+      unit: "text",
+    });
+    expect(formatLensValue(-0.000_01, "ratio")).toBe("0.00x");
+    expect(formatLensValue(-0.000_01, "number")).toBe("0.00");
+    expect(formatLensValue(-0.000_01, "ratio-percent")).toBe("0.0%");
+    expect(formatLensValue(-0.000_01, "whole-percent")).toBe("0.0%");
   });
 
   test("emits partial no-cap gap when derived inputs are missing", () => {

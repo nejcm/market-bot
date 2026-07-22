@@ -1,4 +1,5 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
+import { DAY_MS } from "../../config/shared";
 import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
@@ -8,7 +9,11 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
-import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
+import {
+  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
+  MIXED_PERIOD_METRIC,
+  REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+} from "./valuation-comps";
 import {
   formatLensValue,
   formatPeRatio,
@@ -185,6 +190,40 @@ function secPeriod(
 
 function observedPeriod(observedAt: string | undefined): Pick<FinancialLensMetric, "periodEnd"> {
   return observedAt === undefined ? {} : { periodEnd: observedAt };
+}
+
+function valuationDateBasisMetric(
+  valuationItem: ExtendedEvidenceItem | undefined,
+): readonly FinancialLensMetric[] {
+  const quoteObservedAt = readStringMetric(valuationItem?.metrics, "quoteObservedAt");
+  const cashPeriodEnd = readStringMetric(valuationItem?.metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(valuationItem?.metrics, "debtPeriodEnd");
+  const balanceSheetPeriodEnd =
+    cashPeriodEnd === debtPeriodEnd
+      ? cashPeriodEnd
+      : [cashPeriodEnd, debtPeriodEnd]
+          .filter((value): value is string => value !== undefined)
+          .toSorted()[0];
+  if (quoteObservedAt === undefined || balanceSheetPeriodEnd === undefined) {
+    return [];
+  }
+  const quoteDate = quoteObservedAt.slice(0, 10);
+  const divergenceDays =
+    Math.abs(Date.parse(quoteDate) - Date.parse(balanceSheetPeriodEnd)) / DAY_MS;
+  if (
+    !Number.isFinite(divergenceDays) ||
+    divergenceDays <= MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+  ) {
+    return [];
+  }
+  return metric(
+    "evDateBasis",
+    "EV date basis",
+    `EV mixes market cap (quote ${quoteDate}) with cash/debt (balance sheet ${balanceSheetPeriodEnd})`,
+    "text",
+    valuationItem?.sourceIds ?? [],
+    { periodEnd: balanceSheetPeriodEnd },
+  );
 }
 
 function percentChange(value: number | undefined): boolean | undefined {
@@ -571,6 +610,7 @@ function valueLens(
             valuationRevenuePeriod,
           )
         : []),
+      ...valuationDateBasisMetric(valuationItem),
       ...metric(
         "enterpriseValue",
         "Enterprise value",

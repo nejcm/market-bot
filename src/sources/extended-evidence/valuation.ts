@@ -6,6 +6,7 @@ import type {
   SourceGap,
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
+import { clampRoundedZero } from "./percent-format";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -57,7 +58,23 @@ function ratio(numerator: number, denominator: number): number | undefined {
 }
 
 function fixed(value: number | undefined): string {
-  return value === undefined ? "n/a" : `${value.toFixed(2)}x`;
+  return value === undefined ? "n/a" : `${clampRoundedZero(value, 2).toFixed(2)}x`;
+}
+
+function valuationDateBasis(
+  quoteObservedAt: string,
+  cashPeriodEnd: string | undefined,
+  debtPeriodEnd: string | undefined,
+): string {
+  const quoteDate = quoteObservedAt.slice(0, 10);
+  if (cashPeriodEnd !== undefined && cashPeriodEnd === debtPeriodEnd) {
+    return `market cap as of ${quoteDate}; cash/debt as of ${cashPeriodEnd}`;
+  }
+  return [
+    `market cap as of ${quoteDate}`,
+    ...(cashPeriodEnd !== undefined ? [`cash as of ${cashPeriodEnd}`] : []),
+    ...(debtPeriodEnd !== undefined ? [`debt as of ${debtPeriodEnd}`] : []),
+  ].join("; ");
 }
 
 function formatUsd(value: number): string {
@@ -130,6 +147,9 @@ export function addValuationEvidence(
   // A known period we treat it as already annual rather than risk ~4x inflation.
   const revenuePeriodMonths = readMetric(secItem.metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(secItem.metrics, "revenuePeriodEnd");
+  const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(secItem.metrics, "debtPeriodEnd");
+  const quoteObservedAt = snapshot.observedAt;
   const sic = readStringMetric(secItem.metrics, "sic");
   const sicDescription = readStringMetric(secItem.metrics, "sicDescription");
   const annualizationFactor =
@@ -152,7 +172,7 @@ export function addValuationEvidence(
       `Valuation Evidence: market cap ${formatUsd(marketCap)}, enterprise value ${formatUsd(enterpriseValue)}, ` +
       `${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, EV/annualized revenue ${fixed(evToAnnualizedRevenue)}, ` +
       `market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, ` +
-      `net debt/market cap ${fixed(netDebtToMarketCap)}.`,
+      `net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -163,8 +183,11 @@ export function addValuationEvidence(
       enterpriseValue,
       latestPeriodRevenue: revenue,
       annualizedRevenue,
+      quoteObservedAt,
       ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
       ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
+      ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
+      ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
       ...(sic !== undefined ? { sic } : {}),
       ...(sicDescription !== undefined ? { sicDescription } : {}),
       ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),

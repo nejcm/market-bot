@@ -340,6 +340,9 @@ describe("static equity run fixtures", () => {
           },
         });
         expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
+        expect(
+          result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),
+        ).toMatchObject({ posture: "criteria-supported" });
       }
       if (name === "equity-fpi-ifrs-semiannual") {
         expect(factTaxonomies(result)).toEqual(["ifrs-full"]);
@@ -361,6 +364,9 @@ describe("static equity run fixtures", () => {
           expect.objectContaining({ code: "unreconciled-ttm", seriesKey: "revenue" }),
         );
         expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
+        expect(
+          result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),
+        ).toMatchObject({ posture: "criteria-supported" });
       }
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result);

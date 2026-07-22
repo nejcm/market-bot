@@ -25,6 +25,7 @@ import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { isUsListing } from "./instrument-capability";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
+import { withCanonicalFinancialLensInputs } from "./extended-evidence/financial-lens-canonical";
 import {
   collectFundamentalHistory,
   type FundamentalHistoryArtifact,
@@ -623,7 +624,7 @@ async function collectEquityEnrichment(
         collectFinancialStatements(input.identityContext, input.command.symbol),
       ])
     : [undefined, undefined];
-  const financialLensResult = addFinancialLensEvidence(
+  const legacyFinancialLensResult = addFinancialLensEvidence(
     input.command,
     input.marketSnapshots,
     evidenceWithYahooFundamentals,
@@ -637,14 +638,24 @@ async function collectEquityEnrichment(
           ...(legacyFundamentalHistory !== undefined
             ? { fundamentalHistory: legacyFundamentalHistory }
             : {}),
-          ...(financialLensResult.artifact !== undefined
-            ? { financialLenses: financialLensResult.artifact }
+          ...(legacyFinancialLensResult.artifact !== undefined
+            ? { financialLenses: legacyFinancialLensResult.artifact }
             : {}),
         });
   const fundamentalHistory =
     financialStatements === undefined
       ? legacyFundamentalHistory
       : deriveFundamentalHistoryFromFinancialStatements(financialStatements);
+  const financialLensResult =
+    financialStatements === undefined
+      ? legacyFinancialLensResult
+      : addFinancialLensEvidence(
+          input.command,
+          input.marketSnapshots,
+          withCanonicalFinancialLensInputs(evidenceWithYahooFundamentals, financialStatements),
+          input.verifiedMarketSnapshot,
+          input.fetchedAt,
+        );
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
     input.marketSnapshots,

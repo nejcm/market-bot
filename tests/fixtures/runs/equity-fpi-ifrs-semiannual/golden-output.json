@@ -32,7 +32,7 @@
     "equityAnalysisCompleteness": {
       "version": 1,
       "financialCoreStatus": "complete",
-      "coverageLevel": "limited",
+      "coverageLevel": "substantial",
       "asOf": "2026-06-15T14:30:00.000Z",
       "dimensions": {
         "primaryFinancials": {
@@ -60,10 +60,10 @@
           "sourceIds": ["market-yahoo-equity-ifrssa"]
         },
         "operatingKpis": {
-          "status": "partial",
-          "reasonCodes": ["operating-kpi-evidence-missing"],
+          "status": "complete",
+          "reasonCodes": [],
           "asOf": "2026-06-15T14:30:00.000Z",
-          "sourceIds": []
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
         }
       }
     },
@@ -78,7 +78,7 @@
       "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
       "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
       "valuation: Valuation Evidence unavailable for IFRSSA: missing revenue, cash, debt",
-      "financial-lens: Financial Lens Evidence partial for IFRSSA: missing SEC fundamentals, valuation evidence",
+      "financial-lens: Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
       "business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
       "predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more"
     ],
@@ -302,14 +302,54 @@
           }
         },
         {
-          "category": "financial-lens",
-          "title": "IFRSSA Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
-          "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+          "category": "sec-edgar",
+          "title": "IFRSSA canonical financial statements",
+          "summary": "Canonical SEC financial statement inputs.",
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
-            "qualityPosture": "insufficient-data",
-            "growthPosture": "insufficient-data",
+            "revenue": 1500000000,
+            "revenuePeriodEnd": "2025-12-31",
+            "revenuePeriodMonths": 12,
+            "revenuePrior": 1200000000,
+            "revenueDeltaPercent": 25,
+            "grossProfit": 1275000000,
+            "grossProfitPeriodEnd": "2025-12-31",
+            "grossProfitPeriodMonths": 12,
+            "grossProfitPrior": 1020000000,
+            "grossProfitDeltaPercent": 25,
+            "operatingIncome": 1049999999.9999999,
+            "operatingIncomePeriodEnd": "2025-12-31",
+            "operatingIncomePeriodMonths": 12,
+            "operatingIncomePrior": 840000000,
+            "operatingIncomeDeltaPercent": 24.999999999999986,
+            "netIncome": 825000000.0000001,
+            "netIncomePeriodEnd": "2025-12-31",
+            "netIncomePeriodMonths": 12,
+            "netIncomePrior": 660000000,
+            "netIncomeDeltaPercent": 25.000000000000018
+          }
+        },
+        {
+          "category": "financial-lens",
+          "title": "IFRSSA Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
+          "sourceIds": [
+            "extended-sec-edgar-ifrssa-fundamentals",
+            "market-yahoo-equity-ifrssa",
+            "verified-snapshot-IFRSSA"
+          ],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "qualityPosture": "criteria-supported",
+            "grossMargin": 0.85,
+            "operatingMargin": 0.7,
+            "netMargin": 0.55,
+            "growthPosture": "criteria-supported",
+            "revenueDeltaPercent": 25,
+            "grossProfitDeltaPercent": 25,
+            "operatingIncomeDeltaPercent": 24.999999999999986,
+            "netIncomeDeltaPercent": 25.000000000000018,
             "financialStrengthPosture": "insufficient-data",
             "valuePosture": "insufficient-data",
             "peRatio": 31,
@@ -325,17 +365,21 @@
         {
           "category": "business-framework",
           "title": "IFRSSA Business Framework Evidence",
-          "summary": "Business Framework: Business insufficient-data; Phase classification (Phase operating-leverage); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
-          "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+          "summary": "Business Framework: Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B); Phase classification (Phase operating-leverage, Revenue YoY 25.0%); Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%); Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
+          "sourceIds": [
+            "extended-sec-edgar-ifrssa-fundamentals",
+            "market-yahoo-equity-ifrssa",
+            "verified-snapshot-IFRSSA"
+          ],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
             "phase": "operating-leverage",
-            "businessPosture": "insufficient-data",
-            "phasePosture": "insufficient-data",
-            "moatPosture": "insufficient-data",
-            "growthPosture": "insufficient-data",
+            "businessPosture": "criteria-supported",
+            "phasePosture": "criteria-supported",
+            "moatPosture": "criteria-supported",
+            "growthPosture": "criteria-supported",
             "managementPosture": "insufficient-data",
-            "riskPosture": "insufficient-data",
+            "riskPosture": "criteria-supported",
             "valuationPosture": "insufficient-data"
           }
         }
@@ -384,7 +428,7 @@
         },
         {
           "source": "financial-lens",
-          "message": "Financial Lens Evidence partial for IFRSSA: missing SEC fundamentals, valuation evidence",
+          "message": "Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
           "provider": "market-bot",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -421,7 +465,11 @@
       "businessFramework": {
         "version": 2,
         "phase": "operating-leverage",
-        "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+        "sourceIds": [
+          "extended-sec-edgar-ifrssa-fundamentals",
+          "market-yahoo-equity-ifrssa",
+          "verified-snapshot-IFRSSA"
+        ],
         "gaps": [
           {
             "code": "business-description",
@@ -475,10 +523,35 @@
         "sections": [
           {
             "name": "Business",
-            "posture": "insufficient-data",
-            "summary": "Business insufficient-data",
-            "metrics": [],
-            "sourceIds": [],
+            "posture": "criteria-supported",
+            "summary": "Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B)",
+            "metrics": [
+              {
+                "key": "revenue",
+                "label": "Revenue",
+                "value": 1500000000,
+                "unit": "currency",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+                "currency": "USD"
+              },
+              {
+                "key": "grossProfit",
+                "label": "Gross profit",
+                "value": 1275000000,
+                "unit": "currency",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+                "currency": "USD"
+              },
+              {
+                "key": "operatingIncome",
+                "label": "Operating income",
+                "value": 1049999999.9999999,
+                "unit": "currency",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+                "currency": "USD"
+              }
+            ],
+            "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
             "gaps": [
               {
                 "code": "business-description",
@@ -504,26 +577,51 @@
           },
           {
             "name": "Phase",
-            "posture": "insufficient-data",
-            "summary": "Phase classification (Phase operating-leverage)",
+            "posture": "criteria-supported",
+            "summary": "Phase classification (Phase operating-leverage, Revenue YoY 25.0%)",
             "metrics": [
               {
                 "key": "phase",
                 "label": "Phase",
                 "value": "operating-leverage",
                 "unit": "text",
-                "sourceIds": ["market-yahoo-equity-ifrssa"]
+                "sourceIds": [
+                  "extended-sec-edgar-ifrssa-fundamentals",
+                  "market-yahoo-equity-ifrssa"
+                ]
+              },
+              {
+                "key": "revenueDeltaPercent",
+                "label": "Revenue YoY",
+                "value": 25,
+                "unit": "whole-percent",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
               }
             ],
-            "sourceIds": ["market-yahoo-equity-ifrssa"],
+            "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"],
             "gaps": []
           },
           {
             "name": "Moat",
-            "posture": "insufficient-data",
-            "summary": "Moat insufficient-data",
-            "metrics": [],
-            "sourceIds": [],
+            "posture": "criteria-supported",
+            "summary": "Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%)",
+            "metrics": [
+              {
+                "key": "grossMargin",
+                "label": "Gross margin",
+                "value": 0.85,
+                "unit": "ratio-percent",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "key": "operatingMargin",
+                "label": "Operating margin",
+                "value": 0.7,
+                "unit": "ratio-percent",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
             "gaps": [
               {
                 "code": "segment-mix",
@@ -545,10 +643,32 @@
           },
           {
             "name": "Growth",
-            "posture": "insufficient-data",
-            "summary": "Growth insufficient-data",
-            "metrics": [],
-            "sourceIds": [],
+            "posture": "criteria-supported",
+            "summary": "Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%)",
+            "metrics": [
+              {
+                "key": "revenueDeltaPercent",
+                "label": "Revenue YoY",
+                "value": 25,
+                "unit": "whole-percent",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "key": "operatingIncomeDeltaPercent",
+                "label": "Operating income YoY",
+                "value": 24.999999999999986,
+                "unit": "whole-percent",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              },
+              {
+                "key": "netIncomeDeltaPercent",
+                "label": "Net income YoY",
+                "value": 25.000000000000018,
+                "unit": "whole-percent",
+                "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+              }
+            ],
+            "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
             "gaps": [
               {
                 "code": "company-kpis",
@@ -579,10 +699,14 @@
           },
           {
             "name": "Risk",
-            "posture": "insufficient-data",
-            "summary": "Risk insufficient-data",
+            "posture": "criteria-supported",
+            "summary": "Risk criteria-supported",
             "metrics": [],
-            "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+            "sourceIds": [
+              "extended-sec-edgar-ifrssa-fundamentals",
+              "market-yahoo-equity-ifrssa",
+              "verified-snapshot-IFRSSA"
+            ],
             "gaps": [
               {
                 "code": "risk-factors",
@@ -663,7 +787,7 @@
     },
     "reportIntegrity": "high",
     "researchQuality": "medium",
-    "researchQualityDriver": "news lacks corroboration; regulatory filing evidence missing; remediation: add a second current news source or rerun; configure SEC access or rerun after filings are available"
+    "researchQualityDriver": "news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings"
   },
   "analytics": {
     "version": 2,
@@ -897,11 +1021,11 @@
           {
             "capability": "regulatory-filings",
             "evidenceClass": "material",
-            "coverage": "fail",
-            "freshness": "not-applicable",
+            "coverage": "pass",
+            "freshness": "fail",
             "corroboration": "not-applicable",
             "passed": false,
-            "reasons": ["regulatory-filings: evidence missing or unusable"]
+            "reasons": ["regulatory-filings: freshness check failed"]
           },
           {
             "capability": "corporate-events",
@@ -960,7 +1084,7 @@
         ],
         "limitingReasons": [
           "news: corroboration check failed",
-          "regulatory-filings: evidence missing or unusable",
+          "regulatory-filings: freshness check failed",
           "corporate-events: evidence missing or unusable",
           "macro-indicators: evidence missing or unusable",
           "target-valuation: evidence missing or unusable"
@@ -968,10 +1092,11 @@
       },
       "dataGapCount": 13,
       "extendedEvidence": {
-        "itemCount": 3,
+        "itemCount": 4,
         "gapCount": 8,
         "itemsByCategory": {
           "yahoo-fundamentals": 1,
+          "sec-edgar": 1,
           "financial-lens": 1,
           "business-framework": 1
         },
@@ -1043,13 +1168,13 @@
       "supplementalLaneCount": 4
     },
     "evidenceLanes": {
-      "coveredLaneCount": 3,
-      "gapLaneCount": 8,
+      "coveredLaneCount": 4,
+      "gapLaneCount": 7,
       "coreGapLaneCount": 0,
-      "materialGapLaneCount": 4,
-      "sourceCount": 9,
+      "materialGapLaneCount": 3,
+      "sourceCount": 10,
       "gapCount": 11,
-      "coverageRatio": 0.2727272727272727
+      "coverageRatio": 0.36363636363636365
     },
     "calibrationAtGeneration": {
       "generatedAt": "<generatedAt>",
@@ -1148,7 +1273,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# IFRSSA equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence missing; remediation: add a second current news source or rerun; configure SEC access or rerun after filings are available\n\n## Summary\n\nFixture IFRS Semiannual plc synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- IFRSSA has deterministic market and verified close evidence. [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-ifrssa]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** IFRSSA remains within the deterministic fixture evidence envelope. [market-yahoo-equity-ifrssa]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (insufficient-data): Business insufficient-data\n- **Phase**: Phase classification \\(Phase operating-leverage\\) [market-yahoo-equity-ifrssa]\n- **Moat** (insufficient-data): Moat insufficient-data\n- **Growth** (insufficient-data): Growth insufficient-data\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (insufficient-data): Risk insufficient-data [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-ifrssa]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **IFRSSA Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-ifrssa]\n- **IFRSSA Financial Lens Evidence:** Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **IFRSSA Business Framework Evidence:** Business Framework: Business insufficient-data; Phase classification \\(Phase operating-leverage\\); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for IFRSSA\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for IFRSSA\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for IFRSSA: target valuation unavailable\n- sec-edgar: IFRSSA files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for IFRSSA: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for IFRSSA: missing SEC fundamentals, valuation evidence\n- business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-ifrssa] IFRSSA market snapshot\n- [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- 8 uncited normalized source(s) omitted from markdown (sec-edgar/extended-evidence:1, yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "markdown": "# IFRSSA equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture IFRS Semiannual plc synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- IFRSSA has deterministic market and verified close evidence. [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-ifrssa]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** IFRSSA remains within the deterministic fixture evidence envelope. [market-yahoo-equity-ifrssa]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\) [market-yahoo-equity-ifrssa]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **IFRSSA Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-ifrssa]\n- **IFRSSA canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income \\(attrib.\\) YoY 25.0%\\); Financial Strength insufficient-data; Value insufficient-data \\(PE 31.00x, Forward PE 28.00x, Price/book 45.00x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **IFRSSA Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data \\(Trailing PE 31.00x, Forward PE 28.00x\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for IFRSSA\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for IFRSSA\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for IFRSSA: target valuation unavailable\n- sec-edgar: IFRSSA files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for IFRSSA: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for IFRSSA: missing valuation evidence\n- business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-ifrssa] IFRSSA market snapshot\n- [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-ifrssa-fundamentals] IFRSSA canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -1158,10 +1283,35 @@
       "sections": [
         {
           "name": "Business",
-          "posture": "insufficient-data",
-          "summary": "Business insufficient-data",
-          "metrics": [],
-          "sourceIds": [],
+          "posture": "criteria-supported",
+          "summary": "Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B)",
+          "metrics": [
+            {
+              "key": "revenue",
+              "label": "Revenue",
+              "value": 1500000000,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "currency": "USD"
+            },
+            {
+              "key": "grossProfit",
+              "label": "Gross profit",
+              "value": 1275000000,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "currency": "USD"
+            },
+            {
+              "key": "operatingIncome",
+              "label": "Operating income",
+              "value": 1049999999.9999999,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "currency": "USD"
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
           "gaps": [
             {
               "code": "business-description",
@@ -1187,26 +1337,48 @@
         },
         {
           "name": "Phase",
-          "posture": "insufficient-data",
-          "summary": "Phase classification (Phase operating-leverage)",
+          "posture": "criteria-supported",
+          "summary": "Phase classification (Phase operating-leverage, Revenue YoY 25.0%)",
           "metrics": [
             {
               "key": "phase",
               "label": "Phase",
               "value": "operating-leverage",
               "unit": "text",
-              "sourceIds": ["market-yahoo-equity-ifrssa"]
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"]
+            },
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 25,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
             }
           ],
-          "sourceIds": ["market-yahoo-equity-ifrssa"],
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"],
           "gaps": []
         },
         {
           "name": "Moat",
-          "posture": "insufficient-data",
-          "summary": "Moat insufficient-data",
-          "metrics": [],
-          "sourceIds": [],
+          "posture": "criteria-supported",
+          "summary": "Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%)",
+          "metrics": [
+            {
+              "key": "grossMargin",
+              "label": "Gross margin",
+              "value": 0.85,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+            },
+            {
+              "key": "operatingMargin",
+              "label": "Operating margin",
+              "value": 0.7,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
           "gaps": [
             {
               "code": "segment-mix",
@@ -1228,10 +1400,32 @@
         },
         {
           "name": "Growth",
-          "posture": "insufficient-data",
-          "summary": "Growth insufficient-data",
-          "metrics": [],
-          "sourceIds": [],
+          "posture": "criteria-supported",
+          "summary": "Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%)",
+          "metrics": [
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 25,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+            },
+            {
+              "key": "operatingIncomeDeltaPercent",
+              "label": "Operating income YoY",
+              "value": 24.999999999999986,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+            },
+            {
+              "key": "netIncomeDeltaPercent",
+              "label": "Net income YoY",
+              "value": 25.000000000000018,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
           "gaps": [
             {
               "code": "company-kpis",
@@ -1262,10 +1456,14 @@
         },
         {
           "name": "Risk",
-          "posture": "insufficient-data",
-          "summary": "Risk insufficient-data",
+          "posture": "criteria-supported",
+          "summary": "Risk criteria-supported",
           "metrics": [],
-          "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+          "sourceIds": [
+            "extended-sec-edgar-ifrssa-fundamentals",
+            "market-yahoo-equity-ifrssa",
+            "verified-snapshot-IFRSSA"
+          ],
           "gaps": [
             {
               "code": "risk-factors",
@@ -1301,7 +1499,11 @@
           "gaps": []
         }
       ],
-      "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+      "sourceIds": [
+        "extended-sec-edgar-ifrssa-fundamentals",
+        "market-yahoo-equity-ifrssa",
+        "verified-snapshot-IFRSSA"
+      ],
       "gaps": [
         {
           "code": "business-description",
@@ -1409,8 +1611,8 @@
         {
           "lane": "regulatory-filings",
           "evidenceClass": "material",
-          "status": "gap",
-          "coveredSourceIds": [],
+          "status": "covered",
+          "coveredSourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
           "gapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"],
           "gapText": [
             "sec-edgar: No SEC company facts found for IFRSSA",
@@ -1484,13 +1686,13 @@
         "coreLaneCount": 2,
         "materialLaneCount": 5,
         "supplementalLaneCount": 4,
-        "coveredLaneCount": 3,
-        "gapLaneCount": 8,
+        "coveredLaneCount": 4,
+        "gapLaneCount": 7,
         "coreGapLaneCount": 0,
-        "materialGapLaneCount": 4,
-        "sourceCount": 9,
+        "materialGapLaneCount": 3,
+        "sourceCount": 10,
         "gapCount": 11,
-        "coverageRatio": 0.2727272727272727
+        "coverageRatio": 0.36363636363636365
       }
     },
     "extended-evidence.json": {
@@ -1526,14 +1728,54 @@
           }
         },
         {
-          "category": "financial-lens",
-          "title": "IFRSSA Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
-          "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+          "category": "sec-edgar",
+          "title": "IFRSSA canonical financial statements",
+          "summary": "Canonical SEC financial statement inputs.",
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
-            "qualityPosture": "insufficient-data",
-            "growthPosture": "insufficient-data",
+            "revenue": 1500000000,
+            "revenuePeriodEnd": "2025-12-31",
+            "revenuePeriodMonths": 12,
+            "revenuePrior": 1200000000,
+            "revenueDeltaPercent": 25,
+            "grossProfit": 1275000000,
+            "grossProfitPeriodEnd": "2025-12-31",
+            "grossProfitPeriodMonths": 12,
+            "grossProfitPrior": 1020000000,
+            "grossProfitDeltaPercent": 25,
+            "operatingIncome": 1049999999.9999999,
+            "operatingIncomePeriodEnd": "2025-12-31",
+            "operatingIncomePeriodMonths": 12,
+            "operatingIncomePrior": 840000000,
+            "operatingIncomeDeltaPercent": 24.999999999999986,
+            "netIncome": 825000000.0000001,
+            "netIncomePeriodEnd": "2025-12-31",
+            "netIncomePeriodMonths": 12,
+            "netIncomePrior": 660000000,
+            "netIncomeDeltaPercent": 25.000000000000018
+          }
+        },
+        {
+          "category": "financial-lens",
+          "title": "IFRSSA Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength insufficient-data; Value insufficient-data (PE 31.00x, Forward PE 28.00x, Price/book 45.00x); Momentum criteria-mixed (Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00).",
+          "sourceIds": [
+            "extended-sec-edgar-ifrssa-fundamentals",
+            "market-yahoo-equity-ifrssa",
+            "verified-snapshot-IFRSSA"
+          ],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "qualityPosture": "criteria-supported",
+            "grossMargin": 0.85,
+            "operatingMargin": 0.7,
+            "netMargin": 0.55,
+            "growthPosture": "criteria-supported",
+            "revenueDeltaPercent": 25,
+            "grossProfitDeltaPercent": 25,
+            "operatingIncomeDeltaPercent": 24.999999999999986,
+            "netIncomeDeltaPercent": 25.000000000000018,
             "financialStrengthPosture": "insufficient-data",
             "valuePosture": "insufficient-data",
             "peRatio": 31,
@@ -1549,17 +1791,21 @@
         {
           "category": "business-framework",
           "title": "IFRSSA Business Framework Evidence",
-          "summary": "Business Framework: Business insufficient-data; Phase classification (Phase operating-leverage); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
-          "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"],
+          "summary": "Business Framework: Business criteria-supported (Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B); Phase classification (Phase operating-leverage, Revenue YoY 25.0%); Moat criteria-supported (Gross margin 85.0%, Operating margin 70.0%); Growth criteria-supported (Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x).",
+          "sourceIds": [
+            "extended-sec-edgar-ifrssa-fundamentals",
+            "market-yahoo-equity-ifrssa",
+            "verified-snapshot-IFRSSA"
+          ],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
             "phase": "operating-leverage",
-            "businessPosture": "insufficient-data",
-            "phasePosture": "insufficient-data",
-            "moatPosture": "insufficient-data",
-            "growthPosture": "insufficient-data",
+            "businessPosture": "criteria-supported",
+            "phasePosture": "criteria-supported",
+            "moatPosture": "criteria-supported",
+            "growthPosture": "criteria-supported",
             "managementPosture": "insufficient-data",
-            "riskPosture": "insufficient-data",
+            "riskPosture": "criteria-supported",
             "valuationPosture": "insufficient-data"
           }
         }
@@ -1608,7 +1854,7 @@
         },
         {
           "source": "financial-lens",
-          "message": "Financial Lens Evidence partial for IFRSSA: missing SEC fundamentals, valuation evidence",
+          "message": "Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
           "provider": "market-bot",
           "capability": "extended-evidence",
           "cause": "provider-data-missing",
@@ -1640,21 +1886,86 @@
       "lenses": [
         {
           "name": "Quality",
-          "posture": "insufficient-data",
-          "metrics": [],
-          "sourceIds": []
+          "posture": "criteria-supported",
+          "metrics": [
+            {
+              "key": "grossMargin",
+              "label": "Gross margin",
+              "value": 0.85,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "operatingMargin",
+              "label": "Operating margin",
+              "value": 0.7,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "netMargin",
+              "label": "Net margin",
+              "value": 0.55,
+              "unit": "ratio-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
         },
         {
           "name": "Growth",
-          "posture": "insufficient-data",
-          "metrics": [],
-          "sourceIds": []
+          "posture": "criteria-supported",
+          "metrics": [
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 25,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "grossProfitDeltaPercent",
+              "label": "Gross profit YoY",
+              "value": 25,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "operatingIncomeDeltaPercent",
+              "label": "Operating income YoY",
+              "value": 24.999999999999986,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "netIncomeDeltaPercent",
+              "label": "Net income (attrib.) YoY",
+              "value": 25.000000000000018,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
         },
         {
           "name": "Financial Strength",
           "posture": "insufficient-data",
           "metrics": [],
-          "sourceIds": ["market-yahoo-equity-ifrssa"]
+          "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals", "market-yahoo-equity-ifrssa"]
         },
         {
           "name": "Value",
@@ -1728,7 +2039,11 @@
           "sourceIds": ["verified-snapshot-IFRSSA"]
         }
       ],
-      "sourceIds": ["market-yahoo-equity-ifrssa", "verified-snapshot-IFRSSA"]
+      "sourceIds": [
+        "extended-sec-edgar-ifrssa-fundamentals",
+        "market-yahoo-equity-ifrssa",
+        "verified-snapshot-IFRSSA"
+      ]
     },
     "financial-statements.json": {
       "version": 1,
@@ -3048,7 +3363,7 @@
       },
       {
         "source": "financial-lens",
-        "message": "Financial Lens Evidence partial for IFRSSA: missing SEC fundamentals, valuation evidence",
+        "message": "Financial Lens Evidence partial for IFRSSA: missing valuation evidence",
         "provider": "market-bot",
         "capability": "extended-evidence",
         "cause": "provider-data-missing",
@@ -3155,6 +3470,14 @@
           "lane": "verified-price-history",
           "posture": "covered",
           "relatedGapIds": []
+        },
+        {
+          "id": "extended-sec-edgar-ifrssa-fundamentals",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "lane": "regulatory-filings",
+          "posture": "covered",
+          "relatedGapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"]
         }
       ]
     },

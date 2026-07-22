@@ -48,7 +48,7 @@
       "layoutFamily": "toppan-spacer-grid",
       "expectedSupport": "html-table",
       "url": "https://www.sec.gov/Archives/edgar/data/1737806/000110465926067186/tm2615739d1_ex99-1.htm",
-      "evaluationClass": "insufficient-statement-coverage",
+      "evaluationClass": "supported-full-statement",
       "rawFile": "raw/pdd-2026-q1.html",
       "mappingFile": "mappings/pdd-2026-q1.json",
       "sha256": "8197267c9af6d22eeb1dd45cc306dc38b64a781adb192ef05fe4fbb4cee7574b",

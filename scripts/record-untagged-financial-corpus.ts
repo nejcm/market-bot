@@ -141,9 +141,7 @@ function evaluationClass(
   if (spec.expectedSupport === "html-of-image") {
     return "unsupported-layout";
   }
-  return ["pdd-2026-q1", "tsm-2026-q2"].includes(spec.id)
-    ? "insufficient-statement-coverage"
-    : "supported-full-statement";
+  return spec.id === "tsm-2026-q2" ? "insufficient-statement-coverage" : "supported-full-statement";
 }
 
 await mkdir(RAW_DIR, { recursive: true });

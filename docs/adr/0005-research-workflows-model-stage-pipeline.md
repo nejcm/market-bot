@@ -134,18 +134,21 @@ research boundaries without sharing persistence or scoring semantics.
   scale, signs, calculations, confidence, or corrections. Split parenthesis signs and inherited
   page-continuation headers are represented only by existing packet cell references.
 - Code re-reads every referenced source cell. Strict parsing rejects missing or cross-table
-  references (except packet-declared inherited headers), label mismatches, ambiguous numbers or
-  signs, unresolved periods, unsupported or mixed units/currencies, and duplicate field-period or
-  value-cell mappings. Code then enforces `assets = liabilities + equity` and every available cash
-  reconciliation, including both pre- and post-foreign-exchange net-change presentations.
+  references (except packet-declared inherited headers), label/value row or period/value column
+  mismatches, ambiguous numbers or split signs, unresolved periods, unsupported or ambiguous
+  multi-currency units, mixed currencies, and duplicate field-period or value-cell mappings. Code
+  then enforces `assets = liabilities + equity` and every available cash reconciliation, including
+  both pre- and post-foreign-exchange net-change presentations.
 - Only a fully validated current income statement, balance sheet, and cash-flow statement receives
   `model-validated-table` values. Rejected and partial results retain validation issues and Source
   Gaps; source evidence is never reclassified to improve coverage.
 - Admission was evaluated on corpus version 1: ten public FPI exhibits, five layout families,
-  seven supported full-statement HTML cases, six accepted (85.7%), two insufficient-coverage
-  exhibits measured separately, and one image-only exhibit measured as unsupported. The corpus
-  recorded zero silently wrong values and zero source-cell mismatches. A fresh SEC fetch of the
-  NBIS exhibit was byte-identical to the fixture and produced the same 14 accepted cell mappings.
+  eight supported full-statement HTML cases, seven accepted (87.5%), one genuine
+  insufficient-coverage exhibit measured separately, and one image-only exhibit measured as
+  unsupported. PDD's plural-titled cash-flow statement is included as an accepted supported case.
+  The corrected validator recorded zero silently accepted wrong values and zero source-cell
+  mismatches. A fresh SEC fetch of the NBIS exhibit was byte-identical to the fixture and produced
+  the same 14 accepted cell mappings.
 - Passing this evaluation authorizes the extraction subsystem but does not make its facts canonical
   financial evidence. Phase 3 persists a separate optional sidecar and leaves the canonical
   `financial-statements.json` artifact and financial-core completeness contract unchanged. A later

@@ -19,14 +19,14 @@ export const FINANCIAL_TABLE_PACKET_LIMITS: FinancialTablePacketLimits = {
 const CONTEXT_CHARACTERS = 1200;
 const CONTEXT_LINES = 8;
 const FINANCIAL_ANCHORS = [
-  "balance sheet",
-  "statement of financial position",
-  "statement of operations",
-  "income statement",
-  "statement of income",
-  "statement of profit or loss",
-  "statement of cash flows",
-  "cash flow statement",
+  /\bbalance sheets?\b/iu,
+  /\bstatements? of financial position\b/iu,
+  /\bstatements? of operations\b/iu,
+  /\bincome statements?\b/iu,
+  /\bstatements? of income\b/iu,
+  /\bstatements? of profit or loss\b/iu,
+  /\bstatements? of cash flows?\b/iu,
+  /\bcash flow statements?\b/iu,
 ] as const;
 const FINANCIAL_LINE_ITEMS = [
   "revenue",
@@ -126,7 +126,7 @@ function tableScore(context: string, cells: readonly ParsedCell[]): number {
     .join(" ")
     .toLowerCase();
   const haystack = `${context} ${leadingText}`.toLowerCase();
-  const statementAnchors = FINANCIAL_ANCHORS.filter((anchor) => haystack.includes(anchor)).length;
+  const statementAnchors = FINANCIAL_ANCHORS.filter((anchor) => anchor.test(haystack)).length;
   const lineItems = FINANCIAL_LINE_ITEMS.filter((anchor) => haystack.includes(anchor)).length;
   const numericRows = new Set(
     cells.filter((cell) => isNumericCell(cell.text)).map((cell) => cell.rowIndex),
@@ -214,7 +214,7 @@ function tableTitle(context: string): string | undefined {
   return context
     .split(" | ")
     .toReversed()
-    .find((line) => FINANCIAL_ANCHORS.some((anchor) => line.toLowerCase().includes(anchor)));
+    .find((line) => FINANCIAL_ANCHORS.some((anchor) => anchor.test(line)));
 }
 
 function tableUnitText(context: string): string | undefined {

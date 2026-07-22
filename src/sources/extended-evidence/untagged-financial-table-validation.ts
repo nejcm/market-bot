@@ -75,10 +75,12 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
     /\bnet (?:increase|decrease|change) in cash/iu,
     /\bnet cash generated from activities\b/iu,
     /\bchange in cash and cash equivalents\b/iu,
+    /\b(?:increase|decrease) in cash,? cash equivalents and restricted cash\b/iu,
   ],
   investingCashFlow: [
     new RegExp(`${NET_CASH_ACTIVITY} investing activities\\b`, "iu"),
     /\bnet cash from\/\s*\(used in\) investing activities\b/iu,
+    /\bnet cash \(used in\)\/generated from investing activities\b/iu,
     /\b(?:net )?cash flows? (?:from\/?\s*\(used in\)|from|used in) investing activities\b/iu,
   ],
   financingCashFlow: [
@@ -332,7 +334,7 @@ function parseNumber(
   return { value: parentheses ? -parsed : parsed };
 }
 
-function currencyFromText(value: string): string | undefined {
+function currenciesFromText(value: string): readonly string[] {
   const patterns: readonly [string, RegExp][] = [
     ["USD", /\bUSD\b|U\.S\. dollars?|US dollars?|\$/iu],
     ["EUR", /\bEUR\b|euros?|€/iu],
@@ -341,16 +343,32 @@ function currencyFromText(value: string): string | undefined {
     ["TWD", /\bTWD\b|NT\$/iu],
     ["GBP", /\bGBP\b|pounds? sterling|£/iu],
   ];
-  return patterns.find(([, pattern]) => pattern.test(value))?.[0];
+  return patterns.filter(([, pattern]) => pattern.test(value)).map(([currency]) => currency);
 }
 
 function unitFor(
   field: FinancialTableSemanticField,
   table: FinancialTable,
-): ParsedUnit | "unsupported-currency" | "unsupported-unit-scale" {
+  valueCell: FinancialTableCell,
+  cellByRef: ReadonlyMap<string, FinancialTableCell>,
+): ParsedUnit | "unsupported-currency" | "ambiguous-currency" | "unsupported-unit-scale" {
   const unitText = table.unitText ?? table.context;
-  const currency = currencyFromText(unitText);
   const monetary = !["dilutedEps", "dilutedShares"].includes(field);
+  const disclosedCurrencies = currenciesFromText(unitText);
+  let currency = disclosedCurrencies.length === 1 ? disclosedCurrencies[0] : undefined;
+  if (disclosedCurrencies.length > 1) {
+    const scopedCurrencies = new Set(
+      valueCell.headerRefs.flatMap((ref) => {
+        const currencies = currenciesFromText(cellByRef.get(ref)?.text ?? "");
+        return currencies.length === 1 ? currencies : [];
+      }),
+    );
+    if (scopedCurrencies.size !== 1) {
+      return "ambiguous-currency";
+    }
+    const [scopedCurrency] = scopedCurrencies;
+    currency = scopedCurrency;
+  }
   if (monetary && currency === undefined) {
     return "unsupported-currency";
   }
@@ -382,6 +400,31 @@ function unitFor(
     return { currency: null, unit: "shares", unitScale: sharesUnscaled ? 1 : scale };
   }
   return { currency: currency!, unit: currency!, unitScale: scale };
+}
+
+function headerCoversValueColumn(header: FinancialTableCell, value: FinancialTableCell): boolean {
+  return (
+    header.columnIndex <= value.columnIndex &&
+    header.columnIndex + header.columnSpan > value.columnIndex
+  );
+}
+
+function pairedParenthesisCells(
+  table: FinancialTable,
+  valueCell: FinancialTableCell,
+): readonly [FinancialTableCell, FinancialTableCell] | undefined {
+  if (!("value" in parseNumber(valueCell.text))) {
+    return undefined;
+  }
+  const rowCells = table.rows.find((row) => row.rowIndex === valueCell.rowIndex)?.cells ?? [];
+  const open = rowCells.find(
+    (cell) => cell.text === "(" && cell.columnIndex + cell.columnSpan === valueCell.columnIndex,
+  );
+  const close = rowCells.find(
+    (cell) =>
+      cell.text === ")" && valueCell.columnIndex + valueCell.columnSpan === cell.columnIndex,
+  );
+  return open !== undefined && close !== undefined ? [open, close] : undefined;
 }
 
 function statementFor(
@@ -634,6 +677,38 @@ export function validateFinancialTableMapping(
       );
       continue;
     }
+    if (labelCell.rowIndex !== valueCell.rowIndex) {
+      issues.push(
+        issue("label-value-row-mismatch", "mapped label and value cells must share a row", mapping),
+      );
+      continue;
+    }
+    if (
+      (headerCells as FinancialTableCell[]).some(
+        (cell) =>
+          !headerCoversValueColumn(cell, valueCell) ||
+          (cell.tableId === valueCell.tableId && cell.rowIndex >= valueCell.rowIndex),
+      )
+    ) {
+      issues.push(
+        issue(
+          "period-header-column-mismatch",
+          "mapped period headers must cover and belong to the value cell column",
+          mapping,
+        ),
+      );
+      continue;
+    }
+    if (pairedParenthesisCells(table, valueCell) !== undefined) {
+      issues.push(
+        issue(
+          "ambiguous-sign",
+          "bare numeric value is flanked by paired parenthesis cells; both are required",
+          mapping,
+        ),
+      );
+      continue;
+    }
     if (
       signCell !== undefined &&
       (signCell.rowIndex !== valueCell.rowIndex ||
@@ -691,18 +766,19 @@ export function validateFinancialTableMapping(
       );
       continue;
     }
-    const unit = unitFor(mapping.field, table);
-    if (unit === "unsupported-currency" || unit === "unsupported-unit-scale") {
-      issues.push(
-        issue(
-          unit,
-          unit === "unsupported-currency"
-            ? "table currency could not be resolved"
-            : "table unit scale is ambiguous",
-          mapping,
-          period.periodEnd,
-        ),
-      );
+    const unit = unitFor(mapping.field, table, valueCell, cellByRef);
+    if (
+      unit === "unsupported-currency" ||
+      unit === "ambiguous-currency" ||
+      unit === "unsupported-unit-scale"
+    ) {
+      let message = "table unit scale is ambiguous";
+      if (unit === "unsupported-currency") {
+        message = "table currency could not be resolved";
+      } else if (unit === "ambiguous-currency") {
+        message = "table contains multiple currencies without unique column-scoped evidence";
+      }
+      issues.push(issue(unit, message, mapping, period.periodEnd));
       continue;
     }
     if (

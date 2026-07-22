@@ -156,6 +156,21 @@ describe("untagged financial table packet", () => {
       true,
     );
   });
+
+  test("keeps the plural PDD cash-flow statement inside the packet bounds", async () => {
+    const html = await readFile(
+      join(import.meta.dir, "fixtures/untagged-financial-corpus/raw/pdd-2026-q1.html"),
+      "utf8",
+    );
+    const packet = await buildFinancialTablePacket(html, SOURCE);
+
+    expect(packet.tables.some((table) => table.title?.includes("STATEMENTS OF CASH FLOWS"))).toBe(
+      true,
+    );
+    expect(
+      packet.tables.find((table) => table.title?.includes("STATEMENTS OF CASH FLOWS")),
+    ).toMatchObject({ sourceTableIndex: 14 });
+  });
 });
 
 describe("untagged financial table mapping validation", () => {
@@ -262,6 +277,150 @@ describe("untagged financial table mapping validation", () => {
     expect(wrongPeriod.issues.map((item) => item.code)).toContain("unexpected-period");
     expect(mixedCurrency.issues.map((item) => item.code)).toContain("mixed-currency");
     expect(ambiguousScale.issues.map((item) => item.code)).toContain("unsupported-unit-scale");
+  });
+
+  test("rejects value-column and label-row reassignment", async () => {
+    const html = await readFile(
+      join(import.meta.dir, "fixtures/untagged-financial-corpus/raw/nbis-2026-q1.html"),
+      "utf8",
+    );
+    const mappingContent = await readFile(
+      join(import.meta.dir, "fixtures/untagged-financial-corpus/mappings/nbis-2026-q1.json"),
+      "utf8",
+    );
+    const packet = await buildFinancialTablePacket(html, SOURCE);
+    const parsed = parseFinancialTableMappingOutput(mappingContent);
+    if (!("mapping" in parsed)) {
+      throw new Error("NBIS fixture mapping must parse");
+    }
+    const revenue = parsed.mapping.mappings.find((item) => item.field === "revenue")!;
+
+    const shiftedColumn = validateFinancialTableMapping({
+      packet,
+      mapping: {
+        version: 1,
+        mappings: [{ ...revenue, valueCellRef: "t003:r004:c005" }],
+      },
+      filingReportDate: "2026-03-31",
+    });
+    const reassignedRow = validateFinancialTableMapping({
+      packet: await buildFinancialTablePacket(SUPPORTED_HTML, SOURCE),
+      mapping: {
+        version: 1,
+        mappings: [
+          {
+            ...mapping("revenue", 2, 2),
+            valueCellRef: "t002:r003:c002",
+          },
+        ],
+      },
+      filingReportDate: "2026-03-31",
+    });
+
+    expect(shiftedColumn.values).toEqual([]);
+    expect(shiftedColumn.issues).toContainEqual(
+      expect.objectContaining({
+        code: "period-header-column-mismatch",
+        field: "revenue",
+        cellRef: "t003:r004:c005",
+      }),
+    );
+    expect(reassignedRow.values).toEqual([]);
+    expect(reassignedRow.issues).toContainEqual(
+      expect.objectContaining({
+        code: "label-value-row-mismatch",
+        field: "revenue",
+        cellRef: "t002:r003:c002",
+      }),
+    );
+  });
+
+  test("rejects omitted evidence for paired parenthesis sign cells", async () => {
+    const packet = await buildFinancialTablePacket(
+      `<h2>CONDENSED CONSOLIDATED STATEMENT OF OPERATIONS</h2>
+       <p>(In millions of U.S. dollars)</p>
+       <table>
+         <tr><th>Item</th><th colspan="3">Three months ended March 31, 2026</th></tr>
+         <tr><td>Net loss</td><td>(</td><td>4</td><td>)</td></tr>
+       </table>`,
+      SOURCE,
+    );
+
+    const result = validateFinancialTableMapping({
+      packet,
+      mapping: {
+        version: 1,
+        mappings: [
+          {
+            field: "netIncome",
+            labelCellRef: "t001:r002:c001",
+            valueCellRef: "t001:r002:c003",
+            periodHeaderCellRefs: ["t001:r001:c002"],
+          },
+        ],
+      },
+      filingReportDate: "2026-03-31",
+    });
+
+    expect(result.values).toEqual([]);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: "ambiguous-sign",
+        message: "bare numeric value is flanked by paired parenthesis cells; both are required",
+      }),
+    );
+  });
+
+  test("requires column-scoped currency evidence for dual-currency tables", async () => {
+    const scopedPacket = await buildFinancialTablePacket(
+      `<h2>CONDENSED CONSOLIDATED STATEMENT OF OPERATIONS</h2>
+       <p>(In millions of RMB and US$)</p>
+       <table>
+         <tr><th>Item</th><th colspan="2">Three months ended March 31, 2026</th></tr>
+         <tr><th>Currency</th><th>RMB</th><th>US$</th></tr>
+         <tr><td>Revenue</td><td>700</td><td>100</td></tr>
+       </table>`,
+      SOURCE,
+    );
+    const ambiguousPacket = await buildFinancialTablePacket(
+      `<h2>CONDENSED CONSOLIDATED STATEMENT OF OPERATIONS</h2>
+       <p>(In millions of RMB and US$)</p>
+       <table>
+         <tr><th>Item</th><th>Three months ended March 31, 2026</th></tr>
+         <tr><td>Revenue</td><td>100</td></tr>
+         <tr><td>Net income</td><td>20</td></tr>
+       </table>`,
+      SOURCE,
+    );
+    const scoped = validateFinancialTableMapping({
+      packet: scopedPacket,
+      mapping: {
+        version: 1,
+        mappings: [
+          {
+            field: "revenue",
+            labelCellRef: "t001:r003:c001",
+            valueCellRef: "t001:r003:c003",
+            periodHeaderCellRefs: ["t001:r001:c002", "t001:r002:c003"],
+          },
+        ],
+      },
+      filingReportDate: "2026-03-31",
+    });
+    const ambiguous = validateFinancialTableMapping({
+      packet: ambiguousPacket,
+      mapping: { version: 1, mappings: [mapping("revenue", 1, 2)] },
+      filingReportDate: "2026-03-31",
+    });
+
+    expect(scoped.values[0]).toMatchObject({ displayedValue: 100, currency: "USD" });
+    expect(ambiguous.values).toEqual([]);
+    expect(ambiguous.issues).toContainEqual(
+      expect.objectContaining({
+        code: "ambiguous-currency",
+        message: "table contains multiple currencies without unique column-scoped evidence",
+      }),
+    );
   });
 
   test("drops statement values when accounting identities fail", async () => {

@@ -9161,6 +9161,7 @@
             "id": "t003",
             "sourceTableIndex": 2,
             "context": "12,430.6 | 22,303.3 | The accompanying notes are an integral part of the unaudited condensed consolidated financial statements. | F-2 | Table of Contents | NEBIUS GROUP N.V. | UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS | (In millions of U.S. dollars (“$”), except share and per share data)",
+            "title": "UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS",
             "unitText": "(In millions of U.S. dollars (“$”), except share and per share data)",
             "rows": [
               {
@@ -16044,6 +16045,7 @@
             "id": "t005",
             "sourceTableIndex": 7,
             "context": "1.0 | 7,241.9 | The accompanying notes are an integral part of the unaudited condensed consolidated financial statements. | F-5 | Table of Contents | NEBIUS GROUP N.V. | UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOW S | (In millions of U.S. dollars (“$”))",
+            "title": "UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOW S",
             "unitText": "(In millions of U.S. dollars (“$”))",
             "rows": [
               {
@@ -18805,21 +18807,21 @@
           },
           {
             "id": "t006",
-            "sourceTableIndex": 11,
-            "context": "tions does not assume the conversion of those shares. The net income / (loss) per share from continuing and discontinued operations amounts are the same for Class A and Class B shares because the holders of each class are legally entitled to equal per share distributions whether through dividends or in liquidation. In compliance with ASC 260-10-45-18 the Group uses net income / (loss) from continuing operations as the control number in determining whether those potential ordinary shares are dilutive or antidilutive. The number of Share-Based Awards excluded from the diluted net income / (loss) per ordinary share from continuing and discontinued operations computation, because their effect was anti-dilutive for the three months ended March 31, 2025 and 2026 was 1,262,894 and 6,000,126, respectively. | The outstanding Convertible Notes (see Note 12) provide for a flexible settlement feature. The convertible debt is included in the calculation of diluted net income per share if its inclusion is dilutive under the if-converted method. | F-10 | Table of Contents | The components of basic and diluted net (loss)/income per share from continuing and discontinued operations were as follows:",
-            "unitText": "$",
-            "unitCellRef": "t006:r005:c003",
+            "sourceTableIndex": 8,
+            "context": "9,626.9 | *Adjusted for the presentation of discontinued operations for Toloka | The accompanying notes are an integral part of the unaudited condensed consolidated financial statements. | F-6 | Table of Contents | NEBIUS GROUP N.V. | UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS (Continued) | (In millions of U.S. dollars (“$”))",
+            "title": "UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS (Continued)",
+            "unitText": "(In millions of U.S. dollars (“$”))",
             "rows": [
               {
                 "rowIndex": 1,
                 "cells": [
                   {
-                    "ref": "t006:r002:c003",
+                    "ref": "t006:r002:c005",
                     "tableId": "t006",
                     "rowIndex": 1,
-                    "columnIndex": 2,
+                    "columnIndex": 4,
                     "rowSpan": 1,
-                    "columnSpan": 7,
+                    "columnSpan": 3,
                     "text": "Three months ended March 31,",
                     "headerRefs": [],
                     "source": {
@@ -18842,9 +18844,27 @@
                     "rowIndex": 2,
                     "columnIndex": 2,
                     "rowSpan": 1,
-                    "columnSpan": 3,
-                    "text": "2025",
-                    "headerRefs": ["t006:r002:c003"],
+                    "columnSpan": 1,
+                    "text": "Notes",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t006:r003:c005",
+                    "tableId": "t006",
+                    "rowIndex": 2,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "2025*",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -18860,9 +18880,9 @@
                     "rowIndex": 2,
                     "columnIndex": 6,
                     "rowSpan": 1,
-                    "columnSpan": 3,
+                    "columnSpan": 1,
                     "text": "2026",
-                    "headerRefs": ["t006:r002:c003"],
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -18878,68 +18898,14 @@
                 "rowIndex": 3,
                 "cells": [
                   {
-                    "ref": "t006:r004:c003",
+                    "ref": "t006:r004:c001",
                     "tableId": "t006",
                     "rowIndex": 3,
-                    "columnIndex": 2,
+                    "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Class A",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r004:c005",
-                    "tableId": "t006",
-                    "rowIndex": 3,
-                    "columnIndex": 4,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Class B",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r004:c007",
-                    "tableId": "t006",
-                    "rowIndex": 3,
-                    "columnIndex": 6,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Class A",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c007"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r004:c009",
-                    "tableId": "t006",
-                    "rowIndex": 3,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Class B",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c007"],
+                    "text": "RECONCILIATION OF CASH AND CASH EQUIVALENTS, AND RESTRICTED CASH AND CASH EQUIVALENTS:",
+                    "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -18955,14 +18921,14 @@
                 "rowIndex": 4,
                 "cells": [
                   {
-                    "ref": "t006:r005:c003",
+                    "ref": "t006:r005:c001",
                     "tableId": "t006",
                     "rowIndex": 4,
-                    "columnIndex": 2,
+                    "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "$",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c003", "t006:r004:c003"],
+                    "text": "Cash and cash equivalents, beginning of period",
+                    "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -18979,8 +18945,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "$",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c003", "t006:r004:c005"],
+                    "text": "2,449.6",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -18997,26 +18963,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "$",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c007", "t006:r004:c007"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r005:c009",
-                    "tableId": "t006",
-                    "rowIndex": 4,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "$",
-                    "headerRefs": ["t006:r002:c003", "t006:r003:c007", "t006:r004:c009"],
+                    "text": "3,678.1",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19038,31 +18986,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Net income / (loss) from continuing operations, allocated for basic",
+                    "text": "Restricted cash and cash equivalents, beginning of period",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r006:c003",
-                    "tableId": "t006",
-                    "rowIndex": 5,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(88.7)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19079,13 +19004,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "(15.6)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "0.7",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19102,36 +19022,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "540.6",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r006:c009",
-                    "tableId": "t006",
-                    "rowIndex": 5,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "80.6",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "43.5",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19153,31 +19045,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Reallocation of net income / (loss) from continuing operations as a result of conversion of Class B to Class A shares",
+                    "text": "Cash and cash equivalents, and restricted cash and cash equivalents, beginning of period",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r007:c003",
-                    "tableId": "t006",
-                    "rowIndex": 6,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(15.6)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19194,13 +19063,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "2,450.3",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19217,36 +19081,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "80.6",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r007:c009",
-                    "tableId": "t006",
-                    "rowIndex": 6,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "3,721.6",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19268,31 +19104,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Reallocation of net income / (loss) from continuing operations to Class B shares",
+                    "text": "Cash and cash equivalents, end of period",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r008:c003",
-                    "tableId": "t006",
-                    "rowIndex": 7,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19309,13 +19122,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "1,447.0",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19332,36 +19140,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r008:c009",
-                    "tableId": "t006",
-                    "rowIndex": 7,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(9.7)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "9,298.2",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19383,31 +19163,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Add-back for convertible notes, net of tax",
+                    "text": "Restricted cash and cash equivalents, end of period",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r009:c003",
-                    "tableId": "t006",
-                    "rowIndex": 8,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19424,13 +19181,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "80.6",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19447,36 +19199,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "31.9",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r009:c009",
-                    "tableId": "t006",
-                    "rowIndex": 8,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "328.7",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19498,31 +19222,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Net income / (loss) from continuing operations, allocated for diluted",
+                    "text": "Cash and cash equivalents, and restricted cash and cash equivalents, end of period",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r010:c003",
-                    "tableId": "t006",
-                    "rowIndex": 9,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(104.3)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19539,13 +19240,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "(15.6)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "1,527.6",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19562,36 +19258,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "653.1",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r010:c009",
-                    "tableId": "t006",
-                    "rowIndex": 9,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "70.9",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "9,626.9",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19613,31 +19281,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Net loss from discontinued operations, allocated for basic",
+                    "text": "Cash and cash equivalents, end of period – continuing operations",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r011:c003",
-                    "tableId": "t006",
-                    "rowIndex": 10,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(7.8)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19654,13 +19299,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "(1.4)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "1,439.7",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19677,36 +19317,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r011:c009",
-                    "tableId": "t006",
-                    "rowIndex": 10,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "9,298.2",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19728,31 +19340,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Reallocation of net loss from discontinued operations as a result of conversion of Class B to Class A shares",
+                    "text": "Restricted cash and cash equivalents, end of period – continuing operations",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r012:c003",
-                    "tableId": "t006",
-                    "rowIndex": 11,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(1.4)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19769,13 +19358,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "80.6",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19792,36 +19376,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r012:c009",
-                    "tableId": "t006",
-                    "rowIndex": 11,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "328.7",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19843,31 +19399,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Net loss from discontinued operations, allocated for diluted",
+                    "text": "Cash and cash equivalents, and restricted cash and cash equivalents, end of period – continuing operations",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r013:c003",
-                    "tableId": "t006",
-                    "rowIndex": 12,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(9.2)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19884,13 +19417,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "(1.4)",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "1,520.3",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19907,36 +19435,8 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r013:c009",
-                    "tableId": "t006",
-                    "rowIndex": 12,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
+                    "text": "9,626.9",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -19958,100 +19458,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Weighted average ordinary shares used in per share computation — basic, continuing operations",
+                    "text": "SUPPLEMENTAL DISCLOSURE OF CASH FLOW INFORMATION:",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r014:c003",
-                    "tableId": "t006",
-                    "rowIndex": 13,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "202,217,373",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r014:c005",
-                    "tableId": "t006",
-                    "rowIndex": 13,
-                    "columnIndex": 4,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "35,698,674",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r014:c007",
-                    "tableId": "t006",
-                    "rowIndex": 13,
-                    "columnIndex": 6,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "224,775,028",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
-                    ],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r014:c009",
-                    "tableId": "t006",
-                    "rowIndex": 13,
-                    "columnIndex": 8,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "33,523,883",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -20073,7 +19481,7 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Effect of:",
+                    "text": "Non-cash investing and financing activities:",
                     "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20096,31 +19504,8 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Conversion of Class B to Class A shares",
+                    "text": "Acquired property and equipment and intangible assets not yet paid for",
                     "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t006:r016:c003",
-                    "tableId": "t006",
-                    "rowIndex": 15,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "35,698,674",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
-                    ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -20137,13 +19522,8 @@
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "—",
-                    "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
-                    ],
+                    "text": "65.1",
+                    "headerRefs": ["t006:r002:c005"],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -20160,12 +19540,280 @@
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "33,523,883",
+                    "text": "430.4",
+                    "headerRefs": ["t006:r002:c005"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "t007",
+            "sourceTableIndex": 11,
+            "context": "tions does not assume the conversion of those shares. The net income / (loss) per share from continuing and discontinued operations amounts are the same for Class A and Class B shares because the holders of each class are legally entitled to equal per share distributions whether through dividends or in liquidation. In compliance with ASC 260-10-45-18 the Group uses net income / (loss) from continuing operations as the control number in determining whether those potential ordinary shares are dilutive or antidilutive. The number of Share-Based Awards excluded from the diluted net income / (loss) per ordinary share from continuing and discontinued operations computation, because their effect was anti-dilutive for the three months ended March 31, 2025 and 2026 was 1,262,894 and 6,000,126, respectively. | The outstanding Convertible Notes (see Note 12) provide for a flexible settlement feature. The convertible debt is included in the calculation of diluted net income per share if its inclusion is dilutive under the if-converted method. | F-10 | Table of Contents | The components of basic and diluted net (loss)/income per share from continuing and discontinued operations were as follows:",
+            "unitText": "$",
+            "unitCellRef": "t007:r005:c003",
+            "rows": [
+              {
+                "rowIndex": 1,
+                "cells": [
+                  {
+                    "ref": "t007:r002:c003",
+                    "tableId": "t007",
+                    "rowIndex": 1,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 7,
+                    "text": "Three months ended March 31,",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 2,
+                "cells": [
+                  {
+                    "ref": "t007:r003:c003",
+                    "tableId": "t007",
+                    "rowIndex": 2,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 3,
+                    "text": "2025",
+                    "headerRefs": ["t007:r002:c003"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r003:c007",
+                    "tableId": "t007",
+                    "rowIndex": 2,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 3,
+                    "text": "2026",
+                    "headerRefs": ["t007:r002:c003"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 3,
+                "cells": [
+                  {
+                    "ref": "t007:r004:c003",
+                    "tableId": "t007",
+                    "rowIndex": 3,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Class A",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c003"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r004:c005",
+                    "tableId": "t007",
+                    "rowIndex": 3,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Class B",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c003"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r004:c007",
+                    "tableId": "t007",
+                    "rowIndex": 3,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Class A",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c007"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r004:c009",
+                    "tableId": "t007",
+                    "rowIndex": 3,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Class B",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c007"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 4,
+                "cells": [
+                  {
+                    "ref": "t007:r005:c003",
+                    "tableId": "t007",
+                    "rowIndex": 4,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "$",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c003", "t007:r004:c003"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r005:c005",
+                    "tableId": "t007",
+                    "rowIndex": 4,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "$",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c003", "t007:r004:c005"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r005:c007",
+                    "tableId": "t007",
+                    "rowIndex": 4,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "$",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c007", "t007:r004:c007"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r005:c009",
+                    "tableId": "t007",
+                    "rowIndex": 4,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "$",
+                    "headerRefs": ["t007:r002:c003", "t007:r003:c007", "t007:r004:c009"],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 5,
+                "cells": [
+                  {
+                    "ref": "t007:r006:c001",
+                    "tableId": "t007",
+                    "rowIndex": 5,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Net income / (loss) from continuing operations, allocated for basic",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r006:c003",
+                    "tableId": "t007",
+                    "rowIndex": 5,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(88.7)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20177,18 +19825,1122 @@
                     }
                   },
                   {
-                    "ref": "t006:r016:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r006:c005",
+                    "tableId": "t007",
+                    "rowIndex": 5,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(15.6)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r006:c007",
+                    "tableId": "t007",
+                    "rowIndex": 5,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "540.6",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r006:c009",
+                    "tableId": "t007",
+                    "rowIndex": 5,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "80.6",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 6,
+                "cells": [
+                  {
+                    "ref": "t007:r007:c001",
+                    "tableId": "t007",
+                    "rowIndex": 6,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Reallocation of net income / (loss) from continuing operations as a result of conversion of Class B to Class A shares",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r007:c003",
+                    "tableId": "t007",
+                    "rowIndex": 6,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(15.6)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r007:c005",
+                    "tableId": "t007",
+                    "rowIndex": 6,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r007:c007",
+                    "tableId": "t007",
+                    "rowIndex": 6,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "80.6",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r007:c009",
+                    "tableId": "t007",
+                    "rowIndex": 6,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 7,
+                "cells": [
+                  {
+                    "ref": "t007:r008:c001",
+                    "tableId": "t007",
+                    "rowIndex": 7,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Reallocation of net income / (loss) from continuing operations to Class B shares",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r008:c003",
+                    "tableId": "t007",
+                    "rowIndex": 7,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r008:c005",
+                    "tableId": "t007",
+                    "rowIndex": 7,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r008:c007",
+                    "tableId": "t007",
+                    "rowIndex": 7,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r008:c009",
+                    "tableId": "t007",
+                    "rowIndex": 7,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(9.7)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 8,
+                "cells": [
+                  {
+                    "ref": "t007:r009:c001",
+                    "tableId": "t007",
+                    "rowIndex": 8,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Add-back for convertible notes, net of tax",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r009:c003",
+                    "tableId": "t007",
+                    "rowIndex": 8,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r009:c005",
+                    "tableId": "t007",
+                    "rowIndex": 8,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r009:c007",
+                    "tableId": "t007",
+                    "rowIndex": 8,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "31.9",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r009:c009",
+                    "tableId": "t007",
+                    "rowIndex": 8,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 9,
+                "cells": [
+                  {
+                    "ref": "t007:r010:c001",
+                    "tableId": "t007",
+                    "rowIndex": 9,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Net income / (loss) from continuing operations, allocated for diluted",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r010:c003",
+                    "tableId": "t007",
+                    "rowIndex": 9,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(104.3)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r010:c005",
+                    "tableId": "t007",
+                    "rowIndex": 9,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(15.6)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r010:c007",
+                    "tableId": "t007",
+                    "rowIndex": 9,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "653.1",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r010:c009",
+                    "tableId": "t007",
+                    "rowIndex": 9,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "70.9",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 10,
+                "cells": [
+                  {
+                    "ref": "t007:r011:c001",
+                    "tableId": "t007",
+                    "rowIndex": 10,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Net loss from discontinued operations, allocated for basic",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r011:c003",
+                    "tableId": "t007",
+                    "rowIndex": 10,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(7.8)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r011:c005",
+                    "tableId": "t007",
+                    "rowIndex": 10,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(1.4)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r011:c007",
+                    "tableId": "t007",
+                    "rowIndex": 10,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r011:c009",
+                    "tableId": "t007",
+                    "rowIndex": 10,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 11,
+                "cells": [
+                  {
+                    "ref": "t007:r012:c001",
+                    "tableId": "t007",
+                    "rowIndex": 11,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Reallocation of net loss from discontinued operations as a result of conversion of Class B to Class A shares",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r012:c003",
+                    "tableId": "t007",
+                    "rowIndex": 11,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(1.4)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r012:c005",
+                    "tableId": "t007",
+                    "rowIndex": 11,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r012:c007",
+                    "tableId": "t007",
+                    "rowIndex": 11,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r012:c009",
+                    "tableId": "t007",
+                    "rowIndex": 11,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 12,
+                "cells": [
+                  {
+                    "ref": "t007:r013:c001",
+                    "tableId": "t007",
+                    "rowIndex": 12,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Net loss from discontinued operations, allocated for diluted",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r013:c003",
+                    "tableId": "t007",
+                    "rowIndex": 12,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(9.2)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r013:c005",
+                    "tableId": "t007",
+                    "rowIndex": 12,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "(1.4)",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r013:c007",
+                    "tableId": "t007",
+                    "rowIndex": 12,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r013:c009",
+                    "tableId": "t007",
+                    "rowIndex": 12,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 13,
+                "cells": [
+                  {
+                    "ref": "t007:r014:c001",
+                    "tableId": "t007",
+                    "rowIndex": 13,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Weighted average ordinary shares used in per share computation — basic, continuing operations",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r014:c003",
+                    "tableId": "t007",
+                    "rowIndex": 13,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "202,217,373",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r014:c005",
+                    "tableId": "t007",
+                    "rowIndex": 13,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "35,698,674",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r014:c007",
+                    "tableId": "t007",
+                    "rowIndex": 13,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "224,775,028",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r014:c009",
+                    "tableId": "t007",
+                    "rowIndex": 13,
+                    "columnIndex": 8,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "33,523,883",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 14,
+                "cells": [
+                  {
+                    "ref": "t007:r015:c001",
+                    "tableId": "t007",
+                    "rowIndex": 14,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Effect of:",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  }
+                ]
+              },
+              {
+                "rowIndex": 15,
+                "cells": [
+                  {
+                    "ref": "t007:r016:c001",
+                    "tableId": "t007",
+                    "rowIndex": 15,
+                    "columnIndex": 0,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "Conversion of Class B to Class A shares",
+                    "headerRefs": [],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r016:c003",
+                    "tableId": "t007",
+                    "rowIndex": 15,
+                    "columnIndex": 2,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "35,698,674",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r016:c005",
+                    "tableId": "t007",
+                    "rowIndex": 15,
+                    "columnIndex": 4,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "—",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r016:c007",
+                    "tableId": "t007",
+                    "rowIndex": 15,
+                    "columnIndex": 6,
+                    "rowSpan": 1,
+                    "columnSpan": 1,
+                    "text": "33,523,883",
+                    "headerRefs": [
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
+                    ],
+                    "source": {
+                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+                      "accessionNumber": "0001104659-26-064092",
+                      "documentName": "nbis-20260331xex99d2.htm",
+                      "filedAt": "2026-05-20",
+                      "form": "6-K",
+                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+                    }
+                  },
+                  {
+                    "ref": "t007:r016:c009",
+                    "tableId": "t007",
                     "rowIndex": 15,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20205,8 +20957,8 @@
                 "rowIndex": 16,
                 "cells": [
                   {
-                    "ref": "t006:r017:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r017:c001",
+                    "tableId": "t007",
                     "rowIndex": 16,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20223,18 +20975,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r017:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r017:c003",
+                    "tableId": "t007",
                     "rowIndex": 16,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20246,18 +20998,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r017:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r017:c005",
+                    "tableId": "t007",
                     "rowIndex": 16,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20269,18 +21021,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r017:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r017:c007",
+                    "tableId": "t007",
                     "rowIndex": 16,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "44,899,648",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20292,18 +21044,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r017:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r017:c009",
+                    "tableId": "t007",
                     "rowIndex": 16,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20320,8 +21072,8 @@
                 "rowIndex": 17,
                 "cells": [
                   {
-                    "ref": "t006:r018:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r018:c001",
+                    "tableId": "t007",
                     "rowIndex": 17,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20338,18 +21090,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r018:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r018:c003",
+                    "tableId": "t007",
                     "rowIndex": 17,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20361,18 +21113,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r018:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r018:c005",
+                    "tableId": "t007",
                     "rowIndex": 17,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20384,18 +21136,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r018:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r018:c007",
+                    "tableId": "t007",
                     "rowIndex": 17,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "5,773,142",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20407,18 +21159,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r018:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r018:c009",
+                    "tableId": "t007",
                     "rowIndex": 17,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20435,8 +21187,8 @@
                 "rowIndex": 18,
                 "cells": [
                   {
-                    "ref": "t006:r019:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r019:c001",
+                    "tableId": "t007",
                     "rowIndex": 18,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20453,18 +21205,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r019:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r019:c003",
+                    "tableId": "t007",
                     "rowIndex": 18,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "237,916,047",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20476,18 +21228,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r019:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r019:c005",
+                    "tableId": "t007",
                     "rowIndex": 18,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "35,698,674",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20499,18 +21251,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r019:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r019:c007",
+                    "tableId": "t007",
                     "rowIndex": 18,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "308,971,701",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20522,18 +21274,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r019:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r019:c009",
+                    "tableId": "t007",
                     "rowIndex": 18,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "33,523,883",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20550,8 +21302,8 @@
                 "rowIndex": 19,
                 "cells": [
                   {
-                    "ref": "t006:r020:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r020:c001",
+                    "tableId": "t007",
                     "rowIndex": 19,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20573,8 +21325,8 @@
                 "rowIndex": 20,
                 "cells": [
                   {
-                    "ref": "t006:r021:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r021:c001",
+                    "tableId": "t007",
                     "rowIndex": 20,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20591,18 +21343,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r021:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r021:c003",
+                    "tableId": "t007",
                     "rowIndex": 20,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.44)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20614,18 +21366,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r021:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r021:c005",
+                    "tableId": "t007",
                     "rowIndex": 20,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.44)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20637,18 +21389,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r021:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r021:c007",
+                    "tableId": "t007",
                     "rowIndex": 20,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.40",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20660,18 +21412,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r021:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r021:c009",
+                    "tableId": "t007",
                     "rowIndex": 20,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.40",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20688,8 +21440,8 @@
                 "rowIndex": 21,
                 "cells": [
                   {
-                    "ref": "t006:r022:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r022:c001",
+                    "tableId": "t007",
                     "rowIndex": 21,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20706,18 +21458,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r022:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r022:c003",
+                    "tableId": "t007",
                     "rowIndex": 21,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.44)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20729,18 +21481,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r022:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r022:c005",
+                    "tableId": "t007",
                     "rowIndex": 21,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.44)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20752,18 +21504,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r022:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r022:c007",
+                    "tableId": "t007",
                     "rowIndex": 21,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.11",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20775,18 +21527,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r022:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r022:c009",
+                    "tableId": "t007",
                     "rowIndex": 21,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.11",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20803,8 +21555,8 @@
                 "rowIndex": 22,
                 "cells": [
                   {
-                    "ref": "t006:r023:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r023:c001",
+                    "tableId": "t007",
                     "rowIndex": 22,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20826,8 +21578,8 @@
                 "rowIndex": 23,
                 "cells": [
                   {
-                    "ref": "t006:r024:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r024:c001",
+                    "tableId": "t007",
                     "rowIndex": 23,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20844,18 +21596,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r024:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r024:c003",
+                    "tableId": "t007",
                     "rowIndex": 23,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.04)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20867,18 +21619,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r024:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r024:c005",
+                    "tableId": "t007",
                     "rowIndex": 23,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.04)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20890,18 +21642,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r024:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r024:c007",
+                    "tableId": "t007",
                     "rowIndex": 23,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20913,18 +21665,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r024:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r024:c009",
+                    "tableId": "t007",
                     "rowIndex": 23,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20941,8 +21693,8 @@
                 "rowIndex": 24,
                 "cells": [
                   {
-                    "ref": "t006:r025:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r025:c001",
+                    "tableId": "t007",
                     "rowIndex": 24,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -20959,18 +21711,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r025:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r025:c003",
+                    "tableId": "t007",
                     "rowIndex": 24,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.04)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -20982,18 +21734,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r025:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r025:c005",
+                    "tableId": "t007",
                     "rowIndex": 24,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.04)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21005,18 +21757,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r025:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r025:c007",
+                    "tableId": "t007",
                     "rowIndex": 24,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21028,18 +21780,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r025:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r025:c009",
+                    "tableId": "t007",
                     "rowIndex": 24,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "—",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21056,8 +21808,8 @@
                 "rowIndex": 25,
                 "cells": [
                   {
-                    "ref": "t006:r026:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r026:c001",
+                    "tableId": "t007",
                     "rowIndex": 25,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -21079,8 +21831,8 @@
                 "rowIndex": 26,
                 "cells": [
                   {
-                    "ref": "t006:r027:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r027:c001",
+                    "tableId": "t007",
                     "rowIndex": 26,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -21097,18 +21849,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r027:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r027:c003",
+                    "tableId": "t007",
                     "rowIndex": 26,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.48)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21120,18 +21872,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r027:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r027:c005",
+                    "tableId": "t007",
                     "rowIndex": 26,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.48)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21143,18 +21895,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r027:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r027:c007",
+                    "tableId": "t007",
                     "rowIndex": 26,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.40",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21166,18 +21918,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r027:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r027:c009",
+                    "tableId": "t007",
                     "rowIndex": 26,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.40",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21194,8 +21946,8 @@
                 "rowIndex": 27,
                 "cells": [
                   {
-                    "ref": "t006:r028:c001",
-                    "tableId": "t006",
+                    "ref": "t007:r028:c001",
+                    "tableId": "t007",
                     "rowIndex": 27,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -21212,18 +21964,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r028:c003",
-                    "tableId": "t006",
+                    "ref": "t007:r028:c003",
+                    "tableId": "t007",
                     "rowIndex": 27,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.48)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c003",
-                      "t006:r005:c003"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c003",
+                      "t007:r005:c003"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21235,18 +21987,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r028:c005",
-                    "tableId": "t006",
+                    "ref": "t007:r028:c005",
+                    "tableId": "t007",
                     "rowIndex": 27,
                     "columnIndex": 4,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "(0.48)",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c003",
-                      "t006:r004:c005",
-                      "t006:r005:c005"
+                      "t007:r002:c003",
+                      "t007:r003:c003",
+                      "t007:r004:c005",
+                      "t007:r005:c005"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21258,18 +22010,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r028:c007",
-                    "tableId": "t006",
+                    "ref": "t007:r028:c007",
+                    "tableId": "t007",
                     "rowIndex": 27,
                     "columnIndex": 6,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.11",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c007",
-                      "t006:r005:c007"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c007",
+                      "t007:r005:c007"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21281,18 +22033,18 @@
                     }
                   },
                   {
-                    "ref": "t006:r028:c009",
-                    "tableId": "t006",
+                    "ref": "t007:r028:c009",
+                    "tableId": "t007",
                     "rowIndex": 27,
                     "columnIndex": 8,
                     "rowSpan": 1,
                     "columnSpan": 1,
                     "text": "2.11",
                     "headerRefs": [
-                      "t006:r002:c003",
-                      "t006:r003:c007",
-                      "t006:r004:c009",
-                      "t006:r005:c009"
+                      "t007:r002:c003",
+                      "t007:r003:c007",
+                      "t007:r004:c009",
+                      "t007:r005:c009"
                     ],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21308,7 +22060,7 @@
             ]
           },
           {
-            "id": "t007",
+            "id": "t008",
             "sourceTableIndex": 15,
             "context": "nsidered the nature of the Tavily Holdback Payment and determined the Vested Holdback Payment represented consideration transferred while the | F-12 | Table of Contents | Vesting Holdback Payment is compensatory in nature and will be accrued as compensation expense over the service period. Compensation expense related to the Vesting Holdback Payment for the period ended March 31, 2026 was $1.1, which is recognized in other accrued liabilities on the consolidated balance sheet and within sales, general and administrative expenses on the unaudited condensed consolidated statement of operations. | The Tavily Earnout is subject to the achievement of certain Annual Recurring Revenue (“ARR”) milestones measured in December 2026 and March 2027. The Tavily Earnout is contingent on future services, and accordingly represents compensation expense in the post-acquisition period. For the period ended March 31, 2026, the Company recognized $1.6 of compensation expense included in Other accrued liabilities on the consolidated balance sheet and within Operating costs and expenses on the consolidated statement of operations. | The fair value of consideration transferred consisted of the following:",
             "title": "The Tavily Earnout is subject to the achievement of certain Annual Recurring Revenue (“ARR”) milestones measured in December 2026 and March 2027. The Tavily Earnout is contingent on future services, and accordingly represents compensation expense in the post-acquisition period. For the period ended March 31, 2026, the Company recognized $1.6 of compensation expense included in Other accrued liabilities on the consolidated balance sheet and within Operating costs and expenses on the consolidated statement of operations.",
@@ -21317,8 +22069,8 @@
                 "rowIndex": 1,
                 "cells": [
                   {
-                    "ref": "t007:r002:c001",
-                    "tableId": "t007",
+                    "ref": "t008:r002:c001",
+                    "tableId": "t008",
                     "rowIndex": 1,
                     "columnIndex": 0,
                     "rowSpan": 1,
@@ -21335,166 +22087,13 @@
                     }
                   },
                   {
-                    "ref": "t007:r002:c003",
-                    "tableId": "t007",
-                    "rowIndex": 1,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "177.2",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 2,
-                "cells": [
-                  {
-                    "ref": "t007:r003:c001",
-                    "tableId": "t007",
-                    "rowIndex": 2,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Vested Holdback Payment",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t007:r003:c003",
-                    "tableId": "t007",
-                    "rowIndex": 2,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "10.1",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 3,
-                "cells": [
-                  {
-                    "ref": "t007:r004:c001",
-                    "tableId": "t007",
-                    "rowIndex": 3,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Replacement equity awards",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t007:r004:c003",
-                    "tableId": "t007",
-                    "rowIndex": 3,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "2.4",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 4,
-                "cells": [
-                  {
-                    "ref": "t007:r005:c001",
-                    "tableId": "t007",
-                    "rowIndex": 4,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Total fair value of consideration transferred",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t007:r005:c003",
-                    "tableId": "t007",
-                    "rowIndex": 4,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "189.7",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "t008",
-            "sourceTableIndex": 16,
-            "context": "177.2 | Vested Holdback Payment | 10.1 | Replacement equity awards | 2.4 | Total fair value of consideration transferred | 189.7 | The Company accounted for the Tavily acquisition using the acquisition method of accounting for business combinations. The following table summarizes the fair value of assets acquired and liabilities assumed as of the acquisition date (including any measurement period adjustments through March 31, 2026):",
-            "rows": [
-              {
-                "rowIndex": 1,
-                "cells": [
-                  {
                     "ref": "t008:r002:c003",
                     "tableId": "t008",
                     "rowIndex": 1,
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "March 31, 2026",
+                    "text": "177.2",
                     "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21517,7 +22116,7 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Cash and cash equivalents",
+                    "text": "Vested Holdback Payment",
                     "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21535,8 +22134,8 @@
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "7.1",
-                    "headerRefs": ["t008:r002:c003"],
+                    "text": "10.1",
+                    "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -21558,7 +22157,7 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Accounts receivable",
+                    "text": "Replacement equity awards",
                     "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21576,8 +22175,8 @@
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "0.9",
-                    "headerRefs": ["t008:r002:c003"],
+                    "text": "2.4",
+                    "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",
@@ -21599,7 +22198,7 @@
                     "columnIndex": 0,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "Other current assets",
+                    "text": "Total fair value of consideration transferred",
                     "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
@@ -21617,441 +22216,8 @@
                     "columnIndex": 2,
                     "rowSpan": 1,
                     "columnSpan": 1,
-                    "text": "1.6",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 5,
-                "cells": [
-                  {
-                    "ref": "t008:r006:c001",
-                    "tableId": "t008",
-                    "rowIndex": 5,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Property and equipment",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r006:c003",
-                    "tableId": "t008",
-                    "rowIndex": 5,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "0.2",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 6,
-                "cells": [
-                  {
-                    "ref": "t008:r007:c001",
-                    "tableId": "t008",
-                    "rowIndex": 6,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Operating lease right-of-use assets",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r007:c003",
-                    "tableId": "t008",
-                    "rowIndex": 6,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "0.6",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 7,
-                "cells": [
-                  {
-                    "ref": "t008:r008:c001",
-                    "tableId": "t008",
-                    "rowIndex": 7,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Deferred tax assets",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r008:c003",
-                    "tableId": "t008",
-                    "rowIndex": 7,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "1.0",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 8,
-                "cells": [
-                  {
-                    "ref": "t008:r009:c001",
-                    "tableId": "t008",
-                    "rowIndex": 8,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Intangible assets:",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 9,
-                "cells": [
-                  {
-                    "ref": "t008:r010:c001",
-                    "tableId": "t008",
-                    "rowIndex": 9,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Developed technology",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r010:c003",
-                    "tableId": "t008",
-                    "rowIndex": 9,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "14.7",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 10,
-                "cells": [
-                  {
-                    "ref": "t008:r011:c001",
-                    "tableId": "t008",
-                    "rowIndex": 10,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Customer relationships",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r011:c003",
-                    "tableId": "t008",
-                    "rowIndex": 10,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "8.3",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 11,
-                "cells": [
-                  {
-                    "ref": "t008:r012:c001",
-                    "tableId": "t008",
-                    "rowIndex": 11,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Trademark",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r012:c003",
-                    "tableId": "t008",
-                    "rowIndex": 11,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "4.6",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 12,
-                "cells": [
-                  {
-                    "ref": "t008:r013:c001",
-                    "tableId": "t008",
-                    "rowIndex": 12,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Goodwill",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r013:c003",
-                    "tableId": "t008",
-                    "rowIndex": 12,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "163.3",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 13,
-                "cells": [
-                  {
-                    "ref": "t008:r014:c001",
-                    "tableId": "t008",
-                    "rowIndex": 13,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Total assets acquired",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r014:c003",
-                    "tableId": "t008",
-                    "rowIndex": 13,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "202.3",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 14,
-                "cells": [
-                  {
-                    "ref": "t008:r015:c001",
-                    "tableId": "t008",
-                    "rowIndex": 14,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Liabilities assumed",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r015:c003",
-                    "tableId": "t008",
-                    "rowIndex": 14,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "(12.6)",
-                    "headerRefs": ["t008:r002:c003"],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  }
-                ]
-              },
-              {
-                "rowIndex": 15,
-                "cells": [
-                  {
-                    "ref": "t008:r016:c001",
-                    "tableId": "t008",
-                    "rowIndex": 15,
-                    "columnIndex": 0,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
-                    "text": "Net assets acquired",
-                    "headerRefs": [],
-                    "source": {
-                      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
-                      "accessionNumber": "0001104659-26-064092",
-                      "documentName": "nbis-20260331xex99d2.htm",
-                      "filedAt": "2026-05-20",
-                      "form": "6-K",
-                      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
-                    }
-                  },
-                  {
-                    "ref": "t008:r016:c003",
-                    "tableId": "t008",
-                    "rowIndex": 15,
-                    "columnIndex": 2,
-                    "rowSpan": 1,
-                    "columnSpan": 1,
                     "text": "189.7",
-                    "headerRefs": ["t008:r002:c003"],
+                    "headerRefs": [],
                     "source": {
                       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
                       "accessionNumber": "0001104659-26-064092",

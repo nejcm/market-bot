@@ -12,17 +12,21 @@ describe("untagged FPI financial exhibit corpus", () => {
 
     expect(evaluation).toMatchObject({
       caseCount: 10,
-      supportedFullStatementCount: 7,
-      acceptedFullStatementCount: 6,
-      insufficientCoverageCount: 2,
+      supportedFullStatementCount: 8,
+      acceptedFullStatementCount: 7,
+      insufficientCoverageCount: 1,
       unsupportedLayoutCount: 1,
       silentlyWrongValueCount: 0,
       sourceCellMismatchCount: 0,
       passed: true,
     });
     expect(evaluation.layoutFamilies.length).toBeGreaterThanOrEqual(3);
-    expect(evaluation.acceptanceRate).toBeCloseTo(6 / 7, 12);
+    expect(evaluation.acceptanceRate).toBeCloseTo(7 / 8, 12);
     expect(evaluation.cases.find((item) => item.id === "nbis-2026-q1")?.outcome).toBe("accepted");
+    expect(evaluation.cases.find((item) => item.id === "pdd-2026-q1")).toMatchObject({
+      evaluationClass: "supported-full-statement",
+      outcome: "accepted",
+    });
     expect(evaluation.cases.find((item) => item.id === "baba-2026-fy")).toMatchObject({
       outcome: "rejected",
       validationIssues: [

@@ -58,6 +58,10 @@ const GRAB_CASH = ["t006:r002:c004", "t006:r003:c004"];
 const BABA_INCOME = ["t004:r001:c003", "t004:r002:c007"];
 const BABA_BALANCE = ["t008:r001:c007", "t008:r002:c007"];
 const BABA_BALANCE_CONTINUED = ["t009:r001:c007", "t009:r002:c007"];
+const PDD_BALANCE = ["t001:r001:c003", "t001:r002:c007", "t001:r003:c007"];
+const PDD_BALANCE_CONTINUED = ["t002:r001:c003", "t002:r002:c007", "t002:r003:c007"];
+const PDD_INCOME = ["t003:r001:c003", "t003:r002:c007", "t003:r003:c007", "t003:r004:c007"];
+const PDD_CASH = ["t005:r001:c003", "t005:r002:c007", "t005:r003:c007", "t005:r004:c007"];
 
 const CASES: Readonly<Record<string, readonly MappingSpec[]>> = {
   "nbis-2026-q1": [
@@ -105,6 +109,28 @@ const CASES: Readonly<Record<string, readonly MappingSpec[]>> = {
     spec("netCashChange", "t007:r009:c001", "t007:r009:c008", SE_CASH, -120_375, "t007:r009:c009"),
     spec("cashBeginning", "t007:r010:c001", "t007:r010:c008", SE_CASH, 6_419_467),
     spec("cashEnding", "t007:r012:c001", "t007:r012:c008", SE_CASH, 6_299_092),
+  ],
+  "pdd-2026-q1": [
+    spec("cash", "t001:r007:c001", "t001:r007:c008", PDD_BALANCE, 123_041),
+    spec("totalAssets", "t001:r022:c001", "t001:r022:c008", PDD_BALANCE, 637_704),
+    spec("totalLiabilities", "t002:r019:c001", "t002:r019:c008", PDD_BALANCE_CONTINUED, 214_277),
+    spec("stockholdersEquity", "t002:r027:c001", "t002:r027:c008", PDD_BALANCE_CONTINUED, 423_427),
+    spec("revenue", "t003:r005:c001", "t003:r005:c008", PDD_INCOME, 106_229),
+    spec("operatingIncome", "t003:r013:c001", "t003:r013:c008", PDD_INCOME, 19_566),
+    spec("netIncome", "t003:r022:c001", "t003:r022:c008", PDD_INCOME, 12_547),
+    spec("operatingCashFlow", "t005:r005:c001", "t005:r005:c008", PDD_CASH, 16_445),
+    spec("investingCashFlow", "t005:r006:c001", "t005:r006:c008", PDD_CASH, 2082),
+    spec(
+      "foreignExchangeEffect",
+      "t005:r008:c001",
+      "t005:r008:c008",
+      PDD_CASH,
+      -2005,
+      "t005:r008:c009",
+    ),
+    spec("netCashChange", "t005:r010:c001", "t005:r010:c008", PDD_CASH, 16_522),
+    spec("cashBeginning", "t005:r011:c001", "t005:r011:c008", PDD_CASH, 182_732),
+    spec("cashEnding", "t005:r012:c001", "t005:r012:c008", PDD_CASH, 199_254),
   ],
   "spot-2026-q1": [
     spec("revenue", "t002:r004:c001", "t002:r004:c010", SPOT_INCOME, 4533),

@@ -273,6 +273,9 @@ export async function readRunDetail(
     ...(artifact.artifact?.financialLenses !== undefined
       ? { financialLenses: artifact.artifact.financialLenses }
       : {}),
+    ...(artifact.artifact?.financialStatements !== undefined
+      ? { financialStatements: artifact.artifact.financialStatements }
+      : {}),
     ...(artifact.artifact?.peerImpliedRange !== undefined
       ? { peerImpliedRange: artifact.artifact.peerImpliedRange }
       : {}),

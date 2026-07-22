@@ -1,6 +1,7 @@
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
 import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
+import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidence/fundamental-history";
 import type { PeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
@@ -32,6 +33,7 @@ export interface RunDetail {
   readonly marketSnapshots?: readonly MarketSnapshot[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly financialStatements?: FinancialStatementsArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;

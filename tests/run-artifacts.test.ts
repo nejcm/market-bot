@@ -8,6 +8,7 @@ import {
   scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   marketSnapshot,
   prediction,
@@ -67,6 +68,95 @@ function webSubjectProfile(symbol: string): unknown {
 }
 
 describe("loadRunArtifact", () => {
+  test("round-trips canonical statements and equity completeness", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "canonical-financials");
+    const sourceId = "extended-sec-edgar-fpi-fundamentals";
+    const financialStatements = deriveFinancialStatements(
+      {
+        facts: {
+          "ifrs-full": {
+            Revenue: {
+              units: {
+                USD: [
+                  {
+                    val: 100,
+                    form: "20-F",
+                    fp: "FY",
+                    fy: 2025,
+                    filed: "2026-03-01",
+                    start: "2025-01-01",
+                    end: "2025-12-31",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "FPI",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        analysisAsOf: "2026-06-01T00:00:00.000Z",
+        sourceId,
+      },
+    );
+    const dimension = {
+      status: "partial" as const,
+      reasonCodes: ["fixture-partial"],
+      asOf: "2026-06-01T00:00:00.000Z",
+      sourceIds: [sourceId],
+    };
+    const equityAnalysisCompleteness = {
+      version: 1 as const,
+      financialCoreStatus: "partial" as const,
+      coverageLevel: "limited" as const,
+      asOf: "2026-06-01T00:00:00.000Z",
+      dimensions: {
+        primaryFinancials: dimension,
+        valuation: dimension,
+        expectations: dimension,
+        capitalOwnership: dimension,
+        operatingKpis: dimension,
+      },
+    };
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "canonical-financials",
+        jobType: "equity",
+        symbol: "FPI",
+        sources: [
+          {
+            id: sourceId,
+            title: "FPI canonical statements",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "market-data",
+          },
+        ],
+        equityAnalysisCompleteness,
+      }),
+    );
+    await writeJson(join(runDir, "normalized", "financial-statements.json"), financialStatements);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.financialStatements).toEqual(financialStatements);
+    expect(artifact?.report.equityAnalysisCompleteness).toEqual(equityAnalysisCompleteness);
+  });
+
+  test("keeps historical reports readable without Phase 2 fields", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "historical-report");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "historical-report" }));
+
+    const { artifact, status } = await loadRunArtifact(runDir);
+
+    expect(status.report).toBe("ok");
+    expect(artifact?.report.equityAnalysisCompleteness).toBeUndefined();
+    expect(artifact?.financialStatements).toBeUndefined();
+  });
+
   test("round-trips a validated fundamental-history sidecar", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "fundamental-history");

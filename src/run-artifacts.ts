@@ -5,6 +5,7 @@ import {
   SOURCE_KINDS,
   isMarketRegimeLabel,
   type AssetClass,
+  type EquityAnalysisCompleteness,
   isReportIntegrity,
   type ExtendedEvidence,
   type ExtendedEvidenceCategory,
@@ -48,6 +49,10 @@ import {
   type SourcePlanArtifact,
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
+import type {
+  FinancialStatementSeriesKey,
+  FinancialStatementsArtifact,
+} from "./sources/extended-evidence/financial-statements-contract";
 import type {
   PeerImpliedRange,
   PeerImpliedRangeSuppressedReason,
@@ -127,6 +132,7 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly financialStatements?: FinancialStatementsArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
@@ -484,6 +490,55 @@ function readExtendedEvidence(value: unknown): ExtendedEvidence | undefined {
   };
 }
 
+const EQUITY_COMPLETENESS_DIMENSIONS = [
+  "primaryFinancials",
+  "valuation",
+  "expectations",
+  "capitalOwnership",
+  "operatingKpis",
+] as const;
+
+function readEquityAnalysisCompleteness(value: unknown): EquityAnalysisCompleteness | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    (value.financialCoreStatus !== "complete" &&
+      value.financialCoreStatus !== "partial" &&
+      value.financialCoreStatus !== "blocked") ||
+    (value.coverageLevel !== "comprehensive" &&
+      value.coverageLevel !== "substantial" &&
+      value.coverageLevel !== "limited") ||
+    readString(value, "asOf") === undefined ||
+    !isRecord(value.dimensions)
+  ) {
+    return undefined;
+  }
+  for (const key of EQUITY_COMPLETENESS_DIMENSIONS) {
+    const dimension = value.dimensions[key];
+    if (
+      !isRecord(dimension) ||
+      (dimension.status !== "complete" &&
+        dimension.status !== "partial" &&
+        dimension.status !== "blocked" &&
+        dimension.status !== "not-applicable") ||
+      readStringArray(dimension, "reasonCodes") === undefined ||
+      readString(dimension, "asOf") === undefined ||
+      readStringArray(dimension, "sourceIds") === undefined
+    ) {
+      return undefined;
+    }
+  }
+  const { primaryFinancials } = value.dimensions;
+  if (
+    !isRecord(primaryFinancials) ||
+    primaryFinancials.status === "not-applicable" ||
+    value.financialCoreStatus !== primaryFinancials.status
+  ) {
+    return undefined;
+  }
+  return value as unknown as EquityAnalysisCompleteness;
+}
+
 function readReport(value: unknown): ResearchReport | undefined {
   if (!isRecord(value) || !isJobType(value.jobType) || !isAssetClass(value.assetClass)) {
     return;
@@ -508,6 +563,9 @@ function readReport(value: unknown): ResearchReport | undefined {
     value.verifiedRepresentativeSnapshots,
   );
   const researchQualityDriver = readString(value, "researchQualityDriver");
+  const equityAnalysisCompleteness = readEquityAnalysisCompleteness(
+    value.equityAnalysisCompleteness,
+  );
   return {
     runId,
     jobType: value.jobType,
@@ -530,6 +588,7 @@ function readReport(value: unknown): ResearchReport | undefined {
     ...(isReportIntegrity(value.reportIntegrity) ? { reportIntegrity: value.reportIntegrity } : {}),
     ...(isReportIntegrity(value.researchQuality) ? { researchQuality: value.researchQuality } : {}),
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     dataGaps: stringArrayValue(value.dataGaps),
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),
@@ -935,6 +994,162 @@ function readFinancialLensesArtifact(value: unknown): FinancialLensArtifact | un
   return value as unknown as FinancialLensArtifact;
 }
 
+const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = [
+  "revenue",
+  "grossProfit",
+  "operatingIncome",
+  "netIncome",
+  "cash",
+  "currentAssets",
+  "currentLiabilities",
+  "totalAssets",
+  "totalLiabilities",
+  "stockholdersEquity",
+  "debt",
+  "operatingCashFlow",
+  "capitalExpenditure",
+  "dividendsPaid",
+  "shareRepurchases",
+  "dilutedEps",
+  "dilutedShares",
+];
+
+function hasFinancialStatementFactShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "value") !== undefined &&
+    readString(value, "periodKey") !== undefined &&
+    (value.periodType === "annual" || value.periodType === "interim") &&
+    (value.form === "10-K" ||
+      value.form === "10-K/A" ||
+      value.form === "10-Q" ||
+      value.form === "10-Q/A" ||
+      value.form === "20-F" ||
+      value.form === "20-F/A" ||
+      value.form === "6-K" ||
+      value.form === "6-K/A") &&
+    (value.canonicalForm === "10-K" ||
+      value.canonicalForm === "10-Q" ||
+      value.canonicalForm === "20-F" ||
+      value.canonicalForm === "6-K") &&
+    typeof value.amendment === "boolean" &&
+    (value.accessionNumber === null || typeof value.accessionNumber === "string") &&
+    readString(value, "filedAt") !== undefined &&
+    (value.periodStart === undefined || typeof value.periodStart === "string") &&
+    readString(value, "periodEnd") !== undefined &&
+    readNumber(value, "fiscalYear") !== undefined &&
+    readString(value, "fiscalPeriod") !== undefined &&
+    (value.taxonomy === "us-gaap" || value.taxonomy === "ifrs-full") &&
+    readString(value, "concept") !== undefined &&
+    (value.currency === null || typeof value.currency === "string") &&
+    readString(value, "unit") !== undefined &&
+    readNumber(value, "unitScale") !== undefined &&
+    value.extractionMethod === "sec-companyfacts" &&
+    readStringArray(value, "sourceIds") !== undefined
+  );
+}
+
+function hasFinancialStatementTtmShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "value") !== undefined &&
+    readString(value, "periodStart") !== undefined &&
+    readString(value, "periodEnd") !== undefined &&
+    readString(value, "currency") !== undefined &&
+    readString(value, "unit") !== undefined &&
+    readNumber(value, "unitScale") !== undefined &&
+    value.extractionMethod === "derived-sec-companyfacts" &&
+    value.formula === "FY + latest-YTD - prior-YTD" &&
+    readStringArray(value, "sourceIds") !== undefined &&
+    isRecord(value.components) &&
+    hasFinancialStatementFactShape(value.components.fiscalYear) &&
+    hasFinancialStatementFactShape(value.components.latestYearToDate) &&
+    hasFinancialStatementFactShape(value.components.priorYearToDate)
+  );
+}
+
+function hasFinancialStatementSeriesShape(
+  value: unknown,
+  key: FinancialStatementSeriesKey,
+): boolean {
+  return (
+    isRecord(value) &&
+    value.key === key &&
+    readString(value, "label") !== undefined &&
+    (value.statement === "incomeStatement" ||
+      value.statement === "balanceSheet" ||
+      value.statement === "cashFlowStatement" ||
+      value.statement === "perShare") &&
+    Array.isArray(value.annual) &&
+    value.annual.every(hasFinancialStatementFactShape) &&
+    Array.isArray(value.interim) &&
+    value.interim.every(hasFinancialStatementFactShape) &&
+    (value.ttm === undefined || hasFinancialStatementTtmShape(value.ttm))
+  );
+}
+
+function financialStatementSeriesRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const record: Record<string, unknown> = {};
+  for (const series of Object.values(value)) {
+    if (!isRecord(series) || typeof series.key !== "string") {
+      return undefined;
+    }
+    record[series.key] = series;
+  }
+  return record;
+}
+
+export function readFinancialStatementsArtifact(
+  value: unknown,
+): FinancialStatementsArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    readString(value, "generatedAt") === undefined ||
+    readString(value, "analysisAsOf") === undefined ||
+    readString(value, "symbol") === undefined ||
+    readString(value, "sourceId") === undefined ||
+    (value.sourceUrl !== undefined && typeof value.sourceUrl !== "string") ||
+    (value.taxonomy !== undefined &&
+      value.taxonomy !== "us-gaap" &&
+      value.taxonomy !== "ifrs-full") ||
+    (value.reportingCurrency !== undefined && typeof value.reportingCurrency !== "string") ||
+    (value.interimCadence !== "quarterly" &&
+      value.interimCadence !== "semiannual" &&
+      value.interimCadence !== "irregular" &&
+      value.interimCadence !== "annual-only" &&
+      value.interimCadence !== "unknown") ||
+    value.extractionMethod !== "sec-companyfacts" ||
+    !isRecord(value.statements) ||
+    !Array.isArray(value.validationNotes) ||
+    !Array.isArray(value.omissionNotes) ||
+    !Array.isArray(value.structuredFinancialGaps) ||
+    !isRecord(value.shadowParity)
+  ) {
+    return undefined;
+  }
+  const series = financialStatementSeriesRecord(value.statements.incomeStatement);
+  const balance = financialStatementSeriesRecord(value.statements.balanceSheet);
+  const cashFlow = financialStatementSeriesRecord(value.statements.cashFlowStatement);
+  const perShare = financialStatementSeriesRecord(value.statements.perShare);
+  const allSeries = { ...series, ...balance, ...cashFlow, ...perShare };
+  if (
+    series === undefined ||
+    balance === undefined ||
+    cashFlow === undefined ||
+    perShare === undefined ||
+    !FINANCIAL_STATEMENT_SERIES_KEYS.every((key) =>
+      hasFinancialStatementSeriesShape(allSeries[key], key),
+    )
+  ) {
+    return undefined;
+  }
+  return value as unknown as FinancialStatementsArtifact;
+}
+
 const PEER_IMPLIED_RANGE_SUPPRESSED_REASONS: ReadonlySet<PeerImpliedRangeSuppressedReason> =
   new Set([
     "peer supportability is not supported",
@@ -1035,7 +1250,7 @@ function hasFundamentalHistoryPointShape(value: unknown): boolean {
   return (
     isRecord(value) &&
     readNumber(value, "value") !== undefined &&
-    (value.form === "10-K" || value.form === "TTM") &&
+    (value.form === "10-K" || value.form === "20-F" || value.form === "TTM") &&
     readNumber(value, "fy") !== undefined &&
     readString(value, "fp") !== undefined &&
     readString(value, "periodStart") !== undefined &&
@@ -1334,6 +1549,7 @@ const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
+const FINANCIAL_STATEMENTS_FILE = RUN_ARTIFACT_FILES.financialStatements;
 const VALUATION_COMPS_FILE = RUN_ARTIFACT_FILES.valuationComps;
 const FUNDAMENTAL_HISTORY_FILE = RUN_ARTIFACT_FILES.fundamentalHistory;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
@@ -1366,6 +1582,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
   const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
+  const financialStatementsFile = await readJsonFile(join(runDir, FINANCIAL_STATEMENTS_FILE));
   const valuationCompsFile = await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
   const fundamentalHistoryFile = await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
@@ -1393,6 +1610,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const financialLenses =
     financialLensesFile.status === "ok"
       ? readFinancialLensesArtifact(financialLensesFile.value)
+      : undefined;
+  const financialStatements =
+    financialStatementsFile.status === "ok"
+      ? readFinancialStatementsArtifact(financialStatementsFile.value)
       : undefined;
   const peerImpliedRange =
     valuationCompsFile.status === "ok" ? readPeerImpliedRange(valuationCompsFile.value) : undefined;
@@ -1423,6 +1644,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
+      ...(financialStatements !== undefined ? { financialStatements } : {}),
       ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
       ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),

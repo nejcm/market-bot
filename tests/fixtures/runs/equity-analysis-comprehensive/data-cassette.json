@@ -1,0 +1,172 @@
+{
+  "entries": {
+    "GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"quoteResponse\":{\"result\":[{\"symbol\":\"AAPL\",\"regularMarketPrice\":198.5,\"regularMarketChangePercent\":1.4,\"regularMarketVolume\":62000000,\"shortName\":\"Apple Inc.\",\"fullExchangeName\":\"NasdaqGS\",\"currency\":\"USD\",\"regularMarketOpen\":197.5,\"regularMarketPreviousClose\":197.1,\"averageDailyVolume10Day\":62001000,\"fiftyDayAverage\":195.5,\"marketCap\":3000000000000,\"trailingPE\":31,\"forwardPE\":28,\"priceToBook\":45,\"epsTrailingTwelveMonths\":6.4,\"sharesOutstanding\":15000000000}]}}"
+    },
+    "GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=SPY%2CQQQ%2CIWM%2CDIA%2C%5EVIX%2C%5EVIX3M": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"quoteResponse\":{\"result\":[{\"symbol\":\"SPY\",\"regularMarketPrice\":520,\"regularMarketChangePercent\":0.5,\"regularMarketVolume\":70000000,\"shortName\":\"SPY proxy\",\"fullExchangeName\":\"NasdaqGS\",\"currency\":\"USD\",\"regularMarketOpen\":519,\"regularMarketPreviousClose\":519.5,\"averageDailyVolume10Day\":70001000,\"fiftyDayAverage\":517},{\"symbol\":\"QQQ\",\"regularMarketPrice\":450,\"regularMarketChangePercent\":0.7,\"regularMarketVolume\":55000000,\"shortName\":\"QQQ proxy\",\"fullExchangeName\":\"NasdaqGS\",\"currency\":\"USD\",\"regularMarketOpen\":449,\"regularMarketPreviousClose\":449.3,\"averageDailyVolume10Day\":55001000,\"fiftyDayAverage\":447},{\"symbol\":\"IWM\",\"regularMarketPrice\":210,\"regularMarketChangePercent\":0.2,\"regularMarketVolume\":30000000,\"shortName\":\"IWM proxy\",\"fullExchangeName\":\"NasdaqGS\",\"currency\":\"USD\",\"regularMarketOpen\":209,\"regularMarketPreviousClose\":209.8,\"averageDailyVolume10Day\":30001000,\"fiftyDayAverage\":207},{\"symbol\":\"DIA\",\"regularMarketPrice\":390,\"regularMarketChangePercent\":0.3,\"regularMarketVolume\":20000000,\"shortName\":\"DIA proxy\",\"fullExchangeName\":\"NasdaqGS\",\"currency\":\"USD\",\"regularMarketOpen\":389,\"regularMarketPreviousClose\":389.7,\"averageDailyVolume10Day\":20001000,\"fiftyDayAverage\":387},{\"symbol\":\"^VIX\",\"regularMarketPrice\":16,\"regularMarketChangePercent\":-2,\"regularMarketVolume\":0,\"shortName\":\"^VIX proxy\",\"fullExchangeName\":\"CBOE\",\"currency\":\"USD\",\"regularMarketOpen\":15,\"regularMarketPreviousClose\":18,\"averageDailyVolume10Day\":1000,\"fiftyDayAverage\":13},{\"symbol\":\"^VIX3M\",\"regularMarketPrice\":18,\"regularMarketChangePercent\":-1,\"regularMarketVolume\":0,\"shortName\":\"^VIX3M proxy\",\"fullExchangeName\":\"CBOE\",\"currency\":\"USD\",\"regularMarketOpen\":17,\"regularMarketPreviousClose\":19,\"averageDailyVolume10Day\":1000,\"fiftyDayAverage\":15}]}}"
+    },
+    "GET  https://query1.finance.yahoo.com/v1/finance/search?newsCount=8&q=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"news\":[{\"title\":\"Apple fixture headline\",\"link\":\"https://example.com/apple-fixture\",\"publisher\":\"Example News\",\"providerPublishTime\":1781530200}]}"
+    },
+    "GET  https://www.sec.gov/files/company_tickers.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"0\":{\"cik_str\":320193,\"ticker\":\"AAPL\",\"title\":\"Apple Inc.\"},\"1\":{\"cik_str\":1,\"ticker\":\"MSFT\",\"title\":\"Microsoft Corp.\"},\"2\":{\"cik_str\":2,\"ticker\":\"GOOGL\",\"title\":\"Alphabet Inc.\"},\"3\":{\"cik_str\":3,\"ticker\":\"AMZN\",\"title\":\"Amazon.com Inc.\"},\"4\":{\"cik_str\":4,\"ticker\":\"META\",\"title\":\"Meta Platforms Inc.\"},\"5\":{\"cik_str\":5,\"ticker\":\"DELL\",\"title\":\"Dell Technologies Inc.\"}}"
+    },
+    "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":383000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":391000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":405000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":189000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":210000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"GrossProfit\":{\"units\":{\"USD\":[{\"val\":170000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":180000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":190000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":88000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"OperatingIncomeLoss\":{\"units\":{\"USD\":[{\"val\":115000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":123000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":130000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":60000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":70000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"NetIncomeLoss\":{\"units\":{\"USD\":[{\"val\":97000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":102000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":108000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":50000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":58000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"EarningsPerShareDiluted\":{\"units\":{\"USD/shares\":[{\"val\":6.13,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":6.5,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":7,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":3.2,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":3.8,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"NetCashProvidedByUsedInOperatingActivities\":{\"units\":{\"USD\":[{\"val\":110000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":118000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":125000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":58000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":65000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"PaymentsToAcquirePropertyPlantAndEquipment\":{\"units\":{\"USD\":[{\"val\":11000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2023,\"filed\":\"2023-11-01\",\"start\":\"2022-10-01\",\"end\":\"2023-09-30\"},{\"val\":12000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2024,\"filed\":\"2024-11-01\",\"start\":\"2023-10-01\",\"end\":\"2024-09-30\"},{\"val\":13000000000,\"form\":\"10-K\",\"fp\":\"FY\",\"fy\":2025,\"filed\":\"2025-11-01\",\"start\":\"2024-10-01\",\"end\":\"2025-09-30\"},{\"val\":6000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2025,\"filed\":\"2025-05-01\",\"start\":\"2024-10-01\",\"end\":\"2025-03-31\"},{\"val\":7000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2025-10-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":60000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q2\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+    },
+    "GET  https://data.sec.gov/submissions/CIK0000320193.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"sic\":\"3571\",\"sicDescription\":\"Electronic Computers\",\"filings\":{\"recent\":{\"form\":[\"8-K\"],\"filingDate\":[\"2026-05-01\"]}}}"
+    },
+    "GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSFT%2CGOOGL%2CAMZN%2CMETA%2CDELL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"quoteResponse\":{\"result\":[{\"symbol\":\"MSFT\",\"shortName\":\"Microsoft\",\"regularMarketPrice\":500,\"regularMarketChangePercent\":1,\"regularMarketVolume\":20000000,\"marketCap\":3200000000000,\"currency\":\"USD\",\"fullExchangeName\":\"NasdaqGS\"},{\"symbol\":\"GOOGL\",\"shortName\":\"Alphabet\",\"regularMarketPrice\":200,\"regularMarketChangePercent\":1,\"regularMarketVolume\":20000000,\"marketCap\":2200000000000,\"currency\":\"USD\",\"fullExchangeName\":\"NasdaqGS\"},{\"symbol\":\"AMZN\",\"shortName\":\"Amazon\",\"regularMarketPrice\":220,\"regularMarketChangePercent\":1,\"regularMarketVolume\":20000000,\"marketCap\":2400000000000,\"currency\":\"USD\",\"fullExchangeName\":\"NasdaqGS\"},{\"symbol\":\"META\",\"shortName\":\"Meta\",\"regularMarketPrice\":650,\"regularMarketChangePercent\":1,\"regularMarketVolume\":20000000,\"marketCap\":1800000000000,\"currency\":\"USD\",\"fullExchangeName\":\"NasdaqGS\"},{\"symbol\":\"DELL\",\"shortName\":\"Dell\",\"regularMarketPrice\":120,\"regularMarketChangePercent\":1,\"regularMarketVolume\":5000000,\"marketCap\":80000000000,\"currency\":\"USD\",\"fullExchangeName\":\"NYSE\"}]}}"
+    },
+    "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":70000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":80000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q3\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+    },
+    "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000002.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":100000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":30000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+    },
+    "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000003.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":180000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":90000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":160000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+    },
+    "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000004.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":50000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":60000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":40000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+    },
+    "GET  https://data.sec.gov/api/xbrl/companyfacts/CIK0000000005.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"facts\":{\"us-gaap\":{\"Revenues\":{\"units\":{\"USD\":[{\"val\":25000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}]}},\"CashAndCashEquivalentsAtCarryingValue\":{\"units\":{\"USD\":[{\"val\":10000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}},\"LongTermDebt\":{\"units\":{\"USD\":[{\"val\":30000000000,\"form\":\"10-Q\",\"fp\":\"Q1\",\"fy\":2026,\"filed\":\"2026-05-01\",\"end\":\"2026-03-31\"}]}}}}}"
+    },
+    "GET  https://data.sec.gov/submissions/CIK0000000001.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"sic\":\"7372\",\"sicDescription\":\"Prepackaged Software\",\"filings\":{\"recent\":{\"form\":[],\"filingDate\":[]}}}"
+    },
+    "GET  https://data.sec.gov/submissions/CIK0000000002.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"sic\":\"7370\",\"sicDescription\":\"Computer Services\",\"filings\":{\"recent\":{\"form\":[],\"filingDate\":[]}}}"
+    },
+    "GET  https://data.sec.gov/submissions/CIK0000000003.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"sic\":\"5961\",\"sicDescription\":\"Catalog and Mail-Order Houses\",\"filings\":{\"recent\":{\"form\":[],\"filingDate\":[]}}}"
+    },
+    "GET  https://data.sec.gov/submissions/CIK0000000004.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"sic\":\"7370\",\"sicDescription\":\"Computer Services\",\"filings\":{\"recent\":{\"form\":[],\"filingDate\":[]}}}"
+    },
+    "GET  https://data.sec.gov/submissions/CIK0000000005.json": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"sic\":\"3571\",\"sicDescription\":\"Electronic Computers\",\"filings\":{\"recent\":{\"form\":[],\"filingDate\":[]}}}"
+    },
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=history&interval=1d&period1=1746921600&period2=1781568000": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"chart\":{\"result\":[{\"timestamp\":[1769904000,1769990400,1770076800,1770163200,1770249600,1770336000,1770422400,1770508800,1770595200,1770681600,1770768000,1770854400,1770940800,1771027200,1771113600,1771200000,1771286400,1771372800,1771459200,1771545600,1771632000,1771718400,1771804800,1771891200,1771977600,1772064000,1772150400,1772236800,1772323200,1772409600,1772496000,1772582400,1772668800,1772755200,1772841600,1772928000,1773014400,1773100800,1773187200,1773273600,1773360000,1773446400,1773532800,1773619200,1773705600,1773792000,1773878400,1773964800,1774051200,1774137600,1774224000,1774310400,1774396800,1774483200,1774569600,1774656000,1774742400,1774828800,1774915200,1775001600,1775088000,1775174400,1775260800,1775347200,1775433600,1775520000,1775606400,1775692800,1775779200,1775865600,1775952000,1776038400,1776124800,1776211200,1776297600,1776384000,1776470400,1776556800,1776643200,1776729600,1776816000,1776902400,1776988800,1777075200,1777161600,1777248000,1777334400,1777420800,1777507200,1777593600],\"indicators\":{\"quote\":[{\"open\":[180,180.4,180.8,181.2,181.6,182,182.4,182.8,183.2,183.6,184,184.4,184.8,185.2,185.6,186,186.4,186.8,187.2,187.6,188,188.4,188.8,189.2,189.6,190,190.4,190.8,191.2,191.6,192,192.4,192.8,193.2,193.6,194,194.4,194.8,195.2,195.6,196,196.4,196.8,197.2,197.6,198,198.4,198.8,199.2,199.6,200,200.4,200.8,201.2,201.6,202,202.4,202.8,203.2,203.6,204,204.4,204.8,205.2,205.6,206,206.4,206.8,207.2,207.6,208,208.4,208.8,209.2,209.6,210,210.4,210.8,211.2,211.6,212,212.4,212.8,213.2,213.6,214,214.4,214.8,215.2,215.6],\"high\":[182,182.4,182.8,183.2,183.6,184,184.4,184.8,185.2,185.6,186,186.4,186.8,187.2,187.6,188,188.4,188.8,189.2,189.6,190,190.4,190.8,191.2,191.6,192,192.4,192.8,193.2,193.6,194,194.4,194.8,195.2,195.6,196,196.4,196.8,197.2,197.6,198,198.4,198.8,199.2,199.6,200,200.4,200.8,201.2,201.6,202,202.4,202.8,203.2,203.6,204,204.4,204.8,205.2,205.6,206,206.4,206.8,207.2,207.6,208,208.4,208.8,209.2,209.6,210,210.4,210.8,211.2,211.6,212,212.4,212.8,213.2,213.6,214,214.4,214.8,215.2,215.6,216,216.4,216.8,217.2,217.6],\"low\":[178,178.4,178.8,179.2,179.6,180,180.4,180.8,181.2,181.6,182,182.4,182.8,183.2,183.6,184,184.4,184.8,185.2,185.6,186,186.4,186.8,187.2,187.6,188,188.4,188.8,189.2,189.6,190,190.4,190.8,191.2,191.6,192,192.4,192.8,193.2,193.6,194,194.4,194.8,195.2,195.6,196,196.4,196.8,197.2,197.6,198,198.4,198.8,199.2,199.6,200,200.4,200.8,201.2,201.6,202,202.4,202.8,203.2,203.6,204,204.4,204.8,205.2,205.6,206,206.4,206.8,207.2,207.6,208,208.4,208.8,209.2,209.6,210,210.4,210.8,211.2,211.6,212,212.4,212.8,213.2,213.6],\"close\":[181,181.4,181.8,182.2,182.6,183,183.4,183.8,184.2,184.6,185,185.4,185.8,186.2,186.6,187,187.4,187.8,188.2,188.6,189,189.4,189.8,190.2,190.6,191,191.4,191.8,192.2,192.6,193,193.4,193.8,194.2,194.6,195,195.4,195.8,196.2,196.6,197,197.4,197.8,198.2,198.6,199,199.4,199.8,200.2,200.6,201,201.4,201.8,202.2,202.6,203,203.4,203.8,204.2,204.6,205,205.4,205.8,206.2,206.6,207,207.4,207.8,208.2,208.6,209,209.4,209.8,210.2,210.6,211,211.4,211.8,212.2,212.6,213,213.4,213.8,214.2,214.6,215,215.4,215.8,216.2,216.6],\"volume\":[50000000,50001000,50002000,50003000,50004000,50005000,50006000,50007000,50008000,50009000,50010000,50011000,50012000,50013000,50014000,50015000,50016000,50017000,50018000,50019000,50020000,50021000,50022000,50023000,50024000,50025000,50026000,50027000,50028000,50029000,50030000,50031000,50032000,50033000,50034000,50035000,50036000,50037000,50038000,50039000,50040000,50041000,50042000,50043000,50044000,50045000,50046000,50047000,50048000,50049000,50050000,50051000,50052000,50053000,50054000,50055000,50056000,50057000,50058000,50059000,50060000,50061000,50062000,50063000,50064000,50065000,50066000,50067000,50068000,50069000,50070000,50071000,50072000,50073000,50074000,50075000,50076000,50077000,50078000,50079000,50080000,50081000,50082000,50083000,50084000,50085000,50086000,50087000,50088000,50089000]}]}}]}}"
+    },
+    "GET  https://finnhub.io/api/v1/company-news?from=2026-05-16&symbol=AAPL&to=2026-06-15": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "[{\"id\":1,\"headline\":\"Apple fixture provider update\",\"source\":\"Fixture Wire\",\"summary\":\"Deterministic current provider evidence.\",\"url\":\"https://example.com/apple-provider-update\",\"datetime\":1781530200}]"
+    },
+    "GET  https://finnhub.io/api/v1/calendar/earnings?from=2026-03-17&symbol=AAPL&to=2026-09-13": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"earningsCalendar\":[{\"symbol\":\"AAPL\",\"date\":\"2026-07-10\",\"hour\":\"amc\",\"epsEstimate\":1.72,\"revenueEstimate\":98000000000}]}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/dividend?from=2026-03-17&symbol=AAPL&to=2026-09-13": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "[]"
+    },
+    "GET  https://finnhub.io/api/v1/stock/split?from=2026-03-17&symbol=AAPL&to=2026-09-13": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "[]"
+    },
+    "GET  https://api.tradier.com/v1/markets/options/expirations?includeAllRoots=true&symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"expirations\":{\"date\":[\"2026-07-10\",\"2026-07-17\",\"2026-08-21\"]}}"
+    },
+    "GET  https://api.tradier.com/v1/markets/options/chains?expiration=2026-07-17&greeks=true&symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"options\":{\"option\":[{\"strike\":200,\"option_type\":\"call\",\"bid\":3.8,\"ask\":4.2,\"greeks\":{\"mid_iv\":0.31}},{\"strike\":200,\"option_type\":\"put\",\"bid\":2.8,\"ask\":3.2,\"greeks\":{\"mid_iv\":0.33}}]}}"
+    }
+  }
+}

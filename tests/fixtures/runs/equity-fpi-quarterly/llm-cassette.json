@@ -1,0 +1,44 @@
+{
+  "entries": {
+    "playbook-selection|fixture-quick": [
+      {
+        "content": "{\"selections\":[]}",
+        "tokenEstimate": 10
+      }
+    ],
+    "specialist-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"FPIQ specialist analysis\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "critique|fixture-quick": [
+      {
+        "content": "{\"critique\":\"FPIQ critique\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "final-synthesis|fixture-synthesis": [
+      {
+        "content": "{\"summary\":\"Fixture Quarterly FPI N.V. synthetic FPI fixture replayed through current equity research stages.\",\"keyFindings\":[{\"text\":\"FPIQ has deterministic market and verified close evidence.\",\"sourceIds\":[\"market-yahoo-equity-fpiq\",\"verified-snapshot-FPIQ\"]}],\"bullCase\":[],\"bearCase\":[],\"risks\":[{\"text\":\"Current structured SEC normalization does not support the fixture filing forms.\",\"sourceIds\":[\"market-yahoo-equity-fpiq\"]}],\"catalysts\":[],\"scenarios\":[{\"name\":\"Reference\",\"description\":\"FPIQ remains within the deterministic fixture evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-fpiq\"]}],\"dataGaps\":[\"Synthetic FPI inputs exercise unsupported current filing forms.\"],\"predictions\":[]}",
+        "tokenEstimate": 50
+      },
+      {
+        "content": "{\"summary\":\"Fixture Quarterly FPI N.V. synthetic FPI fixture replayed through current equity research stages.\",\"keyFindings\":[{\"text\":\"FPIQ has deterministic market and verified close evidence.\",\"sourceIds\":[\"market-yahoo-equity-fpiq\",\"verified-snapshot-FPIQ\"]}],\"bullCase\":[],\"bearCase\":[],\"risks\":[{\"text\":\"Current structured SEC normalization does not support the fixture filing forms.\",\"sourceIds\":[\"market-yahoo-equity-fpiq\"]}],\"catalysts\":[],\"scenarios\":[{\"name\":\"Reference\",\"description\":\"FPIQ remains within the deterministic fixture evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-fpiq\"]}],\"dataGaps\":[\"Synthetic FPI inputs exercise unsupported current filing forms.\"],\"predictions\":[]}",
+        "tokenEstimate": 50
+      }
+    ],
+    "instrument-evidence-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"FPIQ instrument evidence\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "market-behavior-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"FPIQ market behavior\"}",
+        "tokenEstimate": 20
+      }
+    ]
+  }
+}

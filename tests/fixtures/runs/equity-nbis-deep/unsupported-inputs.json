@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "issuer": {
+    "symbol": "NBIS",
+    "name": "Nebius Group N.V.",
+    "cik": "0001513845"
+  },
+  "inputs": [
+    {
+      "file": "nbis-20251231x20f.txt",
+      "form": "20-F",
+      "role": "annual-filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926052948/nbis-20251231x20f.htm",
+      "sha256": "4e1793bf79a63af17e3b868715d0e4c8840a1864fd5d8490354178961b0a5907",
+      "bytes": 4251656,
+      "contentType": "text/html",
+      "lastModified": "Thu, 30 Apr 2026 20:17:44 GMT",
+      "structuredSupport": "unsupported",
+      "reason": "Phase 0 baseline: current structured SEC normalization accepts only 10-K/10-Q facts"
+    },
+    {
+      "file": "nbis-20260331x6k.txt",
+      "form": "6-K",
+      "role": "interim-filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331x6k.htm",
+      "sha256": "7c3ef09ca14157c11828c9122f4cacbbef3c1b824982d8034fe1ec53b96ee7d4",
+      "bytes": 18015,
+      "contentType": "text/html",
+      "lastModified": "Wed, 20 May 2026 10:28:42 GMT",
+      "structuredSupport": "unsupported",
+      "reason": "Phase 0 baseline: untagged interim 6-K HTML is retained but not normalized"
+    },
+    {
+      "file": "nbis-20260331xex99d1.txt",
+      "form": "6-K",
+      "role": "interim-exhibit",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d1.htm",
+      "sha256": "8469fbe131dd6834281d348641c4452dab2b445375ea50ca8cedc7833ef945f4",
+      "bytes": 182657,
+      "contentType": "text/html",
+      "lastModified": "Wed, 20 May 2026 10:28:42 GMT",
+      "structuredSupport": "unsupported",
+      "reason": "Phase 0 baseline: untagged interim 6-K HTML is retained but not normalized"
+    },
+    {
+      "file": "nbis-20260331xex99d2.txt",
+      "form": "6-K",
+      "role": "interim-exhibit",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+      "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e",
+      "bytes": 1231841,
+      "contentType": "text/html",
+      "lastModified": "Wed, 20 May 2026 10:28:42 GMT",
+      "structuredSupport": "unsupported",
+      "reason": "Phase 0 baseline: untagged interim 6-K HTML is retained but not normalized"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "now": "2026-07-22T16:16:13.510Z",
+  "argv": ["equity", "NBIS", "--deep"],
+  "quickModel": "fixture-quick",
+  "synthesisModel": "fixture-synthesis",
+  "challengerModels": [],
+  "secUserAgent": "market-bot fixture replay contact@example.invalid",
+  "webGatherDisabled": true,
+  "evidenceRequestOptions": {
+    "maxRounds": 2,
+    "maxToolCalls": 2,
+    "sourceBudget": 8
+  },
+  "webGatherOptions": {
+    "maxRounds": 2,
+    "maxToolCalls": 4,
+    "sourceBudget": 8,
+    "themeOverrides": {
+      "maxRounds": 2,
+      "maxToolCalls": 6,
+      "sourceBudget": 12
+    }
+  },
+  "codeVersion": {
+    "branch": "feat/equity-completeness-phase0",
+    "commit": "eeb9f288033f3ef2001a6f75ffa1860fb759d29a",
+    "commitShort": "eeb9f288033f",
+    "dirty": false
+  }
+}

@@ -1,0 +1,2867 @@
+{
+  "report": {
+    "runId": "<runId>",
+    "jobType": "equity",
+    "assetClass": "equity",
+    "symbol": "NBIS",
+    "generatedAt": "<generatedAt>",
+    "summary": "Nebius Group N.V. synthetic FPI fixture replayed through current equity research stages.",
+    "keyFindings": [
+      {
+        "text": "NBIS has deterministic market and verified close evidence.",
+        "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"]
+      }
+    ],
+    "bullCase": [],
+    "bearCase": [],
+    "risks": [
+      {
+        "text": "Current structured SEC normalization does not support the fixture filing forms.",
+        "sourceIds": ["market-yahoo-equity-nbis"]
+      }
+    ],
+    "catalysts": [],
+    "scenarios": [
+      {
+        "name": "Reference",
+        "description": "NBIS remains within the deterministic fixture evidence envelope.",
+        "sourceIds": ["market-yahoo-equity-nbis"]
+      }
+    ],
+    "evidenceQuality": "medium",
+    "dataGaps": [
+      "sec-edgar: No SEC company facts found for NBIS",
+      "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
+      "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "valuation-peers: Valuation peer comps skipped for NBIS: target valuation unavailable",
+      "sec-edgar: NBIS files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+      "Synthetic FPI inputs exercise unsupported current filing forms.",
+      "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+      "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
+      "valuation: Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
+      "financial-lens: Financial Lens Evidence partial for NBIS: missing SEC fundamentals, valuation evidence",
+      "business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+      "predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more"
+    ],
+    "predictions": [],
+    "sources": [
+      {
+        "id": "market-yahoo-equity-nbis",
+        "title": "NBIS market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "NBIS",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "NBIS"
+            }
+          ],
+          "displayName": "Nebius Group N.V.",
+          "exchange": "NasdaqGS"
+        }
+      },
+      {
+        "id": "market-yahoo-equity-spy",
+        "title": "SPY market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "SPY",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "SPY"
+            }
+          ],
+          "displayName": "State Street SPDR S&P 500 ETF T",
+          "exchange": "NYSEArca"
+        }
+      },
+      {
+        "id": "market-yahoo-equity-qqq",
+        "title": "QQQ market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "QQQ",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "QQQ"
+            }
+          ],
+          "displayName": "Invesco QQQ Trust, Series 1",
+          "exchange": "NasdaqGM"
+        }
+      },
+      {
+        "id": "market-yahoo-equity-iwm",
+        "title": "IWM market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "IWM",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "IWM"
+            }
+          ],
+          "displayName": "iShares Russell 2000 Index Fund",
+          "exchange": "NYSEArca"
+        }
+      },
+      {
+        "id": "market-yahoo-equity-dia",
+        "title": "DIA market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "DIA",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "DIA"
+            }
+          ],
+          "displayName": "State Street SPDR Dow Jones Ind",
+          "exchange": "NYSEArca"
+        }
+      },
+      {
+        "id": "market-yahoo-equity-^vix",
+        "title": "^VIX market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "^VIX",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX"
+            }
+          ],
+          "displayName": "CBOE Volatility Index",
+          "exchange": "Cboe Indices"
+        }
+      },
+      {
+        "id": "market-yahoo-equity-^vix3m",
+        "title": "^VIX3M market snapshot",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "^VIX3M",
+        "provider": "yahoo",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX3M"
+            }
+          ],
+          "displayName": "CBOE S&P 500 3-Month Volatility",
+          "exchange": "Chicago Options"
+        }
+      },
+      {
+        "id": "verified-snapshot-NBIS",
+        "title": "NBIS verified market snapshot (OHLCV + indicators, 2026-07-22)",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "market-data",
+        "assetClass": "equity",
+        "symbol": "NBIS",
+        "provider": "yahoo"
+      },
+      {
+        "id": "news-equity-1",
+        "fetchedAt": "2026-07-22T13:08:48.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "CoreWeave, DigitalOcean, Nebius win analyst support amid AI inference shift",
+        "url": "https://finance.yahoo.com/technology/ai/articles/coreweave-digitalocean-nebius-win-analyst-130848202.html",
+        "canonicalUrl": "https://finance.yahoo.com/technology/ai/articles/coreweave-digitalocean-nebius-win-analyst-130848202.html",
+        "publisher": "Investing.com",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Investing.com",
+            "fetchedAt": "2026-07-22T13:08:48.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-2",
+        "fetchedAt": "2026-07-22T12:04:28.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Here Are Wednesday’s Top Wall Street Analyst Research Calls: Altria, Circle Internet, Coreweave, Digital Ocean, IBM, Keel Infrastructure, Nebius Group, Trimble, Vornado Realty, and More",
+        "url": "https://finance.yahoo.com/m/bc8a2a0a-9043-3a50-be4f-87ca0fb4a9be/here-are-wednesday%E2%80%99s-top-wall.html",
+        "canonicalUrl": "https://finance.yahoo.com/m/bc8a2a0a-9043-3a50-be4f-87ca0fb4a9be/here-are-wednesday%E2%80%99s-top-wall.html",
+        "publisher": "24/7 Wall St.",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "24/7 Wall St.",
+            "fetchedAt": "2026-07-22T12:04:28.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-3",
+        "fetchedAt": "2026-07-22T11:12:22.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Baird Initiates Coverage on Nebius With Outperform Rating",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/baird-initiates-coverage-nebius-outperform-111222736.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/baird-initiates-coverage-nebius-outperform-111222736.html",
+        "publisher": "MT Newswires",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "MT Newswires",
+            "fetchedAt": "2026-07-22T11:12:22.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-4",
+        "fetchedAt": "2026-07-21T23:23:01.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Why Nebius Stock Soared Today",
+        "url": "https://finance.yahoo.com/m/c1925552-f20d-3aeb-a845-f70783b211d7/why-nebius-stock-soared-today.html",
+        "canonicalUrl": "https://finance.yahoo.com/m/c1925552-f20d-3aeb-a845-f70783b211d7/why-nebius-stock-soared-today.html",
+        "publisher": "Motley Fool",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Motley Fool",
+            "fetchedAt": "2026-07-21T23:23:01.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-5",
+        "fetchedAt": "2026-07-21T22:34:17.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Analyst Report: Nebius Group N.V.",
+        "url": "https://finance.yahoo.com/m/6b327546-8e89-349b-af08-3beaffaf647d/analyst-report%3A-nebius-group.html",
+        "canonicalUrl": "https://finance.yahoo.com/m/6b327546-8e89-349b-af08-3beaffaf647d/analyst-report%3A-nebius-group.html",
+        "publisher": "Morningstar Research",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Morningstar Research",
+            "fetchedAt": "2026-07-21T22:34:17.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-6",
+        "fetchedAt": "2026-07-21T20:55:38.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Nebius (NBIS) Soars on Nvidia 9.3% Stake; Hedge Fund Bets More Than Double",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/nebius-nbis-soars-nvidia-9-205538373.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/nebius-nbis-soars-nvidia-9-205538373.html",
+        "publisher": "Insider Monkey",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Insider Monkey",
+            "fetchedAt": "2026-07-21T20:55:38.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-7",
+        "fetchedAt": "2026-07-22T13:44:39.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "CoreWeave upgraded, IBM initiated: Wall Street's top analyst calls",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/microsoft-reinstated-ralph-lauren-upgraded-133648092.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/microsoft-reinstated-ralph-lauren-upgraded-133648092.html",
+        "publisher": "The Fly",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "The Fly",
+            "fetchedAt": "2026-07-22T13:44:39.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-8",
+        "fetchedAt": "2026-07-22T10:35:46.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Social Buzz: Wallstreetbets Stocks Mixed Pre-Bell Wednesday; Super Micro Computer to Advance, Micron Technology to Decline",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/social-buzz-wallstreetbets-stocks-mixed-103546956.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/social-buzz-wallstreetbets-stocks-mixed-103546956.html",
+        "publisher": "MT Newswires",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "MT Newswires",
+            "fetchedAt": "2026-07-22T10:35:46.000Z"
+          }
+        ]
+      }
+    ],
+    "extendedEvidence": {
+      "instrument": {
+        "symbol": "NBIS",
+        "assetClass": "equity"
+      },
+      "items": [
+        {
+          "category": "yahoo-fundamentals",
+          "title": "NBIS Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x (negative earnings), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000.",
+          "sourceIds": ["market-yahoo-equity-nbis"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "trailingPE": 87.325584,
+            "forwardPE": -139.64212,
+            "priceToBook": 7.9687333,
+            "bookValue": 28.273,
+            "epsTrailingTwelveMonths": 2.58,
+            "epsForward": -1.61341,
+            "sharesOutstanding": 220406311,
+            "trailingAnnualDividendRate": 0
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Nebius Group N.V.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "NBIS"
+              }
+            ]
+          }
+        },
+        {
+          "category": "financial-lens",
+          "title": "NBIS Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data (Payout ratio 0.0%); Value insufficient-data (PE 87.33x, Forward PE -139.64x (negative earnings), Forward EPS -1.61, Price/book 7.97x); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
+          "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "qualityPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "financialStrengthPosture": "insufficient-data",
+            "payoutRatio": 0,
+            "valuePosture": "insufficient-data",
+            "peRatio": 87.325584,
+            "forwardPe": "-139.64x (negative earnings)",
+            "epsForward": -1.61341,
+            "priceToBook": 7.9687333,
+            "momentumPosture": "criteria-mixed",
+            "latestClose": 225.3000030517578,
+            "sma50": 226.1901998901367,
+            "sma200": 139.21002544403075,
+            "rsi14": 52.48462346452554,
+            "macdHistogram": -0.9599467569226885
+          }
+        },
+        {
+          "category": "business-framework",
+          "title": "NBIS Business Framework Evidence",
+          "summary": "Business Framework: Business insufficient-data; Phase classification (Phase operating-leverage); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x).",
+          "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "phase": "operating-leverage",
+            "businessPosture": "insufficient-data",
+            "phasePosture": "insufficient-data",
+            "moatPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "managementPosture": "insufficient-data",
+            "riskPosture": "insufficient-data",
+            "valuationPosture": "insufficient-data"
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "source": "sec-edgar",
+          "message": "No SEC company facts found for NBIS",
+          "symbol": "NBIS",
+          "provider": "sec-edgar",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-events",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "fred-macro",
+          "message": "MARKET_BOT_FRED_API_KEY is not set",
+          "provider": "fred",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "tradier-options",
+          "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+          "provider": "tradier",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "valuation",
+          "message": "Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "financial-lens",
+          "message": "Financial Lens Evidence partial for NBIS: missing SEC fundamentals, valuation evidence",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "business-framework",
+          "message": "Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "sec-edgar",
+          "message": "NBIS files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+          "provider": "sec-edgar",
+          "capability": "evidence-request",
+          "cause": "unsupported-coverage",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        }
+      ]
+    },
+    "notFinancialAdvice": true,
+    "extras": {
+      "historicalContext": {
+        "summary": "No prior run artifacts matched this research scope.",
+        "sourceIds": [],
+        "gaps": ["No prior ticker runs found for NBIS", "No prior equity market-update runs found"]
+      },
+      "businessFramework": {
+        "version": 2,
+        "phase": "operating-leverage",
+        "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+        "gaps": [
+          {
+            "code": "business-description",
+            "text": "Business description is not available from current normalized sources"
+          },
+          {
+            "code": "geographic-mix",
+            "text": "Geographic revenue mix is not available from current normalized sources"
+          },
+          {
+            "code": "segment-mix",
+            "text": "Segment mix is not available from current normalized sources"
+          },
+          {
+            "code": "customer-concentration",
+            "text": "Customer concentration is not available from current normalized sources"
+          },
+          {
+            "code": "purchase-recurrence",
+            "text": "Purchase recurrence is not available from current normalized sources"
+          },
+          {
+            "code": "pricing-power",
+            "text": "Pricing power evidence is not available from current normalized sources"
+          },
+          {
+            "code": "company-kpis",
+            "text": "Company-specific KPI evidence is not available from current normalized sources"
+          },
+          {
+            "code": "analyst-consensus",
+            "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+          },
+          {
+            "code": "management-track-record",
+            "text": "Management track record is not available from current normalized sources"
+          },
+          {
+            "code": "capital-allocation",
+            "text": "Capital allocation commentary is not available from current normalized sources"
+          },
+          {
+            "code": "risk-factors",
+            "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+          },
+          {
+            "code": "cyclicality",
+            "text": "Recession cyclicality evidence is not available from current normalized sources"
+          }
+        ],
+        "sections": [
+          {
+            "name": "Business",
+            "posture": "insufficient-data",
+            "summary": "Business insufficient-data",
+            "metrics": [],
+            "sourceIds": [],
+            "gaps": [
+              {
+                "code": "business-description",
+                "text": "Business description is not available from current normalized sources"
+              },
+              {
+                "code": "geographic-mix",
+                "text": "Geographic revenue mix is not available from current normalized sources"
+              },
+              {
+                "code": "segment-mix",
+                "text": "Segment mix is not available from current normalized sources"
+              },
+              {
+                "code": "customer-concentration",
+                "text": "Customer concentration is not available from current normalized sources"
+              },
+              {
+                "code": "purchase-recurrence",
+                "text": "Purchase recurrence is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Phase",
+            "posture": "insufficient-data",
+            "summary": "Phase classification (Phase operating-leverage)",
+            "metrics": [
+              {
+                "key": "phase",
+                "label": "Phase",
+                "value": "operating-leverage",
+                "unit": "text",
+                "sourceIds": ["market-yahoo-equity-nbis"]
+              }
+            ],
+            "sourceIds": ["market-yahoo-equity-nbis"],
+            "gaps": []
+          },
+          {
+            "name": "Moat",
+            "posture": "insufficient-data",
+            "summary": "Moat insufficient-data",
+            "metrics": [],
+            "sourceIds": [],
+            "gaps": [
+              {
+                "code": "segment-mix",
+                "text": "Segment mix is not available from current normalized sources"
+              },
+              {
+                "code": "customer-concentration",
+                "text": "Customer concentration is not available from current normalized sources"
+              },
+              {
+                "code": "purchase-recurrence",
+                "text": "Purchase recurrence is not available from current normalized sources"
+              },
+              {
+                "code": "pricing-power",
+                "text": "Pricing power evidence is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Growth",
+            "posture": "insufficient-data",
+            "summary": "Growth insufficient-data",
+            "metrics": [],
+            "sourceIds": [],
+            "gaps": [
+              {
+                "code": "company-kpis",
+                "text": "Company-specific KPI evidence is not available from current normalized sources"
+              },
+              {
+                "code": "analyst-consensus",
+                "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+              }
+            ]
+          },
+          {
+            "name": "Management",
+            "posture": "insufficient-data",
+            "summary": "Management insufficient-data",
+            "metrics": [],
+            "sourceIds": [],
+            "gaps": [
+              {
+                "code": "management-track-record",
+                "text": "Management track record is not available from current normalized sources"
+              },
+              {
+                "code": "capital-allocation",
+                "text": "Capital allocation commentary is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Risk",
+            "posture": "insufficient-data",
+            "summary": "Risk insufficient-data",
+            "metrics": [],
+            "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+            "gaps": [
+              {
+                "code": "risk-factors",
+                "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+              },
+              {
+                "code": "cyclicality",
+                "text": "Recession cyclicality evidence is not available from current normalized sources"
+              }
+            ]
+          },
+          {
+            "name": "Valuation",
+            "posture": "insufficient-data",
+            "summary": "Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x)",
+            "metrics": [
+              {
+                "key": "trailingPE",
+                "label": "Trailing PE",
+                "value": 87.325584,
+                "unit": "ratio",
+                "sourceIds": ["market-yahoo-equity-nbis"]
+              },
+              {
+                "key": "forwardPE",
+                "label": "Forward PE",
+                "value": -139.64212,
+                "unit": "ratio",
+                "sourceIds": ["market-yahoo-equity-nbis"]
+              }
+            ],
+            "sourceIds": ["market-yahoo-equity-nbis"],
+            "gaps": []
+          }
+        ]
+      },
+      "depth": "deep",
+      "depthProfile": {
+        "depth": "deep",
+        "analystStyle": "fuller analyst-style",
+        "minimumKeyFindings": 6,
+        "minimumScenarios": 3,
+        "targetPredictions": 5,
+        "defaultPredictionHorizon": 5,
+        "predictionSubjects": ["NBIS"],
+        "focus": [
+          "thesis",
+          "evidence",
+          "catalysts",
+          "bull case",
+          "bear case",
+          "scenarios",
+          "data gaps"
+        ],
+        "targetKindMix": {
+          "favored": ["relative", "range"],
+          "minNonDirection": 2
+        }
+      },
+      "marketRegime": {
+        "assetClass": "equity",
+        "label": "risk-on",
+        "proxyCount": 6,
+        "drivers": [
+          "equity breadth proxies positive: 3/4",
+          "trend positive: 3/4 proxies above 50-day average",
+          "VIX term structure contango: VIX 16.75 vs VIX3M 19.56"
+        ],
+        "sourceIds": [
+          "market-yahoo-equity-spy",
+          "market-yahoo-equity-qqq",
+          "market-yahoo-equity-iwm",
+          "market-yahoo-equity-dia",
+          "market-yahoo-equity-^vix",
+          "market-yahoo-equity-^vix3m"
+        ]
+      }
+    },
+    "reportIntegrity": "high",
+    "researchQuality": "medium",
+    "researchQualityDriver": "regulatory filing evidence missing; corporate event evidence missing; remediation: configure SEC access or rerun after filings are available; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun"
+  },
+  "analytics": {
+    "version": 2,
+    "runId": "<runId>",
+    "generatedAt": "<generatedAt>",
+    "jobType": "equity",
+    "assetClass": "equity",
+    "symbol": "NBIS",
+    "depth": "deep",
+    "codeVersion": "<codeVersion>",
+    "reproducibility": {
+      "effectiveConfigHash": "<effectiveConfigHash>"
+    },
+    "modelInputSanitization": {
+      "entries": [
+        {
+          "provider": "yahoo-news",
+          "ingress": "news",
+          "profile": "news",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 771,
+          "outputChars": 771,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "yahoo-news",
+          "ingress": "news",
+          "profile": "short-metadata",
+          "fieldRole": "publisher",
+          "droppedItemCount": 0,
+          "inputChars": 127,
+          "outputChars": 127,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "yahoo",
+          "ingress": "market-snapshot",
+          "profile": "short-metadata",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 378,
+          "outputChars": 378,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "yahoo",
+          "ingress": "market-snapshot",
+          "profile": "short-metadata",
+          "fieldRole": "publisher",
+          "droppedItemCount": 0,
+          "inputChars": 67,
+          "outputChars": 67,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "instrument-identity",
+          "ingress": "instrument-identity",
+          "profile": "short-metadata",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 17,
+          "outputChars": 17,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "instrument-identity",
+          "ingress": "instrument-identity",
+          "profile": "short-metadata",
+          "fieldRole": "publisher",
+          "droppedItemCount": 0,
+          "inputChars": 8,
+          "outputChars": 8,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "historical-artifact",
+          "ingress": "historical-context",
+          "profile": "legacy-history",
+          "fieldRole": "prose",
+          "droppedItemCount": 0,
+          "inputChars": 75,
+          "outputChars": 75,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        }
+      ]
+    },
+    "sourceFunnel": {
+      "rawSnapshots": {
+        "total": 9,
+        "byAdapter": {
+          "yahoo-ticker": 1,
+          "yahoo-regime": 1,
+          "yahoo-news": 1,
+          "sec-tickers": 2,
+          "sec-companyfacts": 1,
+          "sec-submissions": 2,
+          "yahoo-verified-chart": 1
+        }
+      },
+      "reportSources": {
+        "total": 16,
+        "byKind": {
+          "market-data": 8,
+          "news": 8
+        },
+        "byProvider": {
+          "yahoo": 8,
+          "yahoo-news": 8
+        }
+      },
+      "sourceGaps": {
+        "total": 11,
+        "bySource": {
+          "marketaux-news": 1,
+          "finnhub-news": 1,
+          "sec-edgar": 2,
+          "finnhub-events": 1,
+          "fred-macro": 1,
+          "tradier-options": 1,
+          "valuation": 1,
+          "valuation-peers": 1,
+          "financial-lens": 1,
+          "business-framework": 1
+        }
+      },
+      "sourceGapClasses": {
+        "missingCredential": 5,
+        "fetchFailed": 0,
+        "unsupportedCoverage": 1,
+        "other": 5
+      },
+      "dataGaps": {
+        "total": 13
+      }
+    },
+    "newsDedupe": {
+      "fetchedNewsSourcesByProvider": {
+        "marketaux": 0,
+        "finnhub": 0,
+        "yahoo-news": 10,
+        "massive": 0
+      },
+      "fetchedNewsSourceCount": 10,
+      "canonicalDedupedNewsSourceCount": 10,
+      "canonicalDuplicateNewsSourceCount": 0,
+      "persistentSuppressedNewsSourceCount": 0,
+      "relevantBeforeSeenFilterCount": 6,
+      "relevantSuppressedBySeenFilterCount": 0,
+      "relevantSelectedCount": 6,
+      "repeatFallbackKeptCount": 0,
+      "relevantRepeatKeptCount": 0,
+      "selectedNewsSourceCount": 8,
+      "selectedRelevantTickerNewsSourceCount": 6,
+      "selectedGenericTickerNewsSourceCount": 2,
+      "repeatFallbackUsed": false
+    },
+    "evidenceQuality": {
+      "label": "medium",
+      "assessment": {
+        "version": 1,
+        "rubricVersion": 2,
+        "label": "medium",
+        "checks": [
+          {
+            "capability": "market-data",
+            "evidenceClass": "core",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "not-applicable",
+            "passed": true,
+            "reasons": []
+          },
+          {
+            "capability": "supplemental-market",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["supplemental-market: evidence missing or unusable"]
+          },
+          {
+            "capability": "news",
+            "evidenceClass": "material",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "pass",
+            "passed": true,
+            "reasons": []
+          },
+          {
+            "capability": "verified-price-history",
+            "evidenceClass": "core",
+            "coverage": "pass",
+            "freshness": "pass",
+            "corroboration": "not-applicable",
+            "passed": true,
+            "reasons": []
+          },
+          {
+            "capability": "regulatory-filings",
+            "evidenceClass": "material",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["regulatory-filings: evidence missing or unusable"]
+          },
+          {
+            "capability": "corporate-events",
+            "evidenceClass": "material",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["corporate-events: evidence missing or unusable"]
+          },
+          {
+            "capability": "macro-indicators",
+            "evidenceClass": "material",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["macro-indicators: evidence missing or unusable"]
+          },
+          {
+            "capability": "derivatives-volatility",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["derivatives-volatility: evidence missing or unusable"]
+          },
+          {
+            "capability": "target-valuation",
+            "evidenceClass": "material",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["target-valuation: evidence missing or unusable"]
+          },
+          {
+            "capability": "peer-valuation",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["peer-valuation: evidence missing or unusable"]
+          },
+          {
+            "capability": "subject-profile",
+            "evidenceClass": "supplemental",
+            "coverage": "fail",
+            "freshness": "not-applicable",
+            "corroboration": "not-applicable",
+            "passed": false,
+            "reasons": ["subject-profile: evidence missing or unusable"]
+          }
+        ],
+        "limitingReasons": [
+          "regulatory-filings: evidence missing or unusable",
+          "corporate-events: evidence missing or unusable",
+          "macro-indicators: evidence missing or unusable",
+          "target-valuation: evidence missing or unusable"
+        ]
+      },
+      "dataGapCount": 13,
+      "extendedEvidence": {
+        "itemCount": 3,
+        "gapCount": 8,
+        "itemsByCategory": {
+          "yahoo-fundamentals": 1,
+          "financial-lens": 1,
+          "business-framework": 1
+        },
+        "gapsBySource": {
+          "sec-edgar": 2,
+          "finnhub-events": 1,
+          "fred-macro": 1,
+          "tradier-options": 1,
+          "valuation": 1,
+          "financial-lens": 1,
+          "business-framework": 1
+        }
+      },
+      "marketContext": {
+        "itemCount": 0,
+        "gapCount": 0,
+        "itemsByCategory": {},
+        "gapsBySource": {}
+      },
+      "evidenceRequestLoop": {
+        "rounds": 0,
+        "acceptedRequestCount": 0,
+        "rejectedRequestCount": 0,
+        "sourceUnitsUsed": 0,
+        "executedTools": [],
+        "emittedGapCount": 1
+      }
+    },
+    "predictions": {
+      "count": 0,
+      "retryErrorCount": 0,
+      "validationErrorCount": 0,
+      "trimWarningCount": 0,
+      "completion": {
+        "attempted": true,
+        "initialCount": 0,
+        "acceptedCount": 0,
+        "rejectedCount": 0,
+        "outcome": "no-eligible-candidates"
+      },
+      "replacementAttempted": false,
+      "byKind": {},
+      "horizonTradingDays": {},
+      "citedCount": 0,
+      "uncitedCount": 0,
+      "targetCount": 5,
+      "targetMet": false,
+      "shortfall": {
+        "emittedCount": 0,
+        "targetCount": 5,
+        "missingCount": 5,
+        "disclosed": true
+      },
+      "nearBaseRateCount": 0,
+      "informativeCount": 0,
+      "signalTargetMet": true,
+      "mixWarnings": []
+    },
+    "reportIntegrity": {
+      "label": "high",
+      "researchQuality": "medium",
+      "prunedItemCount": 0,
+      "advisoryWarningCount": 0
+    },
+    "sourcePlan": {
+      "plannedLaneCount": 11,
+      "coreLaneCount": 2,
+      "materialLaneCount": 5,
+      "supplementalLaneCount": 4
+    },
+    "evidenceLanes": {
+      "coveredLaneCount": 3,
+      "gapLaneCount": 8,
+      "coreGapLaneCount": 0,
+      "materialGapLaneCount": 4,
+      "sourceCount": 16,
+      "gapCount": 11,
+      "coverageRatio": 0.2727272727272727
+    },
+    "calibrationAtGeneration": {
+      "generatedAt": "<generatedAt>",
+      "resolvedCount": 0,
+      "guidanceAssessments": [
+        {
+          "dimension": "assetClass",
+          "key": "equity",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        },
+        {
+          "dimension": "jobType",
+          "key": "equity",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        },
+        {
+          "dimension": "predictionHorizon",
+          "key": "1-5d",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        },
+        {
+          "dimension": "marketRegime",
+          "key": "risk-on",
+          "actionable": false,
+          "reason": "slice-unavailable"
+        }
+      ]
+    },
+    "verifiedMarketSnapshot": {
+      "symbol": "NBIS",
+      "analysisDate": "2026-07-22",
+      "latestSessionDate": "2026-07-22",
+      "fetchedAt": "2026-07-22T16:16:13.510Z",
+      "latestSessionAgeDays": 0
+    },
+    "runShape": {
+      "traceStages": [
+        "source-collection",
+        "playbook-selection",
+        "specialist-analysis",
+        "instrument-evidence-analysis",
+        "market-behavior-analysis",
+        "critique",
+        "final-synthesis",
+        "final-synthesis"
+      ],
+      "stages": [
+        {
+          "stage": "playbook-selection",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>"
+        },
+        {
+          "stage": "specialist-analysis",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>"
+        },
+        {
+          "stage": "instrument-evidence-analysis",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>"
+        },
+        {
+          "stage": "market-behavior-analysis",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>"
+        },
+        {
+          "stage": "critique",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>"
+        },
+        {
+          "stage": "final-synthesis",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
+          "attempt": 1
+        },
+        {
+          "stage": "final-synthesis",
+          "tokenEstimate": "<tokenEstimate>",
+          "durationMs": "<durationMs>",
+          "attempt": 2,
+          "repromptReason": {
+            "predictionCompletion": {
+              "requestedCount": 5,
+              "existingPredictions": []
+            }
+          }
+        }
+      ],
+      "tokenEstimate": "<tokenEstimate>",
+      "durationMs": 0
+    }
+  },
+  "markdown": "# NBIS equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-07-22T16:16:13.510Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: regulatory filing evidence missing; corporate event evidence missing; remediation: configure SEC access or rerun after filings are available; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nNebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- NBIS has deterministic market and verified close evidence. [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-nbis]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** NBIS remains within the deterministic fixture evidence envelope. [market-yahoo-equity-nbis]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (insufficient-data): Business insufficient-data\n- **Phase**: Phase classification \\(Phase operating-leverage\\) [market-yahoo-equity-nbis]\n- **Moat** (insufficient-data): Moat insufficient-data\n- **Growth** (insufficient-data): Growth insufficient-data\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (insufficient-data): Risk insufficient-data [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Trailing PE 87.33x, Forward PE -139.64x\\) [market-yahoo-equity-nbis]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **NBIS Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x \\(negative earnings\\), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000. [market-yahoo-equity-nbis]\n- **NBIS Financial Lens Evidence:** Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data \\(Payout ratio 0.0%\\); Value insufficient-data \\(PE 87.33x, Forward PE -139.64x \\(negative earnings\\), Forward EPS -1.61, Price/book 7.97x\\); Momentum criteria-mixed \\(Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48\\). [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **NBIS Business Framework Evidence:** Business Framework: Business insufficient-data; Phase classification \\(Phase operating-leverage\\); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data \\(Trailing PE 87.33x, Forward PE -139.64x\\). [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for NBIS\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for NBIS\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Valuation peer comps skipped for NBIS: target valuation unavailable\n- sec-edgar: NBIS files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Valuation Evidence unavailable for NBIS: missing revenue, cash, debt\n- financial-lens: Financial Lens Evidence partial for NBIS: missing SEC fundamentals, valuation evidence\n- business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-nbis] NBIS market snapshot\n- [verified-snapshot-NBIS] NBIS verified market snapshot \\(OHLCV + indicators, 2026-07-22\\)\n- 14 uncited normalized source(s) omitted from markdown (yahoo-news/news:8, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "normalized": {
+    "business-framework.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "symbol": "NBIS",
+      "phase": "operating-leverage",
+      "sections": [
+        {
+          "name": "Business",
+          "posture": "insufficient-data",
+          "summary": "Business insufficient-data",
+          "metrics": [],
+          "sourceIds": [],
+          "gaps": [
+            {
+              "code": "business-description",
+              "text": "Business description is not available from current normalized sources"
+            },
+            {
+              "code": "geographic-mix",
+              "text": "Geographic revenue mix is not available from current normalized sources"
+            },
+            {
+              "code": "segment-mix",
+              "text": "Segment mix is not available from current normalized sources"
+            },
+            {
+              "code": "customer-concentration",
+              "text": "Customer concentration is not available from current normalized sources"
+            },
+            {
+              "code": "purchase-recurrence",
+              "text": "Purchase recurrence is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Phase",
+          "posture": "insufficient-data",
+          "summary": "Phase classification (Phase operating-leverage)",
+          "metrics": [
+            {
+              "key": "phase",
+              "label": "Phase",
+              "value": "operating-leverage",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-nbis"]
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-nbis"],
+          "gaps": []
+        },
+        {
+          "name": "Moat",
+          "posture": "insufficient-data",
+          "summary": "Moat insufficient-data",
+          "metrics": [],
+          "sourceIds": [],
+          "gaps": [
+            {
+              "code": "segment-mix",
+              "text": "Segment mix is not available from current normalized sources"
+            },
+            {
+              "code": "customer-concentration",
+              "text": "Customer concentration is not available from current normalized sources"
+            },
+            {
+              "code": "purchase-recurrence",
+              "text": "Purchase recurrence is not available from current normalized sources"
+            },
+            {
+              "code": "pricing-power",
+              "text": "Pricing power evidence is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Growth",
+          "posture": "insufficient-data",
+          "summary": "Growth insufficient-data",
+          "metrics": [],
+          "sourceIds": [],
+          "gaps": [
+            {
+              "code": "company-kpis",
+              "text": "Company-specific KPI evidence is not available from current normalized sources"
+            },
+            {
+              "code": "analyst-consensus",
+              "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+            }
+          ]
+        },
+        {
+          "name": "Management",
+          "posture": "insufficient-data",
+          "summary": "Management insufficient-data",
+          "metrics": [],
+          "sourceIds": [],
+          "gaps": [
+            {
+              "code": "management-track-record",
+              "text": "Management track record is not available from current normalized sources"
+            },
+            {
+              "code": "capital-allocation",
+              "text": "Capital allocation commentary is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Risk",
+          "posture": "insufficient-data",
+          "summary": "Risk insufficient-data",
+          "metrics": [],
+          "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+          "gaps": [
+            {
+              "code": "risk-factors",
+              "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+            },
+            {
+              "code": "cyclicality",
+              "text": "Recession cyclicality evidence is not available from current normalized sources"
+            }
+          ]
+        },
+        {
+          "name": "Valuation",
+          "posture": "insufficient-data",
+          "summary": "Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x)",
+          "metrics": [
+            {
+              "key": "trailingPE",
+              "label": "Trailing PE",
+              "value": 87.325584,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis"]
+            },
+            {
+              "key": "forwardPE",
+              "label": "Forward PE",
+              "value": -139.64212,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis"]
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-nbis"],
+          "gaps": []
+        }
+      ],
+      "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+      "gaps": [
+        {
+          "code": "business-description",
+          "text": "Business description is not available from current normalized sources"
+        },
+        {
+          "code": "geographic-mix",
+          "text": "Geographic revenue mix is not available from current normalized sources"
+        },
+        {
+          "code": "segment-mix",
+          "text": "Segment mix is not available from current normalized sources"
+        },
+        {
+          "code": "customer-concentration",
+          "text": "Customer concentration is not available from current normalized sources"
+        },
+        {
+          "code": "purchase-recurrence",
+          "text": "Purchase recurrence is not available from current normalized sources"
+        },
+        {
+          "code": "pricing-power",
+          "text": "Pricing power evidence is not available from current normalized sources"
+        },
+        {
+          "code": "company-kpis",
+          "text": "Company-specific KPI evidence is not available from current normalized sources"
+        },
+        {
+          "code": "analyst-consensus",
+          "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+        },
+        {
+          "code": "management-track-record",
+          "text": "Management track record is not available from current normalized sources"
+        },
+        {
+          "code": "capital-allocation",
+          "text": "Capital allocation commentary is not available from current normalized sources"
+        },
+        {
+          "code": "risk-factors",
+          "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+        },
+        {
+          "code": "cyclicality",
+          "text": "Recession cyclicality evidence is not available from current normalized sources"
+        }
+      ]
+    },
+    "evidence-lanes.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "lanes": [
+        {
+          "lane": "market-data",
+          "evidenceClass": "core",
+          "status": "covered",
+          "coveredSourceIds": [
+            "market-yahoo-equity-nbis",
+            "market-yahoo-equity-spy",
+            "market-yahoo-equity-qqq",
+            "market-yahoo-equity-iwm",
+            "market-yahoo-equity-dia",
+            "market-yahoo-equity-^vix",
+            "market-yahoo-equity-^vix3m"
+          ],
+          "gapIds": [],
+          "gapText": [],
+          "freshnessNotes": ["latest evidence timestamp 2026-07-22T16:16:13.510Z"]
+        },
+        {
+          "lane": "supplemental-market",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["supplemental-market:gap:1"],
+          "gapText": [
+            "supplemental-market: planned evidence lane had no backing source or recorded gap"
+          ],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "news",
+          "evidenceClass": "material",
+          "status": "covered",
+          "coveredSourceIds": [
+            "news-equity-1",
+            "news-equity-2",
+            "news-equity-3",
+            "news-equity-4",
+            "news-equity-5",
+            "news-equity-6",
+            "news-equity-7",
+            "news-equity-8"
+          ],
+          "gapIds": ["news:gap:1", "news:gap:2"],
+          "gapText": [
+            "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+            "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN"
+          ],
+          "freshnessNotes": ["latest evidence timestamp 2026-07-22T13:44:39.000Z"]
+        },
+        {
+          "lane": "verified-price-history",
+          "evidenceClass": "core",
+          "status": "covered",
+          "coveredSourceIds": ["verified-snapshot-NBIS"],
+          "gapIds": [],
+          "gapText": [],
+          "freshnessNotes": ["latest evidence timestamp 2026-07-22T16:16:13.510Z"]
+        },
+        {
+          "lane": "regulatory-filings",
+          "evidenceClass": "material",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"],
+          "gapText": [
+            "sec-edgar: No SEC company facts found for NBIS",
+            "sec-edgar: NBIS files as a foreign private issuer (20-F, 6-K); these forms are not yet supported"
+          ],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "corporate-events",
+          "evidenceClass": "material",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["corporate-events:gap:1"],
+          "gapText": ["finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set"],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "macro-indicators",
+          "evidenceClass": "material",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["macro-indicators:gap:1"],
+          "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "derivatives-volatility",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["derivatives-volatility:gap:1"],
+          "gapText": ["tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "target-valuation",
+          "evidenceClass": "material",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["target-valuation:gap:1"],
+          "gapText": [
+            "valuation: Valuation Evidence unavailable for NBIS: missing revenue, cash, debt"
+          ],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "peer-valuation",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["peer-valuation:gap:1"],
+          "gapText": [
+            "valuation-peers: Valuation peer comps skipped for NBIS: target valuation unavailable"
+          ],
+          "freshnessNotes": []
+        },
+        {
+          "lane": "subject-profile",
+          "evidenceClass": "supplemental",
+          "status": "gap",
+          "coveredSourceIds": [],
+          "gapIds": ["subject-profile:gap:1"],
+          "gapText": [
+            "subject-profile: planned evidence lane had no backing source or recorded gap"
+          ],
+          "freshnessNotes": []
+        }
+      ],
+      "summary": {
+        "plannedLaneCount": 11,
+        "coreLaneCount": 2,
+        "materialLaneCount": 5,
+        "supplementalLaneCount": 4,
+        "coveredLaneCount": 3,
+        "gapLaneCount": 8,
+        "coreGapLaneCount": 0,
+        "materialGapLaneCount": 4,
+        "sourceCount": 16,
+        "gapCount": 11,
+        "coverageRatio": 0.2727272727272727
+      }
+    },
+    "extended-evidence.json": {
+      "instrument": {
+        "symbol": "NBIS",
+        "assetClass": "equity"
+      },
+      "items": [
+        {
+          "category": "yahoo-fundamentals",
+          "title": "NBIS Yahoo Fundamentals Evidence",
+          "summary": "Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x (negative earnings), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000.",
+          "sourceIds": ["market-yahoo-equity-nbis"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "trailingPE": 87.325584,
+            "forwardPE": -139.64212,
+            "priceToBook": 7.9687333,
+            "bookValue": 28.273,
+            "epsTrailingTwelveMonths": 2.58,
+            "epsForward": -1.61341,
+            "sharesOutstanding": 220406311,
+            "trailingAnnualDividendRate": 0
+          },
+          "identity": {
+            "exchange": "NasdaqGS",
+            "quoteCurrency": "USD",
+            "displayName": "Nebius Group N.V.",
+            "aliases": [
+              {
+                "provider": "yahoo",
+                "idKind": "symbol",
+                "value": "NBIS"
+              }
+            ]
+          }
+        },
+        {
+          "category": "financial-lens",
+          "title": "NBIS Financial Lens Evidence",
+          "summary": "Financial Lens Evidence: Quality insufficient-data; Growth insufficient-data; Financial Strength insufficient-data (Payout ratio 0.0%); Value insufficient-data (PE 87.33x, Forward PE -139.64x (negative earnings), Forward EPS -1.61, Price/book 7.97x); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
+          "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "qualityPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "financialStrengthPosture": "insufficient-data",
+            "payoutRatio": 0,
+            "valuePosture": "insufficient-data",
+            "peRatio": 87.325584,
+            "forwardPe": "-139.64x (negative earnings)",
+            "epsForward": -1.61341,
+            "priceToBook": 7.9687333,
+            "momentumPosture": "criteria-mixed",
+            "latestClose": 225.3000030517578,
+            "sma50": 226.1901998901367,
+            "sma200": 139.21002544403075,
+            "rsi14": 52.48462346452554,
+            "macdHistogram": -0.9599467569226885
+          }
+        },
+        {
+          "category": "business-framework",
+          "title": "NBIS Business Framework Evidence",
+          "summary": "Business Framework: Business insufficient-data; Phase classification (Phase operating-leverage); Moat insufficient-data; Growth insufficient-data; Management insufficient-data; Risk insufficient-data; Valuation insufficient-data (Trailing PE 87.33x, Forward PE -139.64x).",
+          "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "phase": "operating-leverage",
+            "businessPosture": "insufficient-data",
+            "phasePosture": "insufficient-data",
+            "moatPosture": "insufficient-data",
+            "growthPosture": "insufficient-data",
+            "managementPosture": "insufficient-data",
+            "riskPosture": "insufficient-data",
+            "valuationPosture": "insufficient-data"
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "source": "sec-edgar",
+          "message": "No SEC company facts found for NBIS",
+          "symbol": "NBIS",
+          "provider": "sec-edgar",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-events",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "fred-macro",
+          "message": "MARKET_BOT_FRED_API_KEY is not set",
+          "provider": "fred",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "tradier-options",
+          "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+          "provider": "tradier",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "valuation",
+          "message": "Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "financial-lens",
+          "message": "Financial Lens Evidence partial for NBIS: missing SEC fundamentals, valuation evidence",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "business-framework",
+          "message": "Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "sec-edgar",
+          "message": "NBIS files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+          "provider": "sec-edgar",
+          "capability": "evidence-request",
+          "cause": "unsupported-coverage",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        }
+      ]
+    },
+    "extended-sources.json": [],
+    "financial-lenses.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "NBIS",
+      "lenses": [
+        {
+          "name": "Quality",
+          "posture": "insufficient-data",
+          "metrics": [],
+          "sourceIds": []
+        },
+        {
+          "name": "Growth",
+          "posture": "insufficient-data",
+          "metrics": [],
+          "sourceIds": []
+        },
+        {
+          "name": "Financial Strength",
+          "posture": "insufficient-data",
+          "metrics": [
+            {
+              "key": "payoutRatio",
+              "label": "Payout ratio",
+              "value": 0,
+              "unit": "ratio-percent",
+              "sourceIds": ["market-yahoo-equity-nbis"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-nbis"]
+        },
+        {
+          "name": "Value",
+          "posture": "insufficient-data",
+          "metrics": [
+            {
+              "key": "peRatio",
+              "label": "PE",
+              "value": 87.325584,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "forwardPe",
+              "label": "Forward PE",
+              "value": "-139.64x (negative earnings)",
+              "unit": "text",
+              "sourceIds": ["market-yahoo-equity-nbis"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "epsForward",
+              "label": "Forward EPS",
+              "value": -1.61341,
+              "unit": "number",
+              "sourceIds": ["market-yahoo-equity-nbis"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "priceToBook",
+              "label": "Price/book",
+              "value": 7.9687333,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-nbis"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-nbis"]
+        },
+        {
+          "name": "Momentum",
+          "posture": "criteria-mixed",
+          "metrics": [
+            {
+              "key": "latestClose",
+              "label": "Latest close",
+              "value": 225.3000030517578,
+              "unit": "currency",
+              "sourceIds": ["verified-snapshot-NBIS"],
+              "currency": "USD",
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "sma50",
+              "label": "SMA50",
+              "value": 226.1901998901367,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-NBIS"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "sma200",
+              "label": "SMA200",
+              "value": 139.21002544403075,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-NBIS"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "rsi14",
+              "label": "RSI14",
+              "value": 52.48462346452554,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-NBIS"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            },
+            {
+              "key": "macdHistogram",
+              "label": "MACD histogram",
+              "value": -0.9599467569226885,
+              "unit": "number",
+              "sourceIds": ["verified-snapshot-NBIS"],
+              "periodEnd": "2026-07-22T16:16:13.510Z"
+            }
+          ],
+          "sourceIds": ["verified-snapshot-NBIS"]
+        }
+      ],
+      "sourceIds": ["market-yahoo-equity-nbis", "verified-snapshot-NBIS"]
+    },
+    "fundamental-history.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "NBIS",
+      "sourceId": "extended-sec-edgar-nbis-fundamentals",
+      "sourceUrl": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001513845.json",
+      "series": {
+        "revenue": {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "grossProfit": {
+          "key": "grossProfit",
+          "label": "Gross profit",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "operatingIncome": {
+          "key": "operatingIncome",
+          "label": "Operating income",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "netIncome": {
+          "key": "netIncome",
+          "label": "Net income",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "dilutedEps": {
+          "key": "dilutedEps",
+          "label": "Diluted EPS",
+          "unit": "per-share",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "operatingCashFlow": {
+          "key": "operatingCashFlow",
+          "label": "Operating cash flow",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "capex": {
+          "key": "capex",
+          "label": "Capital expenditure",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "annual:missing-concept: no SEC facts found for the ordered concept list",
+            "ttm:missing-full-fy: no eligible 10-K annual point",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "freeCashFlowProxy": {
+          "key": "freeCashFlowProxy",
+          "label": "Free cash flow proxy",
+          "unit": "currency",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "cagr:insufficient-points: no annual points"
+          ]
+        },
+        "grossMargin": {
+          "key": "grossMargin",
+          "label": "Gross margin",
+          "unit": "ratio",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "margin-change:insufficient-points: at least two matched annual points are required"
+          ]
+        },
+        "operatingMargin": {
+          "key": "operatingMargin",
+          "label": "Operating margin",
+          "unit": "ratio",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "margin-change:insufficient-points: at least two matched annual points are required"
+          ]
+        },
+        "netMargin": {
+          "key": "netMargin",
+          "label": "Net margin",
+          "unit": "ratio",
+          "annual": [],
+          "notes": [
+            "ttm:missing-component: both component TTM points are required",
+            "margin-change:insufficient-points: at least two matched annual points are required"
+          ]
+        }
+      }
+    },
+    "historical-context.json": {
+      "generatedAt": "<generatedAt>",
+      "recentDays": 0,
+      "anchorMonths": [],
+      "runs": [],
+      "sources": [],
+      "gaps": ["No prior ticker runs found for NBIS", "No prior equity market-update runs found"],
+      "audit": {
+        "scannedRunCount": 0,
+        "malformedRunCount": 0,
+        "malformedScoreCount": 0,
+        "candidateRunCount": 0,
+        "selectedRunCount": 0,
+        "recentSelectedCount": 0,
+        "anchorSelectedCount": 0,
+        "sameSymbolSelectedCount": 0,
+        "spotlightSymbolSelectedCount": 0,
+        "sameSubjectSelectedCount": 0,
+        "sameHorizonSelectedCount": 0,
+        "crossHorizonSelectedCount": 0,
+        "resolvedMissRunCount": 0,
+        "missCorrectionSelectedCount": 0,
+        "gapCount": 2
+      },
+      "artifactDeltas": []
+    },
+    "instrument-identity.json": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "NBIS"
+        }
+      ],
+      "displayName": "Nebius Group N.V.",
+      "exchange": "NasdaqGS"
+    },
+    "market-context.json": null,
+    "market-snapshots.json": [
+      {
+        "sourceId": "market-yahoo-equity-nbis",
+        "assetClass": "equity",
+        "symbol": "NBIS",
+        "price": 225.3,
+        "changePercent24h": 3.8631775,
+        "volume": 9044103,
+        "marketCap": 57203261440,
+        "open": 211,
+        "previousClose": 216.92,
+        "averageVolume": 18679820,
+        "fiftyDayAverage": 225.2252,
+        "fundamentals": {
+          "trailingPE": 87.325584,
+          "forwardPE": -139.64212,
+          "priceToBook": 7.9687333,
+          "bookValue": 28.273,
+          "epsTrailingTwelveMonths": 2.58,
+          "epsForward": -1.61341,
+          "sharesOutstanding": 220406311,
+          "trailingAnnualDividendRate": 0
+        },
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "Nebius Group N.V.",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "NBIS"
+            }
+          ],
+          "displayName": "Nebius Group N.V.",
+          "exchange": "NasdaqGS"
+        }
+      },
+      {
+        "sourceId": "market-yahoo-equity-spy",
+        "assetClass": "equity",
+        "symbol": "SPY",
+        "price": 749.73,
+        "changePercent24h": 0.1937712,
+        "volume": 11402835,
+        "open": 746.62,
+        "previousClose": 748.28,
+        "averageVolume": 44414830,
+        "fiftyDayAverage": 744.8796,
+        "fundamentals": {
+          "trailingPE": 26.96791,
+          "priceToBook": 1.7467265,
+          "bookValue": 429.22,
+          "dividendYield": 1.01,
+          "epsTrailingTwelveMonths": 27.800817,
+          "sharesOutstanding": 917782016,
+          "trailingAnnualDividendRate": 5.662
+        },
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "State Street SPDR S&P 500 ETF T",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "SPY"
+            }
+          ],
+          "displayName": "State Street SPDR S&P 500 ETF T",
+          "exchange": "NYSEArca"
+        }
+      },
+      {
+        "sourceId": "market-yahoo-equity-qqq",
+        "assetClass": "equity",
+        "symbol": "QQQ",
+        "price": 709.32,
+        "changePercent24h": 0.04937256,
+        "volume": 12839127,
+        "open": 703.64,
+        "previousClose": 708.97,
+        "averageVolume": 35108300,
+        "fiftyDayAverage": 719.2916,
+        "fundamentals": {
+          "trailingPE": 31.47628,
+          "priceToBook": 1.9825925,
+          "bookValue": 357.774,
+          "dividendYield": 0.41,
+          "epsTrailingTwelveMonths": 22.535065,
+          "sharesOutstanding": 393100000,
+          "trailingAnnualDividendRate": 1.77
+        },
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "Invesco QQQ Trust, Series 1",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "QQQ"
+            }
+          ],
+          "displayName": "Invesco QQQ Trust, Series 1",
+          "exchange": "NasdaqGM"
+        }
+      },
+      {
+        "sourceId": "market-yahoo-equity-iwm",
+        "assetClass": "equity",
+        "symbol": "IWM",
+        "price": 294.75,
+        "changePercent24h": -0.6036314,
+        "volume": 9135529,
+        "open": 295.7,
+        "previousClose": 296.54,
+        "averageVolume": 20450380,
+        "fiftyDayAverage": 290.6914,
+        "fundamentals": {
+          "trailingPE": 18.261461,
+          "priceToBook": 1.3477736,
+          "bookValue": 218.694,
+          "dividendYield": 0.88,
+          "epsTrailingTwelveMonths": 16.140549,
+          "sharesOutstanding": 281049984,
+          "trailingAnnualDividendRate": 2.017
+        },
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "iShares Russell 2000 Index Fund",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "IWM"
+            }
+          ],
+          "displayName": "iShares Russell 2000 Index Fund",
+          "exchange": "NYSEArca"
+        }
+      },
+      {
+        "sourceId": "market-yahoo-equity-dia",
+        "assetClass": "equity",
+        "symbol": "DIA",
+        "price": 523.3,
+        "changePercent24h": 0.34322986,
+        "volume": 1712229,
+        "open": 521.63,
+        "previousClose": 521.51,
+        "averageVolume": 3322600,
+        "fiftyDayAverage": 513.2552,
+        "fundamentals": {
+          "trailingPE": 24.726604,
+          "priceToBook": 1.4609401,
+          "bookValue": 358.194,
+          "dividendYield": 1.38,
+          "epsTrailingTwelveMonths": 21.163439,
+          "sharesOutstanding": 81242896,
+          "trailingAnnualDividendRate": 5.62
+        },
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "State Street SPDR Dow Jones Ind",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "DIA"
+            }
+          ],
+          "displayName": "State Street SPDR Dow Jones Ind",
+          "exchange": "NYSEArca"
+        }
+      },
+      {
+        "sourceId": "market-yahoo-equity-^vix",
+        "assetClass": "equity",
+        "symbol": "^VIX",
+        "price": 16.75,
+        "changePercent24h": -1.7595264,
+        "volume": 0,
+        "open": 17.42,
+        "previousClose": 17.05,
+        "averageVolume": 0,
+        "fiftyDayAverage": 17.3514,
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "CBOE Volatility Index",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX"
+            }
+          ],
+          "displayName": "CBOE Volatility Index",
+          "exchange": "Cboe Indices"
+        }
+      },
+      {
+        "sourceId": "market-yahoo-equity-^vix3m",
+        "assetClass": "equity",
+        "symbol": "^VIX3M",
+        "price": 19.56,
+        "changePercent24h": -0.15314285,
+        "volume": 0,
+        "open": 19.79,
+        "previousClose": 19.59,
+        "averageVolume": 0,
+        "fiftyDayAverage": 26.7,
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "name": "CBOE S&P 500 3-Month Volatility",
+        "identity": {
+          "quoteCurrency": "USD",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "^VIX3M"
+            }
+          ],
+          "displayName": "CBOE S&P 500 3-Month Volatility",
+          "exchange": "Chicago Options"
+        }
+      }
+    ],
+    "news-sources.json": [
+      {
+        "id": "news-equity-1",
+        "fetchedAt": "2026-07-22T13:08:48.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "CoreWeave, DigitalOcean, Nebius win analyst support amid AI inference shift",
+        "url": "https://finance.yahoo.com/technology/ai/articles/coreweave-digitalocean-nebius-win-analyst-130848202.html",
+        "canonicalUrl": "https://finance.yahoo.com/technology/ai/articles/coreweave-digitalocean-nebius-win-analyst-130848202.html",
+        "publisher": "Investing.com",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Investing.com",
+            "fetchedAt": "2026-07-22T13:08:48.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-2",
+        "fetchedAt": "2026-07-22T12:04:28.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Here Are Wednesday’s Top Wall Street Analyst Research Calls: Altria, Circle Internet, Coreweave, Digital Ocean, IBM, Keel Infrastructure, Nebius Group, Trimble, Vornado Realty, and More",
+        "url": "https://finance.yahoo.com/m/bc8a2a0a-9043-3a50-be4f-87ca0fb4a9be/here-are-wednesday%E2%80%99s-top-wall.html",
+        "canonicalUrl": "https://finance.yahoo.com/m/bc8a2a0a-9043-3a50-be4f-87ca0fb4a9be/here-are-wednesday%E2%80%99s-top-wall.html",
+        "publisher": "24/7 Wall St.",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "24/7 Wall St.",
+            "fetchedAt": "2026-07-22T12:04:28.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-3",
+        "fetchedAt": "2026-07-22T11:12:22.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Baird Initiates Coverage on Nebius With Outperform Rating",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/baird-initiates-coverage-nebius-outperform-111222736.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/baird-initiates-coverage-nebius-outperform-111222736.html",
+        "publisher": "MT Newswires",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "MT Newswires",
+            "fetchedAt": "2026-07-22T11:12:22.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-4",
+        "fetchedAt": "2026-07-21T23:23:01.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Why Nebius Stock Soared Today",
+        "url": "https://finance.yahoo.com/m/c1925552-f20d-3aeb-a845-f70783b211d7/why-nebius-stock-soared-today.html",
+        "canonicalUrl": "https://finance.yahoo.com/m/c1925552-f20d-3aeb-a845-f70783b211d7/why-nebius-stock-soared-today.html",
+        "publisher": "Motley Fool",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Motley Fool",
+            "fetchedAt": "2026-07-21T23:23:01.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-5",
+        "fetchedAt": "2026-07-21T22:34:17.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Analyst Report: Nebius Group N.V.",
+        "url": "https://finance.yahoo.com/m/6b327546-8e89-349b-af08-3beaffaf647d/analyst-report%3A-nebius-group.html",
+        "canonicalUrl": "https://finance.yahoo.com/m/6b327546-8e89-349b-af08-3beaffaf647d/analyst-report%3A-nebius-group.html",
+        "publisher": "Morningstar Research",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Morningstar Research",
+            "fetchedAt": "2026-07-21T22:34:17.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-6",
+        "fetchedAt": "2026-07-21T20:55:38.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Nebius (NBIS) Soars on Nvidia 9.3% Stake; Hedge Fund Bets More Than Double",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/nebius-nbis-soars-nvidia-9-205538373.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/nebius-nbis-soars-nvidia-9-205538373.html",
+        "publisher": "Insider Monkey",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "Insider Monkey",
+            "fetchedAt": "2026-07-21T20:55:38.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-7",
+        "fetchedAt": "2026-07-22T13:44:39.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "CoreWeave upgraded, IBM initiated: Wall Street's top analyst calls",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/microsoft-reinstated-ralph-lauren-upgraded-133648092.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/microsoft-reinstated-ralph-lauren-upgraded-133648092.html",
+        "publisher": "The Fly",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "The Fly",
+            "fetchedAt": "2026-07-22T13:44:39.000Z"
+          }
+        ]
+      },
+      {
+        "id": "news-equity-8",
+        "fetchedAt": "2026-07-22T10:35:46.000Z",
+        "kind": "news",
+        "assetClass": "equity",
+        "provider": "yahoo-news",
+        "title": "Social Buzz: Wallstreetbets Stocks Mixed Pre-Bell Wednesday; Super Micro Computer to Advance, Micron Technology to Decline",
+        "url": "https://finance.yahoo.com/markets/stocks/articles/social-buzz-wallstreetbets-stocks-mixed-103546956.html",
+        "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/social-buzz-wallstreetbets-stocks-mixed-103546956.html",
+        "publisher": "MT Newswires",
+        "providerAliases": [
+          {
+            "provider": "yahoo-news",
+            "publisher": "MT Newswires",
+            "fetchedAt": "2026-07-22T10:35:46.000Z"
+          }
+        ]
+      }
+    ],
+    "source-gaps.json": [
+      {
+        "source": "marketaux-news",
+        "message": "missing MARKET_BOT_MARKETAUX_API_TOKEN",
+        "provider": "marketaux",
+        "capability": "news",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "finnhub-news",
+        "message": "missing MARKET_BOT_FINNHUB_API_TOKEN",
+        "provider": "finnhub",
+        "capability": "news",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "No SEC company facts found for NBIS",
+        "symbol": "NBIS",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-events",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "fred-macro",
+        "message": "MARKET_BOT_FRED_API_KEY is not set",
+        "provider": "fred",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "tradier-options",
+        "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+        "provider": "tradier",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "valuation",
+        "message": "Valuation Evidence unavailable for NBIS: missing revenue, cash, debt",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "valuation-peers",
+        "message": "Valuation peer comps skipped for NBIS: target valuation unavailable",
+        "symbol": "NBIS",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "financial-lens",
+        "message": "Financial Lens Evidence partial for NBIS: missing SEC fundamentals, valuation evidence",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "business-framework",
+        "message": "Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "NBIS files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+        "provider": "sec-edgar",
+        "capability": "evidence-request",
+        "cause": "unsupported-coverage",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      }
+    ],
+    "source-ledger.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "sources": [
+        {
+          "id": "market-yahoo-equity-nbis",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-spy",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-qqq",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-iwm",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-dia",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-^vix",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "market-yahoo-equity-^vix3m",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "market-data",
+          "posture": "covered",
+          "relatedGapIds": []
+        },
+        {
+          "id": "news-equity-1",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-22T13:08:48.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-2",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-22T12:04:28.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-3",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-22T11:12:22.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-4",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-21T23:23:01.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-5",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-21T22:34:17.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-6",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-21T20:55:38.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-7",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-22T13:44:39.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "news-equity-8",
+          "kind": "news",
+          "provider": "yahoo-news",
+          "fetchedAt": "2026-07-22T10:35:46.000Z",
+          "lane": "news",
+          "posture": "covered",
+          "relatedGapIds": ["news:gap:1", "news:gap:2"]
+        },
+        {
+          "id": "verified-snapshot-NBIS",
+          "kind": "market-data",
+          "provider": "yahoo",
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "verified-price-history",
+          "posture": "covered",
+          "relatedGapIds": []
+        }
+      ]
+    },
+    "source-plan.json": {
+      "version": 2,
+      "generatedAt": "<generatedAt>",
+      "run": {
+        "jobType": "equity",
+        "assetClass": "equity",
+        "symbol": "NBIS",
+        "depth": "deep"
+      },
+      "lanes": [
+        {
+          "lane": "market-data",
+          "evidenceClass": "core",
+          "appliesToRun": true,
+          "capability": "market-data"
+        },
+        {
+          "lane": "supplemental-market",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "supplemental-market"
+        },
+        {
+          "lane": "news",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "news"
+        },
+        {
+          "lane": "verified-price-history",
+          "evidenceClass": "core",
+          "appliesToRun": true,
+          "capability": "verified-price-history"
+        },
+        {
+          "lane": "regulatory-filings",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "regulatory-filings"
+        },
+        {
+          "lane": "corporate-events",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "corporate-events"
+        },
+        {
+          "lane": "macro-indicators",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "macro-indicators"
+        },
+        {
+          "lane": "derivatives-volatility",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "derivatives-volatility"
+        },
+        {
+          "lane": "target-valuation",
+          "evidenceClass": "material",
+          "appliesToRun": true,
+          "capability": "target-valuation"
+        },
+        {
+          "lane": "peer-valuation",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "peer-valuation"
+        },
+        {
+          "lane": "subject-profile",
+          "evidenceClass": "supplemental",
+          "appliesToRun": true,
+          "capability": "subject-profile"
+        }
+      ]
+    },
+    "supplemental-market-snapshots.json": [],
+    "valuation-comps.json": null,
+    "verified-market-snapshot.json": {
+      "symbol": "NBIS",
+      "assetClass": "equity",
+      "analysisDate": "2026-07-22",
+      "fetchedAt": "2026-07-22T16:16:13.510Z",
+      "latestSessionDate": "2026-07-22",
+      "ohlcv": {
+        "date": "2026-07-22",
+        "open": 211,
+        "high": 227.25999450683594,
+        "low": 209.5399932861328,
+        "close": 225.3000030517578,
+        "volume": 9044136
+      },
+      "indicators": {
+        "ema10": 205.8603388713086,
+        "sma50": 226.1901998901367,
+        "sma200": 139.21002544403075,
+        "rsi14": 52.48462346452554,
+        "macd": -8.931096202106858,
+        "macdSignal": -7.971149445184169,
+        "macdHistogram": -0.9599467569226885,
+        "bollUpper": 274.8760679556251,
+        "bollMiddle": 218.88399963378907,
+        "bollLower": 162.89193131195307,
+        "atr14": 24.295351611667233
+      },
+      "recentCloses": [
+        {
+          "date": "2026-06-09",
+          "close": 220.1199951171875
+        },
+        {
+          "date": "2026-06-10",
+          "close": 211.69000244140625
+        },
+        {
+          "date": "2026-06-11",
+          "close": 222.24000549316406
+        },
+        {
+          "date": "2026-06-12",
+          "close": 232.36000061035156
+        },
+        {
+          "date": "2026-06-15",
+          "close": 260.07000732421875
+        },
+        {
+          "date": "2026-06-16",
+          "close": 265.1000061035156
+        },
+        {
+          "date": "2026-06-17",
+          "close": 280.9100036621094
+        },
+        {
+          "date": "2026-06-18",
+          "close": 286.69000244140625
+        },
+        {
+          "date": "2026-06-22",
+          "close": 283.6099853515625
+        },
+        {
+          "date": "2026-06-23",
+          "close": 275.25
+        },
+        {
+          "date": "2026-06-24",
+          "close": 259.6600036621094
+        },
+        {
+          "date": "2026-06-25",
+          "close": 256.6300048828125
+        },
+        {
+          "date": "2026-06-26",
+          "close": 240.3000030517578
+        },
+        {
+          "date": "2026-06-29",
+          "close": 261.1499938964844
+        },
+        {
+          "date": "2026-06-30",
+          "close": 276.1700134277344
+        },
+        {
+          "date": "2026-07-01",
+          "close": 229.17999267578125
+        },
+        {
+          "date": "2026-07-02",
+          "close": 215.6199951171875
+        },
+        {
+          "date": "2026-07-06",
+          "close": 213.02000427246094
+        },
+        {
+          "date": "2026-07-07",
+          "close": 195.19000244140625
+        },
+        {
+          "date": "2026-07-08",
+          "close": 216.47999572753906
+        },
+        {
+          "date": "2026-07-09",
+          "close": 216.1999969482422
+        },
+        {
+          "date": "2026-07-10",
+          "close": 219.64999389648438
+        },
+        {
+          "date": "2026-07-13",
+          "close": 210.50999450683594
+        },
+        {
+          "date": "2026-07-14",
+          "close": 194.08999633789062
+        },
+        {
+          "date": "2026-07-15",
+          "close": 199.50999450683594
+        },
+        {
+          "date": "2026-07-16",
+          "close": 171.77000427246094
+        },
+        {
+          "date": "2026-07-17",
+          "close": 177.7100067138672
+        },
+        {
+          "date": "2026-07-20",
+          "close": 182.6199951171875
+        },
+        {
+          "date": "2026-07-21",
+          "close": 216.9199981689453
+        },
+        {
+          "date": "2026-07-22",
+          "close": 225.3000030517578
+        }
+      ]
+    },
+    "web-subject-profile.json": null
+  }
+}

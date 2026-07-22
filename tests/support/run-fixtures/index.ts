@@ -24,6 +24,7 @@ export interface FixtureMeta {
   readonly quickModel?: string;
   readonly synthesisModel?: string;
   readonly challengerModels?: readonly string[];
+  readonly configuredProviders?: readonly ("finnhub" | "tradier")[];
   readonly secUserAgent?: string;
   readonly webGatherDisabled?: boolean;
   readonly evidenceRequestOptions?: {
@@ -122,9 +123,14 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
     meta.secUserAgent === undefined
       ? (({ secUserAgent: _secUserAgent, ...rest }) => rest)(config.sourceOptions)
       : config.sourceOptions;
+  const configuredProviders = new Set(meta.configuredProviders);
   return {
     ...config,
-    sourceOptions,
+    sourceOptions: {
+      ...sourceOptions,
+      ...(configuredProviders.has("finnhub") ? { finnhubApiToken: "fixture-token" } : {}),
+      ...(configuredProviders.has("tradier") ? { tradierApiToken: "fixture-token" } : {}),
+    },
     evidenceRequestOptions: meta.evidenceRequestOptions ?? {
       maxRounds: 0,
       maxToolCalls: 0,

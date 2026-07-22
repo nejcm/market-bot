@@ -16,6 +16,7 @@ import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
+import { deriveEquityAnalysisCompleteness } from "../sources/extended-evidence/equity-analysis-completeness";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { extractCatalystDate } from "./catalyst-date";
@@ -238,6 +239,52 @@ export function buildSourceList(
           fetchedAt ?? missingRegistryProvenanceFetchedAt(command),
         )
       : [];
+  const financialStatementsSource =
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    collectedSources.financialStatements !== undefined &&
+    !collectedSources.extendedSources.some(
+      (source) => source.id === collectedSources.financialStatements?.sourceId,
+    )
+      ? {
+          id: collectedSources.financialStatements.sourceId,
+          title: `${command.symbol} canonical financial statements`,
+          fetchedAt: collectedSources.financialStatements.analysisAsOf,
+          kind: "extended-evidence" as const,
+          assetClass: "equity" as const,
+          symbol: command.symbol,
+          provider: "sec-edgar",
+          ...(collectedSources.financialStatements.sourceUrl !== undefined
+            ? { url: collectedSources.financialStatements.sourceUrl }
+            : {}),
+        }
+      : undefined;
+  const existingSourceIds = new Set([
+    ...collectedSources.extendedSources.map((source) => source.id),
+    ...(financialStatementsSource !== undefined ? [financialStatementsSource.id] : []),
+  ]);
+  const structuredFinancialGapSources =
+    isInstrumentCommand(command) && collectedSources.financialStatements !== undefined
+      ? [
+          ...new Set(
+            collectedSources.financialStatements.structuredFinancialGaps.flatMap(
+              (gap) => gap.sourceIds,
+            ),
+          ),
+        ]
+          .filter((sourceId) => !existingSourceIds.has(sourceId))
+          .map(
+            (sourceId): Source => ({
+              id: sourceId,
+              title: `${command.symbol} structured financial filing evidence`,
+              fetchedAt: collectedSources.financialStatements!.analysisAsOf,
+              kind: "extended-evidence",
+              assetClass: "equity",
+              symbol: command.symbol,
+              provider: "sec-edgar",
+            }),
+          )
+      : [];
 
   return [
     ...marketSources,
@@ -249,6 +296,8 @@ export function buildSourceList(
     ...(isInstrumentCommand(command) || command.jobType === "research"
       ? collectedSources.extendedSources
       : []),
+    ...(financialStatementsSource !== undefined ? [financialStatementsSource] : []),
+    ...structuredFinancialGapSources,
     ...(historicalContext?.sources ?? []),
     ...registrySources,
   ];
@@ -831,6 +880,21 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
           collectedSources,
         })
       : undefined;
+  const equityAnalysisCompleteness =
+    command.jobType === "equity"
+      ? deriveEquityAnalysisCompleteness({
+          asOf: generatedAt,
+          ...(collectedSources.financialStatements !== undefined
+            ? { financialStatements: collectedSources.financialStatements }
+            : {}),
+          ...(collectedSources.extendedEvidence !== undefined
+            ? { extendedEvidence: collectedSources.extendedEvidence }
+            : {}),
+          ...(collectedSources.earningsSetup !== undefined
+            ? { earningsSetup: collectedSources.earningsSetup }
+            : {}),
+        })
+      : undefined;
 
   return validateResearchReport({
     runId,
@@ -849,6 +913,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     catalysts,
     scenarios,
     evidenceQuality,
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     dataGaps,
     predictions: stampedPredictions,
     sources,

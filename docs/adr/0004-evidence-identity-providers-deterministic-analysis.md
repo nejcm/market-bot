@@ -14,7 +14,8 @@ present-but-unsupportable material target valuation caps Evidence Quality at med
 rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
 2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range;
 amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures; amended
-2026-07-23: canonical financial-statements shadow artifact)
+2026-07-23: canonical financial-statements shadow artifact; amended 2026-07-23: cadence-aware
+equity completeness contract and incremental consumer migration)
 
 ## Context
 
@@ -162,6 +163,20 @@ without pretending the project has a global security master.
   either matched, assigned a deterministic explanation (including the legacy `10-K`/`10-Q` form
   boundary), or marked unexplained; fixture gates require zero unexplained differences before a
   consumer migration.
+- Equity reports optionally expose versioned `equityAnalysisCompleteness`. Its
+  `financialCoreStatus` is determined only by canonical primary financials; valuation,
+  expectations, capital/ownership, and operating-KPI dimensions affect only `coverageLevel`.
+  Missing credentials or entitlements never establish non-applicability.
+- Primary-financial completeness requires a usable current annual basis, three comparable annual
+  periods, one reporting currency, applicable per-share evidence, and either a reconciled TTM or an
+  annual-as-current state before the next cadence-specific interim is due. Quarterly, semiannual,
+  irregular, annual-only, and unknown cadences are evaluated separately; missing history or
+  interim reconciliation is partial, while only the absence of a usable current annual basis is
+  blocked. Exact FY plus aligned current/prior YTD TTM components establish trailing-year coverage
+  when four retained quarter-only facts are unavailable.
+- Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
+  fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
+  Historical artifacts without the sidecar or completeness field remain readable.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -223,10 +238,10 @@ without pretending the project has a global security master.
   share counts vary across component periods. Because each period independently selects its
   latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
   was not restated in the same filing.
-- The canonical financial-statements artifact is shadow-only. Current report, lens, valuation,
-  history, reader/API, and Console behavior can remain narrower until Phase 2 migrations establish
-  parity at each consumer seam. Companyfacts without accession metadata retain an explicit null and
-  omission note rather than inventing provenance.
+- The canonical financial-statements artifact drives the optional equity completeness contract;
+  lens, valuation, history, reader/API, and Console adoption remains incremental and parity-gated.
+  Companyfacts without accession metadata retain an explicit null and omission note rather than
+  inventing provenance.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.

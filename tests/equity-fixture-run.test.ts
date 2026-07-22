@@ -279,6 +279,7 @@ describe("static equity run fixtures", () => {
       assertStatementCapsAndParity(result);
       if (name === "equity-aapl-deep") {
         assertAaplPopulatedPath(result);
+        expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
       }
       if (name === "equity-nbis-deep") {
         expect(factTaxonomies(result)).toContain("us-gaap");
@@ -305,6 +306,17 @@ describe("static equity run fixtures", () => {
             sourceIds: ["extended-sec-edgar-nbis-filings"],
           }),
         );
+        expect(result.report.equityAnalysisCompleteness).toMatchObject({
+          financialCoreStatus: "partial",
+          dimensions: {
+            primaryFinancials: {
+              reasonCodes: expect.arrayContaining([
+                "cadence-unestablished",
+                "untagged-interim-evidence",
+              ]),
+            },
+          },
+        });
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
@@ -326,6 +338,7 @@ describe("static equity run fixtures", () => {
             priorYearToDate: { value: 300_000_000 },
           },
         });
+        expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
       }
       if (name === "equity-fpi-ifrs-semiannual") {
         expect(factTaxonomies(result)).toEqual(["ifrs-full"]);
@@ -345,9 +358,14 @@ describe("static equity run fixtures", () => {
         expect(result.collectedSources.financialStatements?.validationNotes).toContainEqual(
           expect.objectContaining({ code: "unreconciled-ttm", seriesKey: "revenue" }),
         );
+        expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
       }
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result);
+        expect(result.report.equityAnalysisCompleteness).toMatchObject({
+          financialCoreStatus: "complete",
+          coverageLevel: "comprehensive",
+        });
       }
       expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(
         await readGoldenOutput(name),

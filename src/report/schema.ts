@@ -470,6 +470,91 @@ function validateRenderedExtras(
   validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds);
 }
 
+const COMPLETENESS_DIMENSION_KEYS = [
+  "primaryFinancials",
+  "valuation",
+  "expectations",
+  "capitalOwnership",
+  "operatingKpis",
+] as const;
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+}
+
+function validateEquityAnalysisCompleteness(
+  report: ResearchReport,
+  knownSourceIds: ReadonlySet<string>,
+): void {
+  const completeness = report.equityAnalysisCompleteness;
+  if (completeness === undefined) {
+    return;
+  }
+  if (report.jobType !== "equity" || report.assetClass !== "equity") {
+    throw new Error("Equity analysis completeness is allowed only on equity reports");
+  }
+  if (completeness.version !== 1 || !isIsoTimestamp(completeness.asOf)) {
+    throw new Error("Equity analysis completeness requires version 1 and an ISO asOf timestamp");
+  }
+  const primaryStatus = completeness.dimensions.primaryFinancials.status;
+  if (primaryStatus !== "complete" && primaryStatus !== "partial" && primaryStatus !== "blocked") {
+    throw new Error("Primary financial completeness status is invalid");
+  }
+  if (completeness.financialCoreStatus !== primaryStatus) {
+    throw new Error("Financial core status must equal the primaryFinancials status");
+  }
+  for (const key of COMPLETENESS_DIMENSION_KEYS) {
+    const dimension = completeness.dimensions[key];
+    if (
+      dimension.status !== "complete" &&
+      dimension.status !== "partial" &&
+      dimension.status !== "blocked" &&
+      dimension.status !== "not-applicable"
+    ) {
+      throw new Error(`Equity analysis completeness ${key} status is invalid`);
+    }
+    if (!isIsoTimestamp(dimension.asOf)) {
+      throw new Error(`Equity analysis completeness ${key} asOf must be an ISO timestamp`);
+    }
+    if (dimension.reasonCodes.some((code) => code.trim() === "")) {
+      throw new Error(`Equity analysis completeness ${key} reason codes must be non-empty`);
+    }
+    validateKnownSourceIds(
+      `equityAnalysisCompleteness.${key}`,
+      dimension.sourceIds,
+      knownSourceIds,
+      false,
+    );
+    if (
+      dimension.status === "not-applicable" &&
+      (dimension.sourceIds.length === 0 ||
+        dimension.reasonCodes.length === 0 ||
+        dimension.reasonCodes.some((code) => /credential|entitlement/iu.test(code)))
+    ) {
+      throw new Error(
+        `Equity analysis completeness ${key} not-applicable status requires affirmative evidence`,
+      );
+    }
+  }
+  const completeOrNotApplicable = [
+    completeness.dimensions.valuation,
+    completeness.dimensions.expectations,
+    completeness.dimensions.capitalOwnership,
+    completeness.dimensions.operatingKpis,
+  ].filter(
+    (dimension) => dimension.status === "complete" || dimension.status === "not-applicable",
+  ).length;
+  let expectedCoverage: "comprehensive" | "substantial" | "limited" = "substantial";
+  if (primaryStatus !== "complete" || completeOrNotApplicable <= 1) {
+    expectedCoverage = "limited";
+  } else if (completeOrNotApplicable === 4) {
+    expectedCoverage = "comprehensive";
+  }
+  if (completeness.coverageLevel !== expectedCoverage) {
+    throw new Error("Equity analysis completeness coverageLevel conflicts with dimension statuses");
+  }
+}
+
 export function validatePredictions(
   candidates: readonly unknown[],
   knownSourceIds: ReadonlySet<string>,
@@ -526,6 +611,7 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   validateFindings(report.risks, knownSourceIds);
   validateFindings(report.catalysts, knownSourceIds);
   validateScenarios(report.scenarios, knownSourceIds);
+  validateEquityAnalysisCompleteness(report, knownSourceIds);
   validateRenderedExtras(report.extras, knownSourceIds);
   assertSafeReportLanguage(report);
 

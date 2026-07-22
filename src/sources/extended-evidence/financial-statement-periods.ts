@@ -39,6 +39,19 @@ function isYearAligned(prior: string, latest: string): boolean {
   return days !== undefined && days >= ALIGNMENT_MIN_DAYS && days <= ALIGNMENT_MAX_DAYS;
 }
 
+export function financialStatementPeriodsYearAligned(
+  prior: FinancialStatementFact,
+  latest: FinancialStatementFact,
+): boolean {
+  if (prior.periodStart === undefined || latest.periodStart === undefined) {
+    return false;
+  }
+  return (
+    isYearAligned(prior.periodStart, latest.periodStart) &&
+    isYearAligned(prior.periodEnd, latest.periodEnd)
+  );
+}
+
 export function deriveFinancialStatementTtm(
   definition: FinancialStatementSeriesDefinition,
   annual: readonly FinancialStatementFact[],

@@ -580,6 +580,29 @@ export interface Scenario {
   readonly sourceIds: readonly string[];
 }
 
+export type EquityAnalysisDimensionStatus = "complete" | "partial" | "blocked" | "not-applicable";
+
+export interface EquityAnalysisCompletenessDimension {
+  readonly status: EquityAnalysisDimensionStatus;
+  readonly reasonCodes: readonly string[];
+  readonly asOf: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface EquityAnalysisCompleteness {
+  readonly version: 1;
+  readonly financialCoreStatus: "complete" | "partial" | "blocked";
+  readonly coverageLevel: "comprehensive" | "substantial" | "limited";
+  readonly asOf: string;
+  readonly dimensions: {
+    readonly primaryFinancials: EquityAnalysisCompletenessDimension;
+    readonly valuation: EquityAnalysisCompletenessDimension;
+    readonly expectations: EquityAnalysisCompletenessDimension;
+    readonly capitalOwnership: EquityAnalysisCompletenessDimension;
+    readonly operatingKpis: EquityAnalysisCompletenessDimension;
+  };
+}
+
 // Report Integrity grades the deterministic post-synthesis pruning outcome;
 // Research Quality is the worse of Evidence Quality and Report Integrity.
 // Both are optional at tolerant read boundaries (historical reports predate
@@ -609,6 +632,7 @@ export interface ResearchReport {
   readonly reportIntegrity?: ReportIntegrity;
   readonly researchQuality?: ReportIntegrity;
   readonly researchQualityDriver?: string;
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];

@@ -48,6 +48,63 @@
       }
     ],
     "evidenceQuality": "medium",
+    "equityAnalysisCompleteness": {
+      "version": 1,
+      "financialCoreStatus": "complete",
+      "coverageLevel": "substantial",
+      "asOf": "2026-06-15T14:30:00.000Z",
+      "dimensions": {
+        "primaryFinancials": {
+          "status": "complete",
+          "reasonCodes": [],
+          "asOf": "2026-06-15T14:30:00.000Z",
+          "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+        },
+        "valuation": {
+          "status": "complete",
+          "reasonCodes": [],
+          "asOf": "2026-06-15T14:30:00.000Z",
+          "sourceIds": [
+            "market-yahoo-equity-aapl",
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-msft",
+            "extended-sec-edgar-msft-fundamentals",
+            "extended-sec-edgar-msft-filings",
+            "market-yahoo-equity-googl",
+            "extended-sec-edgar-googl-fundamentals",
+            "extended-sec-edgar-googl-filings",
+            "market-yahoo-equity-amzn",
+            "extended-sec-edgar-amzn-fundamentals",
+            "extended-sec-edgar-amzn-filings",
+            "market-yahoo-equity-meta",
+            "extended-sec-edgar-meta-fundamentals",
+            "extended-sec-edgar-meta-filings",
+            "market-yahoo-equity-dell",
+            "extended-sec-edgar-dell-fundamentals",
+            "extended-sec-edgar-dell-filings"
+          ]
+        },
+        "expectations": {
+          "status": "partial",
+          "reasonCodes": ["expectations-evidence-missing"],
+          "asOf": "2026-06-15T14:30:00.000Z",
+          "sourceIds": []
+        },
+        "capitalOwnership": {
+          "status": "complete",
+          "reasonCodes": [],
+          "asOf": "2026-06-15T14:30:00.000Z",
+          "sourceIds": ["market-yahoo-equity-aapl"]
+        },
+        "operatingKpis": {
+          "status": "complete",
+          "reasonCodes": [],
+          "asOf": "2026-06-15T14:30:00.000Z",
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"]
+        }
+      }
+    },
     "dataGaps": [
       "sec-edgar: Missing SEC company facts: dilutedShares, currentAssets, currentLiabilities [AAPL]",
       "sec-edgar: Missing comparable SEC company facts for YoY deltas: cash, debt [AAPL]",

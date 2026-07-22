@@ -743,11 +743,23 @@ function renderEarningsSetup(report: ResearchReport): string {
   const symbol = typeof event.symbol === "string" ? event.symbol : "";
   const date = typeof event.date === "string" ? event.date : "";
   const timing = typeof event.timing === "string" ? event.timing : "unknown";
+  const dateStatus = event.dateStatus === "provider-estimated";
   const lines = [
     "## Earnings Setup",
     "",
-    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})`,
+    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${dateStatus ? " — date provider-estimated (Finnhub), unconfirmed" : ""}`,
   ];
+
+  if (typeof event.epsEstimate === "number") {
+    lines.push(
+      `**EPS estimate:** ${String(event.epsEstimate)} — single-provider snapshot (Finnhub)`,
+    );
+  }
+  if (typeof event.revenueEstimate === "number") {
+    lines.push(
+      `**Revenue estimate:** ${event.revenueEstimate.toLocaleString("en-US")} — single-provider snapshot (Finnhub)`,
+    );
+  }
 
   if (isRecord(setup.impliedMove)) {
     const move = setup.impliedMove;

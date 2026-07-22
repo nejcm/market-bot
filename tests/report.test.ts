@@ -199,6 +199,30 @@ describe("report schema and rendering", () => {
     expect(validateResearchReport(report)).toEqual(report);
   });
 
+  test("renders Finnhub earnings dates as provider-estimated and unconfirmed", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      extras: {
+        earningsSetup: {
+          event: {
+            symbol: "AAPL",
+            date: "2026-07-24",
+            timing: "amc",
+            dateStatus: "provider-estimated",
+            sourceIds: ["source-1"],
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+          },
+          gaps: [],
+        },
+      },
+    });
+
+    expect(markdown).toContain("date provider-estimated (Finnhub), unconfirmed");
+  });
+
   test("validates web sources and web-subject-profile extended evidence", () => {
     const answer = {
       answer: "Apple sells devices and services.",

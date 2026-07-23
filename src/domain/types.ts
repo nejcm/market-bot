@@ -424,6 +424,8 @@ export type ExtendedEvidenceCategory =
   | "business-framework"
   | "web-subject-profile"
   | "yahoo-fundamentals"
+  | "analyst-estimates"
+  | "analyst-estimate-context"
   | "equity-events"
   | "fred-macro"
   | "options-iv"

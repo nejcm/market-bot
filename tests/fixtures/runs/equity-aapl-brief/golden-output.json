@@ -946,6 +946,26 @@
         "evidence": ["finnhub-events"],
         "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
       },
+      "finnhubEpsEstimate": {
+        "status": "unmeasured",
+        "evidence": [],
+        "reason": "No request or normalized availability gap for finnhub-eps-estimate"
+      },
+      "finnhubRevenueEstimate": {
+        "status": "unmeasured",
+        "evidence": [],
+        "reason": "No request or normalized availability gap for finnhub-revenue-estimate"
+      },
+      "finnhubEbitdaEstimate": {
+        "status": "unmeasured",
+        "evidence": [],
+        "reason": "No request or normalized availability gap for finnhub-ebitda-estimate"
+      },
+      "finnhubPriceTarget": {
+        "status": "unmeasured",
+        "evidence": [],
+        "reason": "No request or normalized availability gap for finnhub-analyst-range"
+      },
       "tradierOptions": {
         "status": "missing-credential",
         "evidence": ["tradier-options"],

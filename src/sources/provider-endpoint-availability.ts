@@ -21,6 +21,22 @@ const ENDPOINTS: Readonly<Record<string, EndpointDefinition>> = {
   secSubmissions: { adapters: ["sec-submissions"], gapSources: ["sec-edgar"] },
   finnhubNews: { adapters: ["finnhub-news"], gapSources: ["finnhub-news"] },
   finnhubEvents: { adapters: ["finnhub-events"], gapSources: ["finnhub-events"] },
+  finnhubEpsEstimate: {
+    adapters: ["finnhub-eps-estimate"],
+    gapSources: ["finnhub-eps-estimate"],
+  },
+  finnhubRevenueEstimate: {
+    adapters: ["finnhub-revenue-estimate"],
+    gapSources: ["finnhub-revenue-estimate"],
+  },
+  finnhubEbitdaEstimate: {
+    adapters: ["finnhub-ebitda-estimate"],
+    gapSources: ["finnhub-ebitda-estimate"],
+  },
+  finnhubPriceTarget: {
+    adapters: ["finnhub-analyst-range"],
+    gapSources: ["finnhub-analyst-range"],
+  },
   tradierOptions: { adapters: ["tradier-options"], gapSources: ["tradier-options"] },
   tradierEarningsImpliedMove: {
     adapters: ["tradier-earnings"],

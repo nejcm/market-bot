@@ -604,6 +604,59 @@ describe("equity analysis completeness", () => {
     expect(blocked.coverageLevel).toBe("limited");
   });
 
+  test("preserves calendar estimates as a complete fallback across provider entitlement gaps", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      earningsSetup,
+      analystExpectationsSignal: { status: "forbidden", sourceIds: [] },
+    });
+
+    expect(result.dimensions.expectations).toEqual({
+      status: "complete",
+      reasonCodes: [],
+      asOf: AS_OF,
+      sourceIds: [SOURCE_ID],
+    });
+  });
+
+  test("keeps populated but incomplete estimate responses partial", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      analystExpectations: {
+        version: 1,
+        generatedAt: AS_OF,
+        symbol: "TEST",
+        estimates: {
+          eps: {
+            provider: "finnhub",
+            consensus: [{ mean: 1 }],
+            sourceIds: ["eps-source"],
+            observedAt: AS_OF,
+          },
+          revenue: {
+            provider: "finnhub",
+            consensus: [],
+            sourceIds: ["revenue-source"],
+            observedAt: AS_OF,
+          },
+        },
+      },
+      analystExpectationsSignal: {
+        status: "available",
+        sourceIds: ["eps-source", "revenue-source"],
+      },
+    });
+
+    expect(result.dimensions.expectations).toEqual({
+      status: "partial",
+      reasonCodes: ["expectations-inputs-incomplete"],
+      asOf: AS_OF,
+      sourceIds: ["eps-source", "revenue-source"],
+    });
+  });
+
   test("grades capital ownership from filed histories and precise reasons", () => {
     const complete = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,

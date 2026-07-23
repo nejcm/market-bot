@@ -23,13 +23,37 @@ function gap(
 describe("provider endpoint availability", () => {
   test("derives available endpoints from sorted unique adapter evidence", () => {
     const result = deriveProviderEndpointAvailability(
-      [snapshot("finnhub-events-3"), snapshot("finnhub-events-1"), snapshot("finnhub-events-1")],
+      [
+        snapshot("finnhub-events-3"),
+        snapshot("finnhub-events-1"),
+        snapshot("finnhub-events-1"),
+        snapshot("finnhub-eps-estimate"),
+        snapshot("finnhub-revenue-estimate"),
+        snapshot("finnhub-ebitda-estimate"),
+        snapshot("finnhub-analyst-range"),
+      ],
       [],
     );
 
     expect(result.finnhubEvents).toEqual({
       status: "available",
       evidence: ["finnhub-events-1", "finnhub-events-3"],
+    });
+    expect(result.finnhubEpsEstimate).toEqual({
+      status: "available",
+      evidence: ["finnhub-eps-estimate"],
+    });
+    expect(result.finnhubRevenueEstimate).toEqual({
+      status: "available",
+      evidence: ["finnhub-revenue-estimate"],
+    });
+    expect(result.finnhubEbitdaEstimate).toEqual({
+      status: "available",
+      evidence: ["finnhub-ebitda-estimate"],
+    });
+    expect(result.finnhubPriceTarget).toEqual({
+      status: "available",
+      evidence: ["finnhub-analyst-range"],
     });
   });
 
@@ -50,6 +74,8 @@ describe("provider endpoint availability", () => {
       [],
       [
         gap("finnhub-events", "missing-credential", "token absent"),
+        gap("finnhub-eps-estimate", "unsupported-coverage", "plan unavailable"),
+        gap("finnhub-revenue-estimate", "missing-credential", "token absent"),
         gap("tradier-options", "unsupported-coverage", "listing unsupported"),
       ],
     );
@@ -63,6 +89,16 @@ describe("provider endpoint availability", () => {
       status: "unsupported",
       evidence: ["tradier-options"],
       reason: "listing unsupported",
+    });
+    expect(result.finnhubEpsEstimate).toEqual({
+      status: "unsupported",
+      evidence: ["finnhub-eps-estimate"],
+      reason: "plan unavailable",
+    });
+    expect(result.finnhubRevenueEstimate).toEqual({
+      status: "missing-credential",
+      evidence: ["finnhub-revenue-estimate"],
+      reason: "token absent",
     });
   });
 

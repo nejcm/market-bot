@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseObservableExpression } from "../src/forecast/observable";
+import { violatesResearchOnly } from "../src/domain/research-language";
 import { isRecord } from "../src/guards";
 import type { ModelRequest } from "../src/model/types";
 import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
@@ -374,8 +375,59 @@ function assertComprehensiveAnalysisPath(
       "yahoo-fundamentals",
       "financial-lens",
       "business-framework",
+      "analyst-estimates",
+      "analyst-estimate-context",
     ]),
   );
+  expect(result.collectedSources.analystExpectations).toMatchObject({
+    version: 1,
+    symbol: "AAPL",
+    estimates: {
+      eps: { consensus: [expect.objectContaining({ mean: 1.72, count: 28 })] },
+      revenue: {
+        consensus: [expect.objectContaining({ mean: 98_000_000_000, count: 24 })],
+      },
+      ebitda: {
+        consensus: [expect.objectContaining({ mean: 35_000_000_000, count: 18 })],
+      },
+    },
+    externalContext: {
+      provider: "finnhub",
+      distribution: { mean: 240, median: 235, high: 280, low: 190, count: 42 },
+    },
+  });
+  expect(result.collectedSources.analystExpectationsSignal?.status).toBe("available");
+  for (const sourceId of [
+    ...(result.report.equityAnalysisCompleteness?.dimensions.expectations.sourceIds ?? []),
+    ...(result.collectedSources.analystExpectationsSignal?.sourceIds ?? []),
+    ...(result.collectedSources.analystExpectations?.externalContext?.sourceIds ?? []),
+  ]) {
+    expect(result.report.sources.some((source) => source.id === sourceId)).toBe(true);
+  }
+  expect(result.analytics.providerEndpointAvailability?.finnhubEpsEstimate?.status).toBe(
+    "available",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubRevenueEstimate?.status).toBe(
+    "available",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubEbitdaEstimate?.status).toBe(
+    "available",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubPriceTarget?.status).toBe(
+    "available",
+  );
+  expect(result.markdown).toContain("## External Analyst Estimate Context");
+  expect(result.markdown).toContain("External analyst estimate range from Finnhub");
+  expect(result.markdown).toContain("**Mean:** 240");
+  expect(
+    violatesResearchOnly(
+      JSON.stringify(
+        result.report.extendedEvidence?.items.find(
+          (item) => item.category === "analyst-estimate-context",
+        ),
+      ),
+    ),
+  ).toBeNull();
 }
 
 function assertEstimatedEarningsSuppressionPath(
@@ -423,6 +475,31 @@ function assertEstimatedEarningsSuppressionPath(
   });
   expect(result.report.dataGaps).toContain(
     "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+  );
+  expect(result.collectedSources.analystExpectationsSignal).toEqual({
+    status: "forbidden",
+    sourceIds: [],
+  });
+  expect(result.report.equityAnalysisCompleteness?.dimensions.expectations).toEqual({
+    status: "partial",
+    reasonCodes: ["expectations-provider-entitlement-blocked"],
+    asOf: "2026-06-15T14:30:00.000Z",
+    sourceIds: [],
+  });
+  expect(result.report.equityAnalysisCompleteness?.dimensions.expectations.status).not.toBe(
+    "not-applicable",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubEpsEstimate?.status).toBe(
+    "unsupported",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubRevenueEstimate?.status).toBe(
+    "unsupported",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubEbitdaEstimate?.status).toBe(
+    "unsupported",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubPriceTarget?.status).toBe(
+    "unsupported",
   );
 }
 
@@ -610,7 +687,7 @@ describe("static equity run fixtures", () => {
         assertEstimatedEarningsSuppressionPath(result, modelRequests, modelOutputs);
         expect(result.report.equityAnalysisCompleteness).toMatchObject({
           financialCoreStatus: "complete",
-          coverageLevel: "substantial",
+          coverageLevel: "limited",
         });
       }
       expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(

@@ -427,6 +427,42 @@
         "provider": "finnhub"
       },
       {
+        "id": "extended-finnhub-analyst-aapl-eps",
+        "title": "AAPL external EPS estimate consensus",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-revenue",
+        "title": "AAPL external revenue estimate consensus",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-ebitda",
+        "title": "AAPL external EBITDA estimate consensus",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-context",
+        "title": "AAPL external analyst range context",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
         "id": "extended-tradier-iv-aapl",
         "title": "AAPL options IV",
         "url": "https://api.tradier.com/v1/markets/options/chains?symbol=AAPL&expiration=2026-07-17&greeks=true",
@@ -900,6 +936,66 @@
           "summary": "Finnhub returned 1 earnings calendar record.",
           "sourceIds": ["extended-finnhub-events-aapl"],
           "observedAt": "2026-06-15T14:30:00.000Z"
+        },
+        {
+          "category": "analyst-estimates",
+          "title": "AAPL external EPS estimate consensus",
+          "summary": "Finnhub returned 1 EPS estimate consensus record.",
+          "sourceIds": ["extended-finnhub-analyst-aapl-eps"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "period": "2026-09-30",
+            "mean": 1.72,
+            "median": 1.7,
+            "high": 1.9,
+            "low": 1.5,
+            "count": 28
+          }
+        },
+        {
+          "category": "analyst-estimates",
+          "title": "AAPL external revenue estimate consensus",
+          "summary": "Finnhub returned 1 revenue estimate consensus record.",
+          "sourceIds": ["extended-finnhub-analyst-aapl-revenue"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "period": "2026-09-30",
+            "mean": 98000000000,
+            "median": 97500000000,
+            "high": 103000000000,
+            "low": 92000000000,
+            "count": 24
+          }
+        },
+        {
+          "category": "analyst-estimates",
+          "title": "AAPL external EBITDA estimate consensus",
+          "summary": "Finnhub returned 1 EBITDA estimate consensus record.",
+          "sourceIds": ["extended-finnhub-analyst-aapl-ebitda"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "period": "2026-09-30",
+            "mean": 35000000000,
+            "median": 34500000000,
+            "high": 38000000000,
+            "low": 32000000000,
+            "count": 18
+          }
+        },
+        {
+          "category": "analyst-estimate-context",
+          "title": "AAPL external analyst range context",
+          "summary": "External analyst estimate range from Finnhub (context only, not market-bot authored).",
+          "sourceIds": ["extended-finnhub-analyst-aapl-context"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "mean": 240,
+            "median": 235,
+            "high": 280,
+            "low": 190,
+            "count": 42,
+            "provider": "finnhub"
+          }
         },
         {
           "category": "options-iv",
@@ -1964,7 +2060,7 @@
     },
     "sourceFunnel": {
       "rawSnapshots": {
-        "total": 29,
+        "total": 33,
         "byAdapter": {
           "yahoo-ticker": 1,
           "yahoo-regime": 1,
@@ -1976,6 +2072,10 @@
           "finnhub-events-1": 1,
           "finnhub-events-2": 1,
           "finnhub-events-3": 1,
+          "finnhub-eps-estimate": 1,
+          "finnhub-revenue-estimate": 1,
+          "finnhub-ebitda-estimate": 1,
+          "finnhub-analyst-range": 1,
           "tradier-expirations": 1,
           "tradier-options": 1,
           "yahoo-valuation-peers": 1,
@@ -1983,15 +2083,15 @@
         }
       },
       "reportSources": {
-        "total": 30,
+        "total": 34,
         "byKind": {
           "market-data": 13,
           "news": 2,
-          "extended-evidence": 15
+          "extended-evidence": 19
         },
         "byProvider": {
           "yahoo": 13,
-          "finnhub": 2,
+          "finnhub": 6,
           "yahoo-news": 1,
           "sec-edgar": 12,
           "tradier": 2
@@ -2045,6 +2145,22 @@
       "finnhubEvents": {
         "status": "available",
         "evidence": ["finnhub-events-1", "finnhub-events-2", "finnhub-events-3"]
+      },
+      "finnhubEpsEstimate": {
+        "status": "available",
+        "evidence": ["finnhub-eps-estimate"]
+      },
+      "finnhubRevenueEstimate": {
+        "status": "available",
+        "evidence": ["finnhub-revenue-estimate"]
+      },
+      "finnhubEbitdaEstimate": {
+        "status": "available",
+        "evidence": ["finnhub-ebitda-estimate"]
+      },
+      "finnhubPriceTarget": {
+        "status": "available",
+        "evidence": ["finnhub-analyst-range"]
       },
       "tradierOptions": {
         "status": "available",
@@ -2197,11 +2313,13 @@
       },
       "dataGapCount": 18,
       "extendedEvidence": {
-        "itemCount": 7,
+        "itemCount": 11,
         "gapCount": 15,
         "itemsByCategory": {
           "sec-edgar": 1,
           "equity-events": 1,
+          "analyst-estimates": 3,
+          "analyst-estimate-context": 1,
           "options-iv": 1,
           "valuation": 1,
           "yahoo-fundamentals": 1,
@@ -2432,7 +2550,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# AAPL equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: macro indicator evidence missing; remediation: configure MARKET_BOT_FRED_API_KEY or rerun\n\n## Summary\n\nequity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\n\n\n## Key Findings\n\n- AAPL has a current fixture market snapshot and verified close history. [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- Fixture news coverage is intentionally narrow for regression determinism. [news-equity-1]\n- The fixture includes an issuer-confirmed earnings event and options reference bar. [news-equity-1] [extended-finnhub-events-aapl] [extended-tradier-earnings-implied-move-aapl]\n\n## Bull Case\n\n- The fixture shows positive price momentum in the latest close sequence. [verified-snapshot-AAPL]\n\n## Bear Case\n\n- The fixture omits live optional providers, limiting corroboration. [news-equity-1]\n\n## Risks\n\n- Static cassette inputs can become stale versus live market conditions. [market-yahoo-equity-aapl]\n\n## Catalysts\n\n- AAPL fixture news remains the only current catalyst input. [news-equity-1]\n\n\n## Scenarios\n\n- **Base:** AAPL remains within a fixture-defined evidence envelope. [market-yahoo-equity-aapl]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $210.0B, Gross profit $100.0B, Operating income $70.0B\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 11.1%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 47.6%, Operating margin 33.3%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 11.1%, Operating income YoY 16.7%, Net income YoY 16.0%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Debt/market cap 3.3%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings] [verified-snapshot-AAPL]\n- **Valuation** (criteria-supported): Valuation criteria-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 7.24x\\) [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **AAPL SEC Fundamental Evidence:** Recent SEC filings: 8-K 2026-05-01. SEC Fundamental Evidence: revenue 210000000000 \\(11.1% YoY\\), gross profit 100000000000 \\(13.6% YoY\\), operating income 70000000000 \\(16.7% YoY\\), net income attributable to parent 58000000000 \\(16.0% YoY\\), diluted EPS 3.8 \\(18.7% YoY\\), cash 60000000000, operating cash flow 65000000000 \\(12.1% YoY\\), capex 7000000000 \\(16.7% YoY\\), debt 100000000000. [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **AAPL equity events:** Finnhub returned 1 earnings calendar record. [extended-finnhub-events-aapl]\n- **AAPL options IV:** Near-term option chain median implied volatility is 0.330. [extended-tradier-iv-aapl]\n- **AAPL Valuation Evidence:** Valuation Evidence: market cap $3000.0B, enterprise value $3040.0B, 6-month revenue $210.0B, annualized revenue $420.0B, EV/annualized revenue 7.24x, market cap/annualized revenue 7.14x, debt/market cap 0.03x, net debt/market cap 0.01x; market cap as of 2026-06-15; cash/debt as of 2026-03-31. Peer comps supportability: supported; median EV/annualized revenue 7.41x, IQR 5.30x-9.55x. [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]\n- **AAPL Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-aapl]\n- **AAPL Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 47.6%, Operating margin 33.3%, Net margin 27.6%, FCF proxy $58.0B\\); Growth criteria-supported \\(Revenue YoY 11.1%, Gross profit YoY 13.6%, Operating income YoY 16.7%, Net income \\(attrib.\\) YoY 16.0%\\); Financial Strength criteria-mixed \\(Cash $60.0B, Debt $100.0B, Net debt $40.0B, Debt/market cap 3.3%\\); Value criteria-supported \\(Enterprise value $3040.0B, Annualized revenue $420.0B, EV/revenue 7.24x, Market cap/revenue 7.14x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings] [verified-snapshot-AAPL]\n- **AAPL Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $210.0B, Gross profit $100.0B, Operating income $70.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 11.1%\\); Moat criteria-supported \\(Gross margin 47.6%, Operating margin 33.3%\\); Growth criteria-supported \\(Revenue YoY 11.1%, Operating income YoY 16.7%, Net income YoY 16.0%\\); Management insufficient-data; Risk criteria-supported \\(Debt/market cap 3.3%\\); Valuation criteria-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 7.24x\\). [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings] [verified-snapshot-AAPL]\n\n## Earnings Setup\n\n**Event:** AAPL earnings on 2026-07-10 (timing: amc) — date issuer-confirmed [news-equity-1]\n**EPS estimate:** 1.72 — single-provider snapshot (Finnhub)\n**Revenue estimate:** 98,000,000,000 — single-provider snapshot (Finnhub)\n**Implied move:** ±3.5% (ATM strike 200, expiration 2026-07-17)\n\n### Expectation Bar\n\n- The deterministic fixture records the issuer-confirmed date and options reference bar.[news-equity-1] [extended-finnhub-events-aapl] [extended-tradier-earnings-implied-move-aapl]\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for AAPL\n- No prior equity market-update runs found\n\n\n## Predictions\n\n- [58%] (1d) AAPL closes higher than its pre-earnings close 1 trading days after the 2026-07-10 earnings event [news-equity-1] [extended-finnhub-events-aapl]\n- [55%] (1d) AAPL moves more than 3.5% from its pre-earnings close 1 trading days after the 2026-07-10 earnings event [news-equity-1] [extended-finnhub-events-aapl] [extended-tradier-earnings-implied-move-aapl]\n\n## Data Gaps\n\n- sec-edgar: Missing SEC company facts: dilutedShares, currentAssets, currentLiabilities \\[AAPL\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: cash, debt \\[AAPL\\]\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[MSFT\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[MSFT\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[GOOGL\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[GOOGL\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[AMZN\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[AMZN\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[META\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[META\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[DELL\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[DELL\\]\n- valuation-peers: Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target\n- Fixture replay uses static source cassettes.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 2 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-aapl] AAPL market snapshot\n- [verified-snapshot-AAPL] AAPL verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [news-equity-1] Apple announces July 10, 2026 financial results webcast\n- [extended-sec-edgar-aapl-filings] AAPL SEC filings\n- [extended-sec-edgar-aapl-fundamentals] AAPL SEC fundamentals\n- [extended-finnhub-events-aapl] AAPL equity events\n- [extended-tradier-iv-aapl] AAPL options IV\n- [market-yahoo-equity-msft] MSFT Yahoo valuation peer quote\n- [extended-sec-edgar-msft-fundamentals] MSFT SEC fundamentals\n- [extended-sec-edgar-msft-filings] MSFT SEC filings\n- [market-yahoo-equity-googl] GOOGL Yahoo valuation peer quote\n- [extended-sec-edgar-googl-fundamentals] GOOGL SEC fundamentals\n- [extended-sec-edgar-googl-filings] GOOGL SEC filings\n- [market-yahoo-equity-amzn] AMZN Yahoo valuation peer quote\n- [extended-sec-edgar-amzn-fundamentals] AMZN SEC fundamentals\n- [extended-sec-edgar-amzn-filings] AMZN SEC filings\n- [market-yahoo-equity-meta] META Yahoo valuation peer quote\n- [extended-sec-edgar-meta-fundamentals] META SEC fundamentals\n- [extended-sec-edgar-meta-filings] META SEC filings\n- [market-yahoo-equity-dell] DELL Yahoo valuation peer quote\n- [extended-sec-edgar-dell-fundamentals] DELL SEC fundamentals\n- [extended-sec-edgar-dell-filings] DELL SEC filings\n- [extended-tradier-earnings-implied-move-aapl] AAPL earnings implied move\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n\n## Valuation Workbench\n\nAs-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.\n\n- Trailing basis: reconciled TTM through 2026-03-31, public 2026-05-01.\n\nBasis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF\n--- | --- | --- | --- | ---: | ---: | ---: | ---:\nANNUAL | 2023-09-30 | 2023-11-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)\nANNUAL | 2024-09-30 | 2024-11-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)\nANNUAL | 2025-09-30 | 2025-11-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)\nTTM | 2026-03-31 | 2026-05-01 | 216.60 USD (2026-05-01) | 28.50x | 7.76x | 7.85x | 28.02x\n\n### Peer comparison\n\n- Supportability: supported.\n- Reference range: 145.60–264.73 USD; midpoint 204.77; observed position within-range; quote 2026-06-15T14:30:00.000Z.\n- Excluded peers: DELL (market cap outside 0.2x-5x of target).\n\nSymbol | Role | Screen status | EV/revenue | Quote currency | Input dates\n--- | --- | --- | ---: | --- | ---\nAAPL | target | usable | 7.24x | USD | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31\nMSFT | core | usable | 11.50x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nGOOGL | core | usable | 5.92x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nAMZN | core | usable | 3.43x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nMETA | core | usable | 8.90x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nDELL | secondary | excluded | 1.00x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\n\n\n## Reverse DCF Input Sensitivity\n\nThe cells report the five-year FCF growth input that reconciles each disclosed discount-rate and terminal-growth assumption pair.\n\n### Assumptions\n\n- Starting FCF: 118,000,000,000 USD; period ended 2026-03-31; public 2026-05-01.\n- Enterprise value: 3,040,000,000,000 USD; observed 2026-06-15T14:30:00.000Z.\n- Horizon: 5 years.\n- Discount rates: 8%–16%.\n- Terminal growth rates: 0%–4%.\n\n### Solved Five-Year FCF Growth Grid\n\n| Discount rate \\ Terminal growth | 0% | 1% | 2% | 3% | 4% |\n| ---: | ---: | ---: | ---: | ---: | ---: |\n| 8% | 17.73% | 14.95% | 11.80% | 8.15% | 3.79% |\n| 9% | 21.12% | 18.62% | 15.82% | 12.65% | 8.97% |\n| 10% | 24.32% | 22.04% | 19.52% | 16.70% | 13.49% |\n| 11% | 27.35% | 25.25% | 22.95% | 20.41% | 17.57% |\n| 12% | 30.24% | 28.29% | 26.18% | 23.86% | 21.30% |\n| 13% | 33.02% | 31.20% | 29.24% | 27.11% | 24.77% |\n| 14% | 35.70% | 33.99% | 32.16% | 30.18% | 28.03% |\n| 15% | 38.30% | 36.69% | 34.97% | 33.12% | 31.13% |\n| 16% | 40.82% | 39.30% | 37.67% | 35.94% | 34.08% |",
+  "markdown": "# AAPL equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: macro indicator evidence missing; remediation: configure MARKET_BOT_FRED_API_KEY or rerun\n\n## Summary\n\nequity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\n\n\n## Key Findings\n\n- AAPL has a current fixture market snapshot and verified close history. [market-yahoo-equity-aapl] [verified-snapshot-AAPL]\n- Fixture news coverage is intentionally narrow for regression determinism. [news-equity-1]\n- The fixture includes an issuer-confirmed earnings event and options reference bar. [news-equity-1] [extended-finnhub-events-aapl] [extended-tradier-earnings-implied-move-aapl]\n\n## Bull Case\n\n- The fixture shows positive price momentum in the latest close sequence. [verified-snapshot-AAPL]\n\n## Bear Case\n\n- The fixture omits live optional providers, limiting corroboration. [news-equity-1]\n\n## Risks\n\n- Static cassette inputs can become stale versus live market conditions. [market-yahoo-equity-aapl]\n\n## Catalysts\n\n- AAPL fixture news remains the only current catalyst input. [news-equity-1]\n\n\n## Scenarios\n\n- **Base:** AAPL remains within a fixture-defined evidence envelope. [market-yahoo-equity-aapl]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $210.0B, Gross profit $100.0B, Operating income $70.0B\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 11.1%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 47.6%, Operating margin 33.3%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 11.1%, Operating income YoY 16.7%, Net income YoY 16.0%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Debt/market cap 3.3%\\) [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings] [verified-snapshot-AAPL]\n- **Valuation** (criteria-supported): Valuation criteria-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 7.24x\\) [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## External Analyst Estimate Context\n\nExternal analyst estimate range from Finnhub \\(context only, not market-bot authored\\). [extended-finnhub-analyst-aapl-context]\n- **Mean:** 240\n- **Median:** 235\n- **High:** 280\n- **Low:** 190\n- **Count:** 42\n## Extended Evidence\n\n- **AAPL SEC Fundamental Evidence:** Recent SEC filings: 8-K 2026-05-01. SEC Fundamental Evidence: revenue 210000000000 \\(11.1% YoY\\), gross profit 100000000000 \\(13.6% YoY\\), operating income 70000000000 \\(16.7% YoY\\), net income attributable to parent 58000000000 \\(16.0% YoY\\), diluted EPS 3.8 \\(18.7% YoY\\), cash 60000000000, operating cash flow 65000000000 \\(12.1% YoY\\), capex 7000000000 \\(16.7% YoY\\), debt 100000000000. [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]\n- **AAPL equity events:** Finnhub returned 1 earnings calendar record. [extended-finnhub-events-aapl]\n- **AAPL external EPS estimate consensus:** Finnhub returned 1 EPS estimate consensus record. [extended-finnhub-analyst-aapl-eps]\n- **AAPL external revenue estimate consensus:** Finnhub returned 1 revenue estimate consensus record. [extended-finnhub-analyst-aapl-revenue]\n- **AAPL external EBITDA estimate consensus:** Finnhub returned 1 EBITDA estimate consensus record. [extended-finnhub-analyst-aapl-ebitda]\n- **AAPL external analyst range context:** External analyst estimate range from Finnhub \\(context only, not market-bot authored\\). [extended-finnhub-analyst-aapl-context]\n- **AAPL options IV:** Near-term option chain median implied volatility is 0.330. [extended-tradier-iv-aapl]\n- **AAPL Valuation Evidence:** Valuation Evidence: market cap $3000.0B, enterprise value $3040.0B, 6-month revenue $210.0B, annualized revenue $420.0B, EV/annualized revenue 7.24x, market cap/annualized revenue 7.14x, debt/market cap 0.03x, net debt/market cap 0.01x; market cap as of 2026-06-15; cash/debt as of 2026-03-31. Peer comps supportability: supported; median EV/annualized revenue 7.41x, IQR 5.30x-9.55x. [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]\n- **AAPL Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-aapl]\n- **AAPL Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 47.6%, Operating margin 33.3%, Net margin 27.6%, FCF proxy $58.0B\\); Growth criteria-supported \\(Revenue YoY 11.1%, Gross profit YoY 13.6%, Operating income YoY 16.7%, Net income \\(attrib.\\) YoY 16.0%\\); Financial Strength criteria-mixed \\(Cash $60.0B, Debt $100.0B, Net debt $40.0B, Debt/market cap 3.3%\\); Value criteria-supported \\(Enterprise value $3040.0B, Annualized revenue $420.0B, EV/revenue 7.24x, Market cap/revenue 7.14x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings] [verified-snapshot-AAPL]\n- **AAPL Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $210.0B, Gross profit $100.0B, Operating income $70.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 11.1%\\); Moat criteria-supported \\(Gross margin 47.6%, Operating margin 33.3%\\); Growth criteria-supported \\(Revenue YoY 11.1%, Operating income YoY 16.7%, Net income YoY 16.0%\\); Management insufficient-data; Risk criteria-supported \\(Debt/market cap 3.3%\\); Valuation criteria-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 7.24x\\). [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-aapl] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings] [verified-snapshot-AAPL]\n\n## Earnings Setup\n\n**Event:** AAPL earnings on 2026-07-10 (timing: amc) — date issuer-confirmed [news-equity-1]\n**EPS estimate:** 1.72 — single-provider snapshot (Finnhub)\n**Revenue estimate:** 98,000,000,000 — single-provider snapshot (Finnhub)\n**Implied move:** ±3.5% (ATM strike 200, expiration 2026-07-17)\n\n### Expectation Bar\n\n- The deterministic fixture records the issuer-confirmed date and options reference bar.[news-equity-1] [extended-finnhub-events-aapl] [extended-tradier-earnings-implied-move-aapl]\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for AAPL\n- No prior equity market-update runs found\n\n\n## Predictions\n\n- [58%] (1d) AAPL closes higher than its pre-earnings close 1 trading days after the 2026-07-10 earnings event [news-equity-1] [extended-finnhub-events-aapl]\n- [55%] (1d) AAPL moves more than 3.5% from its pre-earnings close 1 trading days after the 2026-07-10 earnings event [news-equity-1] [extended-finnhub-events-aapl] [extended-tradier-earnings-implied-move-aapl]\n\n## Data Gaps\n\n- sec-edgar: Missing SEC company facts: dilutedShares, currentAssets, currentLiabilities \\[AAPL\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: cash, debt \\[AAPL\\]\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[MSFT\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[MSFT\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[GOOGL\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[GOOGL\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[AMZN\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[AMZN\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[META\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[META\\]\n- sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities \\[DELL\\]\n- sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt \\[DELL\\]\n- valuation-peers: Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target\n- Fixture replay uses static source cassettes.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 2 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-aapl] AAPL market snapshot\n- [verified-snapshot-AAPL] AAPL verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [news-equity-1] Apple announces July 10, 2026 financial results webcast\n- [extended-sec-edgar-aapl-filings] AAPL SEC filings\n- [extended-sec-edgar-aapl-fundamentals] AAPL SEC fundamentals\n- [extended-finnhub-events-aapl] AAPL equity events\n- [extended-finnhub-analyst-aapl-eps] AAPL external EPS estimate consensus\n- [extended-finnhub-analyst-aapl-revenue] AAPL external revenue estimate consensus\n- [extended-finnhub-analyst-aapl-ebitda] AAPL external EBITDA estimate consensus\n- [extended-finnhub-analyst-aapl-context] AAPL external analyst range context\n- [extended-tradier-iv-aapl] AAPL options IV\n- [market-yahoo-equity-msft] MSFT Yahoo valuation peer quote\n- [extended-sec-edgar-msft-fundamentals] MSFT SEC fundamentals\n- [extended-sec-edgar-msft-filings] MSFT SEC filings\n- [market-yahoo-equity-googl] GOOGL Yahoo valuation peer quote\n- [extended-sec-edgar-googl-fundamentals] GOOGL SEC fundamentals\n- [extended-sec-edgar-googl-filings] GOOGL SEC filings\n- [market-yahoo-equity-amzn] AMZN Yahoo valuation peer quote\n- [extended-sec-edgar-amzn-fundamentals] AMZN SEC fundamentals\n- [extended-sec-edgar-amzn-filings] AMZN SEC filings\n- [market-yahoo-equity-meta] META Yahoo valuation peer quote\n- [extended-sec-edgar-meta-fundamentals] META SEC fundamentals\n- [extended-sec-edgar-meta-filings] META SEC filings\n- [market-yahoo-equity-dell] DELL Yahoo valuation peer quote\n- [extended-sec-edgar-dell-fundamentals] DELL SEC fundamentals\n- [extended-sec-edgar-dell-filings] DELL SEC filings\n- [extended-tradier-earnings-implied-move-aapl] AAPL earnings implied move\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n\n## Valuation Workbench\n\nAs-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.\n\n- Trailing basis: reconciled TTM through 2026-03-31, public 2026-05-01.\n\nBasis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF\n--- | --- | --- | --- | ---: | ---: | ---: | ---:\nANNUAL | 2023-09-30 | 2023-11-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)\nANNUAL | 2024-09-30 | 2024-11-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)\nANNUAL | 2025-09-30 | 2025-11-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)\nTTM | 2026-03-31 | 2026-05-01 | 216.60 USD (2026-05-01) | 28.50x | 7.76x | 7.85x | 28.02x\n\n### Peer comparison\n\n- Supportability: supported.\n- Reference range: 145.60–264.73 USD; midpoint 204.77; observed position within-range; quote 2026-06-15T14:30:00.000Z.\n- Excluded peers: DELL (market cap outside 0.2x-5x of target).\n\nSymbol | Role | Screen status | EV/revenue | Quote currency | Input dates\n--- | --- | --- | ---: | --- | ---\nAAPL | target | usable | 7.24x | USD | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31\nMSFT | core | usable | 11.50x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nGOOGL | core | usable | 5.92x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nAMZN | core | usable | 3.43x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nMETA | core | usable | 8.90x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\nDELL | secondary | excluded | 1.00x | — | quote 2026-06-15T14:30:00.000Z; revenue 2026-03-31\n\n\n## Reverse DCF Input Sensitivity\n\nThe cells report the five-year FCF growth input that reconciles each disclosed discount-rate and terminal-growth assumption pair.\n\n### Assumptions\n\n- Starting FCF: 118,000,000,000 USD; period ended 2026-03-31; public 2026-05-01.\n- Enterprise value: 3,040,000,000,000 USD; observed 2026-06-15T14:30:00.000Z.\n- Horizon: 5 years.\n- Discount rates: 8%–16%.\n- Terminal growth rates: 0%–4%.\n\n### Solved Five-Year FCF Growth Grid\n\n| Discount rate \\ Terminal growth | 0% | 1% | 2% | 3% | 4% |\n| ---: | ---: | ---: | ---: | ---: | ---: |\n| 8% | 17.73% | 14.95% | 11.80% | 8.15% | 3.79% |\n| 9% | 21.12% | 18.62% | 15.82% | 12.65% | 8.97% |\n| 10% | 24.32% | 22.04% | 19.52% | 16.70% | 13.49% |\n| 11% | 27.35% | 25.25% | 22.95% | 20.41% | 17.57% |\n| 12% | 30.24% | 28.29% | 26.18% | 23.86% | 21.30% |\n| 13% | 33.02% | 31.20% | 29.24% | 27.11% | 24.77% |\n| 14% | 35.70% | 33.99% | 32.16% | 30.18% | 28.03% |\n| 15% | 38.30% | 36.69% | 34.97% | 33.12% | 31.13% |\n| 16% | 40.82% | 39.30% | 37.67% | 35.94% | 34.08% |",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -3140,6 +3258,66 @@
           "observedAt": "2026-06-15T14:30:00.000Z"
         },
         {
+          "category": "analyst-estimates",
+          "title": "AAPL external EPS estimate consensus",
+          "summary": "Finnhub returned 1 EPS estimate consensus record.",
+          "sourceIds": ["extended-finnhub-analyst-aapl-eps"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "period": "2026-09-30",
+            "mean": 1.72,
+            "median": 1.7,
+            "high": 1.9,
+            "low": 1.5,
+            "count": 28
+          }
+        },
+        {
+          "category": "analyst-estimates",
+          "title": "AAPL external revenue estimate consensus",
+          "summary": "Finnhub returned 1 revenue estimate consensus record.",
+          "sourceIds": ["extended-finnhub-analyst-aapl-revenue"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "period": "2026-09-30",
+            "mean": 98000000000,
+            "median": 97500000000,
+            "high": 103000000000,
+            "low": 92000000000,
+            "count": 24
+          }
+        },
+        {
+          "category": "analyst-estimates",
+          "title": "AAPL external EBITDA estimate consensus",
+          "summary": "Finnhub returned 1 EBITDA estimate consensus record.",
+          "sourceIds": ["extended-finnhub-analyst-aapl-ebitda"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "period": "2026-09-30",
+            "mean": 35000000000,
+            "median": 34500000000,
+            "high": 38000000000,
+            "low": 32000000000,
+            "count": 18
+          }
+        },
+        {
+          "category": "analyst-estimate-context",
+          "title": "AAPL external analyst range context",
+          "summary": "External analyst estimate range from Finnhub (context only, not market-bot authored).",
+          "sourceIds": ["extended-finnhub-analyst-aapl-context"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "mean": 240,
+            "median": 235,
+            "high": 280,
+            "low": 190,
+            "count": 42,
+            "provider": "finnhub"
+          }
+        },
+        {
           "category": "options-iv",
           "title": "AAPL options IV",
           "summary": "Near-term option chain median implied volatility is 0.330.",
@@ -3572,6 +3750,42 @@
       {
         "id": "extended-finnhub-events-aapl",
         "title": "AAPL equity events",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-eps",
+        "title": "AAPL external EPS estimate consensus",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-revenue",
+        "title": "AAPL external revenue estimate consensus",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-ebitda",
+        "title": "AAPL external EBITDA estimate consensus",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "AAPL",
+        "provider": "finnhub"
+      },
+      {
+        "id": "extended-finnhub-analyst-aapl-context",
+        "title": "AAPL external analyst range context",
         "fetchedAt": "2026-06-15T14:30:00.000Z",
         "kind": "extended-evidence",
         "assetClass": "equity",

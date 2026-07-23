@@ -203,7 +203,38 @@ function renderExtendedEvidence(report: ResearchReport): string {
       return `- **${markdownText(item.title)}:** ${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`;
     })
     .join("\n");
-  return `## Extended Evidence\n\n${rows}\n`;
+  return `${renderAnalystEstimateContext(report)}## Extended Evidence\n\n${rows}\n`;
+}
+
+function renderAnalystEstimateContext(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType)) {
+    return "";
+  }
+  const items =
+    report.extendedEvidence?.items.filter((item) => item.category === "analyst-estimate-context") ??
+    [];
+  const rows = items.flatMap((item) => {
+    const { metrics } = item;
+    if (metrics === undefined) {
+      return [];
+    }
+    const { mean, median, high, low, count } = metrics;
+    const distribution = [
+      ["Mean", mean],
+      ["Median", median],
+      ["High", high],
+      ["Low", low],
+      ["Count", count],
+    ].flatMap(([label, value]) =>
+      typeof value === "number" ? [`- **${String(label)}:** ${String(value)}`] : [],
+    );
+    if (distribution.length === 0) {
+      return [];
+    }
+    const refs = sourceRefs(item.sourceIds);
+    return [`${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`, ...distribution];
+  });
+  return rows.length === 0 ? "" : `## External Analyst Estimate Context\n\n${rows.join("\n")}\n`;
 }
 
 function renderHistoricalContext(report: ResearchReport): string {

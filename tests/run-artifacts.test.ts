@@ -744,6 +744,22 @@ describe("loadRunArtifact", () => {
               observedAt: "2026-05-19T00:00:00.000Z",
               identity: { displayName: "Apple Inc.", exchange: "NASDAQ" },
             },
+            {
+              category: "analyst-estimates",
+              title: "External EPS consensus",
+              summary: "Finnhub returned one EPS consensus record.",
+              sourceIds: ["analyst-aapl-eps"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              metrics: { mean: 1.72, count: 28 },
+            },
+            {
+              category: "analyst-estimate-context",
+              title: "External analyst range context",
+              summary: "External analyst estimate range from Finnhub.",
+              sourceIds: ["analyst-aapl-context"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              metrics: { mean: 240, median: 235, high: 280, low: 190 },
+            },
           ],
           gaps: [
             {
@@ -772,6 +788,10 @@ describe("loadRunArtifact", () => {
       displayName: "Apple Inc.",
       exchange: "NASDAQ",
     });
+    expect(artifact?.report.extendedEvidence?.items.slice(1).map((item) => item.category)).toEqual([
+      "analyst-estimates",
+      "analyst-estimate-context",
+    ]);
     expect(artifact?.report.extendedEvidence?.gaps[0]).toEqual({
       source: "tradier-options",
       message: "No options data available",

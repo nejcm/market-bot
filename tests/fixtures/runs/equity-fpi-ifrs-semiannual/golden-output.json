@@ -49,7 +49,7 @@
         },
         "expectations": {
           "status": "partial",
-          "reasonCodes": ["expectations-evidence-missing"],
+          "reasonCodes": ["expectations-provider-credential-missing"],
           "asOf": "2026-06-15T14:30:00.000Z",
           "sourceIds": []
         },
@@ -74,6 +74,10 @@
     "dataGaps": [
       "sec-edgar: No SEC company facts found for IFRSSA",
       "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
+      "finnhub-eps-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+      "finnhub-revenue-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+      "finnhub-ebitda-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint",
+      "finnhub-analyst-range: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint",
       "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
       "valuation-peers: Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match",
@@ -463,6 +467,38 @@
         {
           "source": "finnhub-events",
           "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-eps-estimate",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-revenue-estimate",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-ebitda-estimate",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-analyst-range",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint",
           "provider": "finnhub",
           "capability": "extended-evidence",
           "cause": "missing-credential",
@@ -1027,12 +1063,16 @@
         }
       },
       "sourceGaps": {
-        "total": 10,
+        "total": 14,
         "bySource": {
           "marketaux-news": 1,
           "finnhub-news": 1,
           "sec-edgar": 2,
           "finnhub-events": 1,
+          "finnhub-eps-estimate": 1,
+          "finnhub-revenue-estimate": 1,
+          "finnhub-ebitda-estimate": 1,
+          "finnhub-analyst-range": 1,
           "fred-macro": 1,
           "tradier-options": 1,
           "valuation-peers": 1,
@@ -1041,13 +1081,13 @@
         }
       },
       "sourceGapClasses": {
-        "missingCredential": 5,
+        "missingCredential": 9,
         "fetchFailed": 0,
         "unsupportedCoverage": 2,
         "other": 3
       },
       "dataGaps": {
-        "total": 12
+        "total": 16
       }
     },
     "providerEndpointAvailability": {
@@ -1080,6 +1120,26 @@
         "status": "missing-credential",
         "evidence": ["finnhub-events"],
         "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+      },
+      "finnhubEpsEstimate": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-eps-estimate"],
+        "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint"
+      },
+      "finnhubRevenueEstimate": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-revenue-estimate"],
+        "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint"
+      },
+      "finnhubEbitdaEstimate": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-ebitda-estimate"],
+        "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint"
+      },
+      "finnhubPriceTarget": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-analyst-range"],
+        "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint"
       },
       "tradierOptions": {
         "status": "missing-credential",
@@ -1237,10 +1297,10 @@
           "macro-indicators: evidence missing or unusable"
         ]
       },
-      "dataGapCount": 12,
+      "dataGapCount": 16,
       "extendedEvidence": {
         "itemCount": 5,
-        "gapCount": 8,
+        "gapCount": 12,
         "itemsByCategory": {
           "sec-edgar": 1,
           "valuation": 1,
@@ -1251,6 +1311,10 @@
         "gapsBySource": {
           "sec-edgar": 2,
           "finnhub-events": 1,
+          "finnhub-eps-estimate": 1,
+          "finnhub-revenue-estimate": 1,
+          "finnhub-ebitda-estimate": 1,
+          "finnhub-analyst-range": 1,
           "fred-macro": 1,
           "tradier-options": 1,
           "valuation-peers": 1,
@@ -1429,7 +1493,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# IFRSSA equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture IFRS Semiannual plc synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- IFRSSA has deterministic market and verified close evidence. [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-ifrssa]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** IFRSSA remains within the deterministic fixture evidence envelope. [market-yahoo-equity-ifrssa]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Debt/market cap 18.8%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **Valuation** (criteria-not-supported): Valuation criteria-not-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x\\) [market-yahoo-equity-ifrssa] [extended-sec-edgar-ifrssa-fundamentals]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **IFRSSA canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Valuation Evidence:** Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15; cash/debt as of 2025-12-31. Peer comps supportability: screening-only; 0 usable peers. [market-yahoo-equity-ifrssa] [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-ifrssa]\n- **IFRSSA Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x\\); Growth criteria-supported \\(Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income \\(attrib.\\) YoY 25.0%\\); Financial Strength criteria-mixed \\(Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%\\); Value criteria-not-supported \\(EV date basis EV mixes market cap \\(quote 2026-06-15\\) with cash/debt \\(balance sheet 2025-12-31\\), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **IFRSSA Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\); Management insufficient-data; Risk criteria-supported \\(Debt/market cap 18.8%\\); Valuation criteria-not-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for IFRSSA\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for IFRSSA\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match\n- sec-edgar: IFRSSA files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported\n- business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-ifrssa] IFRSSA market snapshot\n- [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-ifrssa-fundamentals] IFRSSA canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n\n## Valuation Workbench\n\nAs-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.\n\n- Trailing basis suppressed: Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.\n\nBasis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF\n--- | --- | --- | --- | ---: | ---: | ---: | ---:\nANNUAL | 2023-12-31 | 2024-03-15 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)\nANNUAL | 2024-12-31 | 2025-03-15 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)\nANNUAL | 2025-12-31 | 2026-03-15 | 197.80 USD (2026-03-15) | 13.19x | 7.25x | 9.25x | — (free-cash-flow-unavailable)\n\n### Peer comparison\n\n- Supportability: screening-only.\n- Reference range: suppressed (peer supportability is not supported).\n- Excluded peers: none.\n\nSymbol | Role | Screen status | EV/revenue | Quote currency | Input dates\n--- | --- | --- | ---: | --- | ---\nIFRSSA | target | usable | 15.33x | USD | quote 2026-06-15T14:30:00.000Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31\n\n\n## Reverse DCF Input Sensitivity\n\nSuppressed (reconciled-ttm-fcf-unavailable): A reconciled TTM free-cash-flow input is unavailable.",
+  "markdown": "# IFRSSA equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-06-15T14:30:00.000Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings\n\n## Summary\n\nFixture IFRS Semiannual plc synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- IFRSSA has deterministic market and verified close evidence. [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-ifrssa]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** IFRSSA remains within the deterministic fixture evidence envelope. [market-yahoo-equity-ifrssa]\n\n## Business Framework\n\nPhase: operating-leverage\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Phase**: Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa]\n- **Moat** (criteria-supported): Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Growth** (criteria-supported): Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\) [extended-sec-edgar-ifrssa-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Debt/market cap 18.8%\\) [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **Valuation** (criteria-not-supported): Valuation criteria-not-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x\\) [market-yahoo-equity-ifrssa] [extended-sec-edgar-ifrssa-fundamentals]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **IFRSSA canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Valuation Evidence:** Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15; cash/debt as of 2025-12-31. Peer comps supportability: screening-only; 0 usable peers. [market-yahoo-equity-ifrssa] [extended-sec-edgar-ifrssa-fundamentals]\n- **IFRSSA Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40. [market-yahoo-equity-ifrssa]\n- **IFRSSA Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x\\); Growth criteria-supported \\(Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income \\(attrib.\\) YoY 25.0%\\); Financial Strength criteria-mixed \\(Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%\\); Value criteria-not-supported \\(EV date basis EV mixes market cap \\(quote 2026-06-15\\) with cash/debt \\(balance sheet 2025-12-31\\), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x\\); Momentum criteria-mixed \\(Latest close $217, SMA50 206.80, RSI14 100.00, MACD histogram 0.00\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n- **IFRSSA Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $1.5B, Gross profit $1.3B, Operating income $1.0B\\); Phase classification \\(Phase operating-leverage, Revenue YoY 25.0%\\); Moat criteria-supported \\(Gross margin 85.0%, Operating margin 70.0%\\); Growth criteria-supported \\(Revenue YoY 25.0%, Operating income YoY 25.0%, Net income YoY 25.0%\\); Management insufficient-data; Risk criteria-supported \\(Debt/market cap 18.8%\\); Valuation criteria-not-supported \\(Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 15.33x\\). [extended-sec-edgar-ifrssa-fundamentals] [market-yahoo-equity-ifrssa] [verified-snapshot-IFRSSA]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for IFRSSA\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for IFRSSA\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- finnhub-eps-estimate: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set for the Finnhub EPS estimate endpoint\n- finnhub-revenue-estimate: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set for the Finnhub revenue estimate endpoint\n- finnhub-ebitda-estimate: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set for the Finnhub EBITDA estimate endpoint\n- finnhub-analyst-range: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set for the Finnhub external analyst range endpoint\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Peer Universe unavailable for IFRSSA: No checked-in peer mapping or subject-registry representative match\n- sec-edgar: IFRSSA files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported\n- business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-ifrssa] IFRSSA market snapshot\n- [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \\(OHLCV + indicators, 2026-05-01\\)\n- [extended-sec-edgar-ifrssa-fundamentals] IFRSSA canonical financial statements\n- 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n\n## Valuation Workbench\n\nAs-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.\n\n- Trailing basis suppressed: Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.\n\nBasis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF\n--- | --- | --- | --- | ---: | ---: | ---: | ---:\nANNUAL | 2023-12-31 | 2024-03-15 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)\nANNUAL | 2024-12-31 | 2025-03-15 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)\nANNUAL | 2025-12-31 | 2026-03-15 | 197.80 USD (2026-03-15) | 13.19x | 7.25x | 9.25x | — (free-cash-flow-unavailable)\n\n### Peer comparison\n\n- Supportability: screening-only.\n- Reference range: suppressed (peer supportability is not supported).\n- Excluded peers: none.\n\nSymbol | Role | Screen status | EV/revenue | Quote currency | Input dates\n--- | --- | --- | ---: | --- | ---\nIFRSSA | target | usable | 15.33x | USD | quote 2026-06-15T14:30:00.000Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31\n\n\n## Reverse DCF Input Sensitivity\n\nSuppressed (reconciled-ttm-fcf-unavailable): A reconciled TTM free-cash-flow input is unavailable.",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -2088,6 +2152,38 @@
         {
           "source": "finnhub-events",
           "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-eps-estimate",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-revenue-estimate",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-ebitda-estimate",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint",
+          "provider": "finnhub",
+          "capability": "extended-evidence",
+          "cause": "missing-credential",
+          "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "finnhub-analyst-range",
+          "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint",
           "provider": "finnhub",
           "capability": "extended-evidence",
           "cause": "missing-credential",
@@ -4301,6 +4397,38 @@
       {
         "source": "finnhub-events",
         "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-eps-estimate",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-revenue-estimate",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-ebitda-estimate",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-analyst-range",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint",
         "provider": "finnhub",
         "capability": "extended-evidence",
         "cause": "missing-credential",

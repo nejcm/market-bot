@@ -38,6 +38,13 @@ const PHASE4_FIXTURES = [
   },
 ] as const;
 
+export const ANALYST_EXPECTATION_ENDPOINT_KEYS = [
+  "finnhubEpsEstimate",
+  "finnhubRevenueEstimate",
+  "finnhubEbitdaEstimate",
+  "finnhubPriceTarget",
+] as const;
+
 interface FixtureBaseline {
   readonly fixture: string;
   readonly earningsSetupCount: number;
@@ -139,6 +146,16 @@ export interface Phase0EquityBaseline {
 function measureFixtureResult(fixture: string, result: RunFixtureResult): FixtureBaseline {
   const setup = result.collectedSources.earningsSetup;
   const eventDateStatus = setup?.event.eventDateStatus ?? setup?.event.dateStatus;
+  const providerEndpointAvailability = deriveProviderEndpointAvailability(
+    result.collectedSources.rawSnapshots,
+    result.collectedSources.sourceGaps,
+    setup?.impliedMove !== undefined,
+  );
+  for (const endpoint of ANALYST_EXPECTATION_ENDPOINT_KEYS) {
+    if (providerEndpointAvailability[endpoint] === undefined) {
+      throw new Error(`${fixture}: ${endpoint} availability is missing`);
+    }
+  }
   return {
     fixture,
     earningsSetupCount: setup === undefined ? 0 : 1,
@@ -149,11 +166,7 @@ function measureFixtureResult(fixture: string, result: RunFixtureResult): Fixtur
     populatedFinancialHistoryCount: Object.values(
       result.collectedSources.fundamentalHistory?.series ?? {},
     ).filter((series) => series.annual.length > 0 || series.ttm !== undefined).length,
-    providerEndpointAvailability: deriveProviderEndpointAvailability(
-      result.collectedSources.rawSnapshots,
-      result.collectedSources.sourceGaps,
-      setup?.impliedMove !== undefined,
-    ),
+    providerEndpointAvailability,
   };
 }
 

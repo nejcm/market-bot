@@ -24,6 +24,10 @@ import type {
 } from "../domain/types";
 import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
 import type { EarningsDateConfirmation } from "./extended-evidence/earnings-date-confirmation";
+import type {
+  AnalystExpectationsArtifact,
+  AnalystExpectationsSignal,
+} from "./extended-evidence/analyst-expectations";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -163,6 +167,8 @@ export interface CollectedSources {
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly earningsSetup?: EarningsSetupCollected;
+  readonly analystExpectations?: AnalystExpectationsArtifact;
+  readonly analystExpectationsSignal?: AnalystExpectationsSignal;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   readonly reverseDcf?: ReverseDcfArtifact;

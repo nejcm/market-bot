@@ -104,6 +104,10 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     catalysts: report.catalysts,
     scenarios: report.scenarios,
     researchQualityDriver: report.researchQualityDriver,
+    extendedEvidence: report.extendedEvidence?.items.map((item) => ({
+      title: item.title,
+      summary: item.summary,
+    })),
     renderedExtras: researchOnlyExtraText(report.extras),
   });
 

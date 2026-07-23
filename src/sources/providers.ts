@@ -1,5 +1,6 @@
 import { coinGeckoMarketDataAdapter } from "./coingecko";
 import {
+  analystExpectationsExtendedEvidenceAdapter,
   finnhubEventsExtendedEvidenceAdapter,
   fredExtendedEvidenceAdapter,
   glassnodeExtendedEvidenceAdapter,
@@ -44,6 +45,10 @@ export const sourceProviders: readonly SourceProviderModule[] = [
   {
     name: "finnhub-events",
     extendedEvidence: { equity: finnhubEventsExtendedEvidenceAdapter },
+  },
+  {
+    name: "finnhub-analyst-expectations",
+    extendedEvidence: { equity: analystExpectationsExtendedEvidenceAdapter },
   },
   {
     name: "fred",

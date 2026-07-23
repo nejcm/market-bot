@@ -16,6 +16,10 @@ import {
   financialStatementPeriodsYearAligned,
 } from "./financial-statement-periods";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
+import type {
+  AnalystExpectationsArtifact,
+  AnalystExpectationsSignal,
+} from "./analyst-expectations";
 import {
   DEFAULT_OPERATING_KPI_REGISTRY,
   lookupOperatingKpiRegistry,
@@ -37,6 +41,8 @@ export interface EquityAnalysisCompletenessInput {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly extendedEvidence?: ExtendedEvidence;
   readonly earningsSetup?: EarningsSetupCollected;
+  readonly analystExpectations?: AnalystExpectationsArtifact;
+  readonly analystExpectationsSignal?: AnalystExpectationsSignal;
   readonly capitalOwnership?: CapitalOwnershipArtifact;
 }
 
@@ -472,6 +478,75 @@ function capitalOwnershipDimension(
   };
 }
 
+function hasConsensus(
+  artifact: AnalystExpectationsArtifact | undefined,
+  kind: "eps" | "revenue",
+): boolean {
+  return (artifact?.estimates[kind]?.consensus.length ?? 0) > 0;
+}
+
+function expectationsDimension(
+  input: EquityAnalysisCompletenessInput,
+): EquityAnalysisCompletenessDimension {
+  const calendarComplete =
+    input.earningsSetup?.event.epsEstimate !== undefined &&
+    input.earningsSetup.event.revenueEstimate !== undefined;
+  if (calendarComplete) {
+    return {
+      status: "complete",
+      reasonCodes: [],
+      asOf: input.earningsSetup?.event.fetchedAt ?? input.asOf,
+      sourceIds: unique(input.earningsSetup?.event.sourceIds ?? []),
+    };
+  }
+
+  if (input.analystExpectationsSignal?.status === "forbidden") {
+    return {
+      status: "partial",
+      reasonCodes: ["expectations-provider-entitlement-blocked"],
+      asOf: input.analystExpectations?.generatedAt ?? input.asOf,
+      sourceIds: [],
+    };
+  }
+  if (input.analystExpectationsSignal?.status === "missing-credential") {
+    return {
+      status: "partial",
+      reasonCodes: ["expectations-provider-credential-missing"],
+      asOf: input.asOf,
+      sourceIds: [],
+    };
+  }
+
+  const analystSourceIds = unique([
+    ...(input.analystExpectations?.estimates.eps?.sourceIds ?? []),
+    ...(input.analystExpectations?.estimates.revenue?.sourceIds ?? []),
+  ]);
+  if (
+    hasConsensus(input.analystExpectations, "eps") &&
+    hasConsensus(input.analystExpectations, "revenue")
+  ) {
+    return {
+      status: "complete",
+      reasonCodes: [],
+      asOf: input.analystExpectations?.generatedAt ?? input.asOf,
+      sourceIds: analystSourceIds,
+    };
+  }
+
+  const hasAnalystResponses = input.analystExpectations !== undefined;
+  return {
+    status: "partial",
+    reasonCodes: [
+      hasAnalystResponses || input.earningsSetup !== undefined
+        ? "expectations-inputs-incomplete"
+        : "expectations-evidence-missing",
+    ],
+    asOf:
+      input.analystExpectations?.generatedAt ?? input.earningsSetup?.event.fetchedAt ?? input.asOf,
+    sourceIds: unique([...analystSourceIds, ...(input.earningsSetup?.event.sourceIds ?? [])]),
+  };
+}
+
 export function operatingKpisDimension(
   input: Pick<
     EquityAnalysisCompletenessInput,
@@ -529,7 +604,6 @@ function nonCoreDimensions(
 ): Omit<EquityAnalysisCompleteness["dimensions"], "primaryFinancials"> {
   const valuation = itemByCategory(input.extendedEvidence, "valuation");
   const yahoo = itemByCategory(input.extendedEvidence, "yahoo-fundamentals");
-  const expectationsSourceIds = input.earningsSetup?.event.sourceIds ?? [];
   return {
     valuation: evidenceDimension({
       complete: hasNumericMetrics(valuation, ["enterpriseValue", "annualizedRevenue"]),
@@ -538,17 +612,7 @@ function nonCoreDimensions(
       asOf: valuation?.observedAt ?? input.asOf,
       ...(valuation !== undefined ? { sourceIds: valuation.sourceIds } : {}),
     }),
-    expectations: evidenceDimension({
-      complete:
-        input.earningsSetup?.event.epsEstimate !== undefined &&
-        input.earningsSetup.event.revenueEstimate !== undefined,
-      partialReason:
-        input.earningsSetup === undefined
-          ? "expectations-evidence-missing"
-          : "expectations-inputs-incomplete",
-      asOf: input.earningsSetup?.event.fetchedAt ?? input.asOf,
-      sourceIds: expectationsSourceIds,
-    }),
+    expectations: expectationsDimension(input),
     capitalOwnership: capitalOwnershipDimension(input.capitalOwnership, yahoo, input.asOf),
     operatingKpis: operatingKpisDimension(input),
   };

@@ -914,6 +914,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
           ...(collectedSources.earningsSetup !== undefined
             ? { earningsSetup: collectedSources.earningsSetup }
             : {}),
+          ...(collectedSources.analystExpectations !== undefined
+            ? { analystExpectations: collectedSources.analystExpectations }
+            : {}),
+          ...(collectedSources.analystExpectationsSignal !== undefined
+            ? { analystExpectationsSignal: collectedSources.analystExpectationsSignal }
+            : {}),
           ...(collectedSources.capitalOwnership !== undefined
             ? { capitalOwnership: collectedSources.capitalOwnership }
             : {}),

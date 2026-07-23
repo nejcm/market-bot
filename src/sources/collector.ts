@@ -64,6 +64,7 @@ import {
 } from "../research/peer-universe-cache";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
+import { deriveAnalystExpectations } from "./extended-evidence/analyst-expectations";
 import type { ModelProvider } from "../model/types";
 import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
@@ -456,6 +457,15 @@ export async function collectSources(
     now,
     peerUniverse: peerUniverseSeam,
   });
+  const analystExpectationsResult =
+    isEquityTicker && command.depth === "deep"
+      ? deriveAnalystExpectations(
+          command.symbol,
+          ctx.fetchedAt,
+          extendedResult.rawSnapshots,
+          extendedResult.sourceGaps,
+        )
+      : undefined;
   staleFallbackGaps.push(...enrichmentResult.earningsSourceGaps);
   const rawIdentity = enrichmentResult.identityResult?.identity;
   const sanitizedIdentity =
@@ -510,6 +520,12 @@ export async function collectSources(
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     ...(enrichmentResult.earningsSetup !== undefined
       ? { earningsSetup: enrichmentResult.earningsSetup }
+      : {}),
+    ...(analystExpectationsResult?.artifact !== undefined
+      ? { analystExpectations: analystExpectationsResult.artifact }
+      : {}),
+    ...(analystExpectationsResult !== undefined
+      ? { analystExpectationsSignal: analystExpectationsResult.signal }
       : {}),
     ...(enrichmentResult.valuationCompsResult?.artifact !== undefined
       ? { valuationComps: enrichmentResult.valuationCompsResult.artifact }

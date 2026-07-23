@@ -154,6 +154,34 @@
       },
       "body": "[]"
     },
+    "GET  https://finnhub.io/api/v1/stock/eps-estimate?symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"data\":[{\"period\":\"2026-09-30\",\"epsAvg\":1.72,\"epsMedian\":1.7,\"epsHigh\":1.9,\"epsLow\":1.5,\"numberAnalysts\":28}],\"freq\":\"quarterly\",\"symbol\":\"AAPL\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/revenue-estimate?symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"data\":[{\"period\":\"2026-09-30\",\"revenueAvg\":98000000000,\"revenueMedian\":97500000000,\"revenueHigh\":103000000000,\"revenueLow\":92000000000,\"numberAnalysts\":24}],\"freq\":\"quarterly\",\"symbol\":\"AAPL\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/ebitda-estimate?symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"data\":[{\"period\":\"2026-09-30\",\"ebitdaAvg\":35000000000,\"ebitdaMedian\":34500000000,\"ebitdaHigh\":38000000000,\"ebitdaLow\":32000000000,\"numberAnalysts\":18}],\"freq\":\"quarterly\",\"symbol\":\"AAPL\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/price-target?symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"symbol\":\"AAPL\",\"lastUpdated\":\"2026-06-14\",\"targetMean\":240,\"targetMedian\":235,\"targetHigh\":280,\"targetLow\":190,\"numberAnalysts\":42}"
+    },
     "GET  https://api.tradier.com/v1/markets/options/expirations?includeAllRoots=true&symbol=AAPL": {
       "status": 200,
       "headers": {

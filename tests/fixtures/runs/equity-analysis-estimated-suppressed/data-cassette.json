@@ -138,7 +138,7 @@
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"earningsCalendar\":[{\"symbol\":\"AAPL\",\"date\":\"2026-07-10\",\"hour\":\"amc\",\"epsEstimate\":1.72,\"revenueEstimate\":98000000000}]}"
+      "body": "{\"earningsCalendar\":[{\"symbol\":\"AAPL\",\"date\":\"2026-07-10\",\"hour\":\"amc\"}]}"
     },
     "GET  https://finnhub.io/api/v1/stock/dividend?from=2026-03-17&symbol=AAPL&to=2026-09-13": {
       "status": 200,
@@ -153,6 +153,34 @@
         "content-type": "application/json"
       },
       "body": "[]"
+    },
+    "GET  https://finnhub.io/api/v1/stock/eps-estimate?symbol=AAPL": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Forbidden\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/revenue-estimate?symbol=AAPL": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Forbidden\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/ebitda-estimate?symbol=AAPL": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Forbidden\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/price-target?symbol=AAPL": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Forbidden\"}"
     },
     "GET  https://api.tradier.com/v1/markets/options/expirations?includeAllRoots=true&symbol=AAPL": {
       "status": 200,

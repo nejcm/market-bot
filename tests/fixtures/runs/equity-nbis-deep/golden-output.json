@@ -1537,7 +1537,7 @@
       "durationMs": 0
     }
   },
-  "markdown": "# NBIS equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-07-22T16:16:13.510Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: regulatory filing evidence stale; corporate event evidence missing; remediation: rerun with current regulatory filings; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nNebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- NBIS has deterministic market and verified close evidence. [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-nbis]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** NBIS remains within the deterministic fixture evidence envelope. [market-yahoo-equity-nbis]\n\n## Business Framework\n\nPhase: hyper-growth\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\) [extended-sec-edgar-nbis-fundamentals]\n- **Phase**: Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis]\n- **Moat** (criteria-not-supported): Moat criteria-not-supported \\(Operating margin -115.5%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Growth** (criteria-mixed): Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Current ratio 3.08x, Debt/market cap 7.2%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\\) [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **NBIS canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Valuation Evidence:** Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x \\(negative earnings\\), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000. [market-yahoo-equity-nbis]\n- **NBIS Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-mixed \\(Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss \\(attrib.\\) YoY change 112.9%, Diluted EPS YoY 114.5%\\); Financial Strength criteria-mixed \\(Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%\\); Value insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap \\(quote 2026-07-22\\) with cash/debt \\(balance sheet 2025-12-31\\), Enterprise value $57.6B, Annualized revenue $529.8M\\); Momentum criteria-mixed \\(Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **NBIS Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\); Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\); Moat criteria-not-supported \\(Operating margin -115.5%\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\); Management insufficient-data; Risk criteria-supported \\(Current ratio 3.08x, Debt/market cap 7.2%\\); Valuation insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for NBIS\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for NBIS\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match\n- sec-edgar: NBIS files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported\n- business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- sec-untagged-financials: Validated untagged 6-K facts remain gated from financial-core completeness for NBIS: corpus v1 passed 6/7 supported full statements with zero silent mismatches, but Phase 3 keeps model-validated values outside canonical financial-core completeness\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-nbis] NBIS market snapshot\n- [verified-snapshot-NBIS] NBIS verified market snapshot \\(OHLCV + indicators, 2026-07-22\\)\n- [extended-sec-edgar-nbis-fundamentals] NBIS canonical financial statements\n- 16 uncited normalized source(s) omitted from markdown (sec-edgar/extended-evidence:2, yahoo-news/news:8, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n",
+  "markdown": "# NBIS equity Research View\n\nResearch-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.\n\nGenerated: 2026-07-22T16:16:13.510Z\nEvidence Quality: medium\nReport Integrity: high\nResearch Quality: medium\nResearch Quality Driver: regulatory filing evidence stale; corporate event evidence missing; remediation: rerun with current regulatory filings; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun\n\n## Summary\n\nNebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\n\n\n## Key Findings\n\n- NBIS has deterministic market and verified close evidence. [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n## Bull Case\n\n- No sourced items.\n\n## Bear Case\n\n- No sourced items.\n\n## Risks\n\n- Current structured SEC normalization does not support the fixture filing forms. [market-yahoo-equity-nbis]\n\n## Catalysts\n\n- No sourced items.\n\n\n## Scenarios\n\n- **Reference:** NBIS remains within the deterministic fixture evidence envelope. [market-yahoo-equity-nbis]\n\n## Business Framework\n\nPhase: hyper-growth\n\n- **Business** (criteria-supported): Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\) [extended-sec-edgar-nbis-fundamentals]\n- **Phase**: Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis]\n- **Moat** (criteria-not-supported): Moat criteria-not-supported \\(Operating margin -115.5%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Growth** (criteria-mixed): Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\) [extended-sec-edgar-nbis-fundamentals]\n- **Management** (insufficient-data): Management insufficient-data\n- **Risk** (criteria-supported): Risk criteria-supported \\(Current ratio 3.08x, Debt/market cap 7.2%\\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **Valuation** (insufficient-data): Valuation insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\\) [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]\n\n### Framework Data Gaps\n\n- Business description is not available from current normalized sources\n- Geographic revenue mix is not available from current normalized sources\n- Segment mix is not available from current normalized sources\n- Customer concentration is not available from current normalized sources\n- Purchase recurrence is not available from current normalized sources\n- Pricing power evidence is not available from current normalized sources\n- Company-specific KPI evidence is not available from current normalized sources\n- Analyst consensus is not available from a provider-neutral authoritative capability\n- Management track record is not available from current normalized sources\n- Capital allocation commentary is not available from current normalized sources\n- Disclosed risk-factor evidence is not available from current normalized sources\n- Recession cyclicality evidence is not available from current normalized sources\n\n\n## Extended Evidence\n\n- **NBIS canonical financial statements:** Canonical SEC financial statement inputs. [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Valuation Evidence:** Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]\n- **NBIS Yahoo Fundamentals Evidence:** Yahoo Fundamentals: trailing PE 87.33x, forward PE -139.64x \\(negative earnings\\), price/book 7.97x, EPS TTM 2.58, forward EPS -1.61, annual dividend rate 0.000. [market-yahoo-equity-nbis]\n- **NBIS Financial Lens Evidence:** Financial Lens Evidence: Quality criteria-mixed \\(Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss \\(attrib.\\) YoY change 112.9%, Diluted EPS YoY 114.5%\\); Financial Strength criteria-mixed \\(Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%\\); Value insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap \\(quote 2026-07-22\\) with cash/debt \\(balance sheet 2025-12-31\\), Enterprise value $57.6B, Annualized revenue $529.8M\\); Momentum criteria-mixed \\(Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n- **NBIS Business Framework Evidence:** Business Framework: Business criteria-supported \\(Revenue $529.8M, Operating income $-611.7M\\); Phase classification \\(Phase hyper-growth, Revenue YoY 479.0%\\); Moat criteria-not-supported \\(Operating margin -115.5%\\); Growth criteria-mixed \\(Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%\\); Management insufficient-data; Risk criteria-supported \\(Current ratio 3.08x, Debt/market cap 7.2%\\); Valuation insufficient-data \\(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\\). [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]\n\n\n## Historical Context\n\nNo prior run artifacts matched this research scope.\n- No prior ticker runs found for NBIS\n- No prior equity market-update runs found\n\n\n\n## Data Gaps\n\n- sec-edgar: No SEC company facts found for NBIS\n- finnhub-events: MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN is not set\n- fred-macro: MARKET\\_BOT\\_FRED\\_API\\_KEY is not set\n- tradier-options: MARKET\\_BOT\\_TRADIER\\_API\\_TOKEN is not set\n- valuation-peers: Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match\n- sec-edgar: NBIS files as a foreign private issuer \\(20-F, 6-K\\); these forms are not yet supported\n- Synthetic FPI inputs exercise unsupported current filing forms.\n- marketaux-news: missing MARKET\\_BOT\\_MARKETAUX\\_API\\_TOKEN\n- finnhub-news: missing MARKET\\_BOT\\_FINNHUB\\_API\\_TOKEN\n- valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported\n- business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources\n- sec-untagged-financials: Validated untagged 6-K facts remain gated from financial-core completeness for NBIS: corpus v1 passed 6/7 supported full statements with zero silent mismatches, but Phase 3 keeps model-validated values outside canonical financial-core completeness\n- predictionShortfall: emitted 0 of 5 target predictions; evidence did not support more\n\n## Sources\n\n- [market-yahoo-equity-nbis] NBIS market snapshot\n- [verified-snapshot-NBIS] NBIS verified market snapshot \\(OHLCV + indicators, 2026-07-22\\)\n- [extended-sec-edgar-nbis-fundamentals] NBIS canonical financial statements\n- 16 uncited normalized source(s) omitted from markdown (sec-edgar/extended-evidence:2, yahoo-news/news:8, yahoo/market-data:6). Full source arrays remain in report.json and console files.\n\n## Valuation Workbench\n\nAs-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.\n\n- Trailing basis suppressed: Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.\n\nBasis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF\n--- | --- | --- | --- | ---: | ---: | ---: | ---:\nANNUAL | 2021-12-31 | 2024-04-26 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)\nANNUAL | 2022-12-31 | 2025-04-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)\nANNUAL | 2023-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 212.66x | 5230.73x | 5380.40x | 68.63x\nANNUAL | 2024-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | N/M | 424.52x | 415.15x | N/M\nANNUAL | 2025-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 418.88x | 64.62x | 65.42x | N/M\n\n### Peer comparison\n\n- Supportability: not-meaningful.\n- Reference range: suppressed (peer supportability is not supported).\n- Excluded peers: none.\n\nSymbol | Role | Screen status | EV/revenue | Quote currency | Input dates\n--- | --- | --- | ---: | --- | ---\nNBIS | target | excluded | 108.77x | USD | quote 2026-07-22T16:16:13.510Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31\n\n\n## Reverse DCF Input Sensitivity\n\nSuppressed (reconciled-ttm-fcf-unavailable): A reconciled TTM free-cash-flow input is unavailable.",
   "normalized": {
     "business-framework.json": {
       "version": 2,
@@ -5858,6 +5858,19 @@
         ]
       }
     ],
+    "reverse-dcf.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "NBIS",
+      "status": "suppressed",
+      "reason": "reconciled-ttm-fcf-unavailable",
+      "detail": "A reconciled TTM free-cash-flow input is unavailable.",
+      "sourceIds": [
+        "extended-sec-edgar-nbis-fundamentals",
+        "verified-snapshot-NBIS",
+        "market-yahoo-equity-nbis"
+      ]
+    },
     "source-gaps.json": [
       {
         "source": "marketaux-news",
@@ -25813,6 +25826,636 @@
         "peerQuoteFresh": false,
         "peerSecFresh": false
       }
+    },
+    "valuation-workbench.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "analysisAsOf": "2026-07-22T16:16:13.510Z",
+      "symbol": "NBIS",
+      "reportingCurrency": "USD",
+      "quoteCurrency": "USD",
+      "historicalMultiples": {
+        "priceSelectionRule": "first verified close within 7 calendar days on or after publicAt",
+        "observations": [
+          {
+            "basis": "annual",
+            "periodEnd": "2021-12-31",
+            "publicAt": "2024-04-26",
+            "price": null,
+            "inputs": {
+              "revenue": {
+                "value": 4794200000,
+                "label": "Revenue",
+                "periodEnd": "2021-12-31",
+                "publicAt": "2022-04-20",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "netIncome": {
+                "value": -197200000,
+                "label": "Net income",
+                "periodEnd": "2021-12-31",
+                "publicAt": "2022-04-20",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedEps": {
+                "value": -0.54,
+                "label": "Diluted EPS",
+                "periodEnd": "2021-12-31",
+                "publicAt": "2022-04-20",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedShares": {
+                "value": 362386669,
+                "label": "Diluted weighted-average shares",
+                "periodEnd": "2021-12-31",
+                "publicAt": "2024-04-26",
+                "currency": null,
+                "unit": "shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "freeCashFlow": {
+                "value": -475500000,
+                "label": "Free cash flow proxy",
+                "periodEnd": "2021-12-31",
+                "publicAt": "2022-04-20",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+                "derivation": "operating cash flow - capital expenditure"
+              },
+              "cash": {
+                "value": 1127100000,
+                "label": "Cash",
+                "periodEnd": "2021-12-31",
+                "publicAt": "2023-04-20",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "metrics": {
+              "priceToEarnings": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "priceToSales": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "enterpriseValueToRevenue": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "debt-unavailable",
+                "detail": "As-reported debt is unavailable.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "priceToFreeCashFlow": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+          },
+          {
+            "basis": "annual",
+            "periodEnd": "2022-12-31",
+            "publicAt": "2025-04-30",
+            "price": null,
+            "inputs": {
+              "revenue": {
+                "value": 13500000,
+                "label": "Revenue",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2025-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "netIncome": {
+                "value": 745600000,
+                "label": "Net income",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2025-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedEps": {
+                "value": 1.59,
+                "label": "Diluted EPS",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2025-04-30",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedShares": {
+                "value": 368020254,
+                "label": "Diluted weighted-average shares",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2025-04-30",
+                "currency": null,
+                "unit": "shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "freeCashFlow": {
+                "value": 682400000,
+                "label": "Free cash flow proxy",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2025-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+                "derivation": "operating cash flow - capital expenditure"
+              },
+              "cash": {
+                "value": 288500000,
+                "label": "Cash",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2025-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "debt": {
+                "value": 727800000,
+                "label": "Debt",
+                "periodEnd": "2022-12-31",
+                "publicAt": "2023-04-20",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "metrics": {
+              "priceToEarnings": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "priceToSales": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "enterpriseValueToRevenue": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "priceToFreeCashFlow": {
+                "status": "suppressed",
+                "display": "—",
+                "reason": "price-history-unavailable",
+                "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+          },
+          {
+            "basis": "annual",
+            "periodEnd": "2023-12-31",
+            "publicAt": "2026-04-30",
+            "price": {
+              "close": 138.22999572753906,
+              "sessionDate": "2026-04-30",
+              "currency": "USD",
+              "sourceId": "verified-snapshot-NBIS"
+            },
+            "inputs": {
+              "revenue": {
+                "value": 9800000,
+                "label": "Revenue",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "netIncome": {
+                "value": 241300000,
+                "label": "Net income",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedEps": {
+                "value": 0.65,
+                "label": "Diluted EPS",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedShares": {
+                "value": 370839686,
+                "label": "Diluted weighted-average shares",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2026-04-30",
+                "currency": null,
+                "unit": "shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "freeCashFlow": {
+                "value": 746900000,
+                "label": "Free cash flow proxy",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+                "derivation": "operating cash flow - capital expenditure"
+              },
+              "cash": {
+                "value": 110700000,
+                "label": "Cash",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "debt": {
+                "value": 1577500000,
+                "label": "Debt",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2024-04-26",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "metrics": {
+              "priceToEarnings": {
+                "status": "populated",
+                "value": 212.66153188852164,
+                "display": "212.66x",
+                "numerator": 138.22999572753906,
+                "denominator": 0.65,
+                "formula": "close / diluted EPS",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "priceToSales": {
+                "status": "populated",
+                "value": 5230.731450141013,
+                "display": "5230.73x",
+                "numerator": 51261168211.38193,
+                "denominator": 9800000,
+                "formula": "(close × diluted shares) / revenue",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "enterpriseValueToRevenue": {
+                "status": "populated",
+                "value": 5380.404919528768,
+                "display": "5380.40x",
+                "numerator": 52727968211.38193,
+                "denominator": 9800000,
+                "formula": "((close × diluted shares) + debt - cash) / revenue",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "priceToFreeCashFlow": {
+                "status": "populated",
+                "value": 68.63190281347158,
+                "display": "68.63x",
+                "numerator": 51261168211.38193,
+                "denominator": 746900000,
+                "formula": "(close × diluted shares) / free cash flow",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              }
+            },
+            "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+          },
+          {
+            "basis": "annual",
+            "periodEnd": "2024-12-31",
+            "publicAt": "2026-04-30",
+            "price": {
+              "close": 138.22999572753906,
+              "sessionDate": "2026-04-30",
+              "currency": "USD",
+              "sourceId": "verified-snapshot-NBIS"
+            },
+            "inputs": {
+              "revenue": {
+                "value": 91500000,
+                "label": "Revenue",
+                "periodEnd": "2024-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "netIncome": {
+                "value": -641400000,
+                "label": "Net income",
+                "periodEnd": "2024-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedEps": {
+                "value": -2.28,
+                "label": "Diluted EPS",
+                "periodEnd": "2024-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedShares": {
+                "value": 281005226,
+                "label": "Diluted weighted-average shares",
+                "periodEnd": "2024-12-31",
+                "publicAt": "2026-04-30",
+                "currency": null,
+                "unit": "shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "freeCashFlow": {
+                "value": -561900000,
+                "label": "Free cash flow proxy",
+                "periodEnd": "2024-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+                "derivation": "operating cash flow - capital expenditure"
+              },
+              "cash": {
+                "value": 2434700000,
+                "label": "Cash",
+                "periodEnd": "2024-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "debt": {
+                "value": 1577500000,
+                "label": "Debt",
+                "periodEnd": "2023-12-31",
+                "publicAt": "2024-04-26",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "metrics": {
+              "priceToEarnings": {
+                "status": "not-meaningful",
+                "display": "N/M",
+                "reason": "negative-denominator",
+                "denominator": -2.28,
+                "formula": "close / diluted EPS",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "priceToSales": {
+                "status": "populated",
+                "value": 424.51749933766285,
+                "display": "424.52x",
+                "numerator": 38843351189.39615,
+                "denominator": 91500000,
+                "formula": "(close × diluted shares) / revenue",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "enterpriseValueToRevenue": {
+                "status": "populated",
+                "value": 415.1491933267339,
+                "display": "415.15x",
+                "numerator": 37986151189.39615,
+                "denominator": 91500000,
+                "formula": "((close × diluted shares) + debt - cash) / revenue",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "priceToFreeCashFlow": {
+                "status": "not-meaningful",
+                "display": "N/M",
+                "reason": "negative-denominator",
+                "denominator": -561900000,
+                "formula": "(close × diluted shares) / free cash flow",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              }
+            },
+            "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+          },
+          {
+            "basis": "annual",
+            "periodEnd": "2025-12-31",
+            "publicAt": "2026-04-30",
+            "price": {
+              "close": 138.22999572753906,
+              "sessionDate": "2026-04-30",
+              "currency": "USD",
+              "sourceId": "verified-snapshot-NBIS"
+            },
+            "inputs": {
+              "revenue": {
+                "value": 529800000,
+                "label": "Revenue",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "netIncome": {
+                "value": 82500000,
+                "label": "Net income",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedEps": {
+                "value": 0.33,
+                "label": "Diluted EPS",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "dilutedShares": {
+                "value": 247679946,
+                "label": "Diluted weighted-average shares",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": null,
+                "unit": "shares",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "freeCashFlow": {
+                "value": -3681200000,
+                "label": "Free cash flow proxy",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+                "derivation": "operating cash flow - capital expenditure"
+              },
+              "cash": {
+                "value": 3678100000,
+                "label": "Cash",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              "debt": {
+                "value": 4103200000,
+                "label": "Debt",
+                "periodEnd": "2025-12-31",
+                "publicAt": "2026-04-30",
+                "currency": "USD",
+                "unit": "USD",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            },
+            "metrics": {
+              "priceToEarnings": {
+                "status": "populated",
+                "value": 418.87877493193656,
+                "display": "418.88x",
+                "numerator": 138.22999572753906,
+                "denominator": 0.33,
+                "formula": "close / diluted EPS",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "priceToSales": {
+                "status": "populated",
+                "value": 64.62211754884316,
+                "display": "64.62x",
+                "numerator": 34236797877.377106,
+                "denominator": 529800000,
+                "formula": "(close × diluted shares) / revenue",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "enterpriseValueToRevenue": {
+                "status": "populated",
+                "value": 65.4244958047888,
+                "display": "65.42x",
+                "numerator": 34661897877.377106,
+                "denominator": 529800000,
+                "formula": "((close × diluted shares) + debt - cash) / revenue",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              },
+              "priceToFreeCashFlow": {
+                "status": "not-meaningful",
+                "display": "N/M",
+                "reason": "negative-denominator",
+                "denominator": -3681200000,
+                "formula": "(close × diluted shares) / free cash flow",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+              }
+            },
+            "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+          }
+        ],
+        "trailingBasis": {
+          "status": "suppressed",
+          "reason": "canonical-ttm-unavailable",
+          "detail": "Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        "suppressionReasons": []
+      },
+      "peerComparison": {
+        "status": "available",
+        "valuationComps": {
+          "version": 1,
+          "generatedAt": "<generatedAt>",
+          "target": {
+            "symbol": "NBIS",
+            "marketCap": 57203261440,
+            "cash": 3678100000,
+            "debt": 4103200000,
+            "cashPeriodEnd": "2025-12-31",
+            "debtPeriodEnd": "2025-12-31",
+            "netDebt": 425100000,
+            "enterpriseValue": 57628361440,
+            "latestPeriodRevenue": 529800000,
+            "revenuePeriodMonths": 12,
+            "revenuePeriodEnd": "2025-12-31",
+            "annualizedRevenue": 529800000,
+            "evToAnnualizedRevenue": 108.77380415251038,
+            "sharesOutstanding": 220406311,
+            "currentPrice": 225.3,
+            "quoteCurrency": "USD",
+            "quoteObservedAt": "2026-07-22T16:16:13.510Z",
+            "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+            "usable": false
+          },
+          "peers": [],
+          "excludedPeers": [],
+          "peerUniverseSourceIds": [],
+          "summary": {
+            "corePeerCount": 0,
+            "secondaryPeerCount": 0,
+            "usablePeerCount": 0,
+            "targetEvToAnnualizedRevenue": 108.77380415251038,
+            "valuationSupportability": "not-meaningful"
+          },
+          "impliedPriceRange": {
+            "label": "peer-implied price reference range",
+            "basis": "peer EV/annualized revenue percentiles applied to target annualized revenue",
+            "formula": "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+            "inputs": {
+              "peerP25EvToAnnualizedRevenue": null,
+              "peerMedianEvToAnnualizedRevenue": null,
+              "peerP75EvToAnnualizedRevenue": null,
+              "annualizedRevenue": 529800000,
+              "netDebt": 425100000,
+              "sharesOutstanding": 220406311,
+              "currentPrice": 225.3,
+              "quoteCurrency": "USD",
+              "quoteObservedAt": "2026-07-22T16:16:13.510Z"
+            },
+            "status": "suppressed",
+            "suppressedReason": "peer supportability is not supported"
+          },
+          "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
+          "freshnessFlags": {
+            "targetQuoteFresh": true,
+            "targetSecFresh": false,
+            "peerQuoteFresh": false,
+            "peerSecFresh": false
+          }
+        }
+      },
+      "sourceIds": [
+        "extended-sec-edgar-nbis-fundamentals",
+        "verified-snapshot-NBIS",
+        "market-yahoo-equity-nbis"
+      ]
     },
     "verified-market-snapshot.json": {
       "symbol": "NBIS",

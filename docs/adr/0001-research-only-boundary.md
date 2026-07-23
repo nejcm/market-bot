@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-06-30 (consolidated 2026-07-15)
+2026-06-30 (consolidated 2026-07-15; amended 2026-07-23)
 
 ## Context
 
@@ -35,9 +35,18 @@ only `below-range`, `within-range`, or `above-range` to describe an observed quo
 fully disclosed peer-derived interval. Calling such an interval fair value or a target price,
 claiming a margin of safety, or labeling a security undervalued or overvalued remains prohibited.
 
+A persisted reverse-DCF artifact is inside the research-only boundary only as a solved-for
+five-year FCF growth sensitivity grid across 8%–16% discount rates and 0%–4% terminal-growth
+assumptions. It must disclose starting FCF, enterprise value, discount rate, terminal growth, and
+the five-year horizon. It must not emit a model-derived price, price target, fair-value label,
+observed-versus-derived comparison, percentage gap, margin of safety, or undervalued/overvalued
+conclusion. The grid describes the growth input that reconciles each disclosed assumption pair; it
+is not a valuation verdict.
+
 ## Consequences
 
 - Persisted research remains auditable and separated from execution.
+- Reverse-DCF output remains an isolated, removable input-sensitivity artifact.
 - Run Chat requires a separate safety and threat model; ephemerality is not equivalent to the
   persisted research-only policy.
 - Expanding trade-oriented behavior beyond Run Chat requires a new ADR.
@@ -47,3 +56,5 @@ claiming a margin of safety, or labeling a security undervalued or overvalued re
 - `src/report/schema.ts` and research prompts reject trade-action language in reports.
 - `src/history/artifacts.ts` validates narrative thesis deltas before persistence.
 - `prompts/console-run-chat.md` implements the explicit chat exception.
+- Reverse-DCF rendering tests assert the disclosed assumptions and solved-growth grid structure,
+  and semantically reject price, comparison, gap, and verdict output.

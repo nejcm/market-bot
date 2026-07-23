@@ -36,6 +36,10 @@ import {
   type SubsequentFinancingBridgeArtifact,
 } from "./extended-evidence/subsequent-financing";
 import {
+  collectCapitalOwnershipArtifact,
+  type CapitalOwnershipArtifact,
+} from "./extended-evidence/capital-ownership";
+import {
   collectFundamentalHistory,
   type FundamentalHistoryArtifact,
 } from "./extended-evidence/fundamental-history";
@@ -528,6 +532,9 @@ export async function collectSources(
     ...(enrichmentResult.subsequentFinancing !== undefined
       ? { subsequentFinancing: enrichmentResult.subsequentFinancing }
       : {}),
+    ...(enrichmentResult.capitalOwnership !== undefined
+      ? { capitalOwnership: enrichmentResult.capitalOwnership }
+      : {}),
     ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
       ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
@@ -584,6 +591,7 @@ interface EquityEnrichmentResult {
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
   readonly subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined;
+  readonly capitalOwnership: CapitalOwnershipArtifact | undefined;
   readonly businessFrameworkResult: BusinessFrameworkResult;
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
@@ -630,6 +638,15 @@ async function collectEquityEnrichment(
           input.identityContext,
           input.command.symbol,
           financialStatementsWithoutParity,
+        );
+  const capitalOwnership =
+    financialStatementsWithoutParity === undefined
+      ? undefined
+      : await collectCapitalOwnershipArtifact(
+          input.identityContext,
+          input.command.symbol,
+          financialStatementsWithoutParity,
+          subsequentFinancing,
         );
   const valuationResult =
     financialStatementsWithoutParity === undefined
@@ -752,6 +769,7 @@ async function collectEquityEnrichment(
     fundamentalHistory,
     financialStatements,
     subsequentFinancing,
+    capitalOwnership,
     financialLensResult,
     businessFrameworkResult,
     ...earningsResult,
@@ -775,6 +793,7 @@ function noEquityEnrichment(
     fundamentalHistory: undefined,
     financialStatements: undefined,
     subsequentFinancing: undefined,
+    capitalOwnership: undefined,
     financialLensResult,
     businessFrameworkResult,
     earningsSetup: undefined,

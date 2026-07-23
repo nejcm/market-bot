@@ -54,10 +54,10 @@
           "sourceIds": []
         },
         "capitalOwnership": {
-          "status": "complete",
-          "reasonCodes": [],
+          "status": "partial",
+          "reasonCodes": ["debt-maturity-untagged"],
           "asOf": "2026-07-22T16:16:13.510Z",
-          "sourceIds": ["market-yahoo-equity-nbis"]
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "market-yahoo-equity-nbis"]
         },
         "operatingKpis": {
           "status": "partial",
@@ -1204,6 +1204,58 @@
         "total": 13
       }
     },
+    "providerEndpointAvailability": {
+      "yahooQuote": {
+        "status": "available",
+        "evidence": ["yahoo-ticker"]
+      },
+      "yahooNews": {
+        "status": "available",
+        "evidence": ["yahoo-news"]
+      },
+      "secCompanyTickers": {
+        "status": "available",
+        "evidence": ["sec-tickers"]
+      },
+      "secCompanyFacts": {
+        "status": "available",
+        "evidence": ["sec-companyfacts"]
+      },
+      "secSubmissions": {
+        "status": "available",
+        "evidence": ["sec-submissions"]
+      },
+      "finnhubNews": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-news"],
+        "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+      },
+      "finnhubEvents": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-events"],
+        "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+      },
+      "tradierOptions": {
+        "status": "missing-credential",
+        "evidence": ["tradier-options"],
+        "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+      },
+      "tradierEarningsImpliedMove": {
+        "status": "missing-credential",
+        "evidence": ["earnings-setup-implied-move", "tradier-options"],
+        "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+      },
+      "fredMacro": {
+        "status": "missing-credential",
+        "evidence": ["fred-macro"],
+        "reason": "MARKET_BOT_FRED_API_KEY is not set"
+      },
+      "marketauxNews": {
+        "status": "missing-credential",
+        "evidence": ["marketaux-news"],
+        "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+      }
+    },
     "newsDedupe": {
       "fetchedNewsSourcesByProvider": {
         "marketaux": 0,
@@ -1838,6 +1890,331 @@
         {
           "code": "cyclicality",
           "text": "Recession cyclicality evidence is not available from current normalized sources"
+        }
+      ]
+    },
+    "capital-ownership.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "NBIS",
+      "dilutedShares": [
+        {
+          "value": 247679946,
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-12-31",
+          "filedAt": "2026-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 281005226,
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-12-31",
+          "filedAt": "2026-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 370839686,
+          "periodStart": "2023-01-01",
+          "periodEnd": "2023-12-31",
+          "filedAt": "2026-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 368020254,
+          "periodStart": "2022-01-01",
+          "periodEnd": "2022-12-31",
+          "filedAt": "2025-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 362386669,
+          "periodStart": "2021-01-01",
+          "periodEnd": "2021-12-31",
+          "filedAt": "2024-04-26",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 353382841,
+          "periodStart": "2020-01-01",
+          "periodEnd": "2020-12-31",
+          "filedAt": "2023-04-20",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 335428137,
+          "periodStart": "2019-01-01",
+          "periodEnd": "2019-12-31",
+          "filedAt": "2022-04-20",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 335162062,
+          "periodStart": "2018-01-01",
+          "periodEnd": "2018-12-31",
+          "filedAt": "2021-04-01",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 331243961,
+          "periodStart": "2017-01-01",
+          "periodEnd": "2017-12-31",
+          "filedAt": "2020-04-02",
+          "form": "20-F/A",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 326136949,
+          "periodStart": "2016-01-01",
+          "periodEnd": "2016-12-31",
+          "filedAt": "2019-04-19",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        }
+      ],
+      "stockBasedCompensation": [
+        {
+          "value": 83200000,
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-12-31",
+          "filedAt": "2026-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 54500000,
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-12-31",
+          "filedAt": "2026-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 28800000,
+          "periodStart": "2023-01-01",
+          "periodEnd": "2023-12-31",
+          "filedAt": "2026-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 9600000,
+          "periodStart": "2022-01-01",
+          "periodEnd": "2022-12-31",
+          "filedAt": "2025-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 280400000,
+          "periodStart": "2021-01-01",
+          "periodEnd": "2021-12-31",
+          "filedAt": "2022-04-20",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 212900000,
+          "periodStart": "2020-01-01",
+          "periodEnd": "2020-12-31",
+          "filedAt": "2021-04-01",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 125000000,
+          "periodStart": "2019-01-01",
+          "periodEnd": "2019-12-31",
+          "filedAt": "2020-04-02",
+          "form": "20-F/A",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 94400000,
+          "periodStart": "2018-01-01",
+          "periodEnd": "2018-12-31",
+          "filedAt": "2019-04-19",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 72800000,
+          "periodStart": "2017-01-01",
+          "periodEnd": "2017-12-31",
+          "filedAt": "2018-03-27",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 56400000,
+          "periodStart": "2016-01-01",
+          "periodEnd": "2016-12-31",
+          "filedAt": "2017-03-22",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "ShareBasedCompensation",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        }
+      ],
+      "buybacks": [
+        {
+          "value": 93800000,
+          "periodStart": "2021-01-01",
+          "periodEnd": "2021-12-31",
+          "filedAt": "2022-04-20",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "PaymentsForRepurchaseOfCommonStock",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 137600000,
+          "periodStart": "2020-01-01",
+          "periodEnd": "2020-12-31",
+          "filedAt": "2021-04-01",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "PaymentsForRepurchaseOfCommonStock",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 18000000,
+          "periodStart": "2019-01-01",
+          "periodEnd": "2019-12-31",
+          "filedAt": "2020-04-02",
+          "form": "20-F/A",
+          "taxonomy": "us-gaap",
+          "concept": "PaymentsForRepurchaseOfCommonStock",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 145200000,
+          "periodStart": "2018-01-01",
+          "periodEnd": "2018-12-31",
+          "filedAt": "2019-04-19",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "PaymentsForRepurchaseOfCommonStock",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 149700000,
+          "periodStart": "2014-01-01",
+          "periodEnd": "2014-12-31",
+          "filedAt": "2015-04-30",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "PaymentsForRepurchaseOfCommonStock",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        {
+          "value": 260300000,
+          "periodStart": "2013-01-01",
+          "periodEnd": "2013-12-31",
+          "filedAt": "2014-04-04",
+          "form": "20-F",
+          "taxonomy": "us-gaap",
+          "concept": "PaymentsForRepurchaseOfCommonStock",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        }
+      ],
+      "dividendsPaid": [],
+      "debtPrincipal": {
+        "current": {
+          "value": 24500000,
+          "periodEnd": "2025-12-31",
+          "filedAt": "2026-04-30",
+          "taxonomy": "us-gaap",
+          "concept": "LongTermDebtCurrent",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        "noncurrent": {
+          "value": 4103200000,
+          "periodEnd": "2025-12-31",
+          "filedAt": "2026-04-30",
+          "taxonomy": "us-gaap",
+          "concept": "LongTermDebtNoncurrent",
+          "unit": "USD",
+          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+        },
+        "maturities": []
+      },
+      "omissions": [
+        {
+          "code": "debt-maturity-untagged",
+          "message": "Debt principal is tagged without maturity buckets"
         }
       ]
     },

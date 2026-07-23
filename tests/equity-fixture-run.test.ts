@@ -593,14 +593,24 @@ describe("static equity run fixtures", () => {
         assertComprehensiveAnalysisPath(result, modelRequests);
         expect(result.report.equityAnalysisCompleteness).toMatchObject({
           financialCoreStatus: "complete",
-          coverageLevel: "comprehensive",
+          coverageLevel: "substantial",
+          dimensions: {
+            capitalOwnership: {
+              status: "partial",
+              reasonCodes: [
+                "diluted-share-history-missing",
+                "sbc-history-missing",
+                "payout-evidence-missing",
+              ],
+            },
+          },
         });
       }
       if (name === "equity-analysis-estimated-suppressed") {
         assertEstimatedEarningsSuppressionPath(result, modelRequests, modelOutputs);
         expect(result.report.equityAnalysisCompleteness).toMatchObject({
           financialCoreStatus: "complete",
-          coverageLevel: "comprehensive",
+          coverageLevel: "substantial",
         });
       }
       expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(

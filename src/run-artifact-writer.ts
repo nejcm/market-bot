@@ -139,6 +139,11 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     omitWhenUndefined: true,
   },
   {
+    file: RUN_ARTIFACT_FILES.capitalOwnership,
+    value: (result) => result.collectedSources.capitalOwnership,
+    omitWhenUndefined: true,
+  },
+  {
     file: RUN_ARTIFACT_FILES.businessFramework,
     value: (result) => result.collectedSources.businessFramework ?? null,
   },

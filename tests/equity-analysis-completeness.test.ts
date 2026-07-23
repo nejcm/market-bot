@@ -7,6 +7,7 @@ import type {
   FinancialStatementSeries,
   FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
+import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 
 const AS_OF = "2026-06-15T14:30:00.000Z";
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
@@ -317,6 +318,41 @@ const earningsSetup = {
   gaps: [],
 };
 
+function capitalOwnership(
+  overrides: Partial<CapitalOwnershipArtifact> = {},
+): CapitalOwnershipArtifact {
+  const periods = [2023, 2024, 2025].map((year) => ({
+    value: 100,
+    periodStart: `${String(year)}-01-01`,
+    periodEnd: `${String(year)}-12-31`,
+    filedAt: `${String(year + 1)}-02-15`,
+    form: "10-K",
+    taxonomy: "us-gaap" as const,
+    concept: "WeightedAverageNumberOfDilutedSharesOutstanding",
+    unit: "shares",
+    sourceIds: [SOURCE_ID],
+  }));
+  return {
+    version: 1,
+    generatedAt: AS_OF,
+    symbol: "TEST",
+    dilutedShares: periods,
+    stockBasedCompensation: periods.map((period) => ({
+      ...period,
+      concept: "ShareBasedCompensation",
+      unit: "USD",
+    })),
+    buybacks: periods.map((period) => ({
+      ...period,
+      concept: "PaymentsForRepurchaseOfCommonStock",
+      unit: "USD",
+    })),
+    dividendsPaid: [],
+    omissions: [],
+    ...overrides,
+  };
+}
+
 describe("equity analysis completeness", () => {
   test("completes domestic and foreign quarterly profiles", () => {
     const domestic = deriveEquityAnalysisCompleteness({
@@ -511,6 +547,7 @@ describe("equity analysis completeness", () => {
       financialStatements,
       extendedEvidence: comprehensiveEvidence(),
       earningsSetup,
+      capitalOwnership: capitalOwnership(),
     });
     const substantial = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
@@ -520,6 +557,7 @@ describe("equity analysis completeness", () => {
         items: comprehensiveEvidence().items.slice(0, 2),
       },
       earningsSetup,
+      capitalOwnership: capitalOwnership(),
     });
     const limited = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
@@ -536,6 +574,40 @@ describe("equity analysis completeness", () => {
     expect(limited.coverageLevel).toBe("limited");
     expect(blocked.financialCoreStatus).toBe("blocked");
     expect(blocked.coverageLevel).toBe("limited");
+  });
+
+  test("grades capital ownership from filed histories and precise reasons", () => {
+    const complete = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      capitalOwnership: capitalOwnership(),
+    });
+    const partial = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      capitalOwnership: capitalOwnership({
+        stockBasedCompensation: [],
+        buybacks: [],
+        omissions: [
+          { code: "debt-maturity-untagged", message: "Debt maturity buckets are missing" },
+        ],
+        subsequentFinancing: {
+          eventCount: 1,
+          reconciled: false,
+          sourceIds: [SOURCE_ID],
+        },
+      }),
+    });
+
+    expect(complete.dimensions.capitalOwnership.status).toBe("complete");
+    expect(partial.dimensions.capitalOwnership).toMatchObject({
+      status: "partial",
+      reasonCodes: [
+        "sbc-history-missing",
+        "payout-evidence-missing",
+        "debt-maturity-untagged",
+        "subsequent-financing-unreconciled",
+      ],
+    });
+    expect(partial.financialCoreStatus).toBe("blocked");
   });
 
   test("validates the public contract and rejects credential-based non-applicability", () => {

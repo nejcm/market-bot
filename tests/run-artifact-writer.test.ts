@@ -23,6 +23,7 @@ import type {
 import type { RawSourceSnapshot } from "../src/sources/types";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
+import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import {
   collectedSources,
   marketSnapshot,
@@ -325,6 +326,28 @@ describe("run artifact writer manifests", () => {
 
     expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.subsequentFinancing);
     expect(valueFor(present, RUN_ARTIFACT_FILES.subsequentFinancing)).toEqual(subsequentFinancing);
+  });
+
+  test("writes capital ownership only when collected", () => {
+    const capitalOwnership: CapitalOwnershipArtifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "AAPL",
+      dilutedShares: [],
+      stockBasedCompensation: [],
+      buybacks: [],
+      dividendsPaid: [],
+      omissions: [],
+    };
+    const absent = buildResearchRunManifest(equityCommand, config, result());
+    const present = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ capitalOwnership }) }),
+    );
+
+    expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.capitalOwnership);
+    expect(valueFor(present, RUN_ARTIFACT_FILES.capitalOwnership)).toEqual(capitalOwnership);
   });
 
   test("research deep instrument manifest includes conditional audit artifacts", () => {

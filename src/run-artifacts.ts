@@ -54,6 +54,10 @@ import type {
   FinancialStatementsArtifact,
 } from "./sources/extended-evidence/financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./sources/extended-evidence/subsequent-financing";
+import {
+  readCapitalOwnershipArtifact,
+  type CapitalOwnershipArtifact,
+} from "./sources/extended-evidence/capital-ownership";
 import type {
   PeerImpliedRange,
   PeerImpliedRangeSuppressedReason,
@@ -143,6 +147,7 @@ export interface RunArtifact {
   readonly financialLenses?: FinancialLensArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
+  readonly capitalOwnership?: CapitalOwnershipArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   readonly reverseDcf?: ReverseDcfArtifact;
@@ -1612,6 +1617,7 @@ const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
 const FINANCIAL_STATEMENTS_FILE = RUN_ARTIFACT_FILES.financialStatements;
 const SUBSEQUENT_FINANCING_FILE = RUN_ARTIFACT_FILES.subsequentFinancing;
+const CAPITAL_OWNERSHIP_FILE = RUN_ARTIFACT_FILES.capitalOwnership;
 const VALUATION_COMPS_FILE = RUN_ARTIFACT_FILES.valuationComps;
 const VALUATION_WORKBENCH_FILE = RUN_ARTIFACT_FILES.valuationWorkbench;
 const REVERSE_DCF_FILE = RUN_ARTIFACT_FILES.reverseDcf;
@@ -1648,6 +1654,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
   const financialStatementsFile = await readJsonFile(join(runDir, FINANCIAL_STATEMENTS_FILE));
   const subsequentFinancingFile = await readJsonFile(join(runDir, SUBSEQUENT_FINANCING_FILE));
+  const capitalOwnershipFile = await readJsonFile(join(runDir, CAPITAL_OWNERSHIP_FILE));
   const valuationCompsFile = await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
   const valuationWorkbenchFile = await readJsonFile(join(runDir, VALUATION_WORKBENCH_FILE));
   const reverseDcfFile = await readJsonFile(join(runDir, REVERSE_DCF_FILE));
@@ -1686,6 +1693,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     subsequentFinancingFile.status === "ok"
       ? readSubsequentFinancingBridgeArtifact(subsequentFinancingFile.value)
       : undefined;
+  const capitalOwnership =
+    capitalOwnershipFile.status === "ok"
+      ? readCapitalOwnershipArtifact(capitalOwnershipFile.value)
+      : undefined;
   const peerImpliedRange =
     valuationCompsFile.status === "ok" ? readPeerImpliedRange(valuationCompsFile.value) : undefined;
   const valuationWorkbench =
@@ -1723,6 +1734,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(financialLenses !== undefined ? { financialLenses } : {}),
       ...(financialStatements !== undefined ? { financialStatements } : {}),
       ...(subsequentFinancing !== undefined ? { subsequentFinancing } : {}),
+      ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
       ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
       ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
       ...(reverseDcf !== undefined ? { reverseDcf } : {}),

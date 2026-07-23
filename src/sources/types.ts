@@ -3,6 +3,7 @@ import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./extended-evidence/subsequent-financing";
+import type { CapitalOwnershipArtifact } from "./extended-evidence/capital-ownership";
 import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/untagged-financial-tables-contract";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
@@ -170,6 +171,7 @@ export interface CollectedSources {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly untaggedFinancialStatements?: UntaggedFinancialStatementsArtifact;
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
+  readonly capitalOwnership?: CapitalOwnershipArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
   readonly webSubjectProfileReuse?: {

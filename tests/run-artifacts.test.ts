@@ -140,10 +140,24 @@ describe("loadRunArtifact", () => {
       }),
     );
     await writeJson(join(runDir, "normalized", "financial-statements.json"), financialStatements);
+    const capitalOwnership = {
+      version: 1 as const,
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      symbol: "FPI",
+      dilutedShares: [],
+      stockBasedCompensation: [],
+      buybacks: [],
+      dividendsPaid: [],
+      omissions: [
+        { code: "diluted-share-history-missing", message: "Diluted-share history is missing" },
+      ],
+    };
+    await writeJson(join(runDir, "normalized", "capital-ownership.json"), capitalOwnership);
 
     const { artifact } = await loadRunArtifact(runDir);
 
     expect(artifact?.financialStatements).toEqual(financialStatements);
+    expect(artifact?.capitalOwnership).toEqual(capitalOwnership);
     expect(artifact?.report.equityAnalysisCompleteness).toEqual(equityAnalysisCompleteness);
   });
 
@@ -157,6 +171,7 @@ describe("loadRunArtifact", () => {
     expect(status.report).toBe("ok");
     expect(artifact?.report.equityAnalysisCompleteness).toBeUndefined();
     expect(artifact?.financialStatements).toBeUndefined();
+    expect(artifact?.capitalOwnership).toBeUndefined();
     expect(artifact?.valuationWorkbench).toBeUndefined();
     expect(artifact?.reverseDcf).toBeUndefined();
   });

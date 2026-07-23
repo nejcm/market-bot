@@ -49,6 +49,7 @@ export const RUN_ARTIFACT_FILES = {
   financialStatements: `${NORMALIZED_DIR}/financial-statements.json`,
   untaggedFinancialStatements: `${NORMALIZED_DIR}/untagged-financial-statements.json`,
   subsequentFinancing: `${NORMALIZED_DIR}/subsequent-financing.json`,
+  capitalOwnership: `${NORMALIZED_DIR}/capital-ownership.json`,
   businessFramework: `${NORMALIZED_DIR}/business-framework.json`,
   webSubjectProfile: `${NORMALIZED_DIR}/web-subject-profile.json`,
   webGatherAudit: `${NORMALIZED_DIR}/web-gather-audit.json`,

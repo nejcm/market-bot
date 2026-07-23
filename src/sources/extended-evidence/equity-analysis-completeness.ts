@@ -14,6 +14,7 @@ import {
   financialStatementPeriodMonths,
   financialStatementPeriodsYearAligned,
 } from "./financial-statement-periods";
+import type { CapitalOwnershipArtifact } from "./capital-ownership";
 
 const DAY_MS = 86_400_000;
 const CURRENT_ANNUAL_MAX_AGE_DAYS = 550;
@@ -28,6 +29,7 @@ export interface EquityAnalysisCompletenessInput {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly extendedEvidence?: ExtendedEvidence;
   readonly earningsSetup?: EarningsSetupCollected;
+  readonly capitalOwnership?: CapitalOwnershipArtifact;
 }
 
 type PrimaryFinancialsDimension = EquityAnalysisCompletenessDimension & {
@@ -423,6 +425,45 @@ function evidenceDimension(input: {
   };
 }
 
+function capitalOwnershipDimension(
+  artifact: CapitalOwnershipArtifact | undefined,
+  yahoo: ExtendedEvidenceItem | undefined,
+  asOf: string,
+): EquityAnalysisCompletenessDimension {
+  const reasons = [
+    ...(artifact === undefined || artifact.dilutedShares.length < MIN_ANNUAL_PERIODS
+      ? ["diluted-share-history-missing"]
+      : []),
+    ...(artifact === undefined || artifact.stockBasedCompensation.length < MIN_ANNUAL_PERIODS
+      ? ["sbc-history-missing"]
+      : []),
+    ...(artifact === undefined ||
+    (artifact.buybacks.length === 0 && artifact.dividendsPaid.length === 0)
+      ? ["payout-evidence-missing"]
+      : []),
+    ...(artifact?.omissions.some((omission) => omission.code === "debt-maturity-untagged") === true
+      ? ["debt-maturity-untagged"]
+      : []),
+    ...(artifact?.subsequentFinancing !== undefined ? ["subsequent-financing-unreconciled"] : []),
+  ];
+  const sourceIds = unique([
+    ...(artifact?.dilutedShares.flatMap((fact) => fact.sourceIds) ?? []),
+    ...(artifact?.stockBasedCompensation.flatMap((fact) => fact.sourceIds) ?? []),
+    ...(artifact?.buybacks.flatMap((fact) => fact.sourceIds) ?? []),
+    ...(artifact?.dividendsPaid.flatMap((fact) => fact.sourceIds) ?? []),
+    ...(artifact?.debtPrincipal?.current?.sourceIds ?? []),
+    ...(artifact?.debtPrincipal?.noncurrent?.sourceIds ?? []),
+    ...(artifact?.subsequentFinancing?.sourceIds ?? []),
+    ...(yahoo?.sourceIds ?? []),
+  ]);
+  return {
+    status: reasons.length === 0 ? "complete" : "partial",
+    reasonCodes: unique(reasons),
+    asOf: artifact?.generatedAt ?? yahoo?.observedAt ?? asOf,
+    sourceIds,
+  };
+}
+
 function nonCoreDimensions(
   input: EquityAnalysisCompletenessInput,
 ): Omit<EquityAnalysisCompleteness["dimensions"], "primaryFinancials"> {
@@ -451,15 +492,7 @@ function nonCoreDimensions(
       asOf: input.earningsSetup?.event.fetchedAt ?? input.asOf,
       sourceIds: expectationsSourceIds,
     }),
-    capitalOwnership: evidenceDimension({
-      complete: hasNumericMetrics(yahoo, ["sharesOutstanding"]),
-      partialReason:
-        yahoo === undefined
-          ? "capital-ownership-evidence-missing"
-          : "capital-ownership-inputs-incomplete",
-      asOf: yahoo?.observedAt ?? input.asOf,
-      ...(yahoo !== undefined ? { sourceIds: yahoo.sourceIds } : {}),
-    }),
+    capitalOwnership: capitalOwnershipDimension(input.capitalOwnership, yahoo, input.asOf),
     operatingKpis: evidenceDimension({
       complete: hasNumericMetrics(sec, ["revenue", "grossProfit", "operatingIncome", "netIncome"]),
       partialReason:

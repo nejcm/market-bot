@@ -73,8 +73,12 @@
           "sourceIds": []
         },
         "capitalOwnership": {
-          "status": "complete",
-          "reasonCodes": [],
+          "status": "partial",
+          "reasonCodes": [
+            "diluted-share-history-missing",
+            "sbc-history-missing",
+            "payout-evidence-missing"
+          ],
           "asOf": "2026-06-15T14:30:00.000Z",
           "sourceIds": ["market-yahoo-equity-aapl"]
         },
@@ -911,6 +915,58 @@
         "total": 11
       }
     },
+    "providerEndpointAvailability": {
+      "yahooQuote": {
+        "status": "available",
+        "evidence": ["yahoo-ticker"]
+      },
+      "yahooNews": {
+        "status": "available",
+        "evidence": ["yahoo-news"]
+      },
+      "secCompanyTickers": {
+        "status": "available",
+        "evidence": ["sec-tickers"]
+      },
+      "secCompanyFacts": {
+        "status": "available",
+        "evidence": ["sec-companyfacts"]
+      },
+      "secSubmissions": {
+        "status": "available",
+        "evidence": ["sec-submissions"]
+      },
+      "finnhubNews": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-news"],
+        "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+      },
+      "finnhubEvents": {
+        "status": "missing-credential",
+        "evidence": ["finnhub-events"],
+        "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+      },
+      "tradierOptions": {
+        "status": "missing-credential",
+        "evidence": ["tradier-options"],
+        "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+      },
+      "tradierEarningsImpliedMove": {
+        "status": "missing-credential",
+        "evidence": ["earnings-setup-implied-move", "tradier-options"],
+        "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+      },
+      "fredMacro": {
+        "status": "missing-credential",
+        "evidence": ["fred-macro"],
+        "reason": "MARKET_BOT_FRED_API_KEY is not set"
+      },
+      "marketauxNews": {
+        "status": "missing-credential",
+        "evidence": ["marketaux-news"],
+        "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+      }
+    },
     "newsDedupe": {
       "fetchedNewsSourcesByProvider": {
         "marketaux": 0,
@@ -1421,6 +1477,29 @@
         {
           "code": "cyclicality",
           "text": "Recession cyclicality evidence is not available from current normalized sources"
+        }
+      ]
+    },
+    "capital-ownership.json": {
+      "version": 1,
+      "generatedAt": "<generatedAt>",
+      "symbol": "AAPL",
+      "dilutedShares": [],
+      "stockBasedCompensation": [],
+      "buybacks": [],
+      "dividendsPaid": [],
+      "omissions": [
+        {
+          "code": "diluted-share-history-missing",
+          "message": "Annual diluted-share history is missing"
+        },
+        {
+          "code": "sbc-history-missing",
+          "message": "Annual stock-based compensation history is missing"
+        },
+        {
+          "code": "payout-evidence-missing",
+          "message": "Filed buyback and dividend evidence is missing"
         }
       ]
     },

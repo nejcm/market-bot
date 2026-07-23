@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { violatesResearchOnly } from "../src/domain/research-language";
 import { renderReverseDcfMarkdown } from "../src/report/reverse-dcf-markdown";
 import {
   buildReverseDcf,
@@ -121,6 +122,7 @@ describe("reverse DCF input sensitivity", () => {
     expect(markdown).toContain("### Solved Five-Year FCF Growth Grid");
     expect(markdown.match(/^\| (?:8|9|10|11|12|13|14|15|16)% \|/gmu)).toHaveLength(9);
     expect(markdown.match(/^\| Discount rate \\ Terminal growth \|/gmu)).toHaveLength(1);
+    expect(violatesResearchOnly(markdown)).toBeNull();
   });
 
   test("suppresses when reconciled trailing FCF is absent", () => {

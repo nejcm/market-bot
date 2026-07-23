@@ -122,9 +122,26 @@ describe("violatesResearchOnly", () => {
     "target prices",
     "price target",
     "price targets",
+    "implied price",
+    "implied prices",
+    "intrinsic value",
+    "percentage gap",
+    "% gap",
+    "valuation gap",
+    "implied fair value",
   ]) {
     test(`blocks valuation-certainty wording: "${phrase}"`, () => {
       expect(violatesResearchOnly(phrase)).not.toBeNull();
+    });
+  }
+
+  for (const text of [
+    "The peer-implied price reference range is a descriptive peer interval.",
+    "The source coverage gap remains open and the observed value is 12.",
+    "The calculation stopped because one or more implied prices are not positive.",
+  ]) {
+    test(`allows descriptive valuation prose: "${text}"`, () => {
+      expect(violatesResearchOnly(text)).toBeNull();
     });
   }
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { violatesResearchOnly } from "../src/domain/research-language";
 import type {
   FinancialStatementFact,
   FinancialStatementName,
@@ -386,6 +387,7 @@ describe("valuation workbench", () => {
     expect(markdown).toContain("TTM | 2025-03-31 | 2025-05-01 | 26.00 USD (2025-05-01)");
     expect(markdown).toContain("Reporting currency: USD. Quote currency: USD.");
     expect(markdown).toContain("Peer comparison data is unavailable for this run.");
+    expect(violatesResearchOnly(markdown)).toBeNull();
     expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
   });
 

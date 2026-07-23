@@ -831,6 +831,17 @@ describe("run workspace view", () => {
     expect(tocKeys(workspace)).toEqual(["reverseDcf"]);
   });
 
+  test("keeps every populated reverse DCF view string inside the research-only boundary", () => {
+    const view = reverseDcfView({
+      summary: summary(),
+      reverseDcf: reverseDcfArtifact(),
+    });
+
+    for (const text of renderedStrings(view)) {
+      expect(violatesResearchOnly(text)).toBeNull();
+    }
+  });
+
   test("scales large peer-implied range disclosure inputs", () => {
     const view = peerImpliedRangeView({
       summary: summary(),

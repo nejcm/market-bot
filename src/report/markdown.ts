@@ -743,7 +743,8 @@ function renderEarningsSetup(report: ResearchReport): string {
   const symbol = typeof event.symbol === "string" ? event.symbol : "";
   const date = typeof event.date === "string" ? event.date : "";
   const timing = typeof event.timing === "string" ? event.timing : "unknown";
-  const isProviderEstimated = event.dateStatus === "provider-estimated";
+  const eventDateStatus = event.eventDateStatus ?? event.dateStatus;
+  const isProviderEstimated = eventDateStatus === "provider-estimated";
   const lines = [
     "## Earnings Setup",
     "",

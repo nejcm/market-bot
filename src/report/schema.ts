@@ -1,4 +1,5 @@
 import {
+  isEarningsEventDateStatus,
   isReportIntegrity,
   SOURCE_KINDS,
   type EvidenceQuality,
@@ -7,6 +8,7 @@ import {
   type ResearchReport,
   type Scenario,
 } from "../domain/types";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
@@ -244,6 +246,9 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
   // Validate source IDs on event.
   const event = isRecord(extra.event) ? extra.event : undefined;
   if (event !== undefined) {
+    if (event.eventDateStatus !== undefined && !isEarningsEventDateStatus(event.eventDateStatus)) {
+      throw new Error("Earnings Setup eventDateStatus is invalid");
+    }
     validateKnownSourceIds(
       "Earnings Setup event",
       readStringArray(event.sourceIds),
@@ -276,6 +281,40 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
           typeof bullet.text === "string",
         );
       }
+    }
+  }
+}
+
+function validateEarningsForecastCertainty(report: ResearchReport): void {
+  const earningsPredictions = report.predictions.filter(
+    (prediction) => prediction.kind === "earnings-direction" || prediction.kind === "earnings-move",
+  );
+  for (const prediction of earningsPredictions) {
+    if (
+      prediction.eventDateStatus !== undefined &&
+      !isEarningsEventDateStatus(prediction.eventDateStatus)
+    ) {
+      throw new Error(`Prediction ${prediction.id} has invalid eventDateStatus`);
+    }
+  }
+
+  const rawTelemetry = report.extras?.earningsForecasts;
+  const telemetry = readEarningsForecastTelemetry(report);
+  if (rawTelemetry !== undefined && telemetry === undefined) {
+    throw new Error("Earnings forecast telemetry is invalid");
+  }
+  if (telemetry === undefined) {
+    return;
+  }
+  if (telemetry.eligiblePredictionCount !== earningsPredictions.length) {
+    throw new Error("Earnings forecast telemetry eligible count conflicts with report predictions");
+  }
+  if (telemetry.eventDateStatus === "not-present") {
+    return;
+  }
+  for (const prediction of earningsPredictions) {
+    if (prediction.eventDateStatus !== telemetry.eventDateStatus) {
+      throw new Error(`Prediction ${prediction.id} eventDateStatus conflicts with telemetry`);
     }
   }
 }
@@ -613,6 +652,7 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   validateScenarios(report.scenarios, knownSourceIds);
   validateEquityAnalysisCompleteness(report, knownSourceIds);
   validateRenderedExtras(report.extras, knownSourceIds);
+  validateEarningsForecastCertainty(report);
   assertSafeReportLanguage(report);
 
   return report;

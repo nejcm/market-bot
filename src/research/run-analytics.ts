@@ -25,6 +25,8 @@ import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
 import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
+import type { EarningsForecastTelemetry } from "../domain/types";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -156,6 +158,7 @@ export interface RunAnalytics {
     /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
     readonly mixWarnings: readonly string[];
   };
+  readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly byCode: Readonly<Record<string, number>>;
@@ -658,6 +661,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           warningCount: trace.postSynthesisAudit.warningCount,
           byCode: countBy(trace.postSynthesisAudit.warnings, (warning) => warning.code),
         };
+  const earningsForecasts = trace.earningsForecasts ?? readEarningsForecastTelemetry(report);
 
   return {
     version: 2,
@@ -744,6 +748,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       signalTargetMet,
       mixWarnings,
     },
+    ...(earningsForecasts !== undefined ? { earningsForecasts } : {}),
     ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
     ...(trace.reportIntegrityAudit !== undefined
       ? {

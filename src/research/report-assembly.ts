@@ -16,6 +16,7 @@ import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
+import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";
 import { deriveEquityAnalysisCompleteness } from "../sources/extended-evidence/equity-analysis-completeness";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
@@ -792,10 +793,15 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     sources,
   } = input;
 
-  const gatedPredictions = researchPredictionGate({
+  const researchGatedPredictions = researchPredictionGate({
     command,
     predictions: predResult.predictions,
     collectedSources,
+  });
+  const gatedPredictions = applyEarningsForecastPolicy({
+    predictions: researchGatedPredictions.predictions,
+    setup: collectedSources.earningsSetup,
+    policy: "legacy-ungated",
   });
   const deterministicGapEntries = deterministicSourceGapEntries(command, collectedSources);
   const deterministicGapTexts = deterministicGapEntries.map((gap) => gap.text);
@@ -810,7 +816,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     uniqueDataGapEntries([
       ...modelGapEntries,
       ...deterministicGapEntries,
-      ...gatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
+      ...researchGatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
     ]),
   ).map((gap) => gap.text);
   // Stamp the current scoring policy on every accepted Prediction. The stamp
@@ -935,6 +941,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
       ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
       ...extendedEvidenceExtras,
+      ...(command.jobType === "equity" ? { earningsForecasts: gatedPredictions.telemetry } : {}),
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),

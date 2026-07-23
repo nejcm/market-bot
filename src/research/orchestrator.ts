@@ -60,6 +60,7 @@ import {
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
+import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { computeWebSourceUsage, runWebEvidencePhase } from "../web-evidence";
 import {
   loadAlphaWatchlistForSpotlights,
@@ -663,11 +664,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Schema-valid synthesis output before forecast disagreement so pruned
   // Predictions never reach challengers, persistence, or scoring.
   const integrityAudit = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
+  const integrityReport = reconcileEarningsForecastTelemetry(integrityAudit.report);
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,
     generatedAt,
     runParams,
-    report: validateResearchReport(integrityAudit.report),
+    report: validateResearchReport(integrityReport),
   });
   const { report, challengerModels } = forecastDisagreementPhase;
   const forecastDisagreement = forecastDisagreementPhase.artifact;

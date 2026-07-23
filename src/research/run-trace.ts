@@ -20,6 +20,7 @@ import type { ReportIntegrityAuditResult } from "./report-integrity-audit";
 import type { ResolvedRunParams } from "../config/runs";
 import type { BuildSourcePlanResult } from "./source-plan";
 import type { SpotlightSelectionResult } from "./spotlights";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 
 interface TraceJobInput {
   readonly command: ResearchCommand;
@@ -64,6 +65,7 @@ export function buildRunTrace(input: {
 }): RunTrace {
   const { command, config, provider } = input.jobInput;
   const webSourceSynthesisInputs = buildWebSourceSynthesisInputs(command, input.collectedSources);
+  const earningsForecasts = readEarningsForecastTelemetry(input.report);
   return {
     schemaVersion: 2,
     runId: input.runId,
@@ -115,6 +117,7 @@ export function buildRunTrace(input: {
       ? { predictionCompletion: input.predictionCompletion }
       : {}),
     ...(input.predictionErrors.length > 0 ? { predictionErrors: input.predictionErrors } : {}),
+    ...(earningsForecasts !== undefined ? { earningsForecasts } : {}),
     ...(input.reportValidationErrors.length > 0
       ? { reportValidationRetryErrors: input.reportValidationErrors }
       : {}),

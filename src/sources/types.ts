@@ -10,6 +10,7 @@ import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 import type {
   AssetClass,
+  EarningsEventDateStatus,
   ExtendedEvidence,
   InstrumentIdentity,
   MarketContext,
@@ -119,6 +120,9 @@ export interface EarningsSetupCollected {
     readonly symbol: string;
     readonly date: string;
     readonly timing: "bmo" | "amc" | "unknown";
+    readonly eventDateStatus?: EarningsEventDateStatus;
+    /** Legacy Phase 0 alias; optional on future confirmed events. */
+    readonly dateStatus?: "provider-estimated";
     readonly epsEstimate?: number;
     readonly revenueEstimate?: number;
     readonly sourceIds: readonly string[];

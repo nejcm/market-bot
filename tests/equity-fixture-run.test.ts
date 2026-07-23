@@ -237,6 +237,7 @@ function assertComprehensiveAnalysisPath(result: RunFixtureResult): void {
     event: {
       symbol: "AAPL",
       date: "2026-07-10",
+      eventDateStatus: "provider-estimated",
       dateStatus: "provider-estimated",
     },
     impliedMove: {
@@ -255,6 +256,17 @@ function assertComprehensiveAnalysisPath(result: RunFixtureResult): void {
     "earnings-direction",
     "earnings-move",
   ]);
+  expect(result.report.predictions.map((prediction) => prediction.eventDateStatus)).toEqual([
+    "provider-estimated",
+    "provider-estimated",
+  ]);
+  expect(result.analytics.earningsForecasts).toEqual({
+    eventDateStatus: "provider-estimated",
+    policy: "legacy-ungated",
+    grammarEligible: true,
+    eligiblePredictionCount: 2,
+    suppressedPredictionCount: 0,
+  });
   expect(result.collectedSources.extendedEvidence?.items.map((item) => item.category)).toEqual(
     expect.arrayContaining([
       "sec-edgar",

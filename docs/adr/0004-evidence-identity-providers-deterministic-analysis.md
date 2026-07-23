@@ -17,7 +17,7 @@ amended 2026-07-22: current-report ingestion and financial scope/date-basis disc
 2026-07-23: canonical financial-statements shadow artifact; amended 2026-07-23: cadence-aware
 equity completeness contract and incremental consumer migration; amended 2026-07-23: canonical
 consumer completion and subsequent-financing bridge; amended 2026-07-23: official issuer earnings-
-date confirmation evidence)
+date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date authority)
 
 ## Context
 
@@ -247,6 +247,10 @@ without pretending the project has a global security master.
   Current-report text must use explicit future announcement language; an `8-K` Item 2.02 reporting
   past results is not an upcoming-date source. Finnhub remains `provider-estimated` even when
   another provider agrees with it.
+- `exchange-confirmed` requires the same exact-date, future-language, identity, Source ID, and
+  retained-span contract from a direct official exchange URL on the checked-in exchange-host
+  allowlist. Provider calendar agreement, including Finnhub agreement, is never exchange
+  confirmation.
 
 ## Current evidence limitations
 

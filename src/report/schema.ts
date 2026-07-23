@@ -260,7 +260,10 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
     if (event.eventDateStatus === "provider-estimated" && confirmation !== undefined) {
       throw new Error("Provider-estimated Earnings Setup cannot carry date confirmation");
     }
-    if (event.eventDateStatus === "issuer-confirmed") {
+    if (
+      event.eventDateStatus === "issuer-confirmed" ||
+      event.eventDateStatus === "exchange-confirmed"
+    ) {
       const sourceId = confirmation?.sourceId;
       const sourceType = confirmation?.sourceType;
       const evidenceSpan = confirmation?.evidenceSpan;
@@ -273,10 +276,12 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
         typeof sourceId !== "string" ||
         !knownSourceIds.has(sourceId) ||
         !readStringArray(event.sourceIds).includes(sourceId) ||
-        (sourceType !== "issuer-ir-event" &&
-          sourceType !== "issuer-press-release" &&
-          sourceType !== "sec-8-k" &&
-          sourceType !== "sec-6-k") ||
+        (event.eventDateStatus === "issuer-confirmed"
+          ? sourceType !== "issuer-ir-event" &&
+            sourceType !== "issuer-press-release" &&
+            sourceType !== "sec-8-k" &&
+            sourceType !== "sec-6-k"
+          : sourceType !== "official-exchange") ||
         typeof evidenceSpan !== "string" ||
         typeof event.date !== "string" ||
         retainedEvidenceSpanForEarningsDate(evidenceSpan, event.date) === undefined ||
@@ -286,7 +291,7 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
         confirmedAt.trim() === "" ||
         identity?.symbol !== event.symbol
       ) {
-        throw new Error("Issuer-confirmed Earnings Setup requires complete official evidence");
+        throw new Error("Confirmed Earnings Setup requires complete official evidence");
       }
     }
   }

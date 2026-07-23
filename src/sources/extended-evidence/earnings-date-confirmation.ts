@@ -6,7 +6,8 @@ export type EarningsDateConfirmationSourceType =
   | "issuer-ir-event"
   | "issuer-press-release"
   | "sec-8-k"
-  | "sec-6-k";
+  | "sec-6-k"
+  | "official-exchange";
 
 export interface EarningsDateConfirmation {
   readonly sourceId: string;
@@ -31,6 +32,7 @@ interface ConfirmationCandidate {
   readonly sourceType: EarningsDateConfirmationSourceType;
   readonly evidenceSpan: string;
   readonly matchedBy: EarningsDateConfirmation["issuerIdentity"]["matchedBy"];
+  readonly eventDateStatus: "issuer-confirmed" | "exchange-confirmed";
 }
 
 const LEGAL_SUFFIX_PATTERN =
@@ -40,6 +42,18 @@ const FUTURE_ANNOUNCEMENT_PATTERN =
 const EARNINGS_SUBJECT_PATTERN =
   /\b(?:earnings|financial\s+results|quarterly\s+results|annual\s+results|results\s+for\s+(?:the\s+)?(?:first|second|third|fourth|fiscal|quarter|year))\b/iu;
 const MAX_EVIDENCE_SPAN_CHARS = 600;
+const OFFICIAL_EXCHANGE_HOSTS = [
+  "asx.com.au",
+  "deutsche-boerse.com",
+  "euronext.com",
+  "hkex.com.hk",
+  "jpx.co.jp",
+  "londonstockexchange.com",
+  "nasdaq.com",
+  "nyse.com",
+  "six-group.com",
+  "tsx.com",
+] as const;
 
 function normalizedHost(value: string): string | undefined {
   try {
@@ -230,7 +244,13 @@ function confirmationCandidate(input: {
 
   const secType = secSourceType(source);
   if (secType !== undefined && sourceHasTickerAlias(source, identity.symbol)) {
-    return { source, sourceType: secType, evidenceSpan, matchedBy: "sec-ticker-alias" };
+    return {
+      source,
+      sourceType: secType,
+      evidenceSpan,
+      matchedBy: "sec-ticker-alias",
+      eventDateStatus: "issuer-confirmed",
+    };
   }
 
   const host = normalizedHost(source.url);
@@ -243,15 +263,26 @@ function confirmationCandidate(input: {
       sourceType: issuerSourceType(source),
       evidenceSpan,
       matchedBy: "official-host",
+      eventDateStatus: "issuer-confirmed",
     };
   }
-  if (textMatchesIssuer(evidenceSpan, identity) && source.kind === "extended-evidence") {
-    return undefined;
+  if (
+    host !== undefined &&
+    OFFICIAL_EXCHANGE_HOSTS.some((officialHost) => hostMatches(host, officialHost)) &&
+    (sourceHasTickerAlias(source, identity.symbol) || textMatchesIssuer(text, identity))
+  ) {
+    return {
+      source,
+      sourceType: "official-exchange",
+      evidenceSpan,
+      matchedBy: sourceHasTickerAlias(source, identity.symbol) ? "sec-ticker-alias" : "source-text",
+      eventDateStatus: "exchange-confirmed",
+    };
   }
   return undefined;
 }
 
-export function confirmEarningsDateFromIssuerSources(input: {
+export function confirmEarningsDateFromOfficialSources(input: {
   readonly setup: EarningsSetupCollected | undefined;
   readonly sources: readonly Source[];
   readonly rawSnapshots: readonly RawSourceSnapshot[];
@@ -259,7 +290,11 @@ export function confirmEarningsDateFromIssuerSources(input: {
   readonly analysisAsOf: string;
 }): EarningsSetupCollected | undefined {
   const { setup } = input;
-  if (setup === undefined || setup.event.eventDateStatus === "issuer-confirmed") {
+  if (
+    setup === undefined ||
+    setup.event.eventDateStatus === "issuer-confirmed" ||
+    setup.event.eventDateStatus === "exchange-confirmed"
+  ) {
     return setup;
   }
   const identity = submissionsIdentity(
@@ -298,18 +333,18 @@ export function confirmEarningsDateFromIssuerSources(input: {
     ...setup,
     event: {
       ...event,
-      eventDateStatus: "issuer-confirmed",
+      eventDateStatus: candidate.eventDateStatus,
       sourceIds: [...new Set([...event.sourceIds, candidate.source.id])],
       dateConfirmation: confirmation,
     },
   };
 }
 
-export function applyIssuerEarningsDateConfirmation(input: {
+export function applyOfficialEarningsDateConfirmation(input: {
   readonly collectedSources: CollectedSources;
   readonly analysisAsOf: string;
 }): CollectedSources {
-  const earningsSetup = confirmEarningsDateFromIssuerSources({
+  const earningsSetup = confirmEarningsDateFromOfficialSources({
     setup: input.collectedSources.earningsSetup,
     sources: [...input.collectedSources.extendedSources, ...input.collectedSources.newsSources],
     rawSnapshots: input.collectedSources.rawSnapshots,

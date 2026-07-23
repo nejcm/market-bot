@@ -4,8 +4,8 @@ import { join } from "node:path";
 import type { Source } from "../src/domain/types";
 import { validateResearchReport } from "../src/report/schema";
 import {
-  applyIssuerEarningsDateConfirmation,
-  confirmEarningsDateFromIssuerSources,
+  applyOfficialEarningsDateConfirmation,
+  confirmEarningsDateFromOfficialSources,
   retainedEvidenceSpanForEarningsDate,
 } from "../src/sources/extended-evidence/earnings-date-confirmation";
 import type { EarningsSetupCollected, RawSourceSnapshot } from "../src/sources/types";
@@ -40,10 +40,24 @@ function secSource(form: "8-K" | "6-K", summary: string): Source {
   };
 }
 
+function exchangeSource(host = "www.nasdaq.com"): Source {
+  return {
+    id: "nasdaq-aapl-earnings",
+    title: "Apple earnings date",
+    url: `https://${host}/market-activity/stocks/aapl/earnings`,
+    fetchedAt: "2026-07-18T09:00:00.000Z",
+    kind: "web",
+    assetClass: "equity",
+    symbol: "AAPL",
+    provider: "exa",
+    summary: "Apple Inc. will release its quarterly financial results on July 30, 2026.",
+  };
+}
+
 describe("official earnings-date confirmation", () => {
   test("confirms an exact future date from the issuer IR host and retains the evidence span", async () => {
     const input = await fixture("issuer-confirmed");
-    const result = confirmEarningsDateFromIssuerSources(input);
+    const result = confirmEarningsDateFromOfficialSources(input);
 
     expect(result?.event.eventDateStatus).toBe("issuer-confirmed");
     expect(result?.event.dateStatus).toBeUndefined();
@@ -58,7 +72,7 @@ describe("official earnings-date confirmation", () => {
 
   test("applies confirmation to the collected-source bundle after official web gathering", async () => {
     const input = await fixture("issuer-confirmed");
-    const result = applyIssuerEarningsDateConfirmation({
+    const result = applyOfficialEarningsDateConfirmation({
       collectedSources: collectedSources({
         rawSnapshots: input.rawSnapshots,
         extendedSources: input.sources,
@@ -74,7 +88,7 @@ describe("official earnings-date confirmation", () => {
     "confirms an explicit future earnings date from SEC %s text",
     async (form) => {
       const input = await fixture("provider-estimated");
-      const result = confirmEarningsDateFromIssuerSources({
+      const result = confirmEarningsDateFromOfficialSources({
         ...input,
         sources: [
           secSource(
@@ -94,7 +108,7 @@ describe("official earnings-date confirmation", () => {
 
   test("does not treat Item 2.02 past results as an upcoming-date source", async () => {
     const input = await fixture("provider-estimated");
-    const result = confirmEarningsDateFromIssuerSources({
+    const result = confirmEarningsDateFromOfficialSources({
       ...input,
       sources: [
         secSource(
@@ -110,10 +124,58 @@ describe("official earnings-date confirmation", () => {
 
   test("does not promote Finnhub agreement or another non-official host", async () => {
     const input = await fixture("provider-estimated");
-    const result = confirmEarningsDateFromIssuerSources(input);
+    const result = confirmEarningsDateFromOfficialSources(input);
 
     expect(result?.event.eventDateStatus).toBe("provider-estimated");
     expect(result?.event.dateConfirmation).toBeUndefined();
+  });
+
+  test("allows exchange confirmation only from a direct official exchange host", async () => {
+    const input = await fixture("provider-estimated");
+    const issuer = await fixture("issuer-confirmed");
+    const officialExchangeSource = exchangeSource();
+    const result = confirmEarningsDateFromOfficialSources({
+      ...input,
+      rawSnapshots: issuer.rawSnapshots,
+      sources: [officialExchangeSource],
+    });
+
+    expect(result?.event.eventDateStatus).toBe("exchange-confirmed");
+    expect(result?.event.dateConfirmation).toMatchObject({
+      sourceId: "nasdaq-aapl-earnings",
+      sourceType: "official-exchange",
+      issuerIdentity: { symbol: "AAPL", matchedBy: "source-text" },
+    });
+    expect(() =>
+      validateResearchReport(
+        researchReport({
+          jobType: "equity",
+          symbol: "AAPL",
+          sources: [
+            officialExchangeSource,
+            {
+              id: "extended-finnhub-events-aapl",
+              title: "AAPL provider earnings estimate",
+              fetchedAt: input.analysisAsOf,
+              kind: "extended-evidence",
+            },
+          ],
+          extras: { earningsSetup: result },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test("rejects an exchange lookalike host", async () => {
+    const input = await fixture("provider-estimated");
+    const issuer = await fixture("issuer-confirmed");
+    const result = confirmEarningsDateFromOfficialSources({
+      ...input,
+      rawSnapshots: issuer.rawSnapshots,
+      sources: [exchangeSource("events.nasdaq.example.com")],
+    });
+
+    expect(result?.event.eventDateStatus).toBe("provider-estimated");
   });
 
   test("requires the exact date and future announcement language in one retained span", () => {
@@ -133,7 +195,7 @@ describe("official earnings-date confirmation", () => {
 
   test("validates complete persisted confirmation provenance", async () => {
     const input = await fixture("issuer-confirmed");
-    const setup = confirmEarningsDateFromIssuerSources(input);
+    const setup = confirmEarningsDateFromOfficialSources(input);
 
     expect(() =>
       validateResearchReport(

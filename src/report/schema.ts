@@ -9,6 +9,7 @@ import {
   type Scenario,
 } from "../domain/types";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import { retainedEvidenceSpanForEarningsDate } from "../sources/extended-evidence/earnings-date-confirmation";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
@@ -255,6 +256,39 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
       knownSourceIds,
       false,
     );
+    const confirmation = isRecord(event.dateConfirmation) ? event.dateConfirmation : undefined;
+    if (event.eventDateStatus === "provider-estimated" && confirmation !== undefined) {
+      throw new Error("Provider-estimated Earnings Setup cannot carry date confirmation");
+    }
+    if (event.eventDateStatus === "issuer-confirmed") {
+      const sourceId = confirmation?.sourceId;
+      const sourceType = confirmation?.sourceType;
+      const evidenceSpan = confirmation?.evidenceSpan;
+      const sourceUrl = confirmation?.sourceUrl;
+      const confirmedAt = confirmation?.confirmedAt;
+      const identity = isRecord(confirmation?.issuerIdentity)
+        ? confirmation.issuerIdentity
+        : undefined;
+      if (
+        typeof sourceId !== "string" ||
+        !knownSourceIds.has(sourceId) ||
+        !readStringArray(event.sourceIds).includes(sourceId) ||
+        (sourceType !== "issuer-ir-event" &&
+          sourceType !== "issuer-press-release" &&
+          sourceType !== "sec-8-k" &&
+          sourceType !== "sec-6-k") ||
+        typeof evidenceSpan !== "string" ||
+        typeof event.date !== "string" ||
+        retainedEvidenceSpanForEarningsDate(evidenceSpan, event.date) === undefined ||
+        typeof sourceUrl !== "string" ||
+        sourceUrl.trim() === "" ||
+        typeof confirmedAt !== "string" ||
+        confirmedAt.trim() === "" ||
+        identity?.symbol !== event.symbol
+      ) {
+        throw new Error("Issuer-confirmed Earnings Setup requires complete official evidence");
+      }
+    }
   }
   // Validate source IDs on the deterministic implied move.
   const impliedMove = isRecord(extra.impliedMove) ? extra.impliedMove : undefined;

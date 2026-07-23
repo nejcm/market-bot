@@ -1,6 +1,7 @@
 import {
   NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
+  type EarningsForecastTelemetry,
   type ReportIntegrity,
   type ResearchReport,
   type RunTrace,
@@ -25,7 +26,6 @@ import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
 import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
-import type { EarningsForecastTelemetry } from "../domain/types";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 
 export interface RunAnalyticsStage {

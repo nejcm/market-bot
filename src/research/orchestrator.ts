@@ -71,6 +71,7 @@ import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
+import { applyIssuerEarningsDateConfirmation } from "../sources/extended-evidence/earnings-date-confirmation";
 import {
   assessSourcePlan,
   buildSourcePlan,
@@ -576,6 +577,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       }),
   });
   ({ collectedSources } = webEvidence);
+  collectedSources = applyIssuerEarningsDateConfirmation({
+    collectedSources,
+    analysisAsOf: generatedAt,
+  });
   const { webGatherLoop, webSubjectProfile } = webEvidence;
   const marketUpdate = await runMarketUpdatePhase({
     command,

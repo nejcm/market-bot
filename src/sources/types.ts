@@ -20,6 +20,7 @@ import type {
   VerifiedMarketSnapshot,
 } from "../domain/types";
 import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
+import type { EarningsDateConfirmation } from "./extended-evidence/earnings-date-confirmation";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -58,6 +59,7 @@ export interface CollectContext {
   readonly secUserAgent?: string;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
+  readonly earningsEventDate?: string;
   // Resolved canonical identity (exchange/quoteCurrency), when known before source collection.
   // US-only collectors use it as the primary instrument-capability signal (see isUsListing).
   readonly instrumentIdentity?: InstrumentIdentity;
@@ -127,6 +129,7 @@ export interface EarningsSetupCollected {
     readonly revenueEstimate?: number;
     readonly sourceIds: readonly string[];
     readonly fetchedAt: string;
+    readonly dateConfirmation?: EarningsDateConfirmation;
   };
   readonly impliedMove?: {
     readonly expiration: string;

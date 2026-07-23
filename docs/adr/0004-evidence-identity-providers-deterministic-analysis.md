@@ -16,7 +16,8 @@ rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicabil
 amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures; amended
 2026-07-23: canonical financial-statements shadow artifact; amended 2026-07-23: cadence-aware
 equity completeness contract and incremental consumer migration; amended 2026-07-23: canonical
-consumer completion and subsequent-financing bridge)
+consumer completion and subsequent-financing bridge; amended 2026-07-23: official issuer earnings-
+date confirmation evidence)
 
 ## Context
 
@@ -239,6 +240,13 @@ without pretending the project has a global security master.
   their reasons are retained as screening context.
 - Web Subject Profile answers may deterministically clear matching atomic Business Framework gaps.
   Reconciliation uses structured cited fields only and does not alter postures or Evidence Quality.
+- An upcoming earnings date becomes `issuer-confirmed` only when deterministic code matches the
+  issuer identity and exact future date to a direct issuer IR/event or press-release URL whose host
+  is established by the issuer's SEC submissions metadata, or to direct SEC `8-K`/`6-K` text. The
+  event retains the official Source ID, URL, matched identity basis, and exact evidence span.
+  Current-report text must use explicit future announcement language; an `8-K` Item 2.02 reporting
+  past results is not an upcoming-date source. Finnhub remains `provider-estimated` even when
+  another provider agrees with it.
 
 ## Current evidence limitations
 
@@ -302,3 +310,5 @@ without pretending the project has a global security master.
 - `src/web-evidence/contract.ts` is the dependency-neutral Web Subject Profile contract entry point.
 - `src/web-evidence/web-subject-profile-reuse.ts` implements reuse.
 - `src/reproducibility.ts` implements configuration and source-state fingerprints.
+- `src/sources/extended-evidence/earnings-date-confirmation.ts` implements official issuer and SEC
+  future-date confirmation with retained evidence spans.

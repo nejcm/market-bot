@@ -102,13 +102,15 @@ export async function runEvidenceRequestLoop(
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
-  const toolContext =
-    input.collectedSources.resolvedInstrumentIdentity !== undefined
-      ? {
-          ...collectContext.context,
-          instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
-        }
-      : collectContext.context;
+  const toolContext = {
+    ...collectContext.context,
+    ...(input.collectedSources.resolvedInstrumentIdentity !== undefined
+      ? { instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity }
+      : {}),
+    ...(input.collectedSources.earningsSetup?.event.date !== undefined
+      ? { earningsEventDate: input.collectedSources.earningsSetup.event.date }
+      : {}),
+  };
 
   // Deterministic SEC filing retrieval. Mandatory 10-K (and 10-Q when metadata
   // Lists one after the 10-K) retrieval is not at model discretion; it runs

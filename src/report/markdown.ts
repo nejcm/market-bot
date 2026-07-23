@@ -745,10 +745,22 @@ function renderEarningsSetup(report: ResearchReport): string {
   const timing = typeof event.timing === "string" ? event.timing : "unknown";
   const eventDateStatus = event.eventDateStatus ?? event.dateStatus;
   const isProviderEstimated = eventDateStatus === "provider-estimated";
+  const confirmationSourceId =
+    isRecord(event.dateConfirmation) && typeof event.dateConfirmation.sourceId === "string"
+      ? event.dateConfirmation.sourceId
+      : undefined;
+  let certaintyLabel = "";
+  if (isProviderEstimated) {
+    certaintyLabel = " — date provider-estimated (Finnhub), unconfirmed";
+  } else if (eventDateStatus === "issuer-confirmed") {
+    certaintyLabel = ` — date issuer-confirmed${confirmationSourceId === undefined ? "" : ` [${markdownText(confirmationSourceId)}]`}`;
+  } else if (eventDateStatus === "exchange-confirmed") {
+    certaintyLabel = ` — date exchange-confirmed${confirmationSourceId === undefined ? "" : ` [${markdownText(confirmationSourceId)}]`}`;
+  }
   const lines = [
     "## Earnings Setup",
     "",
-    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${isProviderEstimated ? " — date provider-estimated (Finnhub), unconfirmed" : ""}`,
+    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${certaintyLabel}`,
   ];
 
   if (typeof event.epsEstimate === "number") {

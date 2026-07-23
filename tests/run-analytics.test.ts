@@ -276,6 +276,10 @@ describe("run analytics", () => {
       unsupportedCoverage: 0,
       other: 0,
     });
+    expect(analytics.providerEndpointAvailability?.marketauxNews).toEqual({
+      status: "available",
+      evidence: ["marketaux-news"],
+    });
     expect(analytics.evidenceQuality.extendedEvidence.itemsByCategory).toEqual({ "sec-edgar": 1 });
     expect(analytics.predictions).toMatchObject({
       count: 2,

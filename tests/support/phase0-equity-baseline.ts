@@ -1,6 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isRecord } from "../../src/guards";
+import {
+  deriveProviderEndpointAvailability,
+  unavailableEndpoint,
+  type ProviderEndpointAvailability,
+} from "../../src/sources/provider-endpoint-availability";
 import { runFixture, type RunFixtureResult } from "./run-fixtures";
 
 export const PHASE0_BASELINE_PATH = join(
@@ -33,12 +38,6 @@ const PHASE4_FIXTURES = [
   },
 ] as const;
 
-interface EndpointAvailability {
-  readonly status: "available" | "missing-credential" | "unsupported" | "unmeasured";
-  readonly evidence: readonly string[];
-  readonly reason?: string;
-}
-
 interface FixtureBaseline {
   readonly fixture: string;
   readonly earningsSetupCount: number;
@@ -49,7 +48,7 @@ interface FixtureBaseline {
     | "exchange-confirmed"
     | "not-present";
   readonly populatedFinancialHistoryCount: number;
-  readonly providerEndpointAvailability: Readonly<Record<string, EndpointAvailability>>;
+  readonly providerEndpointAvailability: Readonly<Record<string, ProviderEndpointAvailability>>;
 }
 
 interface Phase4FixtureEarningsCoverage {
@@ -126,7 +125,7 @@ export interface HistoricalArtifactsBaseline {
     readonly unmeasuredRunCount: number;
     readonly populatedSeriesCount: number;
   };
-  readonly providerEndpointAvailability: EndpointAvailability;
+  readonly providerEndpointAvailability: ProviderEndpointAvailability;
   readonly reason?: string;
 }
 
@@ -135,48 +134,6 @@ export interface Phase0EquityBaseline {
   readonly description: string;
   readonly fixtureRuns: readonly FixtureBaseline[];
   readonly historicalArtifacts: HistoricalArtifactsBaseline;
-}
-
-function available(evidence: readonly string[]): EndpointAvailability {
-  return { status: "available", evidence };
-}
-
-function unavailable(
-  status: "missing-credential" | "unsupported" | "unmeasured",
-  reason: string,
-  evidence: readonly string[] = [],
-): EndpointAvailability {
-  return { status, evidence, reason };
-}
-
-function endpointAvailability(
-  result: RunFixtureResult,
-  adapters: readonly string[],
-  gapSources: readonly string[],
-): EndpointAvailability {
-  const observedAdapters = [
-    ...new Set(
-      result.collectedSources.rawSnapshots
-        .map((snapshot) => snapshot.adapter)
-        .filter((adapter) => adapters.some((candidate) => adapter.startsWith(candidate))),
-    ),
-  ].toSorted();
-  if (observedAdapters.length > 0) {
-    return available(observedAdapters);
-  }
-  const gaps = result.collectedSources.sourceGaps.filter((gap) => gapSources.includes(gap.source));
-  const missingCredential = gaps.find((gap) => gap.cause === "missing-credential");
-  if (missingCredential !== undefined) {
-    return unavailable("missing-credential", missingCredential.message, gapSources);
-  }
-  const unsupported = gaps.find((gap) => gap.cause === "unsupported-coverage");
-  if (unsupported !== undefined) {
-    return unavailable("unsupported", unsupported.message, gapSources);
-  }
-  return unavailable(
-    "unmeasured",
-    `No request or normalized availability gap for ${gapSources.join(", ")}`,
-  );
 }
 
 function measureFixtureResult(fixture: string, result: RunFixtureResult): FixtureBaseline {
@@ -192,26 +149,10 @@ function measureFixtureResult(fixture: string, result: RunFixtureResult): Fixtur
     populatedFinancialHistoryCount: Object.values(
       result.collectedSources.fundamentalHistory?.series ?? {},
     ).filter((series) => series.annual.length > 0 || series.ttm !== undefined).length,
-    providerEndpointAvailability: {
-      yahooQuote: endpointAvailability(result, ["yahoo-ticker"], ["yahoo-ticker"]),
-      yahooNews: endpointAvailability(result, ["yahoo-news"], ["yahoo-news"]),
-      secCompanyTickers: endpointAvailability(result, ["sec-tickers"], ["sec-edgar"]),
-      secCompanyFacts: endpointAvailability(result, ["sec-companyfacts"], ["sec-edgar"]),
-      secSubmissions: endpointAvailability(result, ["sec-submissions"], ["sec-edgar"]),
-      finnhubNews: endpointAvailability(result, ["finnhub-news"], ["finnhub-news"]),
-      finnhubEvents: endpointAvailability(result, ["finnhub-events"], ["finnhub-events"]),
-      tradierOptions: endpointAvailability(result, ["tradier-options"], ["tradier-options"]),
-      tradierEarningsImpliedMove:
-        setup?.impliedMove !== undefined
-          ? available(["earningsSetup.impliedMove"])
-          : endpointAvailability(
-              result,
-              ["tradier-earnings"],
-              ["earnings-setup-implied-move", "tradier-options"],
-            ),
-      fredMacro: endpointAvailability(result, ["fred-"], ["fred-macro"]),
-      marketauxNews: endpointAvailability(result, ["marketaux-news"], ["marketaux-news"]),
-    },
+    providerEndpointAvailability: deriveProviderEndpointAvailability(
+      result.collectedSources.rawSnapshots,
+      result.collectedSources.sourceGaps,
+    ),
   };
 }
 
@@ -388,7 +329,7 @@ export async function measureHistoricalArtifacts(
     return {
       status: "unmeasured",
       source: "data/runs",
-      providerEndpointAvailability: unavailable(
+      providerEndpointAvailability: unavailableEndpoint(
         "unmeasured",
         "Local gitignored data/runs artifacts are absent",
       ),
@@ -466,7 +407,7 @@ export async function measureHistoricalArtifacts(
       unmeasuredRunCount: deepEquityRunCount - measuredFinancialHistory,
       populatedSeriesCount: populatedFinancialSeries,
     },
-    providerEndpointAvailability: unavailable(
+    providerEndpointAvailability: unavailableEndpoint(
       "unmeasured",
       "Historical report artifacts do not persist a stable endpoint availability matrix",
     ),

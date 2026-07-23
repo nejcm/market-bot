@@ -27,6 +27,10 @@ import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
 import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import {
+  deriveProviderEndpointAvailability,
+  type ProviderEndpointAvailability,
+} from "../sources/provider-endpoint-availability";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -86,6 +90,7 @@ export interface RunAnalytics {
       readonly total: number;
     };
   };
+  readonly providerEndpointAvailability?: Readonly<Record<string, ProviderEndpointAvailability>>;
   readonly newsDedupe: NewsCollectionAnalytics;
   readonly evidenceQuality: {
     readonly label?: ResearchReport["evidenceQuality"];
@@ -695,6 +700,14 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         total: report.dataGaps.length,
       },
     },
+    ...(report.jobType === "equity"
+      ? {
+          providerEndpointAvailability: deriveProviderEndpointAvailability(
+            collectedSources.rawSnapshots,
+            gaps,
+          ),
+        }
+      : {}),
     newsDedupe: newsDedupe(input),
     evidenceQuality: {
       label: researchReportEvidenceQuality(report),

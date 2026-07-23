@@ -27,6 +27,7 @@ import {
   collectedSources,
   marketSnapshot,
   researchReport,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 
@@ -213,6 +214,7 @@ const instrumentFiles = [
   RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
   RUN_ARTIFACT_FILES.instrumentIdentity,
   RUN_ARTIFACT_FILES.valuationComps,
+  RUN_ARTIFACT_FILES.valuationWorkbench,
   RUN_ARTIFACT_FILES.financialLenses,
   RUN_ARTIFACT_FILES.fundamentalHistory,
   RUN_ARTIFACT_FILES.financialStatements,
@@ -245,10 +247,22 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.verifiedMarketSnapshot)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.instrumentIdentity)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationComps)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialLenses)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialStatements)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.businessFramework)).toBeNull();
+  });
+
+  test("writes the collected valuation-workbench sidecar", () => {
+    const workbench = valuationWorkbench();
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ valuationWorkbench: workbench }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toEqual(workbench);
   });
 
   test("writes the collected fundamental-history sidecar", () => {

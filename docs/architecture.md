@@ -107,8 +107,15 @@ Equity runs additionally derive `normalized/financial-statements.json` from SEC 
 shadow mode. The versioned artifact isolates one standard taxonomy and reporting currency, applies
 the analysis cutoff before period/restatement selection, supports domestic and foreign-private-
 issuer periodic forms, records cadence and exact-component TTM derivations, and persists parity
-telemetry against current Financial Lens and fundamental-history outputs. No report, history,
-valuation, reader/API, or Console consumer reads it yet.
+telemetry against current Financial Lens and fundamental-history outputs. Phase 2 consumers read it
+through parity-tested seams while tolerant readers preserve historical artifacts without it.
+
+Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
+or reconciled-TTM fundamentals to a verified close no earlier than the latest filing date among its
+inputs and no more than seven calendar days later. It reports historical P/E, P/S, EV/revenue, and
+P/FCF with explicit N/M or suppression states, embeds the existing peer comparison contract, and
+renders through report markdown and the Console. A complete quarterly financial core without
+canonical TTM remains explicitly suppressed rather than producing an unreconciled trailing value.
 
 `collectEquityEnrichment` in `src/sources/collector.ts` sequences these deterministic equity enrichers explicitly (valuation → deep-only valuation comps gated on the valuation item existing → Yahoo fundamentals → financial lens → business framework, with deep-only earnings setup collected separately) rather than through a generic contributor runner. The sequence stays explicit by design: each step's result shape differs (valuation/financial-lens/business-framework return `{ extendedEvidence?, sourceGaps }`; valuation comps is async and additionally produces raw snapshots, peer sources, and a sidecar artifact; Yahoo fundamentals returns a bare evidence item merged by a local wrapper), and valuation comps' collection is gated on a prior step's output. A generic runner over these steps would need broad union result types or casts to stay type-safe, which would obscure the sequence rather than clarify it — so the explicit order remains, with `noEquityEnrichment`/`passthrough*` covering the market-update and non-equity passthrough case.
 

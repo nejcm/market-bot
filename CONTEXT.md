@@ -334,6 +334,10 @@ Sourced issuer operating and financial facts used as Extended Evidence.
 
 Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, and supportability. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
 
+## Valuation Workbench
+
+Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF with N/M and suppression reasons, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value.
+
 ## Financial Lens Evidence
 
 Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).

@@ -13,6 +13,7 @@ import {
   type RunTrace,
 } from "../domain/types";
 import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
+import { renderValuationWorkbenchMarkdown } from "../report/valuation-workbench-markdown";
 import type { ModelProvider } from "../model/types";
 import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
@@ -761,7 +762,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
 
   return {
     report,
-    markdown: renderMarkdownReport(report),
+    markdown:
+      renderMarkdownReport(report) +
+      renderValuationWorkbenchMarkdown(collectedSources.valuationWorkbench),
     trace,
     analytics,
     stageOutputs,

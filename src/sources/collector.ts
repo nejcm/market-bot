@@ -4,6 +4,7 @@ import {
   isMarketUpdateJobType,
   type ExtendedEvidence,
   type MarketSnapshot,
+  type OhlcvBar,
   type Source,
   type SourceGap,
   type VerifiedMarketSnapshot,
@@ -21,7 +22,10 @@ import type {
 import { createSourceRegistry } from "./registry";
 import { DEFAULT_RETRY_DELAYS_MS } from "./retry-utils";
 import { createCollectContext } from "./source-request";
-import { collectVerifiedMarketSnapshot } from "./verified-market-snapshot";
+import {
+  collectVerifiedMarketSnapshot,
+  verifiedMarketSnapshotSourceId,
+} from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { isUsListing } from "./instrument-capability";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
@@ -46,6 +50,8 @@ import {
   collectValuationComps,
   valuationCompsSkippedGap,
 } from "./extended-evidence/valuation-comps";
+import { buildValuationWorkbench } from "./extended-evidence/valuation-workbench";
+import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
 import {
   makePeerUniverseCacheReader,
@@ -437,6 +443,7 @@ export async function collectSources(
     extendedEvidence: extendedResult.extendedEvidence,
     extendedRawSnapshots: extendedResult.rawSnapshots,
     verifiedMarketSnapshot: verifiedSnapshotResult?.snapshot,
+    verifiedPriceHistory: verifiedSnapshotResult?.priceHistory ?? [],
     fetchedAt: ctx.fetchedAt,
     context: ctx,
     identityContext: identityCtx,
@@ -502,6 +509,9 @@ export async function collectSources(
     ...(enrichmentResult.valuationCompsResult?.artifact !== undefined
       ? { valuationComps: enrichmentResult.valuationCompsResult.artifact }
       : {}),
+    ...(enrichmentResult.valuationWorkbench !== undefined
+      ? { valuationWorkbench: enrichmentResult.valuationWorkbench }
+      : {}),
     ...(enrichmentResult.financialLensResult.artifact !== undefined
       ? { financialLenses: enrichmentResult.financialLensResult.artifact }
       : {}),
@@ -550,6 +560,7 @@ interface EquityEnrichmentInput {
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly extendedRawSnapshots: readonly RawSourceSnapshot[];
   readonly verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined;
+  readonly verifiedPriceHistory: readonly Pick<OhlcvBar, "date" | "close">[];
   readonly fetchedAt: string;
   readonly context: CollectContext;
   readonly identityContext: CollectContext;
@@ -563,6 +574,7 @@ interface EquityEnrichmentResult {
   readonly valuationResult: ValuationResult;
   readonly valuationCompsResult: ValuationCompsResult | undefined;
   readonly valuationCompsSkippedGaps: readonly SourceGap[];
+  readonly valuationWorkbench: ValuationWorkbenchArtifact | undefined;
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
@@ -704,12 +716,28 @@ async function collectEquityEnrichment(
           input.context,
         )
       : { earningsSetup: undefined, earningsExtraSources: [], earningsSourceGaps: [] };
+  const valuationWorkbench = buildValuationWorkbench({
+    generatedAt: input.fetchedAt,
+    symbol: input.command.symbol,
+    ...(financialStatements !== undefined ? { financialStatements } : {}),
+    ...(valuationCompsResult?.artifact !== undefined
+      ? { valuationComps: valuationCompsResult.artifact }
+      : {}),
+    priceHistory: input.verifiedPriceHistory,
+    ...(input.verifiedMarketSnapshot !== undefined
+      ? { priceSourceId: verifiedMarketSnapshotSourceId(input.command.symbol) }
+      : {}),
+    ...(identityResult?.identity?.quoteCurrency !== undefined
+      ? { quoteCurrency: identityResult.identity.quoteCurrency }
+      : {}),
+  });
 
   return {
     identityResult,
     valuationResult,
     valuationCompsResult,
     valuationCompsSkippedGaps,
+    valuationWorkbench,
     fundamentalHistory,
     financialStatements,
     subsequentFinancing,
@@ -731,6 +759,7 @@ function noEquityEnrichment(
     valuationResult,
     valuationCompsResult: undefined,
     valuationCompsSkippedGaps: [],
+    valuationWorkbench: undefined,
     fundamentalHistory: undefined,
     financialStatements: undefined,
     subsequentFinancing: undefined,

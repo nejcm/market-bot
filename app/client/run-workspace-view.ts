@@ -11,6 +11,10 @@ import type {
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import type { PeerImpliedRange } from "../../src/sources/extended-evidence/valuation-comps";
+import type {
+  ValuationMetricResult,
+  ValuationWorkbenchArtifact,
+} from "../../src/sources/extended-evidence/valuation-workbench-contract";
 import {
   CURRENCY_SYMBOLS,
   formatLensValue,
@@ -209,6 +213,44 @@ export type RunWorkspacePeerImpliedRangeView =
       readonly message: string;
     };
 
+export interface RunWorkspaceValuationMetricCell {
+  readonly display: string;
+  readonly status: ValuationMetricResult["status"];
+  readonly detail?: string;
+}
+
+export interface RunWorkspaceHistoricalValuationRow {
+  readonly basis: string;
+  readonly periodEnd: string;
+  readonly publicAt: string;
+  readonly price: string;
+  readonly priceToEarnings: RunWorkspaceValuationMetricCell;
+  readonly priceToSales: RunWorkspaceValuationMetricCell;
+  readonly enterpriseValueToRevenue: RunWorkspaceValuationMetricCell;
+  readonly priceToFreeCashFlow: RunWorkspaceValuationMetricCell;
+}
+
+export interface RunWorkspaceValuationPeerRow {
+  readonly symbol: string;
+  readonly role: string;
+  readonly status: string;
+  readonly multiple: string;
+  readonly currency: string;
+  readonly inputDates: string;
+}
+
+export interface RunWorkspaceValuationWorkbenchView {
+  readonly reportingCurrency: string;
+  readonly quoteCurrency: string;
+  readonly priceSelectionRule: string;
+  readonly trailingDisclosure: string;
+  readonly rows: readonly RunWorkspaceHistoricalValuationRow[];
+  readonly suppressionReasons: readonly string[];
+  readonly peerSupportability: string;
+  readonly peerSuppression?: string;
+  readonly peerRows: readonly RunWorkspaceValuationPeerRow[];
+}
+
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
@@ -218,6 +260,7 @@ export interface RunWorkspaceView {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
   readonly equityCompleteness?: RunWorkspaceEquityCompletenessView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
+  readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
   readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
   readonly report: RunWorkspaceReportView;
   readonly forecasts: RunWorkspaceForecastsView;
@@ -354,6 +397,89 @@ export function peerImpliedRangeView(
     methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo quote ${inputs.quoteObservedAt ?? "unavailable"}.`,
     boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     geometry: rangeGeometry(range),
+  };
+}
+
+function valuationMetricCell(metric: ValuationMetricResult): RunWorkspaceValuationMetricCell {
+  if (metric.status === "suppressed") {
+    return { display: metric.display, status: metric.status, detail: metric.detail };
+  }
+  if (metric.status === "not-applicable") {
+    return { display: metric.display, status: metric.status, detail: metric.rationale };
+  }
+  if (metric.status === "not-meaningful") {
+    return {
+      display: metric.display,
+      status: metric.status,
+      detail: metric.reason.replaceAll("-", " "),
+    };
+  }
+  return { display: metric.display, status: metric.status };
+}
+
+function valuationPeerRows(
+  artifact: ValuationWorkbenchArtifact,
+): readonly RunWorkspaceValuationPeerRow[] {
+  if (artifact.peerComparison.status === "suppressed") {
+    return [];
+  }
+  const { valuationComps } = artifact.peerComparison;
+  return [valuationComps.target, ...valuationComps.peers].map((row) => ({
+    symbol: row.symbol,
+    role: row.symbol === valuationComps.target.symbol ? "target" : (row.role ?? "peer"),
+    status: row.usable ? "usable" : "excluded",
+    multiple:
+      row.evToAnnualizedRevenue === undefined ? "N/M" : `${row.evToAnnualizedRevenue.toFixed(2)}x`,
+    currency: row.quoteCurrency ?? "—",
+    inputDates:
+      [
+        ...(row.quoteObservedAt === undefined ? [] : [`quote ${row.quoteObservedAt}`]),
+        ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
+        ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
+        ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
+      ].join(" · ") || "—",
+  }));
+}
+
+export function valuationWorkbenchView(
+  detail: RunDetail,
+): RunWorkspaceValuationWorkbenchView | undefined {
+  const artifact = detail.valuationWorkbench;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const { trailingBasis } = artifact.historicalMultiples;
+  const peerSupportability =
+    artifact.peerComparison.status === "available"
+      ? artifact.peerComparison.valuationComps.summary.valuationSupportability
+      : "suppressed";
+  return {
+    reportingCurrency: artifact.reportingCurrency ?? "unavailable",
+    quoteCurrency: artifact.quoteCurrency ?? "unavailable",
+    priceSelectionRule: artifact.historicalMultiples.priceSelectionRule,
+    trailingDisclosure:
+      trailingBasis.status === "available"
+        ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
+        : trailingBasis.detail,
+    rows: artifact.historicalMultiples.observations.map((observation) => ({
+      basis: observation.basis.toUpperCase(),
+      periodEnd: observation.periodEnd,
+      publicAt: observation.publicAt,
+      price:
+        observation.price === null
+          ? "—"
+          : `${observation.price.close.toFixed(2)} ${observation.price.currency} · ${observation.price.sessionDate}`,
+      priceToEarnings: valuationMetricCell(observation.metrics.priceToEarnings),
+      priceToSales: valuationMetricCell(observation.metrics.priceToSales),
+      enterpriseValueToRevenue: valuationMetricCell(observation.metrics.enterpriseValueToRevenue),
+      priceToFreeCashFlow: valuationMetricCell(observation.metrics.priceToFreeCashFlow),
+    })),
+    suppressionReasons: artifact.historicalMultiples.suppressionReasons,
+    peerSupportability,
+    ...(artifact.peerComparison.status === "suppressed"
+      ? { peerSuppression: artifact.peerComparison.detail }
+      : {}),
+    peerRows: valuationPeerRows(artifact),
   };
 }
 
@@ -621,6 +747,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const equityHeader = equityHeaderView(detail);
   const equityCompleteness = equityCompletenessView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
+  const valuationWorkbench = valuationWorkbenchView(detail);
   const peerImpliedRange = peerImpliedRangeView(detail);
   const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
 
@@ -644,6 +771,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       key: "fundamentalHistory",
       label: "Fundamental history",
       visible: fundamentalHistory !== undefined,
+    },
+    {
+      key: "valuationWorkbench",
+      label: "Valuation workbench",
+      visible: valuationWorkbench !== undefined,
     },
     {
       key: "peerImpliedRange",
@@ -676,6 +808,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     ...(equityHeader !== undefined ? { equityHeader } : {}),
     ...(equityCompleteness !== undefined ? { equityCompleteness } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
+    ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
     ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
     report: {
       summary,

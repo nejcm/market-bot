@@ -8,6 +8,11 @@ import type {
   FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
+import {
+  readValuationWorkbenchArtifact,
+  type ValuationWorkbenchArtifact,
+} from "../src/sources/extended-evidence/valuation-workbench-contract";
+import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 
@@ -362,5 +367,62 @@ describe("valuation workbench", () => {
       status: "suppressed",
       reason: "price-history-unavailable",
     });
+  });
+
+  test("renders public-date alignment, metrics, currencies, and peer suppression", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2025-05-01", close: 26 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+
+    const markdown = renderValuationWorkbenchMarkdown(artifact);
+
+    expect(markdown).toContain("## Valuation Workbench");
+    expect(markdown).toContain("first verified close within 7 calendar days on or after publicAt");
+    expect(markdown).toContain("TTM | 2025-03-31 | 2025-05-01 | 26.00 USD (2025-05-01)");
+    expect(markdown).toContain("Reporting currency: USD. Quote currency: USD.");
+    expect(markdown).toContain("Peer comparison data is unavailable for this run.");
+    expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
+  });
+
+  test("rejects an unproved not-applicable metric on read", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2024-02-15", close: 20 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const [first, ...rest] = artifact.historicalMultiples.observations;
+    const malformed = {
+      ...artifact,
+      historicalMultiples: {
+        ...artifact.historicalMultiples,
+        observations: [
+          {
+            ...first!,
+            metrics: {
+              ...first!.metrics,
+              priceToEarnings: {
+                status: "not-applicable",
+                display: "not applicable",
+                rule: "fixture rule",
+                inputs: { basis: "fixture" },
+                rationale: "fixture rationale",
+                sourceIds: [],
+              },
+            },
+          },
+          ...rest,
+        ],
+      },
+    } as ValuationWorkbenchArtifact;
+
+    expect(readValuationWorkbenchArtifact(malformed)).toBeUndefined();
   });
 });

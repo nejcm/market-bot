@@ -109,6 +109,10 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     value: (result) => result.collectedSources.valuationComps ?? null,
   },
   {
+    file: RUN_ARTIFACT_FILES.valuationWorkbench,
+    value: (result) => result.collectedSources.valuationWorkbench ?? null,
+  },
+  {
     file: RUN_ARTIFACT_FILES.financialLenses,
     value: (result) => result.collectedSources.financialLenses ?? null,
   },

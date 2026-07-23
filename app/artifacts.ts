@@ -282,6 +282,9 @@ export async function readRunDetail(
     ...(artifact.artifact?.peerImpliedRange !== undefined
       ? { peerImpliedRange: artifact.artifact.peerImpliedRange }
       : {}),
+    ...(artifact.artifact?.valuationWorkbench !== undefined
+      ? { valuationWorkbench: artifact.artifact.valuationWorkbench }
+      : {}),
     ...(artifact.artifact?.fundamentalHistory !== undefined
       ? { fundamentalHistory: artifact.artifact.fundamentalHistory }
       : {}),

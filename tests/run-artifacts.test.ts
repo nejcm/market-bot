@@ -14,6 +14,7 @@ import {
   prediction,
   predictionScore,
   researchReport,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 
@@ -155,6 +156,19 @@ describe("loadRunArtifact", () => {
     expect(status.report).toBe("ok");
     expect(artifact?.report.equityAnalysisCompleteness).toBeUndefined();
     expect(artifact?.financialStatements).toBeUndefined();
+    expect(artifact?.valuationWorkbench).toBeUndefined();
+  });
+
+  test("round-trips a validated valuation-workbench sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "valuation-workbench");
+    const workbench = valuationWorkbench();
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "valuation-workbench" }));
+    await writeJson(join(runDir, "normalized", "valuation-workbench.json"), workbench);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.valuationWorkbench).toEqual(workbench);
   });
 
   test("round-trips a validated fundamental-history sidecar", async () => {

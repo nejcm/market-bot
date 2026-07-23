@@ -5,6 +5,7 @@ import type { FinancialStatementsArtifact } from "../src/sources/extended-eviden
 import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
 import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidence/fundamental-history";
 import type { PeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
+import type { ValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 
 export interface RunSummary {
@@ -37,6 +38,7 @@ export interface RunDetail {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
+  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;

@@ -5,6 +5,8 @@ import type {
   FinancialStatementTtm,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
+import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
+import { deriveFinancialStatementTtm } from "./financial-statement-periods";
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import type {
   HistoricalValuationObservation,
@@ -18,7 +20,10 @@ import type {
   ValuationWorkbenchArtifact,
 } from "./valuation-workbench-contract";
 
-const PRICE_SELECTION_RULE = "first verified close on or after publicAt" as const;
+const DAY_MS = 86_400_000;
+const MAX_PRICE_ALIGNMENT_DAYS = 7;
+const PRICE_SELECTION_RULE =
+  "first verified close within 7 calendar days on or after publicAt" as const;
 
 interface ValuationPeriodInputs {
   readonly basis: ValuationObservationBasis;
@@ -189,29 +194,32 @@ function annualInputs(
   };
 }
 
-function ttmInputs(artifact: FinancialStatementsArtifact): ValuationPeriodInputs | undefined {
-  const { incomeStatement, balanceSheet, cashFlowStatement, perShare } = artifact.statements;
-  const revenueTtm = incomeStatement.revenue.ttm;
-  if (revenueTtm === undefined) {
-    return undefined;
-  }
-  const revenue = ttmInput("Revenue", revenueTtm);
+interface ValuationTtmInputs {
+  readonly revenue: FinancialStatementTtm;
+  readonly netIncome?: FinancialStatementTtm;
+  readonly dilutedEps?: FinancialStatementTtm;
+  readonly operatingCashFlow?: FinancialStatementTtm;
+  readonly capitalExpenditure?: FinancialStatementTtm;
+}
+
+function periodInputsFromTtm(
+  artifact: FinancialStatementsArtifact,
+  values: ValuationTtmInputs,
+): ValuationPeriodInputs {
+  const { balanceSheet } = artifact.statements;
+  const revenue = ttmInput("Revenue", values.revenue);
   const netIncome =
-    incomeStatement.netIncome.ttm === undefined
-      ? undefined
-      : ttmInput("Net income", incomeStatement.netIncome.ttm);
+    values.netIncome === undefined ? undefined : ttmInput("Net income", values.netIncome);
   const dilutedEps =
-    perShare.dilutedEps.ttm === undefined
-      ? undefined
-      : ttmInput("Diluted EPS", perShare.dilutedEps.ttm);
+    values.dilutedEps === undefined ? undefined : ttmInput("Diluted EPS", values.dilutedEps);
   const operatingCashFlow =
-    cashFlowStatement.operatingCashFlow.ttm === undefined
+    values.operatingCashFlow === undefined
       ? undefined
-      : ttmInput("Operating cash flow", cashFlowStatement.operatingCashFlow.ttm);
+      : ttmInput("Operating cash flow", values.operatingCashFlow);
   const capitalExpenditure =
-    cashFlowStatement.capitalExpenditure.ttm === undefined
+    values.capitalExpenditure === undefined
       ? undefined
-      : ttmInput("Capital expenditure", cashFlowStatement.capitalExpenditure.ttm);
+      : ttmInput("Capital expenditure", values.capitalExpenditure);
   const dilutedShares = deriveShares(netIncome, dilutedEps);
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   const publicAt = latest(
@@ -234,6 +242,88 @@ function ttmInputs(artifact: FinancialStatementsArtifact): ValuationPeriodInputs
   };
 }
 
+function ttmInputs(artifact: FinancialStatementsArtifact): ValuationPeriodInputs | undefined {
+  const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
+  const revenue = incomeStatement.revenue.ttm;
+  if (revenue === undefined) {
+    return undefined;
+  }
+  return periodInputsFromTtm(artifact, {
+    revenue,
+    ...(incomeStatement.netIncome.ttm !== undefined
+      ? { netIncome: incomeStatement.netIncome.ttm }
+      : {}),
+    ...(perShare.dilutedEps.ttm !== undefined ? { dilutedEps: perShare.dilutedEps.ttm } : {}),
+    ...(cashFlowStatement.operatingCashFlow.ttm !== undefined
+      ? { operatingCashFlow: cashFlowStatement.operatingCashFlow.ttm }
+      : {}),
+    ...(cashFlowStatement.capitalExpenditure.ttm !== undefined
+      ? { capitalExpenditure: cashFlowStatement.capitalExpenditure.ttm }
+      : {}),
+  });
+}
+
+function derivedTtmAt(
+  artifact: FinancialStatementsArtifact,
+  series: FinancialStatementSeries,
+  cutoff: string,
+): FinancialStatementTtm | undefined {
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (candidate) => candidate.key === series.key,
+  );
+  if (definition === undefined || artifact.reportingCurrency === undefined) {
+    return undefined;
+  }
+  return deriveFinancialStatementTtm(
+    definition,
+    series.annual.filter((fact) => fact.filedAt <= cutoff),
+    series.interim.filter((fact) => fact.filedAt <= cutoff),
+    artifact.reportingCurrency,
+  ).ttm;
+}
+
+function historicalTtmInputs(
+  artifact: FinancialStatementsArtifact,
+): readonly ValuationPeriodInputs[] {
+  const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
+  const cutoffs = [
+    ...new Set(incomeStatement.revenue.interim.map((fact) => fact.filedAt)),
+  ].toSorted();
+  return cutoffs.flatMap((cutoff) => {
+    const revenue = derivedTtmAt(artifact, incomeStatement.revenue, cutoff);
+    if (revenue === undefined) {
+      return [];
+    }
+    const netIncome = derivedTtmAt(artifact, incomeStatement.netIncome, cutoff);
+    const dilutedEps = derivedTtmAt(artifact, perShare.dilutedEps, cutoff);
+    const operatingCashFlow = derivedTtmAt(artifact, cashFlowStatement.operatingCashFlow, cutoff);
+    const capitalExpenditure = derivedTtmAt(artifact, cashFlowStatement.capitalExpenditure, cutoff);
+    return [
+      periodInputsFromTtm(artifact, {
+        revenue,
+        ...(netIncome !== undefined ? { netIncome } : {}),
+        ...(dilutedEps !== undefined ? { dilutedEps } : {}),
+        ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
+        ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
+      }),
+    ];
+  });
+}
+
+function uniquePeriodInputs(
+  values: readonly ValuationPeriodInputs[],
+): readonly ValuationPeriodInputs[] {
+  const byKey = new Map<string, ValuationPeriodInputs>();
+  for (const value of values) {
+    byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
+  }
+  return [...byKey.values()].toSorted(
+    (left, right) =>
+      left.periodEnd.localeCompare(right.periodEnd) ||
+      periodPublicAt(left).localeCompare(periodPublicAt(right)),
+  );
+}
+
 function periodPublicAt(inputs: ValuationPeriodInputs): string {
   return latest(
     Object.values(inputs).flatMap((input) =>
@@ -251,8 +341,18 @@ function selectedPrice(
   if (input.priceSourceId === undefined || input.quoteCurrency === undefined) {
     return null;
   }
+  const publicAtMs = Date.parse(publicAt);
   const priceObservation = input.priceHistory
-    .filter((price) => price.date >= publicAt && price.close > 0 && Number.isFinite(price.close))
+    .filter((price) => {
+      const delayDays = (Date.parse(price.date) - publicAtMs) / DAY_MS;
+      return (
+        Number.isFinite(delayDays) &&
+        delayDays >= 0 &&
+        delayDays <= MAX_PRICE_ALIGNMENT_DAYS &&
+        price.close > 0 &&
+        Number.isFinite(price.close)
+      );
+    })
     .toSorted((left, right) => left.date.localeCompare(right.date))
     .at(0);
   return priceObservation === undefined
@@ -301,7 +401,7 @@ function ratioMetric(input: {
   if (input.price === null) {
     return suppression(
       "price-history-unavailable",
-      "No verified close is available on or after the public filing date.",
+      "No verified close is available within 7 calendar days on or after the public filing date.",
       input.sourceIds,
     );
   }
@@ -558,12 +658,13 @@ export function buildValuationWorkbench(
   const periodInputs =
     artifact === undefined
       ? []
-      : [
+      : uniquePeriodInputs([
           ...artifact.statements.incomeStatement.revenue.annual.map((fact) =>
             annualInputs(artifact, fact),
           ),
+          ...historicalTtmInputs(artifact),
           ...(ttm === undefined ? [] : [ttm]),
-        ];
+        ]);
   const observations = periodInputs.map((period) => observation(input, period));
   const suppressionReasons = [
     ...(artifact === undefined ? ["canonical financial statements unavailable"] : []),

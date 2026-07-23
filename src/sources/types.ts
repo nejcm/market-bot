@@ -7,6 +7,7 @@ import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/un
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
+import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 import type {
   AssetClass,
@@ -161,6 +162,7 @@ export interface CollectedSources {
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly earningsSetup?: EarningsSetupCollected;
   readonly valuationComps?: ValuationCompsArtifact;
+  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   readonly financialLenses?: FinancialLensArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;

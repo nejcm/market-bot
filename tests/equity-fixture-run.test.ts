@@ -46,6 +46,10 @@ function assertInvariants(result: RunFixtureResult, name: string, meta: FixtureM
   expect(result.sourcePlan).toBeDefined();
   expect(result.evidenceLanes.summary.plannedLaneCount).toBeGreaterThan(0);
   expect(result.analytics.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);
+  expect(result.collectedSources.valuationWorkbench).toMatchObject({
+    version: 1,
+    symbol: report.symbol,
+  });
   expect(result.stageOutputs.every((output) => (output.durationMs ?? 0) > 0)).toBe(true);
   expect(result.trace.stageRecords?.every((record) => (record.durationMs ?? 0) > 0)).toBe(true);
   expect(result.analytics.runShape.stages.every((stage) => (stage.durationMs ?? 0) > 0)).toBe(true);
@@ -131,6 +135,39 @@ function assertAaplPopulatedPath(result: RunFixtureResult): void {
       fiscalYear: { value: 405_000_000_000 },
       latestYearToDate: { value: 210_000_000_000 },
       priorYearToDate: { value: 189_000_000_000 },
+    },
+  });
+  const workbench = result.collectedSources.valuationWorkbench;
+  expect(workbench).toMatchObject({
+    reportingCurrency: "USD",
+    quoteCurrency: "USD",
+    historicalMultiples: {
+      trailingBasis: {
+        status: "available",
+        periodEnd: "2026-03-31",
+        publicAt: "2026-05-01",
+      },
+    },
+    peerComparison: {
+      status: "available",
+      valuationComps: {
+        summary: { valuationSupportability: "supported", usablePeerCount: 4 },
+        impliedPriceRange: { status: "derived" },
+      },
+    },
+  });
+  const ttmValuation = workbench?.historicalMultiples.observations.find(
+    (observation) => observation.basis === "ttm",
+  );
+  expect(ttmValuation).toMatchObject({
+    periodEnd: "2026-03-31",
+    publicAt: "2026-05-01",
+    price: { sessionDate: "2026-05-01", close: 216.6, currency: "USD" },
+    metrics: {
+      priceToEarnings: { status: "populated", display: "28.50x" },
+      priceToSales: { status: "populated", display: "7.76x" },
+      enterpriseValueToRevenue: { status: "populated", display: "7.85x" },
+      priceToFreeCashFlow: { status: "populated", display: "28.02x" },
     },
   });
 }
@@ -501,6 +538,13 @@ describe("static equity run fixtures", () => {
         expect(result.collectedSources.financialStatements?.validationNotes).toContainEqual(
           expect.objectContaining({ code: "unreconciled-ttm", seriesKey: "revenue" }),
         );
+        expect(
+          result.collectedSources.valuationWorkbench?.historicalMultiples.trailingBasis,
+        ).toMatchObject({
+          status: "suppressed",
+          reason: "canonical-ttm-unavailable",
+          detail: expect.stringContaining("not combined into an unreconciled TTM"),
+        });
         expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
         expect(
           result.collectedSources.financialLenses?.lenses.find((lens) => lens.name === "Quality"),

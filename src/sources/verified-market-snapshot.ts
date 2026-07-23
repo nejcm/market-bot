@@ -27,8 +27,13 @@ const ADAPTER_ID = "yahoo-verified-chart";
 /** Number of recent closes to include in the compact prompt payload. */
 const RECENT_CLOSES_COUNT = 30;
 
+export function verifiedMarketSnapshotSourceId(symbol: string): string {
+  return `verified-snapshot-${symbol}`;
+}
+
 export interface VerifiedSnapshotResult {
   readonly snapshot?: VerifiedMarketSnapshot;
+  readonly priceHistory?: readonly Pick<OhlcvBar, "date" | "close">[];
   readonly rawSnapshot?: RawSourceSnapshot;
   readonly sourceGaps: readonly SourceGap[];
 }
@@ -107,6 +112,7 @@ export async function collectVerifiedMarketSnapshot(
 
   return {
     snapshot,
+    priceHistory: bars.map(({ date, close }) => ({ date, close })),
     rawSnapshot: fetched.rawSnapshot,
     sourceGaps: [],
   };

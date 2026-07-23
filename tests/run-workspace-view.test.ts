@@ -4,6 +4,7 @@ import {
   buildRunWorkspaceView,
   equityCompletenessView,
   peerImpliedRangeView,
+  valuationWorkbenchView,
   type RunWorkspaceView,
 } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
@@ -11,6 +12,7 @@ import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
+import { valuationWorkbench } from "./support/fixtures";
 
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -717,6 +719,93 @@ describe("run workspace view", () => {
       boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     });
     expect(tocKeys(view)).toEqual(["peerImpliedRange"]);
+  });
+
+  test("projects historical multiples and the peer table from the valuation workbench", () => {
+    const workbench = valuationWorkbench({
+      peerComparison: {
+        status: "available",
+        valuationComps: {
+          version: 1,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          target: {
+            symbol: "AAPL",
+            evToAnnualizedRevenue: 8.5,
+            quoteCurrency: "USD",
+            quoteObservedAt: "2026-05-19T00:00:00.000Z",
+            revenuePeriodEnd: "2025-12-31",
+            cashPeriodEnd: "2025-12-31",
+            debtPeriodEnd: "2025-12-31",
+            sourceIds: ["sec-fixture", "market-aapl"],
+            usable: true,
+          },
+          peers: [
+            {
+              symbol: "MSFT",
+              role: "core",
+              evToAnnualizedRevenue: 10,
+              quoteCurrency: "USD",
+              quoteObservedAt: "2026-05-19T00:00:00.000Z",
+              revenuePeriodEnd: "2026-03-31",
+              sourceIds: ["sec-msft", "market-msft"],
+              usable: true,
+            },
+          ],
+          excludedPeers: [],
+          peerUniverseSourceIds: [],
+          summary: {
+            corePeerCount: 1,
+            secondaryPeerCount: 0,
+            usablePeerCount: 1,
+            valuationSupportability: "screening-only",
+          },
+          sourceIds: ["sec-fixture", "market-aapl", "sec-msft", "market-msft"],
+          freshnessFlags: {
+            targetQuoteFresh: true,
+            targetSecFresh: true,
+            peerQuoteFresh: true,
+            peerSecFresh: true,
+          },
+        },
+      },
+    });
+
+    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+    const workspace = buildRunWorkspaceView({
+      summary: summary(),
+      valuationWorkbench: workbench,
+    });
+
+    expect(view).toMatchObject({
+      reportingCurrency: "USD",
+      quoteCurrency: "USD",
+      trailingDisclosure: expect.stringContaining("Canonical reconciled TTM is unavailable"),
+      rows: [
+        {
+          basis: "ANNUAL",
+          periodEnd: "2025-12-31",
+          publicAt: "2026-02-01",
+          price: "200.00 USD · 2026-02-02",
+          priceToEarnings: { status: "populated", display: "100.00x" },
+        },
+      ],
+      peerSupportability: "screening-only",
+      peerRows: [
+        {
+          symbol: "AAPL",
+          role: "target",
+          multiple: "8.50x",
+          currency: "USD",
+        },
+        {
+          symbol: "MSFT",
+          role: "core",
+          multiple: "10.00x",
+          currency: "USD",
+        },
+      ],
+    });
+    expect(tocKeys(workspace)).toEqual(["valuationWorkbench"]);
   });
 
   test("scales large peer-implied range disclosure inputs", () => {

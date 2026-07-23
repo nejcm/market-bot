@@ -42,6 +42,7 @@ export const RUN_ARTIFACT_FILES = {
   themeCatalysts: `${NORMALIZED_DIR}/theme-catalysts.json`,
   instrumentIdentity: `${NORMALIZED_DIR}/instrument-identity.json`,
   valuationComps: `${NORMALIZED_DIR}/valuation-comps.json`,
+  valuationWorkbench: `${NORMALIZED_DIR}/valuation-workbench.json`,
   financialLenses: `${NORMALIZED_DIR}/financial-lenses.json`,
   fundamentalHistory: `${NORMALIZED_DIR}/fundamental-history.json`,
   financialStatements: `${NORMALIZED_DIR}/financial-statements.json`,

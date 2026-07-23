@@ -78,25 +78,40 @@
       "grammarEligible": true,
       "eligiblePredictionCount": 2,
       "suppressedPredictionCount": 0
+    },
+    {
+      "fixture": "equity-analysis-estimated-suppressed",
+      "eventDateStatus": "provider-estimated",
+      "phase0EarningsSetupCount": 1,
+      "phase4EarningsSetupCount": 1,
+      "phase0EarningsPredictionCount": 2,
+      "phase4EarningsPredictionCount": 0,
+      "predictionCountDelta": -2,
+      "phase0CalibrationEligiblePredictionCount": 2,
+      "phase4CalibrationEligiblePredictionCount": 0,
+      "calibrationCoverageDelta": -2,
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 2
     }
   ],
   "totals": {
     "phase0": {
-      "earningsSetupCount": 1,
-      "earningsPredictionCount": 2,
-      "calibrationEligiblePredictionCount": 2
+      "earningsSetupCount": 2,
+      "earningsPredictionCount": 4,
+      "calibrationEligiblePredictionCount": 4
     },
     "phase4": {
-      "earningsSetupCount": 1,
+      "earningsSetupCount": 2,
       "earningsPredictionCount": 2,
       "calibrationEligiblePredictionCount": 2,
       "eligiblePredictionCount": 2,
-      "suppressedPredictionCount": 0
+      "suppressedPredictionCount": 2
     },
     "delta": {
       "earningsSetupCount": 0,
-      "earningsPredictionCount": 0,
-      "calibrationEligiblePredictionCount": 0
+      "earningsPredictionCount": -2,
+      "calibrationEligiblePredictionCount": -2
     }
   },
   "historicalPhase0Reference": {

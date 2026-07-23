@@ -22,7 +22,13 @@ const FIXTURES = [
   "equity-fpi-quarterly",
   "equity-fpi-ifrs-semiannual",
   "equity-analysis-comprehensive",
+  "equity-analysis-estimated-suppressed",
 ] as const;
+
+const CAPTURE_EARNINGS_FIXTURES = new Set<string>([
+  "equity-analysis-comprehensive",
+  "equity-analysis-estimated-suppressed",
+]);
 
 const runResults: RunFixtureResult[] = [];
 
@@ -303,21 +309,72 @@ function assertComprehensiveAnalysisPath(
   );
 }
 
+function assertEstimatedEarningsSuppressionPath(
+  result: RunFixtureResult,
+  modelRequests: readonly ModelRequest[],
+  modelOutputs: readonly string[],
+): void {
+  expect(result.collectedSources.earningsSetup).toMatchObject({
+    event: {
+      symbol: "AAPL",
+      date: "2026-07-10",
+      eventDateStatus: "provider-estimated",
+    },
+  });
+
+  const finalSynthesisPrompt = modelRequests
+    .find((request) => request.model === "fixture-synthesis")
+    ?.messages.findLast((message) => message.role === "user")?.content;
+  expect(finalSynthesisPrompt).toContain(
+    "Do not emit earnings-direction, earnings-move, or earningsReturn grammar",
+  );
+  expect(finalSynthesisPrompt).not.toContain(
+    "earnings-direction or earnings-move (event-anchored)",
+  );
+  expect(finalSynthesisPrompt).not.toContain("kind earnings-direction with measurableAs");
+  expect(finalSynthesisPrompt).not.toContain("kind earnings-move with measurableAs");
+  expect(finalSynthesisPrompt).toContain('"kind": "direction|relative|iv|range|macro|conditional"');
+
+  expect(
+    modelOutputs.some(
+      (output) =>
+        output.includes('"kind":"earnings-direction"') && output.includes('"kind":"earnings-move"'),
+    ),
+  ).toBe(true);
+  expect(
+    result.report.predictions.filter((prediction) => prediction.kind.startsWith("earnings-")),
+  ).toEqual([]);
+  expect(result.analytics.earningsForecasts).toEqual({
+    eventDateStatus: "provider-estimated",
+    policy: "confirmed-only",
+    grammarEligible: false,
+    eligiblePredictionCount: 0,
+    suppressedPredictionCount: 2,
+    suppressionReason: "event-date-not-confirmed",
+  });
+  expect(result.report.dataGaps).toContain(
+    "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+  );
+}
+
 describe("static equity run fixtures", () => {
   for (const name of FIXTURES) {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
       const modelRequests: ModelRequest[] = [];
+      const modelOutputs: string[] = [];
       const replayProvider = makeReplayProvider(fixture.llmCassette);
       const result = await runFixture(name, {
         llm: "replay",
-        ...(name === "equity-analysis-comprehensive"
+        ...(CAPTURE_EARNINGS_FIXTURES.has(name)
           ? {
               provider: {
                 name: replayProvider.name,
                 generate: async (request: ModelRequest) => {
                   modelRequests.push(request);
-                  return replayProvider.generate(request);
+                  const response = await replayProvider.generate(request);
+                  modelOutputs.push(response.content);
+                  return response;
                 },
               },
             }
@@ -454,6 +511,13 @@ describe("static equity run fixtures", () => {
       }
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result, modelRequests);
+        expect(result.report.equityAnalysisCompleteness).toMatchObject({
+          financialCoreStatus: "complete",
+          coverageLevel: "comprehensive",
+        });
+      }
+      if (name === "equity-analysis-estimated-suppressed") {
+        assertEstimatedEarningsSuppressionPath(result, modelRequests, modelOutputs);
         expect(result.report.equityAnalysisCompleteness).toMatchObject({
           financialCoreStatus: "complete",
           coverageLevel: "comprehensive",

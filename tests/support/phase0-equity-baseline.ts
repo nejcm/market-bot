@@ -17,12 +17,20 @@ export const PHASE4_EARNINGS_COMPARISON_PATH = join(
   "equity-deep-phase4-earnings-comparison.json",
 );
 
-const FIXTURES = [
+const PHASE0_FIXTURES = [
   "equity-aapl-deep",
   "equity-nbis-deep",
   "equity-fpi-quarterly",
   "equity-fpi-ifrs-semiannual",
   "equity-analysis-comprehensive",
+] as const;
+
+const PHASE4_FIXTURES = [
+  ...PHASE0_FIXTURES.map((fixture) => ({ fixture, phase0Fixture: fixture })),
+  {
+    fixture: "equity-analysis-estimated-suppressed",
+    phase0Fixture: "equity-analysis-comprehensive",
+  },
 ] as const;
 
 interface EndpointAvailability {
@@ -232,7 +240,7 @@ function measurePhase4FixtureEarningsCoverage(
 
 export async function measureFixtureBaselines(): Promise<readonly FixtureBaseline[]> {
   const baselines: FixtureBaseline[] = [];
-  for (const fixture of FIXTURES) {
+  for (const fixture of PHASE0_FIXTURES) {
     const result = await runFixture(fixture, { llm: "replay" });
     try {
       baselines.push(measureFixtureResult(fixture, result));
@@ -244,13 +252,13 @@ export async function measureFixtureBaselines(): Promise<readonly FixtureBaselin
 }
 
 async function measurePhase4FixtureEarningsCoverageRuns(): Promise<
-  readonly Phase4FixtureEarningsCoverage[]
+  readonly (Phase4FixtureEarningsCoverage & { readonly phase0Fixture: string })[]
 > {
-  const coverage: Phase4FixtureEarningsCoverage[] = [];
-  for (const fixture of FIXTURES) {
+  const coverage: (Phase4FixtureEarningsCoverage & { readonly phase0Fixture: string })[] = [];
+  for (const { fixture, phase0Fixture } of PHASE4_FIXTURES) {
     const result = await runFixture(fixture, { llm: "replay" });
     try {
-      coverage.push(measurePhase4FixtureEarningsCoverage(fixture, result));
+      coverage.push({ ...measurePhase4FixtureEarningsCoverage(fixture, result), phase0Fixture });
     } finally {
       await result.cleanup();
     }
@@ -282,9 +290,9 @@ export async function measurePhase4EarningsCoverageComparison(): Promise<Phase4E
     baseline.fixtureRuns.map((fixture) => [fixture.fixture, fixture]),
   );
   const fixtureRuns = phase4Coverage.map((current) => {
-    const phase0 = phase0ByFixture.get(current.fixture);
+    const phase0 = phase0ByFixture.get(current.phase0Fixture);
     if (phase0 === undefined) {
-      throw new Error(`${current.fixture}: missing from Phase 0 baseline`);
+      throw new Error(`${current.phase0Fixture}: missing from Phase 0 baseline`);
     }
     return {
       fixture: current.fixture,
